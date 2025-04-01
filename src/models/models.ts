@@ -1,7 +1,5 @@
-import dayjs from "dayjs";
 import { computed } from "mobx";
 import {
-  frozen,
   getParent,
   getRefsResolvingTo,
   idProp,
@@ -12,13 +10,12 @@ import {
   prop,
   registerRootStore,
   rootRef,
-  type Frozen,
+  timestampToDateTransform,
   type ObjectMap,
   type Ref,
 } from "mobx-keystone";
-import { type RemirrorJSON } from "remirror";
 import { fractionalCompare } from "../utils/fractionalSort";
-import { timestampToDayjsTransform } from "./timestampToDayjsTransform";
+import { startOfDay } from "date-fns";
 
 export const taskRef = rootRef<Task>("TaskRef");
 export const projectRef = rootRef<Project>("ProjectRef");
@@ -28,15 +25,11 @@ export const dailyListRef = rootRef<DailyList>("DailyListRef");
 @model("TaskApp/Project")
 export class Project extends Model({
   id: idProp,
-  title: prop<Frozen<RemirrorJSON>>(() =>
-    frozen({
-      type: "doc",
-    }),
-  ).withSetter(),
+  title: prop<string>(() => "").withSetter(),
   isInbox: prop<boolean>().withSetter(),
 }) {}
 
-@model("TaskApp/TaskRegistry")
+@model("TaskApp/ProjectRegistry")
 export class ProjectRegistry extends Model({
   entities: prop<ObjectMap<Project>>(() => objectMap()),
 }) {}
@@ -44,11 +37,7 @@ export class ProjectRegistry extends Model({
 @model("TaskApp/Task")
 export class Task extends Model({
   id: idProp,
-  title: prop<Frozen<RemirrorJSON>>(() =>
-    frozen({
-      type: "doc",
-    }),
-  ).withSetter(),
+  title: prop<string>(() => "").withSetter(),
   projectRef: prop<Ref<Project>>().withSetter(),
 }) {}
 
@@ -73,7 +62,7 @@ export class TaskProjectionRegistry extends Model({
 @model("TaskApp/DailyList")
 export class DailyList extends Model({
   id: idProp,
-  date: prop<number>().withTransform(timestampToDayjsTransform()).withSetter(),
+  date: prop<number>().withTransform(timestampToDateTransform()).withSetter(),
 }) {
   @computed
   get projections() {
@@ -90,6 +79,14 @@ export class DailyList extends Model({
 
     return projections.sort(fractionalCompare);
   }
+
+  @computed
+  get isToday() {
+    return (
+      startOfDay(new Date(this.date)).getDate() ==
+      startOfDay(new Date()).getDate()
+    );
+  }
 }
 
 @model("TaskApp/DailyListRegistry")
@@ -105,25 +102,42 @@ export class DailyListRegistry extends Model({
     return this.entities.get(id);
   }
 
-  getDailyListByDate(time: number) {
+  getDailyListByDate(date: Date) {
     for (const dailyList of this.entities.values()) {
-      if (dailyList.date.valueOf() === time) return dailyList;
+      if (
+        startOfDay(new Date(dailyList.date)).getTime() ===
+        startOfDay(date).getTime()
+      ) {
+        return dailyList;
+      }
     }
   }
 
+  getDailyListByDates(dates: Date[]) {
+    return dates
+      .map((date) => this.getDailyListByDate(date))
+      .filter((d) => d !== undefined);
+  }
+
   @modelAction
-  createDailyListIfNotPresent(time: number) {
-    const dailyList = this.getDailyListByDate(time);
+  createDailyListIfNotPresent(date: Date) {
+    const dailyList = this.getDailyListByDate(date);
 
     if (!dailyList) {
-      const newList = new DailyList({ date: dayjs(time) });
+      const newList = new DailyList({ date: new Date(date) });
 
       this.entities.set(newList.id, newList);
+      console.log("created", newList);
 
       return newList;
     } else {
       return dailyList;
     }
+  }
+
+  @modelAction
+  createDailyListsIfNotExists(days: Date[]) {
+    return days.map((day) => this.createDailyListIfNotPresent(day));
   }
 }
 
@@ -170,7 +184,13 @@ export class RootStore extends Model({
   projectListRegisry: prop<ProjectListRegistry>(
     () => new ProjectListRegistry({}),
   ),
-}) {}
+}) {
+  @modelAction
+  createProject(title: string) {
+    const project = new Project({ title, isInbox: true });
+    this.projectRegistry.entities.set(project.id, project);
+  }
+}
 
 let currentRootStore: RootStore | undefined;
 export const getRootStore = () => {
@@ -178,6 +198,18 @@ export const getRootStore = () => {
 
   const rootStore = new RootStore({});
   registerRootStore(rootStore);
+
+  void (async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    if ((window as any).__REDUX_DEVTOOLS_EXTENSION__) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      await (
+        await import("./connectReduxDevtool")
+      ).connect(rootStore, `TODO Store`);
+    }
+  })();
+
+  currentRootStore = rootStore;
 
   return rootStore;
 };
