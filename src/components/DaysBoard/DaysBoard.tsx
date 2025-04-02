@@ -1,17 +1,30 @@
 import { observer } from "mobx-react-lite";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { DailyList, getRootStore } from "../../models/models";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
 import { dailyListRef } from "../../models/models";
-import { TaskComp } from "../Task/Task";
+import { DropTaskIndicator, TaskComp } from "../Task/Task";
 import { currentTaskState } from "../../states/task";
-import { BoardContext, BoardContextValue } from "../../contexts/dnd";
+import {
+  BoardContext,
+  BoardContextValue,
+  useBoardContext,
+} from "../../contexts/dnd";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { isTaskPassingData } from "../../dnd/models";
+import {
+  dropTargetForElements,
+  monitorForElements,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
+  DailyListPassingData,
+  isDailyListPassingData,
+  isTaskPassingData,
+} from "../../dnd/models";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
+import invariant from "tiny-invariant";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -40,7 +53,104 @@ const allWeekdays: string[] = [
 //   }, [getColumns, reorderColumn, reorderCard, registry, moveCard, instanceId]);
 // });
 
-const DaysView = observer(function DaysViewComponent({
+type DailyListDndState = { type: "idle" } | { type: "is-task-over" };
+
+const idle: DailyListDndState = { type: "idle" };
+const isTaskOver: DailyListDndState = { type: "is-task-over" };
+
+const ColumnView = observer(function ColumnViewComponent({
+  dailyList,
+  onTaskAdd,
+}: {
+  dailyList: DailyList;
+  onTaskAdd: (dailyList: DailyList) => void;
+}) {
+  const { instanceId } = useBoardContext();
+  const columnRef = useRef<HTMLDivElement>(null);
+  const scrollableRef = useRef<HTMLDivElement>(null);
+  const [dndState, setDndState] = useState<DailyListDndState>(idle);
+  const listId = dailyList.id;
+  useEffect(() => {
+    invariant(columnRef.current);
+    invariant(scrollableRef.current);
+    return combine(
+      dropTargetForElements({
+        element: columnRef.current,
+        getData: (): DailyListPassingData => ({
+          type: "dailyList",
+          instanceId,
+          listId,
+        }),
+        canDrop: ({ source }) => {
+          return (
+            source.data.instanceId === instanceId &&
+            isTaskPassingData(source.data)
+          );
+        },
+        getIsSticky: () => true,
+        onDragEnter: () => setDndState(isTaskOver),
+        onDragLeave: () => setDndState(idle),
+        onDragStart: () => setDndState(isTaskOver),
+        onDrop: () => setDndState(idle),
+      }),
+      autoScrollForElements({
+        element: scrollableRef.current,
+        canScroll: ({ source }) =>
+          source.data.instanceId === instanceId &&
+          isTaskPassingData(source.data),
+      }),
+    );
+  }, [instanceId, listId]);
+
+  return (
+    <div
+      key={dailyList.id}
+      className={`flex flex-col min-w-[200px] ${
+        dailyList.isToday ? "bg-gray-750 rounded-t-lg" : ""
+      } h-full `}
+      ref={columnRef}
+    >
+      {/* Day header */}
+      <div
+        className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b ${
+          dailyList.isToday
+            ? "text-blue-400 border-blue-500"
+            : "text-gray-200 border-gray-700"
+        }`}
+      >
+        <div>
+          {allWeekdays[getDay(dailyList.date)]} -{" "}
+          {format(dailyList.date, "dd MMM")}
+        </div>
+      </div>
+
+      {/* Tasks column */}
+      <div
+        className="flex flex-col space-y-2 mt-2 overflow-y-auto"
+        ref={scrollableRef}
+      >
+        {dailyList.projections.map((proj) => {
+          return <TaskComp taskProjection={proj} key={proj.id} />;
+        })}
+
+        {dndState.type == "is-task-over" &&
+          dailyList.projections.length == 0 && <DropTaskIndicator />}
+
+        {/* Add new task button and input */}
+        <div className="mt-2">
+          <button
+            onClick={() => onTaskAdd(dailyList)}
+            className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
+          >
+            + Add Task
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const BoardView = observer(function BoardViewComponent({
   handleNextDay,
   handlePrevDay,
   setDaysToShow,
@@ -59,7 +169,7 @@ const DaysView = observer(function DaysViewComponent({
     <div className="w-full h-screen bg-gray-900 p-4">
       <div className="grid grid-cols-5 gap-4 h-full">
         {/* 80% section (4/5 columns) */}
-        <div className="col-span-4 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700">
+        <div className="col-span-4 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center">
               <h2 className="text-xl font-bold text-gray-100">
@@ -120,7 +230,6 @@ const DaysView = observer(function DaysViewComponent({
             </div>
           </div>
 
-          {/* Scrollable 7-column grid (days of the week) */}
           <div className="overflow-auto flex-1 overflow-x-auto">
             <div
               className="grid"
@@ -132,45 +241,12 @@ const DaysView = observer(function DaysViewComponent({
                 maxWidth: "100%",
               }}
             >
-              {/* Days of the week columns */}
               {dailyLists.map((dailyList) => (
-                <div
+                <ColumnView
+                  dailyList={dailyList}
+                  onTaskAdd={onTaskAdd}
                   key={dailyList.id}
-                  className={`flex flex-col min-w-[200px] ${
-                    dailyList.isToday ? "bg-gray-750 rounded-t-lg" : ""
-                  } overflow-y-auto`}
-                >
-                  {/* Day header */}
-                  <div
-                    className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b ${
-                      dailyList.isToday
-                        ? "text-blue-400 border-blue-500"
-                        : "text-gray-200 border-gray-700"
-                    }`}
-                  >
-                    <div>
-                      {allWeekdays[getDay(dailyList.date)]} -{" "}
-                      {format(dailyList.date, "dd MMM")}
-                    </div>
-                  </div>
-
-                  {/* Tasks column */}
-                  <div className="flex flex-col space-y-2 mt-2">
-                    {dailyList.projections.map((proj) => {
-                      return <TaskComp taskProjection={proj} key={proj.id} />;
-                    })}
-
-                    {/* Add new task button and input */}
-                    <div className="mt-2">
-                      <button
-                        onClick={() => onTaskAdd(dailyList)}
-                        className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
-                      >
-                        + Add Task
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                />
               ))}
             </div>
           </div>
@@ -291,7 +367,6 @@ export const Board = observer(function BoardComponent() {
           return source.data.instanceId === instanceId;
         },
         onDrop(args) {
-          console.log("drop", args);
           const { location, source } = args;
 
           if (!location.current.dropTargets.length) {
@@ -302,26 +377,27 @@ export const Board = observer(function BoardComponent() {
             return;
           }
 
-          const sourceLists = listsService.findListOrThrow(source.data.listId);
           const sourceProjection = projectionsService.findProjectionOrThrow(
             source.data.projectionId,
           );
-          if (location.current.dropTargets.length === 1) {
-            const dropTarget = location.current.dropTargets[0];
 
-            if (!isTaskPassingData(dropTarget.data)) {
+          const dropTaskTarget = location.current.dropTargets.find((t) =>
+            isTaskPassingData(t.data),
+          );
+          if (dropTaskTarget) {
+            if (!isTaskPassingData(dropTaskTarget.data)) {
               return;
             }
 
             const targetList = listsService.findListOrThrow(
-              dropTarget.data.listId,
+              dropTaskTarget.data.listId,
             );
             const targetProjection = projectionsService.findProjectionOrThrow(
-              dropTarget.data.projectionId,
+              dropTaskTarget.data.projectionId,
             );
 
             const closestEdgeOfTarget: Edge | null = extractClosestEdge(
-              dropTarget.data,
+              dropTaskTarget.data,
             );
 
             if (
@@ -338,143 +414,35 @@ export const Board = observer(function BoardComponent() {
               closestEdgeOfTarget || "bottom",
             );
 
-            console.log(
-              "drop",
-              "source",
-              source.data,
-              "target",
-              dropTarget.data,
-            );
+            return;
           }
 
-          //
-          // // 1. remove element from original position
-          // // 2. move to new position
-          //
-          //
-          // if (source.data.type === "column") {
-          //   const startIndex: number = data.orderedColumnIds.findIndex(
-          //     (columnId) => columnId === source.data.columnId,
-          //   );
-          //
-          //   const target = location.current.dropTargets[0];
-          //   const indexOfTarget: number = data.orderedColumnIds.findIndex(
-          //     (id) => id === target.data.columnId,
-          //   );
-          //   const closestEdgeOfTarget: Edge | null = extractClosestEdge(
-          //     target.data,
-          //   );
-          //
-          //   const finishIndex = getReorderDestinationIndex({
-          //     startIndex,
-          //     indexOfTarget,
-          //     closestEdgeOfTarget,
-          //     axis: "horizontal",
-          //   });
-          //
-          //   reorderColumn({ startIndex, finishIndex, trigger: "pointer" });
-          // }
-          // // Dragging a card
-          // if (source.data.type === "card") {
-          //   const itemId = source.data.itemId;
-          //   invariant(typeof itemId === "string");
-          //   // TODO: these lines not needed if item has columnId on it
-          //   const [, startColumnRecord] = location.initial.dropTargets;
-          //   const sourceId = startColumnRecord.data.columnId;
-          //   invariant(typeof sourceId === "string");
-          //   const sourceColumn = data.columnMap[sourceId];
-          //   const itemIndex = sourceColumn.items.findIndex(
-          //     (item) => item.userId === itemId,
-          //   );
-          //
-          //   if (location.current.dropTargets.length === 1) {
-          //     const [destinationColumnRecord] = location.current.dropTargets;
-          //     const destinationId = destinationColumnRecord.data.columnId;
-          //     invariant(typeof destinationId === "string");
-          //     const destinationColumn = data.columnMap[destinationId];
-          //     invariant(destinationColumn);
-          //
-          //     // reordering in same column
-          //     if (sourceColumn === destinationColumn) {
-          //       const destinationIndex = getReorderDestinationIndex({
-          //         startIndex: itemIndex,
-          //         indexOfTarget: sourceColumn.items.length - 1,
-          //         closestEdgeOfTarget: null,
-          //         axis: "vertical",
-          //       });
-          //       reorderCard({
-          //         columnId: sourceColumn.columnId,
-          //         startIndex: itemIndex,
-          //         finishIndex: destinationIndex,
-          //         trigger: "pointer",
-          //       });
-          //       return;
-          //     }
-          //
-          //     // moving to a new column
-          //     moveCard({
-          //       itemIndexInStartColumn: itemIndex,
-          //       startColumnId: sourceColumn.columnId,
-          //       finishColumnId: destinationColumn.columnId,
-          //       trigger: "pointer",
-          //     });
-          //     return;
-          //   }
-          //
-          //   // dropping in a column (relative to a card)
-          //   if (location.current.dropTargets.length === 2) {
-          //     const [destinationCardRecord, destinationColumnRecord] =
-          //       location.current.dropTargets;
-          //     const destinationColumnId = destinationColumnRecord.data.columnId;
-          //     invariant(typeof destinationColumnId === "string");
-          //     const destinationColumn = data.columnMap[destinationColumnId];
-          //
-          //     const indexOfTarget = destinationColumn.items.findIndex(
-          //       (item) => item.userId === destinationCardRecord.data.itemId,
-          //     );
-          //     const closestEdgeOfTarget: Edge | null = extractClosestEdge(
-          //       destinationCardRecord.data,
-          //     );
-          //
-          //     // case 1: ordering in the same column
-          //     if (sourceColumn === destinationColumn) {
-          //       const destinationIndex = getReorderDestinationIndex({
-          //         startIndex: itemIndex,
-          //         indexOfTarget,
-          //         closestEdgeOfTarget,
-          //         axis: "vertical",
-          //       });
-          //       reorderCard({
-          //         columnId: sourceColumn.columnId,
-          //         startIndex: itemIndex,
-          //         finishIndex: destinationIndex,
-          //         trigger: "pointer",
-          //       });
-          //       return;
-          //     }
-          //
-          //     // case 2: moving into a new column relative to a card
-          //
-          //     const destinationIndex =
-          //       closestEdgeOfTarget === "bottom"
-          //         ? indexOfTarget + 1
-          //         : indexOfTarget;
-          //
-          //     moveCard({
-          //       itemIndexInStartColumn: itemIndex,
-          //       startColumnId: sourceColumn.columnId,
-          //       finishColumnId: destinationColumn.columnId,
-          //       itemIndexInFinishColumn: destinationIndex,
-          //       trigger: "pointer",
-          //     });
+          const dailyListTaskTarget = location.current.dropTargets.find((t) =>
+            isDailyListPassingData(t.data),
+          );
+          if (dailyListTaskTarget) {
+            if (!isDailyListPassingData(dailyListTaskTarget.data)) {
+              return;
+            }
+
+            const targetList = listsService.findListOrThrow(
+              dailyListTaskTarget.data.listId,
+            );
+
+            targetList.appendProjectionFromOtherList(sourceProjection);
+
+            return;
+          }
+
+          console.warn("No target found", args, location.current.dropTargets);
         },
       }),
     );
-  }, [instanceId]);
+  }, [instanceId, listsService, projectionsService]);
 
   return (
     <BoardContext.Provider value={contextValue}>
-      <DaysView
+      <BoardView
         handleNextDay={handleNextDay}
         handlePrevDay={handlePrevDay}
         daysToShow={daysToShow}

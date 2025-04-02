@@ -77,11 +77,7 @@ export class ProjectProjection extends Model({
   }
 
   @modelAction
-  addProjectionFromOtherList(
-    sourceProjection: Projection,
-    targetProjection: Projection,
-    edge: "top" | "bottom",
-  ) {}
+  appendProjectionFromOtherList(sourceProjection: Projection) {}
 }
 
 @model("TaskApp/SidebarLis")
@@ -99,6 +95,9 @@ export class SidebarList extends Model({
     targetProjection: Projection,
     edge: "top" | "bottom",
   ) {}
+
+  @modelAction
+  appendProjectionFromOtherList(sourceProjection: Projection) {}
 }
 
 @model("TaskApp/TaskProjection")
@@ -154,6 +153,19 @@ export class DailyList extends Model({
   }
 
   @modelAction
+  appendProjectionFromOtherList(sourceProjection: Projection) {
+    const lastProjection = this.lastProjection;
+
+    const newOrderToken = generateKeyBetween(
+      lastProjection?.orderToken,
+      undefined,
+    );
+
+    sourceProjection.orderToken = newOrderToken;
+    sourceProjection.list = dailyListRef(this);
+  }
+
+  @modelAction
   addProjectionFromOtherList(
     sourceProjection: Projection,
     targetProjection: Projection,
@@ -161,6 +173,10 @@ export class DailyList extends Model({
   ) {
     if (!(targetProjection instanceof TaskProjection)) {
       throw new Error("Target projection is not task");
+    }
+
+    if (targetProjection.list.current !== this) {
+      throw new Error("Target projection is not in this daily list");
     }
 
     let [up, down] = targetProjection.siblings;
@@ -245,6 +261,9 @@ export class ProjectList extends Model({
     targetProjection: Projection,
     edge: "top" | "bottom",
   ) {}
+
+  @modelAction
+  appendProjectionFromOtherList(sourceProjection: Projection) {}
 }
 
 @model("TaskApp/ProjectListRegistry")

@@ -19,6 +19,7 @@ import {
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import ReactDOM from "react-dom";
 import { isTaskPassingData, TaskPassingData } from "../../dnd/models";
+import TextareaAutosize from "react-textarea-autosize";
 
 type State =
   | { type: "idle" }
@@ -52,6 +53,15 @@ const TaskPrimitive = observer(function TaskPrimitiveComponent({
     </div>
   );
 });
+
+export const DropTaskIndicator = observer(function DropTaskIndicatorComp() {
+  return (
+    <div
+      className={`p-3 rounded-lg border border-blue-500 bg-gray-700 shadow-md transition-colors h-12`}
+    ></div>
+  );
+});
+
 export const TaskComp = observer(function TaskComponent({
   taskProjection,
 }: {
@@ -61,16 +71,9 @@ export const TaskComp = observer(function TaskComponent({
   const tasksState = currentTaskState;
   const isEditing = tasksState.isProjEditing(taskProjection);
   const isSelected = tasksState.isProjSelected(taskProjection);
-  const inputRef = useRef<HTMLInputElement>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
   const [dndState, setDndState] = useState<State>(idleState);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isEditing]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
@@ -174,22 +177,16 @@ export const TaskComp = observer(function TaskComponent({
     );
   }, [instanceId, listId, projectionId, taskId]);
 
-  const dropIndicator = (
-    <div
-      className={`p-3 rounded-lg border border-blue-500 bg-gray-700 shadow-md transition-colors h-12`}
-    ></div>
-  );
-
   return (
     <>
-      {closestEdge == "top" && dropIndicator}
+      {closestEdge == "top" && <DropTaskIndicator />}
 
       <div
         className={`p-3 rounded-lg border ${
           isSelected
             ? "border-blue-500 bg-gray-700"
             : "border-gray-700 bg-gray-750"
-        } shadow-md transition-colors h-12 `}
+        } shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`}
         style={{}}
         onClick={() => tasksState.setSelectedTask(taskProjection)}
         onDoubleClick={(e) => {
@@ -198,18 +195,19 @@ export const TaskComp = observer(function TaskComponent({
         }}
         ref={ref}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           {isEditing ? (
             <>
               <div className="flex items-center justify-end">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 bg-gray-700 border-gray-600 rounded"
+                  className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
                 />
               </div>
-              <input
-                ref={inputRef}
+              <TextareaAutosize
+                autoFocus
                 value={task.title}
+                cacheMeasurements
                 onChange={(e) => task.setTitle(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e)}
                 className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none"
@@ -218,19 +216,19 @@ export const TaskComp = observer(function TaskComponent({
             </>
           ) : (
             <>
-              <div className="flex items-center justify-end">
+              <div className="flex justify-end">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 bg-gray-700 border-gray-600 rounded"
+                  className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
                 />
               </div>
-              <div className="font-medium text-gray-200 h-6">{task.title}</div>
+              <div className="font-medium text-gray-200 ">{task.title}</div>
             </>
           )}
         </div>
       </div>
 
-      {closestEdge == "bottom" && dropIndicator}
+      {closestEdge == "bottom" && <DropTaskIndicator />}
 
       {dndState.type === "preview" &&
         ReactDOM.createPortal(
