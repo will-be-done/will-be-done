@@ -1,5 +1,5 @@
 import "./fixGlobal";
-import { DaysView } from "./components/DaysView";
+import { Board } from "./components/DaysBoard/DaysBoard";
 import { getRootStore } from "./models/models";
 import { observer } from "mobx-react-lite";
 
@@ -10,7 +10,7 @@ export const App = observer(function App() {
 
   return (
     <>
-      <DaysView />
+      <Board />
     </>
   );
 });
