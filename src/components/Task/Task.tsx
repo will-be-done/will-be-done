@@ -207,7 +207,6 @@ export const TaskComp = observer(function TaskComponent({
               <TextareaAutosize
                 autoFocus
                 value={task.title}
-                cacheMeasurements
                 onChange={(e) => task.setTitle(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e)}
                 className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none"
