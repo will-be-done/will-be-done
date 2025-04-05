@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite";
 import { TaskProjection } from "../../models/models";
-import { currentTaskState } from "../../states/task";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { currentProjectionState } from "../../states/task";
+import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -64,21 +64,28 @@ export const DropTaskIndicator = observer(function DropTaskIndicatorComp() {
 
 export const TaskComp = observer(function TaskComponent({
   taskProjection,
+  onAddNewTask,
 }: {
   taskProjection: TaskProjection;
+  onAddNewTask: (porjection: TaskProjection) => void;
 }) {
-  const task = taskProjection.taskRef.current;
-  const tasksState = currentTaskState;
-  const isEditing = tasksState.isProjEditing(taskProjection);
+  const task = taskProjection.itemRef.current;
+  const tasksState = currentProjectionState;
+  const isEditing = tasksState.isProjFocused(taskProjection);
   const isSelected = tasksState.isProjSelected(taskProjection);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
   const [dndState, setDndState] = useState<State>(idleState);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    console.log("key", e.key);
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
       tasksState.resetFocus();
+
+      if (e.key === "Enter") {
+        onAddNewTask(taskProjection);
+      }
     }
   };
 
@@ -86,8 +93,8 @@ export const TaskComp = observer(function TaskComponent({
 
   const { instanceId } = useBoardContext();
 
-  const listId = taskProjection.list.id;
-  const taskId = taskProjection.taskRef.id;
+  const listId = taskProjection.listRef.id;
+  const taskId = taskProjection.itemRef.id;
   const projectionId = taskProjection.id;
 
   useEffect(() => {
@@ -177,6 +184,26 @@ export const TaskComp = observer(function TaskComponent({
     );
   }, [instanceId, listId, projectionId, taskId]);
 
+  const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.focus();
+
+    el.selectionStart = el.value.length;
+  }, []);
+
+  useEffect(() => {
+    if (isSelected) {
+      const el = ref.current;
+      if (!el) return;
+
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center",
+      });
+    }
+  }, [isSelected]);
+
   return (
     <>
       {closestEdge == "top" && <DropTaskIndicator />}
@@ -188,10 +215,10 @@ export const TaskComp = observer(function TaskComponent({
             : "border-gray-700 bg-gray-750"
         } shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`}
         style={{}}
-        onClick={() => tasksState.setSelectedTask(taskProjection)}
+        onClick={() => tasksState.setSelectedProjection(taskProjection)}
         onDoubleClick={(e) => {
           e.preventDefault();
-          tasksState.setFocusedTask(taskProjection);
+          tasksState.setFocusedProjection(taskProjection);
         }}
         ref={ref}
       >
@@ -205,11 +232,11 @@ export const TaskComp = observer(function TaskComponent({
                 />
               </div>
               <TextareaAutosize
-                autoFocus
+                ref={handleRef}
                 value={task.title}
                 onChange={(e) => task.setTitle(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e)}
-                className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none"
+                className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none font-medium"
                 aria-label="Edit task title"
               />
             </>
@@ -221,7 +248,9 @@ export const TaskComp = observer(function TaskComponent({
                   className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
                 />
               </div>
-              <div className="font-medium text-gray-200 ">{task.title}</div>
+              <div className="font-medium text-gray-200 min-h-6">
+                {task.title}
+              </div>
             </>
           )}
         </div>

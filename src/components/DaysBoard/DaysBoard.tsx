@@ -1,11 +1,16 @@
 import { observer } from "mobx-react-lite";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { DailyList, getRootStore } from "../../models/models";
+import {
+  DailyList,
+  getRootStore,
+  TaskProjection,
+  TasksService,
+} from "../../models/models";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
 import { dailyListRef } from "../../models/models";
 import { DropTaskIndicator, TaskComp } from "../Task/Task";
-import { currentTaskState } from "../../states/task";
+import { currentProjectionState } from "../../states/task";
 import {
   BoardContext,
   BoardContextValue,
@@ -25,6 +30,7 @@ import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import invariant from "tiny-invariant";
+import { Sidebar } from "../Sidebar/Sidebar";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -69,6 +75,7 @@ const ColumnView = observer(function ColumnViewComponent({
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
+  const tasksService = getRootStore().tasksService;
   const listId = dailyList.id;
   useEffect(() => {
     invariant(columnRef.current);
@@ -102,6 +109,17 @@ const ColumnView = observer(function ColumnViewComponent({
     );
   }, [instanceId, listId]);
 
+  const onAddNewTask = (proj: TaskProjection) => {
+    const siblings = proj.siblings;
+    const [, projection] = tasksService.createTask(
+      proj.itemRef.current.projectRef.current,
+      dailyListRef(dailyList),
+      [proj, siblings[1]],
+    );
+
+    currentProjectionState.setFocusedProjection(projection);
+  };
+
   return (
     <div
       key={dailyList.id}
@@ -130,7 +148,13 @@ const ColumnView = observer(function ColumnViewComponent({
         ref={scrollableRef}
       >
         {dailyList.projections.map((proj) => {
-          return <TaskComp taskProjection={proj} key={proj.id} />;
+          return (
+            <TaskComp
+              taskProjection={proj}
+              key={proj.id}
+              onAddNewTask={onAddNewTask}
+            />
+          );
         })}
 
         {dndState.type == "is-task-over" &&
@@ -166,125 +190,129 @@ const BoardView = observer(function BoardViewComponent({
   onTaskAdd: (dailyList: DailyList) => void;
 }) {
   return (
-    <div className="w-full h-screen bg-gray-900 p-4">
-      <div className="grid grid-cols-5 gap-4 h-full">
-        {/* 80% section (4/5 columns) */}
-        <div className="col-span-4 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center">
-              <h2 className="text-xl font-bold text-gray-100">
-                Weekly Todo Planner
-              </h2>
-              <button
-                onClick={handlePrevDay}
-                className="p-1 ml-4 bg-gray-700 rounded hover:bg-gray-600 transition-colors text-gray-300 cursor-pointer"
-                aria-label="Previous day"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                onClick={handleNextDay}
-                className="p-1 ml-1 bg-gray-700 rounded hover:bg-gray-600 transition-colors text-gray-300 cursor-pointer"
-                aria-label="Next day"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
+    <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
+      <Sidebar />
 
-            <div className="flex items-center space-x-1">
-              {[1, 2, 3, 4, 5, 6, 7].map((dayCount) => (
+      <div className="flex-1 p-4 overflow-hidden">
+        <div className="grid grid-cols-5 gap-4 h-full">
+          {/* 80% section (4/5 columns) */}
+          <div className="col-span-4 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center">
+                <h2 className="text-xl font-bold text-gray-100">
+                  Weekly Todo Planner
+                </h2>
                 <button
-                  key={dayCount}
-                  onClick={() => setDaysToShow(dayCount)}
-                  className={`w-6 h-6 flex items-center justify-center text-xs border ${
-                    dayCount <= daysToShow
-                      ? "bg-blue-600 border-blue-700 text-white"
-                      : "bg-gray-700 border-gray-600 text-gray-300"
-                  } rounded cursor-pointer hover:bg-gray-600 transition-colors`}
+                  onClick={handlePrevDay}
+                  className="p-1 ml-4 bg-gray-700 rounded hover:bg-gray-600 transition-colors text-gray-300 cursor-pointer"
+                  aria-label="Previous day"
                 >
-                  {dayCount}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
                 </button>
-              ))}
+                <button
+                  onClick={handleNextDay}
+                  className="p-1 ml-1 bg-gray-700 rounded hover:bg-gray-600 transition-colors text-gray-300 cursor-pointer"
+                  aria-label="Next day"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-1">
+                {[1, 2, 3, 4, 5, 6, 7].map((dayCount) => (
+                  <button
+                    key={dayCount}
+                    onClick={() => setDaysToShow(dayCount)}
+                    className={`w-6 h-6 flex items-center justify-center text-xs border ${
+                      dayCount <= daysToShow
+                        ? "bg-blue-600 border-blue-700 text-white"
+                        : "bg-gray-700 border-gray-600 text-gray-300"
+                    } rounded cursor-pointer hover:bg-gray-600 transition-colors`}
+                  >
+                    {dayCount}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="overflow-auto flex-1 overflow-x-auto">
-            <div
-              className="grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(${daysToShow}, minmax(200px, 1fr))`,
-                gap: "12px",
-                width: "auto",
-                maxWidth: "100%",
-              }}
-            >
-              {dailyLists.map((dailyList) => (
-                <ColumnView
-                  dailyList={dailyList}
-                  onTaskAdd={onTaskAdd}
-                  key={dailyList.id}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 20% section (1/5 columns) */}
-        <div className="col-span-1 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700">
-          <h2 className="text-xl font-bold mb-4 text-gray-100">
-            Task Suggestions
-          </h2>
-
-          {/* Category selector */}
-          <select
-            className="w-full p-2 mb-4 border border-gray-700 rounded-md bg-gray-700 text-gray-200"
-            value="This Week"
-            aria-label="Select task category"
-          >
-            <option value="This Week">This Week</option>
-            <option value="This Month">This Month</option>
-            <option value="This Year">This Year</option>
-            <option value="Daily">Daily</option>
-            <option value="Overdue">Overdue</option>
-          </select>
-
-          {/* Task suggestions list */}
-          <div className="flex-1 overflow-auto">
-            <div className="space-y-3">
-              {/* We'll implement task suggestions later */}
-              <div className="text-gray-400 text-sm">
-                No suggestions available
+            <div className="overflow-auto flex-1 overflow-x-auto">
+              <div
+                className="grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${daysToShow}, minmax(200px, 1fr))`,
+                  gap: "12px",
+                  width: "auto",
+                  maxWidth: "100%",
+                }}
+              >
+                {dailyLists.map((dailyList) => (
+                  <ColumnView
+                    dailyList={dailyList}
+                    onTaskAdd={onTaskAdd}
+                    key={dailyList.id}
+                  />
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Add new suggestion button */}
-          <button className="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm hover:bg-blue-500 transition mt-4">
-            Create New Task
-          </button>
+          {/* 20% section (1/5 columns) */}
+          <div className="col-span-1 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700">
+            <h2 className="text-xl font-bold mb-4 text-gray-100">
+              Task Suggestions
+            </h2>
+
+            {/* Category selector */}
+            <select
+              className="w-full p-2 mb-4 border border-gray-700 rounded-md bg-gray-700 text-gray-200"
+              value="This Week"
+              aria-label="Select task category"
+            >
+              <option value="This Week">This Week</option>
+              <option value="This Month">This Month</option>
+              <option value="This Year">This Year</option>
+              <option value="Daily">Daily</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+
+            {/* Task suggestions list */}
+            <div className="flex-1 overflow-auto">
+              <div className="space-y-3">
+                {/* We'll implement task suggestions later */}
+                <div className="text-gray-400 text-sm">
+                  No suggestions available
+                </div>
+              </div>
+            </div>
+
+            {/* Add new suggestion button */}
+            <button className="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm hover:bg-blue-500 transition mt-4">
+              Create New Task
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -339,7 +367,7 @@ export const Board = observer(function BoardComponent() {
       [dailyList.lastProjection, undefined],
     );
 
-    currentTaskState.setFocusedTask(projeciton);
+    currentProjectionState.setFocusedProjection(projeciton);
   };
 
   const getLists = useCallback(() => dailyLists, [dailyLists]);

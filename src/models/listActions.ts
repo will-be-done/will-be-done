@@ -37,7 +37,7 @@ export function getProjections<L extends List, K extends Projection>(
 export function getSiblings<T extends Projection>(
   projection: T,
 ): [T | undefined, T | undefined] {
-  const projections = projection.list.current.projections as T[];
+  const projections = projection.listRef.current.projections as T[];
 
   const i = projections.findIndex((it) => it.id === projection.id);
 

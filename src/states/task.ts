@@ -1,16 +1,16 @@
 import { action, makeObservable, observable } from "mobx";
-import { TaskProjection } from "../models/models";
+import { type Projection } from "../models/models";
 
-class CurrentTaskState {
-  @observable selectedTask:
+class CurrentProjectionState {
+  @observable selectedProjection:
     | {
-        taskId: string;
+        projectionId: string;
         listId: string;
       }
     | undefined;
-  @observable focusedTask:
+  @observable focusedProjection:
     | {
-        taskId: string;
+        projectionId: string;
         listId: string;
       }
     | undefined;
@@ -19,60 +19,76 @@ class CurrentTaskState {
     makeObservable(this);
   }
 
-  isProjSelected(projection: TaskProjection) {
-    if (!this.selectedTask) return false;
+  isSomethingSelected() {
+    return !!this.selectedProjection;
+  }
+
+  isSomethingFocused() {
+    return !!this.focusedProjection;
+  }
+
+  makeSelectionFocused() {
+    this.focusedProjection = this.selectedProjection;
+  }
+
+  isProjSelected(projection: Projection) {
+    if (!this.selectedProjection) return false;
 
     return (
-      this.selectedTask?.taskId === projection.taskRef.id &&
-      this.selectedTask?.listId === projection.list.id
+      this.selectedProjection?.projectionId === projection.id &&
+      this.selectedProjection?.listId === projection.listRef.id
     );
   }
 
   isEditing() {
-    return this.focusedTask !== undefined;
+    return this.focusedProjection !== undefined;
   }
 
-  isProjEditing(projection: TaskProjection) {
-    if (!this.focusedTask) return false;
+  isProjFocused(projection: Projection) {
+    if (!this.focusedProjection) return false;
 
     return (
-      this.focusedTask?.taskId === projection.taskRef.id &&
-      this.focusedTask?.listId === projection.list.id
+      this.focusedProjection?.projectionId === projection.id &&
+      this.focusedProjection?.listId === projection.listRef.id
     );
   }
 
   @action
-  setSelectedTask(projection: TaskProjection) {
-    console.log("setSelectedTask", projection);
+  setSelectedProjection(projection: Projection) {
+    if (this.isProjSelected(projection)) return;
 
-    this.selectedTask = {
-      taskId: projection.taskRef.id,
-      listId: projection.list.id,
+    this.selectedProjection = {
+      projectionId: projection.id,
+      listId: projection.listRef.id,
     };
+
+    this.focusedProjection = undefined;
   }
 
   @action
-  setFocusedTask(projection: TaskProjection) {
-    this.selectedTask = {
-      taskId: projection.taskRef.id,
-      listId: projection.list.id,
+  setFocusedProjection(projection: Projection) {
+    if (this.isProjFocused(projection)) return;
+
+    this.selectedProjection = {
+      projectionId: projection.id,
+      listId: projection.listRef.id,
     };
-    this.focusedTask = {
-      taskId: projection.taskRef.id,
-      listId: projection.list.id,
+    this.focusedProjection = {
+      projectionId: projection.id,
+      listId: projection.listRef.id,
     };
   }
 
   @action
   resetFocus() {
-    this.selectedTask = undefined;
+    this.focusedProjection = undefined;
   }
 
   @action
   resetSelected() {
-    this.selectedTask = undefined;
-    this.focusedTask = undefined;
+    this.selectedProjection = undefined;
+    this.focusedProjection = undefined;
   }
 }
 
-export const currentTaskState = new CurrentTaskState();
+export const currentProjectionState = new CurrentProjectionState();
