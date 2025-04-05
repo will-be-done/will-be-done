@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite";
-import { TaskProjection } from "../../models/models";
+import { getRootStore, TaskProjection } from "../../models/models";
 import { currentProjectionState } from "../../states/task";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
@@ -8,7 +8,6 @@ import {
   draggable,
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { useBoardContext } from "../../contexts/dnd";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
 import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
@@ -20,6 +19,7 @@ import {
 import ReactDOM from "react-dom";
 import { isTaskPassingData, TaskPassingData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
+import { clone } from "mobx-keystone";
 
 type State =
   | { type: "idle" }
@@ -64,11 +64,10 @@ export const DropTaskIndicator = observer(function DropTaskIndicatorComp() {
 
 export const TaskComp = observer(function TaskComponent({
   taskProjection,
-  onAddNewTask,
 }: {
   taskProjection: TaskProjection;
-  onAddNewTask: (porjection: TaskProjection) => void;
 }) {
+  const tasksService = getRootStore().tasksService;
   const task = taskProjection.itemRef.current;
   const tasksState = currentProjectionState;
   const isEditing = tasksState.isProjFocused(taskProjection);
@@ -84,14 +83,19 @@ export const TaskComp = observer(function TaskComponent({
       tasksState.resetFocus();
 
       if (e.key === "Enter") {
-        onAddNewTask(taskProjection);
+        const siblings = taskProjection.siblings;
+        const [, projection] = tasksService.createTask(
+          task.projectRef.current,
+          clone(taskProjection.listRef),
+          [taskProjection, siblings[1]],
+        );
+
+        currentProjectionState.setFocusedProjection(projection);
       }
     }
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
-
-  const { instanceId } = useBoardContext();
 
   const listId = taskProjection.listRef.id;
   const taskId = taskProjection.itemRef.id;
@@ -108,7 +112,6 @@ export const TaskComp = observer(function TaskComponent({
           listId: listId,
           taskId: taskId,
           projectionId: projectionId,
-          instanceId,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -139,11 +142,7 @@ export const TaskComp = observer(function TaskComponent({
         element: element,
         canDrop: ({ source }) => {
           const data = source.data;
-          return (
-            isTaskPassingData(data) &&
-            data.instanceId === instanceId &&
-            data.type === "task"
-          );
+          return isTaskPassingData(data) && data.type === "task";
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -152,7 +151,6 @@ export const TaskComp = observer(function TaskComponent({
             type: "task",
             listId: listId,
             taskId: taskId,
-            instanceId: instanceId,
           };
 
           return attachClosestEdge(data, {
@@ -182,7 +180,7 @@ export const TaskComp = observer(function TaskComponent({
         },
       }),
     );
-  }, [instanceId, listId, projectionId, taskId]);
+  }, [listId, projectionId, taskId]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;

@@ -3,13 +3,11 @@ export type TaskPassingData = {
   listId: string;
   taskId: string;
   projectionId: string;
-  instanceId: symbol;
 };
 
 export type DailyListPassingData = {
   type: "dailyList";
   listId: string;
-  instanceId: symbol;
 };
 
 export function isTaskPassingData(data: unknown): data is TaskPassingData {

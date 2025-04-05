@@ -1,0 +1,19 @@
+import { observer } from "mobx-react-lite";
+import { useParams } from "wouter";
+import { getRootStore } from "../../models/models";
+import { ProjectItemsList } from "../../components/ProjectItemsList/ProjectItemsList";
+
+export const ProjectPage = observer(function ProjectPageComp() {
+  const params = useParams<{ projectId: string }>();
+  const { projectRegistry } = getRootStore();
+  const project =
+    params.projectId == "inbox"
+      ? projectRegistry.inboxProjectOrThrow
+      : projectRegistry.getById(params.projectId);
+
+  if (!project) {
+    return <div>Project not found</div>;
+  }
+
+  return <ProjectItemsList project={project} />;
+});

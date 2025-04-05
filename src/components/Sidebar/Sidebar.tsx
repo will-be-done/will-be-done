@@ -1,23 +1,28 @@
 import { observer } from "mobx-react-lite";
 import { getRootStore } from "../../models/models";
+import { Link } from "wouter";
 
 export const Sidebar = observer(function SidebarComp() {
   const { allProjectsList, projectItemsListRegisry } = getRootStore();
   const projections = allProjectsList.withoutInbox;
 
-  const selectedProject = "123";
-
   const inboxProjection = allProjectsList.inbox;
   const projectItemsList = projectItemsListRegisry.getListByProjectId(
     inboxProjection.itemRef.id,
   );
-  console.log({ inboxProjection, projectItemsList });
 
   return (
     <div className="w-64 bg-gray-900 h-full flex flex-col overflow-hidden">
       {/* Default categories */}
       <div className="px-3 py-1">
-        <div className="flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer">
+        <Link
+          href="/projects/inbox"
+          className={(active) =>
+            `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
+              active ? "bg-gray-800" : "hover:bg-gray-800"
+            }`
+          }
+        >
           <span className="text-amber-500 mr-2 flex-shrink-0">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -38,9 +43,16 @@ export const Sidebar = observer(function SidebarComp() {
           <span className="text-gray-400 ml-auto text-sm">
             {projectItemsList?.projections.length ?? 0}
           </span>
-        </div>
+        </Link>
 
-        <div className="flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer">
+        <Link
+          href="/today"
+          className={(active) =>
+            `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
+              active ? "bg-gray-800" : "hover:bg-gray-800"
+            }`
+          }
+        >
           <span className="text-amber-500 mr-2 flex-shrink-0">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -57,7 +69,7 @@ export const Sidebar = observer(function SidebarComp() {
             </svg>
           </span>
           <span className="text-white text-sm">Today</span>
-        </div>
+        </Link>
       </div>
 
       {/* Projects section */}
@@ -90,13 +102,14 @@ export const Sidebar = observer(function SidebarComp() {
           style={{ maxHeight: "calc(100vh - 170px)" }}
         >
           {projections.map((proj) => (
-            <div
+            <Link
               key={proj.id}
-              className={`flex items-center px-2 py-1.5 rounded-lg cursor-pointer ${
-                selectedProject === proj.id
-                  ? "bg-gray-800"
-                  : "hover:bg-gray-800"
-              }`}
+              className={(active) =>
+                `flex items-center px-2 py-1.5 rounded-lg cursor-pointer ${
+                  active ? "bg-gray-800" : "hover:bg-gray-800"
+                }`
+              }
+              href={`/projects/${proj.itemRef.id}`}
             >
               <span className="text-base mr-2 flex-shrink-0">
                 {proj.itemRef.current.icon}
@@ -104,7 +117,7 @@ export const Sidebar = observer(function SidebarComp() {
               <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
                 {proj.itemRef.current.title}
               </span>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

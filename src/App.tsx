@@ -1,3 +1,4 @@
+import { Link, Redirect, Route, Switch } from "wouter";
 import "./fixGlobal";
 import { Board } from "./components/DaysBoard/DaysBoard";
 import { observer } from "mobx-react-lite";
@@ -5,6 +6,8 @@ import { getRootStore, getUndoManager, TaskProjection } from "./models/models";
 import { currentProjectionState } from "./states/task";
 import { useEffect } from "react";
 import { clone, detach } from "mobx-keystone";
+import { Sidebar } from "./components/Sidebar/Sidebar";
+import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
   const rootStore = getRootStore();
@@ -172,7 +175,19 @@ export const App = observer(function App() {
   return (
     <>
       <GlobalListener />
-      <Board />
+
+      <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
+        <Sidebar />
+        <div className="flex-1 p-4 overflow-hidden">
+          <Switch>
+            <Route path="/today" component={Board} />
+            <Route path="/projects/:projectId" component={ProjectPage} />
+            <Route>
+              <Redirect to="/today" />
+            </Route>
+          </Switch>
+        </div>
+      </div>
     </>
   );
 });
