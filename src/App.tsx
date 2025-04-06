@@ -2,12 +2,19 @@ import { Link, Redirect, Route, Switch } from "wouter";
 import "./fixGlobal";
 import { Board } from "./components/DaysBoard/DaysBoard";
 import { observer } from "mobx-react-lite";
-import { getRootStore, getUndoManager, TaskProjection } from "./models/models";
+import {
+  getRootStore,
+  getUndoManager,
+  Task,
+  TaskProjection,
+  TaskTemplate,
+} from "./models/models";
 import { currentProjectionState } from "./states/task";
 import { useEffect } from "react";
 import { clone, detach } from "mobx-keystone";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
+import { BaseListItem } from "./models/listActions";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
   const rootStore = getRootStore();
@@ -41,7 +48,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
       // If it's an input, return early
       if (isInput) return;
-      const { tasksService } = rootStore;
+
       // Handle undo (cmd+z/ctrl+z)
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ" && !e.shiftKey) {
         e.preventDefault();
@@ -58,28 +65,25 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
       console.log(e);
 
-      const selectedListId = state.selectedItemId?.listId;
-      const selectedProjectionId = state.selectedItemId?.projectionId;
+      const selectedId = state.selectedItemId;
       if (
         (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
-        selectedListId &&
-        selectedProjectionId &&
+        selectedId &&
         !state.isEditing()
       ) {
-        const list = rootStore.listsService.findListOrThrow(selectedListId);
-        const projection = list.projections.find(
-          (p) => p.id === selectedProjectionId,
-        );
+        const item = rootStore.listsService.findListItemOrThrow(selectedId);
+        if (!item) {
+          throw new Error("selected item not found");
+        }
 
-        if (!projection) return;
-        const [up, down] = projection.siblings;
+        const [up, down] = item.siblings;
 
-        detach(projection);
+        detach(item);
 
         if (down) {
-          state.setSelectedItem(down);
+          state.setSelectedItem(down.id);
         } else if (up) {
-          state.setSelectedItem(up);
+          state.setSelectedItem(up.id);
         } else {
           state.resetSelected();
         }
@@ -107,55 +111,42 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         !e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
       const isAddBefore =
         e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
-      if (
-        (isAddAfter || isAddBefore) &&
-        selectedListId &&
-        selectedProjectionId &&
-        !state.isEditing()
-      ) {
+      if ((isAddAfter || isAddBefore) && selectedId && !state.isEditing()) {
         e.preventDefault();
-        const projection =
-          rootStore.projectionsService.findProjection(selectedProjectionId);
-        if (!projection || !(projection instanceof TaskProjection)) return;
+        const item = rootStore.listsService.findListItemOrThrow(selectedId);
+        const list = item.listRef.current;
 
-        const [up, down] = projection.siblings;
+        const [up, down] = item.siblings;
 
-        let between: [TaskProjection | undefined, TaskProjection | undefined] =
-          [up, projection];
+        let between: [BaseListItem | undefined, BaseListItem | undefined] = [
+          up,
+          item,
+        ];
         if (isAddAfter) {
-          between = [projection, down] as const;
+          between = [item, down] as const;
         }
 
-        const [, newProjection] = tasksService.createTask(
-          projection.taskRef.current.projectRef.current,
-          clone(projection.dailyListRef),
-          between,
-        );
+        const newItem = list.createChild(between);
 
-        state.setFocusedItemId(newProjection);
+        state.setFocusedItemId(newItem.id);
         return;
       }
 
       const isUp = e.code === "ArrowUp" || e.code == "KeyK";
       const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
-      if (
-        (isUp || isDown) &&
-        selectedListId &&
-        selectedProjectionId &&
-        !state.isEditing()
-      ) {
-        const list = rootStore.listsService.findListOrThrow(selectedListId);
-        const projection = list.projections.find(
-          (p) => p.id === selectedProjectionId,
-        );
-        if (!projection) return;
-        const [up, down] = projection.siblings;
+      if ((isUp || isDown) && selectedId && !state.isEditing()) {
+        const item = rootStore.listsService.findListItemOrThrow(selectedId);
+        if (!item) {
+          throw new Error("selected item not found");
+        }
+        const [up, down] = item.siblings;
 
         if (isUp && up) {
-          state.setSelectedItem(up);
+          state.setSelectedItem(up.id);
         }
+
         if (isDown && down) {
-          state.setSelectedItem(down);
+          state.setSelectedItem(down.id);
         }
 
         return;

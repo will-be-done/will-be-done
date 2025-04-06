@@ -78,27 +78,13 @@ export interface ItemsList<K> {
   id: string;
   children: BaseListItem<K>[];
   lastChild: BaseListItem<K> | undefined;
-  // lastProjection: BaseProjection<K> | undefined;
-  //
-  // addProjectionFromOtherList<B>(
-  //   sourceProjection: BaseProjection<B>,
-  //   targetProjection: BaseProjection<K>,
-  //   edge: "top" | "bottom",
-  // ): void;
-  //
-  // append(projection: BaseProjection<K>): void;
-  //
 
   createChild(
     between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
-    ctx?: any,
+    base?: BaseListItem<K>,
   ): BaseListItem<K>;
-  appendListItemFromOtherList(toAppend: BaseListItem<K>): void;
-  addListItemFromOtherList(
-    sourceItem: BaseListItem<K>,
-    targetItem: BaseListItem<K>,
-    edge: "top" | "bottom",
-  ): void;
+
+  makeListRef(): Ref<ItemsList<K>>;
 }
 
 export interface OrderableItem {

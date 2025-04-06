@@ -1,7 +1,8 @@
-import { computed, reaction } from "mobx";
+import { autorun, computed, reaction } from "mobx";
 import {
   applySnapshot,
   clone,
+  detach,
   getSnapshot,
   idProp,
   Model,
@@ -49,6 +50,10 @@ export class Project
   })
   implements BaseListItem<Project>, ItemsList<ProjectItem>
 {
+  makeListRef() {
+    return projectRef(this);
+  }
+
   get siblings(): [Project, Project] {
     return [this, this];
   }
@@ -64,7 +69,8 @@ export class Project
   @modelAction
   createChild(
     between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
-  ) {
+    _base?: ProjectItem,
+  ): Task {
     const { taskRegistry } = getRootStoreOrThrow(this);
 
     const orderToken = between
@@ -80,16 +86,6 @@ export class Project
 
     return task;
   }
-
-  @modelAction
-  appendListItemFromOtherList(toAppend: BaseListItem<ProjectItem>) {}
-
-  @modelAction
-  addListItemFromOtherList(
-    sourceItem: BaseListItem<ProjectItem>,
-    targetItem: BaseListItem<ProjectItem>,
-    edge: "top" | "bottom",
-  ) {}
 }
 
 type ProjectItem = Task | TaskTemplate;
@@ -99,7 +95,7 @@ export class ProjectsRegistry
   extends Model({
     entities: prop<ObjectMap<Project>>(() => objectMap()),
   })
-  implements ListItemsRegistry<TaskProjection>, ItemsListsRegistry<Project>
+  implements ListItemsRegistry<TaskProjection>
 {
   @computed
   get inboxProjectOrThrow() {
@@ -143,6 +139,10 @@ export class Task
     return this.projectRef;
   }
 
+  set listRef(value: Ref<Project>) {
+    this.projectRef = value;
+  }
+
   @computed
   get siblings(): [ProjectItem | undefined, ProjectItem | undefined] {
     return getSiblings<ProjectItem>(this);
@@ -160,6 +160,10 @@ export class TaskTemplate
 {
   get listRef() {
     return this.projectRef;
+  }
+
+  set listRef(value: Ref<Project>) {
+    this.projectRef = value;
   }
 
   @computed
@@ -192,6 +196,10 @@ export class AllProjectsList
   })
   implements ItemsList<Project>
 {
+  makeListRef() {
+    return allProjectsListRef(this);
+  }
+
   @computed
   get children(): Project[] {
     return getChildren(this, allProjectsListRef, Project);
@@ -220,18 +228,9 @@ export class AllProjectsList
   }
 
   @modelAction
-  appendListItemFromOtherList(toAppend: BaseListItem<Project>) {}
-
-  @modelAction
-  addListItemFromOtherList(
-    sourceItem: BaseListItem<Project>,
-    targetItem: BaseListItem<Project>,
-    edge: "top" | "bottom",
-  ) {}
-
-  @modelAction
   createChild(
     between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
+    _base?: Project,
   ) {
     const { projectsRegistry } = getRootStoreOrThrow(this);
 
@@ -302,6 +301,10 @@ export class TaskProjection
     return this.dailyListRef;
   }
 
+  set listRef(value: Ref<DailyList>) {
+    this.dailyListRef = value;
+  }
+
   @computed
   get siblings(): [
     BaseListItem<TaskProjection> | undefined,
@@ -309,7 +312,17 @@ export class TaskProjection
   ] {
     return getSiblings<TaskProjection>(this);
   }
+
+  onAttachedToRootStore() {
+    return autorun(() => {
+      if (!this.taskRef.isValid) {
+        detach(this);
+      }
+    });
+  }
 }
+
+export type TaskItem = Task | TaskProjection;
 
 @model("TaskApp/TaskProjectionRegistry")
 export class TaskProjectionRegistry
@@ -336,6 +349,10 @@ export class DailyList
   })
   implements ItemsList<TaskProjection>
 {
+  makeListRef() {
+    return dailyListRef(this);
+  }
+
   @computed
   get children(): TaskProjection[] {
     return getChildren(this, dailyListRef, TaskProjection);
@@ -378,25 +395,17 @@ export class DailyList
   // }
 
   @modelAction
-  appendListItemFromOtherList(toAppend: BaseListItem<TaskProjection>) {}
-
-  @modelAction
-  addListItemFromOtherList(
-    sourceItem: BaseListItem<TaskProjection>,
-    targetItem: BaseListItem<TaskProjection>,
-    edge: "top" | "bottom",
-  ) {}
-
-  @modelAction
   createChild(
     between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
-    ctx: { task: Task },
+    base?: TaskProjection,
   ) {
-    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
+    const { taskProjectionRegistry, projectsRegistry } =
+      getRootStoreOrThrow(this);
 
-    if (!ctx.task) {
-      throw new Error("Task not found");
-    }
+    const project =
+      base?.taskRef.maybeCurrent?.projectRef.maybeCurrent ||
+      projectsRegistry.inboxProjectOrThrow;
+    const task = project.createChild(undefined);
 
     const orderToken = between
       ? generateKeyBetween(between[0]?.orderToken, between[1]?.orderToken)
@@ -405,7 +414,7 @@ export class DailyList
     const proj = new TaskProjection({
       orderToken: orderToken,
       dailyListRef: dailyListRef(this),
-      taskRef: taskRef(ctx.task),
+      taskRef: taskRef(task),
     });
 
     taskProjectionRegistry.add(proj);
@@ -501,63 +510,10 @@ export class RootStore extends Model({
   ),
   dailyListRegisry: prop<DailyListRegistry>(() => new DailyListRegistry({})),
 
-  tasksService: prop<TasksService>(() => new TasksService({})),
   listsService: prop<ListsService>(() => new ListsService({})),
   projectsService: prop<ProjectsService>(() => new ProjectsService({})),
 }) {}
 
-@model("TaskApp/TasksService")
-export class TasksService extends Model({}) {
-  @modelAction
-  createTaskForItemsList<K>(
-    project: Project,
-    list: ItemsList<K>,
-    betweenItems:
-      | [OrderableItem | undefined, OrderableItem | undefined]
-      | undefined,
-  ): [Task, BaseListItem<K>] {
-    if (list.id == project.id) {
-      const task = this.createTask(project, betweenItems);
-
-      return [task, task] as const;
-    }
-
-    const task = this.createTask(project, betweenItems);
-    const item = list.createChild(betweenItems, { task: task });
-
-    return [task, item] as const;
-  }
-
-  @modelAction
-  createTask<I extends BaseListItem<I>>(
-    project: Project,
-    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
-  ) {
-    const { taskRegistry } = getRootStoreOrThrow(this);
-
-    let taskOrderToken = "";
-
-    if (between == undefined) {
-      taskOrderToken = generateKeyBetween(
-        project.lastChild?.orderToken,
-        undefined,
-      );
-    } else {
-      taskOrderToken = generateKeyBetween(
-        between?.[0]?.orderToken,
-        between?.[1]?.orderToken,
-      );
-    }
-
-    const task = new Task({
-      projectRef: projectRef(project),
-      orderToken: taskOrderToken,
-    });
-    taskRegistry.add(task);
-
-    return task;
-  }
-}
 @model("TaskApp/ProjectsService")
 export class ProjectsService extends Model({}) {
   @modelAction
@@ -567,27 +523,18 @@ export class ProjectsService extends Model({}) {
     isInbox: boolean,
     between: [Project | undefined, Project | undefined] | undefined,
   ) {
-    const rootStore = getRootStoreOrThrow(this);
-    const { projectsRegistry, allProjectsList } = rootStore;
+    const { allProjectsList } = getRootStoreOrThrow(this);
 
-    const orderToken = between
-      ? generateKeyBetween(between[0]?.orderToken, between[1]?.orderToken)
-      : generateKeyBetween(allProjectsList.lastProject?.orderToken, undefined);
-
-    const pr = new Project({
-      title,
-      icon: icon,
-      isInbox: isInbox,
-      orderToken,
-      listRef: allProjectsListRef(allProjectsList),
-    });
-    projectsRegistry.entities.set(pr.id, pr);
+    const newProject = allProjectsList.createChild(between);
+    newProject.title = title;
+    newProject.icon = icon;
+    newProject.isInbox = isInbox;
   }
 }
 
 @model("TaskApp/ListsService")
 export class ListsService extends Model({}) {
-  findList<K>(listId: string): ItemsList<K> | undefined {
+  findList(listId: string) {
     const rootStore = getRootStoreOrThrow(this);
     const { projectsRegistry, dailyListRegisry, allProjectsList } = rootStore;
 
@@ -595,7 +542,7 @@ export class ListsService extends Model({}) {
       return allProjectsList;
     }
 
-    const registries: ItemsListsRegistry<K>[] = [
+    const registries: ItemsListsRegistry<unknown>[] = [
       dailyListRegisry,
       projectsRegistry,
     ];
@@ -610,14 +557,16 @@ export class ListsService extends Model({}) {
     return undefined;
   }
 
-  findListItem<K>(itemId: string) {
+  findListItem(itemId: string) {
     const rootStore = getRootStoreOrThrow(this);
     const { taskRegistry, taskProjectionRegistry, projectsRegistry } =
       rootStore;
 
-    const registries: {
-      getById: (listId: string) => BaseListItem<K> | undefined;
-    }[] = [taskRegistry, taskProjectionRegistry, projectsRegistry];
+    const registries: ListItemsRegistry<unknown>[] = [
+      taskRegistry,
+      taskProjectionRegistry,
+      projectsRegistry,
+    ];
 
     for (const registry of registries) {
       const list = registry.getById(itemId);
@@ -629,8 +578,8 @@ export class ListsService extends Model({}) {
     return undefined;
   }
 
-  findListItemOrThrow<K>(itemId: string) {
-    const item = this.findListItem<K>(itemId);
+  findListItemOrThrow(itemId: string) {
+    const item = this.findListItem(itemId);
     if (!item) {
       throw new Error("list item not found: " + itemId);
     }
@@ -638,13 +587,43 @@ export class ListsService extends Model({}) {
     return item;
   }
 
-  findListOrThrow<K>(listId: string) {
-    const list = this.findList<K>(listId);
+  findListOrThrow(listId: string) {
+    const list = this.findList(listId);
     if (!list) {
       throw new Error("list not found: " + listId);
     }
 
     return list;
+  }
+
+  @modelAction
+  addListItemFromOtherList(
+    sourceItem: BaseListItem<undefined>,
+    targetItem: BaseListItem<undefined>,
+    edge: "top" | "bottom",
+  ) {
+    const [up, down] = targetItem.siblings;
+
+    let between: [string | undefined, string | undefined] = [
+      targetItem.orderToken,
+      down?.orderToken,
+    ];
+    if (edge == "top") {
+      between = [up?.orderToken, targetItem.orderToken];
+    }
+
+    sourceItem.listRef = clone(targetItem.listRef);
+    sourceItem.orderToken = generateKeyBetween(between[0], between[1]);
+  }
+
+  @modelAction
+  appendListItemFromOtherList(
+    list: ItemsList<undefined>,
+    toAppend: BaseListItem<undefined>,
+  ) {
+    const lastChild = list.lastChild;
+    toAppend.listRef = list.makeListRef();
+    toAppend.orderToken = generateKeyBetween(lastChild?.orderToken, undefined);
   }
 }
 

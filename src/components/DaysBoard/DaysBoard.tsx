@@ -1,11 +1,6 @@
 import { observer } from "mobx-react-lite";
 import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  DailyList,
-  getRootStore,
-  TaskProjection,
-  TasksService,
-} from "../../models/models";
+import { DailyList, getRootStore, TaskProjection } from "../../models/models";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
 import { dailyListRef } from "../../models/models";
@@ -69,7 +64,6 @@ const ColumnView = observer(function ColumnViewComponent({
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
-  const tasksService = getRootStore().tasksService;
   const listId = dailyList.id;
   useEffect(() => {
     invariant(columnRef.current);
@@ -295,7 +289,6 @@ export const Board = observer(function BoardComponent() {
   const {
     dailyListRegisry,
     projectsRegistry: projectsRegistry,
-    tasksService,
     listsService,
   } = rootStore;
 
@@ -329,15 +322,11 @@ export const Board = observer(function BoardComponent() {
   const dailyLists = dailyListRegisry.getDailyListByDates(weekDays);
 
   const handleAddTask = (dailyList: DailyList) => {
-    const inbox = projectsRegistry.inboxProjectOrThrow;
-
-    const [, projeciton] = tasksService.createTaskForItemsList(
-      inbox,
-      dailyList,
-      [dailyList.lastProjection, undefined],
-    );
-
-    currentProjectionState.setFocusedItemId(projeciton.id);
+    const newItem = dailyList.createChild([
+      dailyList.lastProjection,
+      undefined,
+    ]);
+    currentProjectionState.setFocusedItemId(newItem.id);
   };
 
   useEffect(() => {
@@ -385,7 +374,7 @@ export const Board = observer(function BoardComponent() {
               throw new Error("edge is not top or bottm");
             }
 
-            targetList.addListItemFromOtherList(
+            listsService.addListItemFromOtherList(
               sourceItem,
               targetProjection,
               closestEdgeOfTarget || "bottom",
@@ -406,7 +395,7 @@ export const Board = observer(function BoardComponent() {
               dailyListTaskTarget.data.listId,
             );
 
-            targetList.appendListItemFromOtherList(sourceItem);
+            listsService.appendListItemFromOtherList(targetList, sourceItem);
 
             return;
           }

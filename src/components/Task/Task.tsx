@@ -70,7 +70,6 @@ export const TaskComp = observer(function TaskComponent({
   task: Task;
   listItem: BaseListItem<unknown>;
 }) {
-  const tasksService = getRootStore().tasksService;
   const tasksState = currentProjectionState;
   const isEditing = tasksState.isItemFocused(listItem.id);
   const isSelected = tasksState.isItemSelected(listItem.id);
@@ -86,14 +85,10 @@ export const TaskComp = observer(function TaskComponent({
 
       if (e.key === "Enter") {
         const siblings = listItem.siblings;
+        const list = listItem.listRef.current;
+        const newItem = list.createChild([listItem, siblings[1]], listItem);
 
-        const [, item] = tasksService.createTaskForItemsList(
-          task.projectRef.current,
-          listItem.listRef.current,
-          [listItem, siblings[1]],
-        );
-
-        currentProjectionState.setFocusedItemId(item.id);
+        currentProjectionState.setFocusedItemId(newItem.id);
       }
     }
   };

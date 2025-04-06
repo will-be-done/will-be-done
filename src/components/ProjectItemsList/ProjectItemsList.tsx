@@ -15,15 +15,12 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
   project: Project;
 }) {
   const rootStore = getRootStore();
-  const { listsService, tasksService } = rootStore;
+  const { listsService } = rootStore;
 
   const onAddNewTask = () => {
-    const task = tasksService.createTask(project, [
-      project.lastChild,
-      undefined,
-    ]);
+    const newTask = project.createChild([project.lastChild, undefined]);
 
-    currentProjectionState.setFocusedItemId(task.id);
+    currentProjectionState.setFocusedItemId(newTask.id);
   };
 
   useEffect(() => {
@@ -71,7 +68,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
               throw new Error("edge is not top or bottm");
             }
 
-            targetList.addListItemFromOtherList(
+            listsService.addListItemFromOtherList(
               sourceProjection,
               targetProjection,
               closestEdgeOfTarget || "bottom",
