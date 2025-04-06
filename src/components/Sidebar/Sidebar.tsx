@@ -24,7 +24,9 @@ export const Sidebar = observer(function SidebarComp() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `todo-backup-${new Date().toISOString().split("T")[0]}.json`;
+    const now = new Date();
+    const dateStr = now.toISOString().replace(/[:.]/g, "-").split(".")[0];
+    a.download = `todo-backup-${dateStr}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -55,7 +57,7 @@ export const Sidebar = observer(function SidebarComp() {
         } catch (error) {
           console.error("Failed to load backup:", error);
           alert(
-            "Failed to load backup file. Please make sure it's a valid backup file.",
+            "Failed to load backup file. Please make sure it's a valid backup file."
           );
         }
       };
