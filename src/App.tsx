@@ -126,7 +126,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
           between = [item, down] as const;
         }
 
-        const newItem = list.createChild(between);
+        const newItem = list.createChild(between, item);
 
         state.setFocusedItemId(newItem.id);
         return;

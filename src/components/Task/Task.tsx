@@ -66,16 +66,18 @@ export const DropTaskIndicator = observer(function DropTaskIndicatorComp() {
 export const TaskComp = observer(function TaskComponent({
   task,
   listItem,
+  showProject,
 }: {
   task: Task;
   listItem: BaseListItem<unknown>;
+  showProject: boolean;
 }) {
   const tasksState = currentProjectionState;
   const isEditing = tasksState.isItemFocused(listItem.id);
   const isSelected = tasksState.isItemSelected(listItem.id);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
-
   const [dndState, setDndState] = useState<State>(idleState);
+  const project = task.projectRef.current;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     console.log("key", e.key);
@@ -243,6 +245,8 @@ export const TaskComp = observer(function TaskComponent({
                 <input
                   type="checkbox"
                   className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
+                  checked={task.state === "done"}
+                  onChange={() => task.toggleState()}
                 />
               </div>
               <div className="font-medium text-gray-200 min-h-6">
@@ -251,6 +255,11 @@ export const TaskComp = observer(function TaskComponent({
             </>
           )}
         </div>
+        {showProject && (
+          <div className="text-right mt-3 text-gray-400 text-sm">
+            {project.icon} {project.title}
+          </div>
+        )}
       </div>
 
       {closestEdge == "bottom" && <DropTaskIndicator />}

@@ -54,14 +54,31 @@ export class Project
     return projectRef(this);
   }
 
+  @computed
   get siblings(): [Project, Project] {
     return [this, this];
   }
 
+  @computed
   get children(): ProjectItem[] {
     return getChildren(this, projectRef, Task);
   }
 
+  @computed
+  get tasks(): Task[] {
+    return this.children.filter((p) => p instanceof Task);
+  }
+
+  @computed
+  get notDoneTask(): Task[] {
+    return this.tasks.filter((p) => p.state !== "done");
+  }
+
+  withoutTasksByIds(ids: Set<string>) {
+    return this.children.filter((p) => !ids.has(p.id));
+  }
+
+  @computed
   get lastChild(): ProjectItem | undefined {
     return this.children[this.children.length - 1];
   }
@@ -146,6 +163,19 @@ export class Task
   @computed
   get siblings(): [ProjectItem | undefined, ProjectItem | undefined] {
     return getSiblings<ProjectItem>(this);
+  }
+
+  @modelAction
+  toggleState() {
+    this.state = this.state === "todo" ? "done" : "todo";
+  }
+
+  onAttachedToRootStore() {
+    return autorun(() => {
+      if (!this.projectRef.isValid) {
+        detach(this);
+      }
+    });
   }
 }
 
@@ -402,6 +432,8 @@ export class DailyList
     const { taskProjectionRegistry, projectsRegistry } =
       getRootStoreOrThrow(this);
 
+    console.trace();
+    console.log("createChild", base);
     const project =
       base?.taskRef.maybeCurrent?.projectRef.maybeCurrent ||
       projectsRegistry.inboxProjectOrThrow;
@@ -472,6 +504,18 @@ export class DailyListRegistry
       .filter((d) => d !== undefined);
   }
 
+  getTaskIdsOfDailyLists(dailyLists: DailyList[]) {
+    const ids = new Set<string>();
+
+    for (const dailyList of dailyLists) {
+      for (const proj of dailyList.projections) {
+        ids.add(proj.taskRef.id);
+      }
+    }
+
+    return ids;
+  }
+
   @modelAction
   createDailyListIfNotPresent(date: Date) {
     const dailyList = this.getDailyListByDate(date);
@@ -529,6 +573,8 @@ export class ProjectsService extends Model({}) {
     newProject.title = title;
     newProject.icon = icon;
     newProject.isInbox = isInbox;
+
+    return newProject;
   }
 }
 
@@ -602,6 +648,11 @@ export class ListsService extends Model({}) {
     targetItem: BaseListItem<undefined>,
     edge: "top" | "bottom",
   ) {
+    if (sourceItem instanceof TaskProjection && targetItem instanceof Task) {
+      return;
+    }
+
+    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
     const [up, down] = targetItem.siblings;
 
     let between: [string | undefined, string | undefined] = [
@@ -610,6 +661,20 @@ export class ListsService extends Model({}) {
     ];
     if (edge == "top") {
       between = [up?.orderToken, targetItem.orderToken];
+    }
+
+    // TODO: fix hack
+    if (sourceItem instanceof Task && targetItem instanceof TaskProjection) {
+      console.log("ooops1");
+
+      const newProjection = new TaskProjection({
+        taskRef: taskRef(sourceItem),
+        orderToken: generateKeyBetween(between[0], between[1]),
+        dailyListRef: clone(targetItem.dailyListRef),
+      });
+      taskProjectionRegistry.add(newProjection);
+
+      return;
     }
 
     sourceItem.listRef = clone(targetItem.listRef);
@@ -621,9 +686,32 @@ export class ListsService extends Model({}) {
     list: ItemsList<undefined>,
     toAppend: BaseListItem<undefined>,
   ) {
+    if (toAppend instanceof TaskProjection && list instanceof Project) {
+      return;
+    }
+
+    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
+
+    const orderToken = generateKeyBetween(
+      list.lastChild?.orderToken,
+      undefined,
+    );
+
+    // TODO: fix hack
+    if (toAppend instanceof Task && list instanceof DailyList) {
+      const newProjection = new TaskProjection({
+        taskRef: taskRef(toAppend),
+        orderToken: orderToken,
+        dailyListRef: list.makeListRef(),
+      });
+      taskProjectionRegistry.add(newProjection);
+
+      return;
+    }
+
     const lastChild = list.lastChild;
     toAppend.listRef = list.makeListRef();
-    toAppend.orderToken = generateKeyBetween(lastChild?.orderToken, undefined);
+    toAppend.orderToken = orderToken;
   }
 }
 

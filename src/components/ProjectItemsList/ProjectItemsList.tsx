@@ -8,6 +8,7 @@ import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types"
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isTaskPassingData } from "../../dnd/models";
 import { currentProjectionState } from "../../states/task";
+import { detach } from "mobx-keystone";
 
 export const ProjectItemsList = observer(function ProjectItemsListComp({
   project,
@@ -85,8 +86,26 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
     <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
       <div className="flex flex-col ">
         <div className="flex items-center">
-          <h2 className="text-xl font-bold text-gray-100">{project.title}</h2>
-          {project.id}
+          <h2
+            className="text-xl font-bold text-gray-100 cursor-pointer"
+            onClick={() => {
+              const title = prompt("Project title", project.title);
+              if (title) {
+                project.setTitle(title);
+              }
+            }}
+          >
+            {project.title}
+          </h2>
+
+          <button
+            className="ml-auto text-red-700"
+            onClick={() => {
+              detach(project);
+            }}
+          >
+            Delete
+          </button>
         </div>
         <div className="flex flex-col space-y-2 mt-5 overflow-y-auto">
           {project.children.map((task) => {
@@ -94,7 +113,14 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
               return "";
             }
 
-            return <TaskComp task={task} listItem={task} key={task.id} />;
+            return (
+              <TaskComp
+                task={task}
+                listItem={task}
+                key={task.id}
+                showProject={false}
+              />
+            );
           })}
         </div>
 

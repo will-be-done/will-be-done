@@ -1,6 +1,11 @@
 import { observer } from "mobx-react-lite";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { DailyList, getRootStore, TaskProjection } from "../../models/models";
+import {
+  DailyList,
+  getRootStore,
+  Task,
+  TaskProjection,
+} from "../../models/models";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
 import { dailyListRef } from "../../models/models";
@@ -20,7 +25,7 @@ import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import invariant from "tiny-invariant";
-import { Sidebar } from "../Sidebar/Sidebar";
+import { computed } from "mobx";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -123,6 +128,7 @@ const ColumnView = observer(function ColumnViewComponent({
             <TaskComp
               listItem={proj}
               task={proj.taskRef.current}
+              showProject={true}
               key={proj.id}
             />
           );
@@ -145,6 +151,50 @@ const ColumnView = observer(function ColumnViewComponent({
   );
 });
 
+const TaskSuggestions = observer(function TaskSuggestionsComp({
+  displayedTasksIds,
+}: {
+  displayedTasksIds: Set<string>;
+}) {
+  const { allProjectsList } = getRootStore();
+
+  console.log({ displayedTasksIds });
+
+  return (
+    <div className="overflow-y-auto h-full">
+      {allProjectsList.children
+        .filter((ch) => ch.notDoneTask.length > 0)
+        .map((proj) => {
+          const tasks = proj.notDoneTask;
+          const filteredTasks = tasks.filter(
+            (t) => !displayedTasksIds.has(t.id),
+          );
+
+          if (filteredTasks.length == 0) return null;
+
+          return (
+            <>
+              <div className="text-gray-400 text-sm mt-6 pb-2">
+                {proj.icon} {proj.title}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {filteredTasks.map((task) => (
+                  <TaskComp
+                    listItem={task}
+                    task={task}
+                    key={task.id}
+                    showProject={false}
+                  />
+                ))}
+              </div>
+            </>
+          );
+        })}
+    </div>
+  );
+});
+
 const BoardView = observer(function BoardViewComponent({
   handleNextDay,
   handlePrevDay,
@@ -152,6 +202,7 @@ const BoardView = observer(function BoardViewComponent({
   daysToShow,
   dailyLists,
   onTaskAdd,
+  displayedTasksIds,
 }: {
   handleNextDay: () => void;
   handlePrevDay: () => void;
@@ -159,11 +210,12 @@ const BoardView = observer(function BoardViewComponent({
   setDaysToShow: (daysToShow: number) => void;
   dailyLists: DailyList[];
   onTaskAdd: (dailyList: DailyList) => void;
+  displayedTasksIds: Set<string>;
 }) {
   return (
-    <div className="grid grid-cols-5 gap-4 h-full">
+    <div className="grid grid-cols-7 gap-4 h-full">
       {/* 80% section (4/5 columns) */}
-      <div className="col-span-4 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
+      <div className="col-span-5 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center">
             <h2 className="text-xl font-bold text-gray-100">
@@ -247,38 +299,11 @@ const BoardView = observer(function BoardViewComponent({
       </div>
 
       {/* 20% section (1/5 columns) */}
-      <div className="col-span-1 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700">
+      <div className="col-span-2 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 h-full overflow-y-auto">
         <h2 className="text-xl font-bold mb-4 text-gray-100">
           Task Suggestions
         </h2>
-
-        {/* Category selector */}
-        <select
-          className="w-full p-2 mb-4 border border-gray-700 rounded-md bg-gray-700 text-gray-200"
-          value="This Week"
-          aria-label="Select task category"
-        >
-          <option value="This Week">This Week</option>
-          <option value="This Month">This Month</option>
-          <option value="This Year">This Year</option>
-          <option value="Daily">Daily</option>
-          <option value="Overdue">Overdue</option>
-        </select>
-
-        {/* Task suggestions list */}
-        <div className="flex-1 overflow-auto">
-          <div className="space-y-3">
-            {/* We'll implement task suggestions later */}
-            <div className="text-gray-400 text-sm">
-              No suggestions available
-            </div>
-          </div>
-        </div>
-
-        {/* Add new suggestion button */}
-        <button className="w-full bg-blue-600 text-white py-2 px-4 rounded text-sm hover:bg-blue-500 transition mt-4">
-          Create New Task
-        </button>
+        <TaskSuggestions displayedTasksIds={displayedTasksIds} />
       </div>
     </div>
   );
@@ -286,11 +311,7 @@ const BoardView = observer(function BoardViewComponent({
 
 export const Board = observer(function BoardComponent() {
   const rootStore = getRootStore();
-  const {
-    dailyListRegisry,
-    projectsRegistry: projectsRegistry,
-    listsService,
-  } = rootStore;
+  const { dailyListRegisry, listsService } = rootStore;
 
   const [daysToShow, setDaysToShow] = useState<number>(7);
   const [startingDate, setStartingDate] = useState<Date>(() =>
@@ -319,7 +340,12 @@ export const Board = observer(function BoardComponent() {
     dailyListRegisry.createDailyListsIfNotExists(weekDays);
   }, [dailyListRegisry, weekDays]);
 
-  const dailyLists = dailyListRegisry.getDailyListByDates(weekDays);
+  const dailyLists = computed(() =>
+    dailyListRegisry.getDailyListByDates(weekDays),
+  ).get();
+  const displayedTasksIds = computed(() => {
+    return dailyListRegisry.getTaskIdsOfDailyLists(dailyLists);
+  }).get();
 
   const handleAddTask = (dailyList: DailyList) => {
     const newItem = dailyList.createChild([
@@ -408,6 +434,7 @@ export const Board = observer(function BoardComponent() {
 
   return (
     <BoardView
+      displayedTasksIds={displayedTasksIds}
       handleNextDay={handleNextDay}
       handlePrevDay={handlePrevDay}
       daysToShow={daysToShow}
