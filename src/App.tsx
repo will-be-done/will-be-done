@@ -15,6 +15,7 @@ import { clone, detach } from "mobx-keystone";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
 import { BaseListItem } from "./models/listActions";
+import { MoveModal } from "./components/MoveModel/MoveModel";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
   const rootStore = getRootStore();

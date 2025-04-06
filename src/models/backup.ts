@@ -126,7 +126,7 @@ export const loadBackups = standaloneAction(
       const project = projectMap.get(taskBackup.projectId);
       if (!project) {
         console.warn(
-          `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`,
+          `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`
         );
         continue;
       }
@@ -159,7 +159,7 @@ export const loadBackups = standaloneAction(
       const dailyList = dailyListMap.get(projectionBackup.listId);
       if (!task || !dailyList) {
         console.warn(
-          `Task ${projectionBackup.taskId} or DailyList ${projectionBackup.id} not found for projection`,
+          `Task ${projectionBackup.taskId} or DailyList ${projectionBackup.id} not found for projection`
         );
         continue;
       }
@@ -172,5 +172,5 @@ export const loadBackups = standaloneAction(
       });
       store.taskProjectionRegistry.add(projection);
     }
-  },
+  }
 );
