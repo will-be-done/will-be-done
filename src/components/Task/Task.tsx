@@ -21,6 +21,7 @@ import { isTaskPassingData, TaskPassingData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { clone } from "mobx-keystone";
 import { BaseListItem } from "../../models/listActions";
+import { usePrevious } from "../../utils";
 
 type State =
   | { type: "idle" }
@@ -72,6 +73,7 @@ export const TaskComp = observer(function TaskComponent({
   listItem: BaseListItem<unknown>;
   showProject: boolean;
 }) {
+  const [editingTitle, setEditingTitle] = useState<string>(task.title);
   const tasksState = currentProjectionState;
   const isEditing = tasksState.isItemFocused(listItem.id);
   const isSelected = tasksState.isItemSelected(listItem.id);
@@ -86,6 +88,7 @@ export const TaskComp = observer(function TaskComponent({
       tasksState.resetFocus();
 
       if (e.key === "Enter") {
+        task.setTitle(editingTitle);
         const siblings = listItem.siblings;
         const list = listItem.listRef.current;
         const newItem = list.createChild([listItem, siblings[1]], listItem);
@@ -203,6 +206,20 @@ export const TaskComp = observer(function TaskComponent({
     }
   }, [isSelected]);
 
+  const prevIsEditing = usePrevious(isEditing);
+  const taskTitle = task.title;
+  useEffect(() => {
+    if (isEditing && !prevIsEditing) {
+      setEditingTitle(taskTitle);
+    }
+
+    if (!isEditing && prevIsEditing) {
+      if (editingTitle !== taskTitle) {
+        task.setTitle(editingTitle);
+      }
+    }
+  }, [isEditing, prevIsEditing, editingTitle, taskTitle, task]);
+
   return (
     <>
       {closestEdge == "top" && <DropTaskIndicator />}
@@ -232,8 +249,8 @@ export const TaskComp = observer(function TaskComponent({
               </div>
               <TextareaAutosize
                 ref={handleRef}
-                value={task.title}
-                onChange={(e) => task.setTitle(e.target.value)}
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e)}
                 className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none font-medium"
                 aria-label="Edit task title"

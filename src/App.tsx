@@ -50,14 +50,20 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       if (isInput) return;
 
       // Handle undo (cmd+z/ctrl+z)
-      if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ" && !e.shiftKey) {
+      if (
+        ((e.metaKey || e.ctrlKey) && e.code === "KeyZ" && !e.shiftKey) ||
+        e.code === "KeyU"
+      ) {
         e.preventDefault();
         undoManager.undo();
         return;
       }
 
       // Handle redo (cmd+shift+z/ctrl+shift+z)
-      if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ" && e.shiftKey) {
+      if (
+        ((e.metaKey || e.ctrlKey) && e.code === "KeyZ" && e.shiftKey) ||
+        (e.code === "KeyR" && e.ctrlKey)
+      ) {
         e.preventDefault();
         undoManager.redo();
         return;
