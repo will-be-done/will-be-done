@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite";
-import { getRootStore, TaskProjection } from "../../models/models";
+import { getRootStore, Task, TaskProjection } from "../../models/models";
 import { currentProjectionState } from "../../states/task";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
@@ -20,6 +20,7 @@ import ReactDOM from "react-dom";
 import { isTaskPassingData, TaskPassingData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { clone } from "mobx-keystone";
+import { BaseListItem } from "../../models/listActions";
 
 type State =
   | { type: "idle" }
@@ -63,15 +64,16 @@ export const DropTaskIndicator = observer(function DropTaskIndicatorComp() {
 });
 
 export const TaskComp = observer(function TaskComponent({
-  taskProjection,
+  task,
+  listItem,
 }: {
-  taskProjection: TaskProjection;
+  task: Task;
+  listItem: BaseListItem<unknown>;
 }) {
   const tasksService = getRootStore().tasksService;
-  const task = taskProjection.itemRef.current;
   const tasksState = currentProjectionState;
-  const isEditing = tasksState.isProjFocused(taskProjection);
-  const isSelected = tasksState.isProjSelected(taskProjection);
+  const isEditing = tasksState.isItemFocused(listItem.id);
+  const isSelected = tasksState.isItemSelected(listItem.id);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
   const [dndState, setDndState] = useState<State>(idleState);
@@ -83,35 +85,37 @@ export const TaskComp = observer(function TaskComponent({
       tasksState.resetFocus();
 
       if (e.key === "Enter") {
-        const siblings = taskProjection.siblings;
-        const [, projection] = tasksService.createTask(
+        const siblings = listItem.siblings;
+
+        const [, item] = tasksService.createTaskForItemsList(
           task.projectRef.current,
-          clone(taskProjection.listRef),
-          [taskProjection, siblings[1]],
+          listItem.listRef.current,
+          [listItem, siblings[1]],
         );
 
-        currentProjectionState.setFocusedProjection(projection);
+        currentProjectionState.setFocusedItemId(item.id);
       }
     }
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
 
-  const listId = taskProjection.listRef.id;
-  const taskId = taskProjection.itemRef.id;
-  const projectionId = taskProjection.id;
+  const listId = listItem.listRef.id;
+  const taskId = task.id;
+  const listItemId = listItem.id;
 
   useEffect(() => {
     const element = ref.current;
     invariant(element);
+
     return combine(
       draggable({
         element: element,
         getInitialData: (): TaskPassingData => ({
           type: "task",
-          listId: listId,
-          taskId: taskId,
-          projectionId: projectionId,
+          listId,
+          taskId,
+          listItemId,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -147,7 +151,7 @@ export const TaskComp = observer(function TaskComponent({
         getIsSticky: () => true,
         getData: ({ input, element }) => {
           const data: TaskPassingData = {
-            projectionId: projectionId,
+            listItemId,
             type: "task",
             listId: listId,
             taskId: taskId,
@@ -180,7 +184,7 @@ export const TaskComp = observer(function TaskComponent({
         },
       }),
     );
-  }, [listId, projectionId, taskId]);
+  }, [listId, listItemId, taskId]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -213,10 +217,10 @@ export const TaskComp = observer(function TaskComponent({
             : "border-gray-700 bg-gray-750"
         } shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`}
         style={{}}
-        onClick={() => tasksState.setSelectedProjection(taskProjection)}
+        onClick={() => tasksState.setSelectedItem(listItem.id)}
         onDoubleClick={(e) => {
           e.preventDefault();
-          tasksState.setFocusedProjection(taskProjection);
+          tasksState.setFocusedItemId(listItem.id);
         }}
         ref={ref}
       >

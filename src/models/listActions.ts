@@ -1,13 +1,10 @@
 import {
-  clone,
   getParent,
   getRefsResolvingTo,
   Ref,
   RefConstructor,
 } from "mobx-keystone";
-import { List, Projection } from "./models";
 import { fractionalCompare } from "../utils/fractionalSort";
-import { generateKeyBetween } from "fractional-indexing";
 // @computed
 // siblings(): [TodoProjection] {
 //   const dailyList = this.dailyListRef.current;
@@ -22,78 +19,103 @@ import { generateKeyBetween } from "fractional-indexing";
 
 type Class<T = any> = new (...args: any[]) => T;
 
-export function getProjections<L extends List, K extends Projection>(
+export function getChildren<K extends BaseListItem, L extends ItemsList<K>>(
   list: L,
   refConstructor: RefConstructor<L>,
   klass: Class<K>,
 ): K[] {
-  const projections: K[] = [];
+  const children: K[] = [];
   for (const ref of getRefsResolvingTo(list, refConstructor, {
     updateAllRefsIfNeeded: true,
   })) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const parent = getParent(ref);
     if (parent instanceof klass) {
-      projections.push(parent);
+      children.push(parent);
     }
   }
 
-  return projections.sort(fractionalCompare);
+  return children.sort(fractionalCompare);
 }
 
-export function getSiblings<T extends Projection>(
-  projection: T,
-): [T | undefined, T | undefined] {
-  const projections = projection.listRef.current.projections as T[];
+export function getSiblings<K extends BaseListItem>(
+  listItem: K,
+): [K | undefined, K | undefined] {
+  const children = listItem.listRef.current.children;
 
-  const i = projections.findIndex((it) => it.id === projection.id);
+  const i = children.findIndex((it) => it.id === listItem.id);
 
-  return [projections[i - 1], projections[i + 1]];
+  return [children[i - 1] as K, children[i + 1] as K];
 }
 
-export function addProjectionFromOtherList(
-  sourceProjection: Projection,
-  targetProjection: Projection,
-  edge: "top" | "bottom",
-) {
-  // if (!(targetProjection instanceof TaskProjection)) {
-  //   throw new Error("Target projection is not task");
-  // }
+// export function addProjectionFromOtherList(
+//   sourceProjection: Projection,
+//   targetProjection: Projection,
+//   edge: "top" | "bottom",
+// ) {
+//   // if (!(targetProjection instanceof TaskProjection)) {
+//   //   throw new Error("Target projection is not task");
+//   // }
+//   //
+//   // if (targetProjection.listRef.current !== this) {
+//   //   throw new Error("Target projection is not in this daily list");
+//   // }
+//
+//   let [up, down] = targetProjection.siblings;
+//
+//   if (edge == "top") {
+//     down = targetProjection;
+//   } else {
+//     up = targetProjection;
+//   }
+//
+//   const newOrderToken = generateKeyBetween(up?.orderToken, down?.orderToken);
+//   sourceProjection.orderToken = newOrderToken;
+//   sourceProjection.listRef = clone(targetProjection.listRef);
+// }
+
+export interface ItemsList<K> {
+  id: string;
+  children: BaseListItem<K>[];
+  lastChild: BaseListItem<K> | undefined;
+  // lastProjection: BaseProjection<K> | undefined;
   //
-  // if (targetProjection.listRef.current !== this) {
-  //   throw new Error("Target projection is not in this daily list");
-  // }
+  // addProjectionFromOtherList<B>(
+  //   sourceProjection: BaseProjection<B>,
+  //   targetProjection: BaseProjection<K>,
+  //   edge: "top" | "bottom",
+  // ): void;
+  //
+  // append(projection: BaseProjection<K>): void;
+  //
 
-  let [up, down] = targetProjection.siblings;
-
-  if (edge == "top") {
-    down = targetProjection;
-  } else {
-    up = targetProjection;
-  }
-
-  const newOrderToken = generateKeyBetween(up?.orderToken, down?.orderToken);
-  sourceProjection.orderToken = newOrderToken;
-  sourceProjection.listRef = clone(targetProjection.listRef);
+  createChild(
+    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
+    ctx?: any,
+  ): BaseListItem<K>;
+  appendListItemFromOtherList(toAppend: BaseListItem<K>): void;
+  addListItemFromOtherList(
+    sourceItem: BaseListItem<K>,
+    targetItem: BaseListItem<K>,
+    edge: "top" | "bottom",
+  ): void;
 }
 
-// export interface ProjectionsList<K> {
-//   projections: BaseProjection<K>[];
-//   lastProjection: BaseProjection<K> | undefined;
-//
-//   addProjectionFromOtherList<B>(
-//     sourceProjection: BaseProjection<B>,
-//     targetProjection: BaseProjection<K>,
-//     edge: "top" | "bottom",
-//   ): void;
-//
-//   append(projection: BaseProjection<K>): void;
-//
-//   appendProjectionFromOtherList<B>(sourceProjection: BaseProjection<B>): void;
-// }
-//
-// export interface BaseProjection<S = unknown> {
-//   siblings: [BaseProjection<S> | undefined, BaseProjection<S> | undefined];
-//   listRef: Ref<ProjectionsList<BaseProjection<S>>>;
-//   orderToken: string;
-// }
+export interface OrderableItem {
+  orderToken: string;
+}
+
+export interface BaseListItem<S = unknown> {
+  id: string;
+  siblings: [BaseListItem<S> | undefined, BaseListItem<S> | undefined];
+  listRef: Ref<ItemsList<S>>;
+  orderToken: string;
+}
+
+export interface ListItemsRegistry<K> {
+  getById(id: string): BaseListItem<K> | undefined;
+}
+
+export interface ItemsListsRegistry<K> {
+  getById(id: string): ItemsList<K> | undefined;
+}

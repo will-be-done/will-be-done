@@ -1,9 +1,5 @@
 import { observer } from "mobx-react-lite";
-import {
-  getRootStore,
-  Project,
-  projectItemsListRef,
-} from "../../models/models";
+import { getRootStore, Project, TaskTemplate } from "../../models/models";
 import { TaskComp } from "../Task/Task";
 import { useEffect } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -19,17 +15,15 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
   project: Project;
 }) {
   const rootStore = getRootStore();
-  const { listsService, projectionsService, tasksService } = rootStore;
+  const { listsService, tasksService } = rootStore;
 
   const onAddNewTask = () => {
-    const list = project.itemsList;
-    const [, projeciton] = tasksService.createTask(
-      project,
-      projectItemsListRef(project.itemsList),
-      [list.lastProjection, undefined],
-    );
+    const task = tasksService.createTask(project, [
+      project.lastChild,
+      undefined,
+    ]);
 
-    currentProjectionState.setFocusedProjection(projeciton);
+    currentProjectionState.setFocusedItemId(task.id);
   };
 
   useEffect(() => {
@@ -46,8 +40,8 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
             return;
           }
 
-          const sourceProjection = projectionsService.findProjectionOrThrow(
-            source.data.projectionId,
+          const sourceProjection = listsService.findListItemOrThrow(
+            source.data.listItemId,
           );
 
           const dropTaskTarget = location.current.dropTargets.find((t) =>
@@ -61,8 +55,8 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
             const targetList = listsService.findListOrThrow(
               dropTaskTarget.data.listId,
             );
-            const targetProjection = projectionsService.findProjectionOrThrow(
-              dropTaskTarget.data.projectionId,
+            const targetProjection = listsService.findListItemOrThrow(
+              dropTaskTarget.data.listItemId,
             );
 
             const closestEdgeOfTarget: Edge | null = extractClosestEdge(
@@ -77,7 +71,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
               throw new Error("edge is not top or bottm");
             }
 
-            targetList.addProjectionFromOtherList(
+            targetList.addListItemFromOtherList(
               sourceProjection,
               targetProjection,
               closestEdgeOfTarget || "bottom",
@@ -88,7 +82,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
         },
       }),
     );
-  }, [listsService, projectionsService]);
+  }, [listsService]);
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
@@ -96,12 +90,14 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
         <div className="flex items-center">
           <h2 className="text-xl font-bold text-gray-100">{project.title}</h2>
           {project.id}
-          {"<>>"}
-          {project.itemsList.id}
         </div>
         <div className="flex flex-col space-y-2 mt-5 overflow-y-auto">
-          {project.itemsList.projections.map((proj) => {
-            return <TaskComp taskProjection={proj} key={proj.id} />;
+          {project.children.map((task) => {
+            if (task instanceof TaskTemplate) {
+              return "";
+            }
+
+            return <TaskComp task={task} listItem={task} key={task.id} />;
           })}
         </div>
 

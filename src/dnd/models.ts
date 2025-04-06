@@ -1,8 +1,8 @@
 export type TaskPassingData = {
   type: "task";
   listId: string;
+  listItemId: string;
   taskId: string;
-  projectionId: string;
 };
 
 export type DailyListPassingData = {

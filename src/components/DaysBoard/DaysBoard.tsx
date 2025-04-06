@@ -125,7 +125,13 @@ const ColumnView = observer(function ColumnViewComponent({
         ref={scrollableRef}
       >
         {dailyList.projections.map((proj) => {
-          return <TaskComp taskProjection={proj} key={proj.id} />;
+          return (
+            <TaskComp
+              listItem={proj}
+              task={proj.taskRef.current}
+              key={proj.id}
+            />
+          );
         })}
 
         {dndState.type == "is-task-over" &&
@@ -288,10 +294,9 @@ export const Board = observer(function BoardComponent() {
   const rootStore = getRootStore();
   const {
     dailyListRegisry,
-    projectRegistry,
+    projectsRegistry: projectsRegistry,
     tasksService,
     listsService,
-    projectionsService,
   } = rootStore;
 
   const [daysToShow, setDaysToShow] = useState<number>(7);
@@ -324,15 +329,15 @@ export const Board = observer(function BoardComponent() {
   const dailyLists = dailyListRegisry.getDailyListByDates(weekDays);
 
   const handleAddTask = (dailyList: DailyList) => {
-    const inbox = projectRegistry.inboxProjectOrThrow;
+    const inbox = projectsRegistry.inboxProjectOrThrow;
 
-    const [, projeciton] = tasksService.createTask(
+    const [, projeciton] = tasksService.createTaskForItemsList(
       inbox,
-      dailyListRef(dailyList),
+      dailyList,
       [dailyList.lastProjection, undefined],
     );
 
-    currentProjectionState.setFocusedProjection(projeciton);
+    currentProjectionState.setFocusedItemId(projeciton.id);
   };
 
   useEffect(() => {
@@ -349,8 +354,8 @@ export const Board = observer(function BoardComponent() {
             return;
           }
 
-          const sourceProjection = projectionsService.findProjectionOrThrow(
-            source.data.projectionId,
+          const sourceItem = listsService.findListItemOrThrow(
+            source.data.listItemId,
           );
 
           const dropTaskTarget = location.current.dropTargets.find((t) =>
@@ -364,8 +369,8 @@ export const Board = observer(function BoardComponent() {
             const targetList = listsService.findListOrThrow(
               dropTaskTarget.data.listId,
             );
-            const targetProjection = projectionsService.findProjectionOrThrow(
-              dropTaskTarget.data.projectionId,
+            const targetProjection = listsService.findListItemOrThrow(
+              dropTaskTarget.data.listItemId,
             );
 
             const closestEdgeOfTarget: Edge | null = extractClosestEdge(
@@ -380,8 +385,8 @@ export const Board = observer(function BoardComponent() {
               throw new Error("edge is not top or bottm");
             }
 
-            targetList.addProjectionFromOtherList(
-              sourceProjection,
+            targetList.addListItemFromOtherList(
+              sourceItem,
               targetProjection,
               closestEdgeOfTarget || "bottom",
             );
@@ -401,7 +406,7 @@ export const Board = observer(function BoardComponent() {
               dailyListTaskTarget.data.listId,
             );
 
-            targetList.appendProjectionFromOtherList(sourceProjection);
+            targetList.appendListItemFromOtherList(sourceItem);
 
             return;
           }
@@ -410,7 +415,7 @@ export const Board = observer(function BoardComponent() {
         },
       }),
     );
-  }, [listsService, projectionsService]);
+  }, [listsService]);
 
   return (
     <BoardView

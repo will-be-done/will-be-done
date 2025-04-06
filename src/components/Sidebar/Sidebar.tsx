@@ -3,13 +3,9 @@ import { getRootStore } from "../../models/models";
 import { Link } from "wouter";
 
 export const Sidebar = observer(function SidebarComp() {
-  const { allProjectsList, projectItemsListRegisry } = getRootStore();
-  const projections = allProjectsList.withoutInbox;
-
-  const inboxProjection = allProjectsList.inbox;
-  const projectItemsList = projectItemsListRegisry.getListByProjectId(
-    inboxProjection.itemRef.id,
-  );
+  const { allProjectsList } = getRootStore();
+  const projects = allProjectsList.withoutInbox;
+  const inboxProject = allProjectsList.inbox;
 
   return (
     <div className="w-64 bg-gray-900 h-full flex flex-col overflow-hidden">
@@ -41,7 +37,7 @@ export const Sidebar = observer(function SidebarComp() {
           </span>
           <span className="text-white text-sm">Inbox</span>
           <span className="text-gray-400 ml-auto text-sm">
-            {projectItemsList?.projections.length ?? 0}
+            {inboxProject?.children.length ?? 0}
           </span>
         </Link>
 
@@ -101,7 +97,7 @@ export const Sidebar = observer(function SidebarComp() {
           className="overflow-y-auto"
           style={{ maxHeight: "calc(100vh - 170px)" }}
         >
-          {projections.map((proj) => (
+          {projects.map((proj) => (
             <Link
               key={proj.id}
               className={(active) =>
@@ -109,13 +105,11 @@ export const Sidebar = observer(function SidebarComp() {
                   active ? "bg-gray-800" : "hover:bg-gray-800"
                 }`
               }
-              href={`/projects/${proj.itemRef.id}`}
+              href={`/projects/${proj.id}`}
             >
-              <span className="text-base mr-2 flex-shrink-0">
-                {proj.itemRef.current.icon}
-              </span>
+              <span className="text-base mr-2 flex-shrink-0">{proj.icon}</span>
               <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
-                {proj.itemRef.current.title}
+                {proj.title}
               </span>
             </Link>
           ))}

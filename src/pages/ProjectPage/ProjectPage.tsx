@@ -5,7 +5,7 @@ import { ProjectItemsList } from "../../components/ProjectItemsList/ProjectItems
 
 export const ProjectPage = observer(function ProjectPageComp() {
   const params = useParams<{ projectId: string }>();
-  const { projectRegistry } = getRootStore();
+  const { projectsRegistry: projectRegistry } = getRootStore();
   const project =
     params.projectId == "inbox"
       ? projectRegistry.inboxProjectOrThrow

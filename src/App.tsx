@@ -58,8 +58,8 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
       console.log(e);
 
-      const selectedListId = state.selectedProjection?.listId;
-      const selectedProjectionId = state.selectedProjection?.projectionId;
+      const selectedListId = state.selectedItemId?.listId;
+      const selectedProjectionId = state.selectedItemId?.projectionId;
       if (
         (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
         selectedListId &&
@@ -77,9 +77,9 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         detach(projection);
 
         if (down) {
-          state.setSelectedProjection(down);
+          state.setSelectedItem(down);
         } else if (up) {
-          state.setSelectedProjection(up);
+          state.setSelectedItem(up);
         } else {
           state.resetSelected();
         }
@@ -127,12 +127,12 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         }
 
         const [, newProjection] = tasksService.createTask(
-          projection.itemRef.current.projectRef.current,
-          clone(projection.listRef),
+          projection.taskRef.current.projectRef.current,
+          clone(projection.dailyListRef),
           between,
         );
 
-        state.setFocusedProjection(newProjection);
+        state.setFocusedItemId(newProjection);
         return;
       }
 
@@ -152,10 +152,10 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         const [up, down] = projection.siblings;
 
         if (isUp && up) {
-          state.setSelectedProjection(up);
+          state.setSelectedItem(up);
         }
         if (isDown && down) {
-          state.setSelectedProjection(down);
+          state.setSelectedItem(down);
         }
 
         return;
@@ -166,7 +166,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.selectedProjection, rootStore.listsService, state, undoManager]);
+  }, [state.selectedItemId, rootStore.listsService, state, undoManager]);
 
   return <></>;
 });
