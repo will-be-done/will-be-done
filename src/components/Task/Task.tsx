@@ -22,6 +22,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { BaseListItem } from "../../models/listActions";
 import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
+import { computed } from "mobx";
 
 type State =
   | { type: "idle" }
@@ -75,8 +76,10 @@ export const TaskComp = observer(function TaskComponent({
 }) {
   const [editingTitle, setEditingTitle] = useState<string>(task.title);
   const tasksState = currentProjectionState;
-  const isEditing = tasksState.isItemFocused(listItem.id);
-  const isSelected = tasksState.isItemSelected(listItem.id);
+  const isEditing = computed(() => tasksState.isItemFocused(listItem.id)).get();
+  const isSelected = computed(() =>
+    tasksState.isItemSelected(listItem.id)
+  ).get();
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const project = task.projectRef.current;
@@ -106,19 +109,34 @@ export const TaskComp = observer(function TaskComponent({
         setIsMoveModalOpen(true);
       }
     },
-    [isSelected, isEditing],
+    [isSelected, isEditing]
+  );
+
+  const handleGlobalClick = useCallback(
+    (e: MouseEvent) => {
+      if (
+        isSelected &&
+        ref.current &&
+        !ref.current.contains(e.target as Node)
+      ) {
+        tasksState.resetSelected();
+      }
+    },
+    [isSelected, tasksState]
   );
 
   useEffect(() => {
     window.addEventListener("keydown", handleGlobalKeyDown);
+    window.addEventListener("mousedown", handleGlobalClick);
     return () => {
       window.removeEventListener("keydown", handleGlobalKeyDown);
+      window.removeEventListener("mousedown", handleGlobalClick);
     };
-  }, [handleGlobalKeyDown]);
+  }, [handleGlobalKeyDown, handleGlobalClick]);
 
   const handleMove = (projectId: string) => {
     const targetProject = rootStore.allProjectsList.children.find(
-      (p) => p.id === projectId,
+      (p) => p.id === projectId
     );
     if (targetProject) {
       task.setProjectRef(targetProject.makeListRef());
@@ -212,7 +230,7 @@ export const TaskComp = observer(function TaskComponent({
         onDrop: () => {
           setClosestEdge(null);
         },
-      }),
+      })
     );
   }, [isEditing, listId, listItemId, taskId]);
 
@@ -325,7 +343,7 @@ export const TaskComp = observer(function TaskComponent({
               height: dndState.rect.height,
             }}
           />,
-          dndState.container,
+          dndState.container
         )}
 
       {isMoveModalOpen && (

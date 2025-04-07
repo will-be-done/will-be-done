@@ -158,8 +158,6 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
 }) {
   const { allProjectsList } = getRootStore();
 
-  console.log({ displayedTasksIds });
-
   return (
     <div className="overflow-y-auto h-full">
       {allProjectsList.children
@@ -198,20 +196,18 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
 const BoardView = observer(function BoardViewComponent({
   handleNextDay,
   handlePrevDay,
-  setDaysToShow,
-  daysToShow,
   dailyLists,
   onTaskAdd,
   displayedTasksIds,
 }: {
   handleNextDay: () => void;
   handlePrevDay: () => void;
-  daysToShow: number;
-  setDaysToShow: (daysToShow: number) => void;
   dailyLists: DailyList[];
   onTaskAdd: (dailyList: DailyList) => void;
   displayedTasksIds: Set<string>;
 }) {
+  const { preferences } = getRootStore();
+
   return (
     <div className="grid grid-cols-7 gap-4 h-full">
       {/* 80% section (4/5 columns) */}
@@ -263,9 +259,9 @@ const BoardView = observer(function BoardViewComponent({
             {[1, 2, 3, 4, 5, 6, 7].map((dayCount) => (
               <button
                 key={dayCount}
-                onClick={() => setDaysToShow(dayCount)}
+                onClick={() => preferences.setDaysWindow(dayCount)}
                 className={`w-6 h-6 flex items-center justify-center text-xs border ${
-                  dayCount <= daysToShow
+                  dayCount <= preferences.daysWindow
                     ? "bg-blue-600 border-blue-700 text-white"
                     : "bg-gray-700 border-gray-600 text-gray-300"
                 } rounded cursor-pointer hover:bg-gray-600 transition-colors`}
@@ -281,7 +277,7 @@ const BoardView = observer(function BoardViewComponent({
             className="grid"
             style={{
               display: "grid",
-              gridTemplateColumns: `repeat(${daysToShow}, minmax(200px, 1fr))`,
+              gridTemplateColumns: `repeat(${preferences.daysWindow}, minmax(200px, 1fr))`,
               gap: "12px",
               width: "auto",
               maxWidth: "100%",
@@ -312,10 +308,13 @@ const BoardView = observer(function BoardViewComponent({
 export const Board = observer(function BoardComponent() {
   const rootStore = getRootStore();
   const { dailyListRegisry, listsService } = rootStore;
+  const { preferences } = getRootStore();
+  const daysToShow = preferences.daysWindow;
+  const daysShift = preferences.daysShift;
 
-  const [daysToShow, setDaysToShow] = useState<number>(7);
-  const [startingDate, setStartingDate] = useState<Date>(() =>
-    startOfDay(new Date()),
+  const startingDate = useMemo(
+    () => addDays(startOfDay(new Date()), daysShift),
+    [daysShift],
   );
 
   const weekDays = useMemo(
@@ -328,12 +327,12 @@ export const Board = observer(function BoardComponent() {
 
   // Handle previous day
   const handlePrevDay = (): void => {
-    setStartingDate((prevDate) => subDays(prevDate, 1));
+    preferences.setDaysShift(preferences.daysShift - 1);
   };
 
   // Handle next day
   const handleNextDay = (): void => {
-    setStartingDate((prevDate) => addDays(prevDate, 1));
+    preferences.setDaysShift(preferences.daysShift + 1);
   };
 
   useEffect(() => {
@@ -437,8 +436,6 @@ export const Board = observer(function BoardComponent() {
       displayedTasksIds={displayedTasksIds}
       handleNextDay={handleNextDay}
       handlePrevDay={handlePrevDay}
-      daysToShow={daysToShow}
-      setDaysToShow={setDaysToShow}
       dailyLists={dailyLists}
       onTaskAdd={handleAddTask}
     />

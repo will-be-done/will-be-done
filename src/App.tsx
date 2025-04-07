@@ -16,6 +16,7 @@ import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
 import { BaseListItem } from "./models/listActions";
 import { MoveModal } from "./components/MoveModel/MoveModel";
+import { useUnmount } from "./utils";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
   const rootStore = getRootStore();
@@ -170,6 +171,9 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 });
 
 export const App = observer(function App() {
+  useUnmount(() => {
+    console.log("unmounting App");
+  });
   return (
     <>
       <GlobalListener />

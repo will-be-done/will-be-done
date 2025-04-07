@@ -541,6 +541,12 @@ export class DailyListRegistry
     return this.entities.get(id);
   }
 }
+@model("TaskApp/Preferences")
+export class Preferences extends Model({
+  id: idProp,
+  daysWindow: prop<number>(() => 7).withSetter(),
+  daysShift: prop<number>(() => 0).withSetter(),
+}) {}
 
 @model("TaskApp/RootStore")
 export class RootStore extends Model({
@@ -556,6 +562,8 @@ export class RootStore extends Model({
 
   listsService: prop<ListsService>(() => new ListsService({})),
   projectsService: prop<ProjectsService>(() => new ProjectsService({})),
+
+  preferences: prop<Preferences>(() => new Preferences({})),
 }) {}
 
 @model("TaskApp/ProjectsService")
