@@ -19,9 +19,9 @@ import {
 import ReactDOM from "react-dom";
 import { isTaskPassingData, TaskPassingData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
-import { clone } from "mobx-keystone";
 import { BaseListItem } from "../../models/listActions";
-import { usePrevious } from "../../utils";
+import { usePrevious, useUnmount } from "../../utils";
+import { MoveModal } from "../MoveModel/MoveModel";
 
 type State =
   | { type: "idle" }
@@ -80,9 +80,10 @@ export const TaskComp = observer(function TaskComponent({
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const project = task.projectRef.current;
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const rootStore = getRootStore();
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    console.log("key", e.key);
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
       tasksState.resetFocus();
@@ -98,6 +99,33 @@ export const TaskComp = observer(function TaskComponent({
     }
   };
 
+  const handleGlobalKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.code === "KeyM" && isSelected && !isEditing) {
+        e.preventDefault();
+        setIsMoveModalOpen(true);
+      }
+    },
+    [isSelected, isEditing],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, [handleGlobalKeyDown]);
+
+  const handleMove = (projectId: string) => {
+    const targetProject = rootStore.allProjectsList.children.find(
+      (p) => p.id === projectId,
+    );
+    if (targetProject) {
+      task.setProjectRef(targetProject.makeListRef());
+      setIsMoveModalOpen(false);
+    }
+  };
+
   const ref = useRef<HTMLDivElement | null>(null);
 
   const listId = listItem.listRef.id;
@@ -107,6 +135,8 @@ export const TaskComp = observer(function TaskComponent({
   useEffect(() => {
     const element = ref.current;
     invariant(element);
+
+    if (isEditing) return;
 
     return combine(
       draggable({
@@ -184,7 +214,7 @@ export const TaskComp = observer(function TaskComponent({
         },
       }),
     );
-  }, [listId, listItemId, taskId]);
+  }, [isEditing, listId, listItemId, taskId]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -209,16 +239,20 @@ export const TaskComp = observer(function TaskComponent({
   const prevIsEditing = usePrevious(isEditing);
   const taskTitle = task.title;
   useEffect(() => {
-    if (isEditing && !prevIsEditing) {
-      setEditingTitle(taskTitle);
-    }
+    setEditingTitle(taskTitle);
+  }, [taskTitle]);
 
-    if (!isEditing && prevIsEditing) {
-      if (editingTitle !== taskTitle) {
-        task.setTitle(editingTitle);
-      }
+  useEffect(() => {
+    if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
+      task.setTitle(editingTitle);
     }
   }, [isEditing, prevIsEditing, editingTitle, taskTitle, task]);
+
+  useUnmount(() => {
+    if (editingTitle !== taskTitle) {
+      task.setTitle(editingTitle);
+    }
+  });
 
   return (
     <>
@@ -233,7 +267,7 @@ export const TaskComp = observer(function TaskComponent({
         style={{}}
         onClick={() => tasksState.setSelectedItem(listItem.id)}
         onDoubleClick={(e) => {
-          e.preventDefault();
+          // e.preventDefault();
           tasksState.setFocusedItemId(listItem.id);
         }}
         ref={ref}
@@ -245,6 +279,7 @@ export const TaskComp = observer(function TaskComponent({
                 <input
                   type="checkbox"
                   className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
+                  aria-label="Task completion status"
                 />
               </div>
               <TextareaAutosize
@@ -252,7 +287,7 @@ export const TaskComp = observer(function TaskComponent({
                 value={editingTitle}
                 onChange={(e) => setEditingTitle(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e)}
-                className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none font-medium"
+                className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none "
                 aria-label="Edit task title"
               />
             </>
@@ -264,11 +299,10 @@ export const TaskComp = observer(function TaskComponent({
                   className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
                   checked={task.state === "done"}
                   onChange={() => task.toggleState()}
+                  aria-label="Task completion status"
                 />
               </div>
-              <div className="font-medium text-gray-200 min-h-6">
-                {task.title}
-              </div>
+              <div className="text-gray-200 min-h-6">{task.title}</div>
             </>
           )}
         </div>
@@ -293,6 +327,15 @@ export const TaskComp = observer(function TaskComponent({
           />,
           dndState.container,
         )}
+
+      {isMoveModalOpen && (
+        <MoveModal
+          isOpen={isMoveModalOpen}
+          setIsOpen={setIsMoveModalOpen}
+          handleMove={handleMove}
+          exceptProjectId={project.id}
+        />
+      )}
     </>
   );
 });
