@@ -14,18 +14,16 @@ import { currentProjectionState } from "../../states/task";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   dropTargetForElements,
+  ElementDragPayload,
   monitorForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import {
-  DailyListPassingData,
-  isDailyListPassingData,
-  isTaskPassingData,
-} from "../../dnd/models";
+import { DndModelData, isModelDNDData } from "../../dnd/models";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import invariant from "tiny-invariant";
 import { computed } from "mobx";
+import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -69,19 +67,23 @@ const ColumnView = observer(function ColumnViewComponent({
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
-  const listId = dailyList.id;
   useEffect(() => {
     invariant(columnRef.current);
     invariant(scrollableRef.current);
     return combine(
       dropTargetForElements({
         element: columnRef.current,
-        getData: (): DailyListPassingData => ({
-          type: "dailyList",
-          listId,
+        getData: (): DndModelData => ({
+          modelId: dailyList.id,
+          modelType: dailyList.$modelType,
         }),
         canDrop: ({ source }) => {
-          return isTaskPassingData(source.data);
+          if (!isModelDNDData(source.data)) return false;
+
+          const entity = getRootStore().getEntity(source.data.modelId);
+          if (!entity) return false;
+
+          return dailyList.canDrop(entity);
         },
         getIsSticky: () => true,
         onDragEnter: () => setDndState(isTaskOver),
@@ -91,10 +93,10 @@ const ColumnView = observer(function ColumnViewComponent({
       }),
       autoScrollForElements({
         element: scrollableRef.current,
-        canScroll: ({ source }) => isTaskPassingData(source.data),
+        canScroll: ({ source }) => isModelDNDData(source.data),
       }),
     );
-  }, [listId]);
+  }, [dailyList, dailyList.$modelType, dailyList.id]);
 
   return (
     <div
@@ -307,7 +309,7 @@ const BoardView = observer(function BoardViewComponent({
 
 export const Board = observer(function BoardComponent() {
   const rootStore = getRootStore();
-  const { dailyListRegisry, listsService } = rootStore;
+  const { dailyListRegisry } = rootStore;
   const { preferences } = getRootStore();
   const daysToShow = preferences.daysWindow;
   const daysShift = preferences.daysShift;
@@ -353,83 +355,6 @@ export const Board = observer(function BoardComponent() {
     ]);
     currentProjectionState.setFocusedItemId(newItem.id);
   };
-
-  useEffect(() => {
-    return combine(
-      monitorForElements({
-        onDrop(args) {
-          const { location, source } = args;
-
-          if (!location.current.dropTargets.length) {
-            return;
-          }
-
-          if (!isTaskPassingData(source.data)) {
-            return;
-          }
-
-          const sourceItem = listsService.findListItemOrThrow(
-            source.data.listItemId,
-          );
-
-          const dropTaskTarget = location.current.dropTargets.find((t) =>
-            isTaskPassingData(t.data),
-          );
-          if (dropTaskTarget) {
-            if (!isTaskPassingData(dropTaskTarget.data)) {
-              return;
-            }
-
-            const targetList = listsService.findListOrThrow(
-              dropTaskTarget.data.listId,
-            );
-            const targetProjection = listsService.findListItemOrThrow(
-              dropTaskTarget.data.listItemId,
-            );
-
-            const closestEdgeOfTarget: Edge | null = extractClosestEdge(
-              dropTaskTarget.data,
-            );
-
-            if (
-              closestEdgeOfTarget &&
-              closestEdgeOfTarget != "top" &&
-              closestEdgeOfTarget != "bottom"
-            ) {
-              throw new Error("edge is not top or bottm");
-            }
-
-            listsService.addListItemFromOtherList(
-              sourceItem,
-              targetProjection,
-              closestEdgeOfTarget || "bottom",
-            );
-
-            return;
-          }
-
-          const dailyListTaskTarget = location.current.dropTargets.find((t) =>
-            isDailyListPassingData(t.data),
-          );
-          if (dailyListTaskTarget) {
-            if (!isDailyListPassingData(dailyListTaskTarget.data)) {
-              return;
-            }
-
-            const targetList = listsService.findListOrThrow(
-              dailyListTaskTarget.data.listId,
-            );
-
-            listsService.appendListItemFromOtherList(targetList, sourceItem);
-
-            return;
-          }
-
-          console.warn("No target found", args, location.current.dropTargets);
-        },
-      }),
-    );
-  }, [listsService]);
 
   return (
     <BoardView

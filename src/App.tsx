@@ -3,20 +3,31 @@ import "./fixGlobal";
 import { Board } from "./components/DaysBoard/DaysBoard";
 import { observer } from "mobx-react-lite";
 import {
+  DailyList,
   getRootStore,
   getUndoManager,
   Task,
   TaskProjection,
-  TaskTemplate,
 } from "./models/models";
 import { currentProjectionState } from "./states/task";
 import { useEffect } from "react";
-import { clone, detach } from "mobx-keystone";
+import { detach } from "mobx-keystone";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
 import { BaseListItem } from "./models/listActions";
-import { MoveModal } from "./components/MoveModel/MoveModel";
 import { useUnmount } from "./utils";
+import { globalKeysState } from "./states/isGlobalKeyDisables";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
+import {
+  dropTargetForElements,
+  ElementDragPayload,
+  monitorForElements,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
+import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
+import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
+import { isModelDNDData } from "./dnd/models";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
   const rootStore = getRootStore();
@@ -26,7 +37,10 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeElement = document.activeElement;
+      const activeElement =
+        e.target instanceof Element ? e.target : document.activeElement;
+
+      if (!globalKeysState.isEnabled) return;
 
       // Check if the active element IS any kind of input element
       const isInput =
@@ -167,13 +181,93 @@ const GlobalListener = observer(function GlobalListenerComponent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [state.selectedItemId, rootStore.listsService, state, undoManager]);
 
+  useEffect(() => {
+    return combine(
+      monitorForElements({
+        onDrop(args) {
+          const { location, source } = args;
+
+          if (!location.current.dropTargets.length) {
+            return;
+          }
+
+          if (!isModelDNDData(source.data)) {
+            return;
+          }
+
+          const sourceEntity = getRootStore().getEntity(source.data.modelId);
+          if (!sourceEntity) {
+            console.warn("Source entity not found");
+
+            return;
+          }
+
+          const dropModels = location.current.dropTargets.flatMap((t) => {
+            if (!isModelDNDData(t.data)) {
+              return [] as const;
+            }
+
+            const entity = getRootStore().getEntity(t.data.modelId);
+            if (!entity) return [] as const;
+
+            return [[t, entity] as const];
+          });
+          console.log("dropModels", dropModels);
+
+          const dropImportanceOrder = [Task, TaskProjection, DailyList];
+
+          type droppableEntity = Task | TaskProjection | DailyList;
+          let dropInfo:
+            | readonly [DropTargetRecord, droppableEntity]
+            | undefined = undefined;
+          for (const importance of dropImportanceOrder) {
+            dropInfo = dropModels.find(
+              ([_, e]) => e instanceof importance,
+            ) as readonly [DropTargetRecord, droppableEntity];
+
+            if (dropInfo) {
+              break;
+            }
+          }
+          console.log("dropInfo", dropInfo);
+
+          if (!dropInfo) {
+            console.warn("Drop entity not found or not in importance list");
+            return;
+          }
+
+          const closestEdgeOfTarget: Edge | null = extractClosestEdge(
+            dropInfo[0].data,
+          );
+
+          if (
+            closestEdgeOfTarget &&
+            closestEdgeOfTarget != "top" &&
+            closestEdgeOfTarget != "bottom"
+          ) {
+            throw new Error("edge is not top or bottm");
+          }
+          console.log(
+            "onDrop",
+            args,
+            "drop",
+            dropInfo[1],
+            "source",
+            sourceEntity,
+            "closestEdge",
+            closestEdgeOfTarget,
+          );
+
+          dropInfo[1].handleDrop(sourceEntity, closestEdgeOfTarget || "bottom");
+        },
+      }),
+    );
+  }, []);
+
   return <></>;
 });
 
 export const App = observer(function App() {
-  useUnmount(() => {
-    console.log("unmounting App");
-  });
   return (
     <>
       <GlobalListener />

@@ -7,6 +7,9 @@ import {
 
 import { observer } from "mobx-react-lite";
 import { getRootStore } from "../../models/models";
+import { useState, useRef, useEffect } from "react";
+import { globalKeysState } from "../../states/isGlobalKeyDisables";
+import { useUnmount } from "../../utils";
 
 export const MoveModal = observer(function MoveModelComp({
   isOpen,
@@ -20,32 +23,87 @@ export const MoveModal = observer(function MoveModelComp({
   exceptProjectId: string;
 }) {
   const { allProjectsList } = getRootStore();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const projects = allProjectsList.children.filter(
-    (pr) => pr.id !== exceptProjectId,
-  );
+  const projects = allProjectsList.children
+    .filter((pr) => pr.id !== exceptProjectId)
+    .filter((pr) => pr.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown" || (e.ctrlKey && e.code === "KeyJ")) {
+      e.preventDefault();
+      setSelectedIndex((prev) =>
+        prev < projects.length - 1 ? prev + 1 : prev,
+      );
+    } else if (e.key === "ArrowUp" || (e.ctrlKey && e.code === "KeyK")) {
+      e.preventDefault();
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+    } else if (e.key === "Enter" && projects[selectedIndex]) {
+      e.preventDefault();
+      handleMove(projects[selectedIndex].id);
+      setIsOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    globalKeysState.isEnabled = !isOpen;
+  }, [isOpen]);
+
+  useUnmount(() => {
+    globalKeysState.isEnabled = true;
+  });
+
   return (
     <Dialog
       static
       className="relative z-50"
       open
       onClose={() => setIsOpen(!isOpen)}
+      onKeyDown={handleKeyDown}
     >
       <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="mx-auto flex max-h-[80vh] w-full max-w-3xl flex-col rounded-2xl bg-gray-800 p-5 shadow-xl ">
+        <DialogPanel className="mx-auto flex h-[70vh] w-full max-w-3xl flex-col rounded-2xl bg-gray-800 p-5 shadow-xl">
           <DialogTitle
             className="mb-3 border-b pb-2 text-lg font-medium leading-6 text-gray-200"
             as="h3"
           >
             Choose project
           </DialogTitle>
-          <Description className="h-full min-h-0 overflow-y-scroll" as="div">
-            <div className="grid gap-1 overflow-y-scroll text-gray-200">
-              {projects.map((pr) => (
+          <div className="mb-4">
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search projects..."
+              className="w-full rounded bg-gray-900 p-2 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              autoFocus
+            />
+          </div>
+          <Description className="flex-1 overflow-y-auto" as="div">
+            <div className="grid gap-1 text-gray-200">
+              {projects.map((pr, index) => (
                 <button
                   key={pr.id}
-                  className="mx-2 cursor-pointer rounded bg-gray-900 p-3 text-left hover:bg-sky-900"
+                  className={`mx-2 cursor-pointer rounded p-3 text-left ${
+                    index === selectedIndex
+                      ? "bg-sky-900"
+                      : "bg-gray-900 hover:bg-sky-900"
+                  }`}
                   onClick={() => handleMove(pr.id)}
                 >
                   {pr.title}

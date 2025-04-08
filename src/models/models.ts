@@ -1,5 +1,6 @@
 import { autorun, computed, reaction } from "mobx";
 import {
+  type AnyModel,
   applySnapshot,
   clone,
   detach,
@@ -170,6 +171,39 @@ export class Task
     this.state = this.state === "todo" ? "done" : "todo";
   }
 
+  canDrop(target: AnyModel): target is TaskProjection | Task {
+    return target instanceof TaskProjection || target instanceof Task;
+  }
+
+  @modelAction
+  handleDrop(target: AnyModel, edge: "top" | "bottom") {
+    if (!this.canDrop(target)) {
+      return;
+    }
+    const [up, down] = this.siblings;
+
+    let between: [string | undefined, string | undefined] = [
+      this.orderToken,
+      down?.orderToken,
+    ];
+    if (edge == "top") {
+      between = [up?.orderToken, this.orderToken];
+    }
+
+    const orderToken = generateKeyBetween(between[0], between[1]);
+    if (target instanceof TaskProjection) {
+      const task = target.taskRef.current;
+      task.setProjectRef(clone(this.projectRef));
+      task.orderToken = orderToken;
+      detach(target);
+    } else if (target instanceof Task) {
+      target.setProjectRef(clone(this.projectRef));
+      target.orderToken = orderToken;
+    } else {
+      assertUnreachable(target);
+    }
+  }
+
   onAttachedToRootStore() {
     return autorun(() => {
       if (!this.projectRef.isValid) {
@@ -277,44 +311,6 @@ export class AllProjectsList
 
     return project;
   }
-
-  // @modelAction
-  // addProjectionFromOtherList(
-  //   sourceProjection: Projection,
-  //   targetProjection: Projection,
-  //   edge: "top" | "bottom",
-  // ) {
-  //   addProjectionFromOtherList(sourceProjection, targetProjection, edge);
-  // }
-
-  // @modelAction
-  // appendProjectionFromOtherList(sourceProjection: Projection) {}
-
-  // append(projectRef: Ref<Project>) {
-  //   console.log("append", projectRef);
-  //   const projectProjectionRegistry =
-  //     getRootStoreOrThrow(this).projectProjectionRegistry;
-  //
-  //   const projection = new ProjectProjection({
-  //     listRef: allProjectsListRef(this),
-  //     itemRef: projectRef,
-  //     orderToken: generateKeyBetween(
-  //       this.lastProjection?.orderToken,
-  //       undefined,
-  //     ),
-  //   });
-  //
-  //   projectProjectionRegistry.add(projection);
-  // }
-
-  // @modelAction
-  // createMissingProjections() {
-  //   const rootStore = getRootStoreOrThrow(this);
-  //
-  //   const { projectRegistry } = rootStore;
-  //
-  //   const projectIds = new Set(this.projections.map((p) => p.projectRef.id));
-  // }
 }
 
 @model("TaskApp/TaskProjection")
@@ -329,6 +325,44 @@ export class TaskProjection
 {
   get listRef() {
     return this.dailyListRef;
+  }
+
+  canDrop(target: AnyModel): target is TaskProjection | Task {
+    return target instanceof TaskProjection || target instanceof Task;
+  }
+
+  @modelAction
+  handleDrop(target: AnyModel, edge: "top" | "bottom") {
+    if (!this.canDrop(target)) {
+      return;
+    }
+
+    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
+    const [up, down] = this.siblings;
+
+    let between: [string | undefined, string | undefined] = [
+      this.orderToken,
+      down?.orderToken,
+    ];
+    if (edge == "top") {
+      between = [up?.orderToken, this.orderToken];
+    }
+
+    const orderToken = generateKeyBetween(between[0], between[1]);
+
+    if (target instanceof TaskProjection) {
+      target.listRef = clone(this.dailyListRef);
+      target.orderToken = orderToken;
+    } else if (target instanceof Task) {
+      const newProjection = new TaskProjection({
+        taskRef: taskRef(target),
+        orderToken: orderToken,
+        dailyListRef: clone(this.dailyListRef),
+      });
+      taskProjectionRegistry.add(newProjection);
+    } else {
+      assertUnreachable(target);
+    }
   }
 
   set listRef(value: Ref<DailyList>) {
@@ -383,6 +417,36 @@ export class DailyList
     return dailyListRef(this);
   }
 
+  canDrop(target: AnyModel) {
+    return target instanceof TaskProjection || target instanceof Task;
+  }
+
+  @modelAction
+  handleDrop(target: AnyModel) {
+    if (!this.canDrop(target)) return;
+
+    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
+
+    const orderToken = generateKeyBetween(
+      this.lastChild?.orderToken,
+      undefined,
+    );
+    if (target instanceof TaskProjection) {
+      target.listRef = this.makeListRef();
+      target.orderToken = orderToken;
+    } else if (target instanceof Task) {
+      const newProjection = new TaskProjection({
+        taskRef: taskRef(target),
+        orderToken: orderToken,
+        dailyListRef: this.makeListRef(),
+      });
+
+      taskProjectionRegistry.add(newProjection);
+    } else {
+      assertUnreachable(target);
+    }
+  }
+
   @computed
   get children(): TaskProjection[] {
     return getChildren(this, dailyListRef, TaskProjection);
@@ -411,19 +475,6 @@ export class DailyList
     );
   }
 
-  // @modelAction
-  // appendProjectionFromOtherList(sourceProjection: TaskProjection) {
-  //   const lastProjection = this.lastProjection;
-  //
-  //   const newOrderToken = generateKeyBetween(
-  //     lastProjection?.orderToken,
-  //     undefined,
-  //   );
-  //
-  //   sourceProjection.orderToken = newOrderToken;
-  //   sourceProjection.dailyListRef = dailyListRef(this);
-  // }
-
   @modelAction
   createChild(
     between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
@@ -432,8 +483,6 @@ export class DailyList
     const { taskProjectionRegistry, projectsRegistry } =
       getRootStoreOrThrow(this);
 
-    console.trace();
-    console.log("createChild", base);
     const project =
       base?.taskRef.maybeCurrent?.projectRef.maybeCurrent ||
       projectsRegistry.inboxProjectOrThrow;
@@ -453,22 +502,6 @@ export class DailyList
 
     return proj;
   }
-
-  // @modelAction
-  // addProjectionFromOtherList(
-  //   sourceProjection: Projection,
-  //   targetProjection: Projection,
-  //   edge: "top" | "bottom",
-  // ) {
-  //   if (!(targetProjection instanceof TaskProjection)) {
-  //     throw new Error("Target projection is not task");
-  //   }
-  //
-  //   if (targetProjection.listRef.current !== this) {
-  //     throw new Error("Target projection is not in this daily list");
-  //   }
-  //   addProjectionFromOtherList(sourceProjection, targetProjection, edge);
-  // }
 }
 
 @model("TaskApp/DailyListRegistry")
@@ -524,7 +557,6 @@ export class DailyListRegistry
       const newList = new DailyList({ date: new Date(date) });
 
       this.entities.set(newList.id, newList);
-      console.log("created", newList);
 
       return newList;
     } else {
@@ -564,7 +596,26 @@ export class RootStore extends Model({
   projectsService: prop<ProjectsService>(() => new ProjectsService({})),
 
   preferences: prop<Preferences>(() => new Preferences({})),
-}) {}
+}) {
+  getEntity(entityId: string): AnyModel | undefined {
+    const registries = [
+      this.projectsRegistry,
+      this.taskRegistry,
+      this.taskProjectionRegistry,
+      this.dailyListRegisry,
+    ];
+
+    for (const registry of registries) {
+      const entity = registry.getById(entityId);
+
+      if (entity) {
+        return entity;
+      }
+    }
+
+    return undefined;
+  }
+}
 
 @model("TaskApp/ProjectsService")
 export class ProjectsService extends Model({}) {
@@ -648,78 +699,6 @@ export class ListsService extends Model({}) {
     }
 
     return list;
-  }
-
-  @modelAction
-  addListItemFromOtherList(
-    sourceItem: BaseListItem<undefined>,
-    targetItem: BaseListItem<undefined>,
-    edge: "top" | "bottom",
-  ) {
-    if (sourceItem instanceof TaskProjection && targetItem instanceof Task) {
-      return;
-    }
-
-    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
-    const [up, down] = targetItem.siblings;
-
-    let between: [string | undefined, string | undefined] = [
-      targetItem.orderToken,
-      down?.orderToken,
-    ];
-    if (edge == "top") {
-      between = [up?.orderToken, targetItem.orderToken];
-    }
-
-    // TODO: fix hack
-    if (sourceItem instanceof Task && targetItem instanceof TaskProjection) {
-      console.log("ooops1");
-
-      const newProjection = new TaskProjection({
-        taskRef: taskRef(sourceItem),
-        orderToken: generateKeyBetween(between[0], between[1]),
-        dailyListRef: clone(targetItem.dailyListRef),
-      });
-      taskProjectionRegistry.add(newProjection);
-
-      return;
-    }
-
-    sourceItem.listRef = clone(targetItem.listRef);
-    sourceItem.orderToken = generateKeyBetween(between[0], between[1]);
-  }
-
-  @modelAction
-  appendListItemFromOtherList(
-    list: ItemsList<undefined>,
-    toAppend: BaseListItem<undefined>,
-  ) {
-    if (toAppend instanceof TaskProjection && list instanceof Project) {
-      return;
-    }
-
-    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
-
-    const orderToken = generateKeyBetween(
-      list.lastChild?.orderToken,
-      undefined,
-    );
-
-    // TODO: fix hack
-    if (toAppend instanceof Task && list instanceof DailyList) {
-      const newProjection = new TaskProjection({
-        taskRef: taskRef(toAppend),
-        orderToken: orderToken,
-        dailyListRef: list.makeListRef(),
-      });
-      taskProjectionRegistry.add(newProjection);
-
-      return;
-    }
-
-    const lastChild = list.lastChild;
-    toAppend.listRef = list.makeListRef();
-    toAppend.orderToken = orderToken;
   }
 }
 
@@ -812,3 +791,6 @@ export const getUndoManager = () => {
 
   return undoManager;
 };
+function assertUnreachable(x: never): never {
+  throw new Error("Didn't expect to get here");
+}

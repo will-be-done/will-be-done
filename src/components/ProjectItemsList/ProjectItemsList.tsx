@@ -6,7 +6,7 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { isTaskPassingData } from "../../dnd/models";
+import { isModelDNDData } from "../../dnd/models";
 import { currentProjectionState } from "../../states/task";
 import { detach } from "mobx-keystone";
 
@@ -28,55 +28,57 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
     return combine(
       monitorForElements({
         onDrop(args) {
-          const { location, source } = args;
+          console.log("onDrop", args);
 
-          if (!location.current.dropTargets.length) {
-            return;
-          }
-
-          if (!isTaskPassingData(source.data)) {
-            return;
-          }
-
-          const sourceProjection = listsService.findListItemOrThrow(
-            source.data.listItemId,
-          );
-
-          const dropTaskTarget = location.current.dropTargets.find((t) =>
-            isTaskPassingData(t.data),
-          );
-          if (dropTaskTarget) {
-            if (!isTaskPassingData(dropTaskTarget.data)) {
-              return;
-            }
-
-            const targetList = listsService.findListOrThrow(
-              dropTaskTarget.data.listId,
-            );
-            const targetProjection = listsService.findListItemOrThrow(
-              dropTaskTarget.data.listItemId,
-            );
-
-            const closestEdgeOfTarget: Edge | null = extractClosestEdge(
-              dropTaskTarget.data,
-            );
-
-            if (
-              closestEdgeOfTarget &&
-              closestEdgeOfTarget != "top" &&
-              closestEdgeOfTarget != "bottom"
-            ) {
-              throw new Error("edge is not top or bottm");
-            }
-
-            listsService.addListItemFromOtherList(
-              sourceProjection,
-              targetProjection,
-              closestEdgeOfTarget || "bottom",
-            );
-
-            return;
-          }
+          // const { location, source } = args;
+          //
+          // if (!location.current.dropTargets.length) {
+          //   return;
+          // }
+          //
+          // if (!isModelDNDData(source.data)) {
+          //   return;
+          // }
+          //
+          // const sourceProjection = listsService.findListItemOrThrow(
+          //   source.data.listItemId,
+          // );
+          //
+          // const dropTaskTarget = location.current.dropTargets.find((t) =>
+          //   isModelDNDData(t.data),
+          // );
+          // if (dropTaskTarget) {
+          //   if (!isModelDNDData(dropTaskTarget.data)) {
+          //     return;
+          //   }
+          //
+          //   const targetList = listsService.findListOrThrow(
+          //     dropTaskTarget.data.listId,
+          //   );
+          //   const targetProjection = listsService.findListItemOrThrow(
+          //     dropTaskTarget.data.listItemId,
+          //   );
+          //
+          //   const closestEdgeOfTarget: Edge | null = extractClosestEdge(
+          //     dropTaskTarget.data,
+          //   );
+          //
+          //   if (
+          //     closestEdgeOfTarget &&
+          //     closestEdgeOfTarget != "top" &&
+          //     closestEdgeOfTarget != "bottom"
+          //   ) {
+          //     throw new Error("edge is not top or bottm");
+          //   }
+          //
+          //   listsService.addListItemFromOtherList(
+          //     sourceProjection,
+          //     targetProjection,
+          //     closestEdgeOfTarget || "bottom",
+          //   );
+          //
+          //   return;
+          // }
         },
       }),
     );

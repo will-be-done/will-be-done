@@ -17,12 +17,13 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import ReactDOM from "react-dom";
-import { isTaskPassingData, TaskPassingData } from "../../dnd/models";
+import { DndModelData, isModelDNDData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { BaseListItem } from "../../models/listActions";
 import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
 import { computed } from "mobx";
+import { globalKeysState } from "../../states/isGlobalKeyDisables";
 
 type State =
   | { type: "idle" }
@@ -71,14 +72,14 @@ export const TaskComp = observer(function TaskComponent({
   showProject,
 }: {
   task: Task;
-  listItem: BaseListItem<unknown>;
+  listItem: Task | TaskProjection;
   showProject: boolean;
 }) {
   const [editingTitle, setEditingTitle] = useState<string>(task.title);
   const tasksState = currentProjectionState;
   const isEditing = computed(() => tasksState.isItemFocused(listItem.id)).get();
   const isSelected = computed(() =>
-    tasksState.isItemSelected(listItem.id)
+    tasksState.isItemSelected(listItem.id),
   ).get();
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
@@ -91,14 +92,14 @@ export const TaskComp = observer(function TaskComponent({
       e.preventDefault();
       tasksState.resetFocus();
 
-      if (e.key === "Enter") {
-        task.setTitle(editingTitle);
-        const siblings = listItem.siblings;
-        const list = listItem.listRef.current;
-        const newItem = list.createChild([listItem, siblings[1]], listItem);
-
-        currentProjectionState.setFocusedItemId(newItem.id);
-      }
+      // if (e.key === "Enter") {
+      //   task.setTitle(editingTitle);
+      //   const siblings = listItem.siblings;
+      //   const list = listItem.listRef.current;
+      //   const newItem = list.createChild([listItem, siblings[1]], listItem);
+      //
+      //   currentProjectionState.setFocusedItemId(newItem.id);
+      // }
     }
   };
 
@@ -109,20 +110,22 @@ export const TaskComp = observer(function TaskComponent({
         setIsMoveModalOpen(true);
       }
     },
-    [isSelected, isEditing]
+    [isSelected, isEditing],
   );
 
   const handleGlobalClick = useCallback(
     (e: MouseEvent) => {
+      console.log(globalKeysState);
       if (
         isSelected &&
         ref.current &&
-        !ref.current.contains(e.target as Node)
+        !ref.current.contains(e.target as Node) &&
+        globalKeysState.isEnabled
       ) {
         tasksState.resetSelected();
       }
     },
-    [isSelected, tasksState]
+    [isSelected, tasksState],
   );
 
   useEffect(() => {
@@ -136,7 +139,7 @@ export const TaskComp = observer(function TaskComponent({
 
   const handleMove = (projectId: string) => {
     const targetProject = rootStore.allProjectsList.children.find(
-      (p) => p.id === projectId
+      (p) => p.id === projectId,
     );
     if (targetProject) {
       task.setProjectRef(targetProject.makeListRef());
@@ -145,10 +148,6 @@ export const TaskComp = observer(function TaskComponent({
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
-
-  const listId = listItem.listRef.id;
-  const taskId = task.id;
-  const listItemId = listItem.id;
 
   useEffect(() => {
     const element = ref.current;
@@ -159,11 +158,9 @@ export const TaskComp = observer(function TaskComponent({
     return combine(
       draggable({
         element: element,
-        getInitialData: (): TaskPassingData => ({
-          type: "task",
-          listId,
-          taskId,
-          listItemId,
+        getInitialData: (): DndModelData => ({
+          modelId: listItem.id,
+          modelType: listItem.$modelType,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -194,15 +191,18 @@ export const TaskComp = observer(function TaskComponent({
         element: element,
         canDrop: ({ source }) => {
           const data = source.data;
-          return isTaskPassingData(data) && data.type === "task";
+          if (!isModelDNDData(data)) return false;
+
+          const entity = getRootStore().getEntity(data.modelId);
+          if (!entity) return false;
+
+          return listItem.canDrop(entity);
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
-          const data: TaskPassingData = {
-            listItemId,
-            type: "task",
-            listId: listId,
-            taskId: taskId,
+          const data: DndModelData = {
+            modelId: listItem.id,
+            modelType: listItem.$modelType,
           };
 
           return attachClosestEdge(data, {
@@ -213,14 +213,14 @@ export const TaskComp = observer(function TaskComponent({
         },
         onDragEnter: (args) => {
           const data = args.source.data;
-          if (isTaskPassingData(data) && data.taskId !== taskId) {
+          if (isModelDNDData(data) && data.modelId !== listItem.id) {
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
         onDrag: (args) => {
           const data = args.source.data;
 
-          if (isTaskPassingData(data) && data.taskId !== taskId) {
+          if (isModelDNDData(data) && data.modelId !== listItem.id) {
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
@@ -230,9 +230,9 @@ export const TaskComp = observer(function TaskComponent({
         onDrop: () => {
           setClosestEdge(null);
         },
-      })
+      }),
     );
-  }, [isEditing, listId, listItemId, taskId]);
+  }, [isEditing, listItem]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -343,7 +343,7 @@ export const TaskComp = observer(function TaskComponent({
               height: dndState.rect.height,
             }}
           />,
-          dndState.container
+          dndState.container,
         )}
 
       {isMoveModalOpen && (
