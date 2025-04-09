@@ -23,6 +23,7 @@
     "eslint-plugin-mobx": "^0.0.13",
     "fractional-indexing": "^3.2.0",
     "framer-motion": "^12.6.3",
+    "jotai": "^2.12.2",
     "mobx": "^6.13.7",
     "mobx-keystone": "^1.11.4",
     "mobx-react-lite": "^4.1.0",
@@ -33,7 +34,8 @@
     "remotedev": "^0.2.9",
     "tailwindcss": "^4.0.17",
     "tiny-invariant": "^1.2.0",
-    "wouter": "^3.6.0"
+    "wouter": "^3.6.0",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",

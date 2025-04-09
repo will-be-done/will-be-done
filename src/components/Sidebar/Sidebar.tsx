@@ -5,7 +5,7 @@ import { getSnapshot } from "mobx-keystone";
 import { getBackups, loadBackups, Backup } from "../../models/backup";
 
 export const Sidebar = observer(function SidebarComp() {
-  const { allProjectsList, projectsService } = getRootStore();
+  const { allProjectsList, projectsRegistry } = getRootStore();
   const projects = allProjectsList.withoutInbox;
   const inboxProject = allProjectsList.inbox;
 
@@ -13,7 +13,7 @@ export const Sidebar = observer(function SidebarComp() {
     const title = prompt("Project title");
     if (!title) return;
 
-    projectsService.createProject(title, "", false, undefined);
+    projectsRegistry.createProject(title, "", false, undefined);
   };
 
   const handleDownloadBackup = () => {
@@ -57,7 +57,7 @@ export const Sidebar = observer(function SidebarComp() {
         } catch (error) {
           console.error("Failed to load backup:", error);
           alert(
-            "Failed to load backup file. Please make sure it's a valid backup file."
+            "Failed to load backup file. Please make sure it's a valid backup file.",
           );
         }
       };

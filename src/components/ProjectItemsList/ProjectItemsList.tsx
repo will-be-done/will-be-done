@@ -1,12 +1,6 @@
 import { observer } from "mobx-react-lite";
-import { getRootStore, Project, TaskTemplate } from "../../models/models";
+import { Project, TaskTemplate } from "../../models/models";
 import { TaskComp } from "../Task/Task";
-import { useEffect } from "react";
-import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
-import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { isModelDNDData } from "../../dnd/models";
 import { currentProjectionState } from "../../states/task";
 import { detach } from "mobx-keystone";
 
@@ -15,74 +9,11 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
 }: {
   project: Project;
 }) {
-  const rootStore = getRootStore();
-  const { listsService } = rootStore;
-
   const onAddNewTask = () => {
     const newTask = project.createChild([project.lastChild, undefined]);
 
     currentProjectionState.setFocusedItemId(newTask.id);
   };
-
-  useEffect(() => {
-    return combine(
-      monitorForElements({
-        onDrop(args) {
-          console.log("onDrop", args);
-
-          // const { location, source } = args;
-          //
-          // if (!location.current.dropTargets.length) {
-          //   return;
-          // }
-          //
-          // if (!isModelDNDData(source.data)) {
-          //   return;
-          // }
-          //
-          // const sourceProjection = listsService.findListItemOrThrow(
-          //   source.data.listItemId,
-          // );
-          //
-          // const dropTaskTarget = location.current.dropTargets.find((t) =>
-          //   isModelDNDData(t.data),
-          // );
-          // if (dropTaskTarget) {
-          //   if (!isModelDNDData(dropTaskTarget.data)) {
-          //     return;
-          //   }
-          //
-          //   const targetList = listsService.findListOrThrow(
-          //     dropTaskTarget.data.listId,
-          //   );
-          //   const targetProjection = listsService.findListItemOrThrow(
-          //     dropTaskTarget.data.listItemId,
-          //   );
-          //
-          //   const closestEdgeOfTarget: Edge | null = extractClosestEdge(
-          //     dropTaskTarget.data,
-          //   );
-          //
-          //   if (
-          //     closestEdgeOfTarget &&
-          //     closestEdgeOfTarget != "top" &&
-          //     closestEdgeOfTarget != "bottom"
-          //   ) {
-          //     throw new Error("edge is not top or bottm");
-          //   }
-          //
-          //   listsService.addListItemFromOtherList(
-          //     sourceProjection,
-          //     targetProjection,
-          //     closestEdgeOfTarget || "bottom",
-          //   );
-          //
-          //   return;
-          // }
-        },
-      }),
-    );
-  }, [listsService]);
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">

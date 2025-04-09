@@ -21,7 +21,7 @@ import {
   type Ref,
 } from "mobx-keystone";
 import { startOfDay } from "date-fns";
-import { getRootStoreOrThrow } from "./utils";
+import { generateKeyPositionedBetween, getRootStoreOrThrow } from "./utils";
 import { generateKeyBetween } from "fractional-indexing";
 import {
   type BaseListItem,
@@ -84,6 +84,48 @@ export class Project
     return this.children[this.children.length - 1];
   }
 
+  @computed
+  get firstProjectItem(): ProjectItem | undefined {
+    return this.children[this.children.length - 1];
+  }
+
+  @computed
+  get lastProjectItem(): ProjectItem | undefined {
+    return this.children[this.children.length - 1];
+  }
+
+  createTask(
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
+  ) {
+    const { taskRegistry } = getRootStoreOrThrow(this);
+
+    const orderToken = (() => {
+      if (position === "append") {
+        return generateKeyBetween(this.lastProjectItem?.orderToken, undefined);
+      }
+
+      if (position === "prepend") {
+        return generateKeyBetween(undefined, this.firstProjectItem?.orderToken);
+      }
+
+      return generateKeyBetween(
+        position[0]?.orderToken,
+        position[1]?.orderToken,
+      );
+    })();
+
+    const task = new Task({
+      projectRef: projectRef(this),
+      orderToken: orderToken,
+    });
+    taskRegistry.add(task);
+
+    return task;
+  }
+
   @modelAction
   createChild(
     between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
@@ -138,6 +180,23 @@ export class ProjectsRegistry
     if (!project) throw new Error("Project not found");
 
     return project;
+  }
+
+  @modelAction
+  createProject(
+    title: string,
+    icon: string,
+    isInbox: boolean,
+    between: [Project | undefined, Project | undefined] | undefined,
+  ) {
+    const { allProjectsList } = getRootStoreOrThrow(this);
+
+    const newProject = allProjectsList.createChild(between);
+    newProject.title = title;
+    newProject.icon = icon;
+    newProject.isInbox = isInbox;
+
+    return newProject;
   }
 }
 
@@ -202,6 +261,19 @@ export class Task
     } else {
       assertUnreachable(target);
     }
+  }
+
+  createSibling(position: "before" | "after") {
+    const { taskRegistry } = getRootStoreOrThrow(this);
+
+    const task = new Task({
+      projectRef: clone(this.projectRef),
+      orderToken: generateKeyPositionedBetween(this, this.siblings, position),
+    });
+
+    taskRegistry.add(task);
+
+    return task;
   }
 
   onAttachedToRootStore() {
@@ -377,6 +449,22 @@ export class TaskProjection
     return getSiblings<TaskProjection>(this);
   }
 
+  createSibling(position: "before" | "after") {
+    const { taskProjectionRegistry } = getRootStoreOrThrow(this);
+    const project = this.taskRef.current.projectRef.current;
+    const task = project.createTask("append");
+
+    const taskProjection = new TaskProjection({
+      orderToken: generateKeyPositionedBetween(this, this.siblings, position),
+      taskRef: taskRef(task),
+      dailyListRef: clone(this.dailyListRef),
+    });
+
+    taskProjectionRegistry.add(taskProjection);
+
+    return taskProjection;
+  }
+
   onAttachedToRootStore() {
     return autorun(() => {
       if (!this.taskRef.isValid) {
@@ -417,7 +505,7 @@ export class DailyList
     return dailyListRef(this);
   }
 
-  canDrop(target: AnyModel) {
+  canDrop(target: AnyModel): target is TaskProjection | Task {
     return target instanceof TaskProjection || target instanceof Task;
   }
 
@@ -583,17 +671,13 @@ export class Preferences extends Model({
 @model("TaskApp/RootStore")
 export class RootStore extends Model({
   allProjectsList: prop<AllProjectsList>(() => new AllProjectsList({})),
+
   projectsRegistry: prop<ProjectsRegistry>(() => new ProjectsRegistry({})),
-
   taskRegistry: prop<TaskRegistry>(() => new TaskRegistry({})),
-
   taskProjectionRegistry: prop<TaskProjectionRegistry>(
     () => new TaskProjectionRegistry({}),
   ),
   dailyListRegisry: prop<DailyListRegistry>(() => new DailyListRegistry({})),
-
-  listsService: prop<ListsService>(() => new ListsService({})),
-  projectsService: prop<ProjectsService>(() => new ProjectsService({})),
 
   preferences: prop<Preferences>(() => new Preferences({})),
 }) {
@@ -614,91 +698,6 @@ export class RootStore extends Model({
     }
 
     return undefined;
-  }
-}
-
-@model("TaskApp/ProjectsService")
-export class ProjectsService extends Model({}) {
-  @modelAction
-  createProject(
-    title: string,
-    icon: string,
-    isInbox: boolean,
-    between: [Project | undefined, Project | undefined] | undefined,
-  ) {
-    const { allProjectsList } = getRootStoreOrThrow(this);
-
-    const newProject = allProjectsList.createChild(between);
-    newProject.title = title;
-    newProject.icon = icon;
-    newProject.isInbox = isInbox;
-
-    return newProject;
-  }
-}
-
-@model("TaskApp/ListsService")
-export class ListsService extends Model({}) {
-  findList(listId: string) {
-    const rootStore = getRootStoreOrThrow(this);
-    const { projectsRegistry, dailyListRegisry, allProjectsList } = rootStore;
-
-    if (listId == allProjectsList.id) {
-      return allProjectsList;
-    }
-
-    const registries: ItemsListsRegistry<unknown>[] = [
-      dailyListRegisry,
-      projectsRegistry,
-    ];
-
-    for (const registry of registries) {
-      const list = registry.getById(listId);
-      if (list) {
-        return list;
-      }
-    }
-
-    return undefined;
-  }
-
-  findListItem(itemId: string) {
-    const rootStore = getRootStoreOrThrow(this);
-    const { taskRegistry, taskProjectionRegistry, projectsRegistry } =
-      rootStore;
-
-    const registries: ListItemsRegistry<unknown>[] = [
-      taskRegistry,
-      taskProjectionRegistry,
-      projectsRegistry,
-    ];
-
-    for (const registry of registries) {
-      const list = registry.getById(itemId);
-      if (list) {
-        return list;
-      }
-    }
-
-    return undefined;
-  }
-
-  findListItemOrThrow(itemId: string) {
-    const item = this.findListItem(itemId);
-    if (!item) {
-      throw new Error("list item not found: " + itemId);
-    }
-
-    return item;
-  }
-
-  findListOrThrow(listId: string) {
-    const list = this.findList(listId);
-    if (!list) {
-      throw new Error("list not found: " + listId);
-    }
-
-    return list;
   }
 }
 
@@ -758,7 +757,7 @@ export const getRootStore = () => {
       continue;
     }
 
-    rootStore.projectsService.createProject(
+    rootStore.projectsRegistry.createProject(
       project.name,
       project.icon,
       project.id === "inbox",

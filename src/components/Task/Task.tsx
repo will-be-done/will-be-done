@@ -1,5 +1,10 @@
 import { observer } from "mobx-react-lite";
-import { getRootStore, Task, TaskProjection } from "../../models/models";
+import {
+  getRootStore,
+  Task,
+  TaskProjection,
+  TaskTemplate,
+} from "../../models/models";
 import { currentProjectionState } from "../../states/task";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
@@ -19,11 +24,14 @@ import {
 import ReactDOM from "react-dom";
 import { DndModelData, isModelDNDData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
-import { BaseListItem } from "../../models/listActions";
+import { BaseListItem, OrderableItem } from "../../models/listActions";
 import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
 import { computed } from "mobx";
 import { globalKeysState } from "../../states/isGlobalKeyDisables";
+import { useKeyPressed } from "../../globalListener/hooks";
+import { isInputElement } from "../../utils/isInputElement";
+import { detach } from "mobx-keystone";
 
 type State =
   | { type: "idle" }
@@ -87,7 +95,7 @@ export const TaskComp = observer(function TaskComponent({
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const rootStore = getRootStore();
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
       tasksState.resetFocus();
@@ -103,39 +111,79 @@ export const TaskComp = observer(function TaskComponent({
     }
   };
 
-  const handleGlobalKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.code === "KeyM" && isSelected && !isEditing) {
-        e.preventDefault();
-        setIsMoveModalOpen(true);
-      }
-    },
-    [isSelected, isEditing],
-  );
+  useKeyPressed("keydown", (e: KeyboardEvent) => {
+    if (isEditing || !isSelected) return;
+    if (!globalKeysState.isEnabled) return;
 
-  const handleGlobalClick = useCallback(
-    (e: MouseEvent) => {
-      console.log(globalKeysState);
-      if (
-        isSelected &&
-        ref.current &&
-        !ref.current.contains(e.target as Node) &&
-        globalKeysState.isEnabled
-      ) {
+    const target =
+      e.target instanceof Element ? e.target : document.activeElement;
+    if (target && isInputElement(target)) return;
+
+    const isAddAfter = !e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
+    const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
+
+    const isUp = e.code === "ArrowUp" || e.code == "KeyK";
+    const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
+
+    if (e.code === "KeyM") {
+      e.preventDefault();
+
+      setIsMoveModalOpen(true);
+    } else if (
+      e.code === "Backspace" ||
+      e.code === "KeyD" ||
+      e.code === "KeyX"
+    ) {
+      e.preventDefault();
+
+      const [up, down] = listItem.siblings;
+      detach(listItem);
+
+      if (down) {
+        tasksState.setSelectedItem(down.id);
+      } else if (up) {
+        tasksState.setSelectedItem(up.id);
+      } else {
         tasksState.resetSelected();
       }
-    },
-    [isSelected, tasksState],
-  );
+    } else if (e.code === "Enter" || e.code === "KeyI") {
+      e.preventDefault();
 
-  useEffect(() => {
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    window.addEventListener("mousedown", handleGlobalClick);
-    return () => {
-      window.removeEventListener("keydown", handleGlobalKeyDown);
-      window.removeEventListener("mousedown", handleGlobalClick);
-    };
-  }, [handleGlobalKeyDown, handleGlobalClick]);
+      tasksState.setFocusedItemId(listItem.id);
+
+      return;
+    } else if (isAddAfter || isAddBefore) {
+      e.preventDefault();
+
+      const newItem = listItem.createSibling(isAddAfter ? "after" : "before");
+      tasksState.setFocusedItemId(newItem.id);
+
+      return;
+    } else if (isUp || isDown) {
+      e.preventDefault();
+
+      const [up, down] = listItem.siblings;
+
+      if (isUp && up) {
+        tasksState.setSelectedItem(up.id);
+      }
+
+      if (isDown && down) {
+        tasksState.setSelectedItem(down.id);
+      }
+    }
+  });
+
+  useKeyPressed("mousedown", (e: MouseEvent) => {
+    if (
+      isSelected &&
+      ref.current &&
+      !ref.current.contains(e.target as Node) &&
+      globalKeysState.isEnabled
+    ) {
+      tasksState.resetSelected();
+    }
+  });
 
   const handleMove = (projectId: string) => {
     const targetProject = rootStore.allProjectsList.children.find(
@@ -272,6 +320,8 @@ export const TaskComp = observer(function TaskComponent({
     }
   });
 
+  useEffect(() => {});
+
   return (
     <>
       {closestEdge == "top" && <DropTaskIndicator />}
@@ -304,7 +354,7 @@ export const TaskComp = observer(function TaskComponent({
                 ref={handleRef}
                 value={editingTitle}
                 onChange={(e) => setEditingTitle(e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e)}
+                onKeyDown={(e) => handleInputKeyDown(e)}
                 className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none "
                 aria-label="Edit task title"
               />
