@@ -26,6 +26,8 @@ import { computed } from "mobx";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { MultiSelect } from "../ui/multi-select";
 import { Cat, Dog, Fish, Rabbit, Turtle } from "lucide-react";
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -54,6 +56,26 @@ const allWeekdays: string[] = [
 //   }, [getColumns, reorderColumn, reorderCard, registry, moveCard, instanceId]);
 // });
 
+type ProjectIdsStore = {
+  selectedProjectIds: string[];
+  setSelectedProjectIds: (value: string[]) => void;
+};
+
+export const useSelectedProjectIds = create<ProjectIdsStore>()(
+  persist(
+    (set, get) => ({
+      selectedProjectIds: [],
+      setSelectedProjectIds: (value: string[]) => {
+        set({ selectedProjectIds: value });
+      },
+    }),
+    {
+      name: "select-project-ids-storage",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
+
 type DailyListDndState = { type: "idle" } | { type: "is-task-over" };
 
 const idle: DailyListDndState = { type: "idle" };
@@ -62,11 +84,9 @@ const isTaskOver: DailyListDndState = { type: "is-task-over" };
 const ColumnView = observer(function ColumnViewComponent({
   dailyList,
   onTaskAdd,
-  selectedProjectIds,
 }: {
   dailyList: DailyList;
   onTaskAdd: (dailyList: DailyList) => void;
-  selectedProjectIds: string[];
 }) {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -101,6 +121,10 @@ const ColumnView = observer(function ColumnViewComponent({
       }),
     );
   }, [dailyList, dailyList.$modelType, dailyList.id]);
+
+  const selectedProjectIds = useSelectedProjectIds(
+    (state) => state.selectedProjectIds,
+  );
 
   const filteredProjections =
     selectedProjectIds.length > 0
@@ -168,13 +192,14 @@ const ColumnView = observer(function ColumnViewComponent({
 
 const TaskSuggestions = observer(function TaskSuggestionsComp({
   displayedTasksIds,
-  selectedProjectIds,
 }: {
   displayedTasksIds: Set<string>;
-  selectedProjectIds: string[];
 }) {
   const { allProjectsList } = getRootStore();
 
+  const selectedProjectIds = useSelectedProjectIds(
+    (state) => state.selectedProjectIds,
+  );
   const selectedProjects =
     selectedProjectIds.length > 0
       ? allProjectsList.children.filter((project) =>
@@ -229,7 +254,6 @@ const BoardView = observer(function BoardViewComponent({
   displayedTasksIds: Set<string>;
 }) {
   const { preferences, allProjectsList, projectsRegistry } = getRootStore();
-  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const projectsList = allProjectsList.children.map((project) => {
     return {
       value: project.id,
@@ -237,6 +261,13 @@ const BoardView = observer(function BoardViewComponent({
       icon: () => <div>{project.icon}</div>,
     };
   });
+
+  const selectedProjectIds = useSelectedProjectIds(
+    (state) => state.selectedProjectIds,
+  );
+  const setSelectedProjectIds = useSelectedProjectIds(
+    (state) => state.setSelectedProjectIds,
+  );
 
   const handleAddTask = (dailyList: DailyList) => {
     const firstSelectedProject = selectedProjectIds[0]
@@ -338,7 +369,6 @@ const BoardView = observer(function BoardViewComponent({
           >
             {dailyLists.map((dailyList) => (
               <ColumnView
-                selectedProjectIds={selectedProjectIds}
                 dailyList={dailyList}
                 onTaskAdd={handleAddTask}
                 key={dailyList.id}
@@ -353,10 +383,7 @@ const BoardView = observer(function BoardViewComponent({
         <h2 className="text-xl font-bold mb-4 text-gray-100">
           Task Suggestions
         </h2>
-        <TaskSuggestions
-          displayedTasksIds={displayedTasksIds}
-          selectedProjectIds={selectedProjectIds}
-        />
+        <TaskSuggestions displayedTasksIds={displayedTasksIds} />
       </div>
     </div>
   );
