@@ -24,6 +24,8 @@ import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types"
 import invariant from "tiny-invariant";
 import { computed } from "mobx";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
+import { MultiSelect } from "../ui/multi-select";
+import { Cat, Dog, Fish, Rabbit, Turtle } from "lucide-react";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -60,9 +62,11 @@ const isTaskOver: DailyListDndState = { type: "is-task-over" };
 const ColumnView = observer(function ColumnViewComponent({
   dailyList,
   onTaskAdd,
+  selectedProjectIds,
 }: {
   dailyList: DailyList;
   onTaskAdd: (dailyList: DailyList) => void;
+  selectedProjectIds: string[];
 }) {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -98,6 +102,15 @@ const ColumnView = observer(function ColumnViewComponent({
     );
   }, [dailyList, dailyList.$modelType, dailyList.id]);
 
+  const filteredProjections =
+    selectedProjectIds.length > 0
+      ? dailyList.projections.filter((proj) => {
+          return selectedProjectIds.includes(
+            proj.taskRef.current.projectRef.id,
+          );
+        })
+      : dailyList.projections;
+
   return (
     <div
       key={dailyList.id}
@@ -125,7 +138,7 @@ const ColumnView = observer(function ColumnViewComponent({
         className="flex flex-col space-y-2 mt-2 overflow-y-auto"
         ref={scrollableRef}
       >
-        {dailyList.projections.map((proj) => {
+        {filteredProjections.map((proj) => {
           return (
             <TaskComp
               listItem={proj}
@@ -155,14 +168,23 @@ const ColumnView = observer(function ColumnViewComponent({
 
 const TaskSuggestions = observer(function TaskSuggestionsComp({
   displayedTasksIds,
+  selectedProjectIds,
 }: {
   displayedTasksIds: Set<string>;
+  selectedProjectIds: string[];
 }) {
   const { allProjectsList } = getRootStore();
 
+  const selectedProjects =
+    selectedProjectIds.length > 0
+      ? allProjectsList.children.filter((project) =>
+          selectedProjectIds.includes(project.id),
+        )
+      : allProjectsList.children;
+
   return (
     <div className="overflow-y-auto h-full">
-      {allProjectsList.children
+      {selectedProjects
         .filter((ch) => ch.notDoneTask.length > 0)
         .map((proj) => {
           const tasks = proj.notDoneTask;
@@ -199,16 +221,37 @@ const BoardView = observer(function BoardViewComponent({
   handleNextDay,
   handlePrevDay,
   dailyLists,
-  onTaskAdd,
   displayedTasksIds,
 }: {
   handleNextDay: () => void;
   handlePrevDay: () => void;
   dailyLists: DailyList[];
-  onTaskAdd: (dailyList: DailyList) => void;
   displayedTasksIds: Set<string>;
 }) {
-  const { preferences } = getRootStore();
+  const { preferences, allProjectsList, projectsRegistry } = getRootStore();
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const projectsList = allProjectsList.children.map((project) => {
+    return {
+      value: project.id,
+      label: project.title,
+      icon: () => <div>{project.icon}</div>,
+    };
+  });
+
+  const handleAddTask = (dailyList: DailyList) => {
+    const firstSelectedProject = selectedProjectIds[0]
+      ? projectsRegistry.getById(selectedProjectIds[0])
+      : undefined;
+    const project = firstSelectedProject
+      ? firstSelectedProject
+      : projectsRegistry.inboxProjectOrThrow;
+
+    const newItem = dailyList.createProjection(
+      [dailyList.lastProjection, undefined],
+      { project },
+    );
+    currentProjectionState.setFocusedItemId(newItem.id);
+  };
 
   return (
     <div className="grid grid-cols-7 gap-4 h-full">
@@ -216,9 +259,6 @@ const BoardView = observer(function BoardViewComponent({
       <div className="col-span-5 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center">
-            <h2 className="text-xl font-bold text-gray-100">
-              Weekly Todo Planner
-            </h2>
             <button
               onClick={handlePrevDay}
               className="p-1 ml-4 bg-gray-700 rounded hover:bg-gray-600 transition-colors text-gray-300 cursor-pointer"
@@ -257,6 +297,17 @@ const BoardView = observer(function BoardViewComponent({
             </button>
           </div>
 
+          <div className="">
+            <MultiSelect
+              options={projectsList}
+              onValueChange={setSelectedProjectIds}
+              defaultValue={selectedProjectIds}
+              placeholder="Select Projects"
+              variant="inverted"
+              maxCount={2}
+            />
+          </div>
+
           <div className="flex items-center space-x-1">
             {[1, 2, 3, 4, 5, 6, 7].map((dayCount) => (
               <button
@@ -287,8 +338,9 @@ const BoardView = observer(function BoardViewComponent({
           >
             {dailyLists.map((dailyList) => (
               <ColumnView
+                selectedProjectIds={selectedProjectIds}
                 dailyList={dailyList}
-                onTaskAdd={onTaskAdd}
+                onTaskAdd={handleAddTask}
                 key={dailyList.id}
               />
             ))}
@@ -301,7 +353,10 @@ const BoardView = observer(function BoardViewComponent({
         <h2 className="text-xl font-bold mb-4 text-gray-100">
           Task Suggestions
         </h2>
-        <TaskSuggestions displayedTasksIds={displayedTasksIds} />
+        <TaskSuggestions
+          displayedTasksIds={displayedTasksIds}
+          selectedProjectIds={selectedProjectIds}
+        />
       </div>
     </div>
   );
@@ -348,21 +403,12 @@ export const Board = observer(function BoardComponent() {
     return dailyListRegisry.getTaskIdsOfDailyLists(dailyLists);
   }).get();
 
-  const handleAddTask = (dailyList: DailyList) => {
-    const newItem = dailyList.createProjection([
-      dailyList.lastProjection,
-      undefined,
-    ]);
-    currentProjectionState.setFocusedItemId(newItem.id);
-  };
-
   return (
     <BoardView
       displayedTasksIds={displayedTasksIds}
       handleNextDay={handleNextDay}
       handlePrevDay={handlePrevDay}
       dailyLists={dailyLists}
-      onTaskAdd={handleAddTask}
     />
   );
 });

@@ -1,4 +1,4 @@
-import { autorun, computed, reaction } from "mobx";
+import { autorun, computed, observable, reaction } from "mobx";
 import {
   type AnyModel,
   applySnapshot,
@@ -554,15 +554,15 @@ export class DailyList
       | [OrderableItem | undefined, OrderableItem | undefined]
       | "append"
       | "prepend",
-    base?: TaskProjection,
+    opts?: {
+      project?: Project;
+    },
   ) {
     const { taskProjectionRegistry, projectsRegistry } =
       getRootStoreOrThrow(this);
 
     const orderToken = generateOrderTokenPositioned(this, position);
-    const project =
-      base?.taskRef.maybeCurrent?.projectRef.maybeCurrent ||
-      projectsRegistry.inboxProjectOrThrow;
+    const project = opts?.project || projectsRegistry.inboxProjectOrThrow;
     const task = project.createTask("append");
 
     const proj = new TaskProjection({

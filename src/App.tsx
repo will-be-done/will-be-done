@@ -31,6 +31,7 @@ import { isModelDNDData } from "./dnd/models";
 import { GlobalCallback } from "./globalListener/hooks";
 import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
 import { isInputElement } from "./utils/isInputElement";
+import { ThemeProvider } from "./components/ui/theme-provider";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
   const rootStore = getRootStore();
@@ -172,21 +173,23 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
 export const App = observer(function App() {
   return (
-    <KeyPressedCtxProvider>
-      <GlobalListener />
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <KeyPressedCtxProvider>
+        <GlobalListener />
 
-      <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
-        <Sidebar />
-        <div className="flex-1 p-4 overflow-hidden">
-          <Switch>
-            <Route path="/today" component={Board} />
-            <Route path="/projects/:projectId" component={ProjectPage} />
-            <Route>
-              <Redirect to="/today" />
-            </Route>
-          </Switch>
+        <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
+          <Sidebar />
+          <div className="flex-1 p-4 overflow-hidden">
+            <Switch>
+              <Route path="/today" component={Board} />
+              <Route path="/projects/:projectId" component={ProjectPage} />
+              <Route>
+                <Redirect to="/today" />
+              </Route>
+            </Switch>
+          </div>
         </div>
-      </div>
-    </KeyPressedCtxProvider>
+      </KeyPressedCtxProvider>
+    </ThemeProvider>
   );
 });
