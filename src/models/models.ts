@@ -21,7 +21,11 @@ import {
   type Ref,
 } from "mobx-keystone";
 import { startOfDay } from "date-fns";
-import { generateKeyPositionedBetween, getRootStoreOrThrow } from "./utils";
+import {
+  generateKeyPositionedBetween,
+  generateOrderTokenPositioned,
+  getRootStoreOrThrow,
+} from "./utils";
 import { generateKeyBetween } from "fractional-indexing";
 import {
   type BaseListItem,
@@ -85,6 +89,11 @@ export class Project
   }
 
   @computed
+  get firstChild(): ProjectItem | undefined {
+    return this.children[0];
+  }
+
+  @computed
   get firstProjectItem(): ProjectItem | undefined {
     return this.children[this.children.length - 1];
   }
@@ -94,6 +103,7 @@ export class Project
     return this.children[this.children.length - 1];
   }
 
+  @modelAction
   createTask(
     position:
       | [OrderableItem | undefined, OrderableItem | undefined]
@@ -101,47 +111,11 @@ export class Project
       | "prepend",
   ) {
     const { taskRegistry } = getRootStoreOrThrow(this);
-
-    const orderToken = (() => {
-      if (position === "append") {
-        return generateKeyBetween(this.lastProjectItem?.orderToken, undefined);
-      }
-
-      if (position === "prepend") {
-        return generateKeyBetween(undefined, this.firstProjectItem?.orderToken);
-      }
-
-      return generateKeyBetween(
-        position[0]?.orderToken,
-        position[1]?.orderToken,
-      );
-    })();
-
+    const orderToken = generateOrderTokenPositioned(this, position);
     const task = new Task({
       projectRef: projectRef(this),
       orderToken: orderToken,
     });
-    taskRegistry.add(task);
-
-    return task;
-  }
-
-  @modelAction
-  createChild(
-    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
-    _base?: ProjectItem,
-  ): Task {
-    const { taskRegistry } = getRootStoreOrThrow(this);
-
-    const orderToken = between
-      ? generateKeyBetween(between[0]?.orderToken, between[1]?.orderToken)
-      : generateKeyBetween(this.lastChild?.orderToken, undefined);
-
-    const task = new Task({
-      projectRef: projectRef(this),
-      orderToken: orderToken,
-    });
-
     taskRegistry.add(task);
 
     return task;
@@ -191,7 +165,7 @@ export class ProjectsRegistry
   ) {
     const { allProjectsList } = getRootStoreOrThrow(this);
 
-    const newProject = allProjectsList.createChild(between);
+    const newProject = allProjectsList.createProject(between);
     newProject.title = title;
     newProject.icon = icon;
     newProject.isInbox = isInbox;
@@ -263,6 +237,7 @@ export class Task
     }
   }
 
+  @modelAction
   createSibling(position: "before" | "after") {
     const { taskRegistry } = getRootStoreOrThrow(this);
 
@@ -345,6 +320,10 @@ export class AllProjectsList
     return this.children[this.children.length - 1];
   }
 
+  get firstChild(): Project | undefined {
+    return this.children[0];
+  }
+
   @computed
   get inbox() {
     const inbox = this.children.find((p) => p.isInbox);
@@ -364,7 +343,7 @@ export class AllProjectsList
   }
 
   @modelAction
-  createChild(
+  createProject(
     between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
     _base?: Project,
   ) {
@@ -449,6 +428,7 @@ export class TaskProjection
     return getSiblings<TaskProjection>(this);
   }
 
+  @modelAction
   createSibling(position: "before" | "after") {
     const { taskProjectionRegistry } = getRootStoreOrThrow(this);
     const project = this.taskRef.current.projectRef.current;
@@ -541,6 +521,11 @@ export class DailyList
   }
 
   @computed
+  get firstChild(): TaskProjection | undefined {
+    return this.children[0];
+  }
+
+  @computed
   get lastChild(): TaskProjection | undefined {
     return this.children[this.children.length - 1];
   }
@@ -564,21 +549,21 @@ export class DailyList
   }
 
   @modelAction
-  createChild(
-    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
+  createProjection(
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
     base?: TaskProjection,
   ) {
     const { taskProjectionRegistry, projectsRegistry } =
       getRootStoreOrThrow(this);
 
+    const orderToken = generateOrderTokenPositioned(this, position);
     const project =
       base?.taskRef.maybeCurrent?.projectRef.maybeCurrent ||
       projectsRegistry.inboxProjectOrThrow;
-    const task = project.createChild(undefined);
-
-    const orderToken = between
-      ? generateKeyBetween(between[0]?.orderToken, between[1]?.orderToken)
-      : generateKeyBetween(this.lastProjection?.orderToken, undefined);
+    const task = project.createTask("append");
 
     const proj = new TaskProjection({
       orderToken: orderToken,

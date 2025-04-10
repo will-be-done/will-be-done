@@ -10,7 +10,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
   project: Project;
 }) {
   const onAddNewTask = () => {
-    const newTask = project.createChild([project.lastChild, undefined]);
+    const newTask = project.createTask("append");
 
     currentProjectionState.setFocusedItemId(newTask.id);
   };

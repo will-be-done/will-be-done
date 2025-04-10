@@ -31,3 +31,24 @@ export const generateKeyPositionedBetween = (
 
   return orderToken;
 };
+
+export const generateOrderTokenPositioned = (
+  current: {
+    lastChild: OrderableItem | undefined;
+    firstChild: OrderableItem | undefined;
+  },
+  position:
+    | [OrderableItem | undefined, OrderableItem | undefined]
+    | "append"
+    | "prepend",
+) => {
+  if (position === "append") {
+    return generateKeyBetween(current.lastChild?.orderToken, undefined);
+  }
+
+  if (position === "prepend") {
+    return generateKeyBetween(undefined, current.firstChild?.orderToken);
+  }
+
+  return generateKeyBetween(position[0]?.orderToken, position[1]?.orderToken);
+};

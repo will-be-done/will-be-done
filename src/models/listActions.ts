@@ -78,11 +78,7 @@ export interface ItemsList<K> {
   id: string;
   children: BaseListItem<K>[];
   lastChild: BaseListItem<K> | undefined;
-
-  createChild(
-    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
-    base?: BaseListItem<K>,
-  ): BaseListItem<K>;
+  firstChild: BaseListItem<K> | undefined;
 
   makeListRef(): Ref<ItemsList<K>>;
 }

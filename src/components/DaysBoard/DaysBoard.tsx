@@ -349,7 +349,7 @@ export const Board = observer(function BoardComponent() {
   }).get();
 
   const handleAddTask = (dailyList: DailyList) => {
-    const newItem = dailyList.createChild([
+    const newItem = dailyList.createProjection([
       dailyList.lastProjection,
       undefined,
     ]);
