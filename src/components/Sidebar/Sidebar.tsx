@@ -2,12 +2,13 @@ import { observer } from "mobx-react-lite";
 import { getRootStore, Project } from "../../models/models";
 import { Link } from "wouter";
 import { getBackups, loadBackups, Backup } from "../../models/backup";
-import { currentProjectionState } from "@/states/task";
-import { useRegisterListColumn, useRegisterListItem } from "@/hooks/useLists";
+import { useRegisterFocusColumn, useRegisterFocusItem } from "@/hooks/useLists";
 import { computed } from "mobx";
 import { useGlobalListener } from "@/globalListener/hooks";
 import { detach } from "mobx-keystone";
 import { useRef } from "react";
+import { ColumnListProvider } from "@/hooks/ParentListProvider";
+import { buildFocusKey, focusManager } from "@/states/FocusManager";
 
 const columnName = "sidebar";
 
@@ -16,44 +17,51 @@ const ProjectItem = observer(function ProjectItemComp({
 }: {
   project: Project;
 }) {
-  useRegisterListItem(columnName, project.id, project.orderToken);
+  const focusItem = useRegisterFocusItem(
+    buildFocusKey(project.id, project.$modelType),
+    project.orderToken,
+  );
 
   const ref = useRef<HTMLAnchorElement>(null);
-  const isSelected = computed(
-    () => currentProjectionState.selectedItemId === project.id,
-  ).get();
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    if (!isSelected) return;
+    if (!focusItem.isFocused) return;
 
     if (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") {
       e.preventDefault();
 
-      const [up, down] = project.siblings;
+      const [up, down] = focusItem.siblings;
       detach(project);
 
-      if (down) {
-        currentProjectionState.setSelectedItem(down.id);
-      } else if (up) {
-        currentProjectionState.setSelectedItem(up.id);
-      } else {
-        currentProjectionState.resetSelected();
-      }
+      setTimeout(() => {
+        if (down) {
+          focusManager.focusByKey(down.key);
+        } else if (up) {
+          focusManager.focusByKey(up.key);
+        } else {
+          focusManager.resetFocus();
+        }
+      }, 0);
     }
   });
 
+  const isFocused = focusItem.isFocused;
+
   return (
     <Link
-      data-focusable-id={project.id}
+      data-focusable-key={buildFocusKey(project.id, project.$modelType)}
       ref={ref}
       key={project.id}
       className={(active) =>
         `flex items-center px-2 py-1.5 rounded-lg cursor-pointer ${
-          active || isSelected ? "bg-gray-800" : "hover:bg-gray-800"
+          active || isFocused ? "bg-gray-800" : "hover:bg-gray-800"
         }`
       }
       href={`/projects/${project.id}`}
-      onClick={() => currentProjectionState.setSelectedItem(project.id)}
+      onClick={() => {
+        console.log("focusItem click", focusItem);
+        focusItem.focus();
+      }}
     >
       <span className="text-base mr-2 flex-shrink-0">{project.icon}</span>
       <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
@@ -68,19 +76,22 @@ const InboxItem = observer(function IboxItemComp({
 }: {
   inboxProject: Project;
 }) {
-  useRegisterListItem(columnName, inboxProject.id, "0");
-
-  const selectedItemId = computed(
-    () => currentProjectionState.selectedItemId == inboxProject.id,
-  ).get();
+  const focusItem = useRegisterFocusItem(
+    buildFocusKey(inboxProject.id, inboxProject.$modelType),
+    "0",
+  );
+  const isFocused = focusItem.isFocused;
 
   return (
     <Link
-      data-focusable-id={inboxProject.id}
+      data-focusable-key={buildFocusKey(
+        inboxProject.id,
+        inboxProject.$modelType,
+      )}
       href="/projects/inbox"
       className={(active) =>
         `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
-          selectedItemId || active ? "bg-gray-800" : "hover:bg-gray-800"
+          isFocused || active ? "bg-gray-800" : "hover:bg-gray-800"
         }`
       }
     >
@@ -110,19 +121,16 @@ const InboxItem = observer(function IboxItemComp({
 
 const TodayItem = observer(function TodayItemComp() {
   const id = "today";
-  useRegisterListItem(columnName, id, "1");
-
-  const selectedItemId = computed(
-    () => currentProjectionState.selectedItemId == id,
-  ).get();
+  const focusItem = useRegisterFocusItem(buildFocusKey(id, id), "1");
+  const isFocused = focusItem.isFocused;
 
   return (
     <Link
-      data-focusable-id={id}
+      data-focusable-key={buildFocusKey(id, id)}
       href="/today"
       className={(active) =>
         `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
-          active || selectedItemId ? "bg-gray-800" : "hover:bg-gray-800"
+          active || isFocused ? "bg-gray-800" : "hover:bg-gray-800"
         }`
       }
     >
@@ -219,77 +227,80 @@ export const Sidebar = observer(function SidebarComp() {
     );
   };
 
-  useRegisterListColumn(columnName, "0");
-
   return (
-    <div className="w-64 bg-gray-900 h-full flex flex-col">
-      {/* Default categories */}
-      <div className="px-3 py-1 flex-shrink-0">
-        <InboxItem inboxProject={inboxProject} />
-        <TodayItem />
-      </div>
+    <ColumnListProvider
+      focusKey={buildFocusKey("sidebar", "sidebar")}
+      priority="0"
+    >
+      <div className="w-64 bg-gray-900 h-full flex flex-col">
+        {/* Default categories */}
+        <div className="px-3 py-1 flex-shrink-0">
+          <InboxItem inboxProject={inboxProject} />
+          <TodayItem />
+        </div>
 
-      {/* Projects section */}
-      <div className="mt-3 px-3 flex-1 min-h-0 overflow-hidden">
-        <div className="flex justify-between items-center mb-1 px-2">
-          <span className="text-gray-400 text-xs">My projects</span>
-          <div className="flex">
-            <button
-              className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center text-white cursor-pointer"
-              onClick={createProject}
-              title="Create new project"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+        {/* Projects section */}
+        <div className="mt-3 px-3 flex-1 min-h-0 overflow-hidden">
+          <div className="flex justify-between items-center mb-1 px-2">
+            <span className="text-gray-400 text-xs">My projects</span>
+            <div className="flex">
+              <button
+                className="w-5 h-5 rounded-full bg-gray-700 flex items-center justify-center text-white cursor-pointer"
+                onClick={createProject}
+                title="Create new project"
               >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Projects list - scrollable */}
+          <div className="overflow-y-auto h-full  pb-[100px]">
+            {projects.map((proj) => (
+              <ProjectItem key={proj.id} project={proj} />
+            ))}
           </div>
         </div>
 
-        {/* Projects list - scrollable */}
-        <div className="overflow-y-auto h-full  pb-[100px]">
-          {projects.map((proj) => (
-            <ProjectItem key={proj.id} project={proj} />
-          ))}
+        {/* Backup and Settings section */}
+        <div className="px-3 py-3 border-t border-gray-800 flex-shrink-0">
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleDownloadBackup}
+              className="w-full text-gray-400 flex items-center px-2 py-1.5 rounded-lg hover:bg-gray-800"
+              title="Download backup of your tasks and projects"
+            >
+              <span className="text-sm">Download Backup</span>
+            </button>
+            <button
+              onClick={handleLoadBackup}
+              className="w-full text-gray-400 flex items-center px-2 py-1.5 rounded-lg hover:bg-gray-800"
+              title="Load a previously downloaded backup"
+            >
+              <span className="text-sm">Load Backup</span>
+            </button>
+            <button
+              className="w-full text-gray-400 flex items-center px-2 py-1.5 rounded-lg hover:bg-gray-800"
+              title="Open settings"
+            >
+              <span className="text-sm">Settings</span>
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Backup and Settings section */}
-      <div className="px-3 py-3 border-t border-gray-800 flex-shrink-0">
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={handleDownloadBackup}
-            className="w-full text-gray-400 flex items-center px-2 py-1.5 rounded-lg hover:bg-gray-800"
-            title="Download backup of your tasks and projects"
-          >
-            <span className="text-sm">Download Backup</span>
-          </button>
-          <button
-            onClick={handleLoadBackup}
-            className="w-full text-gray-400 flex items-center px-2 py-1.5 rounded-lg hover:bg-gray-800"
-            title="Load a previously downloaded backup"
-          >
-            <span className="text-sm">Load Backup</span>
-          </button>
-          <button
-            className="w-full text-gray-400 flex items-center px-2 py-1.5 rounded-lg hover:bg-gray-800"
-            title="Open settings"
-          >
-            <span className="text-sm">Settings</span>
-          </button>
-        </div>
-      </div>
-    </div>
+    </ColumnListProvider>
   );
 });

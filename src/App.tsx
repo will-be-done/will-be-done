@@ -9,7 +9,6 @@ import {
   Task,
   TaskProjection,
 } from "./models/models";
-import { currentProjectionState } from "./states/task";
 import { useEffect, useMemo } from "react";
 import { detach } from "mobx-keystone";
 import { Sidebar } from "./components/Sidebar/Sidebar";
@@ -32,11 +31,9 @@ import { GlobalCallback } from "./globalListener/hooks";
 import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
 import { isInputElement } from "./utils/isInputElement";
 import { ThemeProvider } from "./components/ui/theme-provider";
-import { listsManager } from "./states/ListsManager";
+import { FocusItem, FocusKey, focusManager } from "./states/FocusManager";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
-  const state = currentProjectionState;
-
   const undoManager = getUndoManager();
 
   useEffect(() => {
@@ -74,8 +71,8 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         return;
       }
 
-      if (e.code === "Escape" && !state.isSomethingFocused()) {
-        state.resetSelected();
+      if (e.code === "Escape" && !focusManager.isSomethingFocused) {
+        focusManager.resetFocus();
 
         return;
       }
@@ -83,23 +80,24 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.selectedItemId, state, undoManager]);
+  }, [undoManager]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const setSelectedId = (id: string) => {
-        currentProjectionState.setSelectedItem(id);
+      const setFocus = (focus: FocusItem) => {
+        focus.focus();
+
         const elements = document.querySelectorAll<HTMLElement>(
-          '[data-focusable-id="' + id + '"]',
+          '[data-focusable-key="' + focus.key + '"]',
         );
 
         if (!elements.length) {
-          shouldNeverHappen("focusable element not found", { id });
+          shouldNeverHappen("focusable element not found", { focus });
           return;
         }
 
         if (elements.length > 1) {
-          shouldNeverHappen("focusable element > 1", { id });
+          shouldNeverHappen("focusable element > 1", { focus });
           return;
         }
 
@@ -112,21 +110,21 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       const isUp = e.code === "ArrowUp" || e.code == "KeyK";
       const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
 
-      const selectedId = currentProjectionState.selectedItemId;
-
-      if (selectedId && (isUp || isDown)) {
+      const focusedItem = focusManager.focusItem;
+      console.log("focusedItem", focusedItem, isUp, isDown);
+      if (focusedItem && (isUp || isDown)) {
         e.preventDefault();
 
+        const [up, down] = focusedItem.siblings;
+
         if (isUp) {
-          const up = listsManager.getUp(selectedId);
           if (!up) return;
 
-          setSelectedId(up.id);
+          setFocus(up);
         } else if (isDown) {
-          const down = listsManager.getDown(selectedId);
           if (!down) return;
 
-          setSelectedId(down.id);
+          setFocus(down);
         }
       }
     };
@@ -137,11 +135,11 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         return;
       }
 
-      if (focusedElement.hasAttribute("data-focusable-id")) {
-        const focusableId = focusedElement.getAttribute("data-focusable-id");
+      if (focusedElement.hasAttribute("data-focusable-key")) {
+        const focusableKey = focusedElement.getAttribute("data-focusable-key");
 
-        if (focusableId) {
-          currentProjectionState.setSelectedItem(focusableId);
+        if (focusableKey) {
+          focusManager.focusByKey(focusableKey as FocusKey);
         }
       }
     };

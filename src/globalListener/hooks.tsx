@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { useUnmount } from "../utils";
 
@@ -37,8 +37,11 @@ export const useGlobalListener = <K extends keyof WindowEventMap>(
     cbMap = new Map<string, GlobalCallback>();
     callbacks.set(key, cbMap);
   }
-  cbMap.set(id, cb as GlobalCallback);
   addEvent(key);
+
+  useEffect(() => {
+    cbMap.set(id, cb as GlobalCallback);
+  }, [cb, cbMap, id]);
 
   useUnmount(() => {
     cbMap.delete(id);

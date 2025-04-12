@@ -10,7 +10,6 @@ import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
 import { dailyListRef } from "../../models/models";
 import { DropTaskIndicator, TaskComp } from "../Task/Task";
-import { currentProjectionState } from "../../states/task";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   dropTargetForElements,
@@ -28,6 +27,12 @@ import { MultiSelect } from "../ui/multi-select";
 import { Cat, Dog, Fish, Rabbit, Turtle } from "lucide-react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useRegisterFocusColumn } from "@/hooks/useLists";
+import {
+  ColumnListProvider,
+  ParentListItemProvider,
+} from "@/hooks/ParentListProvider";
+import { buildFocusKey, focusManager } from "@/states/FocusManager";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -84,9 +89,11 @@ const isTaskOver: DailyListDndState = { type: "is-task-over" };
 const ColumnView = observer(function ColumnViewComponent({
   dailyList,
   onTaskAdd,
+  orderNumber,
 }: {
   dailyList: DailyList;
   onTaskAdd: (dailyList: DailyList) => void;
+  orderNumber: number;
 }) {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -136,57 +143,62 @@ const ColumnView = observer(function ColumnViewComponent({
       : dailyList.projections;
 
   return (
-    <div
-      key={dailyList.id}
-      className={`flex flex-col min-w-[200px] ${
-        dailyList.isToday ? "bg-gray-750 rounded-t-lg" : ""
-      } h-full `}
-      ref={columnRef}
+    <ColumnListProvider
+      focusKey={buildFocusKey(dailyList.id, dailyList.$modelType)}
+      priority={(orderNumber + 100).toString()}
     >
-      {/* Day header */}
       <div
-        className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b ${
-          dailyList.isToday
-            ? "text-blue-400 border-blue-500"
-            : "text-gray-200 border-gray-700"
-        }`}
+        key={dailyList.id}
+        className={`flex flex-col min-w-[200px] ${
+          dailyList.isToday ? "bg-gray-750 rounded-t-lg" : ""
+        } h-full `}
+        ref={columnRef}
       >
-        <div>
-          {allWeekdays[getDay(dailyList.date)]} -{" "}
-          {format(dailyList.date, "dd MMM")}
+        {/* Day header */}
+        <div
+          className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b ${
+            dailyList.isToday
+              ? "text-blue-400 border-blue-500"
+              : "text-gray-200 border-gray-700"
+          }`}
+        >
+          <div>
+            {allWeekdays[getDay(dailyList.date)]} -{" "}
+            {format(dailyList.date, "dd MMM")}
+          </div>
+        </div>
+
+        {/* Tasks column */}
+        <div
+          className="flex flex-col space-y-2 mt-2 overflow-y-auto"
+          ref={scrollableRef}
+        >
+          {filteredProjections.map((proj) => {
+            return (
+              <TaskComp
+                listItem={proj}
+                task={proj.taskRef.current}
+                showProject={true}
+                key={proj.id}
+              />
+            );
+          })}
+
+          {dndState.type == "is-task-over" &&
+            dailyList.projections.length == 0 && <DropTaskIndicator />}
+
+          {/* Add new task button and input */}
+          <div className="mt-2">
+            <button
+              onClick={() => onTaskAdd(dailyList)}
+              className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
+            >
+              + Add Task
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Tasks column */}
-      <div
-        className="flex flex-col space-y-2 mt-2 overflow-y-auto"
-        ref={scrollableRef}
-      >
-        {filteredProjections.map((proj) => {
-          return (
-            <TaskComp
-              listItem={proj}
-              task={proj.taskRef.current}
-              showProject={true}
-              key={proj.id}
-            />
-          );
-        })}
-
-        {dndState.type == "is-task-over" &&
-          dailyList.projections.length == 0 && <DropTaskIndicator />}
-
-        {/* Add new task button and input */}
-        <div className="mt-2">
-          <button
-            onClick={() => onTaskAdd(dailyList)}
-            className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
-          >
-            + Add Task
-          </button>
-        </div>
-      </div>
-    </div>
+    </ColumnListProvider>
   );
 });
 
@@ -220,7 +232,10 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
           if (filteredTasks.length == 0) return null;
 
           return (
-            <>
+            <ParentListItemProvider
+              focusKey={buildFocusKey(proj.id, proj.$modelType)}
+              priority={proj.orderToken}
+            >
               <div className="text-gray-400 text-sm mt-6 pb-2">
                 {proj.icon} {proj.title}
               </div>
@@ -235,7 +250,7 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
                   />
                 ))}
               </div>
-            </>
+            </ParentListItemProvider>
           );
         })}
     </div>
@@ -281,7 +296,8 @@ const BoardView = observer(function BoardViewComponent({
       [dailyList.lastProjection, undefined],
       { project },
     );
-    currentProjectionState.setFocusedItemId(newItem.id);
+
+    focusManager.editByKey(buildFocusKey(newItem.id, newItem.$modelType));
   };
 
   return (
@@ -367,10 +383,11 @@ const BoardView = observer(function BoardViewComponent({
               maxWidth: "100%",
             }}
           >
-            {dailyLists.map((dailyList) => (
+            {dailyLists.map((dailyList, i) => (
               <ColumnView
                 dailyList={dailyList}
                 onTaskAdd={handleAddTask}
+                orderNumber={i}
                 key={dailyList.id}
               />
             ))}
@@ -378,13 +395,18 @@ const BoardView = observer(function BoardViewComponent({
         </div>
       </div>
 
-      {/* 20% section (1/5 columns) */}
-      <div className="col-span-2 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 h-full overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-gray-100">
-          Task Suggestions
-        </h2>
-        <TaskSuggestions displayedTasksIds={displayedTasksIds} />
-      </div>
+      <ColumnListProvider
+        focusKey={buildFocusKey("task-suggestions", "task-suggestions")}
+        priority="500"
+      >
+        {/* 20% section (1/5 columns) */}
+        <div className="col-span-2 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 h-full overflow-y-auto">
+          <h2 className="text-xl font-bold mb-4 text-gray-100">
+            Task Suggestions
+          </h2>
+          <TaskSuggestions displayedTasksIds={displayedTasksIds} />
+        </div>
+      </ColumnListProvider>
     </div>
   );
 });

@@ -5,7 +5,6 @@ import {
   TaskProjection,
   TaskTemplate,
 } from "../../models/models";
-import { currentProjectionState } from "../../states/task";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -31,7 +30,9 @@ import { computed } from "mobx";
 import { globalKeysState } from "../../states/isGlobalKeyDisables";
 import { useGlobalListener } from "../../globalListener/hooks";
 import { isInputElement } from "../../utils/isInputElement";
-import { detach } from "mobx-keystone";
+import { detach, getSnapshot } from "mobx-keystone";
+import { useRegisterFocusItem } from "@/hooks/useLists";
+import { buildFocusKey, focusManager } from "@/states/FocusManager";
 
 type State =
   | { type: "idle" }
@@ -84,21 +85,20 @@ export const TaskComp = observer(function TaskComponent({
   showProject: boolean;
 }) {
   const [editingTitle, setEditingTitle] = useState<string>(task.title);
-  const tasksState = currentProjectionState;
-  const isEditing = computed(() => tasksState.isItemFocused(listItem.id)).get();
-  const isSelected = computed(() =>
-    tasksState.isItemSelected(listItem.id),
-  ).get();
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const project = task.projectRef.current;
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const rootStore = getRootStore();
+  const focusableItem = useRegisterFocusItem(
+    buildFocusKey(listItem.id, listItem.$modelType),
+    listItem.orderToken,
+  );
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
-      tasksState.resetFocus();
+      focusManager.resetEdit();
 
       // if (e.key === "Enter") {
       //   task.setTitle(editingTitle);
@@ -112,7 +112,8 @@ export const TaskComp = observer(function TaskComponent({
   };
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    if (isEditing || !isSelected) return;
+    if (focusManager.isSomethingEditing) return;
+    if (!focusableItem.isFocused) return;
     if (!globalKeysState.isEnabled) return;
 
     const target =
@@ -133,27 +134,27 @@ export const TaskComp = observer(function TaskComponent({
     ) {
       e.preventDefault();
 
-      const [up, down] = listItem.siblings;
+      const [up, down] = focusableItem.siblings;
       detach(listItem);
 
-      if (down) {
-        tasksState.setSelectedItem(down.id);
-      } else if (up) {
-        tasksState.setSelectedItem(up.id);
-      } else {
-        tasksState.resetSelected();
-      }
+      setTimeout(() => {
+        if (down) {
+          focusManager.focusByKey(down.key);
+        } else if (up) {
+          focusManager.focusByKey(up.key);
+        } else {
+          focusManager.resetFocus();
+        }
+      }, 0);
     } else if (e.code === "Enter" || e.code === "KeyI") {
       e.preventDefault();
 
-      tasksState.setFocusedItemId(listItem.id);
-
-      return;
+      focusableItem.edit();
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
       const newItem = listItem.createSibling(isAddAfter ? "after" : "before");
-      tasksState.setFocusedItemId(newItem.id);
+      focusManager.editByKey(buildFocusKey(newItem.id, newItem.$modelType));
 
       return;
     }
@@ -161,12 +162,12 @@ export const TaskComp = observer(function TaskComponent({
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
     if (
-      isSelected &&
+      focusableItem.isFocused &&
       ref.current &&
       !ref.current.contains(e.target as Node) &&
       globalKeysState.isEnabled
     ) {
-      tasksState.resetSelected();
+      focusManager.resetFocus();
     }
   });
 
@@ -186,7 +187,7 @@ export const TaskComp = observer(function TaskComponent({
     const element = ref.current;
     invariant(element);
 
-    if (isEditing) return;
+    if (focusableItem.isEditing) return;
 
     return combine(
       draggable({
@@ -265,7 +266,7 @@ export const TaskComp = observer(function TaskComponent({
         },
       }),
     );
-  }, [isEditing, listItem]);
+  }, [focusableItem.isEditing, listItem]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -275,7 +276,7 @@ export const TaskComp = observer(function TaskComponent({
   }, []);
 
   useEffect(() => {
-    if (isSelected) {
+    if (focusableItem.isFocused) {
       const el = ref.current;
       if (!el) return;
 
@@ -285,19 +286,23 @@ export const TaskComp = observer(function TaskComponent({
         inline: "center",
       });
     }
-  }, [isSelected]);
+  }, [focusableItem.isFocused]);
 
-  const prevIsEditing = usePrevious(isEditing);
+  const prevIsEditing = usePrevious(focusableItem.isEditing);
   const taskTitle = task.title;
   useEffect(() => {
     setEditingTitle(taskTitle);
   }, [taskTitle]);
 
   useEffect(() => {
-    if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
+    if (
+      !focusableItem.isEditing &&
+      prevIsEditing &&
+      editingTitle !== taskTitle
+    ) {
       task.setTitle(editingTitle);
     }
-  }, [isEditing, prevIsEditing, editingTitle, taskTitle, task]);
+  }, [editingTitle, focusableItem.isEditing, prevIsEditing, task, taskTitle]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
@@ -310,21 +315,23 @@ export const TaskComp = observer(function TaskComponent({
       {closestEdge == "top" && <DropTaskIndicator />}
 
       <div
+        data-focusable-key={buildFocusKey(listItem.id, listItem.$modelType)}
+        tabIndex={0}
         className={`p-3 rounded-lg border ${
-          isSelected
+          focusableItem.isFocused
             ? "border-blue-500 bg-gray-700"
             : "border-gray-700 bg-gray-750"
         } shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`}
         style={{}}
-        onClick={() => tasksState.setSelectedItem(listItem.id)}
+        onClick={() => focusableItem.focus()}
         onDoubleClick={(e) => {
           // e.preventDefault();
-          tasksState.setFocusedItemId(listItem.id);
+          focusableItem.edit();
         }}
         ref={ref}
       >
         <div className="flex items-start gap-2">
-          {isEditing ? (
+          {focusableItem.isEditing ? (
             <>
               <div className="flex items-center justify-end">
                 <input

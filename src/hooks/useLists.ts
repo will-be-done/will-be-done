@@ -1,24 +1,41 @@
-import { listsManager } from "@/states/ListsManager";
-import { useEffect } from "react";
+import { FocusItem, FocusKey, focusManager } from "@/states/FocusManager";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-export const useRegisterListColumn = (columnName: string, priority: string) => {
+export const ParentListContext = createContext<FocusKey | undefined>(undefined);
+
+export const useRegisterFocusColumn = (key: FocusKey, priority: string) => {
+  const item = useMemo(() => {
+    return focusManager.registerColumn(key, priority);
+  }, [key, priority]);
+
   useEffect(() => {
-    listsManager.registerColumn(columnName, priority);
+    focusManager.registerColumn(key, priority);
+
     return () => {
-      listsManager.unregisterItemOrColumn(columnName);
+      focusManager.unregister(key);
     };
-  }, [columnName, priority]);
+  }, [key, priority]);
+
+  return item;
 };
 
-export const useRegisterListItem = (
-  columnName: string,
-  itemId: string,
-  priority: string,
-) => {
+export const useRegisterFocusItem = (itemKey: FocusKey, priority: string) => {
+  const parentListKey = useContext(ParentListContext);
+
+  const item = useMemo(() => {
+    if (!parentListKey) {
+      throw new Error("Parent list not found");
+    }
+
+    return focusManager.buildFocusItem(parentListKey, itemKey, priority);
+  }, [itemKey, parentListKey, priority]);
+
   useEffect(() => {
-    listsManager.registerItem(columnName, itemId, priority);
+    focusManager.registerColumnItem(item);
     return () => {
-      listsManager.unregisterItemOrColumn(itemId);
+      focusManager.unregister(item.key);
     };
-  }, [columnName, itemId, priority]);
+  }, [item, parentListKey]);
+
+  return item;
 };

@@ -1,16 +1,16 @@
 import { describe, test, expect, beforeEach } from "vitest";
-import { ListsManager } from "./ListsManager"; // Adjust import path as needed
+import { FocusManager } from "./ListsManager"; // Adjust import path as needed
 
 describe("ListsManager", () => {
-  let manager: ListsManager;
+  let manager: FocusManager;
 
   beforeEach(() => {
-    manager = new ListsManager();
+    manager = new FocusManager();
   });
 
   test("should register columns and items correctly", () => {
     manager.registerColumn("col1", "high");
-    manager.registerItem("col1", "item1", "medium");
+    manager.registerColumnItem("col1", "item1", "medium");
 
     expect(manager.columns.length).toBe(1);
     expect(manager.itemsById.get("col1")).toBeDefined();
@@ -19,9 +19,9 @@ describe("ListsManager", () => {
 
   test("should unregister items correctly", () => {
     manager.registerColumn("col1", "high");
-    manager.registerItem("col1", "item1", "medium");
+    manager.registerColumnItem("col1", "item1", "medium");
 
-    manager.unregisterItemOrColumn("item1");
+    manager.unregister("item1");
 
     expect(manager.itemsById.get("item1")).toBeUndefined();
   });
@@ -43,15 +43,15 @@ describe("ListsManager", () => {
       ├── item6
       */
       manager.registerColumn("col1", "0");
-      manager.registerItem("col1", "item0", "0");
-      manager.registerItem("col1", "item1", "1");
-      manager.registerItem("item1", "item2", "1");
-      manager.registerItem("item2", "item3", "1");
-      manager.registerItem("col1", "item4", "2");
-      manager.registerItem("item4", "item5", "1");
-      manager.registerItem("item4", "item6", "2");
+      manager.registerColumnItem("col1", "item0", "0");
+      manager.registerColumnItem("col1", "item1", "1");
+      manager.registerColumnItem("item1", "item2", "1");
+      manager.registerColumnItem("item2", "item3", "1");
+      manager.registerColumnItem("col1", "item4", "2");
+      manager.registerColumnItem("item4", "item5", "1");
+      manager.registerColumnItem("item4", "item6", "2");
       manager.registerColumn("col2", "1");
-      manager.registerItem("col2", "item7", "1");
+      manager.registerColumnItem("col2", "item7", "1");
     });
 
     test("getUp works", () => {
