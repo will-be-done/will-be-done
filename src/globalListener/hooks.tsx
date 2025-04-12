@@ -24,7 +24,7 @@ export const useEventTypes = create<EventsStore>((set) => ({
     }),
 }));
 
-export const useKeyPressed = <K extends keyof WindowEventMap>(
+export const useGlobalListener = <K extends keyof WindowEventMap>(
   key: K,
   cb: GlobalCallback<WindowEventMap[K]>,
 ) => {

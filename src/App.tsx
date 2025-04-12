@@ -15,7 +15,7 @@ import { detach } from "mobx-keystone";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
 import { BaseListItem } from "./models/listActions";
-import { useUnmount } from "./utils";
+import { shouldNeverHappen, useUnmount } from "./utils";
 import { globalKeysState } from "./states/isGlobalKeyDisables";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -32,9 +32,9 @@ import { GlobalCallback } from "./globalListener/hooks";
 import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
 import { isInputElement } from "./utils/isInputElement";
 import { ThemeProvider } from "./components/ui/theme-provider";
+import { listsManager } from "./states/ListsManager";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
-  const rootStore = getRootStore();
   const state = currentProjectionState;
 
   const undoManager = getUndoManager();
@@ -84,6 +84,75 @@ const GlobalListener = observer(function GlobalListenerComponent() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [state.selectedItemId, state, undoManager]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const setSelectedId = (id: string) => {
+        currentProjectionState.setSelectedItem(id);
+        const elements = document.querySelectorAll<HTMLElement>(
+          '[data-focusable-id="' + id + '"]',
+        );
+
+        if (!elements.length) {
+          shouldNeverHappen("focusable element not found", { id });
+          return;
+        }
+
+        if (elements.length > 1) {
+          shouldNeverHappen("focusable element > 1", { id });
+          return;
+        }
+
+        const el = elements[0];
+        if (el) {
+          el.focus();
+        }
+      };
+
+      const isUp = e.code === "ArrowUp" || e.code == "KeyK";
+      const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
+
+      const selectedId = currentProjectionState.selectedItemId;
+
+      if (selectedId && (isUp || isDown)) {
+        e.preventDefault();
+
+        if (isUp) {
+          const up = listsManager.getUp(selectedId);
+          if (!up) return;
+
+          setSelectedId(up.id);
+        } else if (isDown) {
+          const down = listsManager.getDown(selectedId);
+          if (!down) return;
+
+          setSelectedId(down.id);
+        }
+      }
+    };
+
+    const handleFocus = (event: Event) => {
+      const focusedElement = event.target;
+      if (!(focusedElement instanceof HTMLElement)) {
+        return;
+      }
+
+      if (focusedElement.hasAttribute("data-focusable-id")) {
+        const focusableId = focusedElement.getAttribute("data-focusable-id");
+
+        if (focusableId) {
+          currentProjectionState.setSelectedItem(focusableId);
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleFocus, true);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
 
   useEffect(() => {
     return combine(

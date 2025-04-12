@@ -61,7 +61,7 @@ type ProjectIdsStore = {
   setSelectedProjectIds: (value: string[]) => void;
 };
 
-export const useSelectedProjectIds = create<ProjectIdsStore>()(
+const useSelectedProjectIds = create<ProjectIdsStore>()(
   persist(
     (set, get) => ({
       selectedProjectIds: [],

@@ -20,3 +20,14 @@ export function useUnmount(func: () => void) {
     [],
   );
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const shouldNeverHappen = (msg?: string, ...args: any[]): never => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+  console.error(msg, ...args);
+  if (process.env.NODE_ENV === "development") {
+    // eslint-disable-next-line no-debugger
+    debugger;
+  }
+  throw new Error(`This should never happen: ${msg}`);
+};

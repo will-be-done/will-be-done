@@ -29,7 +29,7 @@ import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
 import { computed } from "mobx";
 import { globalKeysState } from "../../states/isGlobalKeyDisables";
-import { useKeyPressed } from "../../globalListener/hooks";
+import { useGlobalListener } from "../../globalListener/hooks";
 import { isInputElement } from "../../utils/isInputElement";
 import { detach } from "mobx-keystone";
 
@@ -111,7 +111,7 @@ export const TaskComp = observer(function TaskComponent({
     }
   };
 
-  useKeyPressed("keydown", (e: KeyboardEvent) => {
+  useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (isEditing || !isSelected) return;
     if (!globalKeysState.isEnabled) return;
 
@@ -121,9 +121,6 @@ export const TaskComp = observer(function TaskComponent({
 
     const isAddAfter = !e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
     const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
-
-    const isUp = e.code === "ArrowUp" || e.code == "KeyK";
-    const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
 
     if (e.code === "KeyM") {
       e.preventDefault();
@@ -159,22 +156,10 @@ export const TaskComp = observer(function TaskComponent({
       tasksState.setFocusedItemId(newItem.id);
 
       return;
-    } else if (isUp || isDown) {
-      e.preventDefault();
-
-      const [up, down] = listItem.siblings;
-
-      if (isUp && up) {
-        tasksState.setSelectedItem(up.id);
-      }
-
-      if (isDown && down) {
-        tasksState.setSelectedItem(down.id);
-      }
     }
   });
 
-  useKeyPressed("mousedown", (e: MouseEvent) => {
+  useGlobalListener("mousedown", (e: MouseEvent) => {
     if (
       isSelected &&
       ref.current &&
@@ -319,8 +304,6 @@ export const TaskComp = observer(function TaskComponent({
       task.setTitle(editingTitle);
     }
   });
-
-  useEffect(() => {});
 
   return (
     <>

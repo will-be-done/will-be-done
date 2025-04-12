@@ -60,8 +60,8 @@ export class Project
   }
 
   @computed
-  get siblings(): [Project, Project] {
-    return [this, this];
+  get siblings(): [Project | undefined, Project | undefined] {
+    return getSiblings<Project>(this);
   }
 
   @computed

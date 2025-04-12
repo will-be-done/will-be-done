@@ -16,6 +16,7 @@ class CurrentProjectionState {
     return !!this.focusedItemId;
   }
 
+  @action
   makeSelectionFocused() {
     this.focusedItemId = this.selectedItemId;
   }

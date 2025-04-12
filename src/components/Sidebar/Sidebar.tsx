@@ -1,8 +1,150 @@
 import { observer } from "mobx-react-lite";
 import { getRootStore, Project } from "../../models/models";
 import { Link } from "wouter";
-import { getSnapshot } from "mobx-keystone";
 import { getBackups, loadBackups, Backup } from "../../models/backup";
+import { currentProjectionState } from "@/states/task";
+import { useRegisterListColumn, useRegisterListItem } from "@/hooks/useLists";
+import { computed } from "mobx";
+import { useGlobalListener } from "@/globalListener/hooks";
+import { detach } from "mobx-keystone";
+import { useRef } from "react";
+
+const columnName = "sidebar";
+
+const ProjectItem = observer(function ProjectItemComp({
+  project,
+}: {
+  project: Project;
+}) {
+  useRegisterListItem(columnName, project.id, project.orderToken);
+
+  const ref = useRef<HTMLAnchorElement>(null);
+  const isSelected = computed(
+    () => currentProjectionState.selectedItemId === project.id,
+  ).get();
+
+  useGlobalListener("keydown", (e: KeyboardEvent) => {
+    if (!isSelected) return;
+
+    if (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") {
+      e.preventDefault();
+
+      const [up, down] = project.siblings;
+      detach(project);
+
+      if (down) {
+        currentProjectionState.setSelectedItem(down.id);
+      } else if (up) {
+        currentProjectionState.setSelectedItem(up.id);
+      } else {
+        currentProjectionState.resetSelected();
+      }
+    }
+  });
+
+  return (
+    <Link
+      data-focusable-id={project.id}
+      ref={ref}
+      key={project.id}
+      className={(active) =>
+        `flex items-center px-2 py-1.5 rounded-lg cursor-pointer ${
+          active || isSelected ? "bg-gray-800" : "hover:bg-gray-800"
+        }`
+      }
+      href={`/projects/${project.id}`}
+      onClick={() => currentProjectionState.setSelectedItem(project.id)}
+    >
+      <span className="text-base mr-2 flex-shrink-0">{project.icon}</span>
+      <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+        {project.title}
+      </span>
+    </Link>
+  );
+});
+
+const InboxItem = observer(function IboxItemComp({
+  inboxProject,
+}: {
+  inboxProject: Project;
+}) {
+  useRegisterListItem(columnName, inboxProject.id, "0");
+
+  const selectedItemId = computed(
+    () => currentProjectionState.selectedItemId == inboxProject.id,
+  ).get();
+
+  return (
+    <Link
+      data-focusable-id={inboxProject.id}
+      href="/projects/inbox"
+      className={(active) =>
+        `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
+          selectedItemId || active ? "bg-gray-800" : "hover:bg-gray-800"
+        }`
+      }
+    >
+      <span className="text-amber-500 mr-2 flex-shrink-0">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        </svg>
+      </span>
+      <span className="text-white text-sm">Inbox</span>
+      <span className="text-gray-400 ml-auto text-sm">
+        {inboxProject?.children.length ?? 0}
+      </span>
+    </Link>
+  );
+});
+
+const TodayItem = observer(function TodayItemComp() {
+  const id = "today";
+  useRegisterListItem(columnName, id, "1");
+
+  const selectedItemId = computed(
+    () => currentProjectionState.selectedItemId == id,
+  ).get();
+
+  return (
+    <Link
+      data-focusable-id={id}
+      href="/today"
+      className={(active) =>
+        `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
+          active || selectedItemId ? "bg-gray-800" : "hover:bg-gray-800"
+        }`
+      }
+    >
+      <span className="text-amber-500 mr-2 flex-shrink-0">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      </span>
+      <span className="text-white text-sm">Today</span>
+    </Link>
+  );
+});
 
 export const Sidebar = observer(function SidebarComp() {
   const { allProjectsList, projectsRegistry } = getRootStore();
@@ -77,65 +219,14 @@ export const Sidebar = observer(function SidebarComp() {
     );
   };
 
+  useRegisterListColumn(columnName, "0");
+
   return (
     <div className="w-64 bg-gray-900 h-full flex flex-col">
       {/* Default categories */}
       <div className="px-3 py-1 flex-shrink-0">
-        <Link
-          href="/projects/inbox"
-          className={(active) =>
-            `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
-              active ? "bg-gray-800" : "hover:bg-gray-800"
-            }`
-          }
-        >
-          <span className="text-amber-500 mr-2 flex-shrink-0">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M22 12h-6l-2 3h-4l-2-3H2" />
-              <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-            </svg>
-          </span>
-          <span className="text-white text-sm">Inbox</span>
-          <span className="text-gray-400 ml-auto text-sm">
-            {inboxProject?.children.length ?? 0}
-          </span>
-        </Link>
-
-        <Link
-          href="/today"
-          className={(active) =>
-            `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
-              active ? "bg-gray-800" : "hover:bg-gray-800"
-            }`
-          }
-        >
-          <span className="text-amber-500 mr-2 flex-shrink-0">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-          </span>
-          <span className="text-white text-sm">Today</span>
-        </Link>
+        <InboxItem inboxProject={inboxProject} />
+        <TodayItem />
       </div>
 
       {/* Projects section */}
@@ -169,20 +260,7 @@ export const Sidebar = observer(function SidebarComp() {
         {/* Projects list - scrollable */}
         <div className="overflow-y-auto h-full  pb-[100px]">
           {projects.map((proj) => (
-            <Link
-              key={proj.id}
-              className={(active) =>
-                `flex items-center px-2 py-1.5 rounded-lg cursor-pointer ${
-                  active ? "bg-gray-800" : "hover:bg-gray-800"
-                }`
-              }
-              href={`/projects/${proj.id}`}
-            >
-              <span className="text-base mr-2 flex-shrink-0">{proj.icon}</span>
-              <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
-                {proj.title}
-              </span>
-            </Link>
+            <ProjectItem key={proj.id} project={proj} />
           ))}
         </div>
       </div>
