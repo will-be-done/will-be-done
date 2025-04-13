@@ -72,7 +72,7 @@ export const getBackups = (store: RootStore): Backup => {
   }
 
   // Extract daily lists
-  for (const dailyList of store.dailyListRegisry.entities.values()) {
+  for (const dailyList of store.dailyListRegistry.entities.values()) {
     dailyLists.push({
       id: dailyList.id,
       date: dailyList.date.toISOString(),
@@ -102,7 +102,7 @@ export const loadBackups = standaloneAction(
   (store: RootStore, backup: Backup) => {
     store.taskRegistry.entities.clear();
     store.projectsRegistry.entities.clear();
-    store.dailyListRegisry.entities.clear();
+    store.dailyListRegistry.entities.clear();
     store.taskProjectionRegistry.entities.clear();
 
     // First, create all projects
@@ -126,7 +126,7 @@ export const loadBackups = standaloneAction(
       const project = projectMap.get(taskBackup.projectId);
       if (!project) {
         console.warn(
-          `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`
+          `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`,
         );
         continue;
       }
@@ -149,7 +149,7 @@ export const loadBackups = standaloneAction(
         id: dailyListBackup.id,
         date: new Date(dailyListBackup.date),
       });
-      store.dailyListRegisry.entities.set(dailyList.id, dailyList);
+      store.dailyListRegistry.entities.set(dailyList.id, dailyList);
       dailyListMap.set(dailyListBackup.id, dailyList);
     }
 
@@ -159,10 +159,11 @@ export const loadBackups = standaloneAction(
       const dailyList = dailyListMap.get(projectionBackup.listId);
       if (!task || !dailyList) {
         console.warn(
-          `Task ${projectionBackup.taskId} or DailyList ${projectionBackup.id} not found for projection`
+          `Task ${projectionBackup.taskId} or DailyList ${projectionBackup.id} not found for projection`,
         );
         continue;
       }
+      console.log("task", task, "dailyList", dailyList);
 
       const projection = new TaskProjection({
         id: projectionBackup.id,
@@ -171,6 +172,7 @@ export const loadBackups = standaloneAction(
         dailyListRef: dailyListRef(dailyList),
       });
       store.taskProjectionRegistry.add(projection);
+      console.log("child len", dailyList.children);
     }
-  }
+  },
 );

@@ -21,7 +21,7 @@ import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import invariant from "tiny-invariant";
-import { computed } from "mobx";
+import { comparer, computed } from "mobx";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { MultiSelect } from "../ui/multi-select";
 import { Cat, Dog, Fish, Rabbit, Turtle } from "lucide-react";
@@ -288,21 +288,24 @@ const BoardView = observer(function BoardViewComponent({
     (state) => state.setSelectedProjectIds,
   );
 
-  const handleAddTask = (dailyList: DailyList) => {
-    const firstSelectedProject = selectedProjectIds[0]
-      ? projectsRegistry.getById(selectedProjectIds[0])
-      : undefined;
-    const project = firstSelectedProject
-      ? firstSelectedProject
-      : projectsRegistry.inboxProjectOrThrow;
+  const handleAddTask = useCallback(
+    (dailyList: DailyList) => {
+      const firstSelectedProject = selectedProjectIds[0]
+        ? projectsRegistry.getById(selectedProjectIds[0])
+        : undefined;
+      const project = firstSelectedProject
+        ? firstSelectedProject
+        : projectsRegistry.inboxProjectOrThrow;
 
-    const newItem = dailyList.createProjection(
-      [dailyList.lastProjection, undefined],
-      { project },
-    );
+      const newItem = dailyList.createProjection(
+        [dailyList.lastProjection, undefined],
+        { project },
+      );
 
-    focusManager.editByKey(buildFocusKey(newItem.id, newItem.$modelType));
-  };
+      focusManager.editByKey(buildFocusKey(newItem.id, newItem.$modelType));
+    },
+    [projectsRegistry, selectedProjectIds],
+  );
 
   return (
     <div className="grid grid-cols-7 gap-4 h-full">
@@ -421,7 +424,7 @@ const BoardView = observer(function BoardViewComponent({
 
 export const Board = observer(function BoardComponent() {
   const rootStore = getRootStore();
-  const { dailyListRegisry } = rootStore;
+  const { dailyListRegistry } = rootStore;
   const { preferences } = getRootStore();
   const daysToShow = preferences.daysWindow;
   const daysShift = preferences.daysShift;
@@ -440,25 +443,29 @@ export const Board = observer(function BoardComponent() {
   );
 
   // Handle previous day
-  const handlePrevDay = (): void => {
+  const handlePrevDay = useCallback((): void => {
     preferences.setDaysShift(preferences.daysShift - 1);
-  };
+  }, [preferences]);
 
   // Handle next day
-  const handleNextDay = (): void => {
+  const handleNextDay = useCallback((): void => {
     preferences.setDaysShift(preferences.daysShift + 1);
-  };
+  }, [preferences]);
 
   useEffect(() => {
-    dailyListRegisry.createDailyListsIfNotExists(weekDays);
-  }, [dailyListRegisry, weekDays]);
+    dailyListRegistry.createDailyListsIfNotExists(weekDays);
+  }, [dailyListRegistry, weekDays]);
 
-  const dailyLists = computed(() =>
-    dailyListRegisry.getDailyListByDates(weekDays),
+  const dailyLists = computed(
+    () => dailyListRegistry.getDailyListByDates(weekDays),
+    { equals: comparer.structural },
   ).get();
-  const displayedTasksIds = computed(() => {
-    return dailyListRegisry.getTaskIdsOfDailyLists(dailyLists);
-  }).get();
+  const displayedTasksIds = computed(
+    () => {
+      return dailyListRegistry.getTaskIdsOfDailyLists(dailyLists);
+    },
+    { equals: comparer.structural },
+  ).get();
 
   return (
     <BoardView

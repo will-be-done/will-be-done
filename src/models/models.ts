@@ -662,7 +662,7 @@ export class RootStore extends Model({
   taskProjectionRegistry: prop<TaskProjectionRegistry>(
     () => new TaskProjectionRegistry({}),
   ),
-  dailyListRegisry: prop<DailyListRegistry>(() => new DailyListRegistry({})),
+  dailyListRegistry: prop<DailyListRegistry>(() => new DailyListRegistry({})),
 
   preferences: prop<Preferences>(() => new Preferences({})),
 }) {
@@ -671,7 +671,7 @@ export class RootStore extends Model({
       this.projectsRegistry,
       this.taskRegistry,
       this.taskProjectionRegistry,
-      this.dailyListRegisry,
+      this.dailyListRegistry,
     ];
 
     for (const registry of registries) {

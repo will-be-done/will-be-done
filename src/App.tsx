@@ -48,6 +48,9 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
       // If it's an input, return early
       if (isInput) return;
+      if (e.target instanceof HTMLElement && e.target.shadowRoot) {
+        return;
+      }
 
       console.log("global key", e);
 
