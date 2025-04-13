@@ -13,12 +13,18 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
   const onAddNewTask = () => {
     const newTask = project.createTask("append");
 
-    focusManager.editByKey(buildFocusKey(newTask.id, newTask.$modelType));
+    focusManager.editByKey(
+      buildFocusKey(newTask.id, newTask.$modelType, "ProjectItemsList"),
+    );
   };
 
   return (
     <ColumnListProvider
-      focusKey={buildFocusKey(project.id, project.$modelType)}
+      focusKey={buildFocusKey(
+        project.id,
+        project.$modelType,
+        "ProjectItemsList",
+      )}
       priority="500"
     >
       <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">

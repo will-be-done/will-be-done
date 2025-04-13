@@ -60,8 +60,12 @@ export class FocusItem {
 type FocusColumn = FocusItem;
 
 export type FocusKey = string & { __brand: never };
-export const buildFocusKey = (id: string, type: string): FocusKey => {
-  return `${type}-${id}` as FocusKey;
+export const buildFocusKey = (
+  id: string,
+  type: string,
+  component?: string,
+): FocusKey => {
+  return `${type}-${id}${component ? `-${component}` : ""}` as FocusKey;
 };
 
 export class FocusManager {
@@ -182,9 +186,9 @@ export class FocusManager {
     return this.itemsById.get(key);
   }
 
-  // String() {
-  //   return printTree(this);
-  // }
+  String() {
+    return printTree(this);
+  }
 
   findColumn(key: FocusKey): FocusItem | undefined {
     const item = this.itemsById.get(key);
@@ -212,68 +216,65 @@ export class FocusManager {
   }
 }
 
-// function printTree(manager: {
-//   columns: ColumnItem[];
-//   itemsById: Map<string, ColumnItem>;
-//   childrenMap: Map<string, string[]>;
-// }): string {
-//   const output: string[] = [];
-//
-//   // Print each column tree
-//   manager.columns.forEach((column) => {
-//     const children = manager.childrenMap.get(column.id) || [];
-//     output.push(`${column.id} (${column.priority}) ${children.length}`);
-//
-//     // Print children of the column
-//     const childPrefix = "";
-//     children.forEach((childId, index) => {
-//       const isLastChild = index === children.length - 1;
-//       const childItem = manager.itemsById.get(childId);
-//       if (childItem) {
-//         output.push(
-//           `${childPrefix}${isLastChild ? "└── " : "├── "}${childItem.id} (${childItem.priority})`,
-//         );
-//         printNode(
-//           childItem,
-//           childPrefix + (isLastChild ? "    " : "│   "),
-//           output,
-//           manager,
-//         );
-//       }
-//     });
-//   });
-//
-//   return output.join("\n");
-// }
-//
-// function printNode(
-//   node: ColumnItem,
-//   prefix: string,
-//   output: string[],
-//   manager: {
-//     itemsById: Map<string, ColumnItem>;
-//     childrenMap: Map<string, string[]>;
-//   },
-// ) {
-//   const children = manager.childrenMap.get(node.id) || [];
-//
-//   children.forEach((childId, index) => {
-//     const isLastChild = index === children.length - 1;
-//     const childItem = manager.itemsById.get(childId);
-//
-//     if (childItem) {
-//       output.push(
-//         `${prefix}${isLastChild ? "└── " : "├── "}${childItem.id} (${childItem.priority})`,
-//       );
-//       printNode(
-//         childItem,
-//         prefix + (isLastChild ? "    " : "│   "),
-//         output,
-//         manager,
-//       );
-//     }
-//   });
-// }
+function printTree(manager: {
+  columns: FocusColumn[];
+  itemsById: Map<string, FocusItem>;
+  childrenMap: Map<string, FocusItem[]>;
+}): string {
+  const output: string[] = [];
+
+  // Print each column tree
+  manager.columns.forEach((column) => {
+    const children = manager.childrenMap.get(column.key) || [];
+    output.push(`${column.key} (${column.priority}) ${children.length}`);
+
+    // Print children of the column
+    const childPrefix = "";
+    children.forEach((childItem, index) => {
+      const isLastChild = index === children.length - 1;
+      output.push(
+        `${childPrefix}${isLastChild ? "└── " : "├── "}${childItem.key} (${childItem.priority})`,
+      );
+
+      printNode(
+        childItem,
+        childPrefix + (isLastChild ? "    " : "│   "),
+        output,
+        manager,
+      );
+    });
+  });
+
+  return output.join("\n");
+}
+
+function printNode(
+  node: FocusColumn,
+  prefix: string,
+  output: string[],
+  manager: {
+    itemsById: Map<string, FocusColumn>;
+    childrenMap: Map<string, FocusItem[]>;
+  },
+) {
+  const children = manager.childrenMap.get(node.key) || [];
+
+  children.forEach((childItem, index) => {
+    const isLastChild = index === children.length - 1;
+
+    if (childItem) {
+      output.push(
+        `${prefix}${isLastChild ? "└── " : "├── "}${childItem.key} (${childItem.priority})`,
+      );
+      printNode(
+        childItem,
+        prefix + (isLastChild ? "    " : "│   "),
+        output,
+        manager,
+      );
+    }
+  });
+}
 
 export const focusManager = new FocusManager();
 

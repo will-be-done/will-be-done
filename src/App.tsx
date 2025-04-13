@@ -84,6 +84,17 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeElement =
+        e.target instanceof Element ? e.target : document.activeElement;
+
+      if (!globalKeysState.isEnabled) return;
+
+      // Check if the active element IS any kind of input element
+      const isInput = activeElement && isInputElement(activeElement);
+
+      // If it's an input, return early
+      if (isInput) return;
+
       const setFocus = (focus: FocusItem) => {
         focus.focus();
 
@@ -111,7 +122,6 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
 
       const focusedItem = focusManager.focusItem;
-      console.log("focusedItem", focusedItem, isUp, isDown);
       if (focusedItem && (isUp || isDown)) {
         e.preventDefault();
 

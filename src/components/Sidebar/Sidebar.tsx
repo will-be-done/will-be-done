@@ -229,7 +229,7 @@ export const Sidebar = observer(function SidebarComp() {
 
   return (
     <ColumnListProvider
-      focusKey={buildFocusKey("sidebar", "sidebar")}
+      focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
       priority="0"
     >
       <div className="w-64 bg-gray-900 h-full flex flex-col">

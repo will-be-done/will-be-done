@@ -144,7 +144,7 @@ const ColumnView = observer(function ColumnViewComponent({
 
   return (
     <ColumnListProvider
-      focusKey={buildFocusKey(dailyList.id, dailyList.$modelType)}
+      focusKey={buildFocusKey(dailyList.id, dailyList.$modelType, "ColumnView")}
       priority={(orderNumber + 100).toString()}
     >
       <div
@@ -233,7 +233,11 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
 
           return (
             <ParentListItemProvider
-              focusKey={buildFocusKey(proj.id, proj.$modelType)}
+              focusKey={buildFocusKey(
+                proj.id,
+                proj.$modelType,
+                "TaskSuggestions",
+              )}
               priority={proj.orderToken}
             >
               <div className="text-gray-400 text-sm mt-6 pb-2">
@@ -396,7 +400,11 @@ const BoardView = observer(function BoardViewComponent({
       </div>
 
       <ColumnListProvider
-        focusKey={buildFocusKey("task-suggestions", "task-suggestions")}
+        focusKey={buildFocusKey(
+          "task-suggestions",
+          "task-suggestions",
+          "BoardView",
+        )}
         priority="500"
       >
         {/* 20% section (1/5 columns) */}
