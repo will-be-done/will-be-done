@@ -132,7 +132,10 @@ const ColumnView = observer(function ColumnViewComponent({
         canDrop: ({ source }) => {
           if (!isModelDNDData(source.data)) return false;
 
-          const entity = getRootStore().getEntity(source.data.modelId);
+          const entity = getRootStore().getEntity(
+            source.data.modelId,
+            source.data.modelType,
+          );
           if (!entity) return false;
 
           return dailyList.canDrop(entity);

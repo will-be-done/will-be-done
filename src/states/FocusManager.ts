@@ -1,7 +1,7 @@
 import { shouldNeverHappen } from "@/utils";
 import { action, computed, makeObservable, observable } from "mobx";
 
-const columnKey = "focus-manager-column-focus-manager-column";
+const columnKey = "focus-manager-column^^focus-manager-column" as FocusKey;
 
 export class FocusItem {
   manager: FocusManager;
@@ -71,26 +71,26 @@ export class FocusItem {
 
   @computed
   get isFocused() {
-    return this.manager.focusItemKey === this.key;
+    return this.manager.isFocused(this.key);
   }
 
   @computed
   get isEditing() {
-    return this.manager.editItemKey === this.key;
+    return this.manager.isEditing(this.key);
   }
 
   @action
   focus() {
-    this.manager.focusItemKey = this.key;
+    this.manager.setFocusedItemId(this.key);
   }
 
   @action
   edit() {
-    this.manager.editItemKey = this.key;
+    this.manager.setEditingItemId(this.key);
   }
 
   get isColumn() {
-    return this.parentKey === "focus-manager-column-focus-manager-column";
+    return this.parentKey === columnKey;
   }
 }
 type FocusColumn = FocusItem;
@@ -101,27 +101,68 @@ export const buildFocusKey = (
   type: string,
   component?: string,
 ): FocusKey => {
-  return `${type}-${id}${component ? `-${component}` : ""}` as FocusKey;
+  if (id.includes("^^")) {
+    throw new Error("id cannot contain ^^");
+  }
+  if (type.includes("^^")) {
+    throw new Error("type cannot contain ^^");
+  }
+  if (component && component.includes("^^")) {
+    throw new Error("component cannot contain ^^");
+  }
+
+  return `${type}^^${id}${component ? `^^${component}` : ""}` as FocusKey;
+};
+
+export const parseColumnKey = (
+  key: FocusKey,
+): { type: string; id: string; component?: string } => {
+  const [type, id, component] = key.split("^^");
+
+  if (!type || !id) return shouldNeverHappen("key is not valid", { key });
+
+  return { type, id, component };
 };
 
 export class FocusManager {
   itemsById: Map<FocusKey, FocusItem> = new Map();
   childrenMap: Map<FocusKey, FocusItem[]> = new Map();
 
-  @observable focusItemKey: FocusKey | undefined;
-  @observable editItemKey: FocusKey | undefined;
+  @observable
+  private focusItemKey: FocusKey | undefined;
+  @observable
+  private editItemKey: FocusKey | undefined;
+
+  @observable
+  isFocusDisabled = false;
 
   constructor() {
     makeObservable(this);
   }
 
+  isFocused(key: FocusKey) {
+    if (this.isFocusDisabled) return false;
+
+    return this.focusItemKey === key;
+  }
+
+  isEditing(key: FocusKey) {
+    if (this.isFocusDisabled) return false;
+
+    return this.editItemKey === key;
+  }
+
   @computed
   get isSomethingEditing() {
+    if (this.isFocusDisabled) return false;
+
     return !!this.editItemKey;
   }
 
   @computed
   get isSomethingFocused() {
+    if (this.isFocusDisabled) return false;
+
     return !!this.focusItemKey;
   }
 
@@ -133,6 +174,26 @@ export class FocusManager {
   @computed
   get editItem() {
     return this.editItemKey && this.itemsById.get(this.editItemKey);
+  }
+
+  @action
+  setFocusedItemId(key: FocusKey) {
+    this.focusItemKey = key;
+  }
+
+  @action
+  setEditingItemId(key: FocusKey) {
+    this.editItemKey = key;
+  }
+
+  @action
+  disableFocus() {
+    this.isFocusDisabled = true;
+  }
+
+  @action
+  enableFocus() {
+    this.isFocusDisabled = false;
   }
 
   @action
@@ -165,23 +226,15 @@ export class FocusManager {
   registerColumn(key: FocusKey, priority: string) {
     if (this.itemsById.has(key)) return;
 
-    const col = new FocusItem(
-      this,
-      key,
-      buildFocusKey("focus-manager-column", "focus-manager-column"),
-      priority,
-    );
-
-    this.registerColumnItem(col);
-
-    return col;
+    const col = new FocusItem(this, key, columnKey, priority);
+    this.registerItem(col);
   }
 
-  buildFocusItem(parentKey: FocusKey, itemKey: FocusKey, priority: string) {
+  buildItem(parentKey: FocusKey, itemKey: FocusKey, priority: string) {
     return new FocusItem(this, itemKey, parentKey, priority);
   }
 
-  registerColumnItem(item: FocusItem) {
+  registerItem(item: FocusItem) {
     if (this.itemsById.has(item.key)) return;
 
     const children = this.childrenMap.get(item.parentKey) || [];
@@ -194,8 +247,6 @@ export class FocusManager {
 
     this.childrenMap.set(item.parentKey, itemsToSort);
     this.itemsById.set(item.key, item);
-
-    return item;
   }
 
   unregister(key: FocusKey) {

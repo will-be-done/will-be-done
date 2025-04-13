@@ -24,7 +24,7 @@ import ReactDOM from "react-dom";
 import { DndModelData, isModelDNDData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { BaseListItem, OrderableItem } from "../../models/listActions";
-import { usePrevious, useUnmount } from "../../utils";
+import { shouldNeverHappen, usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
 import { computed } from "mobx";
 import { globalKeysState } from "../../states/isGlobalKeyDisables";
@@ -32,7 +32,12 @@ import { useGlobalListener } from "../../globalListener/hooks";
 import { isInputElement } from "../../utils/isInputElement";
 import { detach, getSnapshot } from "mobx-keystone";
 import { useRegisterFocusItem } from "@/hooks/useLists";
-import { buildFocusKey, focusManager } from "@/states/FocusManager";
+import {
+  buildFocusKey,
+  FocusKey,
+  focusManager,
+  parseColumnKey,
+} from "@/states/FocusManager";
 
 type State =
   | { type: "idle" }
@@ -114,23 +119,73 @@ export const TaskComp = observer(function TaskComponent({
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (focusManager.isSomethingEditing) return;
     if (!focusableItem.isFocused) return;
-    if (!globalKeysState.isEnabled) return;
+    if (focusManager.isFocusDisabled || e.defaultPrevented) return;
 
     const target =
       e.target instanceof Element ? e.target : document.activeElement;
     if (target && isInputElement(target)) return;
 
-    const isAddAfter = !e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
+    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+
+    const isAddAfter = noModifiers && (e.code === "KeyA" || e.code === "KeyO");
     const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
 
-    if (e.code === "KeyM") {
+    const isMoveUp = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyK");
+    const isMoveDown = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyJ");
+
+    if (e.code === "Space" && noModifiers) {
+      e.preventDefault();
+
+      task.toggleState();
+    } else if (e.code === "KeyM" && noModifiers) {
       e.preventDefault();
 
       setIsMoveModalOpen(true);
+    } else if (isMoveUp || isMoveDown) {
+      e.preventDefault();
+
+      const [up, down] = focusableItem.siblings;
+
+      const findModel = (key: FocusKey) => {
+        const { id, type } = parseColumnKey(key);
+        const model = getRootStore().getEntity(id, type);
+
+        if (!(model instanceof TaskProjection || model instanceof Task)) {
+          return undefined;
+        }
+
+        return model;
+      };
+
+      const scroll = () => {
+        setTimeout(() => {
+          ref.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+        }, 0);
+      };
+
+      if (isMoveUp && up) {
+        const model = findModel(up.key);
+
+        model?.handleDrop(listItem, "top");
+
+        scroll();
+      } else if (isMoveDown && down) {
+        const model = findModel(down.key);
+
+        console.log("move down", model);
+        model?.handleDrop(listItem, "bottom");
+
+        scroll();
+      }
+
+      return;
     } else if (
-      e.code === "Backspace" ||
-      e.code === "KeyD" ||
-      e.code === "KeyX"
+      (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
+      noModifiers
     ) {
       e.preventDefault();
 
@@ -146,7 +201,7 @@ export const TaskComp = observer(function TaskComponent({
           focusManager.resetFocus();
         }
       }, 0);
-    } else if (e.code === "Enter" || e.code === "KeyI") {
+    } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
       focusableItem.edit();
@@ -165,7 +220,8 @@ export const TaskComp = observer(function TaskComponent({
       focusableItem.isFocused &&
       ref.current &&
       !ref.current.contains(e.target as Node) &&
-      globalKeysState.isEnabled
+      !focusManager.isFocusDisabled &&
+      !e.defaultPrevented
     ) {
       focusManager.resetFocus();
     }
@@ -227,7 +283,7 @@ export const TaskComp = observer(function TaskComponent({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          const entity = getRootStore().getEntity(data.modelId);
+          const entity = getRootStore().getEntity(data.modelId, data.modelType);
           if (!entity) return false;
 
           return listItem.canDrop(entity);
@@ -280,11 +336,11 @@ export const TaskComp = observer(function TaskComponent({
       const el = ref.current;
       if (!el) return;
 
-      el.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "center",
-      });
+      // el.scrollIntoView({
+      //   behavior: "smooth",
+      //   block: "center",
+      //   inline: "center",
+      // });
     }
   }, [focusableItem.isFocused]);
 

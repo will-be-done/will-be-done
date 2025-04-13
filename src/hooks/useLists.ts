@@ -27,11 +27,11 @@ export const useRegisterFocusItem = (itemKey: FocusKey, priority: string) => {
       throw new Error("Parent list not found");
     }
 
-    return focusManager.buildFocusItem(parentListKey, itemKey, priority);
+    return focusManager.buildItem(parentListKey, itemKey, priority);
   }, [itemKey, parentListKey, priority]);
 
   useEffect(() => {
-    focusManager.registerColumnItem(item);
+    focusManager.registerItem(item);
     return () => {
       focusManager.unregister(item.key);
     };

@@ -26,7 +26,7 @@ import {
   generateOrderTokenPositioned,
   getRootStoreOrThrow,
 } from "./utils";
-import { generateKeyBetween } from "fractional-indexing";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import {
   type BaseListItem,
   getChildren,
@@ -223,7 +223,10 @@ export class Task
       between = [up?.orderToken, this.orderToken];
     }
 
-    const orderToken = generateKeyBetween(between[0], between[1]);
+    const orderToken = generateJitteredKeyBetween(
+      between[0] || null,
+      between[1] || null,
+    );
     if (target instanceof TaskProjection) {
       const task = target.taskRef.current;
       task.setProjectRef(clone(this.projectRef));
@@ -350,8 +353,11 @@ export class AllProjectsList
     const { projectsRegistry } = getRootStoreOrThrow(this);
 
     const orderToken = between
-      ? generateKeyBetween(between[0]?.orderToken, between[1]?.orderToken)
-      : generateKeyBetween(this.lastProject?.orderToken, undefined);
+      ? generateJitteredKeyBetween(
+          between[0]?.orderToken || null,
+          between[1]?.orderToken || null,
+        )
+      : generateJitteredKeyBetween(this.lastProject?.orderToken || null, null);
 
     const project = new Project({
       orderToken: orderToken,
@@ -399,7 +405,10 @@ export class TaskProjection
       between = [up?.orderToken, this.orderToken];
     }
 
-    const orderToken = generateKeyBetween(between[0], between[1]);
+    const orderToken = generateJitteredKeyBetween(
+      between[0] || null,
+      between[1] || null,
+    );
 
     if (target instanceof TaskProjection) {
       target.listRef = clone(this.dailyListRef);
@@ -495,9 +504,9 @@ export class DailyList
 
     const { taskProjectionRegistry } = getRootStoreOrThrow(this);
 
-    const orderToken = generateKeyBetween(
-      this.lastChild?.orderToken,
-      undefined,
+    const orderToken = generateJitteredKeyBetween(
+      this.lastChild?.orderToken || null,
+      null,
     );
     if (target instanceof TaskProjection) {
       target.listRef = this.makeListRef();
@@ -666,7 +675,7 @@ export class RootStore extends Model({
 
   preferences: prop<Preferences>(() => new Preferences({})),
 }) {
-  getEntity(entityId: string): AnyModel | undefined {
+  getEntity(entityId: string, modelType: string): AnyModel | undefined {
     const registries = [
       this.projectsRegistry,
       this.taskRegistry,
@@ -677,7 +686,7 @@ export class RootStore extends Model({
     for (const registry of registries) {
       const entity = registry.getById(entityId);
 
-      if (entity) {
+      if (entity && entity.$modelType === modelType) {
         return entity;
       }
     }

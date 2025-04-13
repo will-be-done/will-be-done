@@ -8,8 +8,8 @@ import {
 import { observer } from "mobx-react-lite";
 import { getRootStore } from "../../models/models";
 import { useState, useRef, useEffect } from "react";
-import { globalKeysState } from "../../states/isGlobalKeyDisables";
 import { useUnmount } from "../../utils";
+import { focusManager } from "@/states/FocusManager";
 
 export const MoveModal = observer(function MoveModelComp({
   isOpen,
@@ -58,11 +58,11 @@ export const MoveModal = observer(function MoveModelComp({
   };
 
   useEffect(() => {
-    globalKeysState.isEnabled = !isOpen;
+    focusManager.disableFocus();
   }, [isOpen]);
 
   useUnmount(() => {
-    globalKeysState.isEnabled = true;
+    focusManager.enableFocus();
   });
 
   return (

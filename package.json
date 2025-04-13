@@ -30,6 +30,7 @@
     "dayjs": "^1.11.13",
     "eslint-plugin-mobx": "^0.0.13",
     "fractional-indexing": "^3.2.0",
+    "fractional-indexing-jittered": "^1.0.0",
     "framer-motion": "^12.6.3",
     "jotai": "^2.12.2",
     "lucide-react": "^0.487.0",

@@ -1,6 +1,5 @@
 export const isInputElement = (activeElement: Element) => {
   return (
-    activeElement.tagName === "INPUT" ||
     activeElement.tagName === "TEXTAREA" ||
     activeElement.tagName === "SELECT" ||
     // Cast to HTMLElement to access isContentEditable

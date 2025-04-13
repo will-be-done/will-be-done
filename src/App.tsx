@@ -15,7 +15,6 @@ import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
 import { BaseListItem } from "./models/listActions";
 import { shouldNeverHappen, useUnmount } from "./utils";
-import { globalKeysState } from "./states/isGlobalKeyDisables";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   dropTargetForElements,
@@ -38,10 +37,10 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+
       const activeElement =
         e.target instanceof Element ? e.target : document.activeElement;
-
-      if (!globalKeysState.isEnabled) return;
 
       // Check if the active element IS any kind of input element
       const isInput = activeElement && isInputElement(activeElement);
@@ -87,10 +86,10 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+
       const activeElement =
         e.target instanceof Element ? e.target : document.activeElement;
-
-      if (!globalKeysState.isEnabled) return;
 
       // Check if the active element IS any kind of input element
       const isInput = activeElement && isInputElement(activeElement);
@@ -118,14 +117,24 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         const el = elements[0];
         if (el) {
           el.focus();
+
+          el.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
         }
       };
 
-      const isUp = e.code === "ArrowUp" || e.code == "KeyK";
-      const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
+      const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+      const isUp = (e.code === "ArrowUp" || e.code == "KeyK") && noModifiers;
+      const isDown =
+        e.code === "ArrowDown" || (e.code == "KeyJ" && noModifiers);
 
-      const isLeft = e.code === "ArrowLeft" || e.code == "KeyH";
-      const isRight = e.code === "ArrowRight" || e.code == "KeyL";
+      const isLeft =
+        e.code === "ArrowLeft" || (e.code == "KeyH" && noModifiers);
+      const isRight =
+        e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
 
       const focusedItem = focusManager.focusItem;
       if (focusedItem && (isUp || isDown)) {
@@ -195,7 +204,10 @@ const GlobalListener = observer(function GlobalListenerComponent() {
             return;
           }
 
-          const sourceEntity = getRootStore().getEntity(source.data.modelId);
+          const sourceEntity = getRootStore().getEntity(
+            source.data.modelId,
+            source.data.modelType,
+          );
           if (!sourceEntity) {
             console.warn("Source entity not found");
 
@@ -207,7 +219,10 @@ const GlobalListener = observer(function GlobalListenerComponent() {
               return [] as const;
             }
 
-            const entity = getRootStore().getEntity(t.data.modelId);
+            const entity = getRootStore().getEntity(
+              t.data.modelId,
+              t.data.modelType,
+            );
             if (!entity) return [] as const;
 
             return [[t, entity] as const];

@@ -1,7 +1,7 @@
 import { getRootStore } from "mobx-keystone";
 import { RootStore } from "./models";
 import { OrderableItem } from "./listActions";
-import { generateKeyBetween } from "fractional-indexing";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 
 export const getRootStoreOrThrow = (node: object) => {
   const rootStore = getRootStore<RootStore>(node);
@@ -24,9 +24,9 @@ export const generateKeyPositionedBetween = (
   if (position === "after") {
     between = [current, down] as const;
   }
-  const orderToken = generateKeyBetween(
-    between[0]?.orderToken,
-    between[1]?.orderToken,
+  const orderToken = generateJitteredKeyBetween(
+    between[0]?.orderToken || null,
+    between[1]?.orderToken || null,
   );
 
   return orderToken;
@@ -43,12 +43,21 @@ export const generateOrderTokenPositioned = (
     | "prepend",
 ) => {
   if (position === "append") {
-    return generateKeyBetween(current.lastChild?.orderToken, undefined);
+    return generateJitteredKeyBetween(
+      current.lastChild?.orderToken || null,
+      null,
+    );
   }
 
   if (position === "prepend") {
-    return generateKeyBetween(undefined, current.firstChild?.orderToken);
+    return generateJitteredKeyBetween(
+      null,
+      current.firstChild?.orderToken || null,
+    );
   }
 
-  return generateKeyBetween(position[0]?.orderToken, position[1]?.orderToken);
+  return generateJitteredKeyBetween(
+    position[0]?.orderToken || null,
+    position[1]?.orderToken || null,
+  );
 };
