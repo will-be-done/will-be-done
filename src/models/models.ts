@@ -202,6 +202,8 @@ export class Task
   @modelAction
   toggleState() {
     this.state = this.state === "todo" ? "done" : "todo";
+
+    return false;
   }
 
   canDrop(target: AnyModel): target is TaskProjection | Task {
@@ -389,6 +391,30 @@ export class TaskProjection
   }
 
   @modelAction
+  toggleState() {
+    const newStateIsDone = this.taskRef.current.state === "todo";
+
+    let wasMoved = false;
+    if (newStateIsDone) {
+      const doneChild = this.listRef.current.firstDoneChild;
+      if (doneChild) {
+        doneChild.handleDrop(this, "top");
+        wasMoved = true;
+      } else {
+        const lastChild = this.listRef.current.lastChild;
+
+        if (lastChild && lastChild !== this) {
+          lastChild.handleDrop(this, "bottom");
+          wasMoved = true;
+        }
+      }
+    }
+
+    this.taskRef.current.toggleState();
+    return wasMoved;
+  }
+
+  @modelAction
   handleDrop(target: AnyModel, edge: "top" | "bottom") {
     if (!this.canDrop(target)) {
       return;
@@ -546,6 +572,11 @@ export class DailyList
   @computed
   get lastChild(): TaskProjection | undefined {
     return this.children[this.children.length - 1];
+  }
+
+  @computed
+  get firstDoneChild(): TaskProjection | undefined {
+    return this.children.find((p) => p.taskRef.current.state === "done");
   }
 
   @computed

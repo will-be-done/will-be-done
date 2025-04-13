@@ -97,34 +97,34 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       // If it's an input, return early
       if (isInput) return;
 
-      const setFocus = (focus: FocusItem) => {
-        focus.focus();
-
-        const elements = document.querySelectorAll<HTMLElement>(
-          '[data-focusable-key="' + focus.key + '"]',
-        );
-
-        if (!elements.length) {
-          shouldNeverHappen("focusable element not found", { focus });
-          return;
-        }
-
-        if (elements.length > 1) {
-          shouldNeverHappen("focusable element > 1", { focus });
-          return;
-        }
-
-        const el = elements[0];
-        if (el) {
-          el.focus();
-
-          el.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-            inline: "center",
-          });
-        }
-      };
+      // const setFocus = (focus: FocusItem) => {
+      //   focus.focus();
+      //
+      //   const elements = document.querySelectorAll<HTMLElement>(
+      //     '[data-focusable-key="' + focus.key + '"]',
+      //   );
+      //
+      //   if (!elements.length) {
+      //     shouldNeverHappen("focusable element not found", { focus });
+      //     return;
+      //   }
+      //
+      //   if (elements.length > 1) {
+      //     shouldNeverHappen("focusable element > 1", { focus });
+      //     return;
+      //   }
+      //
+      //   const el = elements[0];
+      //   if (el) {
+      //     el.focus();
+      //
+      //     el.scrollIntoView({
+      //       behavior: "smooth",
+      //       block: "center",
+      //       inline: "center",
+      //     });
+      //   }
+      // };
 
       const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
       const isUp = (e.code === "ArrowUp" || e.code == "KeyK") && noModifiers;
@@ -145,11 +145,11 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         if (isUp) {
           if (!up) return;
 
-          setFocus(up);
+          up.focus();
         } else if (isDown) {
           if (!down) return;
 
-          setFocus(down);
+          down.focus();
         }
       } else if (focusedItem && (isLeft || isRight)) {
         e.preventDefault();
@@ -158,11 +158,11 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         if (isLeft) {
           if (!left) return;
 
-          setFocus(left);
+          left.focus();
         } else if (isRight) {
           if (!right) return;
 
-          setFocus(right);
+          right.focus();
         }
       }
     };

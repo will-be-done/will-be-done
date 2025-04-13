@@ -117,6 +117,27 @@ export const TaskComp = observer(function TaskComponent({
     }
   };
 
+  const handleTick = useCallback(
+    (moveFocus: boolean = false) => {
+      const isFocused = focusableItem.isFocused;
+      const [up, down] = focusableItem.siblings;
+      const wasMoved = listItem.toggleState();
+
+      if (!moveFocus) return;
+
+      if (wasMoved && isFocused) {
+        setTimeout(() => {
+          if (up) {
+            focusManager.focusByKey(up.key);
+          } else if (down) {
+            focusManager.focusByKey(down.key);
+          }
+        }, 0);
+      }
+    },
+    [focusableItem, listItem],
+  );
+
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (focusManager.isSomethingEditing) return;
     if (!focusableItem.isFocused) return;
@@ -168,7 +189,7 @@ export const TaskComp = observer(function TaskComponent({
     if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
-      task.toggleState();
+      handleTick(true);
     } else if (e.code === "KeyM" && noModifiers) {
       e.preventDefault();
 
@@ -424,10 +445,10 @@ export const TaskComp = observer(function TaskComponent({
             : "border-gray-700 bg-gray-750"
         } shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`}
         style={{}}
-        onClick={() => focusableItem.focus()}
+        onClick={() => focusableItem.focus(true)}
         onDoubleClick={(e) => {
           // e.preventDefault();
-          focusableItem.edit();
+          focusableItem.edit(true);
         }}
         ref={ref}
       >
@@ -457,7 +478,9 @@ export const TaskComp = observer(function TaskComponent({
                   type="checkbox"
                   className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
                   checked={task.state === "done"}
-                  onChange={() => task.toggleState()}
+                  onChange={(e) => {
+                    handleTick();
+                  }}
                   aria-label="Task completion status"
                 />
               </div>

@@ -80,13 +80,13 @@ export class FocusItem {
   }
 
   @action
-  focus() {
-    this.manager.setFocusedItemId(this.key);
+  focus(skipElFocus = false) {
+    this.manager.focusByKey(this.key, skipElFocus);
   }
 
   @action
-  edit() {
-    this.manager.setEditingItemId(this.key);
+  edit(skipElFocus = false) {
+    this.manager.editByKey(this.key, skipElFocus);
   }
 
   get isColumn() {
@@ -177,16 +177,6 @@ export class FocusManager {
   }
 
   @action
-  setFocusedItemId(key: FocusKey) {
-    this.focusItemKey = key;
-  }
-
-  @action
-  setEditingItemId(key: FocusKey) {
-    this.editItemKey = key;
-  }
-
-  @action
   disableFocus() {
     this.isFocusDisabled = true;
   }
@@ -197,16 +187,45 @@ export class FocusManager {
   }
 
   @action
-  focusByKey(key: FocusKey) {
+  focusByKey(key: FocusKey, skipElFocus = false) {
+    console.log("focusByKey", key);
     if (this.focusItemKey === key) return;
 
     this.focusItemKey = key;
     this.editItemKey = undefined;
+
+    if (skipElFocus) return;
+    const elements = document.querySelectorAll<HTMLElement>(
+      '[data-focusable-key="' + key + '"]',
+    );
+
+    if (!elements.length) {
+      shouldNeverHappen("focusable element not found", { focus });
+      return;
+    }
+
+    if (elements.length > 1) {
+      shouldNeverHappen("focusable element > 1", { focus });
+      return;
+    }
+
+    const el = elements[0];
+    console.log("focus", key, el);
+    if (el) {
+      el.focus();
+
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center",
+      });
+    }
   }
 
   @action
-  editByKey(key: FocusKey) {
+  editByKey(key: FocusKey, skipElFocus = false) {
     if (this.editItemKey === key) return;
+    this.focusByKey(key, skipElFocus);
 
     this.focusItemKey = key;
     this.editItemKey = key;
