@@ -27,7 +27,7 @@ import { MultiSelect } from "../ui/multi-select";
 import { Cat, Dog, Fish, Rabbit, Turtle } from "lucide-react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { useRegisterFocusColumn } from "@/hooks/useLists";
+import { useRegisterFocusColumn, useRegisterFocusItem } from "@/hooks/useLists";
 import {
   ColumnListProvider,
   ParentListItemProvider,
@@ -85,6 +85,27 @@ type DailyListDndState = { type: "idle" } | { type: "is-task-over" };
 
 const idle: DailyListDndState = { type: "idle" };
 const isTaskOver: DailyListDndState = { type: "is-task-over" };
+
+const AddTaskColumnButton = observer(function AddTaskColumnButtonComp({
+  dailyList,
+  onTaskAdd,
+}: {
+  dailyList: DailyList;
+  onTaskAdd: (dailyList: DailyList) => void;
+}) {
+  const id = "add-task-button-" + dailyList.id;
+  useRegisterFocusItem(buildFocusKey(id, id), "zzzzzzzzzzzzzzzz");
+
+  return (
+    <button
+      data-focusable-key={buildFocusKey(id, id)}
+      onClick={() => onTaskAdd(dailyList)}
+      className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
+    >
+      + Add Task
+    </button>
+  );
+});
 
 const ColumnView = observer(function ColumnViewComponent({
   dailyList,
@@ -189,12 +210,7 @@ const ColumnView = observer(function ColumnViewComponent({
 
           {/* Add new task button and input */}
           <div className="mt-2">
-            <button
-              onClick={() => onTaskAdd(dailyList)}
-              className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
-            >
-              + Add Task
-            </button>
+            <AddTaskColumnButton dailyList={dailyList} onTaskAdd={onTaskAdd} />
           </div>
         </div>
       </div>

@@ -1,16 +1,18 @@
 import { shouldNeverHappen } from "@/utils";
 import { action, computed, makeObservable, observable } from "mobx";
 
+const columnKey = "focus-manager-column-focus-manager-column";
+
 export class FocusItem {
   manager: FocusManager;
   key: FocusKey;
-  parentKey: FocusKey | undefined;
+  parentKey: FocusKey;
   priority: string;
 
   constructor(
     manager: FocusManager,
     key: FocusKey,
-    parentKey: FocusKey | undefined,
+    parentKey: FocusKey,
     priority: string,
   ) {
     makeObservable(this);
@@ -22,19 +24,49 @@ export class FocusItem {
   }
 
   get siblings(): [FocusItem | undefined, FocusItem | undefined] {
+    if (this.isColumn) {
+      const columns = this.manager.childrenMap.get(this.parentKey) || [];
+      const index = columns.findIndex((item) => item.key === this.key);
+
+      if (index === -1)
+        return shouldNeverHappen("column not found", { t: this });
+
+      return [columns[index - 1], columns[index + 1]];
+    }
+
     const column = this.manager.findColumn(this.key);
-    if (!column) return [undefined, undefined];
+    if (!column) return shouldNeverHappen("column not found", { t: this });
 
-    const items = this.manager.allItems(column.key, []);
-    const index = items.findIndex((item) => item.key === this.key);
-    if (index === -1) return [undefined, undefined];
+    const allItems = column.flatChildren;
+    const index = allItems.findIndex((item) => item.key === this.key);
+    if (index === -1) return shouldNeverHappen("item not found", { t: this });
 
-    return [items[index - 1], items[index + 1]];
+    return [allItems[index - 1], allItems[index + 1]];
   }
 
   get isFocusable(): boolean {
     const children = this.manager.childrenMap.get(this.key) || [];
     return children.length == 0;
+  }
+
+  get flatChildren(): FocusItem[] {
+    return this.manager.allItems(this.key, []);
+  }
+
+  get columnSiblings(): [FocusItem | undefined, FocusItem | undefined] {
+    const column = this.manager.findColumn(this.key);
+    if (!column) return shouldNeverHappen("column not found", { t: this });
+
+    return column.siblings;
+  }
+
+  get siblingColumnsFirstItem(): [
+    FocusItem | undefined,
+    FocusItem | undefined,
+  ] {
+    const [left, right] = this.columnSiblings;
+
+    return [left?.flatChildren[0], right?.flatChildren[0]];
   }
 
   @computed
@@ -56,6 +88,10 @@ export class FocusItem {
   edit() {
     this.manager.editItemKey = this.key;
   }
+
+  get isColumn() {
+    return this.parentKey === "focus-manager-column-focus-manager-column";
+  }
 }
 type FocusColumn = FocusItem;
 
@@ -69,7 +105,6 @@ export const buildFocusKey = (
 };
 
 export class FocusManager {
-  columns: FocusColumn[] = [];
   itemsById: Map<FocusKey, FocusItem> = new Map();
   childrenMap: Map<FocusKey, FocusItem[]> = new Map();
 
@@ -130,9 +165,14 @@ export class FocusManager {
   registerColumn(key: FocusKey, priority: string) {
     if (this.itemsById.has(key)) return;
 
-    const col = new FocusItem(this, key, undefined, priority);
-    this.columns.push(col);
-    this.itemsById.set(key, col);
+    const col = new FocusItem(
+      this,
+      key,
+      buildFocusKey("focus-manager-column", "focus-manager-column"),
+      priority,
+    );
+
+    this.registerColumnItem(col);
 
     return col;
   }
@@ -143,10 +183,6 @@ export class FocusManager {
 
   registerColumnItem(item: FocusItem) {
     if (this.itemsById.has(item.key)) return;
-
-    if (item.parentKey === undefined) {
-      throw new Error("Column item must have a parent");
-    }
 
     const children = this.childrenMap.get(item.parentKey) || [];
     const itemsToSort = [...children, item];
@@ -168,13 +204,6 @@ export class FocusManager {
 
     this.itemsById.delete(key);
 
-    if (item.parentKey === undefined) {
-      const columnIndex = this.columns.findIndex((col) => col.key === key);
-      if (columnIndex !== -1) {
-        this.columns.splice(columnIndex, 1);
-      }
-    }
-
     if (item.parentKey) {
       const siblings = this.childrenMap.get(item.parentKey) || [];
       const updatedSiblings = siblings.filter((child) => child.key !== key);
@@ -193,15 +222,18 @@ export class FocusManager {
   findColumn(key: FocusKey): FocusItem | undefined {
     const item = this.itemsById.get(key);
     if (!item) return undefined;
-    if (item.parentKey === undefined) return item;
+    if (item.isColumn) return item;
 
     return this.findColumn(item.parentKey);
   }
 
   allItems(parentKey: FocusKey, allItems: FocusItem[] = []) {
+    const item = this.itemsById.get(parentKey);
+    if (!item) return shouldNeverHappen("item not found", { parentKey });
+
     const children = this.childrenMap.get(parentKey) || [];
 
-    if (children.length == 0) {
+    if (children.length == 0 && !item.isColumn) {
       const item = this.itemsById.get(parentKey);
       if (!item) return shouldNeverHappen("item not found", { parentKey });
 
@@ -217,14 +249,14 @@ export class FocusManager {
 }
 
 function printTree(manager: {
-  columns: FocusColumn[];
   itemsById: Map<string, FocusItem>;
   childrenMap: Map<string, FocusItem[]>;
 }): string {
   const output: string[] = [];
 
-  // Print each column tree
-  manager.columns.forEach((column) => {
+  const columns =
+    manager.childrenMap.get("focus-manager-column-focus-manager-column") || [];
+  columns.forEach((column) => {
     const children = manager.childrenMap.get(column.key) || [];
     output.push(`${column.key} (${column.priority}) ${children.length}`);
 

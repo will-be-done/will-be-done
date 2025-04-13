@@ -124,6 +124,9 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       const isUp = e.code === "ArrowUp" || e.code == "KeyK";
       const isDown = e.code === "ArrowDown" || e.code == "KeyJ";
 
+      const isLeft = e.code === "ArrowLeft" || e.code == "KeyH";
+      const isRight = e.code === "ArrowRight" || e.code == "KeyL";
+
       const focusedItem = focusManager.focusItem;
       if (focusedItem && (isUp || isDown)) {
         e.preventDefault();
@@ -138,6 +141,19 @@ const GlobalListener = observer(function GlobalListenerComponent() {
           if (!down) return;
 
           setFocus(down);
+        }
+      } else if (focusedItem && (isLeft || isRight)) {
+        e.preventDefault();
+
+        const [left, right] = focusedItem.siblingColumnsFirstItem;
+        if (isLeft) {
+          if (!left) return;
+
+          setFocus(left);
+        } else if (isRight) {
+          if (!right) return;
+
+          setFocus(right);
         }
       }
     };

@@ -4,6 +4,31 @@ import { TaskComp } from "../Task/Task";
 import { detach } from "mobx-keystone";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
+import { useRegisterFocusItem } from "@/hooks/useLists";
+
+const AddTaskButton = observer(function AddTaskButtonComp({
+  project,
+  onTaskAdd,
+}: {
+  project: Project;
+  onTaskAdd: (project: Project) => void;
+}) {
+  const id = "add-task-button-" + project.id;
+  const focusItem = useRegisterFocusItem(
+    buildFocusKey(id, id, "AddTaskButton"),
+    "zzzzzzzzzzzzzzzz",
+  );
+
+  return (
+    <button
+      data-focusable-key={focusItem.key}
+      onClick={() => onTaskAdd(project)}
+      className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
+    >
+      + Add Task
+    </button>
+  );
+});
 
 export const ProjectItemsList = observer(function ProjectItemsListComp({
   project,
@@ -70,12 +95,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
 
           {/* Add new task button and input */}
           <div className="mt-2">
-            <button
-              onClick={onAddNewTask}
-              className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
-            >
-              + Add Task
-            </button>
+            <AddTaskButton project={project} onTaskAdd={onAddNewTask} />
           </div>
         </div>
       </div>
