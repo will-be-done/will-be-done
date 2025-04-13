@@ -317,7 +317,7 @@ const BoardView = observer(function BoardViewComponent({
         : projectsRegistry.inboxProjectOrThrow;
 
       const newItem = dailyList.createProjection(
-        [dailyList.lastProjection, undefined],
+        [undefined, dailyList.firstChild],
         { project },
       );
 

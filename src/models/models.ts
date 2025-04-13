@@ -499,15 +499,24 @@ export class DailyList
   }
 
   @modelAction
-  handleDrop(target: AnyModel) {
+  handleDrop(target: AnyModel, edge: "top" | "bottom") {
     if (!this.canDrop(target)) return;
 
     const { taskProjectionRegistry } = getRootStoreOrThrow(this);
 
-    const orderToken = generateJitteredKeyBetween(
-      this.lastChild?.orderToken || null,
+    let between: [string | null, string | null] = [
       null,
+      this.firstChild?.orderToken || null,
+    ];
+    if (edge == "bottom") {
+      between = [this.lastChild?.orderToken || null, null];
+    }
+
+    const orderToken = generateJitteredKeyBetween(
+      between[0] || null,
+      between[1] || null,
     );
+
     if (target instanceof TaskProjection) {
       target.listRef = this.makeListRef();
       target.orderToken = orderToken;

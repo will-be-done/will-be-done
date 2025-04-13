@@ -36,11 +36,9 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
   project: Project;
 }) {
   const onAddNewTask = () => {
-    const newTask = project.createTask("append");
+    const newTask = project.createTask("prepend");
 
-    focusManager.editByKey(
-      buildFocusKey(newTask.id, newTask.$modelType, "ProjectItemsList"),
-    );
+    focusManager.editByKey(buildFocusKey(newTask.id, newTask.$modelType));
   };
 
   return (

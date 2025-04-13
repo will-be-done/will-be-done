@@ -1,5 +1,6 @@
 import { observer } from "mobx-react-lite";
 import {
+  DailyList,
   getRootStore,
   Task,
   TaskProjection,
@@ -132,6 +133,37 @@ export const TaskComp = observer(function TaskComponent({
 
     const isMoveUp = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyK");
     const isMoveDown = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyJ");
+    const isMoveLeft =
+      e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
+    const isMoveRight =
+      e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
+
+    const findTaskModel = (key: FocusKey) => {
+      const { id, type } = parseColumnKey(key);
+      const model = getRootStore().getEntity(id, type);
+
+      if (
+        !(
+          model instanceof TaskProjection ||
+          model instanceof Task ||
+          model instanceof DailyList
+        )
+      ) {
+        return undefined;
+      }
+
+      return model;
+    };
+
+    const scroll = () => {
+      setTimeout(() => {
+        ref.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }, 0);
+    };
 
     if (e.code === "Space" && noModifiers) {
       e.preventDefault();
@@ -141,43 +173,56 @@ export const TaskComp = observer(function TaskComponent({
       e.preventDefault();
 
       setIsMoveModalOpen(true);
+    } else if (isMoveLeft || isMoveRight) {
+      e.preventDefault();
+
+      const [leftColumn, rightColumn] = focusableItem.columnSiblings;
+      if (isMoveLeft && leftColumn) {
+        const model = findTaskModel(leftColumn.key);
+
+        model?.handleDrop(listItem, "top");
+
+        scroll();
+      } else if (isMoveRight && rightColumn) {
+        const model = findTaskModel(rightColumn.key);
+
+        model?.handleDrop(listItem, "top");
+
+        scroll();
+      }
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
 
       const [up, down] = focusableItem.siblings;
 
-      const findModel = (key: FocusKey) => {
-        const { id, type } = parseColumnKey(key);
-        const model = getRootStore().getEntity(id, type);
-
-        if (!(model instanceof TaskProjection || model instanceof Task)) {
-          return undefined;
-        }
-
-        return model;
-      };
-
-      const scroll = () => {
-        setTimeout(() => {
-          ref.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-            inline: "center",
-          });
-        }, 0);
-      };
-
       if (isMoveUp && up) {
-        const model = findModel(up.key);
+        const model = findTaskModel(up.key);
+        if (!model) return;
 
-        model?.handleDrop(listItem, "top");
+        if ("listRef" in model) {
+          if (listItem.listRef.id === model.listRef.id) {
+            model.handleDrop(listItem, "top");
+          } else {
+            model.handleDrop(listItem, "bottom");
+          }
+        } else {
+          model.handleDrop(listItem, "top");
+        }
 
         scroll();
       } else if (isMoveDown && down) {
-        const model = findModel(down.key);
+        const model = findTaskModel(down.key);
+        if (!model) return;
 
-        console.log("move down", model);
-        model?.handleDrop(listItem, "bottom");
+        if ("listRef" in model) {
+          if (listItem.listRef.id === model.listRef.id) {
+            model.handleDrop(listItem, "bottom");
+          } else {
+            model.handleDrop(listItem, "top");
+          }
+        } else {
+          model.handleDrop(listItem, "top");
+        }
 
         scroll();
       }
