@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: registry.tosi-bosi.com
-  IMAGE_NAME: moviedb
+  IMAGE_NAME: willbedone
 
 jobs:
   build-and-deploy:
