@@ -85,8 +85,8 @@ export class FocusItem {
   }
 
   @action
-  edit(skipElFocus = false) {
-    this.manager.editByKey(this.key, skipElFocus);
+  edit() {
+    this.manager.editByKey(this.key);
   }
 
   get isColumn() {
@@ -223,11 +223,10 @@ export class FocusManager {
   }
 
   @action
-  editByKey(key: FocusKey, skipElFocus = false) {
+  editByKey(key: FocusKey) {
     if (this.editItemKey === key) return;
-    this.focusByKey(key, skipElFocus);
+    this.focusByKey(key, true);
 
-    this.focusItemKey = key;
     this.editItemKey = key;
   }
 
@@ -380,4 +379,5 @@ function printNode(
 
 export const focusManager = new FocusManager();
 
-window.focusManager = focusManager;
+(window as unknown as { focusManager: FocusManager }).focusManager =
+  focusManager;

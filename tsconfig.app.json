@@ -6,7 +6,7 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-        "experimentalDecorators": true,
+    "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
 
     /* Bundler mode */
@@ -22,7 +22,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
     "noUncheckedIndexedAccess": true,
     "baseUrl": ".",
     "paths": {

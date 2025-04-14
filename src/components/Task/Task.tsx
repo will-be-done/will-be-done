@@ -28,7 +28,6 @@ import { BaseListItem, OrderableItem } from "../../models/listActions";
 import { shouldNeverHappen, usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
 import { computed } from "mobx";
-import { globalKeysState } from "../../states/isGlobalKeyDisables";
 import { useGlobalListener } from "../../globalListener/hooks";
 import { isInputElement } from "../../utils/isInputElement";
 import { detach, getSnapshot } from "mobx-keystone";
@@ -448,7 +447,7 @@ export const TaskComp = observer(function TaskComponent({
         onClick={() => focusableItem.focus(true)}
         onDoubleClick={(e) => {
           // e.preventDefault();
-          focusableItem.edit(true);
+          focusableItem.edit();
         }}
         ref={ref}
       >
