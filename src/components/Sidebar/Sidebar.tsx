@@ -250,17 +250,72 @@ const InboxItem = observer(function IboxItemComp({
   );
   const isFocused = focusItem.isFocused;
 
+  const [closestEdge, setClosestEdge] = useState<"whole" | null>(null);
+  const ref = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    invariant(element);
+
+    return combine(
+      dropTargetForExternal({
+        element: element,
+      }),
+      dropTargetForElements({
+        element: element,
+        canDrop: ({ source }) => {
+          const data = source.data;
+          if (!isModelDNDData(data)) return false;
+
+          const entity = getRootStore().getEntity(data.modelId, data.modelType);
+          if (!entity) return false;
+
+          return inboxProject.canDrop(entity);
+        },
+
+        getData: ({ input, element }) => {
+          const data: DndModelData = {
+            modelId: inboxProject.id,
+            modelType: inboxProject.$modelType,
+          };
+
+          return attachClosestEdge(data, {
+            input,
+            element,
+            allowedEdges: ["top", "bottom"],
+          });
+        },
+        getIsSticky: () => true,
+        onDragEnter: () => {
+          setClosestEdge("whole");
+        },
+        onDrag: () => {
+          setClosestEdge("whole");
+        },
+        onDragLeave: () => {
+          setClosestEdge(null);
+        },
+        onDrop: () => {
+          setClosestEdge(null);
+        },
+      }),
+    );
+  }, [inboxProject]);
+
   return (
     <Link
+      ref={ref}
       data-focusable-key={buildFocusKey(
         inboxProject.id,
         inboxProject.$modelType,
       )}
       href="/projects/inbox"
       className={(active) =>
-        `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
-          isFocused || active ? "bg-gray-800" : "hover:bg-gray-800"
-        }`
+        cn(
+          "flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer",
+          isFocused || active ? "bg-gray-800" : "hover:bg-gray-800",
+          closestEdge == "whole" && "bg-gray-700",
+        )
       }
     >
       <span className="text-amber-500 mr-2 flex-shrink-0">

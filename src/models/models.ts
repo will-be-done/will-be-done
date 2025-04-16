@@ -104,6 +104,9 @@ export class Project
   }
 
   canDrop(target: AnyModel): target is Project | ProjectItem | TaskProjection {
+    if (target instanceof Project && this.isInbox) {
+      return false;
+    }
     return (
       target instanceof Project ||
       target instanceof Task ||
