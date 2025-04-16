@@ -103,6 +103,49 @@ export class Project
     return this.children[this.children.length - 1];
   }
 
+  canDrop(target: AnyModel): target is Project | ProjectItem | TaskProjection {
+    return (
+      target instanceof Project ||
+      target instanceof Task ||
+      target instanceof TaskTemplate ||
+      target instanceof TaskProjection
+    );
+  }
+
+  @modelAction
+  handleDrop(target: AnyModel, edge: "top" | "bottom") {
+    if (!this.canDrop(target)) {
+      return;
+    }
+
+    if (target instanceof Project) {
+      const [up, down] = this.siblings;
+
+      let between: [string | undefined, string | undefined] = [
+        this.orderToken,
+        down?.orderToken,
+      ];
+      if (edge == "top") {
+        between = [up?.orderToken, this.orderToken];
+      }
+
+      const orderToken = generateJitteredKeyBetween(
+        between[0] || null,
+        between[1] || null,
+      );
+
+      target.orderToken = orderToken;
+    } else if (target instanceof Task || target instanceof TaskTemplate) {
+      target.projectRef = projectRef(this);
+    } else if (target instanceof TaskProjection) {
+      target.taskRef.current.projectRef = projectRef(this);
+    } else {
+      assertUnreachable(target);
+    }
+
+    console.log("handleDrop", target);
+  }
+
   @modelAction
   createTask(
     position:

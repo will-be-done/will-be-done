@@ -367,6 +367,7 @@ export const TaskComp = observer(function TaskComponent({
           });
         },
         onDragEnter: (args) => {
+          console.log("onDragEnter", args);
           const data = args.source.data;
           if (isModelDNDData(data) && data.modelId !== listItem.id) {
             setClosestEdge(extractClosestEdge(args.self.data));

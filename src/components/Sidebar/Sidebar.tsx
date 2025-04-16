@@ -6,11 +6,63 @@ import { useRegisterFocusColumn, useRegisterFocusItem } from "@/hooks/useLists";
 import { computed } from "mobx";
 import { useGlobalListener } from "@/globalListener/hooks";
 import { detach } from "mobx-keystone";
-import { useRef } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
+import {
+  draggable,
+  dropTargetForElements,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
+import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
+import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
+import {
+  attachClosestEdge,
+  type Edge,
+  extractClosestEdge,
+} from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import invariant from "tiny-invariant";
+import { DndModelData, isModelDNDData } from "@/dnd/models";
+import { cn } from "@/lib/utils";
+import ReactDOM from "react-dom";
 
-const columnName = "sidebar";
+type State =
+  | { type: "idle" }
+  | { type: "preview"; container: HTMLElement; rect: DOMRect }
+  | { type: "dragging" };
+
+const idleState: State = { type: "idle" };
+const draggingState: State = { type: "dragging" };
+
+const ProjectDragPreview = observer(function TaskPrimitiveComponent({
+  title,
+  icon,
+  style,
+}: {
+  icon: string;
+  title: string;
+  style: CSSProperties;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center px-2 py-1.5 rounded-lg cursor-pointer bg-gray-900",
+      )}
+      style={style}
+    >
+      <span className="text-base mr-2 flex-shrink-0">{icon}</span>
+      <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+        {title}
+      </span>
+    </div>
+  );
+});
+
+const DropProjectIndicator = observer(function DropProjectIndicatorComp() {
+  // p-3 rounded-lg border border-blue-500 bg-gray-700 shadow-md transition-colors h-12
+  return <div className={`rounded-lg border-blue-500 bg-gray-700 h-10`}></div>;
+});
 
 const ProjectItem = observer(function ProjectItemComp({
   project,
@@ -21,6 +73,8 @@ const ProjectItem = observer(function ProjectItemComp({
     buildFocusKey(project.id, project.$modelType),
     project.orderToken,
   );
+  const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
+  const [dndState, setDndState] = useState<State>(idleState);
 
   const ref = useRef<HTMLAnchorElement>(null);
 
@@ -45,29 +99,143 @@ const ProjectItem = observer(function ProjectItemComp({
     }
   });
 
+  useEffect(() => {
+    const element = ref.current;
+    invariant(element);
+
+    return combine(
+      draggable({
+        element: element,
+        getInitialData: (): DndModelData => ({
+          modelId: project.id,
+          modelType: project.$modelType,
+        }),
+        onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
+          const rect = source.element.getBoundingClientRect();
+
+          setCustomNativeDragPreview({
+            nativeSetDragImage,
+            getOffset: preserveOffsetOnSource({
+              element,
+              input: location.current.input,
+            }),
+            render({ container }) {
+              setDndState({ type: "preview", container, rect });
+
+              return () => {
+                setDndState(draggingState);
+              };
+            },
+          });
+        },
+
+        onDragStart: () => setDndState(draggingState),
+        onDrop: () => setDndState(idleState),
+      }),
+      dropTargetForExternal({
+        element: element,
+      }),
+      dropTargetForElements({
+        element: element,
+        canDrop: ({ source }) => {
+          const data = source.data;
+          if (!isModelDNDData(data)) return false;
+
+          const entity = getRootStore().getEntity(data.modelId, data.modelType);
+          if (!entity) return false;
+
+          return project.canDrop(entity);
+        },
+        getIsSticky: () => true,
+        getData: ({ input, element }) => {
+          const data: DndModelData = {
+            modelId: project.id,
+            modelType: project.$modelType,
+          };
+
+          return attachClosestEdge(data, {
+            input,
+            element,
+            allowedEdges: ["top", "bottom"],
+          });
+        },
+        onDragEnter: (args) => {
+          const data = args.source.data;
+
+          if (isModelDNDData(data) && data.modelId !== project.id) {
+            if (data.modelType === project.$modelType) {
+              setClosestEdge(extractClosestEdge(args.self.data));
+            } else {
+              setClosestEdge("whole");
+            }
+          }
+        },
+        onDrag: (args) => {
+          const data = args.source.data;
+
+          if (isModelDNDData(data) && data.modelId !== project.id) {
+            if (data.modelType === project.$modelType) {
+              setClosestEdge(extractClosestEdge(args.self.data));
+            } else {
+              setClosestEdge("whole");
+            }
+          }
+        },
+        onDragLeave: () => {
+          setClosestEdge(null);
+        },
+        onDrop: () => {
+          setClosestEdge(null);
+        },
+      }),
+    );
+  }, [project]);
+
   const isFocused = focusItem.isFocused;
 
   return (
-    <Link
-      data-focusable-key={buildFocusKey(project.id, project.$modelType)}
-      ref={ref}
-      key={project.id}
-      className={(active) =>
-        `flex items-center px-2 py-1.5 rounded-lg cursor-pointer ${
-          active || isFocused ? "bg-gray-800" : "hover:bg-gray-800"
-        }`
-      }
-      href={`/projects/${project.id}`}
-      onClick={() => {
-        console.log("focusItem click", focusItem);
-        focusItem.focus();
-      }}
-    >
-      <span className="text-base mr-2 flex-shrink-0">{project.icon}</span>
-      <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
-        {project.title}
-      </span>
-    </Link>
+    <>
+      {closestEdge == "top" && <DropProjectIndicator />}
+
+      <Link
+        data-focusable-key={buildFocusKey(project.id, project.$modelType)}
+        ref={ref}
+        key={project.id}
+        className={(active) =>
+          cn(
+            "flex items-center px-2 py-1.5 rounded-lg cursor-pointer",
+            active || isFocused ? "bg-gray-800" : "hover:bg-gray-800",
+            closestEdge == "whole" && "bg-gray-700",
+          )
+        }
+        href={`/projects/${project.id}`}
+        onClick={() => {
+          console.log("focusItem click", focusItem);
+          focusItem.focus();
+        }}
+      >
+        <span className="text-base mr-2 flex-shrink-0">{project.icon}</span>
+        <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+          {project.title}
+        </span>
+      </Link>
+
+      {closestEdge == "bottom" && <DropProjectIndicator />}
+
+      {dndState.type === "preview" &&
+        ReactDOM.createPortal(
+          <ProjectDragPreview
+            title={project.title}
+            icon={project.icon}
+            style={{
+              boxSizing: "border-box",
+              width: dndState.rect.width,
+              height: dndState.rect.height,
+            }}
+          />,
+          dndState.container,
+        )}
+    </>
   );
 });
 

@@ -6,6 +6,7 @@ import {
   DailyList,
   getRootStore,
   getUndoManager,
+  Project,
   Task,
   TaskProjection,
 } from "./models/models";
@@ -229,9 +230,15 @@ const GlobalListener = observer(function GlobalListenerComponent() {
           });
           console.log("dropModels", dropModels);
 
-          const dropImportanceOrder = [Task, TaskProjection, DailyList];
+          // Task drop is more important than DailyList drop
+          const dropImportanceOrder = [
+            Task,
+            TaskProjection,
+            DailyList,
+            Project,
+          ];
 
-          type droppableEntity = Task | TaskProjection | DailyList;
+          type droppableEntity = Task | TaskProjection | DailyList | Project;
           let dropInfo:
             | readonly [DropTargetRecord, droppableEntity]
             | undefined = undefined;
