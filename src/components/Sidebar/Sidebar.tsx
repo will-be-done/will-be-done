@@ -439,7 +439,7 @@ export const Sidebar = observer(function SidebarComp() {
   const inboxProject = allProjectsList.inbox;
 
   const createProject = () => {
-    const newProject = allProjectsList.createProject("prepend");
+    allProjectsList.createProject("prepend");
   };
 
   const handleDownloadBackup = () => {
