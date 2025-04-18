@@ -32,6 +32,7 @@
     "fractional-indexing": "^3.2.0",
     "fractional-indexing-jittered": "^1.0.0",
     "framer-motion": "^12.6.3",
+    "frimousse": "^0.2.0",
     "jotai": "^2.12.2",
     "lucide-react": "^0.487.0",
     "mobx": "^6.13.7",

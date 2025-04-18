@@ -26,6 +26,7 @@ import invariant from "tiny-invariant";
 import { DndModelData, isModelDNDData } from "@/dnd/models";
 import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
+import { isInputElement } from "@/utils/isInputElement";
 
 type State =
   | { type: "idle" }
@@ -70,7 +71,7 @@ const ProjectItem = observer(function ProjectItemComp({
   project: Project;
 }) {
   const focusItem = useRegisterFocusItem(
-    buildFocusKey(project.id, project.$modelType),
+    buildFocusKey(project.id, project.$modelType, "ProjectItem"),
     project.orderToken,
   );
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
@@ -78,8 +79,29 @@ const ProjectItem = observer(function ProjectItemComp({
 
   const ref = useRef<HTMLAnchorElement>(null);
 
+  useGlobalListener("mousedown", (e: MouseEvent) => {
+    if (
+      focusItem.isFocused &&
+      ref.current &&
+      !ref.current.contains(e.target as Node) &&
+      !focusManager.isFocusDisabled &&
+      !e.defaultPrevented
+    ) {
+      focusManager.resetFocus();
+    }
+  });
+
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (!focusItem.isFocused) return;
+    if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+    const activeElement =
+      e.target instanceof Element ? e.target : document.activeElement;
+    const isInput = activeElement && isInputElement(activeElement);
+    if (isInput) return;
+
+    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+    const isAddAfter = noModifiers && (e.code === "KeyA" || e.code === "KeyO");
+    const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
 
     if (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") {
       e.preventDefault();
@@ -96,6 +118,19 @@ const ProjectItem = observer(function ProjectItemComp({
           focusManager.resetFocus();
         }
       }, 0);
+    } else if (e.code === "KeyI" && noModifiers) {
+      e.preventDefault();
+
+      focusItem.edit();
+    } else if (isAddAfter || isAddBefore) {
+      e.preventDefault();
+
+      // const newProject = project.createSibling(isAddAfter ? "after" : "before");
+      // focusManager.editByKey(
+      //   buildFocusKey(newProject.id, newProject.$modelType, "ProjectItem"),
+      // );
+
+      return;
     }
   });
 
@@ -193,12 +228,31 @@ const ProjectItem = observer(function ProjectItemComp({
 
   const isFocused = focusItem.isFocused;
 
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
+      e.preventDefault();
+      focusManager.resetEdit();
+    }
+  };
   return (
     <>
       {closestEdge == "top" && <DropProjectIndicator />}
 
+      <input
+        ref={(e) => {
+          if (!e) return;
+          e.focus();
+        }}
+        className={cn({ hidden: !focusItem.isEditing })}
+        type="text"
+        value={project.title}
+        onChange={(e) => {
+          project.setTitle(e.target.value);
+        }}
+        onKeyDown={handleInputKeyDown}
+      />
       <Link
-        data-focusable-key={buildFocusKey(project.id, project.$modelType)}
+        data-focusable-key={focusItem.key}
         ref={ref}
         key={project.id}
         className={(active) =>
@@ -206,6 +260,9 @@ const ProjectItem = observer(function ProjectItemComp({
             "flex items-center px-2 py-1.5 rounded-lg cursor-pointer",
             active || isFocused ? "bg-gray-800" : "hover:bg-gray-800",
             closestEdge == "whole" && "bg-gray-700",
+            {
+              hidden: focusItem.isEditing,
+            },
           )
         }
         href={`/projects/${project.id}`}
@@ -214,7 +271,9 @@ const ProjectItem = observer(function ProjectItemComp({
           focusItem.focus();
         }}
       >
-        <span className="text-base mr-2 flex-shrink-0">{project.icon}</span>
+        <span className="text-base mr-2 flex-shrink-0">
+          {project.displayIcon}
+        </span>
         <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
           {project.title}
         </span>
@@ -226,7 +285,7 @@ const ProjectItem = observer(function ProjectItemComp({
         ReactDOM.createPortal(
           <ProjectDragPreview
             title={project.title}
-            icon={project.icon}
+            icon={project.displayIcon}
             style={{
               boxSizing: "border-box",
               width: dndState.rect.width,
@@ -305,10 +364,7 @@ const InboxItem = observer(function IboxItemComp({
   return (
     <Link
       ref={ref}
-      data-focusable-key={buildFocusKey(
-        inboxProject.id,
-        inboxProject.$modelType,
-      )}
+      data-focusable-key={focusItem.key}
       href="/projects/inbox"
       className={(active) =>
         cn(
@@ -349,7 +405,7 @@ const TodayItem = observer(function TodayItemComp() {
 
   return (
     <Link
-      data-focusable-key={buildFocusKey(id, id)}
+      data-focusable-key={focusItem.key}
       href="/today"
       className={(active) =>
         `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
@@ -383,10 +439,7 @@ export const Sidebar = observer(function SidebarComp() {
   const inboxProject = allProjectsList.inbox;
 
   const createProject = () => {
-    const title = prompt("Project title");
-    if (!title) return;
-
-    projectsRegistry.createProject(title, "", false, undefined);
+    const newProject = allProjectsList.createProject("prepend");
   };
 
   const handleDownloadBackup = () => {

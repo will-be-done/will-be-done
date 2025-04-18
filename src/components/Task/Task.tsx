@@ -437,7 +437,7 @@ export const TaskComp = observer(function TaskComponent({
       {closestEdge == "top" && <DropTaskIndicator />}
 
       <div
-        data-focusable-key={buildFocusKey(listItem.id, listItem.$modelType)}
+        data-focusable-key={focusableItem.key}
         tabIndex={0}
         className={`p-3 rounded-lg border ${
           focusableItem.isFocused
@@ -490,7 +490,7 @@ export const TaskComp = observer(function TaskComponent({
         </div>
         {showProject && (
           <div className="text-right mt-3 text-gray-400 text-sm">
-            {project.icon} {project.title}
+            {project.displayIcon} {project.title}
           </div>
         )}
       </div>

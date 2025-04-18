@@ -94,11 +94,11 @@ const AddTaskColumnButton = observer(function AddTaskColumnButtonComp({
   onTaskAdd: (dailyList: DailyList) => void;
 }) {
   const id = "add-task-button-" + dailyList.id;
-  useRegisterFocusItem(buildFocusKey(id, id), "zzzzzzzzzzzzzzzz");
+  const item = useRegisterFocusItem(buildFocusKey(id, id), "zzzzzzzzzzzzzzzz");
 
   return (
     <button
-      data-focusable-key={buildFocusKey(id, id)}
+      data-focusable-key={item.key}
       onClick={() => onTaskAdd(dailyList)}
       className="w-full p-2 border border-dashed border-gray-600 rounded-lg text-gray-400 text-sm hover:bg-gray-700 transition cursor-pointer"
     >
@@ -260,7 +260,7 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
               priority={proj.orderToken}
             >
               <div className="text-gray-400 text-sm mt-6 pb-2">
-                {proj.icon} {proj.title}
+                {proj.displayIcon} {proj.title}
               </div>
 
               <div className="flex flex-col gap-2">
@@ -296,7 +296,7 @@ const BoardView = observer(function BoardViewComponent({
     return {
       value: project.id,
       label: project.title,
-      icon: () => <div>{project.icon}</div>,
+      icon: () => <div>{project.displayIcon}</div>,
     };
   });
 

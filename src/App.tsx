@@ -95,6 +95,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       // Check if the active element IS any kind of input element
       const isInput = activeElement && isInputElement(activeElement);
 
+      console.log("isInput", isInput, activeElement);
       // If it's an input, return early
       if (isInput) return;
 

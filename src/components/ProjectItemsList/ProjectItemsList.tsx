@@ -5,6 +5,16 @@ import { detach } from "mobx-keystone";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
 import { useRegisterFocusItem } from "@/hooks/useLists";
+import {
+  EmojiPicker,
+  EmojiPickerContent,
+  EmojiPickerSearch,
+} from "../ui/emoji-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { useGlobalListener } from "@/globalListener/hooks";
+import { useEffect, useRef } from "react";
+import { isInputElement } from "@/utils/isInputElement";
+import { cn } from "@/lib/utils";
 
 const AddTaskButton = observer(function AddTaskButtonComp({
   project,
@@ -27,6 +37,107 @@ const AddTaskButton = observer(function AddTaskButtonComp({
     >
       + Add Task
     </button>
+  );
+});
+
+const ProjectTitle = observer(function ProjectTitleComp({
+  project,
+}: {
+  project: Project;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  const focusableItem = useRegisterFocusItem(
+    buildFocusKey(project.id, project.$modelType, "ProjectTitle"),
+    "0",
+  );
+
+  useGlobalListener("mousedown", (e: MouseEvent) => {
+    if (
+      focusableItem.isFocused &&
+      ref.current &&
+      !ref.current.contains(e.target as Node) &&
+      !focusManager.isFocusDisabled &&
+      !e.defaultPrevented
+    ) {
+      focusManager.resetFocus();
+    }
+  });
+
+  useGlobalListener("keydown", (e: KeyboardEvent) => {
+    if (focusManager.isSomethingEditing) return;
+    if (!focusableItem.isFocused) return;
+    if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+
+    const target =
+      e.target instanceof Element ? e.target : document.activeElement;
+    if (target && isInputElement(target)) return;
+
+    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+
+    if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
+      e.preventDefault();
+
+      focusableItem.edit();
+    }
+  });
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
+      e.preventDefault();
+      focusManager.resetEdit();
+    }
+  };
+
+  return (
+    <h2 className="text-xl font-bold text-gray-100 cursor-pointer">
+      <Popover>
+        <PopoverTrigger asChild>
+          <span className="mr-2" tabIndex={0}>
+            {project.displayIcon}
+          </span>
+        </PopoverTrigger>
+        <PopoverContent className="w-fit p-0">
+          <EmojiPicker
+            className="h-[326px] rounded-lg border shadow-md"
+            onEmojiSelect={({ emoji }) => {
+              project.setIcon(emoji);
+            }}
+          >
+            <EmojiPickerSearch />
+            <EmojiPickerContent />
+          </EmojiPicker>
+        </PopoverContent>
+      </Popover>
+
+      <span data-focusable-key={focusableItem.key} tabIndex={0} ref={ref}>
+        <input
+          ref={(e) => {
+            if (!e) return;
+            e.focus();
+          }}
+          type="text"
+          className={cn({ hidden: !focusableItem.isEditing })}
+          value={project.title}
+          onChange={(e) => {
+            project.setTitle(e.target.value);
+          }}
+          onKeyDown={handleInputKeyDown}
+        />
+        <span
+          data-focusable-key={focusableItem.key}
+          onDoubleClick={(e) => {
+            // e.preventDefault();
+            focusableItem.edit();
+          }}
+          className={cn("select-none", {
+            hidden: focusableItem.isEditing,
+          })}
+        >
+          {project.title}
+        </span>
+      </span>
+    </h2>
   );
 });
 
@@ -53,22 +164,17 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
       <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
         <div className="flex flex-col ">
           <div className="flex items-center">
-            <h2
-              className="text-xl font-bold text-gray-100 cursor-pointer"
-              onClick={() => {
-                const title = prompt("Project title", project.title);
-                if (title) {
-                  project.setTitle(title);
-                }
-              }}
-            >
-              {project.title}
-            </h2>
+            <ProjectTitle project={project} />
 
             <button
               className="ml-auto text-red-700"
               onClick={() => {
-                detach(project);
+                const shouldDelete = confirm(
+                  "Are you sure you want to delete this project?",
+                );
+                if (shouldDelete) {
+                  detach(project);
+                }
               }}
             >
               Delete

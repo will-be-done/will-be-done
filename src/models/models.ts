@@ -60,6 +60,11 @@ export class Project
   }
 
   @computed
+  get displayIcon() {
+    return this.icon || "🟡";
+  }
+
+  @computed
   get siblings(): [Project | undefined, Project | undefined] {
     return getSiblings<Project>(this);
   }
@@ -207,11 +212,11 @@ export class ProjectsRegistry
     title: string,
     icon: string,
     isInbox: boolean,
-    between: [Project | undefined, Project | undefined] | undefined,
+    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
   ) {
     const { allProjectsList } = getRootStoreOrThrow(this);
 
-    const newProject = allProjectsList.createProject(between);
+    const newProject = allProjectsList.createProject(between || "append");
     newProject.title = title;
     newProject.icon = icon;
     newProject.isInbox = isInbox;
@@ -395,21 +400,19 @@ export class AllProjectsList
 
   @modelAction
   createProject(
-    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
     _base?: Project,
   ) {
     const { projectsRegistry } = getRootStoreOrThrow(this);
-
-    const orderToken = between
-      ? generateJitteredKeyBetween(
-          between[0]?.orderToken || null,
-          between[1]?.orderToken || null,
-        )
-      : generateJitteredKeyBetween(this.lastProject?.orderToken || null, null);
+    const orderToken = generateOrderTokenPositioned(this, position);
 
     const project = new Project({
       orderToken: orderToken,
       listRef: allProjectsListRef(this),
+      title: "New project",
     });
 
     projectsRegistry.add(project);
