@@ -6,11 +6,12 @@ import {
   DailyList,
   getRootStore,
   getUndoManager,
+  initRootStore,
   Project,
   Task,
   TaskProjection,
 } from "./models/models";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { detach } from "mobx-keystone";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
@@ -270,16 +271,16 @@ const GlobalListener = observer(function GlobalListenerComponent() {
           ) {
             throw new Error("edge is not top or bottm");
           }
-          console.log(
-            "onDrop",
-            args,
-            "drop",
-            dropInfo[1],
-            "source",
-            sourceEntity,
-            "closestEdge",
-            closestEdgeOfTarget,
-          );
+          // console.log(
+          //   "onDrop",
+          //   args,
+          //   "drop",
+          //   dropInfo[1],
+          //   "source",
+          //   sourceEntity,
+          //   "closestEdge",
+          //   closestEdgeOfTarget,
+          // );
 
           dropInfo[1].handleDrop(sourceEntity, closestEdgeOfTarget || "bottom");
         },
@@ -291,24 +292,35 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 });
 
 export const App = observer(function App() {
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      await initRootStore();
+      setIsReady(true);
+    })();
+  }, []);
+
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <KeyPressedCtxProvider>
-        <GlobalListener />
+      {isReady && (
+        <KeyPressedCtxProvider>
+          <GlobalListener />
 
-        <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
-          <Sidebar />
-          <div className="flex-1 p-4 overflow-hidden">
-            <Switch>
-              <Route path="/today" component={Board} />
-              <Route path="/projects/:projectId" component={ProjectPage} />
-              <Route>
-                <Redirect to="/today" />
-              </Route>
-            </Switch>
+          <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
+            <Sidebar />
+            <div className="flex-1 p-4 overflow-hidden">
+              <Switch>
+                <Route path="/today" component={Board} />
+                <Route path="/projects/:projectId" component={ProjectPage} />
+                <Route>
+                  <Redirect to="/today" />
+                </Route>
+              </Switch>
+            </div>
           </div>
-        </div>
-      </KeyPressedCtxProvider>
+        </KeyPressedCtxProvider>
+      )}
     </ThemeProvider>
   );
 });

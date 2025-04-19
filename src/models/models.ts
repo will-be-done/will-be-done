@@ -19,6 +19,7 @@ import {
   undoMiddleware,
   type ObjectMap,
   type Ref,
+  setGlobalConfig,
 } from "mobx-keystone";
 import { startOfDay } from "date-fns";
 import {
@@ -36,6 +37,34 @@ import {
   ListItemsRegistry,
   OrderableItem,
 } from "./listActions";
+import {
+  buildAndAttachEmitter,
+  buildAndAttachSyncRegStore,
+  syncable,
+  SyncableRegistry,
+  syncableRegistry,
+  withoutSync,
+} from "@/sync/syncable";
+import {
+  DailyListData,
+  dailyListsTable,
+  ProjectData,
+  projectsTable,
+  Q,
+  TaskData,
+  TaskProjectionData,
+  taskProjectionsTable,
+  tasksTable,
+} from "@/sync/schema";
+import { getDbCtx, IDbCtx } from "@/sync/db";
+import AwaitLock from "await-lock";
+import { ChangesTracker } from "@/sync/ChangesTracker";
+import { uuidv7 } from "uuidv7";
+import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
+
+setGlobalConfig({
+  modelIdGenerator: uuidv7,
+});
 
 export const taskRef = rootRef<Task>("TaskRef");
 export const projectRef = rootRef<Project>("ProjectRef");
@@ -43,6 +72,7 @@ export const allProjectsListRef =
   rootRef<AllProjectsList>("AllProjectsListRef");
 export const dailyListRef = rootRef<DailyList>("DailyListRef");
 
+@syncable
 @model("TaskApp/Project")
 export class Project
   extends Model({
@@ -175,13 +205,40 @@ export class Project
 
 type ProjectItem = Task | TaskTemplate;
 
+@syncableRegistry
 @model("TaskApp/ProjectRegistry")
 export class ProjectsRegistry
   extends Model({
     entities: prop<ObjectMap<Project>>(() => objectMap()),
   })
-  implements ListItemsRegistry<TaskProjection>
+  implements
+    ListItemsRegistry<TaskProjection>,
+    SyncableRegistry<Project, typeof projectsTable>
 {
+  table = projectsTable as typeof projectsTable;
+  entity = Project;
+
+  mapDataToModel(data: ProjectData) {
+    return new Project({
+      id: data.id,
+      title: data.title,
+      icon: data.icon,
+      isInbox: data.isInbox,
+      orderToken: data.orderToken,
+      listRef: allProjectsListRef("all-projects-list"),
+    });
+  }
+
+  mapModelToData(entity: Project): ProjectData {
+    return {
+      id: entity.id,
+      title: entity.title,
+      icon: entity.icon,
+      isInbox: entity.isInbox,
+      orderToken: entity.orderToken,
+    };
+  }
+
   @computed
   get inboxProjectOrThrow() {
     for (const project of this.entities.values()) {
@@ -226,6 +283,8 @@ export class ProjectsRegistry
 }
 
 type TaskState = "todo" | "done";
+
+@syncable
 @model("TaskApp/Task")
 export class Task
   extends Model({
@@ -339,13 +398,37 @@ export class TaskTemplate
   }
 }
 
+@syncableRegistry
 @model("TaskApp/TaskRegistry")
 export class TaskRegistry
   extends Model({
     entities: prop<ObjectMap<Task>>(() => objectMap()),
   })
-  implements ListItemsRegistry<Task>
+  implements ListItemsRegistry<Task>, SyncableRegistry<Task, typeof tasksTable>
 {
+  table = tasksTable as typeof tasksTable;
+  entity = Task;
+
+  mapDataToModel(data: TaskData) {
+    return new Task({
+      id: data.id,
+      title: data.title,
+      state: data.state as TaskState,
+      projectRef: projectRef(data.projectId),
+      orderToken: data.orderToken,
+    });
+  }
+
+  mapModelToData(entity: Task): TaskData {
+    return {
+      id: entity.id,
+      title: entity.title,
+      state: entity.state,
+      projectId: entity.projectRef.id,
+      orderToken: entity.orderToken,
+    };
+  }
+
   @modelAction
   public add(task: Task) {
     this.entities.set(task.id, task);
@@ -422,6 +505,7 @@ export class AllProjectsList
 }
 
 @model("TaskApp/TaskProjection")
+@syncable
 export class TaskProjection
   extends Model({
     id: idProp,
@@ -541,12 +625,36 @@ export class TaskProjection
 export type TaskItem = Task | TaskProjection;
 
 @model("TaskApp/TaskProjectionRegistry")
+@syncableRegistry
 export class TaskProjectionRegistry
   extends Model({
     entities: prop<ObjectMap<TaskProjection>>(() => objectMap()),
   })
-  implements ListItemsRegistry<TaskProjection>
+  implements
+    ListItemsRegistry<TaskProjection>,
+    SyncableRegistry<TaskProjection, typeof taskProjectionsTable>
 {
+  table = taskProjectionsTable as typeof taskProjectionsTable;
+  entity = TaskProjection;
+
+  mapDataToModel(data: TaskProjectionData) {
+    return new TaskProjection({
+      id: data.id,
+      taskRef: taskRef(data.taskId),
+      orderToken: data.orderToken,
+      dailyListRef: dailyListRef(data.dailyListId),
+    });
+  }
+
+  mapModelToData(entity: TaskProjection): TaskProjectionData {
+    return {
+      id: entity.id,
+      taskId: entity.taskRef.id,
+      orderToken: entity.orderToken,
+      dailyListId: entity.dailyListRef.id,
+    };
+  }
+
   @modelAction
   public add(proj: TaskProjection) {
     this.entities.set(proj.id, proj);
@@ -557,6 +665,7 @@ export class TaskProjectionRegistry
   }
 }
 
+@syncable
 @model("TaskApp/DailyList")
 export class DailyList
   extends Model({
@@ -675,13 +784,38 @@ export class DailyList
   }
 }
 
+@syncableRegistry
 @model("TaskApp/DailyListRegistry")
 export class DailyListRegistry
   extends Model({
     entities: prop<ObjectMap<DailyList>>(() => objectMap()),
   })
-  implements ItemsListsRegistry<DailyList>
+  implements
+    ItemsListsRegistry<DailyList>,
+    SyncableRegistry<DailyList, typeof dailyListsTable>
 {
+  table = dailyListsTable as typeof dailyListsTable;
+  entity = DailyList;
+
+  mapDataToModel(data: DailyListData) {
+    return new DailyList({
+      id: data.id,
+      date: new Date(data.date),
+    });
+  }
+
+  mapModelToData(entity: DailyList): DailyListData {
+    return {
+      id: entity.id,
+      date: entity.date.getTime(),
+    };
+  }
+
+  @modelAction
+  public add(proj: DailyList) {
+    this.entities.set(proj.id, proj);
+  }
+
   @computed
   get all() {
     return [...this.entities.values()];
@@ -753,7 +887,9 @@ export class Preferences extends Model({
 
 @model("TaskApp/RootStore")
 export class RootStore extends Model({
-  allProjectsList: prop<AllProjectsList>(() => new AllProjectsList({})),
+  allProjectsList: prop<AllProjectsList>(
+    () => new AllProjectsList({ id: "all-projects-list" }),
+  ),
 
   projectsRegistry: prop<ProjectsRegistry>(() => new ProjectsRegistry({})),
   taskRegistry: prop<TaskRegistry>(() => new TaskRegistry({})),
@@ -764,6 +900,14 @@ export class RootStore extends Model({
 
   preferences: prop<Preferences>(() => new Preferences({})),
 }) {
+  @modelAction
+  clearAll() {
+    this.projectsRegistry.entities.clear();
+    this.taskRegistry.entities.clear();
+    this.taskProjectionRegistry.entities.clear();
+    this.dailyListRegistry.entities.clear();
+  }
+
   getEntity(entityId: string, modelType: string): AnyModel | undefined {
     const registries = [
       this.projectsRegistry,
@@ -782,85 +926,141 @@ export class RootStore extends Model({
 
     return undefined;
   }
+
+  @modelAction
+  loadData(data: [SyncableRegistry, Record<string, any>[]][]) {
+    withoutSync(() => {
+      for (const [registry, rows] of data) {
+        for (const row of rows) {
+          const model = registry.mapDataToModel(JSON.parse(row.data));
+          registry.add(model);
+        }
+      }
+    });
+  }
 }
 
+const lock = new AwaitLock();
 let currentRootStore: RootStore | undefined;
+
 export const getRootStore = () => {
   if (currentRootStore) return currentRootStore;
 
-  const rootStore = new RootStore({});
+  throw new Error("Root store not initialized");
+};
 
-  const stateObj = JSON.parse(
-    localStorage.getItem("state") || "{}",
-  ) as SnapshotOutOfModel<RootStore>;
-  applySnapshot(rootStore, stateObj);
+export const initRootStore = async () => {
+  await lock.acquireAsync();
+  try {
+    if (currentRootStore) return currentRootStore;
 
-  registerRootStore(rootStore);
+    const dbCtx = await getDbCtx();
 
-  void (async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-    if ((window as any).__REDUX_DEVTOOLS_EXTENSION__) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      await (
-        await import("./connectReduxDevtool")
-      ).connect(rootStore, `TODO Store`);
-    }
-  })();
-
-  const projects = [
-    { id: "inbox", name: "Inbox", icon: "" },
-    { id: "1", name: "Прочее", icon: "⭕" },
-    { id: "2", name: "Положить в корзину", icon: "🗑️" },
-    { id: "3", name: "Напомнить Алине", icon: "🔵" },
-    { id: "4", name: "Джедайство", icon: "😎" },
-    { id: "5", name: "Психология", icon: "💊" },
-    { id: "6", name: "Финансы", icon: "💸" },
-    { id: "7", name: "По дому", icon: "🏠" },
-    { id: "8", name: "Проекты", icon: "⏳" },
-    { id: "9", name: "Найм", icon: "💼" },
-    { id: "10", name: "DX", icon: "❤️" },
-    { id: "11", name: "Dev Learning", icon: "👨‍💻" },
-    { id: "12", name: "Перенести в obsidian/идеи", icon: "💎" },
-    { id: "13", name: "Здоровье", icon: "🏥" },
-    { id: "14", name: "Идеи", icon: "💡" },
-  ];
-
-  for (const project of projects) {
-    let projectFound = false;
-
-    console.log("checking project", project);
-    for (const pr of rootStore.projectsRegistry.entities.values()) {
-      if (pr.title === project.name) {
-        projectFound = true;
-        // break;
-      }
-    }
-
-    if (projectFound) {
-      continue;
-    }
-
-    rootStore.projectsRegistry.createProject(
-      project.name,
-      project.icon,
-      project.id === "inbox",
-      undefined,
+    const rootStore = new RootStore({});
+    const modelChangesEmitter = buildAndAttachEmitter(rootStore);
+    const syncableRegistriesStore = buildAndAttachSyncRegStore(rootStore);
+    const changesTracker = new ChangesTracker(
+      dbCtx.clientId,
+      dbCtx.nextClock,
+      syncableRegistriesStore,
     );
+    const changesToDbSaver = new ChangesToDbSaver(dbCtx.db);
+
+    registerRootStore(rootStore);
+
+    // TODO: use Promise.all
+    // const allData: [SyncableRegistry, Record<string, any>[]][] = [];
+    const allData = await Promise.all(
+      syncableRegistriesStore.registries.map(async (registry) => {
+        const rows = await dbCtx.db.runQuery(
+          Q.selectFrom(registry.table as typeof projectsTable)
+            .selectAll()
+            .where("isDeleted", "=", 0),
+        );
+
+        return [registry, rows] satisfies [
+          SyncableRegistry,
+          Record<string, any>[],
+        ];
+      }),
+    );
+
+    // for (const registry of syncableRegistriesStore.registries) {
+    //   const rows = await dbCtx.db.runQuery(
+    //     Q.selectFrom(registry.table as typeof projectsTable)
+    //       .selectAll()
+    //       .where("isDeleted", "=", 0),
+    //   );
+    //
+    //   allData.push([registry, rows]);
+    // }
+
+    rootStore.loadData(allData);
+
+    modelChangesEmitter.on("modelEvent", (change) => {
+      const ch = changesTracker.handleChange(change);
+      if (!ch) return;
+
+      changesToDbSaver.addChange(ch);
+    });
+
+    // withoutSync(() => {
+    //   const stateObj = JSON.parse(
+    //     localStorage.getItem("state") || "{}",
+    //   ) as SnapshotOutOfModel<RootStore>;
+    //   applySnapshot(rootStore, stateObj);
+    // });
+
+    // Very low performance, so used only in development
+    const addToolkit = async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+      if ((window as any).__REDUX_DEVTOOLS_EXTENSION__) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        await (
+          await import("./connectReduxDevtool")
+        ).connect(rootStore, `TODO Store`);
+      }
+    };
+
+    // Very low performance, so used only in development
+    if (process.env.NODE_ENV === "development") {
+      void addToolkit();
+    }
+    // But you can call it from console in prod
+    // @ts-expect-error for console call
+    window.addToolkit = addToolkit;
+
+    const projects = [{ id: "inbox", name: "Inbox", icon: "" }];
+
+    for (const project of projects) {
+      let projectFound = false;
+
+      console.log("checking project", project);
+      for (const pr of rootStore.projectsRegistry.entities.values()) {
+        if (pr.title === project.name) {
+          projectFound = true;
+        }
+      }
+
+      if (projectFound) {
+        continue;
+      }
+
+      rootStore.projectsRegistry.createProject(
+        project.name,
+        project.icon,
+        project.id === "inbox",
+        undefined,
+      );
+    }
+
+    currentRootStore = rootStore;
+    // @ts-expect-error for console call
+    window.rootStore = rootStore;
+    return rootStore;
+  } finally {
+    lock.release();
   }
-  console.log("2");
-
-  reaction(
-    () => getSnapshot(rootStore),
-    (sn) => {
-      localStorage.setItem("state", JSON.stringify(sn));
-    },
-    {
-      fireImmediately: true,
-    },
-  );
-
-  currentRootStore = rootStore;
-  return rootStore;
 };
 
 let undoManager: UndoManager | undefined = undefined;

@@ -7,6 +7,7 @@ import {
   dailyListRef,
   allProjectsListRef,
 } from "./models";
+import { withoutSync } from "@/sync/syncable";
 
 interface TaskBackup {
   id: string;
@@ -100,6 +101,8 @@ export const getBackups = (store: RootStore): Backup => {
 export const loadBackups = standaloneAction(
   "myApp/arraySwap",
   (store: RootStore, backup: Backup) => {
+    store.clearAll();
+
     store.taskRegistry.entities.clear();
     store.projectsRegistry.entities.clear();
     store.dailyListRegistry.entities.clear();
@@ -163,7 +166,6 @@ export const loadBackups = standaloneAction(
         );
         continue;
       }
-      console.log("task", task, "dailyList", dailyList);
 
       const projection = new TaskProjection({
         id: projectionBackup.id,
@@ -172,7 +174,6 @@ export const loadBackups = standaloneAction(
         dailyListRef: dailyListRef(dailyList),
       });
       store.taskProjectionRegistry.add(projection);
-      console.log("child len", dailyList.children);
     }
   },
 );

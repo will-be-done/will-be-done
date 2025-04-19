@@ -205,7 +205,7 @@ export class FocusManager {
     }
 
     if (elements.length > 1) {
-      shouldNeverHappen("focusable element > 1", { focus });
+      shouldNeverHappen("focusable element > 1", { focus, elements });
       return;
     }
 

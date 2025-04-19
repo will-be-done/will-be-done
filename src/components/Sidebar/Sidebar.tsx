@@ -479,6 +479,7 @@ export const Sidebar = observer(function SidebarComp() {
           if (!isValidBackup(parsedBackup)) {
             throw new Error("Invalid backup format");
           }
+          // TODO: clean db
           loadBackups(getRootStore(), parsedBackup);
         } catch (error) {
           console.error("Failed to load backup:", error);

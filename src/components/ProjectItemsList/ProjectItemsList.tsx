@@ -125,7 +125,6 @@ const ProjectTitle = observer(function ProjectTitleComp({
           onKeyDown={handleInputKeyDown}
         />
         <span
-          data-focusable-key={focusableItem.key}
           onDoubleClick={(e) => {
             // e.preventDefault();
             focusableItem.edit();
