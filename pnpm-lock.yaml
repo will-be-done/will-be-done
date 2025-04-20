@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  apps/api: {}
+
+  apps/web:
     dependencies:
       '@atlaskit/pragmatic-drag-and-drop':
         specifier: 1.5.2

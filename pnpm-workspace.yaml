@@ -1,2 +1,7 @@
 onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild
   - unixlib
+packages:
+  - apps/*
+  - packages/*
