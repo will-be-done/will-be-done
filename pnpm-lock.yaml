@@ -8,7 +8,42 @@ importers:
 
   .: {}
 
-  apps/api: {}
+  apps/api:
+    dependencies:
+      '@trpc/client':
+        specifier: ^11.1.0
+        version: 11.1.0(@trpc/server@11.1.0(typescript@5.7.3))(typescript@5.7.3)
+      '@trpc/server':
+        specifier: ^11.1.0
+        version: 11.1.0(typescript@5.7.3)
+      kysely:
+        specifier: ^0.28.0
+        version: 0.28.0
+      kysely-bun-worker:
+        specifier: ^1.2.0
+        version: 1.2.0(bun-types@1.2.10)(kysely@0.28.0)
+
+  apps/api2:
+    dependencies:
+      '@trpc/client':
+        specifier: ^11.1.0
+        version: 11.1.0(@trpc/server@11.1.0(typescript@5.7.3))(typescript@5.7.3)
+      '@trpc/server':
+        specifier: ^11.1.0
+        version: 11.1.0(typescript@5.7.3)
+      kysely:
+        specifier: ^0.28.0
+        version: 0.28.0
+      kysely-bun-worker:
+        specifier: ^1.2.0
+        version: 1.2.0(bun-types@1.2.10)(kysely@0.28.0)
+      typescript:
+        specifier: ^5
+        version: 5.7.3
+    devDependencies:
+      '@types/bun':
+        specifier: latest
+        version: 1.2.10
 
   apps/web:
     dependencies:
@@ -1695,6 +1730,20 @@ packages:
   '@tanstack/virtual-core@3.13.6':
     resolution: {integrity: sha512-cnQUeWnhNP8tJ4WsGcYiX24Gjkc9ALstLbHcBj1t3E7EimN6n6kHH+DPV4PpDnuw00NApQp+ViojMj1GRdwYQg==}
 
+  '@trpc/client@11.1.0':
+    resolution: {integrity: sha512-Q3pL4p7AddxI/ZJTEFo1utKSdasDFjZPECIPsKDkthEt52k530JkYVltTdLkYFKrNWXKKBo8MN7NwchelczoRw==}
+    peerDependencies:
+      '@trpc/server': 11.1.0
+      typescript: '>=5.7.2'
+
+  '@trpc/server@11.1.0':
+    resolution: {integrity: sha512-uAJ7ikejeujVkf53XFJ/0W8nr7bDjul+Szk5Rsepq97Hb/WS1RkRXdyX4KqAyCE9b1vDFCJVJwSxiIZdRtbTZQ==}
+    peerDependencies:
+      typescript: '>=5.7.2'
+
+  '@types/bun@1.2.10':
+    resolution: {integrity: sha512-eilv6WFM3M0c9ztJt7/g80BDusK98z/FrFwseZgT4bXCq2vPhXD4z8R3oddmAn+R/Nmz9vBn4kweJKmGTZj+lg==}
+
   '@types/direction@1.0.0':
     resolution: {integrity: sha512-et1wmqXm/5smJ8lTJfBnwD12/2Y7eVJLKbuaRT0h2xaKAoo1h8Dz2Io22GObDLFwxY1ddXRTLH3Gq5v44Fl/2w==}
 
@@ -1924,6 +1973,9 @@ packages:
     resolution: {integrity: sha512-KDi1Ny1gSePi1vm0q4oxSF8b4DR44GF4BbmS2YdhPLOEqd8pDviZOGH/GsmRwoWJ2+5Lr085X7naowMwKHDG1A==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
+
+  bun-types@1.2.10:
+    resolution: {integrity: sha512-b5ITZMnVdf3m1gMvJHG+gIfeJHiQPJak0f7925Hxu6ZN5VKA8AGy4GZ4lM+Xkn6jtWxg5S3ldWvfmXdvnkp3GQ==}
 
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
@@ -2631,6 +2683,17 @@ packages:
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
+
+  kysely-bun-worker@1.2.0:
+    resolution: {integrity: sha512-xBs+UE5sWVNkmC+4PAIC6mOTiCGyfzq/0ULgaopsloZzPbeLvHauMOaATF9lNvCW6Pae4xDD4kwmUN4ffMUysw==}
+    peerDependencies:
+      bun-types: '>=1.1.14'
+      kysely: '>=0.26'
+
+  kysely-generic-sqlite@1.2.0:
+    resolution: {integrity: sha512-yCT6pH2H/frf/Ei9QFJtQUH4AOhnVrA3B0Y8AoYNVXlKRlVgJQh8ENJaYHqlJSxU38UpTW36pvzkzwukusB2KQ==}
+    peerDependencies:
+      kysely: '>=0.26'
 
   kysely@0.28.0:
     resolution: {integrity: sha512-hq8VcLy57Ww7oPTTVEOrT9ml+g8ehbbmEUkHmW4Xtubu+NHdKZi6SH6egmD4cjDhn3b/0s0h/6AjdPayOTJhNw==}
@@ -5469,6 +5532,19 @@ snapshots:
 
   '@tanstack/virtual-core@3.13.6': {}
 
+  '@trpc/client@11.1.0(@trpc/server@11.1.0(typescript@5.7.3))(typescript@5.7.3)':
+    dependencies:
+      '@trpc/server': 11.1.0(typescript@5.7.3)
+      typescript: 5.7.3
+
+  '@trpc/server@11.1.0(typescript@5.7.3)':
+    dependencies:
+      typescript: 5.7.3
+
+  '@types/bun@1.2.10':
+    dependencies:
+      bun-types: 1.2.10
+
   '@types/direction@1.0.0': {}
 
   '@types/estree@1.0.7': {}
@@ -5735,6 +5811,10 @@ snapshots:
       electron-to-chromium: 1.5.128
       node-releases: 2.0.19
       update-browserslist-db: 1.1.3(browserslist@4.24.4)
+
+  bun-types@1.2.10:
+    dependencies:
+      '@types/node': 22.14.0
 
   cac@6.7.14: {}
 
@@ -6501,6 +6581,16 @@ snapshots:
       json-buffer: 3.0.1
 
   kleur@4.1.5: {}
+
+  kysely-bun-worker@1.2.0(bun-types@1.2.10)(kysely@0.28.0):
+    dependencies:
+      bun-types: 1.2.10
+      kysely: 0.28.0
+      kysely-generic-sqlite: 1.2.0(kysely@0.28.0)
+
+  kysely-generic-sqlite@1.2.0(kysely@0.28.0):
+    dependencies:
+      kysely: 0.28.0
 
   kysely@0.28.0: {}
 

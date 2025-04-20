@@ -1,9 +1,21 @@
 {
-  "name": "@will-be-done/api",
-  "private": true,
-  "version": "0.0.0",
+  "name": "api",
+  "module": "index.ts",
   "type": "module",
-  "scripts": {},
-  "dependencies": {},
-  "devDependencies": {}
+  "private": true,
+  "scripts": {
+    "dev": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@trpc/client": "^11.1.0",
+    "@trpc/server": "^11.1.0",
+    "kysely": "^0.28.0",
+    "kysely-bun-worker": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
 }
