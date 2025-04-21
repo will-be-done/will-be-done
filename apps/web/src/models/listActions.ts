@@ -5,17 +5,6 @@ import {
   RefConstructor,
 } from "mobx-keystone";
 import { fractionalCompare } from "../utils/fractionalSort";
-// @computed
-// siblings(): [TodoProjection] {
-//   const dailyList = this.dailyListRef.current;
-//
-//   const i = dailyList.sortedProjections.findIndex((it) => it === this);
-//
-//   return [
-//     dailyList.sortedProjections[i - 1],
-//     dailyList.sortedProjections[i + 1],
-//   ];
-// }
 
 type Class<T = any> = new (...args: any[]) => T;
 

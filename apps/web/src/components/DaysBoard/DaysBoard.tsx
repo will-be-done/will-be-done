@@ -1,11 +1,6 @@
 import { observer } from "mobx-react-lite";
 import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  DailyList,
-  getRootStore,
-  Task,
-  TaskProjection,
-} from "../../models/models";
+import { DailyList, Task, TaskProjection } from "../../models/models";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
 import { dailyListRef } from "../../models/models";
@@ -33,6 +28,7 @@ import {
   ParentListItemProvider,
 } from "@/hooks/ParentListProvider";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
+import { getRootStore } from "@/models/initRootStore";
 
 // All days of the week
 const allWeekdays: string[] = [

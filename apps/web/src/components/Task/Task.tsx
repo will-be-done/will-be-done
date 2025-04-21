@@ -1,7 +1,6 @@
 import { observer } from "mobx-react-lite";
 import {
   DailyList,
-  getRootStore,
   Task,
   TaskProjection,
   TaskTemplate,
@@ -38,6 +37,7 @@ import {
   focusManager,
   parseColumnKey,
 } from "@/states/FocusManager";
+import { getRootStore } from "@/models/initRootStore";
 
 type State =
   | { type: "idle" }

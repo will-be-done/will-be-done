@@ -1,16 +1,24 @@
 {
-  "name": "api",
-  "module": "index.ts",
+  "name": "@will-be-done/api",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "scripts": {
     "dev": "bun run src/index.ts"
   },
   "dependencies": {
+    "@fastify/cors": "^11.0.1",
     "@trpc/client": "^11.1.0",
     "@trpc/server": "^11.1.0",
+    "await-lock": "^3.0.0",
+    "dotenv": "^16.5.0",
+    "fastify": "^5.3.2",
     "kysely": "^0.28.0",
-    "kysely-bun-worker": "^1.2.0"
+    "kysely-bun-worker": "^1.2.0",
+    "kysely-plugin-serialize": "^0.8.2",
+    "xxhashjs": "^0.2.2",
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@types/bun": "latest"

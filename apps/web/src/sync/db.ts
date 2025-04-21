@@ -2,7 +2,7 @@ import AwaitLock from "await-lock";
 import { IDb, initDbClient, ISqlToRun } from "@kikko-land/kikko";
 import sqlWasmUrl from "wa-sqlite/dist/wa-sqlite-async.wasm?url";
 import { nanoid } from "nanoid";
-import { Q, syncableTables } from "./schema";
+import { preferencesTable, Q, syncableTables } from "./schema";
 import { waSqliteWebBackend } from "@/lib/wa-sqlite-backend/backend";
 
 export interface IDbCtx {
@@ -59,7 +59,9 @@ export const createAppTables = (db: IDb) => {
           .ifNotExists()
           .addColumn("id", "text", (col) => col.primaryKey())
           .addColumn("needSync", "boolean")
-          .addColumn("lastUpdatedAt", "text")
+          .addColumn("lastUpdatedOnClientAt", "text")
+          .addColumn("lastUpdatedOnServerAt", "text")
+          .addColumn("hash", "text", (col) => col.unique())
           .addColumn("isDeleted", "boolean")
           .addColumn("data", "json"),
       );
@@ -68,6 +70,14 @@ export const createAppTables = (db: IDb) => {
     for (const table of syncableTables) {
       await createSyncTable(table);
     }
+
+    await db.runQuery(
+      Q.schema
+        .createTable(preferencesTable)
+        .ifNotExists()
+        .addColumn("key", "text", (col) => col.primaryKey().notNull())
+        .addColumn("value", "text", (col) => col.notNull()),
+    );
   });
 };
 

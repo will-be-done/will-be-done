@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite";
-import { getRootStore, Project } from "../../models/models";
+import { Project } from "../../models/models";
 import { Link } from "wouter";
 import { getBackups, loadBackups, Backup } from "../../models/backup";
 import { useRegisterFocusColumn, useRegisterFocusItem } from "@/hooks/useLists";
@@ -27,6 +27,7 @@ import { DndModelData, isModelDNDData } from "@/dnd/models";
 import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
+import { getRootStore } from "@/models/initRootStore";
 
 type State =
   | { type: "idle" }

@@ -11,7 +11,6 @@ import {
   modelAction,
   objectMap,
   prop,
-  registerRootStore,
   rootRef,
   SnapshotOutOfModel,
   timestampToDateTransform,
@@ -38,8 +37,6 @@ import {
   OrderableItem,
 } from "./listActions";
 import {
-  buildAndAttachEmitter,
-  buildAndAttachSyncRegStore,
   syncable,
   SyncableRegistry,
   syncableRegistry,
@@ -50,17 +47,14 @@ import {
   dailyListsTable,
   ProjectData,
   projectsTable,
-  Q,
   TaskData,
   TaskProjectionData,
   taskProjectionsTable,
   tasksTable,
 } from "@/sync/schema";
-import { getDbCtx, IDbCtx } from "@/sync/db";
+import { IDbCtx } from "@/sync/db";
 import AwaitLock from "await-lock";
-import { ChangesTracker } from "@/sync/ChangesTracker";
 import { uuidv7 } from "uuidv7";
-import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
 
 setGlobalConfig({
   modelIdGenerator: uuidv7,
@@ -940,139 +934,6 @@ export class RootStore extends Model({
   }
 }
 
-const lock = new AwaitLock();
-let currentRootStore: RootStore | undefined;
-
-export const getRootStore = () => {
-  if (currentRootStore) return currentRootStore;
-
-  throw new Error("Root store not initialized");
-};
-
-export const initRootStore = async () => {
-  await lock.acquireAsync();
-  try {
-    if (currentRootStore) return currentRootStore;
-
-    const dbCtx = await getDbCtx();
-
-    const rootStore = new RootStore({});
-    const modelChangesEmitter = buildAndAttachEmitter(rootStore);
-    const syncableRegistriesStore = buildAndAttachSyncRegStore(rootStore);
-    const changesTracker = new ChangesTracker(
-      dbCtx.clientId,
-      dbCtx.nextClock,
-      syncableRegistriesStore,
-    );
-    const changesToDbSaver = new ChangesToDbSaver(dbCtx.db);
-
-    registerRootStore(rootStore);
-
-    // TODO: use Promise.all
-    // const allData: [SyncableRegistry, Record<string, any>[]][] = [];
-    const allData = await Promise.all(
-      syncableRegistriesStore.registries.map(async (registry) => {
-        const rows = await dbCtx.db.runQuery(
-          Q.selectFrom(registry.table as typeof projectsTable)
-            .selectAll()
-            .where("isDeleted", "=", 0),
-        );
-
-        return [registry, rows] satisfies [
-          SyncableRegistry,
-          Record<string, any>[],
-        ];
-      }),
-    );
-
-    // for (const registry of syncableRegistriesStore.registries) {
-    //   const rows = await dbCtx.db.runQuery(
-    //     Q.selectFrom(registry.table as typeof projectsTable)
-    //       .selectAll()
-    //       .where("isDeleted", "=", 0),
-    //   );
-    //
-    //   allData.push([registry, rows]);
-    // }
-
-    rootStore.loadData(allData);
-
-    modelChangesEmitter.on("modelEvent", (change) => {
-      const ch = changesTracker.handleChange(change);
-      if (!ch) return;
-
-      changesToDbSaver.addChange(ch);
-    });
-
-    // withoutSync(() => {
-    //   const stateObj = JSON.parse(
-    //     localStorage.getItem("state") || "{}",
-    //   ) as SnapshotOutOfModel<RootStore>;
-    //   applySnapshot(rootStore, stateObj);
-    // });
-
-    // Very low performance, so used only in development
-    const addToolkit = async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-      if ((window as any).__REDUX_DEVTOOLS_EXTENSION__) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        await (
-          await import("./connectReduxDevtool")
-        ).connect(rootStore, `TODO Store`);
-      }
-    };
-
-    // Very low performance, so used only in development
-    if (process.env.NODE_ENV === "development") {
-      void addToolkit();
-    }
-    // But you can call it from console in prod
-    // @ts-expect-error for console call
-    window.addToolkit = addToolkit;
-
-    const projects = [{ id: "inbox", name: "Inbox", icon: "" }];
-
-    for (const project of projects) {
-      let projectFound = false;
-
-      console.log("checking project", project);
-      for (const pr of rootStore.projectsRegistry.entities.values()) {
-        if (pr.title === project.name) {
-          projectFound = true;
-        }
-      }
-
-      if (projectFound) {
-        continue;
-      }
-
-      rootStore.projectsRegistry.createProject(
-        project.name,
-        project.icon,
-        project.id === "inbox",
-        undefined,
-      );
-    }
-
-    currentRootStore = rootStore;
-    // @ts-expect-error for console call
-    window.rootStore = rootStore;
-    return rootStore;
-  } finally {
-    lock.release();
-  }
-};
-
-let undoManager: UndoManager | undefined = undefined;
-
-export const getUndoManager = () => {
-  if (undoManager) return undoManager;
-
-  const rootStore = getRootStore();
-  undoManager = undoMiddleware(rootStore);
-
-  return undoManager;
-};
 function assertUnreachable(x: never): never {
   throw new Error("Didn't expect to get here");
 }

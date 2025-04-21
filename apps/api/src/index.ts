@@ -1,9 +1,265 @@
-import { BunWorkerDialect } from "kysely-bun-worker";
+import { publicProcedure, router } from "./trpc";
+import { z } from "zod";
+import corsPlugin from "@fastify/cors";
+import fastify from "fastify";
+import * as dotenv from "dotenv";
+import {
+  fastifyTRPCPlugin,
+  type FastifyTRPCPluginOptions,
+} from "@trpc/server/adapters/fastify";
+import type { Kysely } from "kysely";
+import { getQ, projectsTable, syncableTables, type Database } from "./schema";
+import { sql } from "kysely";
 
-const dialect = new BunWorkerDialect({
-  // default
-  url: "./dbs/main.sqlite",
+// const dialect = new BunWorkerDialect({
+//   // default
+//   url: "./dbs/main.sqlite",
+// });
+//
+// console.log(dialect);
+
+// export type SyncableTable<T extends object | null = object> = {
+//   id: string;
+//   needSync: number;
+//   lastUpdatedAt: string;
+//   isDeleted: number;
+//   data: JSONColumnType<T>;
+// };
+
+dotenv.config();
+
+export const initClock = (clientId: string) => {
+  let now = Date.now();
+  let n = 0;
+
+  return () => {
+    const newNow = Date.now();
+
+    if (newNow === now) {
+      n++;
+    } else if (newNow > now) {
+      now = newNow;
+      n = 0;
+    }
+
+    return `${now}-${n.toString().padStart(4, "0")}-${clientId}`;
+  };
+};
+
+const nextClock = initClock("server");
+
+export const createAppTables = async (q: Kysely<Database>) => {
+  await q.transaction().execute(async (tx) => {
+    const createSyncTable = async (table: string) => {
+      await tx.schema
+        .createTable(table)
+        .ifNotExists()
+        .addColumn("id", "text", (col) => col.primaryKey().notNull())
+        .addColumn("needSync", "boolean", (col) => col.notNull())
+        .addColumn("lastUpdatedOnClientAt", "text", (col) =>
+          col.unique().notNull(),
+        )
+        .addColumn("lastUpdatedOnServerAt", "text", (col) =>
+          col.unique().notNull(),
+        )
+        .addColumn("isDeleted", "boolean", (col) => col.notNull())
+        .addColumn("data", "json", (col) => col.notNull())
+        .execute();
+
+      await tx.schema
+        .createIndex(table + "_isDeleted_idx")
+        .ifNotExists()
+        .on(table)
+        .column("isDeleted")
+        .where("isDeleted", "=", 0)
+        .execute();
+    };
+
+    for (const table of syncableTables) {
+      await createSyncTable(table);
+    }
+  });
+};
+
+const server = fastify({ logger: true });
+
+const appRouter = router({
+  getChanges: publicProcedure
+    .input(z.object({ lastServerClock: z.optional(z.string()) }))
+    .query(async (opts) => {
+      const q = getQ();
+
+      let baseQ = q
+        .selectFrom(syncableTables[0] as typeof projectsTable)
+        .select([
+          "id",
+          "isDeleted",
+          "data",
+          "lastUpdatedOnClientAt",
+          "lastUpdatedOnServerAt",
+          sql<string>`'${sql.raw(syncableTables[0])}'`.as("tableName"),
+        ])
+        .where("lastUpdatedOnServerAt", ">", opts.input.lastServerClock || "");
+
+      for (const t of syncableTables.slice(1)) {
+        baseQ = baseQ.unionAll(
+          q
+            .selectFrom(t as typeof projectsTable)
+            .select([
+              "id",
+              "isDeleted",
+              "data",
+              "lastUpdatedOnClientAt",
+              "lastUpdatedOnServerAt",
+              sql<string>`'${sql.raw(t)}'`.as("tableName"),
+            ])
+            .where(
+              "lastUpdatedOnServerAt",
+              ">",
+              opts.input.lastServerClock || "",
+            ),
+        );
+      }
+
+      return await baseQ.execute();
+    }),
+  applyChanges: publicProcedure
+    .input(
+      z.object({
+        changes: z.array(
+          z.object({
+            id: z.string(),
+            isDeleted: z.number(),
+            data: z.string(),
+            tableName: z.string(),
+            lastUpdatedOnClientAt: z.string(),
+          }),
+        ),
+        // Note: only apply changes if lastServerClock is same as in the server. Otherwise,
+        // ask to get changes from server every time.
+        lastServerClock: z.nullable(z.string()),
+      }),
+    )
+    .mutation(async (opts) => {
+      const q = getQ();
+
+      let lastAppliedClock: string | undefined = undefined;
+      await q.transaction().execute(async (tx) => {
+        // to make tx exclusive
+        // TODO: check if actually become exclusive
+        await sql<string>`CREATE TABLE IF NOT EXISTS _dummy_lock_table (x);`.execute(
+          tx,
+        );
+        await sql<string>`DELETE FROM _dummy_lock_table`.execute(tx);
+
+        const lastClock = await tx
+          .selectFrom(syncableTables[0] as typeof projectsTable)
+          .select((eb) =>
+            eb.fn
+              .max<string | null>("lastUpdatedOnServerAt")
+              .as("lastServerClock"),
+          )
+          .executeTakeFirstOrThrow();
+
+        if (opts.input.lastServerClock !== lastClock.lastServerClock) {
+          throw new Error(
+            "Wrong lastServerClock, need resync. Server clock: " +
+              lastClock.lastServerClock +
+              ", client clock: " +
+              opts.input.lastServerClock,
+          );
+        }
+
+        for (const ch of opts.input.changes) {
+          lastAppliedClock = nextClock();
+          await tx
+            .insertInto(ch.tableName as typeof projectsTable)
+            .orReplace()
+            .values({
+              id: ch.id,
+              needSync: 0,
+              lastUpdatedOnClientAt: ch.lastUpdatedOnClientAt,
+              lastUpdatedOnServerAt: lastAppliedClock,
+              isDeleted: ch.isDeleted,
+              data: ch.data,
+            })
+            .execute();
+        }
+      });
+
+      if (!lastAppliedClock) {
+        throw new Error("lastAppliedClock is not set");
+      }
+
+      return {
+        lastAppliedClock: lastAppliedClock as string,
+      };
+    }),
 });
 
-console.log(dialect);
+void server.register(corsPlugin, {
+  origin: "*",
+  methods: ["POST", "GET"],
+  maxAge: 600,
+});
 
+// void server.register(() => {
+//   server.addHook("preHandler", (request, reply, done) => {
+//     if (request.routerPath === "/is-token-ok") {
+//       done();
+//       return;
+//     }
+//
+//     done();
+//
+//     // if (request.routerPath === "/ws") {
+//     //   const { token } = request.query as { token: string | undefined };
+//
+//     //   if (token !== process.env.ACCESS_TOKEN) {
+//     //     done(new Error("Not authed"));
+//     //   } else {
+//     //     done();
+//     //   }
+//     // } else if (request.headers.authorization !== process.env.ACCESS_TOKEN) {
+//     //   done(new Error("Not authed"));
+//     // } else {
+//     //   done();
+//     // }
+//   });
+//
+//   server.post("/is-token-ok", async (req, res) => {
+//     if ((req.body as { hash: string }).hash === process.env.ACCESS_TOKEN) {
+//       await res.code(200).send();
+//     } else {
+//       await res.code(401).send();
+//     }
+//   });
+//
+//   return Promise.resolve();
+// });
+
+void server.register(fastifyTRPCPlugin, {
+  prefix: "/trpc",
+  useWSS: true,
+  trpcOptions: {
+    router: appRouter,
+  } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
+});
+
+// Run the server!
+const start = async () => {
+  try {
+    const db = getQ();
+    await createAppTables(db);
+
+    await server.listen({ port: 3000, host: "0.0.0.0" });
+  } catch (err) {
+    server.log.error(err);
+    process.exit(1);
+  }
+};
+void start();
+
+// Export type router type signature,
+// NOT the router itself.
+export type AppRouter = typeof appRouter;

@@ -212,11 +212,13 @@ export class ChangesToDbSaver {
 // }
 
 const mapToDb = (ch: ModelChange): Insertable<SyncableTable> => {
+  const str = JSON.stringify(ch.value);
   return {
     id: ch.rowId,
     needSync: 1,
-    lastUpdatedAt: ch.happenedAt,
+    lastUpdatedOnClientAt: ch.happenedAt,
+    lastUpdatedOnServerAt: "",
     isDeleted: ch.type === "delete" ? 1 : 0,
-    data: JSON.stringify(ch.value),
+    data: str,
   };
 };

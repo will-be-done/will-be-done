@@ -13,6 +13,7 @@ export const taskTemplatesTable = "task_templates";
 export const taskProjectionsTable = "task_projections";
 export const dailyListsTable = "daily_lists";
 export const migrationsTable = "migrations";
+export const preferencesTable = "preferences";
 
 export const syncableTables = [
   projectsTable,
@@ -20,12 +21,13 @@ export const syncableTables = [
   taskTemplatesTable,
   taskProjectionsTable,
   dailyListsTable,
-];
+] as const;
 
 export type SyncableTable<T extends object | null = object> = {
   id: string;
   needSync: number;
-  lastUpdatedAt: string;
+  lastUpdatedOnClientAt: string;
+  lastUpdatedOnServerAt: string;
   isDeleted: number;
   data: JSONColumnType<T>;
 };
@@ -69,6 +71,11 @@ export type MigrationsTable = {
   name: string;
 };
 
+export type PreferencesTable = {
+  key: string;
+  value: string;
+};
+
 type ProjectsTable = SyncableTable<ProjectData>;
 type TasksTable = SyncableTable<TaskData>;
 type TaskTemplatesTable = SyncableTable<TaskTemplateData>;
@@ -85,6 +92,7 @@ export interface SyncableTables {
 
 export interface Database extends SyncableTables {
   [migrationsTable]: MigrationsTable;
+  [preferencesTable]: PreferencesTable;
 }
 
 export const Q = new Kysely<Database>({

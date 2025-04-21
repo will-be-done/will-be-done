@@ -2,15 +2,12 @@ import { Link, Redirect, Route, Switch } from "wouter";
 import "./fixGlobal";
 import { Board } from "./components/DaysBoard/DaysBoard";
 import { observer } from "mobx-react-lite";
+import { DailyList, Project, Task, TaskProjection } from "./models/models";
 import {
-  DailyList,
   getRootStore,
   getUndoManager,
   initRootStore,
-  Project,
-  Task,
-  TaskProjection,
-} from "./models/models";
+} from "./models/initRootStore";
 import { useEffect, useMemo, useState } from "react";
 import { detach } from "mobx-keystone";
 import { Sidebar } from "./components/Sidebar/Sidebar";

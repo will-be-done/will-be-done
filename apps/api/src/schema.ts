@@ -1,11 +1,13 @@
 import {
   DummyDriver,
-  JSONColumnType,
+  type JSONColumnType,
   Kysely,
   SqliteAdapter,
   SqliteIntrospector,
   SqliteQueryCompiler,
 } from "kysely";
+import { BunWorkerDialect } from "kysely-bun-worker";
+import { SerializePlugin } from "kysely-plugin-serialize";
 
 export const projectsTable = "projects";
 export const tasksTable = "tasks";
@@ -20,12 +22,13 @@ export const syncableTables = [
   taskTemplatesTable,
   taskProjectionsTable,
   dailyListsTable,
-];
+] as const;
 
 export type SyncableTable<T extends object | null = object> = {
   id: string;
   needSync: number;
-  lastUpdatedAt: string;
+  lastUpdatedOnClientAt: string;
+  lastUpdatedOnServerAt: string;
   isDeleted: number;
   data: JSONColumnType<T>;
 };
@@ -87,19 +90,18 @@ export interface Database extends SyncableTables {
   [migrationsTable]: MigrationsTable;
 }
 
-export const Q = new Kysely<Database>({
-  dialect: {
-    createAdapter() {
-      return new SqliteAdapter();
-    },
-    createDriver() {
-      return new DummyDriver();
-    },
-    createIntrospector(db: Kysely<Database>) {
-      return new SqliteIntrospector(db);
-    },
-    createQueryCompiler() {
-      return new SqliteQueryCompiler();
-    },
-  },
-});
+let q: Kysely<Database> | undefined = undefined;
+export const getQ = () => {
+  if (q) return q;
+
+  const dialect = new BunWorkerDialect({
+    url: "./dbs/main.sqlite",
+  });
+
+  q = new Kysely<Database>({
+    dialect,
+    plugins: [new SerializePlugin()],
+  });
+
+  return q;
+};

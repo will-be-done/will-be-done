@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite";
 import { useParams } from "wouter";
-import { getRootStore } from "../../models/models";
 import { ProjectItemsList } from "../../components/ProjectItemsList/ProjectItemsList";
+import { getRootStore } from "@/models/initRootStore";
 
 export const ProjectPage = observer(function ProjectPageComp() {
   const params = useParams<{ projectId: string }>();

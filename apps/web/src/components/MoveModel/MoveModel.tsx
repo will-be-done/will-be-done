@@ -6,10 +6,10 @@ import {
 } from "@headlessui/react";
 
 import { observer } from "mobx-react-lite";
-import { getRootStore } from "../../models/models";
 import { useState, useRef, useEffect } from "react";
 import { useUnmount } from "../../utils";
 import { focusManager } from "@/states/FocusManager";
+import { getRootStore } from "@/models/initRootStore";
 
 export const MoveModal = observer(function MoveModelComp({
   isOpen,
