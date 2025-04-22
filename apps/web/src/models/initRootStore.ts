@@ -167,7 +167,9 @@ export const initRootStore = async () => {
     // @ts-expect-error for console call
     window.addToolkit = addToolkit;
 
-    const projects = [{ id: "inbox", name: "Inbox", icon: "" }];
+    const projects = [
+      { id: "a-ILpVs7T9pF1ZJWG_bTVeS", name: "Inbox", icon: "" },
+    ];
 
     for (const project of projects) {
       let projectFound = false;
@@ -184,6 +186,7 @@ export const initRootStore = async () => {
       }
 
       rootStore.projectsRegistry.createProject(
+        project.id,
         project.name,
         project.icon,
         project.id === "inbox",

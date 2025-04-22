@@ -280,6 +280,10 @@ server.register(async (instance) => {
   });
 });
 server.addHook("onRequest", async (request, reply) => {
+  if (process.env.NODE_ENV === "development") {
+    return;
+  }
+
   const authHeader = request.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Basic ")) {
     reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
