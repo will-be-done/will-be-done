@@ -137,7 +137,7 @@ const appRouter = router({
         ),
         // Note: only apply changes if lastServerClock is same as in the server. Otherwise,
         // ask to get changes from server every time.
-        lastServerClock: z.nullable(z.string()),
+        lastServerClock: z.optional(z.string()),
       }),
     )
     .mutation(async (opts) => {
@@ -152,19 +152,59 @@ const appRouter = router({
         );
         await sql<string>`DELETE FROM _dummy_lock_table`.execute(tx);
 
-        const lastClock = await tx
-          .selectFrom(syncableTables[0] as typeof projectsTable)
-          .select((eb) =>
-            eb.fn
-              .max<string | null>("lastUpdatedOnServerAt")
-              .as("lastServerClock"),
-          )
-          .executeTakeFirstOrThrow();
+        const maxLastClock =
+          (
+            await tx
+              .with("all_clocks", (qb) => {
+                let query = qb
+                  .selectFrom(syncableTables[0] as typeof projectsTable)
+                  .select("lastUpdatedOnServerAt");
 
-        if (opts.input.lastServerClock !== lastClock.lastServerClock) {
+                // Add each additional table to the union
+                for (let i = 1; i < syncableTables.length; i++) {
+                  query = query.union(
+                    qb
+                      .selectFrom(syncableTables[i] as typeof projectsTable)
+                      .select("lastUpdatedOnServerAt"),
+                  );
+                }
+
+                return query;
+              })
+              .selectFrom("all_clocks")
+              .select((eb) =>
+                eb.fn.max<string>("lastUpdatedOnServerAt").as("maxClock"),
+              )
+              .executeTakeFirstOrThrow()
+          ).maxClock || "";
+
+        // // maxLastClock.maxClock now contains the maximum value
+        // // Use an empty string as fallback if null
+        // const result = maxLastClock.maxClock || "";
+        //         // TODO: make 1 query
+        //         let maxLastClock = "";
+        //         for (const table of syncableTables) {
+        //           const lastClock =
+        //             (
+        //               await tx
+        //                 .selectFrom(table as typeof projectsTable)
+        //                 .select((eb) =>
+        //                   eb.fn
+        //                     .max<string | null>("lastUpdatedOnServerAt")
+        //                     .as("lastServerClock"),
+        //                 )
+        //                 .executeTakeFirstOrThrow()
+        //             )?.lastServerClock || "";
+        //
+        //           if (maxLastClock < lastClock) {
+        //             maxLastClock = lastClock;
+        //           }
+        //         }
+
+        if (opts.input.lastServerClock !== maxLastClock) {
           throw new Error(
             "Wrong lastServerClock, need resync. Server clock: " +
-              lastClock.lastServerClock +
+              maxLastClock +
               ", client clock: " +
               opts.input.lastServerClock,
           );

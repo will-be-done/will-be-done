@@ -165,6 +165,7 @@ export interface SyncableRegistry<
   entity: Class<A>;
   getById(id: string): A | undefined;
   add(entity: A): void;
+  drop(id: string): void;
   mapDataToModel(data: SyncableTables[T]["data"]["__select__"]): A;
   mapModelToData(entity: A): SyncableTables[T]["data"]["__select__"];
 }

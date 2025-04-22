@@ -146,7 +146,7 @@ export const waSqliteWebBackend =
         //   }),
         // );
 
-        const vfs = await IDBBatchAtomicVFS.create("dbName", module);
+        const vfs = await IDBBatchAtomicVFS.create("my-db", module);
         sqlite3.vfs_register(vfs, true);
 
         db = await sqlite3.open_v2(

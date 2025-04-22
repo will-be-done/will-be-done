@@ -9,23 +9,61 @@ import {
 } from "./schema";
 import { IDbCtx } from "./db";
 import { makeClient } from "./client";
-import { groupBy, maxBy } from "es-toolkit";
+import { groupBy } from "es-toolkit";
 import { IDb } from "@kikko-land/kikko";
 import { Insertable } from "kysely";
+import { createNanoEvents } from "nanoevents";
+import { Selectable } from "kysely";
+import {
+  BroadcastChannel,
+  createLeaderElection,
+  LeaderElector,
+} from "broadcast-channel";
 
 const lastAppliedServerClockKey = "lastAppliedServerClock";
 
+export type SyncerEvents = {
+  onChangePersisted(changes: Record<string, Selectable<SyncableTable>[]>): void;
+};
+
+// TODO: propagate changes to all tabs
 export class Syncer {
   private client = makeClient();
+  private electionChannel: BroadcastChannel;
+  private elector: LeaderElector;
+  private runId = 0;
 
-  constructor(private dbCtx: IDbCtx) {}
+  emitter = createNanoEvents<SyncerEvents>();
+
+  constructor(
+    private dbCtx: IDbCtx,
+    private clientId: string,
+  ) {
+    this.electionChannel = new BroadcastChannel("election-" + clientId);
+    this.elector = createLeaderElection(this.electionChannel);
+  }
 
   startLoop() {
+    this.elector.onduplicate = () => {
+      console.log("onduplicate");
+
+      this.runId++;
+      void this.run();
+    };
+
     void this.run();
   }
 
   private async run() {
+    const myRunId = ++this.runId;
+
+    await this.elector.awaitLeadership();
     while (true) {
+      if (this.runId !== myRunId) {
+        console.log("runId !== myRunId, stopping syncer loop");
+        return;
+      }
+
       try {
         await this.getAndApplyChanges();
         await this.sendChanges();
@@ -33,7 +71,7 @@ export class Syncer {
         console.error(e);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
@@ -42,6 +80,8 @@ export class Syncer {
     const changesFromServer = await this.client.getChanges.query({
       lastServerClock,
     });
+
+    console.log("getAndApplyChanges lastServerClock", lastServerClock);
 
     if (changesFromServer.length === 0) {
       console.log("no changes from server, skip");
@@ -94,7 +134,6 @@ export class Syncer {
       }
 
       // TODO: if chToSend.lastUpdatedOnClientAt == ch.lastUpdatedOnClientAt, just mark needSync = 0
-
       let chs = finalChangesToApply[ch.tableName];
       if (!chs) {
         chs = [];
@@ -105,6 +144,8 @@ export class Syncer {
 
       continue;
     }
+
+    const changesToNotify: Record<string, Selectable<SyncableTable>[]> = {};
 
     // tx acts as a lock
     await this.dbCtx.db.runInTransaction(
@@ -125,7 +166,7 @@ export class Syncer {
         }
 
         for (const [table, chs] of Object.entries(finalChangesToApply)) {
-          const finalChs = chs.map((ch) => {
+          const finalChs = chs.map((ch): Insertable<SyncableTable> => {
             return {
               id: ch.id,
               needSync: 0,
@@ -133,8 +174,20 @@ export class Syncer {
               lastUpdatedOnServerAt: "",
               isDeleted: ch.isDeleted,
               data: JSON.stringify(ch.data),
-            } satisfies Insertable<SyncableTable>;
+            };
           });
+
+          const chsToNotify = chs.map((ch): Selectable<SyncableTable> => {
+            return {
+              id: ch.id,
+              needSync: 0,
+              lastUpdatedOnClientAt: ch.lastUpdatedOnClientAt,
+              lastUpdatedOnServerAt: "",
+              isDeleted: ch.isDeleted,
+              data: ch.data,
+            };
+          });
+          changesToNotify[table] = chsToNotify;
 
           await db.runQuery(generateInsert(table, finalChs, true));
         }
@@ -149,7 +202,7 @@ export class Syncer {
       { type: "exclusive" },
     );
 
-    console.log("finalChangesToApply", finalChangesToApply);
+    this.emitter.emit("onChangePersisted", changesToNotify);
   }
 
   // Client will be able to send change to server IF ONLY it has ALL changes from server
@@ -197,11 +250,9 @@ export class Syncer {
       return;
     }
 
-    console.log("sending changes", serverChanges);
-
     const res = await this.client.applyChanges.mutate({
       changes: serverChanges,
-      lastServerClock: null,
+      lastServerClock,
     });
 
     const toUpdate = groupBy(serverChanges, (c) => c.tableName);
@@ -243,7 +294,7 @@ export class Syncer {
                     // So only updating rows that we actually sent to server
                     return eb.and([
                       eb("id", "=", c.id),
-                      eb("lastUpdatedOnClientAt", "=", res.lastAppliedClock),
+                      eb("lastUpdatedOnClientAt", "=", c.lastUpdatedOnClientAt),
                     ]);
                   });
 

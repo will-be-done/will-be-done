@@ -38,15 +38,19 @@ import {
 } from "./listActions";
 import {
   syncable,
+  SyncableRegistriesStore,
   SyncableRegistry,
   syncableRegistry,
   withoutSync,
+  withoutSyncAction,
 } from "@/sync/syncable";
 import {
   DailyListData,
   dailyListsTable,
   ProjectData,
   projectsTable,
+  SyncableTable,
+  SyncableTables,
   TaskData,
   TaskProjectionData,
   taskProjectionsTable,
@@ -55,6 +59,7 @@ import {
 import { IDbCtx } from "@/sync/db";
 import AwaitLock from "await-lock";
 import { uuidv7 } from "uuidv7";
+import { Selectable } from "kysely";
 
 setGlobalConfig({
   modelIdGenerator: uuidv7,
@@ -133,11 +138,11 @@ export class Project
   }
 
   canDrop(target: AnyModel): target is Project | ProjectItem | TaskProjection {
-    if (target instanceof Project && this.isInbox) {
+    if (target instanceof _Project && this.isInbox) {
       return false;
     }
     return (
-      target instanceof Project ||
+      target instanceof _Project ||
       target instanceof Task ||
       target instanceof TaskTemplate ||
       target instanceof TaskProjection
@@ -150,7 +155,7 @@ export class Project
       return;
     }
 
-    if (target instanceof Project) {
+    if (target instanceof _Project) {
       const [up, down] = this.siblings;
 
       let between: [string | undefined, string | undefined] = [
@@ -196,6 +201,7 @@ export class Project
     return task;
   }
 }
+const _Project = Project;
 
 type ProjectItem = Task | TaskTemplate;
 
@@ -240,6 +246,11 @@ export class ProjectsRegistry
     }
 
     throw new Error("inbox project not found");
+  }
+
+  @modelAction
+  drop(id: string) {
+    this.entities.delete(id);
   }
 
   @modelAction
@@ -311,7 +322,7 @@ export class Task
   }
 
   canDrop(target: AnyModel): target is TaskProjection | Task {
-    return target instanceof TaskProjection || target instanceof Task;
+    return target instanceof TaskProjection || target instanceof _Task;
   }
 
   @modelAction
@@ -338,7 +349,7 @@ export class Task
       task.setProjectRef(clone(this.projectRef));
       task.orderToken = orderToken;
       detach(target);
-    } else if (target instanceof Task) {
+    } else if (target instanceof _Task) {
       target.setProjectRef(clone(this.projectRef));
       target.orderToken = orderToken;
     } else {
@@ -350,7 +361,7 @@ export class Task
   createSibling(position: "before" | "after") {
     const { taskRegistry } = getRootStoreOrThrow(this);
 
-    const task = new Task({
+    const task = new _Task({
       projectRef: clone(this.projectRef),
       orderToken: generateKeyPositionedBetween(this, this.siblings, position),
     });
@@ -368,6 +379,7 @@ export class Task
     });
   }
 }
+const _Task = Task;
 
 @model("TaskApp/TaskTemplate")
 export class TaskTemplate
@@ -421,6 +433,11 @@ export class TaskRegistry
       projectId: entity.projectRef.id,
       orderToken: entity.orderToken,
     };
+  }
+
+  @modelAction
+  drop(id: string) {
+    this.entities.delete(id);
   }
 
   @modelAction
@@ -498,8 +515,8 @@ export class AllProjectsList
   }
 }
 
-@model("TaskApp/TaskProjection")
 @syncable
+@model("TaskApp/TaskProjection")
 export class TaskProjection
   extends Model({
     id: idProp,
@@ -514,7 +531,7 @@ export class TaskProjection
   }
 
   canDrop(target: AnyModel): target is TaskProjection | Task {
-    return target instanceof TaskProjection || target instanceof Task;
+    return target instanceof _TaskProjection || target instanceof Task;
   }
 
   @modelAction
@@ -563,11 +580,12 @@ export class TaskProjection
       between[1] || null,
     );
 
-    if (target instanceof TaskProjection) {
+    if (target instanceof _TaskProjection) {
       target.listRef = clone(this.dailyListRef);
       target.orderToken = orderToken;
     } else if (target instanceof Task) {
-      const newProjection = new TaskProjection({
+      // this not working
+      const newProjection = new _TaskProjection({
         taskRef: taskRef(target),
         orderToken: orderToken,
         dailyListRef: clone(this.dailyListRef),
@@ -596,7 +614,7 @@ export class TaskProjection
     const project = this.taskRef.current.projectRef.current;
     const task = project.createTask("append");
 
-    const taskProjection = new TaskProjection({
+    const taskProjection = new _TaskProjection({
       orderToken: generateKeyPositionedBetween(this, this.siblings, position),
       taskRef: taskRef(task),
       dailyListRef: clone(this.dailyListRef),
@@ -614,12 +632,17 @@ export class TaskProjection
       }
     });
   }
+
+  onInit() {
+    console.log("onInitProj", this);
+  }
 }
+const _TaskProjection = TaskProjection;
 
 export type TaskItem = Task | TaskProjection;
 
-@model("TaskApp/TaskProjectionRegistry")
 @syncableRegistry
+@model("TaskApp/TaskProjectionRegistry")
 export class TaskProjectionRegistry
   extends Model({
     entities: prop<ObjectMap<TaskProjection>>(() => objectMap()),
@@ -647,6 +670,11 @@ export class TaskProjectionRegistry
       orderToken: entity.orderToken,
       dailyListId: entity.dailyListRef.id,
     };
+  }
+
+  @modelAction
+  drop(id: string) {
+    this.entities.delete(id);
   }
 
   @modelAction
@@ -699,6 +727,7 @@ export class DailyList
       target.listRef = this.makeListRef();
       target.orderToken = orderToken;
     } else if (target instanceof Task) {
+      // this working
       const newProjection = new TaskProjection({
         taskRef: taskRef(target),
         orderToken: orderToken,
@@ -803,6 +832,11 @@ export class DailyListRegistry
       id: entity.id,
       date: entity.date.getTime(),
     };
+  }
+
+  @modelAction
+  drop(id: string) {
+    this.entities.delete(id);
   }
 
   @modelAction
@@ -921,16 +955,47 @@ export class RootStore extends Model({
     return undefined;
   }
 
+  @withoutSyncAction
   @modelAction
-  loadData(data: [SyncableRegistry, Record<string, any>[]][]) {
+  loadData(data: [SyncableRegistry, Selectable<SyncableTable>[]][]) {
     withoutSync(() => {
-      for (const [registry, rows] of data) {
-        for (const row of rows) {
-          const model = registry.mapDataToModel(JSON.parse(row.data));
+      for (const [registry, chs] of data) {
+        for (const ch of chs) {
+          if (ch.isDeleted) {
+            registry.drop(ch.id);
+            continue;
+          }
+
+          const model = registry.mapDataToModel(JSON.parse(ch.data));
           registry.add(model);
         }
       }
     });
+  }
+
+  @withoutSyncAction
+  @modelAction
+  applyChanges(
+    store: SyncableRegistriesStore,
+    changes: Record<string, Selectable<SyncableTable>[]>,
+  ) {
+    for (const [table, chs] of Object.entries(changes)) {
+      const registry = store.getRegistryOfTable(table as keyof SyncableTables);
+
+      if (!registry) {
+        throw new Error("Registry not found of table " + table);
+      }
+
+      for (const ch of chs) {
+        const model = registry.mapDataToModel(ch.data as ProjectData);
+
+        if (ch.isDeleted) {
+          registry.drop(ch.id);
+        } else {
+          registry.add(model);
+        }
+      }
+    }
   }
 }
 

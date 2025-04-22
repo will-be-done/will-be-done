@@ -1,12 +1,7 @@
 import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
 import { ChangesTracker } from "@/sync/ChangesTracker";
 import { getDbCtx } from "@/sync/db";
-import {
-  Q,
-  preferencesTable,
-  projectsTable,
-  syncableTables,
-} from "@/sync/schema";
+import { Q, SyncableTable, SyncableTables, projectsTable } from "@/sync/schema";
 import {
   buildAndAttachEmitter,
   buildAndAttachSyncRegStore,
@@ -15,10 +10,8 @@ import {
 import { registerRootStore, UndoManager, undoMiddleware } from "mobx-keystone";
 import { RootStore } from "./models";
 import AwaitLock from "await-lock";
-import { makeClient } from "@/sync/client";
-import { sql } from "kysely";
-import { groupBy } from "es-toolkit";
 import { Syncer } from "@/sync/Syncer";
+import { Selectable } from "kysely";
 
 export const lock = new AwaitLock();
 export let currentRootStore: RootStore | undefined;
@@ -40,12 +33,25 @@ export const getUndoManager = () => {
   return undoManager;
 };
 
+const mapChangesForBC = (
+  changes: Record<string, Selectable<SyncableTable>[]>,
+) => {
+  const res: Record<string, string[]> = {};
+
+  for (const [table, chs] of Object.entries(changes)) {
+    res[table] = chs.map((ch) => ch.id);
+  }
+  return res;
+};
+
 export const initRootStore = async () => {
   await lock.acquireAsync();
   try {
     if (currentRootStore) return currentRootStore;
 
+    console.log("initRootStore", "1");
     const dbCtx = await getDbCtx();
+    console.log("initRootStore", "2");
 
     const rootStore = new RootStore({});
     const modelChangesEmitter = buildAndAttachEmitter(rootStore);
@@ -56,7 +62,47 @@ export const initRootStore = async () => {
       syncableRegistriesStore,
     );
     const changesToDbSaver = new ChangesToDbSaver(dbCtx.db);
-    const syncer = new Syncer(dbCtx);
+    const syncer = new Syncer(dbCtx, dbCtx.clientId);
+    const bc = new BroadcastChannel(`changes-${dbCtx.clientId}`);
+
+    syncer.emitter.on("onChangePersisted", (changes) => {
+      rootStore.applyChanges(syncableRegistriesStore, changes);
+
+      bc.postMessage(mapChangesForBC(changes));
+    });
+    changesToDbSaver.emitter.on("onChangePersisted", (changes) => {
+      bc.postMessage(mapChangesForBC(changes));
+    });
+
+    bc.onmessage = async (ev) => {
+      console.log("bc.onmessage", ev);
+      const data = ev.data as Record<string, string[]>;
+
+      const allData = await Promise.all(
+        Object.entries(data).map(async ([table, ids]) => {
+          if (!ids || ids.length === 0) return;
+
+          const registry = syncableRegistriesStore.getRegistryOfTable(
+            table as keyof SyncableTables,
+          );
+          if (!registry)
+            throw new Error("Registry not found of table " + table);
+
+          const rows = await dbCtx.db.runQuery(
+            Q.selectFrom(registry.table as typeof projectsTable)
+              .selectAll()
+              .where("id", "in", ids),
+          );
+
+          return [registry, rows] satisfies [
+            SyncableRegistry,
+            Selectable<SyncableTable>[],
+          ];
+        }),
+      );
+
+      rootStore.loadData(allData.filter((e) => e !== undefined));
+    };
 
     registerRootStore(rootStore);
 
@@ -71,7 +117,7 @@ export const initRootStore = async () => {
 
         return [registry, rows] satisfies [
           SyncableRegistry,
-          Record<string, any>[],
+          Selectable<SyncableTable>[],
         ];
       }),
     );

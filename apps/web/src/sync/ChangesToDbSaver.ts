@@ -5,6 +5,8 @@ import { ModelChange } from "./ChangesTracker";
 import { Q, SyncableTable, SyncableTables } from "./schema";
 import { Insertable } from "kysely";
 import { chunk } from "es-toolkit";
+import { createNanoEvents } from "nanoevents";
+import { Selectable } from "kysely";
 
 const compressChanges = (chs: ModelChange[]) => {
   const changesMap = new Map<
@@ -29,9 +31,14 @@ const compressChanges = (chs: ModelChange[]) => {
   return changesMap;
 };
 
+export type SaverEvents = {
+  onChangePersisted(changes: Record<string, Selectable<SyncableTable>[]>): void;
+};
+
 export class ChangesToDbSaver {
   private rows: ModelChange[] = [];
   private changesCounter = new State<number>(0);
+  emitter = createNanoEvents<SaverEvents>();
 
   constructor(private db: IDb) {
     void this.startChangesLoop();
@@ -69,13 +76,16 @@ export class ChangesToDbSaver {
   private async applyChanges(chs: ModelChange[]) {
     const changesMap = compressChanges(chs);
 
+    const changesToNotify: Record<string, Selectable<SyncableTable>[]> = {};
     await this.db.runInAtomicTransaction((db) => {
       for (const [table, tableChanges] of changesMap) {
         if (tableChanges.changes.size === 0) continue;
 
+        changesToNotify[table] = [];
         const dbChs: Insertable<SyncableTable>[] = [];
         for (const [, ch] of tableChanges.changes) {
-          dbChs.push(mapToDb(ch));
+          dbChs.push(mapToInsertable(ch));
+          changesToNotify[table].push(mapToSelectable(ch));
         }
 
         for (const chsChunk of chunk(dbChs, 5000)) {
@@ -83,6 +93,8 @@ export class ChangesToDbSaver {
         }
       }
     });
+
+    this.emitter.emit("onChangePersisted", changesToNotify);
   }
 }
 
@@ -211,7 +223,7 @@ export class ChangesToDbSaver {
 //   }
 // }
 
-const mapToDb = (ch: ModelChange): Insertable<SyncableTable> => {
+const mapToInsertable = (ch: ModelChange): Insertable<SyncableTable> => {
   const str = JSON.stringify(ch.value);
   return {
     id: ch.rowId,
@@ -220,5 +232,15 @@ const mapToDb = (ch: ModelChange): Insertable<SyncableTable> => {
     lastUpdatedOnServerAt: "",
     isDeleted: ch.type === "delete" ? 1 : 0,
     data: str,
+  };
+};
+const mapToSelectable = (ch: ModelChange): Selectable<SyncableTable> => {
+  return {
+    id: ch.rowId,
+    needSync: 1,
+    lastUpdatedOnClientAt: ch.happenedAt,
+    lastUpdatedOnServerAt: "",
+    isDeleted: ch.type === "delete" ? 1 : 0,
+    data: ch.value,
   };
 };

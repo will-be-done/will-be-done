@@ -1,5 +1,5 @@
 import AwaitLock from "await-lock";
-import { IDb, initDbClient, ISqlToRun } from "@kikko-land/kikko";
+import { IDb, initDbClient, ISqlToRun, sql } from "@kikko-land/kikko";
 import sqlWasmUrl from "wa-sqlite/dist/wa-sqlite-async.wasm?url";
 import { nanoid } from "nanoid";
 import { preferencesTable, Q, syncableTables } from "./schema";
@@ -89,6 +89,7 @@ export const getDbCtx = async () => {
   try {
     if (dbCtx) return dbCtx;
 
+    console.log("getDbCtx", "1");
     const db = await initDbClient({
       dbName: "db-name",
       dbBackend: waSqliteWebBackend({
@@ -98,10 +99,14 @@ export const getDbCtx = async () => {
       }),
       plugins: [],
     });
+    console.log("getDbCtx", "2");
 
     await createAppTables(db);
 
     dbCtx = initDbCtx(db);
+
+    window.sql = sql;
+    window.db = db;
 
     return dbCtx;
   } finally {

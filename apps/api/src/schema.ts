@@ -72,11 +72,11 @@ export type MigrationsTable = {
   name: string;
 };
 
-type ProjectsTable = SyncableTable<ProjectData>;
-type TasksTable = SyncableTable<TaskData>;
-type TaskTemplatesTable = SyncableTable<TaskTemplateData>;
-type TaskProjectionsTable = SyncableTable<TaskProjectionData>;
-type DailyListsTable = SyncableTable<DailyListData>;
+export type ProjectsTable = SyncableTable<ProjectData>;
+export type TasksTable = SyncableTable<TaskData>;
+export type TaskTemplatesTable = SyncableTable<TaskTemplateData>;
+export type TaskProjectionsTable = SyncableTable<TaskProjectionData>;
+export type DailyListsTable = SyncableTable<DailyListData>;
 
 export interface SyncableTables {
   [projectsTable]: ProjectsTable;
