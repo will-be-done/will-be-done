@@ -353,6 +353,27 @@ const start = async () => {
     await createAppTables(db);
 
     await server.listen({ port: 3000, host: "0.0.0.0" });
+
+    const signals = ["SIGINT", "SIGTERM", "SIGQUIT"];
+    for (const signal of signals) {
+      process.on(signal, async () => {
+        server.log.info(
+          `${signal} signal received, shutting down gracefully...`,
+        );
+
+        try {
+          // Close the Fastify server first
+          await server.close();
+          server.log.info("Server closed successfully");
+
+          // Then exit the process
+          process.exit(0);
+        } catch (err) {
+          server.log.error(`Error during graceful shutdown: ${err}`);
+          process.exit(1);
+        }
+      });
+    }
   } catch (err) {
     server.log.error(err);
     process.exit(1);
