@@ -270,20 +270,18 @@ export class ProjectsRegistry
   }
 
   @modelAction
-  createProject(
-    title: string,
-    icon: string,
-    isInbox: boolean,
-    between: [OrderableItem | undefined, OrderableItem | undefined] | undefined,
-  ) {
+  createInboxProjectIfNotExists() {
     const { allProjectsList } = getRootStoreOrThrow(this);
 
-    const newProject = allProjectsList.createProject(between || "append");
-    newProject.title = title;
-    newProject.icon = icon;
-    newProject.isInbox = isInbox;
+    for (const project of this.entities.values()) {
+      if (project.isInbox) return;
+    }
 
-    return newProject;
+    const newProject = allProjectsList.createProject("prepend");
+    newProject.id = "a-ILpVs7T9pF1ZJWG_bTVeS";
+    newProject.title = "Inbox";
+    newProject.icon = "";
+    newProject.isInbox = true;
   }
 }
 
@@ -906,12 +904,6 @@ export class DailyListRegistry
     return this.entities.get(id);
   }
 }
-@model("TaskApp/Preferences")
-export class Preferences extends Model({
-  id: idProp,
-  daysWindow: prop<number>(() => 7).withSetter(),
-  daysShift: prop<number>(() => 0).withSetter(),
-}) {}
 
 @model("TaskApp/RootStore")
 export class RootStore extends Model({
@@ -925,8 +917,6 @@ export class RootStore extends Model({
     () => new TaskProjectionRegistry({}),
   ),
   dailyListRegistry: prop<DailyListRegistry>(() => new DailyListRegistry({})),
-
-  preferences: prop<Preferences>(() => new Preferences({})),
 }) {
   @modelAction
   clearAll() {

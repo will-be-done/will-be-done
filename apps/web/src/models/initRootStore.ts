@@ -167,32 +167,7 @@ export const initRootStore = async () => {
     // @ts-expect-error for console call
     window.addToolkit = addToolkit;
 
-    const projects = [
-      { id: "a-ILpVs7T9pF1ZJWG_bTVeS", name: "Inbox", icon: "" },
-    ];
-
-    for (const project of projects) {
-      let projectFound = false;
-
-      console.log("checking project", project);
-      for (const pr of rootStore.projectsRegistry.entities.values()) {
-        if (pr.title === project.name) {
-          projectFound = true;
-        }
-      }
-
-      if (projectFound) {
-        continue;
-      }
-
-      rootStore.projectsRegistry.createProject(
-        project.id,
-        project.name,
-        project.icon,
-        project.id === "inbox",
-        undefined,
-      );
-    }
+    rootStore.projectsRegistry.createInboxProjectIfNotExists();
 
     // const client = makeClient();
     //

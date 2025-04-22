@@ -287,7 +287,7 @@ const BoardView = observer(function BoardViewComponent({
   dailyLists: DailyList[];
   displayedTasksIds: Set<string>;
 }) {
-  const { preferences, allProjectsList, projectsRegistry } = getRootStore();
+  const { allProjectsList, projectsRegistry } = getRootStore();
   const projectsList = allProjectsList.children.map((project) => {
     return {
       value: project.id,
@@ -295,6 +295,8 @@ const BoardView = observer(function BoardViewComponent({
       icon: () => <div>{project.displayIcon}</div>,
     };
   });
+  const daysToShow = useDaysPreferences((state) => state.daysWindow);
+  const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,
@@ -381,9 +383,9 @@ const BoardView = observer(function BoardViewComponent({
             {[1, 2, 3, 4, 5, 6, 7].map((dayCount) => (
               <button
                 key={dayCount}
-                onClick={() => preferences.setDaysWindow(dayCount)}
+                onClick={() => setDaysWindow(dayCount)}
                 className={`w-6 h-6 flex items-center justify-center text-xs border ${
-                  dayCount <= preferences.daysWindow
+                  dayCount <= daysToShow
                     ? "bg-blue-600 border-blue-700 text-white"
                     : "bg-gray-700 border-gray-600 text-gray-300"
                 } rounded cursor-pointer hover:bg-gray-600 transition-colors`}
@@ -399,7 +401,7 @@ const BoardView = observer(function BoardViewComponent({
             className="grid"
             style={{
               display: "grid",
-              gridTemplateColumns: `repeat(${preferences.daysWindow}, minmax(200px, 1fr))`,
+              gridTemplateColumns: `repeat(${daysToShow}, minmax(200px, 1fr))`,
               gap: "12px",
               width: "auto",
               maxWidth: "100%",
@@ -437,12 +439,40 @@ const BoardView = observer(function BoardViewComponent({
   );
 });
 
+type DaysPreferences = {
+  daysWindow: number;
+  daysShift: number;
+
+  setDaysWindow: (value: number) => void;
+  setDaysShift: (value: number) => void;
+};
+
+const useDaysPreferences = create<DaysPreferences>()(
+  persist(
+    (set, get) => ({
+      daysWindow: 7,
+      daysShift: 0,
+      setDaysWindow: (value: number) => {
+        set({ daysWindow: value });
+      },
+      setDaysShift: (value: number) => {
+        set({ daysShift: value });
+      },
+    }),
+    {
+      name: "days-preferences",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
+
 export const Board = observer(function BoardComponent() {
   const rootStore = getRootStore();
   const { dailyListRegistry } = rootStore;
-  const { preferences } = getRootStore();
-  const daysToShow = preferences.daysWindow;
-  const daysShift = preferences.daysShift;
+
+  const daysToShow = useDaysPreferences((state) => state.daysWindow);
+  const daysShift = useDaysPreferences((state) => state.daysShift);
+  const setDaysShift = useDaysPreferences((state) => state.setDaysShift);
 
   const startingDate = useMemo(
     () => addDays(startOfDay(new Date()), daysShift),
@@ -459,13 +489,13 @@ export const Board = observer(function BoardComponent() {
 
   // Handle previous day
   const handlePrevDay = useCallback((): void => {
-    preferences.setDaysShift(preferences.daysShift - 1);
-  }, [preferences]);
+    setDaysShift(daysShift - 1);
+  }, [daysShift, setDaysShift]);
 
   // Handle next day
   const handleNextDay = useCallback((): void => {
-    preferences.setDaysShift(preferences.daysShift + 1);
-  }, [preferences]);
+    setDaysShift(daysShift + 1);
+  }, [daysShift, setDaysShift]);
 
   useEffect(() => {
     dailyListRegistry.createDailyListsIfNotExists(weekDays);
