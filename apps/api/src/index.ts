@@ -10,21 +10,9 @@ import {
 import type { Kysely } from "kysely";
 import { getQ, projectsTable, syncableTables, type Database } from "./schema";
 import { sql } from "kysely";
-
-// const dialect = new BunWorkerDialect({
-//   // default
-//   url: "./dbs/main.sqlite",
-// });
-//
-// console.log(dialect);
-
-// export type SyncableTable<T extends object | null = object> = {
-//   id: string;
-//   needSync: number;
-//   lastUpdatedAt: string;
-//   isDeleted: number;
-//   data: JSONColumnType<T>;
-// };
+import staticPlugin from "@fastify/static";
+import path from "path";
+import fs from "fs";
 
 dotenv.config();
 
@@ -201,7 +189,7 @@ const appRouter = router({
         //           }
         //         }
 
-        if (opts.input.lastServerClock !== maxLastClock) {
+        if ((opts.input.lastServerClock || "") !== maxLastClock) {
           throw new Error(
             "Wrong lastServerClock, need resync. Server clock: " +
               maxLastClock +
@@ -237,11 +225,11 @@ const appRouter = router({
     }),
 });
 
-void server.register(corsPlugin, {
-  origin: "*",
-  methods: ["POST", "GET"],
-  maxAge: 600,
-});
+// void server.register(corsPlugin, {
+//   origin: "*",
+//   methods: ["POST", "GET"],
+//   maxAge: 600,
+// });
 
 // void server.register(() => {
 //   server.addHook("preHandler", (request, reply, done) => {
@@ -277,13 +265,85 @@ void server.register(corsPlugin, {
 //
 //   return Promise.resolve();
 // });
+//
+server.register(async (instance) => {
+  instance.addHook("preHandler", async (request, reply) => {
+    console.log("preHandler", request.headers);
 
-void server.register(fastifyTRPCPlugin, {
-  prefix: "/trpc",
+    const authHeader = request.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
+      reply.code(401).send({ error: "Unauthorized - Authentication required" });
+      return reply;
+    }
+  });
+});
+server.addHook("onRequest", async (request, reply) => {
+  const authHeader = request.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Basic ")) {
+    reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
+    return reply
+      .code(401)
+      .send({ error: "Unauthorized - Authentication required" });
+  }
+
+  const base64Credentials = authHeader.slice(6); // Remove "Basic "
+
+  const credentials = Buffer.from(base64Credentials, "base64").toString(
+    "utf-8",
+  );
+
+  const [username, password] = credentials.split(":");
+  if (
+    username === (process.env.AUTH_USERNAME || "") &&
+    password === (process.env.AUTH_PASSWORD || "")
+  ) {
+    console.log("Authentication successful");
+    return;
+  }
+
+  //   // If we get here, authentication failed
+  reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
+  reply.code(401).send({ error: "Authentication failed" });
+});
+
+server.register(staticPlugin, {
+  root: path.join(__dirname, "..", "public"),
+});
+
+server.register(fastifyTRPCPlugin, {
+  prefix: "/api/trpc",
   useWSS: true,
   trpcOptions: {
     router: appRouter,
   } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
+});
+
+// Register a not found handler that serves index.html for non-API routes
+server.setNotFoundHandler((request, reply) => {
+  const url = request.url;
+
+  // Skip API routes - return normal 404 for them
+  if (url.startsWith("/api")) {
+    reply.code(404).send({ error: "Not found" });
+    return;
+  }
+
+  // For all other routes, serve the index.html
+  const indexPath = path.join(__dirname, "..", "public", "index.html");
+
+  // Check if index.html exists
+  try {
+    if (fs.existsSync(indexPath)) {
+      const stream = fs.createReadStream(indexPath);
+      reply.type("text/html").send(stream);
+    } else {
+      reply.code(404).send({ error: "index.html not found" });
+    }
+  } catch (err) {
+    reply.code(500).send({ error: "Server error" });
+  }
 });
 
 // Run the server!

@@ -966,6 +966,7 @@ export class RootStore extends Model({
             continue;
           }
 
+          //@ts-expect-error
           const model = registry.mapDataToModel(JSON.parse(ch.data));
           registry.add(model);
         }

@@ -8,6 +8,7 @@ import {
 } from "kysely";
 import { BunWorkerDialect } from "kysely-bun-worker";
 import { SerializePlugin } from "kysely-plugin-serialize";
+import path from "path";
 
 export const projectsTable = "projects";
 export const tasksTable = "tasks";
@@ -95,7 +96,7 @@ export const getQ = () => {
   if (q) return q;
 
   const dialect = new BunWorkerDialect({
-    url: "./dbs/main.sqlite",
+    url: path.join(__dirname, "..", "dbs", "main.sqlite"),
   });
 
   q = new Kysely<Database>({

@@ -105,7 +105,9 @@ export const getDbCtx = async () => {
 
     dbCtx = initDbCtx(db);
 
+    // @ts-expect-error
     window.sql = sql;
+    // @ts-expect-error
     window.db = db;
 
     return dbCtx;
