@@ -271,17 +271,30 @@ export class ProjectsRegistry
 
   @modelAction
   createInboxProjectIfNotExists() {
-    const { allProjectsList } = getRootStoreOrThrow(this);
+    const { allProjectsList, projectsRegistry } = getRootStoreOrThrow(this);
+    const todoProjectId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
+
+    // TODO: remove it after some time
+    for (const project of this.entities.values()) {
+      if (project.id !== todoProjectId && project.isInbox) {
+        this.drop(project.id);
+      }
+    }
 
     for (const project of this.entities.values()) {
       if (project.isInbox) return;
     }
 
-    const newProject = allProjectsList.createProject("prepend");
-    newProject.id = "a-ILpVs7T9pF1ZJWG_bTVeS";
-    newProject.title = "Inbox";
-    newProject.icon = "";
-    newProject.isInbox = true;
+    const project = new Project({
+      id: todoProjectId,
+      orderToken: generateJitteredKeyBetween(null, null),
+      listRef: allProjectsListRef(allProjectsList),
+      title: "Inbox",
+      icon: "",
+      isInbox: true,
+    });
+
+    projectsRegistry.add(project);
   }
 }
 
