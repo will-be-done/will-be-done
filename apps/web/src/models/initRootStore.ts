@@ -168,6 +168,7 @@ export const initRootStore = async () => {
     window.addToolkit = addToolkit;
 
     rootStore.projectsRegistry.createInboxProjectIfNotExists();
+    rootStore.dailyListRegistry.dropDuplicatedDailyLists();
 
     // const client = makeClient();
     //

@@ -60,6 +60,7 @@ import { IDbCtx } from "@/sync/db";
 import AwaitLock from "await-lock";
 import { uuidv7 } from "uuidv7";
 import { Selectable } from "kysely";
+import uuidByString from "uuid-by-string";
 
 setGlobalConfig({
   modelIdGenerator: uuidv7,
@@ -816,6 +817,10 @@ export class DailyList
 
     return proj;
   }
+
+  // onInit() {
+  //   this.id = uuidByString(this.tit)
+  // }
 }
 
 @syncableRegistry
@@ -898,7 +903,10 @@ export class DailyListRegistry
     const dailyList = this.getDailyListByDate(date);
 
     if (!dailyList) {
-      const newList = new DailyList({ date: new Date(date) });
+      const newList = new DailyList({
+        id: uuidByString(date.toString()),
+        date: new Date(date),
+      });
 
       this.entities.set(newList.id, newList);
 
@@ -915,6 +923,36 @@ export class DailyListRegistry
 
   getById(id: string) {
     return this.entities.get(id);
+  }
+
+  // TODO: remove over time
+  @modelAction
+  dropDuplicatedDailyLists() {
+    const map = new Map<number, DailyList>();
+    for (const dailyList of this.all) {
+      const key = dailyList.date.getTime();
+      map.set(key, dailyList);
+    }
+
+    for (const list of this.all) {
+      const listFromMap = map.get(list.date.getTime());
+      if (!listFromMap) {
+        throw new Error("listFromMap not found");
+      }
+
+      if (listFromMap == list) continue;
+
+      for (const proj of list.projections) {
+        proj.dailyListRef = listFromMap.makeListRef();
+      }
+
+      console.log("drop duplicated daily list", list.date);
+      this.drop(list.id);
+    }
+
+    for (const list of this.all) {
+      list.id = uuidByString(list.date.toString());
+    }
   }
 }
 
