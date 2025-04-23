@@ -1,5 +1,5 @@
 import { standaloneAction } from "mobx-keystone";
-import { RootStore } from "./models";
+import { getDMY, RootStore } from "./models";
 import { Project, Task, DailyList, TaskProjection } from "./models";
 import {
   projectRef,
@@ -8,6 +8,7 @@ import {
   allProjectsListRef,
 } from "./models";
 import { withoutSync } from "@/sync/syncable";
+import uuidByString from "uuid-by-string";
 
 interface TaskBackup {
   id: string;
@@ -76,7 +77,7 @@ export const getBackups = (store: RootStore): Backup => {
   for (const dailyList of store.dailyListRegistry.entities.values()) {
     dailyLists.push({
       id: dailyList.id,
-      date: dailyList.date.toISOString(),
+      date: dailyList.date,
     });
   }
 
@@ -148,12 +149,22 @@ export const loadBackups = standaloneAction(
     // Create daily lists
     const dailyListMap = new Map<string, DailyList>();
     for (const dailyListBackup of backup.dailyLists) {
+      if (dailyListBackup.date.length !== 10) {
+        dailyListBackup.date = getDMY(new Date(dailyListBackup.date));
+      }
+
       const dailyList = new DailyList({
-        id: dailyListBackup.id,
-        date: new Date(dailyListBackup.date),
+        id: uuidByString(dailyListBackup.date),
+        date: dailyListBackup.date,
       });
-      store.dailyListRegistry.entities.set(dailyList.id, dailyList);
-      dailyListMap.set(dailyListBackup.id, dailyList);
+
+      const alreadyExists = store.dailyListRegistry.entities.get(dailyList.id);
+      if (alreadyExists) {
+        dailyListMap.set(dailyListBackup.id, alreadyExists);
+      } else {
+        store.dailyListRegistry.entities.set(dailyList.id, dailyList);
+        dailyListMap.set(dailyListBackup.id, dailyList);
+      }
     }
 
     // Finally create daily list projections

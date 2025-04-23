@@ -89,6 +89,8 @@ export class Syncer {
       return;
     }
 
+    console.log("applying changes from server", changesFromServer);
+
     let maxServerClock = changesFromServer[0]?.lastUpdatedOnServerAt || "";
     for (const ch of changesFromServer) {
       if (ch.lastUpdatedOnServerAt > maxServerClock) {
@@ -249,6 +251,8 @@ export class Syncer {
       console.log("no changes to send, skip");
       return;
     }
+
+    console.log("sending changes to server", serverChanges);
 
     const res = await this.client.applyChanges.mutate({
       changes: serverChanges,

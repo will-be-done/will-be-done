@@ -63,7 +63,7 @@ export type TaskProjectionData = {
 
 export type DailyListData = {
   id: string;
-  date: number;
+  date: string;
 };
 
 export type MigrationsTable = {

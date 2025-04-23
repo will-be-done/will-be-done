@@ -480,8 +480,10 @@ export const Sidebar = observer(function SidebarComp() {
           if (!isValidBackup(parsedBackup)) {
             throw new Error("Invalid backup format");
           }
+          const rootStore = getRootStore();
           // TODO: clean db
-          loadBackups(getRootStore(), parsedBackup);
+          loadBackups(rootStore, parsedBackup);
+          // rootStore.dailyListRegistry.dropDuplicatedDailyLists();
         } catch (error) {
           console.error("Failed to load backup:", error);
           alert(

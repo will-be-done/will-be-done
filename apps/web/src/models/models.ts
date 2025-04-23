@@ -20,7 +20,7 @@ import {
   type Ref,
   setGlobalConfig,
 } from "mobx-keystone";
-import { startOfDay } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import {
   generateKeyPositionedBetween,
   generateOrderTokenPositioned,
@@ -61,6 +61,8 @@ import AwaitLock from "await-lock";
 import { uuidv7 } from "uuidv7";
 import { Selectable } from "kysely";
 import uuidByString from "uuid-by-string";
+// import { UTCDate } from '@date-fns/utc';
+import { utc } from "@date-fns/utc";
 
 setGlobalConfig({
   modelIdGenerator: uuidv7,
@@ -71,6 +73,14 @@ export const projectRef = rootRef<Project>("ProjectRef");
 export const allProjectsListRef =
   rootRef<AllProjectsList>("AllProjectsListRef");
 export const dailyListRef = rootRef<DailyList>("DailyListRef");
+
+export const getDMY = (date: Date) => {
+  return format(date, "yyyy-MM-dd");
+};
+
+const makeDailyListId = (date: Date) => {
+  return uuidByString(getDMY(date));
+};
 
 @syncable
 @model("TaskApp/Project")
@@ -699,12 +709,13 @@ export class TaskProjectionRegistry
   }
 }
 
+// TODO: migarte to yyyy-MM-dd format
 @syncable
 @model("TaskApp/DailyList")
 export class DailyList
   extends Model({
     id: idProp,
-    date: prop<number>().withTransform(timestampToDateTransform()).withSetter(),
+    date: prop<string>().withSetter(),
   })
   implements ItemsList<TaskProjection>
 {
@@ -782,12 +793,8 @@ export class DailyList
     return this.projections[this.projections.length - 1];
   }
 
-  @computed
   get isToday() {
-    return (
-      startOfDay(new Date(this.date)).getDate() ==
-      startOfDay(new Date()).getDate()
-    );
+    return getDMY(new Date()) === this.date;
   }
 
   @modelAction
@@ -817,11 +824,10 @@ export class DailyList
 
     return proj;
   }
-
-  // onInit() {
-  //   this.id = uuidByString(this.tit)
-  // }
 }
+
+const isNumber = (val: any): val is number =>
+  typeof val === "number" && val === val;
 
 @syncableRegistry
 @model("TaskApp/DailyListRegistry")
@@ -837,16 +843,19 @@ export class DailyListRegistry
   entity = DailyList;
 
   mapDataToModel(data: DailyListData) {
+    if (isNumber(data.date)) {
+      data.date = getDMY(new Date(data.date));
+    }
     return new DailyList({
       id: data.id,
-      date: new Date(data.date),
+      date: data.date,
     });
   }
 
   mapModelToData(entity: DailyList): DailyListData {
     return {
       id: entity.id,
-      date: entity.date.getTime(),
+      date: entity.date,
     };
   }
 
@@ -870,11 +879,10 @@ export class DailyListRegistry
   }
 
   getDailyListByDate(date: Date) {
+    const dmy = getDMY(date);
+
     for (const dailyList of this.entities.values()) {
-      if (
-        startOfDay(new Date(dailyList.date)).getTime() ===
-        startOfDay(date).getTime()
-      ) {
+      if (dmy === dailyList.date) {
         return dailyList;
       }
     }
@@ -904,8 +912,8 @@ export class DailyListRegistry
 
     if (!dailyList) {
       const newList = new DailyList({
-        id: uuidByString(date.toString()),
-        date: new Date(date),
+        id: makeDailyListId(date),
+        date: getDMY(date),
       });
 
       this.entities.set(newList.id, newList);
@@ -923,36 +931,6 @@ export class DailyListRegistry
 
   getById(id: string) {
     return this.entities.get(id);
-  }
-
-  // TODO: remove over time
-  @modelAction
-  dropDuplicatedDailyLists() {
-    const map = new Map<number, DailyList>();
-    for (const dailyList of this.all) {
-      const key = dailyList.date.getTime();
-      map.set(key, dailyList);
-    }
-
-    for (const list of this.all) {
-      const listFromMap = map.get(list.date.getTime());
-      if (!listFromMap) {
-        throw new Error("listFromMap not found");
-      }
-
-      if (listFromMap == list) continue;
-
-      for (const proj of list.projections) {
-        proj.dailyListRef = listFromMap.makeListRef();
-      }
-
-      console.log("drop duplicated daily list", list.date);
-      this.drop(list.id);
-    }
-
-    for (const list of this.all) {
-      list.id = uuidByString(list.date.toString());
-    }
   }
 }
 
