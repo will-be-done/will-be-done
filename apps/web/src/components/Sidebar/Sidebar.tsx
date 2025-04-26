@@ -1,11 +1,7 @@
-import { observer } from "mobx-react-lite";
-import { Project } from "../../models/models";
 import { Link } from "wouter";
 import { getBackups, loadBackups, Backup } from "../../models/backup";
-import { useRegisterFocusColumn, useRegisterFocusItem } from "@/hooks/useLists";
-import { computed } from "mobx";
+import { useRegisterFocusItem } from "@/hooks/useLists";
 import { useGlobalListener } from "@/globalListener/hooks";
-import { detach } from "mobx-keystone";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
@@ -28,6 +24,13 @@ import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
 import { getRootStore } from "@/models/initRootStore";
+import { useAppDispatch, useAppSelector, useAppStore } from "@/hooks/state";
+import {
+  projectsActions,
+  projectsListActions,
+  projectsListSelectors,
+  projectsSelectors,
+} from "@/models/models2";
 
 type State =
   | { type: "idle" }
@@ -37,7 +40,7 @@ type State =
 const idleState: State = { type: "idle" };
 const draggingState: State = { type: "dragging" };
 
-const ProjectDragPreview = observer(function TaskPrimitiveComponent({
+const ProjectDragPreview = function TaskPrimitiveComponent({
   title,
   icon,
   style,
@@ -59,24 +62,29 @@ const ProjectDragPreview = observer(function TaskPrimitiveComponent({
       </span>
     </div>
   );
-});
+};
 
-const DropProjectIndicator = observer(function DropProjectIndicatorComp() {
+const DropProjectIndicator = function DropProjectIndicatorComp() {
   // p-3 rounded-lg border border-blue-500 bg-gray-700 shadow-md transition-colors h-12
   return <div className={`rounded-lg border-blue-500 bg-gray-700 h-10`}></div>;
-});
+};
 
-const ProjectItem = observer(function ProjectItemComp({
-  project,
+const ProjectItem = function ProjectItemComp({
+  projectId,
 }: {
-  project: Project;
+  projectId: string;
 }) {
+  const project = useAppSelector((state) =>
+    projectsSelectors.byIdOrThrow(state, projectId),
+  );
   const focusItem = useRegisterFocusItem(
-    buildFocusKey(project.id, project.$modelType, "ProjectItem"),
+    buildFocusKey(project.id, project.type, "ProjectItem"),
     project.orderToken,
   );
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
+  const store = useAppStore();
+  const dispatch = useAppDispatch();
 
   const ref = useRef<HTMLAnchorElement>(null);
 
@@ -108,7 +116,7 @@ const ProjectItem = observer(function ProjectItemComp({
       e.preventDefault();
 
       const [up, down] = focusItem.siblings;
-      detach(project);
+      dispatch(projectsActions.delete(project.id));
 
       setTimeout(() => {
         if (down) {
@@ -144,7 +152,7 @@ const ProjectItem = observer(function ProjectItemComp({
         element: element,
         getInitialData: (): DndModelData => ({
           modelId: project.id,
-          modelType: project.$modelType,
+          modelType: project.type,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -177,16 +185,17 @@ const ProjectItem = observer(function ProjectItemComp({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          const entity = getRootStore().getEntity(data.modelId, data.modelType);
-          if (!entity) return false;
-
-          return project.canDrop(entity);
+          return projectsSelectors.canDrop(
+            store.getState(),
+            project.id,
+            data.modelId,
+          );
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
           const data: DndModelData = {
             modelId: project.id,
-            modelType: project.$modelType,
+            modelType: project.type,
           };
 
           return attachClosestEdge(data, {
@@ -199,7 +208,7 @@ const ProjectItem = observer(function ProjectItemComp({
           const data = args.source.data;
 
           if (isModelDNDData(data) && data.modelId !== project.id) {
-            if (data.modelType === project.$modelType) {
+            if (data.modelType === project.type) {
               setClosestEdge(extractClosestEdge(args.self.data));
             } else {
               setClosestEdge("whole");
@@ -210,7 +219,7 @@ const ProjectItem = observer(function ProjectItemComp({
           const data = args.source.data;
 
           if (isModelDNDData(data) && data.modelId !== project.id) {
-            if (data.modelType === project.$modelType) {
+            if (data.modelType === project.type) {
               setClosestEdge(extractClosestEdge(args.self.data));
             } else {
               setClosestEdge("whole");
@@ -225,7 +234,7 @@ const ProjectItem = observer(function ProjectItemComp({
         },
       }),
     );
-  }, [project]);
+  }, [project.id, project.type, store]);
 
   const isFocused = focusItem.isFocused;
 
@@ -244,11 +253,14 @@ const ProjectItem = observer(function ProjectItemComp({
           if (!e) return;
           e.focus();
         }}
-        className={cn({ hidden: !focusItem.isEditing })}
         type="text"
         value={project.title}
         onChange={(e) => {
-          project.setTitle(e.target.value);
+          dispatch(
+            projectsActions.update(project.id, {
+              title: e.target.value,
+            }),
+          );
         }}
         onKeyDown={handleInputKeyDown}
       />
@@ -273,12 +285,21 @@ const ProjectItem = observer(function ProjectItemComp({
         }}
       >
         <span className="text-base mr-2 flex-shrink-0">
-          {project.displayIcon}
+          {project.icon || "🟡"}
         </span>
         <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
           {project.title}
         </span>
       </Link>
+
+      <button
+        onClick={() => {
+          console.log("edit");
+          focusItem.edit();
+        }}
+      >
+        E
+      </button>
 
       {closestEdge == "bottom" && <DropProjectIndicator />}
 
@@ -286,7 +307,7 @@ const ProjectItem = observer(function ProjectItemComp({
         ReactDOM.createPortal(
           <ProjectDragPreview
             title={project.title}
-            icon={project.displayIcon}
+            icon={project.icon || "🟡"}
             style={{
               boxSizing: "border-box",
               width: dndState.rect.width,
@@ -297,18 +318,19 @@ const ProjectItem = observer(function ProjectItemComp({
         )}
     </>
   );
-});
+};
 
-const InboxItem = observer(function IboxItemComp({
-  inboxProject,
-}: {
-  inboxProject: Project;
-}) {
+const InboxItem = function IboxItemComp() {
+  const inboxProject = useAppSelector(projectsListSelectors.inbox);
+  const childrenCount = useAppSelector((state) =>
+    projectsSelectors.childrenCount(state, inboxProject.id),
+  );
   const focusItem = useRegisterFocusItem(
-    buildFocusKey(inboxProject.id, inboxProject.$modelType),
+    buildFocusKey(inboxProject.id, inboxProject.type),
     "0",
   );
   const isFocused = focusItem.isFocused;
+  const store = useAppStore();
 
   const [closestEdge, setClosestEdge] = useState<"whole" | null>(null);
   const ref = useRef<HTMLAnchorElement>(null);
@@ -327,16 +349,17 @@ const InboxItem = observer(function IboxItemComp({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          const entity = getRootStore().getEntity(data.modelId, data.modelType);
-          if (!entity) return false;
-
-          return inboxProject.canDrop(entity);
+          return projectsSelectors.canDrop(
+            store.getState(),
+            inboxProject.id,
+            data.modelId,
+          );
         },
 
         getData: ({ input, element }) => {
           const data: DndModelData = {
             modelId: inboxProject.id,
-            modelType: inboxProject.$modelType,
+            modelType: inboxProject.type,
           };
 
           return attachClosestEdge(data, {
@@ -360,7 +383,7 @@ const InboxItem = observer(function IboxItemComp({
         },
       }),
     );
-  }, [inboxProject]);
+  }, [inboxProject.id, inboxProject.type, store]);
 
   return (
     <Link
@@ -393,13 +416,13 @@ const InboxItem = observer(function IboxItemComp({
       </span>
       <span className="text-white text-sm">Inbox</span>
       <span className="text-gray-400 ml-auto text-sm">
-        {inboxProject?.children.length ?? 0}
+        {childrenCount ?? 0}
       </span>
     </Link>
   );
-});
+};
 
-const TodayItem = observer(function TodayItemComp() {
+const TodayItem = function TodayItemComp() {
   const id = "today";
   const focusItem = useRegisterFocusItem(buildFocusKey(id, id), "1");
   const isFocused = focusItem.isFocused;
@@ -432,15 +455,16 @@ const TodayItem = observer(function TodayItemComp() {
       <span className="text-white text-sm">Today</span>
     </Link>
   );
-});
+};
 
-export const Sidebar = observer(function SidebarComp() {
-  const { allProjectsList, projectsRegistry } = getRootStore();
-  const projects = allProjectsList.withoutInbox;
-  const inboxProject = allProjectsList.inbox;
-
+export const Sidebar = function SidebarComp() {
+  const projectIdsWithoutInbox = useAppSelector(
+    projectsListSelectors.childrenIdsWithoutInbox,
+  );
+  const inboxProject = useAppSelector(projectsListSelectors.inbox);
+  const dispatch = useAppDispatch();
   const createProject = () => {
-    allProjectsList.createProject("prepend");
+    dispatch(projectsListActions.createProject({}, "prepend"));
   };
 
   const handleDownloadBackup = () => {
@@ -515,7 +539,7 @@ export const Sidebar = observer(function SidebarComp() {
       <div className="w-64 bg-gray-900 h-full flex flex-col">
         {/* Default categories */}
         <div className="px-3 py-1 flex-shrink-0">
-          <InboxItem inboxProject={inboxProject} />
+          <InboxItem />
           <TodayItem />
         </div>
 
@@ -549,8 +573,8 @@ export const Sidebar = observer(function SidebarComp() {
 
           {/* Projects list - scrollable */}
           <div className="overflow-y-auto h-full  pb-[100px]">
-            {projects.map((proj) => (
-              <ProjectItem key={proj.id} project={proj} />
+            {projectIdsWithoutInbox.map((id) => (
+              <ProjectItem key={id} projectId={id} />
             ))}
           </div>
         </div>
@@ -583,4 +607,4 @@ export const Sidebar = observer(function SidebarComp() {
       </div>
     </ColumnListProvider>
   );
-});
+};

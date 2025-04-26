@@ -81,6 +81,84 @@ export function memoize<Obj extends object, Result>(
   };
 }
 
+export function createActions<TRootState = any>(
+  actions: Record<
+    string,
+    (
+      ...params: any[]
+    ) => (state: TRootState, dispatch: Dispatch<TRootState>) => any
+  >,
+) {
+  const result: Record<string, any> = {};
+
+  for (const [key, actionCreator] of Object.entries(actions)) {
+    // Create a unique name for the action to avoid conflicts
+    const fnText = `
+      // Create named action creator wrapper
+      function ${key}ActionCreator(...params) {
+        const originalExecFn = __actionCreator(...params);
+        
+        // Create named execution function - this will show in stack traces
+        function ${key}ExecutionFn(state, dispatch) {
+          return originalExecFn(state, dispatch);
+        }
+        
+        return ${key}ExecutionFn;
+      }
+      
+      // Return the named action creator function
+      return ${key}ActionCreator;
+    `;
+
+    // Create the named function directly using indirect eval
+    // This ensures the function is created in the global scope with proper naming
+    const createFn = new Function("__actionCreator", fnText);
+    const namedActionCreator = createFn(actionCreator);
+
+    // Copy properties from original action creator
+    Object.assign(namedActionCreator, actionCreator);
+
+    // Add to result
+    result[key] = namedActionCreator;
+  }
+
+  return result as typeof actions;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+export function createSelectors<T extends Record<string, Function>>(
+  selectors: T,
+): T {
+  const result: Record<string, any> = {};
+
+  for (const [key, selector] of Object.entries(selectors)) {
+    // Create a unique name for the selector to avoid conflicts
+    const fnText = `
+      // Create named selector function with the same behavior
+      function ${key}Selector(...args) {
+        // Call the original selector with the same arguments
+        return __selector.apply(this, args);
+      }
+      
+      // Return the named selector function
+      return ${key}Selector;
+    `;
+
+    // Create the named function directly using Function constructor
+    const createFn = new Function("__selector", fnText);
+    const namedSelector = createFn(selector);
+
+    // Copy the cache and all other properties from the original selector
+    // This is crucial for memoized functions to maintain their caching behavior
+    Object.assign(namedSelector, selector);
+
+    // Add to result
+    result[key] = namedSelector;
+  }
+
+  return result as T;
+}
+
 type Options = Omit<NonNullable<Parameters<typeof memoize>[1]>, "noWeakMap">;
 export const memoizeWithArgs = <Args extends unknown[], Result>(
   fnWithArgs: (...args: Args) => Result,

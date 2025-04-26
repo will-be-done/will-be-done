@@ -1,5 +1,7 @@
 import {
   createActionCreator,
+  createActions,
+  createSelectors,
   createStore,
   memoize,
   memoizeWithArgs,
@@ -167,20 +169,40 @@ export function getSiblings<K extends OrderableItem[]>(
 //   };
 // })();
 
-export const projectsListSelectors = {
+export const projectsListSelectors = createSelectors({
   getAllIdsAndTokens: memoize(
     (state: RootState): { id: string; orderToken: string }[] => {
+      console.log(" SORTING getAllIdsAndTokens", state);
       const allProjects = Object.values(state.projects.byIds);
 
       return allProjects.map((p) => ({ id: p.id, orderToken: p.orderToken }));
     },
   ),
-  getSortedProjectIds: memoize((state: RootState): string[] => {
-    const allIdsAndTokens = projectsListSelectors.getAllIdsAndTokens(state);
+  getSortedProjectIdsRaw: (state: RootState): string[] => {
+    const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
+      id: p.id,
+      orderToken: p.orderToken,
+    }));
 
     console.log("SORITNG PROJECTS", allIdsAndTokens);
 
-    return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
+    return allIdsAndTokens
+      .sort(fractionalCompare)
+      .map((p) => p.id)
+      .slice(0, 100);
+  },
+  getSortedProjectIds: memoize((state: RootState): string[] => {
+    const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
+      id: p.id,
+      orderToken: p.orderToken,
+    }));
+
+    console.log("SORITNG PROJECTS", allIdsAndTokens);
+
+    return allIdsAndTokens
+      .sort(fractionalCompare)
+      .map((p) => p.id)
+      .slice(0, 100);
   }),
   getLastChildId: memoize((state: RootState): string | undefined => {
     const sortedProjects = projectsListSelectors.getSortedProjectIds(state);
@@ -194,12 +216,10 @@ export const projectsListSelectors = {
 
     return sortedProjects[0];
   }),
-};
+});
 
 export const projectsSelectors = {
-  getById: memoizeWithArgs(
-    (state: RootState, id: string) => state.projects.byIds[id],
-  ),
+  getById: (state: RootState, id: string) => state.projects.byIds[id],
   canDrop(
     project: string,
     target: { id: string; type: string },
@@ -208,7 +228,18 @@ export const projectsSelectors = {
   },
 };
 
-export const projectsActions = {
+export const projectsActions = createActions({
+  insertMillion: appAction((state: RootState) => {
+    for (let i = 0; i < 100000; i++) {
+      const id = Math.random().toString(36).slice(2);
+      state.projects.byIds[id] = {
+        id,
+        title: "Project 1" + Math.random().toString(36).slice(2),
+        orderToken: "1",
+        type: "project",
+      };
+    }
+  }),
   create: appAction((state: RootState, _dispatch, project: Project) => {
     state.projects.byIds[project.id] = project;
     return project;
@@ -232,7 +263,7 @@ export const projectsActions = {
   handleDrop: appAction(
     (state: RootState, dispatch, project: Project, target: AnyModel) => {},
   ),
-};
+});
 
 export const taskActions = {
   createTask: appAction((state: RootState, _dispatch, task: Task) => {
@@ -265,6 +296,10 @@ export const store = (() => {
     // console.log("reversePatches", reversePatches);
     // console.log("!!!!!!!!!!!!!NEW STATE END!!!!!!!!!!!!!!");
   });
+
+  // setInterval(() => {
+  //   projectsListSelectors.getSortedProjectIdsRaw(store.getState());
+  // }, 1000);
 
   store.dispatch(
     projectsActions.create({

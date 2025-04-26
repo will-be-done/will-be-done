@@ -1,3 +1,6 @@
+To features:
+
+1. You can use selectors in actions! In redux you can't use selector in reducer
 
 TO ADD:
 

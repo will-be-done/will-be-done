@@ -63,7 +63,9 @@ function App() {
     );
   }, [dispatch]);
 
-  console.log("projectIds", projectIds);
+  const insertMillion = useCallback(() => {
+    dispatch(projectsActions.insertMillion());
+  }, [dispatch]);
 
   return (
     <>
@@ -95,6 +97,7 @@ function App() {
         >
           Create project
         </button>
+        <button onClick={insertMillion}>Insert million</button>
         <button onClick={updateProject}>Update project</button>
         <p>
           Edit <code>src/App.tsx</code> and save to test HMR

@@ -30,6 +30,9 @@ import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
 import { isInputElement } from "./utils/isInputElement";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { FocusItem, FocusKey, focusManager } from "./states/FocusManager";
+import { StoreApi, StoreProvider } from "@will-be-done/hyperstate";
+import { RootState } from "./models/models2";
+import { initStore } from "./models/initRootStore2";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
   const undoManager = getUndoManager();
@@ -298,26 +301,41 @@ export const App = observer(function App() {
     })();
   }, []);
 
-  return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      {isReady && (
-        <KeyPressedCtxProvider>
-          <GlobalListener />
+  const [store, setStore] = useState<StoreApi<RootState> | null>(null);
 
-          <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
-            <Sidebar />
-            <div className="flex-1 p-4 overflow-hidden">
-              <Switch>
-                <Route path="/today" component={Board} />
-                <Route path="/projects/:projectId" component={ProjectPage} />
-                <Route>
-                  <Redirect to="/today" />
-                </Route>
-              </Switch>
-            </div>
-          </div>
-        </KeyPressedCtxProvider>
-      )}
-    </ThemeProvider>
+  useEffect(() => {
+    void (async () => {
+      setStore(await initStore());
+    })();
+  }, []);
+
+  return (
+    store && (
+      <StoreProvider value={store}>
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+          {isReady && (
+            <KeyPressedCtxProvider>
+              <GlobalListener />
+
+              <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
+                <Sidebar />
+                <div className="flex-1 p-4 overflow-hidden">
+                  <Switch>
+                    <Route path="/today" component={Board} />
+                    <Route
+                      path="/projects/:projectId"
+                      component={ProjectPage}
+                    />
+                    <Route>
+                      <Redirect to="/today" />
+                    </Route>
+                  </Switch>
+                </div>
+              </div>
+            </KeyPressedCtxProvider>
+          )}
+        </ThemeProvider>
+      </StoreProvider>
+    )
   );
 });

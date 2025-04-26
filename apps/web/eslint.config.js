@@ -34,13 +34,4 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
-  {
-    plugins: { mobx: pluginMobx },
-    rules: {
-      // these values are the same as recommended
-      "mobx/exhaustive-make-observable": "warn",
-      "mobx/unconditional-make-observable": "error",
-      "mobx/missing-observer": "warn",
-    },
-  },
 );
