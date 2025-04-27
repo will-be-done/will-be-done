@@ -62,14 +62,14 @@ export const initRootStore = async () => {
       syncableRegistriesStore,
     );
     const changesToDbSaver = new ChangesToDbSaver(dbCtx.db);
-    const syncer = new Syncer(dbCtx, dbCtx.clientId);
+    // const syncer = new Syncer(dbCtx, dbCtx.clientId);
     const bc = new BroadcastChannel(`changes-${dbCtx.clientId}`);
 
-    syncer.emitter.on("onChangePersisted", (changes) => {
-      rootStore.applyChanges(syncableRegistriesStore, changes);
-
-      bc.postMessage(mapChangesForBC(changes));
-    });
+    // syncer.emitter.on("onChangePersisted", (changes) => {
+    //   rootStore.applyChanges(syncableRegistriesStore, changes);
+    //
+    //   bc.postMessage(mapChangesForBC(changes));
+    // });
     changesToDbSaver.emitter.on("onChangePersisted", (changes) => {
       bc.postMessage(mapChangesForBC(changes));
     });
@@ -140,7 +140,7 @@ export const initRootStore = async () => {
       changesToDbSaver.addChange(ch);
     });
 
-    syncer.startLoop();
+    // syncer.startLoop();
 
     // withoutSync(() => {
     //   const stateObj = JSON.parse(

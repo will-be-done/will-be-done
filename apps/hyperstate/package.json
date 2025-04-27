@@ -12,12 +12,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@taskworld.com/rereselect": "^0.3.0",
+    "deep-equal": "^2.2.3",
     "hyperstate": "^0.0.0",
     "immer": "^10.1.1",
     "proxy-memoize": "^3.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "reselect": "^5.1.1"
+    "reselect": "^5.1.1",
+    "shallowequal": "^1.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",

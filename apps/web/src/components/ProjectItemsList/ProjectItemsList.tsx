@@ -1,7 +1,10 @@
 import { observer } from "mobx-react-lite";
-import { Project, TaskTemplate } from "../../models/models";
+import {
+  Project,
+  projectsActions,
+  projectsSelectors,
+} from "../../models/models2";
 import { TaskComp } from "../Task/Task";
-import { detach } from "mobx-keystone";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
 import { useRegisterFocusItem } from "@/hooks/useLists";
@@ -12,9 +15,10 @@ import {
 } from "../ui/emoji-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useGlobalListener } from "@/globalListener/hooks";
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement";
 import { cn } from "@/lib/utils";
+import { useAppDispatch, useAppSelector } from "@/hooks/state";
 
 const AddTaskButton = observer(function AddTaskButtonComp({
   project,
@@ -48,7 +52,7 @@ const ProjectTitle = observer(function ProjectTitleComp({
   const ref = useRef<HTMLDivElement | null>(null);
 
   const focusableItem = useRegisterFocusItem(
-    buildFocusKey(project.id, project.$modelType, "ProjectTitle"),
+    buildFocusKey(project.id, project.type, "ProjectTitle"),
     "0",
   );
 
@@ -89,19 +93,25 @@ const ProjectTitle = observer(function ProjectTitleComp({
     }
   };
 
+  const dispatch = useAppDispatch();
+
   return (
     <h2 className="text-xl font-bold text-gray-100 cursor-pointer">
       <Popover>
         <PopoverTrigger asChild>
           <span className="mr-2" tabIndex={0}>
-            {project.displayIcon}
+            {project.icon || "🟡"}
           </span>
         </PopoverTrigger>
         <PopoverContent className="w-fit p-0">
           <EmojiPicker
             className="h-[326px] rounded-lg border shadow-md"
             onEmojiSelect={({ emoji }) => {
-              project.setIcon(emoji);
+              dispatch(
+                projectsActions.update(project.id, {
+                  icon: emoji,
+                }),
+              );
             }}
           >
             <EmojiPickerSearch />
@@ -120,7 +130,11 @@ const ProjectTitle = observer(function ProjectTitleComp({
           className={cn({ hidden: !focusableItem.isEditing })}
           value={project.title}
           onChange={(e) => {
-            project.setTitle(e.target.value);
+            dispatch(
+              projectsActions.update(project.id, {
+                title: e.target.value,
+              }),
+            );
           }}
           onKeyDown={handleInputKeyDown}
         />
@@ -145,19 +159,20 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
 }: {
   project: Project;
 }) {
-  const onAddNewTask = () => {
-    const newTask = project.createTask("prepend");
+  const dispatch = useAppDispatch();
+  const taskIds = useAppSelector((state) =>
+    projectsSelectors.childrenIds(state, project.id),
+  );
 
-    focusManager.editByKey(buildFocusKey(newTask.id, newTask.$modelType));
-  };
+  const onAddNewTask = useCallback(() => {
+    const newTask = dispatch(projectsActions.createTask(project.id, "prepend"));
+
+    focusManager.editByKey(buildFocusKey(newTask.id, newTask.type));
+  }, [dispatch, project.id]);
 
   return (
     <ColumnListProvider
-      focusKey={buildFocusKey(
-        project.id,
-        project.$modelType,
-        "ProjectItemsList",
-      )}
+      focusKey={buildFocusKey(project.id, project.type, "ProjectItemsList")}
       priority="500"
     >
       <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
@@ -172,7 +187,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
                   "Are you sure you want to delete this project?",
                 );
                 if (shouldDelete) {
-                  detach(project);
+                  dispatch(projectsActions.delete(project.id));
                 }
               }}
             >
@@ -180,18 +195,9 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
             </button>
           </div>
           <div className="flex flex-col space-y-2 mt-5 overflow-y-auto">
-            {project.children.map((task) => {
-              if (task instanceof TaskTemplate) {
-                return "";
-              }
-
+            {taskIds.map((id) => {
               return (
-                <TaskComp
-                  task={task}
-                  listItem={task}
-                  key={task.id}
-                  showProject={false}
-                />
+                <TaskComp taskId={id} taskBoxId={id} showProject={false} />
               );
             })}
           </div>

@@ -1,8 +1,15 @@
 import { createStore, StoreApi } from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
-import { RootState } from "./models2";
+import { projectsSelectors, RootState, TaskState } from "./models2";
 import { getDbCtx } from "@/sync/db";
-import { ProjectData, projectsTable, Q } from "@/sync/schema";
+import {
+  ProjectData,
+  projectsTable,
+  Q,
+  TaskData,
+  tasksTable,
+} from "@/sync/schema";
+import { produce } from "immer";
 
 let store: StoreApi<RootState>;
 
@@ -14,20 +21,26 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       return store;
     }
     const rootState: RootState = {
-      projects: { byIds: {} },
-      tasks: { byIds: {} },
-      taskTemplates: { byIds: {} },
+      projects: {
+        byIds: {},
+      },
+      tasks: {
+        byIds: {},
+      },
+      taskTemplates: {
+        byIds: {},
+      },
       taskProjections: { byIds: {} },
       dailyLists: { byIds: {} },
     };
 
     const dbCtx = await getDbCtx();
 
-    const rows = await dbCtx.db.runQuery(
+    const projectRows = await dbCtx.db.runQuery(
       Q.selectFrom(projectsTable).selectAll().where("isDeleted", "=", 0),
     );
 
-    for (const row of rows) {
+    for (const row of projectRows) {
       const data = JSON.parse(row.data as unknown as string) as ProjectData;
 
       rootState.projects.byIds[row.id] = {
@@ -36,6 +49,23 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
         title: data.title,
         icon: data.icon,
         isInbox: data.isInbox,
+        orderToken: data.orderToken,
+      };
+    }
+
+    const todoRows = await dbCtx.db.runQuery(
+      Q.selectFrom(tasksTable).selectAll().where("isDeleted", "=", 0),
+    );
+
+    for (const row of todoRows) {
+      const data = JSON.parse(row.data as unknown as string) as TaskData;
+
+      rootState.tasks.byIds[row.id] = {
+        type: "task",
+        id: row.id,
+        title: data.title,
+        state: data.state as TaskState,
+        projectId: data.projectId,
         orderToken: data.orderToken,
       };
     }

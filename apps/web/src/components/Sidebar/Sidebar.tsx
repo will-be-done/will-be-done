@@ -75,7 +75,7 @@ const ProjectItem = function ProjectItemComp({
   projectId: string;
 }) {
   const project = useAppSelector((state) =>
-    projectsSelectors.byIdOrThrow(state, projectId),
+    projectsSelectors.byIdOrDefault(state, projectId),
   );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectItem"),
@@ -248,22 +248,22 @@ const ProjectItem = function ProjectItemComp({
     <>
       {closestEdge == "top" && <DropProjectIndicator />}
 
-      <input
-        ref={(e) => {
-          if (!e) return;
-          e.focus();
-        }}
-        type="text"
-        value={project.title}
-        onChange={(e) => {
-          dispatch(
-            projectsActions.update(project.id, {
-              title: e.target.value,
-            }),
-          );
-        }}
-        onKeyDown={handleInputKeyDown}
-      />
+      {/* <input */}
+      {/*   ref={(e) => { */}
+      {/*     if (!e) return; */}
+      {/*     e.focus(); */}
+      {/*   }} */}
+      {/*   type="text" */}
+      {/*   value={project.title} */}
+      {/*   onChange={(e) => { */}
+      {/*     dispatch( */}
+      {/*       projectsActions.update(project.id, { */}
+      {/*         title: e.target.value, */}
+      {/*       }), */}
+      {/*     ); */}
+      {/*   }} */}
+      {/*   onKeyDown={handleInputKeyDown} */}
+      {/* /> */}
       <Link
         data-focusable-key={focusItem.key}
         ref={ref}
@@ -292,15 +292,6 @@ const ProjectItem = function ProjectItemComp({
         </span>
       </Link>
 
-      <button
-        onClick={() => {
-          console.log("edit");
-          focusItem.edit();
-        }}
-      >
-        E
-      </button>
-
       {closestEdge == "bottom" && <DropProjectIndicator />}
 
       {dndState.type === "preview" &&
@@ -322,9 +313,9 @@ const ProjectItem = function ProjectItemComp({
 
 const InboxItem = function IboxItemComp() {
   const inboxProject = useAppSelector(projectsListSelectors.inbox);
-  const childrenCount = useAppSelector((state) =>
-    projectsSelectors.childrenCount(state, inboxProject.id),
-  );
+  const childrenCount = useAppSelector((state) => {
+    return projectsSelectors.childrenIds(state, inboxProject.id).length;
+  });
   const focusItem = useRegisterFocusItem(
     buildFocusKey(inboxProject.id, inboxProject.type),
     "0",
@@ -461,7 +452,6 @@ export const Sidebar = function SidebarComp() {
   const projectIdsWithoutInbox = useAppSelector(
     projectsListSelectors.childrenIdsWithoutInbox,
   );
-  const inboxProject = useAppSelector(projectsListSelectors.inbox);
   const dispatch = useAppDispatch();
   const createProject = () => {
     dispatch(projectsListActions.createProject({}, "prepend"));

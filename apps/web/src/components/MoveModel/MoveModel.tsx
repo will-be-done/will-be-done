@@ -6,10 +6,12 @@ import {
 } from "@headlessui/react";
 
 import { observer } from "mobx-react-lite";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useUnmount } from "../../utils";
 import { focusManager } from "@/states/FocusManager";
 import { getRootStore } from "@/models/initRootStore";
+import { useAppSelector } from "@/hooks/state";
+import { projectsListSelectors } from "@/models/models2";
 
 export const MoveModal = observer(function MoveModelComp({
   isOpen,
@@ -22,14 +24,18 @@ export const MoveModal = observer(function MoveModelComp({
   handleMove: (projectId: string) => void;
   exceptProjectId: string;
 }) {
-  const { allProjectsList } = getRootStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const allProjects = useAppSelector(projectsListSelectors.all);
 
-  const projects = allProjectsList.children
-    .filter((pr) => pr.id !== exceptProjectId)
-    .filter((pr) => pr.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  const projects = useMemo(() => {
+    return allProjects
+      .filter((pr) => pr.id !== exceptProjectId)
+      .filter((pr) =>
+        pr.title.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+  }, [allProjects, searchQuery, exceptProjectId]);
 
   useEffect(() => {
     setSelectedIndex(0);

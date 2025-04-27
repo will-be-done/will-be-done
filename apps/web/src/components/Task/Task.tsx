@@ -1,10 +1,4 @@
 import { observer } from "mobx-react-lite";
-import {
-  DailyList,
-  Task,
-  TaskProjection,
-  TaskTemplate,
-} from "../../models/models";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -23,13 +17,11 @@ import {
 import ReactDOM from "react-dom";
 import { DndModelData, isModelDNDData } from "../../dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
-import { BaseListItem, OrderableItem } from "../../models/listActions";
-import { shouldNeverHappen, usePrevious, useUnmount } from "../../utils";
+import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
-import { computed } from "mobx";
 import { useGlobalListener } from "../../globalListener/hooks";
 import { isInputElement } from "../../utils/isInputElement";
-import { detach, getSnapshot } from "mobx-keystone";
+import { detach } from "mobx-keystone";
 import { useRegisterFocusItem } from "@/hooks/useLists";
 import {
   buildFocusKey,
@@ -37,7 +29,16 @@ import {
   focusManager,
   parseColumnKey,
 } from "@/states/FocusManager";
-import { getRootStore } from "@/models/initRootStore";
+import {
+  appSelectors,
+  dropActions,
+  dropSelectors,
+  projectsSelectors,
+  taskActions,
+  taskSelectors,
+  todoItemActions,
+} from "@/models/models2";
+import { useAppDispatch, useAppSelector, useAppStore } from "@/hooks/state";
 
 type State =
   | { type: "idle" }
@@ -81,24 +82,34 @@ export const DropTaskIndicator = observer(function DropTaskIndicatorComp() {
 });
 
 export const TaskComp = observer(function TaskComponent({
-  task,
-  listItem,
+  taskId,
+  taskBoxId,
   showProject,
 }: {
-  task: Task;
-  listItem: Task | TaskProjection;
+  taskId: string;
+  taskBoxId: string;
   showProject: boolean;
 }) {
+  const task = useAppSelector((state) =>
+    taskSelectors.byIdOrDefault(state, taskId),
+  );
+  const taskBox = useAppSelector((state) =>
+    appSelectors.taskBoxByIdOrDefault(state, taskBoxId),
+  );
+  const project = useAppSelector((state) =>
+    projectsSelectors.byIdOrDefault(state, task.projectId),
+  );
+
   const [editingTitle, setEditingTitle] = useState<string>(task.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
-  const project = task.projectRef.current;
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const rootStore = getRootStore();
+  const dispatch = useAppDispatch();
   const focusableItem = useRegisterFocusItem(
-    buildFocusKey(listItem.id, listItem.$modelType),
-    listItem.orderToken,
+    buildFocusKey(taskBox.id, taskBox.type),
+    "orderToken" in taskBox ? taskBox.orderToken : "",
   );
+  const store = useAppStore();
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
@@ -107,9 +118,9 @@ export const TaskComp = observer(function TaskComponent({
 
       // if (e.key === "Enter") {
       //   task.setTitle(editingTitle);
-      //   const siblings = listItem.siblings;
-      //   const list = listItem.listRef.current;
-      //   const newItem = list.createChild([listItem, siblings[1]], listItem);
+      //   const siblings = taskBox.siblings;
+      //   const list = taskBox.listRef.current;
+      //   const newItem = list.createChild([taskBox, siblings[1]], listItem);
       //
       //   currentProjectionState.setFocusedItemId(newItem.id);
       // }
@@ -118,23 +129,23 @@ export const TaskComp = observer(function TaskComponent({
 
   const handleTick = useCallback(
     (moveFocus: boolean = false) => {
-      const isFocused = focusableItem.isFocused;
-      const [up, down] = focusableItem.siblings;
-      const wasMoved = listItem.toggleState();
-
-      if (!moveFocus) return;
-
-      if (wasMoved && isFocused) {
-        setTimeout(() => {
-          if (up) {
-            focusManager.focusByKey(up.key);
-          } else if (down) {
-            focusManager.focusByKey(down.key);
-          }
-        }, 0);
-      }
+      // const isFocused = focusableItem.isFocused;
+      // const [up, down] = focusableItem.siblings;
+      dispatch(taskActions.toggleState(taskId));
+      //
+      // if (!moveFocus) return;
+      //
+      // if (wasMoved && isFocused) {
+      //   setTimeout(() => {
+      //     if (up) {
+      //       focusManager.focusByKey(up.key);
+      //     } else if (down) {
+      //       focusManager.focusByKey(down.key);
+      //     }
+      //   }, 0);
+      // }
     },
-    [focusableItem, listItem],
+    [dispatch, taskId],
   );
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
@@ -158,21 +169,9 @@ export const TaskComp = observer(function TaskComponent({
     const isMoveRight =
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
 
-    const findTaskModel = (key: FocusKey) => {
+    const getId = (key: FocusKey) => {
       const { id, type } = parseColumnKey(key);
-      const model = getRootStore().getEntity(id, type);
-
-      if (
-        !(
-          model instanceof TaskProjection ||
-          model instanceof Task ||
-          model instanceof DailyList
-        )
-      ) {
-        return undefined;
-      }
-
-      return model;
+      return id;
     };
 
     const scroll = () => {
@@ -198,16 +197,14 @@ export const TaskComp = observer(function TaskComponent({
 
       const [leftColumn, rightColumn] = focusableItem.columnSiblings;
       if (isMoveLeft && leftColumn) {
-        const model = findTaskModel(leftColumn.key);
+        const id = getId(leftColumn.key);
 
-        model?.handleDrop(listItem, "top");
-
+        dispatch(dropActions.handleDrop(taskBox.id, id, "top"));
         scroll();
       } else if (isMoveRight && rightColumn) {
-        const model = findTaskModel(rightColumn.key);
+        const id = getId(rightColumn.key);
 
-        model?.handleDrop(listItem, "top");
-
+        dispatch(dropActions.handleDrop(taskBox.id, id, "top"));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -216,33 +213,35 @@ export const TaskComp = observer(function TaskComponent({
       const [up, down] = focusableItem.siblings;
 
       if (isMoveUp && up) {
-        const model = findTaskModel(up.key);
-        if (!model) return;
+        // TODO: Return back
+        const id = getId(up.key);
+        if (!id) return;
 
-        if ("listRef" in model) {
-          if (listItem.listRef.id === model.listRef.id) {
-            model.handleDrop(listItem, "top");
-          } else {
-            model.handleDrop(listItem, "bottom");
-          }
-        } else {
-          model.handleDrop(listItem, "top");
-        }
+        // if ("listRef" in model) {
+        //   if (taskBox.listRef.id === model.listRef.id) {
+        //     // model.handleDrop(taskBox, "top");
+        //   } else {
+        //     model.handleDrop(taskBox, "bottom");
+        //   }
+        // } else {
+        //   model.handleDrop(taskBox, "top");
+        // }
 
         scroll();
       } else if (isMoveDown && down) {
-        const model = findTaskModel(down.key);
-        if (!model) return;
+        // TODO: Return back
+        const id = getId(down.key);
+        if (!id) return;
 
-        if ("listRef" in model) {
-          if (listItem.listRef.id === model.listRef.id) {
-            model.handleDrop(listItem, "bottom");
-          } else {
-            model.handleDrop(listItem, "top");
-          }
-        } else {
-          model.handleDrop(listItem, "top");
-        }
+        // if ("listRef" in model) {
+        //   if (taskBox.listRef.id === model.listRef.id) {
+        //     model.handleDrop(taskBox, "bottom");
+        //   } else {
+        //     model.handleDrop(taskBox, "top");
+        //   }
+        // } else {
+        //   model.handleDrop(taskBox, "top");
+        // }
 
         scroll();
       }
@@ -255,7 +254,7 @@ export const TaskComp = observer(function TaskComponent({
       e.preventDefault();
 
       const [up, down] = focusableItem.siblings;
-      detach(listItem);
+      detach(taskBox);
 
       setTimeout(() => {
         if (down) {
@@ -273,8 +272,10 @@ export const TaskComp = observer(function TaskComponent({
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
-      const newItem = listItem.createSibling(isAddAfter ? "after" : "before");
-      focusManager.editByKey(buildFocusKey(newItem.id, newItem.$modelType));
+      const newBox = dispatch(
+        todoItemActions.createSibling(taskBox, isAddAfter ? "after" : "before"),
+      );
+      focusManager.editByKey(buildFocusKey(newBox.id, newBox.type));
 
       return;
     }
@@ -293,11 +294,13 @@ export const TaskComp = observer(function TaskComponent({
   });
 
   const handleMove = (projectId: string) => {
-    const targetProject = rootStore.allProjectsList.children.find(
-      (p) => p.id === projectId,
-    );
-    if (targetProject) {
-      task.setProjectRef(targetProject.makeListRef());
+    try {
+      dispatch(
+        taskActions.update(taskId, {
+          projectId,
+        }),
+      );
+    } finally {
       setIsMoveModalOpen(false);
     }
   };
@@ -314,8 +317,8 @@ export const TaskComp = observer(function TaskComponent({
       draggable({
         element: element,
         getInitialData: (): DndModelData => ({
-          modelId: listItem.id,
-          modelType: listItem.$modelType,
+          modelId: taskBox.id,
+          modelType: taskBox.type,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -348,16 +351,17 @@ export const TaskComp = observer(function TaskComponent({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          const entity = getRootStore().getEntity(data.modelId, data.modelType);
-          if (!entity) return false;
-
-          return listItem.canDrop(entity);
+          return dropSelectors.canDrop(
+            store.getState(),
+            taskBox.id,
+            data.modelId,
+          );
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
           const data: DndModelData = {
-            modelId: listItem.id,
-            modelType: listItem.$modelType,
+            modelId: taskBox.id,
+            modelType: taskBox.type,
           };
 
           return attachClosestEdge(data, {
@@ -369,14 +373,14 @@ export const TaskComp = observer(function TaskComponent({
         onDragEnter: (args) => {
           console.log("onDragEnter", args);
           const data = args.source.data;
-          if (isModelDNDData(data) && data.modelId !== listItem.id) {
+          if (isModelDNDData(data) && data.modelId !== taskBox.id) {
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
         onDrag: (args) => {
           const data = args.source.data;
 
-          if (isModelDNDData(data) && data.modelId !== listItem.id) {
+          if (isModelDNDData(data) && data.modelId !== taskBox.id) {
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
@@ -388,7 +392,7 @@ export const TaskComp = observer(function TaskComponent({
         },
       }),
     );
-  }, [focusableItem.isEditing, listItem]);
+  }, [focusableItem.isEditing, taskBox.id, taskBox.type, store]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -422,13 +426,28 @@ export const TaskComp = observer(function TaskComponent({
       prevIsEditing &&
       editingTitle !== taskTitle
     ) {
-      task.setTitle(editingTitle);
+      dispatch(
+        taskActions.update(taskId, {
+          title: editingTitle,
+        }),
+      );
     }
-  }, [editingTitle, focusableItem.isEditing, prevIsEditing, task, taskTitle]);
+  }, [
+    dispatch,
+    editingTitle,
+    focusableItem.isEditing,
+    prevIsEditing,
+    taskId,
+    taskTitle,
+  ]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
-      task.setTitle(editingTitle);
+      dispatch(
+        taskActions.update(taskId, {
+          title: editingTitle,
+        }),
+      );
     }
   });
 
@@ -490,7 +509,7 @@ export const TaskComp = observer(function TaskComponent({
         </div>
         {showProject && (
           <div className="text-right mt-3 text-gray-400 text-sm">
-            {project.displayIcon} {project.title}
+            {project.icon || "🟡"} {project.title}
           </div>
         )}
       </div>

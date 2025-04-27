@@ -9,9 +9,10 @@ import {
   projectsSelectors,
   RootState,
 } from "./models";
+import { Select } from "./state";
 
 function useAppSelector<TStateSlice>(
-  selector: (state: RootState) => TStateSlice,
+  selector: (state: RootState, select: Select<RootState>) => TStateSlice,
 ) {
   return useSelector(selector);
 }
@@ -21,9 +22,7 @@ function useAppDispatch() {
 }
 
 const Project = ({ id }: { id: string }) => {
-  const project = useAppSelector((store) =>
-    projectsSelectors.getById(store, id),
-  );
+  const project = useAppSelector(projectsSelectors.getById(id));
   const dispatch = useAppDispatch();
 
   return (
@@ -47,8 +46,8 @@ const Project = ({ id }: { id: string }) => {
 function App() {
   const [count, setCount] = useState(0);
 
-  const projectIds = useAppSelector((state) =>
-    projectsListSelectors.getSortedProjectIds(state),
+  const projectIds = useAppSelector(
+    projectsListSelectors.getSortedProjectIds(),
   );
   const dispatch = useAppDispatch();
 

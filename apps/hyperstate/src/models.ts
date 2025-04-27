@@ -1,10 +1,11 @@
+// import { createSelectorCreator } from "reselect";
+// import { createSelectorCreator } from "reselect";
 import {
   createActionCreator,
   createActions,
   createSelectors,
   createStore,
-  memoize,
-  memoizeWithArgs,
+  createSelectorCreator,
 } from "./state";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
@@ -36,6 +37,19 @@ export type RootState = {
   };
 };
 const appAction = createActionCreator<RootState>();
+const appSelector = createSelectorCreator<RootState>();
+// const appSelector = <TResult>(
+//   selectionLogic: SelectionLogic<RootState, TResult>,
+// ) => {
+//   return selector(selectionLogic);
+// };
+// const appArgsSelector = <TArgs extends (string | number)[], TResult>(
+//   selectionLogicGenerator: (
+//     ...args: TArgs
+//   ) => SelectionLogic<RootState, TResult>,
+// ) => {
+//   return argSelector(selectionLogicGenerator);
+// };
 
 const isObjectType =
   <T>(type: string) =>
@@ -91,16 +105,6 @@ export const isDailyList = isObjectType<DailyList>("dailyList");
 export interface OrderableItem {
   id: string;
   orderToken: string;
-}
-
-export function getSiblings<K extends OrderableItem[]>(
-  items: K,
-): [K | undefined, K | undefined] {
-  const children = listItem.listRef.current.children;
-
-  const i = children.findIndex((it) => it.id === listItem.id);
-
-  return [children[i - 1] as K, children[i + 1] as K];
 }
 
 // const createSelectorAutotrack = createSelectorCreator({
@@ -170,82 +174,88 @@ export function getSiblings<K extends OrderableItem[]>(
 // })();
 
 export const projectsListSelectors = createSelectors({
-  getAllIdsAndTokens: memoize(
-    (state: RootState): { id: string; orderToken: string }[] => {
-      console.log(" SORTING getAllIdsAndTokens", state);
-      const allProjects = Object.values(state.projects.byIds);
-
-      return allProjects.map((p) => ({ id: p.id, orderToken: p.orderToken }));
+  // getSortedProjectIdsRaw: (state: RootState): string[] => {
+  //   const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
+  //     id: p.id,
+  //     orderToken: p.orderToken,
+  //   }));
+  //
+  //   return allIdsAndTokens
+  //     .sort(fractionalCompare)
+  //     .map((p) => p.id)
+  //     .slice(0, 100);
+  // },
+  allIdsAndTokens: appSelector(
+    (_state, select): { id: string; orderToken: string }[] => {
+      return select((state) =>
+        Object.values(state.projects.byIds).map((p) => ({
+          id: p.id,
+          orderToken: p.orderToken,
+        })),
+      );
     },
   ),
-  getSortedProjectIdsRaw: (state: RootState): string[] => {
-    const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
-      id: p.id,
-      orderToken: p.orderToken,
-    }));
+  getSortedProjectIds: appSelector((_state, select): string[] => {
+    const allIdsAndTokens = select(projectsListSelectors.allIdsAndTokens());
+    // const byIds = query(projectsListSelectors.all);
+    // const allIdsAndTokens = byIds.map((p) => ({
+    //   id: p.id,
+    //   orderToken: p.orderToken,
+    // }));
 
     console.log("SORITNG PROJECTS", allIdsAndTokens);
 
-    return allIdsAndTokens
+    return [...allIdsAndTokens]
       .sort(fractionalCompare)
       .map((p) => p.id)
-      .slice(0, 100);
-  },
-  getSortedProjectIds: memoize((state: RootState): string[] => {
-    const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
-      id: p.id,
-      orderToken: p.orderToken,
-    }));
-
-    console.log("SORITNG PROJECTS", allIdsAndTokens);
-
-    return allIdsAndTokens
-      .sort(fractionalCompare)
-      .map((p) => p.id)
-      .slice(0, 100);
+      .slice(0, 10);
   }),
-  getLastChildId: memoize((state: RootState): string | undefined => {
-    const sortedProjects = projectsListSelectors.getSortedProjectIds(state);
+  getLastChildId: appSelector((_state, select): string | undefined => {
+    const sortedProjects = select(projectsListSelectors.getSortedProjectIds());
 
     if (sortedProjects.length === 0) return undefined;
 
     return sortedProjects[sortedProjects.length - 1];
   }),
-  getFirstChildId: memoize((state: RootState): string | undefined => {
-    const sortedProjects = projectsListSelectors.getSortedProjectIds(state);
+  getFirstChildId: appSelector((_state, select): string | undefined => {
+    const sortedProjects = select(projectsListSelectors.getSortedProjectIds());
 
     return sortedProjects[0];
   }),
 });
 
-export const projectsSelectors = {
-  getById: (state: RootState, id: string) => state.projects.byIds[id],
+export const projectsSelectors = createSelectors({
+  getById: appSelector((_state, select, id: string) => {
+    return select((state) => state.projects.byIds[id]);
+  }),
   canDrop(
-    project: string,
+    _project: string,
     target: { id: string; type: string },
   ): target is Project | TaskTemplate | Task | TaskProjection {
     return true;
   },
-};
+});
 
 export const projectsActions = createActions({
-  insertMillion: appAction((state: RootState) => {
+  insertMillion: appAction((select) => {
+    const byIds = select((state) => state.projects.byIds);
     for (let i = 0; i < 100000; i++) {
       const id = Math.random().toString(36).slice(2);
-      state.projects.byIds[id] = {
+      byIds[id] = {
         id,
-        title: "Project 1" + Math.random().toString(36).slice(2),
-        orderToken: "1",
+        title: "Project 1" + id,
+        orderToken: id,
         type: "project",
       };
     }
   }),
-  create: appAction((state: RootState, _dispatch, project: Project) => {
-    state.projects.byIds[project.id] = project;
+  create: appAction((select, _dispatch, project: Project) => {
+    const byIds = select((state) => state.projects.byIds);
+    byIds[project.id] = project;
     return project;
   }),
-  update: appAction((state: RootState, _dispatch, project: Project) => {
-    const projInState = projectsSelectors.getById(state, project.id);
+  update: appAction((select, _dispatch, project: Project) => {
+    const projInState = select(projectsSelectors.getById(project.id));
     if (!projInState) throw new Error("Project not found");
 
     Object.assign(projInState, project);
@@ -253,21 +263,20 @@ export const projectsActions = createActions({
     return projInState;
   }),
   createWithTask: appAction(
-    (state: RootState, dispatch, project: Project, task: Task) => {
-      state.projects.byIds[project.id] = project;
+    (select, dispatch, project: Project, task: Task) => {
+      const byIds = select((state) => state.projects.byIds);
+      byIds[project.id] = project;
 
       dispatch(taskActions.createTask(task));
       return project;
     },
   ),
-  handleDrop: appAction(
-    (state: RootState, dispatch, project: Project, target: AnyModel) => {},
-  ),
 });
 
 export const taskActions = {
-  createTask: appAction((state: RootState, _dispatch, task: Task) => {
-    state.tasks.byIds[task.id] = task;
+  createTask: appAction((select, _dispatch, task: Task) => {
+    const byIds = select((state) => state.tasks.byIds);
+    byIds[task.id] = task;
 
     return task;
   }),
@@ -284,18 +293,25 @@ export const store = (() => {
 
   const store = createStore(state);
 
-  store.subscribe((state, prevState, patches, reversePatches) => {
-    // console.log("!!!!!!!!!!!!!NEW STATE!!!!!!!!!!!!!!");
-    // console.log(
-    //   "subscribe soring!",
-    //   projectsListSelectors.getSortedProjectIds(state),
-    // );
-    // console.log("state", state);
-    // console.log("prevState", prevState);
-    // console.log("patches", patches);
-    // console.log("reversePatches", reversePatches);
-    // console.log("!!!!!!!!!!!!!NEW STATE END!!!!!!!!!!!!!!");
-  });
+  // store.subscribe((state, prevState, patches, reversePatches) => {
+  //   // console.log("!!!!!!!!!!!!!NEW STATE!!!!!!!!!!!!!!");
+  //   // console.log(
+  //   //   "new state",
+  //   //   JSON.stringify(state, null, 2),
+  //   //
+  //   //   "prev state",
+  //   //   JSON.stringify(prevState, null, 2),
+  //   // );
+  //   // console.log(
+  //   //   "subscribe soring!",
+  //   //   projectsListSelectors.getSortedProjectIds(state),
+  //   // );
+  //   // console.log("state", state);
+  //   // console.log("prevState", prevState);
+  //   // console.log("patches", patches);
+  //   // console.log("reversePatches", reversePatches);
+  //   // console.log("!!!!!!!!!!!!!NEW STATE END!!!!!!!!!!!!!!");
+  // });
 
   // setInterval(() => {
   //   projectsListSelectors.getSortedProjectIdsRaw(store.getState());
@@ -329,7 +345,7 @@ export const store = (() => {
 
   console.log(
     "sorted projects beforr update",
-    projectsListSelectors.getSortedProjectIds(store.getState()),
+    store.select(projectsListSelectors.getSortedProjectIds()),
   );
 
   console.log("res", res);
@@ -343,13 +359,13 @@ export const store = (() => {
 
   console.log(
     "sorted projects after update",
-    projectsListSelectors.getSortedProjectIds(store.getState()),
+    store.select(projectsListSelectors.getSortedProjectIds()),
   );
 
   console.log("store", store.getState());
   // console.log(projectsListSelectors.getIndexesById(store.getState()));
   // console.log(projectsListSelectors.getIndexById(store.getState(), "1"));
-  console.log(projectsSelectors.getById(store.getState(), "2"));
+  console.log(store.select(projectsSelectors.getById("2")));
 
   return store;
 })();

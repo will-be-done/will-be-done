@@ -11,6 +11,7 @@ import { uuidv7 } from "uuidv7";
 import uuidByString from "uuid-by-string";
 import AwaitLock from "await-lock";
 import { getDbCtx } from "@/sync/db";
+import { shouldNeverHappen } from "@/utils";
 
 export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
 
@@ -126,7 +127,7 @@ export type Project = {
 
 type ProjectItem = Task | TaskTemplate;
 
-type TaskState = "todo" | "done";
+export type TaskState = "todo" | "done";
 export type Task = {
   type: "task";
   id: string;
@@ -151,6 +152,8 @@ export type TaskProjection = {
   dailyListId: string;
 };
 
+export type TaskBox = Task | TaskProjection;
+
 export type DailyList = {
   type: "dailyList";
   id: string;
@@ -158,6 +161,9 @@ export type DailyList = {
 };
 
 type AnyModel = Project | Task | TaskTemplate | TaskProjection | DailyList;
+function assertUnreachable(x: never): never {
+  throw new Error("Didn't expect to get here");
+}
 
 export const isProject = isObjectType<Project>("project");
 export const isTask = isObjectType<Task>("task");
@@ -175,7 +181,33 @@ export function getSiblingIds(
 }
 
 export const appSelectors = {
-  getEntityById(state: RootState, id: string) {
+  taskBoxById(state: RootState, id: string) {
+    const storages = [state.tasks, state.taskProjections];
+    for (const storage of storages) {
+      const entity = storage.byIds[id];
+
+      if (entity) {
+        return entity;
+      }
+    }
+
+    return undefined;
+  },
+  taskBoxByIdOrDefault(state: RootState, id: string): Task | TaskProjection {
+    const entity = appSelectors.taskBoxById(state, id);
+    if (!entity)
+      return {
+        type: "task",
+        id,
+        title: "",
+        state: "todo",
+        projectId: "",
+        orderToken: "",
+      };
+
+    return entity;
+  },
+  byId(state: RootState, id: string) {
     const storages = [
       state.projects,
       state.tasks,
@@ -193,6 +225,69 @@ export const appSelectors = {
 
     return undefined;
   },
+  byIdOrDefault(state: RootState, id: string): AnyModel {
+    const entity = appSelectors.byId(state, id);
+    if (!entity)
+      return {
+        type: "project",
+        id,
+        title: "",
+        icon: "",
+        isInbox: false,
+        orderToken: "",
+      };
+
+    return entity;
+  },
+};
+
+export const todoItemActions = {
+  create: appAction((state: RootState, dispatch, taskBox: TaskBox) => {
+    if (isTask(taskBox)) {
+      return dispatch(taskActions.createTask(taskBox));
+    } else if (isTaskProjection(taskBox)) {
+      return dispatch(taskProjectionActions.create(taskBox));
+    } else {
+      assertUnreachable(taskBox);
+    }
+  }),
+  createSibling: appAction(
+    (
+      state: RootState,
+      dispatch,
+      taskBox: TaskBox,
+      position: "before" | "after",
+    ) => {
+      if (isTask(taskBox)) {
+        return dispatch(taskActions.createSibling(taskBox.id, position));
+      } else if (isTaskProjection(taskBox)) {
+        return dispatch(
+          taskProjectionActions.createSibling(taskBox.id, position),
+        );
+      } else {
+        assertUnreachable(taskBox);
+      }
+    },
+  ),
+  handleDrop: appAction(
+    (
+      state: RootState,
+      dispatch,
+      taskBox: TaskBox,
+      targetId: string,
+      edge: "top" | "bottom",
+    ) => {
+      if (isTask(taskBox)) {
+        return dispatch(taskActions.handleDrop(taskBox.id, targetId, edge));
+      } else if (isTaskProjection(taskBox)) {
+        return dispatch(
+          taskProjectionActions.handleDrop(taskBox.id, targetId, edge),
+        );
+      } else {
+        assertUnreachable(taskBox);
+      }
+    },
+  ),
 };
 
 export const dailyListSelectors = {
@@ -398,20 +493,24 @@ export const taskProjectionActions = {
     ) => {
       const id = taskProjection.id || uuidv7();
 
-      state.taskProjections.byIds[id] = {
+      const newTaskProjection: TaskProjection = {
         type: "projection",
         id,
         ...taskProjection,
       };
+
+      state.taskProjections.byIds[id] = newTaskProjection;
+
+      return newTaskProjection;
     },
   ),
   createSibling: appAction(
     (
       state: RootState,
-      _dispatch,
+      dispatch,
       taskProjectionId: string,
       position: "before" | "after",
-    ) => {
+    ): TaskProjection => {
       const taskProjection = taskProjectionSelectors.byId(
         state,
         taskProjectionId,
@@ -419,26 +518,45 @@ export const taskProjectionActions = {
 
       if (!taskProjection) throw new Error("TaskProjection not found");
 
-      taskProjectionActions.create({
-        taskId: taskProjection.taskId,
-        dailyListId: taskProjection.dailyListId,
-        orderToken: generateKeyPositionedBetween(
-          taskProjection,
-          taskProjectionSelectors.siblings(state, taskProjectionId),
-          position,
-        ),
-      });
+      return dispatch(
+        taskProjectionActions.create({
+          taskId: taskProjection.taskId,
+          dailyListId: taskProjection.dailyListId,
+          orderToken: generateKeyPositionedBetween(
+            taskProjection,
+            taskProjectionSelectors.siblings(state, taskProjectionId),
+            position,
+          ),
+        }),
+      );
     },
   ),
 };
 
 export const taskSelectors = {
   canDrop(state: RootState, taskId: string, targetId: string) {
-    return false;
+    const model = appSelectors.byId(state, targetId);
+    if (!model) return shouldNeverHappen("target not found");
+
+    return isTaskProjection(model) || isTask(model);
   },
   byId: memoizeWithArgs(
     (state: RootState, id: string) => state.tasks.byIds[id],
   ),
+  byIdOrDefault: (state: RootState, id: string): Task => {
+    const task = taskSelectors.byId(state, id);
+    if (!task)
+      return {
+        type: "task",
+        id,
+        title: "",
+        state: "todo",
+        projectId: "",
+        orderToken: "",
+      };
+
+    return task;
+  },
   siblings: memoizeWithArgs(
     (
       state: RootState,
@@ -458,6 +576,16 @@ export const taskSelectors = {
   ),
 };
 export const taskActions = {
+  update: appAction(
+    (state: RootState, _dispatch, id: string, task: Partial<Task>) => {
+      const taskInState = taskSelectors.byId(state, id);
+      if (!taskInState) throw new Error("Task not found");
+
+      Object.assign(taskInState, task);
+
+      return taskInState;
+    },
+  ),
   createTask: appAction(
     (
       state: RootState,
@@ -465,7 +593,7 @@ export const taskActions = {
       task: Partial<Task> & { projectId: string; orderToken: string },
     ) => {
       const id = task.id || uuidv7();
-      state.tasks.byIds[id] = {
+      const newTask: Task = {
         type: "task",
         id,
         title: "",
@@ -473,28 +601,32 @@ export const taskActions = {
         ...task,
       };
 
-      return task;
+      state.tasks.byIds[id] = newTask;
+
+      return newTask;
     },
   ),
   createSibling: appAction(
     (
       state: RootState,
-      _dispatch,
+      dispatch,
       taskId: string,
       position: "before" | "after",
-    ) => {
+    ): Task => {
       const task = taskSelectors.byId(state, taskId);
 
       if (!task) throw new Error("Task not found");
 
-      taskActions.createTask({
-        projectId: task.projectId,
-        orderToken: generateKeyPositionedBetween(
-          task,
-          taskSelectors.siblings(state, taskId),
-          position,
-        ),
-      });
+      return dispatch(
+        taskActions.createTask({
+          projectId: task.projectId,
+          orderToken: generateKeyPositionedBetween(
+            task,
+            taskSelectors.siblings(state, taskId),
+            position,
+          ),
+        }),
+      );
     },
   ),
   handleDrop: appAction(
@@ -506,6 +638,12 @@ export const taskActions = {
       edge: "top" | "bottom",
     ) => {},
   ),
+  toggleState: appAction((state: RootState, _dispatch, taskId: string) => {
+    const task = taskSelectors.byId(state, taskId);
+    if (!task) throw new Error("Task not found");
+
+    task.state = task.state === "todo" ? "done" : "todo";
+  }),
 };
 export const projectsListActions = {
   createProject: appAction(
@@ -542,13 +680,14 @@ export const projectsListActions = {
 };
 
 export const projectsListSelectors = {
+  all: memoize((state: RootState): Project[] => {
+    return Object.values(state.projects.byIds);
+  }),
   childrenIds: memoize((state: RootState): string[] => {
     const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
       id: p.id,
       orderToken: p.orderToken,
     }));
-
-    console.log("SORITNG PROJECTS", allIdsAndTokens);
 
     return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
   }),
@@ -580,9 +719,17 @@ export const projectsListSelectors = {
 
 export const projectsSelectors = {
   byId: (state: RootState, id: string) => state.projects.byIds[id],
-  byIdOrThrow: (state: RootState, id: string) => {
+  byIdOrDefault: (state: RootState, id: string): Project => {
     const project = projectsSelectors.byId(state, id);
-    if (!project) throw new Error("Project not found");
+    if (!project)
+      return {
+        type: "project",
+        id,
+        title: "",
+        icon: "",
+        isInbox: false,
+        orderToken: "",
+      };
 
     return project;
   },
@@ -766,12 +913,66 @@ export const projectsActions = {
         position,
       );
 
-      dispatch(
+      return dispatch(
         taskActions.createTask({
           projectId: projectId,
           orderToken: orderToken,
         }),
       );
+    },
+  ),
+};
+
+const handleDropsByType = {
+  task: taskActions.handleDrop,
+  taskProjection: taskProjectionActions.handleDrop,
+  dailyList: dailyListActions.handleDrop,
+  project: projectsActions.handleDrop,
+};
+
+const canDropsByType = {
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  task: taskSelectors.canDrop,
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  taskProjection: taskProjectionSelectors.canDrop,
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  dailyList: dailyListSelectors.canDrop,
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  project: projectsSelectors.canDrop,
+};
+
+export const dropSelectors = {
+  canDrop: (state: RootState, id: string, targetId: string) => {
+    const model = appSelectors.byId(state, id);
+    if (!model) return false;
+
+    const canDropFunction =
+      canDropsByType[model.type as keyof typeof canDropsByType];
+    if (!canDropFunction)
+      return shouldNeverHappen("Drop type not found" + model.type);
+
+    return canDropFunction(state, id, targetId);
+  },
+};
+
+export const dropActions = {
+  handleDrop: appAction(
+    (
+      state: RootState,
+      dispatch,
+      id: string,
+      targetId: string,
+      edge: "top" | "bottom",
+    ) => {
+      const model = appSelectors.byId(state, id);
+      if (!model) return;
+
+      const dropFunction =
+        handleDropsByType[model.type as keyof typeof handleDropsByType];
+      if (!dropFunction)
+        return shouldNeverHappen("Drop type not found" + model.type);
+
+      return dispatch(dropFunction(id, targetId, edge));
     },
   ),
 };
