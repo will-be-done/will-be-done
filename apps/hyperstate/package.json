@@ -14,6 +14,7 @@
   "dependencies": {
     "@taskworld.com/rereselect": "^0.3.0",
     "deep-equal": "^2.2.3",
+    "fast-equals": "^5.2.2",
     "hyperstate": "^0.0.0",
     "immer": "^10.1.1",
     "proxy-memoize": "^3.0.1",

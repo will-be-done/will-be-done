@@ -42,7 +42,10 @@ export function createActionCreator<
   const actionCreator = <TReturn, TParams extends unknown[]>(
     actionFn: ActionFn<TRootState, TReturn, TParams>,
   ) => {
-    return (arg: TRootState | StoreApi<TRootState>, ...params: TParams) => {
+    const wrappedAction = (
+      arg: TRootState | StoreApi<TRootState>,
+      ...params: TParams
+    ) => {
       if (isDraft(arg)) {
         return actionFn(arg as TRootState, ...params);
       } else {
@@ -55,35 +58,75 @@ export function createActionCreator<
         const state = store.state;
 
         let result!: TReturn;
+        const performDraftAction = (draft: Draft<TRootState>): void => {
+          result = actionFn(draft as TRootState, ...params);
+          // TODO: add deep traversal draft check of result
+        };
+
         const [nextState, patches, inversePatches] = produceWithPatches(
           state,
-          (draft) => {
-            result = actionFn(draft as TRootState, ...params);
-
-            // TODO: add deep traversal draft check of result
-          },
+          performDraftAction,
         );
 
         store.setState(nextState);
 
-        try {
-          store
-            .getListeners()
-            .forEach((listener) =>
-              listener(nextState, state, patches, inversePatches),
-            );
-        } catch (e) {
-          console.error(e);
-        }
+        const notifyListenersAfterActions = () => {
+          // TODO: think what to do better here
+          try {
+            const notifyListener = (listener: Listener<TRootState>) => {
+              return listener(nextState, state, patches, inversePatches);
+            };
+            store.getListeners().forEach(notifyListener);
+          } catch (e) {
+            console.error(e);
+          }
+        };
+
+        queueMicrotask(notifyListenersAfterActions);
 
         return result;
       }
     };
+
+    return wrappedAction;
   };
 
   return actionCreator;
 
   // return actionCreator as ActionCreatorFunction<TRootState>;
+}
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+export function createSlice<T extends Record<string, Function>>(
+  sliceFns: T,
+): T {
+  const result: Record<string, any> = {};
+
+  for (const [key, sliceFn] of Object.entries(sliceFns)) {
+    // Create a unique name for the selector to avoid conflicts
+    const fnText = `
+      // Create named function with the same behavior
+      const ${key} = function (...args) {
+        // Call the original with the same arguments
+        return __sliceFn.apply(this, args);
+      }
+      
+      // Return the named function
+      return ${key};
+    `;
+
+    // Create the named function directly using Function constructor
+    const createFn = new Function("__sliceFn", fnText);
+    const namedSliceFn = createFn(sliceFn);
+
+    // Copy the cache and all other properties from the original selector
+    // This is crucial for memoized functions to maintain their caching behavior
+    Object.assign(namedSliceFn, sliceFn);
+
+    // Add to result
+    result[key] = namedSliceFn;
+  }
+
+  return result as T;
 }
 
 // export type Action<
@@ -310,7 +353,7 @@ export function createActionCreator<
 export type Selector<State, Result> = (state: State) => Result;
 
 export type QueryFunction<State> = {
-  <Result>(selector: Selector<State, Result>): Result;
+  <Result>(selector: Selector<State, Result>, equalityFn?: EqualityFn): Result;
 };
 export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
   /**
@@ -342,6 +385,9 @@ export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
 //   ): (state: TRootState, ...params: TParams) => TReturn;
 // }
 
+const defaultEqualityFn = (a: unknown, b: unknown) => a === b;
+type EqualityFn = (a: unknown, b: unknown) => boolean;
+
 // TODO: add dependencies cache check like in rereselect
 export function createSelectorCreator<TRootState = any>() {
   const selectCreator = <TReturn, TParams extends unknown[]>(
@@ -351,34 +397,88 @@ export function createSelectorCreator<TRootState = any>() {
       string,
       {
         previousState: TRootState | undefined;
-        result: TReturn;
+        value: TReturn;
+        dependencies: Map<
+          Selector<TRootState, any>,
+          { value: any; equalityFn: EqualityFn }
+        >;
       }
     >();
 
-    return (state: TRootState, ...params: TParams) => {
-      const query: QueryFunction<TRootState> = (
-        querier: Selector<TRootState, any>,
-      ) => {
-        return querier(state);
-      };
-
+    const wrappedSelector = (state: TRootState, ...params: TParams) => {
       if (isDraft(state)) {
+        const query: QueryFunction<TRootState> = (
+          querier: Selector<TRootState, any>,
+        ) => {
+          return querier(state);
+        };
+
         return selectionLogic(query, ...params);
       }
 
       const key = params.join(",");
       const mem = memoized.get(key);
 
-      if (mem && mem.previousState === state) {
-        return mem.result;
+      if (mem) {
+        if (mem.previousState === state) {
+          return mem.value;
+        }
+
+        let changed = false;
+        for (const [
+          selector,
+          { value, equalityFn },
+        ] of mem.dependencies.entries()) {
+          // console.log(selector, equalityFn);
+          if (!equalityFn(selector(state), value)) {
+            changed = true;
+
+            break;
+          }
+        }
+
+        // console.log("changed", selectionLogic, changed);
+
+        if (!changed) {
+          return mem.value;
+        }
       }
+
+      const dependencies = new Map<Selector<TRootState, any>, any>();
+      const query: QueryFunction<TRootState> = (
+        querier: Selector<TRootState, any>,
+        equalityFn: (a: unknown, b: unknown) => boolean = defaultEqualityFn,
+      ) => {
+        // console.log("query", querier);
+        // console.log("---");
+        // console.log(equalityFn);
+
+        if (dependencies.has(querier)) return dependencies.get(querier);
+        const value = querier(state);
+        dependencies.set(querier, { value, equalityFn });
+
+        return value;
+      };
 
       const result = selectionLogic(query, ...params);
 
-      memoized.set(key, { result, previousState: state });
+      if (dependencies.size === 0) {
+        throw new Error(
+          "Selector malfunction: " +
+            "The selection logic must select some data by calling `query(selector)` at least once.",
+        );
+      }
+
+      memoized.set(key, {
+        value: result,
+        previousState: state,
+        dependencies: dependencies,
+      });
 
       return result;
     };
+
+    return wrappedSelector;
   };
 
   return selectCreator;

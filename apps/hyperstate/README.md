@@ -3,8 +3,10 @@ To features:
 1. You can use selectors in actions! In redux you can't use selector in reducer
 2. React-foreget ready
 3. No too much maigck like in legend
+5. Focused on devtools. You can see all function call names in devtool. Also special helper. Show how it looks for other instruments
 
 TO ADD:
+1. Example with deepEqual + big sorting list
 
 Why not mobx-keystone:
 1. Too much magic. Due it's complexity hard to debug issues. 
@@ -12,6 +14,7 @@ Why not mobx-keystone:
 3. decorators
 4. performance
 5. too magic. 
+
 
 
 Also, where hyper state shine - updating in a big list with help of memoize!

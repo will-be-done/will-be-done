@@ -4,7 +4,9 @@ import {
   createActionCreator,
   createStore,
   createSelectorCreator,
+  createSlice,
 } from "./state";
+import { deepEqual } from "fast-equals";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
   item1: T,
@@ -171,7 +173,7 @@ export interface OrderableItem {
 //   };
 // })();
 
-export const allProjectsSlice = {
+export const allProjectsSlice = createSlice({
   // getSortedProjectIdsRaw: (state: RootState): string[] => {
   //   const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
   //     id: p.id,
@@ -185,11 +187,15 @@ export const allProjectsSlice = {
   // },
   allIdsAndTokens: appSelector(
     (query): { id: string; orderToken: string }[] => {
-      return query((state) =>
-        Object.values(state.projects.byIds).map((p) => ({
-          id: p.id,
-          orderToken: p.orderToken,
-        })),
+      return query(
+        (state) =>
+          Object.values(state.projects.byIds).map((p) => ({
+            id: p.id,
+            orderToken: p.orderToken,
+          })),
+        (a: unknown, b: unknown) => {
+          return deepEqual(a, b);
+        },
       );
     },
   ),
@@ -221,9 +227,9 @@ export const allProjectsSlice = {
 
     return sortedProjects[0];
   }),
-};
+});
 
-export const projectsSlice = {
+export const projectsSlice = createSlice({
   getById: appSelector((query, id: string) => {
     const res = query((state) => state.projects.byIds[id]);
     return res;
@@ -264,19 +270,19 @@ export const projectsSlice = {
     const byIds = state.projects.byIds;
     byIds[project.id] = project;
 
-    taskActions.createTask(state, task);
+    taskSlice.createTask(state, task);
     return project;
   }),
-};
+});
 
-export const taskActions = {
+export const taskSlice = createSlice({
   createTask: appAction((state, task: Task) => {
     const byIds = state.tasks.byIds;
     byIds[task.id] = task;
 
     return task;
   }),
-};
+});
 
 export const store = (() => {
   const state: RootState = {

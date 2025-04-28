@@ -62,6 +62,9 @@ importers:
       deep-equal:
         specifier: ^2.2.3
         version: 2.2.3
+      fast-equals:
+        specifier: ^5.2.2
+        version: 5.2.2
       hyperstate:
         specifier: ^0.0.0
         version: 0.0.0
