@@ -1,35 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Draft, Patch, produceWithPatches } from "immer";
-import { memoize as originalMemoize } from "proxy-memoize";
+import { Draft, isDraft, Patch, produceWithPatches } from "immer";
+// import { memoize as originalMemoize } from "proxy-memoize";
 
 import { enablePatches, setAutoFreeze } from "immer";
 
 setAutoFreeze(false);
 enablePatches();
 
-let isActionExecuting = false;
+// let isActionExecuting = false;
 
-export type Dispatch<TRootState> = <TReturn>(
-  actionCreator: (
-    select: Select<TRootState>,
-    dispatch: Dispatch<TRootState>,
-  ) => TReturn,
-) => TReturn;
+// export type Dispatch<TRootState> = <TReturn>(
+//   actionCreator: (rootState: TRootState) => TReturn,
+// ) => TReturn;
 
 export type ActionFn<
   TRootState,
   TReturn = unknown,
   TParams extends unknown[] = unknown[],
-> = (
-  select: Select<TRootState>,
-  dispatch: Dispatch<TRootState>,
-  ...params: TParams
-) => TReturn;
+> = (rootState: TRootState, ...params: TParams) => TReturn;
 
 // Define a type for the action creator result (the function returned by the action creator)
 export type ActionCreatorResult<TRootState, TReturn> = (
-  select: Select<TRootState>,
-  dispatch: Dispatch<TRootState>,
+  rootState: TRootState,
 ) => TReturn;
 
 // Define a type for the action creator itself
@@ -40,185 +32,209 @@ export type ActionCreator<TRootState, TReturn, TParams extends unknown[]> = (
 export interface ActionCreatorFunction<TRootState = any> {
   <TReturn, TParams extends unknown[]>(
     actionFn: ActionFn<TRootState, TReturn, TParams>,
-  ): (
-    ...params: TParams
-  ) => (select: Select<TRootState>, dispatch: Dispatch<TRootState>) => TReturn;
-
-  // Special handling for union types - collapses parameter and return types
-  // <TReturns extends unknown[], TParamsTuple extends unknown[][]>( actionFn: ActionFn<TRootState, TReturns[number], TParamsTuple[number]>,
-  // ): ActionCreator<
-  //   TRootState,
-  //   TReturns[number],
-  //   {
-  //     [K in keyof TParamsTuple[number]]: TParamsTuple[number][K];
-  //   }
-  // >;
+  ): (state: TRootState | StoreApi<TRootState>, ...params: TParams) => TReturn;
 }
 
+// TODO: use weakmap
 export function createActionCreator<
   TRootState = any,
 >(): ActionCreatorFunction<TRootState> {
   const actionCreator = <TReturn, TParams extends unknown[]>(
     actionFn: ActionFn<TRootState, TReturn, TParams>,
   ) => {
-    return (...params: TParams) => {
-      return (select: Select<TRootState>, dispatch: Dispatch<TRootState>) => {
-        return actionFn(select, dispatch, ...params);
-      };
+    return (arg: TRootState | StoreApi<TRootState>, ...params: TParams) => {
+      if (isDraft(arg)) {
+        return actionFn(arg as TRootState, ...params);
+      } else {
+        if (arg === null || typeof arg !== "object")
+          throw new Error("first argument must be a store");
+        if (!(storeSymbol in arg))
+          throw new Error("first argument must be a store");
+
+        const store = arg;
+        const state = store.state;
+
+        let result!: TReturn;
+        const [nextState, patches, inversePatches] = produceWithPatches(
+          state,
+          (draft) => {
+            result = actionFn(draft as TRootState, ...params);
+
+            // TODO: add deep traversal draft check of result
+          },
+        );
+
+        store.setState(nextState);
+
+        try {
+          store
+            .getListeners()
+            .forEach((listener) =>
+              listener(nextState, state, patches, inversePatches),
+            );
+        } catch (e) {
+          console.error(e);
+        }
+
+        return result;
+      }
     };
   };
 
-  return actionCreator as ActionCreatorFunction<TRootState>;
+  return actionCreator;
+
+  // return actionCreator as ActionCreatorFunction<TRootState>;
 }
 
-export type Action<
-  TRootState,
-  TReturn = unknown,
-  TParams extends unknown[] = unknown[],
-> = (
-  actionFn: ActionFn<TRootState, TReturn, TParams>,
-) => (
-  ...params: TParams
-) => (state: TRootState, dispatch: Dispatch<TRootState>) => TReturn;
+// export type Action<
+//   TRootState,
+//   TReturn = unknown,
+//   TParams extends unknown[] = unknown[],
+// > = (
+//   actionFn: ActionFn<TRootState, TReturn, TParams>,
+// ) => (
+//   ...params: TParams
+// ) => (state: TRootState, dispatch: Dispatch<TRootState>) => TReturn;
 
-export function action<
-  TRootState,
-  TReturn = unknown,
-  TParams extends unknown[] = unknown[],
->(actionFn: ActionFn<TRootState, TReturn, TParams>) {
-  return (...params: TParams) => {
-    return (select: Select<TRootState>, dispatch: Dispatch<TRootState>) => {
-      return actionFn(select, dispatch, ...params);
-    };
-  };
-}
-export function memoize<Obj extends object, Result>(
-  fn: (obj: Obj) => Result,
-  options?: { size?: number; noWeakMap?: boolean },
-): (obj: Obj) => Result {
-  const memoized = originalMemoize(fn, options);
+// export function action<
+//   TRootState,
+//   TReturn = unknown,
+//   TParams extends unknown[] = unknown[],
+// >(actionFn: ActionFn<TRootState, TReturn, TParams>) {
+//   return (...params: TParams) => {
+//     return (select: TRootState, dispatch: Dispatch<TRootState>) => {
+//       return actionFn(select, dispatch, ...params);
+//     };
+//   };
+// }
+//
+// export function memoize<Obj extends object, Result>(
+//   fn: (obj: Obj) => Result,
+//   options?: { size?: number; noWeakMap?: boolean },
+// ): (obj: Obj) => Result {
+//   const memoized = originalMemoize(fn, options);
+//
+//   return (obj: Obj) => {
+//     if (isActionExecuting) {
+//       return fn(obj);
+//     } else {
+//       return memoized(obj);
+//     }
+//   };
+// }
 
-  return (obj: Obj) => {
-    if (isActionExecuting) {
-      return fn(obj);
-    } else {
-      return memoized(obj);
-    }
-  };
-}
+// export function createActions<TRootState = any>(
+//   actions: Record<
+//     string,
+//     (
+//       ...params: any[]
+//     ) => (select: TRootState, dispatch: Dispatch<TRootState>) => any
+//   >,
+// ) {
+//   const result: Record<string, any> = {};
+//
+//   for (const [key, actionCreator] of Object.entries(actions)) {
+//     // Create a unique name for the action to avoid conflicts
+//     const fnText = `
+//       // Create named action creator wrapper
+//       function ${key}ActionCreator(...params) {
+//         const originalExecFn = __actionCreator(...params);
+//
+//         // Create named execution function - this will show in stack traces
+//         function ${key}ExecutionFn(state, dispatch) {
+//           return originalExecFn(state, dispatch);
+//         }
+//
+//         return ${key}ExecutionFn;
+//       }
+//
+//       // Return the named action creator function
+//       return ${key}ActionCreator;
+//     `;
+//
+//     // Create the named function directly using indirect eval
+//     // This ensures the function is created in the global scope with proper naming
+//     const createFn = new Function("__actionCreator", fnText);
+//     const namedActionCreator = createFn(actionCreator);
+//
+//     // Copy properties from original action creator
+//     Object.assign(namedActionCreator, actionCreator);
+//
+//     // Add to result
+//     result[key] = namedActionCreator;
+//   }
+//
+//   return result as typeof actions;
+// }
+//
+// // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+// export function createSelectors<T extends Record<string, Function>>(
+//   selectors: T,
+// ): T {
+//   const result: Record<string, any> = {};
+//
+//   for (const [key, selector] of Object.entries(selectors)) {
+//     const fnText = `
+//       // Create named action creator wrapper
+//       function ${key}Selector(...params) {
+//         const originalExecFn = __selector(...params);
+//
+//         // Create named execution function - this will show in stack traces
+//         function ${key}SelectorFn(state, dispatch) {
+//           return originalExecFn(state, dispatch);
+//         }
+//
+//         return ${key}SelectorFn;
+//       }
+//
+//       // Return the named action creator function
+//       return ${key}Selector;
+//     `;
+//
+//     // // Create a unique name for the selector to avoid conflicts
+//     // const fnText = `
+//     //   // Create named selector function with the same behavior
+//     //   function ${key}Selector(...args) {
+//     //     // Call the original selector with the same arguments
+//     //     return __selector.apply(this, args);
+//     //   }
+//     //
+//     //   // Return the named selector function
+//     //   return ${key}Selector;
+//     // `;
+//
+//     // Create the named function directly using Function constructor
+//     const createFn = new Function("__selector", fnText);
+//     const namedSelector = createFn(selector);
+//
+//     // Copy the cache and all other properties from the original selector
+//     // This is crucial for memoized functions to maintain their caching behavior
+//     Object.assign(namedSelector, selector);
+//
+//     // Add to result
+//     result[key] = namedSelector;
+//   }
+//
+//   return result as T;
+// }
 
-export function createActions<TRootState = any>(
-  actions: Record<
-    string,
-    (
-      ...params: any[]
-    ) => (select: Select<TRootState>, dispatch: Dispatch<TRootState>) => any
-  >,
-) {
-  const result: Record<string, any> = {};
-
-  for (const [key, actionCreator] of Object.entries(actions)) {
-    // Create a unique name for the action to avoid conflicts
-    const fnText = `
-      // Create named action creator wrapper
-      function ${key}ActionCreator(...params) {
-        const originalExecFn = __actionCreator(...params);
-        
-        // Create named execution function - this will show in stack traces
-        function ${key}ExecutionFn(state, dispatch) {
-          return originalExecFn(state, dispatch);
-        }
-        
-        return ${key}ExecutionFn;
-      }
-      
-      // Return the named action creator function
-      return ${key}ActionCreator;
-    `;
-
-    // Create the named function directly using indirect eval
-    // This ensures the function is created in the global scope with proper naming
-    const createFn = new Function("__actionCreator", fnText);
-    const namedActionCreator = createFn(actionCreator);
-
-    // Copy properties from original action creator
-    Object.assign(namedActionCreator, actionCreator);
-
-    // Add to result
-    result[key] = namedActionCreator;
-  }
-
-  return result as typeof actions;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-export function createSelectors<T extends Record<string, Function>>(
-  selectors: T,
-): T {
-  const result: Record<string, any> = {};
-
-  for (const [key, selector] of Object.entries(selectors)) {
-    const fnText = `
-      // Create named action creator wrapper
-      function ${key}Selector(...params) {
-        const originalExecFn = __selector(...params);
-        
-        // Create named execution function - this will show in stack traces
-        function ${key}SelectorFn(state, dispatch) {
-          return originalExecFn(state, dispatch);
-        }
-        
-        return ${key}SelectorFn;
-      }
-      
-      // Return the named action creator function
-      return ${key}Selector;
-    `;
-
-    // // Create a unique name for the selector to avoid conflicts
-    // const fnText = `
-    //   // Create named selector function with the same behavior
-    //   function ${key}Selector(...args) {
-    //     // Call the original selector with the same arguments
-    //     return __selector.apply(this, args);
-    //   }
-    //
-    //   // Return the named selector function
-    //   return ${key}Selector;
-    // `;
-
-    // Create the named function directly using Function constructor
-    const createFn = new Function("__selector", fnText);
-    const namedSelector = createFn(selector);
-
-    // Copy the cache and all other properties from the original selector
-    // This is crucial for memoized functions to maintain their caching behavior
-    Object.assign(namedSelector, selector);
-
-    // Add to result
-    result[key] = namedSelector;
-  }
-
-  return result as T;
-}
-
-type Options = Omit<NonNullable<Parameters<typeof memoize>[1]>, "noWeakMap">;
-export const memoizeWithArgs = <Args extends unknown[], Result>(
-  fnWithArgs: (...args: Args) => Result,
-  options?: Options,
-) => {
-  const fn = memoize((args: Args) => fnWithArgs(...args), {
-    ...options,
-    noWeakMap: true,
-  });
-  return (...args: Args) => {
-    if (isActionExecuting) {
-      return fnWithArgs(...args);
-    } else {
-      return fn(args);
-    }
-  };
-};
+// type Options = Omit<NonNullable<Parameters<typeof memoize>[1]>, "noWeakMap">;
+// export const memoizeWithArgs = <Args extends unknown[], Result>(
+//   fnWithArgs: (...args: Args) => Result,
+//   options?: Options,
+// ) => {
+//   const fn = memoize((args: Args) => fnWithArgs(...args), {
+//     ...options,
+//     noWeakMap: true,
+//   });
+//   return (...args: Args) => {
+//     if (isActionExecuting) {
+//       return fnWithArgs(...args);
+//     } else {
+//       return fn(args);
+//     }
+//   };
+// };
 
 // const rootStore = Symbol();
 // const markAsRoot = (obj: unknown) => {
@@ -291,87 +307,99 @@ export const memoizeWithArgs = <Args extends unknown[], Result>(
 // ) => Result;
 //
 
-export type Select<TRootState> = <TReturn>(
-  selectCreator: (state: TRootState, select: Select<TRootState>) => TReturn,
-) => TReturn;
+export type Selector<State, Result> = (state: State) => Result;
 
-export type SelectFn<
-  TRootState,
-  TReturn = unknown,
-  TParams extends unknown[] = unknown[],
-> = (
-  state: TRootState,
-  select: Select<TRootState>,
-  ...params: TParams
-) => TReturn;
+export type QueryFunction<State> = {
+  <Result>(selector: Selector<State, Result>): Result;
+};
+export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
+  /**
+   * Executes another selector and mark it as a dependency.
+   */
+  query: QueryFunction<State>,
+  ...args: TArgs
+) => Result;
 
-// Define a type for the action creator result (the function returned by the action creator)
-export type SelectCreatorResult<TRootState, TReturn> = (
-  state: TRootState,
-  select: Select<TRootState>,
-) => TReturn;
+// export type Select<TRootState> = <TReturn>(
+//   selectCreator: (query: Querier<TRootState, TReturn>) => TReturn,
+// ) => TReturn;
+//
+// export type SelectFn<
+//   TRootState,
+//   TReturn = unknown,
+//   TParams extends unknown[] = unknown[],
+// > = (query: Select<TRootState>, ...params: TParams) => TReturn;
+//
+// // Define a type for the action creator itself
+// export type SelectCreator<TRootState, TReturn, TParams extends unknown[]> = (
+//   query: Select<TRootState>,
+//   ...params: TParams
+// ) => TReturn;
+//
+// export interface SelectCreatorFunction<TRootState = any> {
+//   <TReturn, TParams extends unknown[]>(
+//     selectFn: SelectFn<TRootState, TReturn, TParams>,
+//   ): (state: TRootState, ...params: TParams) => TReturn;
+// }
 
-// Define a type for the action creator itself
-export type SelectCreator<TRootState, TReturn, TParams extends unknown[]> = (
-  ...params: TParams
-) => SelectCreatorResult<TRootState, TReturn>;
-
-export interface SelectCreatorFunction<TRootState = any> {
-  <TReturn, TParams extends unknown[]>(
-    selectFn: SelectFn<TRootState, TReturn, TParams>,
-  ): (
-    ...params: TParams
-  ) => (state: TRootState, select: Select<TRootState>) => TReturn;
-
-  // Special handling for union types - collapses parameter and return types
-  // <TReturns extends unknown[], TParamsTuple extends unknown[][]>( actionFn: ActionFn<TRootState, TReturns[number], TParamsTuple[number]>,
-  // ): ActionCreator<
-  //   TRootState,
-  //   TReturns[number],
-  //   {
-  //     [K in keyof TParamsTuple[number]]: TParamsTuple[number][K];
-  //   }
-  // >;
-}
-
-export function createSelectorCreator<
-  TRootState = any,
->(): SelectCreatorFunction<TRootState> {
+// TODO: add dependencies cache check like in rereselect
+export function createSelectorCreator<TRootState = any>() {
   const selectCreator = <TReturn, TParams extends unknown[]>(
-    selectFn: SelectFn<TRootState, TReturn, TParams>,
+    selectionLogic: SelectionLogic<TRootState, TReturn, TParams>,
   ) => {
-    const memoized = new Map<string, TReturn>();
-    let previousState: TRootState | undefined = undefined;
+    const memoized = new Map<
+      string,
+      {
+        previousState: TRootState | undefined;
+        result: TReturn;
+      }
+    >();
 
-    return (...params: TParams) => {
-      const key = params.join(",");
-
-      // for (const p of params) {
-      //   if (p
-      // }
-
-      return (state: TRootState, select: Select<TRootState>) => {
-        if (previousState === state && memoized.has(key))
-          return memoized.get(key)!;
-
-        previousState = state;
-
-        const result = selectFn(state, select, ...params);
-        memoized.set(key, result);
-
-        return result;
+    return (state: TRootState, ...params: TParams) => {
+      const query: QueryFunction<TRootState> = (
+        querier: Selector<TRootState, any>,
+      ) => {
+        return querier(state);
       };
+
+      if (isDraft(state)) {
+        return selectionLogic(query, ...params);
+      }
+
+      const key = params.join(",");
+      const mem = memoized.get(key);
+
+      if (mem && mem.previousState === state) {
+        return mem.result;
+      }
+
+      const result = selectionLogic(query, ...params);
+
+      memoized.set(key, { result, previousState: state });
+
+      return result;
     };
   };
 
-  return selectCreator as SelectCreatorFunction<TRootState>;
+  return selectCreator;
 }
 
+type Listener<TState> = (
+  state: TState,
+  prevState: TState,
+  patches: Patch[],
+  reversePatches: Patch[],
+) => void;
+
+const storeSymbol = Symbol("storeSymbol");
 export type StoreApi<TState> = {
+  state: TState;
+  setState: (state: TState) => void;
   getState: () => TState;
   getInitialState: () => TState;
-  dispatch: Dispatch<TState>;
-  select: Select<TState>;
+  getListeners: () => Set<Listener<TState>>;
+  // dispatch: Dispatch<TState>;
+  // select: Select<TState>;
   subscribe: (
     listener: (
       state: TState,
@@ -380,7 +408,10 @@ export type StoreApi<TState> = {
       reversePatches: Patch[],
     ) => void,
   ) => () => void;
+  [storeSymbol]: true;
 };
+
+// const storeSymbol = Symbol("storeSymbol");
 
 export function createStore<TState>(initialState: TState): StoreApi<TState> {
   const scope: {
@@ -400,67 +431,66 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
     reversePatches: Patch[],
   ) => void;
 
-  const select: Select<TState> = (selectCreator) => {
-    const state = scope.currentDraft ?? scope.state;
-
-    return selectCreator(state as TState, select);
-  };
-
-  const dispatch = <TReturn>(
-    actionFn: (select: Select<TState>, dispatch: Dispatch<TState>) => TReturn,
-  ): TReturn => {
-    if (scope.currentDraft) {
-      return actionFn(select, dispatch as Dispatch<TState>);
-    }
-
-    let nextState: TState;
-    const previousState = scope.state;
-    let patches: Patch[];
-    let inversePatches: Patch[];
-
-    let result!: TReturn;
-
-    try {
-      isActionExecuting = true;
-      const [resultState, resultPatches, resultInversePatches] =
-        produceWithPatches(scope.state, (draft) => {
-          scope.currentDraft = draft;
-          try {
-            result = actionFn(select, dispatch as Dispatch<TState>);
-          } finally {
-            scope.currentDraft = undefined;
-          }
-        });
-
-      nextState = resultState;
-      patches = resultPatches;
-      inversePatches = resultInversePatches;
-    } finally {
-      isActionExecuting = false;
-    }
-
-    scope.state = nextState;
-
-    try {
-      listeners.forEach((listener) =>
-        listener(nextState, previousState, patches, inversePatches),
-      );
-    } catch (e) {
-      console.error(e);
-    }
-
-    return result;
-  };
+  // const dispatch = <TReturn>(actionFn: (state: TState) => TReturn): TReturn => {
+  //   if (scope.currentDraft) {
+  //     return actionFn(
+  //       scope.currentDraft as TState,
+  //       dispatch as Dispatch<TState>,
+  //     );
+  //   }
+  //
+  //   let nextState: TState;
+  //   const previousState = scope.state;
+  //   let patches: Patch[];
+  //   let inversePatches: Patch[];
+  //
+  //   let result!: TReturn;
+  //
+  //   try {
+  //     isActionExecuting = true;
+  //     const [resultState, resultPatches, resultInversePatches] =
+  //       produceWithPatches(scope.state, (draft) => {
+  //         scope.currentDraft = draft;
+  //         try {
+  //           result = actionFn(draft as TState, dispatch as Dispatch<TState>);
+  //         } finally {
+  //           scope.currentDraft = undefined;
+  //         }
+  //       });
+  //
+  //     nextState = resultState;
+  //     patches = resultPatches;
+  //     inversePatches = resultInversePatches;
+  //   } finally {
+  //     isActionExecuting = false;
+  //   }
+  //
+  //   scope.state = nextState;
+  //
+  //   try {
+  //     listeners.forEach((listener) =>
+  //       listener(nextState, previousState, patches, inversePatches),
+  //     );
+  //   } catch (e) {
+  //     console.error(e);
+  //   }
+  //
+  //   return result;
+  // };
 
   return {
+    getListeners() {
+      return listeners;
+    },
     getInitialState() {
       return initialState;
     },
     getState(): TState {
       return scope.state;
     },
-    dispatch: dispatch as Dispatch<TState>,
-    select,
+    setState(state: TState) {
+      scope.state = state;
+    },
     subscribe(listener: Listener) {
       listeners.add(listener);
 
@@ -468,5 +498,13 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
         listeners.delete(listener);
       };
     },
+    get state() {
+      return scope.state;
+    },
+    [storeSymbol]: true,
   };
+
+  // scope.state[storeSymbol] = store;
+
+  // return store;
 }

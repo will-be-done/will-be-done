@@ -2,40 +2,33 @@ import { useCallback, useState } from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
-import { useDispatch, useSelector } from "./react/hooks";
-import {
-  projectsActions,
-  projectsListSelectors,
-  projectsSelectors,
-  RootState,
-} from "./models";
-import { Select } from "./state";
+import { useSelector } from "./react/hooks";
+import { allProjectsSlice, projectsSlice, RootState } from "./models";
+import { useStore } from "./react/context";
 
 function useAppSelector<TStateSlice>(
-  selector: (state: RootState, select: Select<RootState>) => TStateSlice,
+  selector: (state: RootState) => TStateSlice,
 ) {
   return useSelector(selector);
 }
 
-function useAppDispatch() {
-  return useDispatch<RootState>();
+function useAppStore() {
+  return useStore<RootState>();
 }
 
 const Project = ({ id }: { id: string }) => {
-  const project = useAppSelector(projectsSelectors.getById(id));
-  const dispatch = useAppDispatch();
+  const project = useAppSelector((store) => projectsSlice.getById(store, id)!);
+  const store = useAppStore();
 
   return (
     <div>
       <h2>{project.title}</h2>
       <button
         onClick={() => {
-          dispatch(
-            projectsActions.update({
-              ...project,
-              title: "Project " + Math.random().toString(36).slice(2),
-            }),
-          );
+          projectsSlice.update(store, {
+            ...project,
+            title: "Project " + Math.random().toString(36).slice(2),
+          });
         }}
       >
         Update
@@ -46,25 +39,23 @@ const Project = ({ id }: { id: string }) => {
 function App() {
   const [count, setCount] = useState(0);
 
-  const projectIds = useAppSelector(
-    projectsListSelectors.getSortedProjectIds(),
+  const projectIds = useAppSelector((state) =>
+    allProjectsSlice.getSortedProjectIds(state),
   );
-  const dispatch = useAppDispatch();
+  const store = useAppStore();
 
   const updateProject = useCallback(() => {
-    dispatch(
-      projectsActions.update({
-        id: "2",
-        title: "Project 1" + Math.random().toString(36).slice(2),
-        orderToken: "1",
-        type: "project",
-      }),
-    );
-  }, [dispatch]);
+    projectsSlice.update(store, {
+      id: "2",
+      title: "Project 1" + Math.random().toString(36).slice(2),
+      orderToken: "1",
+      type: "project",
+    });
+  }, [store]);
 
   const insertMillion = useCallback(() => {
-    dispatch(projectsActions.insertMillion());
-  }, [dispatch]);
+    projectsSlice.insertMillion(store);
+  }, [store]);
 
   return (
     <>
@@ -84,14 +75,12 @@ function App() {
         <button
           onClick={() => {
             const id = Math.random().toString(36).slice(2);
-            dispatch(
-              projectsActions.create({
-                id: id,
-                title: "Project " + id,
-                orderToken: id,
-                type: "project",
-              }),
-            );
+            projectsSlice.create(store, {
+              id: id,
+              title: "Project " + id,
+              orderToken: id,
+              type: "project",
+            });
           }}
         >
           Create project

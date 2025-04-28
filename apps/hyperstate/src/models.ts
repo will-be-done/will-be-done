@@ -2,8 +2,6 @@
 // import { createSelectorCreator } from "reselect";
 import {
   createActionCreator,
-  createActions,
-  createSelectors,
   createStore,
   createSelectorCreator,
 } from "./state";
@@ -173,7 +171,7 @@ export interface OrderableItem {
 //   };
 // })();
 
-export const projectsListSelectors = createSelectors({
+export const allProjectsSlice = {
   // getSortedProjectIdsRaw: (state: RootState): string[] => {
   //   const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
   //     id: p.id,
@@ -186,8 +184,8 @@ export const projectsListSelectors = createSelectors({
   //     .slice(0, 100);
   // },
   allIdsAndTokens: appSelector(
-    (_state, select): { id: string; orderToken: string }[] => {
-      return select((state) =>
+    (query): { id: string; orderToken: string }[] => {
+      return query((state) =>
         Object.values(state.projects.byIds).map((p) => ({
           id: p.id,
           orderToken: p.orderToken,
@@ -195,8 +193,9 @@ export const projectsListSelectors = createSelectors({
       );
     },
   ),
-  getSortedProjectIds: appSelector((_state, select): string[] => {
-    const allIdsAndTokens = select(projectsListSelectors.allIdsAndTokens());
+  getSortedProjectIds: appSelector((query): string[] => {
+    const allIdsAndTokens = query(allProjectsSlice.allIdsAndTokens);
+    // console.log({ allIdsAndTokens: allIdsAndTokens() });
     // const byIds = query(projectsListSelectors.all);
     // const allIdsAndTokens = byIds.map((p) => ({
     //   id: p.id,
@@ -210,23 +209,24 @@ export const projectsListSelectors = createSelectors({
       .map((p) => p.id)
       .slice(0, 10);
   }),
-  getLastChildId: appSelector((_state, select): string | undefined => {
-    const sortedProjects = select(projectsListSelectors.getSortedProjectIds());
+  getLastChildId: appSelector((query): string | undefined => {
+    const sortedProjects = query(allProjectsSlice.getSortedProjectIds);
 
     if (sortedProjects.length === 0) return undefined;
 
     return sortedProjects[sortedProjects.length - 1];
   }),
-  getFirstChildId: appSelector((_state, select): string | undefined => {
-    const sortedProjects = select(projectsListSelectors.getSortedProjectIds());
+  getFirstChildId: appSelector((query): string | undefined => {
+    const sortedProjects = query(allProjectsSlice.getSortedProjectIds);
 
     return sortedProjects[0];
   }),
-});
+};
 
-export const projectsSelectors = createSelectors({
-  getById: appSelector((_state, select, id: string) => {
-    return select((state) => state.projects.byIds[id]);
+export const projectsSlice = {
+  getById: appSelector((query, id: string) => {
+    const res = query((state) => state.projects.byIds[id]);
+    return res;
   }),
   canDrop(
     _project: string,
@@ -234,11 +234,9 @@ export const projectsSelectors = createSelectors({
   ): target is Project | TaskTemplate | Task | TaskProjection {
     return true;
   },
-});
 
-export const projectsActions = createActions({
-  insertMillion: appAction((select) => {
-    const byIds = select((state) => state.projects.byIds);
+  insertMillion: appAction((state) => {
+    const byIds = state.projects.byIds;
     for (let i = 0; i < 100000; i++) {
       const id = Math.random().toString(36).slice(2);
       byIds[id] = {
@@ -249,33 +247,31 @@ export const projectsActions = createActions({
       };
     }
   }),
-  create: appAction((select, _dispatch, project: Project) => {
-    const byIds = select((state) => state.projects.byIds);
+  create: appAction((state, project: Project) => {
+    const byIds = state.projects.byIds;
     byIds[project.id] = project;
     return project;
   }),
-  update: appAction((select, _dispatch, project: Project) => {
-    const projInState = select(projectsSelectors.getById(project.id));
+  update: appAction((state, project: Project): Project => {
+    const projInState = projectsSlice.getById(state, project.id);
     if (!projInState) throw new Error("Project not found");
 
     Object.assign(projInState, project);
 
     return projInState;
   }),
-  createWithTask: appAction(
-    (select, dispatch, project: Project, task: Task) => {
-      const byIds = select((state) => state.projects.byIds);
-      byIds[project.id] = project;
+  createWithTask: appAction((state, project: Project, task: Task) => {
+    const byIds = state.projects.byIds;
+    byIds[project.id] = project;
 
-      dispatch(taskActions.createTask(task));
-      return project;
-    },
-  ),
-});
+    taskActions.createTask(state, task);
+    return project;
+  }),
+};
 
 export const taskActions = {
-  createTask: appAction((select, _dispatch, task: Task) => {
-    const byIds = select((state) => state.tasks.byIds);
+  createTask: appAction((state, task: Task) => {
+    const byIds = state.tasks.byIds;
     byIds[task.id] = task;
 
     return task;
@@ -317,55 +313,52 @@ export const store = (() => {
   //   projectsListSelectors.getSortedProjectIdsRaw(store.getState());
   // }, 1000);
 
-  store.dispatch(
-    projectsActions.create({
-      id: "1",
+  projectsSlice.create(store, {
+    id: "1",
+    title: "Project 1",
+    orderToken: "1",
+    type: "project",
+  });
+
+  const res = projectsSlice.createWithTask(
+    store,
+    {
+      id: "2",
       title: "Project 1",
-      orderToken: "1",
+      orderToken: "2",
       type: "project",
-    }),
-  );
-  const res = store.dispatch(
-    projectsActions.createWithTask(
-      {
-        id: "2",
-        title: "Project 1",
-        orderToken: "2",
-        type: "project",
-      },
-      {
-        type: "task",
-        id: "1",
-        title: "Task 1",
-        projectId: "2",
-        orderToken: "0",
-      },
-    ),
+    },
+    {
+      type: "task",
+      id: "1",
+      title: "Task 1",
+      projectId: "2",
+      orderToken: "0",
+    },
   );
 
   console.log(
     "sorted projects beforr update",
-    store.select(projectsListSelectors.getSortedProjectIds()),
+    allProjectsSlice.getSortedProjectIds(store.getState()),
   );
 
   console.log("res", res);
-  store.dispatch(
-    projectsActions.update({
-      ...res,
-      title: "Project 2",
-      // orderToken: "0",
-    }),
-  );
+  projectsSlice.update(store, {
+    ...res,
+    title: "Project 2",
+    // orderToken: "0",
+  });
 
   console.log(
     "sorted projects after update",
-    store.select(projectsListSelectors.getSortedProjectIds()),
+    allProjectsSlice.getSortedProjectIds(store.getState()),
   );
 
   console.log("store", store.getState());
   // console.log(projectsListSelectors.getIndexesById(store.getState()));
   // console.log(projectsListSelectors.getIndexById(store.getState(), "1"));
-  console.log(store.select(projectsSelectors.getById("2")));
+  console.log(projectsSlice.getById(store.getState(), "2"));
+  console.log(projectsSlice.getById(store.getState(), "2"));
 
   return store;
 })();

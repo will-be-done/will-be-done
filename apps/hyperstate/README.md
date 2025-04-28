@@ -1,6 +1,8 @@
 To features:
 
 1. You can use selectors in actions! In redux you can't use selector in reducer
+2. React-foreget ready
+3. No too much maigck like in legend
 
 TO ADD:
 
