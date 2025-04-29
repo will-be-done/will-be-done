@@ -18,7 +18,7 @@ import { useGlobalListener } from "@/globalListener/hooks";
 import { useCallback, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement";
 import { cn } from "@/lib/utils";
-import { useAppDispatch, useAppSelector } from "@/hooks/state";
+import { useAppSelector, useAppStore } from "@/hooks/state";
 
 const AddTaskButton = observer(function AddTaskButtonComp({
   project,
@@ -93,7 +93,7 @@ const ProjectTitle = observer(function ProjectTitleComp({
     }
   };
 
-  const dispatch = useAppDispatch();
+  const store = useAppStore();
 
   return (
     <h2 className="text-xl font-bold text-gray-100 cursor-pointer">
@@ -107,11 +107,9 @@ const ProjectTitle = observer(function ProjectTitleComp({
           <EmojiPicker
             className="h-[326px] rounded-lg border shadow-md"
             onEmojiSelect={({ emoji }) => {
-              dispatch(
-                projectsActions.update(project.id, {
-                  icon: emoji,
-                }),
-              );
+              projectsActions.update(store, project.id, {
+                icon: emoji,
+              });
             }}
           >
             <EmojiPickerSearch />
@@ -130,11 +128,9 @@ const ProjectTitle = observer(function ProjectTitleComp({
           className={cn({ hidden: !focusableItem.isEditing })}
           value={project.title}
           onChange={(e) => {
-            dispatch(
-              projectsActions.update(project.id, {
-                title: e.target.value,
-              }),
-            );
+            projectsActions.update(store, project.id, {
+              title: e.target.value,
+            });
           }}
           onKeyDown={handleInputKeyDown}
         />
@@ -159,16 +155,16 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
 }: {
   project: Project;
 }) {
-  const dispatch = useAppDispatch();
+  const store = useAppStore();
   const taskIds = useAppSelector((state) =>
     projectsSelectors.childrenIds(state, project.id),
   );
 
   const onAddNewTask = useCallback(() => {
-    const newTask = dispatch(projectsActions.createTask(project.id, "prepend"));
+    const newTask = projectsActions.createTask(store, project.id, "prepend");
 
     focusManager.editByKey(buildFocusKey(newTask.id, newTask.type));
-  }, [dispatch, project.id]);
+  }, [project.id, store]);
 
   return (
     <ColumnListProvider
@@ -187,7 +183,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
                   "Are you sure you want to delete this project?",
                 );
                 if (shouldDelete) {
-                  dispatch(projectsActions.delete(project.id));
+                  projectsActions.delete(store, project.id);
                 }
               }}
             >

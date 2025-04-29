@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
 import { getRootStore } from "@/models/initRootStore";
-import { useAppDispatch, useAppSelector, useAppStore } from "@/hooks/state";
+import { useAppSelector, useAppStore } from "@/hooks/state";
 import {
   projectsActions,
   projectsListActions,
@@ -84,7 +84,6 @@ const ProjectItem = function ProjectItemComp({
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const store = useAppStore();
-  const dispatch = useAppDispatch();
 
   const ref = useRef<HTMLAnchorElement>(null);
 
@@ -116,7 +115,7 @@ const ProjectItem = function ProjectItemComp({
       e.preventDefault();
 
       const [up, down] = focusItem.siblings;
-      dispatch(projectsActions.delete(project.id));
+      projectsActions.delete(store, project.id);
 
       setTimeout(() => {
         if (down) {
@@ -452,9 +451,9 @@ export const Sidebar = function SidebarComp() {
   const projectIdsWithoutInbox = useAppSelector(
     projectsListSelectors.childrenIdsWithoutInbox,
   );
-  const dispatch = useAppDispatch();
+  const store = useAppStore();
   const createProject = () => {
-    dispatch(projectsListActions.createProject({}, "prepend"));
+    projectsListActions.createProject(store, {}, "prepend");
   };
 
   const handleDownloadBackup = () => {

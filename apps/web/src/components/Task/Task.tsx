@@ -38,7 +38,7 @@ import {
   taskSelectors,
   todoItemActions,
 } from "@/models/models2";
-import { useAppDispatch, useAppSelector, useAppStore } from "@/hooks/state";
+import { useAppSelector, useAppStore } from "@/hooks/state";
 
 type State =
   | { type: "idle" }
@@ -104,12 +104,11 @@ export const TaskComp = observer(function TaskComponent({
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const dispatch = useAppDispatch();
+  const store = useAppStore();
   const focusableItem = useRegisterFocusItem(
     buildFocusKey(taskBox.id, taskBox.type),
     "orderToken" in taskBox ? taskBox.orderToken : "",
   );
-  const store = useAppStore();
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
@@ -131,7 +130,7 @@ export const TaskComp = observer(function TaskComponent({
     (moveFocus: boolean = false) => {
       // const isFocused = focusableItem.isFocused;
       // const [up, down] = focusableItem.siblings;
-      dispatch(taskActions.toggleState(taskId));
+      taskActions.toggleState(store, taskId);
       //
       // if (!moveFocus) return;
       //
@@ -145,7 +144,7 @@ export const TaskComp = observer(function TaskComponent({
       //   }, 0);
       // }
     },
-    [dispatch, taskId],
+    [store, taskId],
   );
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
@@ -199,12 +198,12 @@ export const TaskComp = observer(function TaskComponent({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dispatch(dropActions.handleDrop(taskBox.id, id, "top"));
+        dropActions.handleDrop(store, taskBox.id, id, "top");
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dispatch(dropActions.handleDrop(taskBox.id, id, "top"));
+        dropActions.handleDrop(store, taskBox.id, id, "top");
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -272,8 +271,10 @@ export const TaskComp = observer(function TaskComponent({
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
-      const newBox = dispatch(
-        todoItemActions.createSibling(taskBox, isAddAfter ? "after" : "before"),
+      const newBox = todoItemActions.createSibling(
+        store,
+        taskBox,
+        isAddAfter ? "after" : "before",
       );
       focusManager.editByKey(buildFocusKey(newBox.id, newBox.type));
 
@@ -295,11 +296,9 @@ export const TaskComp = observer(function TaskComponent({
 
   const handleMove = (projectId: string) => {
     try {
-      dispatch(
-        taskActions.update(taskId, {
-          projectId,
-        }),
-      );
+      taskActions.update(store, taskId, {
+        projectId,
+      });
     } finally {
       setIsMoveModalOpen(false);
     }
@@ -426,28 +425,24 @@ export const TaskComp = observer(function TaskComponent({
       prevIsEditing &&
       editingTitle !== taskTitle
     ) {
-      dispatch(
-        taskActions.update(taskId, {
-          title: editingTitle,
-        }),
-      );
+      taskActions.update(store, taskId, {
+        title: editingTitle,
+      });
     }
   }, [
-    dispatch,
     editingTitle,
     focusableItem.isEditing,
     prevIsEditing,
+    store,
     taskId,
     taskTitle,
   ]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
-      dispatch(
-        taskActions.update(taskId, {
-          title: editingTitle,
-        }),
-      );
+      taskActions.update(store, taskId, {
+        title: editingTitle,
+      });
     }
   });
 
