@@ -285,16 +285,7 @@ const BoardView = observer(function BoardViewComponent({
   handlePrevDay: () => void;
   dailyLists: DailyList[];
 }) {
-<<<<<<< Updated upstream:apps/web/src/components/DaysBoard/DaysBoard.tsx
   const { allProjectsList, projectsRegistry } = getRootStore();
-=======
-  const { preferences, allProjectsList, projectsRegistry, dailyListRegisry } =
-    getRootStore();
-  const displayedTasksIds = computed(() => {
-    return dailyListRegisry.getTaskIdsOfDailyLists(dailyLists);
-  }).get();
-
->>>>>>> Stashed changes:src/components/DaysBoard/DaysBoard.tsx
   const projectsList = allProjectsList.children.map((project) => {
     return {
       value: project.id,
@@ -496,7 +487,6 @@ export const Board = observer(function BoardComponent() {
 
   // Handle previous day
   const handlePrevDay = useCallback((): void => {
-<<<<<<< Updated upstream:apps/web/src/components/DaysBoard/DaysBoard.tsx
     setDaysShift(daysShift - 1);
   }, [daysShift, setDaysShift]);
 
@@ -504,15 +494,6 @@ export const Board = observer(function BoardComponent() {
   const handleNextDay = useCallback((): void => {
     setDaysShift(daysShift + 1);
   }, [daysShift, setDaysShift]);
-=======
-    preferences.setDaysShift(preferences.daysShift - 1);
-  }, [preferences]);
-
-  // Handle next day
-  const handleNextDay = useCallback((): void => {
-    preferences.setDaysShift(preferences.daysShift + 1);
-  }, [preferences]);
->>>>>>> Stashed changes:src/components/DaysBoard/DaysBoard.tsx
 
   useEffect(() => {
     dailyListRegistry.createDailyListsIfNotExists(weekDays);

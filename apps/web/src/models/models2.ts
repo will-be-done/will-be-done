@@ -1,8 +1,7 @@
 import {
   createActionCreator,
+  createSelectorCreator,
   createStore,
-  memoize,
-  memoizeWithArgs,
   StoreApi,
 } from "@will-be-done/hyperstate";
 import { format } from "date-fns";
@@ -12,6 +11,7 @@ import uuidByString from "uuid-by-string";
 import AwaitLock from "await-lock";
 import { getDbCtx } from "@/sync/db";
 import { shouldNeverHappen } from "@/utils";
+import { shallowEqual } from "fast-equals";
 
 export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
 
@@ -21,6 +21,8 @@ export const getDMY = (date: Date) => {
 const makeDailyListId = (date: Date) => {
   return uuidByString(getDMY(date));
 };
+
+const appSelector = createSelectorCreator<RootState>();
 
 export const generateKeyPositionedBetween = (
   current: OrderableItem,
@@ -242,28 +244,21 @@ export const appSelectors = {
 };
 
 export const todoItemActions = {
-  create: appAction((state: RootState, dispatch, taskBox: TaskBox) => {
+  create: appAction((state: RootState, taskBox: TaskBox) => {
     if (isTask(taskBox)) {
-      return dispatch(taskActions.createTask(taskBox));
+      return taskActions.createTask(state, taskBox);
     } else if (isTaskProjection(taskBox)) {
-      return dispatch(taskProjectionActions.create(taskBox));
+      return taskProjectionActions.create(state, taskBox);
     } else {
       assertUnreachable(taskBox);
     }
   }),
   createSibling: appAction(
-    (
-      state: RootState,
-      dispatch,
-      taskBox: TaskBox,
-      position: "before" | "after",
-    ) => {
+    (state: RootState, taskBox: TaskBox, position: "before" | "after") => {
       if (isTask(taskBox)) {
-        return dispatch(taskActions.createSibling(taskBox.id, position));
+        return taskActions.createSibling(state, taskBox.id, position);
       } else if (isTaskProjection(taskBox)) {
-        return dispatch(
-          taskProjectionActions.createSibling(taskBox.id, position),
-        );
+        return taskProjectionActions.createSibling(state, taskBox.id, position);
       } else {
         assertUnreachable(taskBox);
       }
@@ -272,16 +267,19 @@ export const todoItemActions = {
   handleDrop: appAction(
     (
       state: RootState,
-      dispatch,
+
       taskBox: TaskBox,
       targetId: string,
       edge: "top" | "bottom",
     ) => {
       if (isTask(taskBox)) {
-        return dispatch(taskActions.handleDrop(taskBox.id, targetId, edge));
+        return taskActions.handleDrop(state, taskBox.id, targetId, edge);
       } else if (isTaskProjection(taskBox)) {
-        return dispatch(
-          taskProjectionActions.handleDrop(taskBox.id, targetId, edge),
+        return taskProjectionActions.handleDrop(
+          state,
+          taskBox.id,
+          targetId,
+          edge,
         );
       } else {
         assertUnreachable(taskBox);
@@ -291,61 +289,68 @@ export const todoItemActions = {
 };
 
 export const dailyListSelectors = {
-  byId: memoizeWithArgs(
-    (state: RootState, id: string) => state.dailyLists.byIds[id],
-  ),
+  byId: (state: RootState, id: string) => state.dailyLists.byIds[id],
   canDrop(state: RootState, dailyListId: string, targetId: string) {
     return false;
   },
-  childrenIds: memoizeWithArgs(
-    (state: RootState, dailyListId: string): string[] => {
-      return Object.values(state.taskProjections.byIds)
-        .filter((proj) => proj.dailyListId === dailyListId)
-        .map((proj) => proj.id);
-    },
-  ),
-  taskIds: memoizeWithArgs(
-    (state: RootState, dailyListId: string): string[] => {
-      return dailyListSelectors
-        .childrenIds(state, dailyListId)
-        .map((id) => taskProjectionSelectors.byId(state, id)?.taskId)
-        .filter((t) => t !== undefined);
-    },
-  ),
-  firstChild: memoizeWithArgs(
-    (state: RootState, dailyListId: string): TaskProjection | undefined => {
-      const childrenIds = dailyListSelectors.childrenIds(state, dailyListId);
+  childrenIds: appSelector((query, dailyListId: string): string[] => {
+    return query(
+      (state) =>
+        Object.values(state.taskProjections.byIds)
+          .filter((proj) => proj.dailyListId === dailyListId)
+          .map((proj) => proj.id),
+      shallowEqual,
+    );
+  }),
+  taskIds: appSelector((query, dailyListId: string): string[] => {
+    return query(
+      (state) =>
+        dailyListSelectors
+          .childrenIds(state, dailyListId)
+          .map((id) => taskProjectionSelectors.byId(state, id)?.taskId)
+          .filter((t) => t !== undefined),
+      shallowEqual,
+    );
+  }),
+  firstChild: appSelector(
+    (query, dailyListId: string): TaskProjection | undefined => {
+      const childrenIds = query((state) =>
+        dailyListSelectors.childrenIds(state, dailyListId),
+      );
       const firstChildId = childrenIds[0];
 
       return firstChildId
-        ? taskProjectionSelectors.byId(state, firstChildId)
+        ? query((state) => taskProjectionSelectors.byId(state, firstChildId))
         : undefined;
     },
   ),
-  lastChild: memoizeWithArgs(
-    (state: RootState, dailyListId: string): TaskProjection | undefined => {
-      const childrenIds = dailyListSelectors.childrenIds(state, dailyListId);
+  lastChild: appSelector(
+    (query, dailyListId: string): TaskProjection | undefined => {
+      const childrenIds = query((state) =>
+        dailyListSelectors.childrenIds(state, dailyListId),
+      );
       const lastChildId = childrenIds[childrenIds.length - 1];
 
       return lastChildId
-        ? taskProjectionSelectors.byId(state, lastChildId)
+        ? query((state) => taskProjectionSelectors.byId(state, lastChildId))
         : undefined;
     },
   ),
-  firstDoneChild: memoizeWithArgs(
-    (state: RootState, dailyListId: string): TaskProjection | undefined => {
-      const childrenIds = dailyListSelectors.childrenIds(state, dailyListId);
+  firstDoneChild: appSelector(
+    (query, dailyListId: string): TaskProjection | undefined => {
+      return query((state) => {
+        const childrenIds = dailyListSelectors.childrenIds(state, dailyListId);
+        const projections = childrenIds
+          .map((id) => taskProjectionSelectors.byId(state, id))
+          .filter((p) => p !== undefined);
+        const tasksWithProjections = projections.map(
+          (proj) => [proj, taskSelectors.byId(state, proj.taskId)] as const,
+        );
 
-      const projections = childrenIds
-        .map((id) => taskProjectionSelectors.byId(state, id))
-        .filter((p) => p !== undefined);
-      const tasksWithProjections = projections.map(
-        (proj) => [proj, taskSelectors.byId(state, proj.taskId)] as const,
-      );
-
-      return tasksWithProjections.find(
-        ([proj, task]) => task?.state === "done",
-      )?.[0];
+        return tasksWithProjections.find(
+          ([proj, task]) => task?.state === "done",
+        )?.[0];
+      });
     },
   ),
   byDate: memoizeWithArgs(
@@ -370,7 +375,7 @@ export const dailyListActions = {
   handleDrop: appAction(
     (
       state: RootState,
-      _dispatch,
+
       dailyListId: string,
       targetId: string,
       edge: "top" | "bottom",
@@ -379,7 +384,7 @@ export const dailyListActions = {
   createProjection: appAction(
     (
       state: RootState,
-      _dispatch,
+
       dailyList: Partial<DailyList> & {
         projectId: string;
         orderToken: string;
@@ -400,7 +405,7 @@ export const dailyListActions = {
   create: appAction(
     (
       state: RootState,
-      _dispatch,
+
       dailyList: Partial<DailyList> & {
         date: string;
       },
@@ -417,26 +422,24 @@ export const dailyListActions = {
       return list;
     },
   ),
-  createIfNotPresent: appAction(
-    (state: RootState, dispatch, date: Date): DailyList => {
-      const dailyList = dailyListSelectors.byDate(state, date);
+  createIfNotPresent: appAction((state: RootState, date: Date): DailyList => {
+    const dailyList = dailyListSelectors.byDate(state, date);
 
-      if (!dailyList) {
-        const newList = dispatch(
-          dailyListActions.create({
-            id: makeDailyListId(date),
-            date: getDMY(date),
-          }),
-        );
+    if (!dailyList) {
+      const newList = dispatch(
+        dailyListActions.create({
+          id: makeDailyListId(date),
+          date: getDMY(date),
+        }),
+      );
 
-        return newList;
-      } else {
-        return dailyList;
-      }
-    },
-  ),
+      return newList;
+    } else {
+      return dailyList;
+    }
+  }),
   createManyIfNotPresent: appAction(
-    (state: RootState, dispatch, dates: Date[]): DailyList[] => {
+    (state: RootState, dates: Date[]): DailyList[] => {
       return dates.map((date) =>
         dispatch(dailyListActions.createIfNotPresent(date)),
       );
@@ -445,9 +448,7 @@ export const dailyListActions = {
 };
 
 export const taskProjectionSelectors = {
-  byId: memoizeWithArgs(
-    (state: RootState, id: string) => state.taskProjections.byIds[id],
-  ),
+  byId: (state: RootState, id: string) => state.taskProjections.byIds[id],
   canDrop(state: RootState, taskProjectionId: string, targetId: string) {
     return false;
   },
@@ -475,7 +476,7 @@ export const taskProjectionActions = {
   handleDrop: appAction(
     (
       state: RootState,
-      _dispatch,
+
       taskProjectionId: string,
       targetId: string,
       edge: "top" | "bottom",
@@ -484,7 +485,7 @@ export const taskProjectionActions = {
   create: appAction(
     (
       state: RootState,
-      _dispatch,
+
       taskProjection: Partial<TaskProjection> & {
         taskId: string;
         dailyListId: string;
@@ -507,7 +508,7 @@ export const taskProjectionActions = {
   createSibling: appAction(
     (
       state: RootState,
-      dispatch,
+
       taskProjectionId: string,
       position: "before" | "after",
     ): TaskProjection => {
@@ -540,9 +541,7 @@ export const taskSelectors = {
 
     return isTaskProjection(model) || isTask(model);
   },
-  byId: memoizeWithArgs(
-    (state: RootState, id: string) => state.tasks.byIds[id],
-  ),
+  byId: (state: RootState, id: string) => state.tasks.byIds[id],
   byIdOrDefault: (state: RootState, id: string): Task => {
     const task = taskSelectors.byId(state, id);
     if (!task)
@@ -576,20 +575,18 @@ export const taskSelectors = {
   ),
 };
 export const taskActions = {
-  update: appAction(
-    (state: RootState, _dispatch, id: string, task: Partial<Task>) => {
-      const taskInState = taskSelectors.byId(state, id);
-      if (!taskInState) throw new Error("Task not found");
+  update: appAction((state: RootState, id: string, task: Partial<Task>) => {
+    const taskInState = taskSelectors.byId(state, id);
+    if (!taskInState) throw new Error("Task not found");
 
-      Object.assign(taskInState, task);
+    Object.assign(taskInState, task);
 
-      return taskInState;
-    },
-  ),
+    return taskInState;
+  }),
   createTask: appAction(
     (
       state: RootState,
-      _dispatch,
+
       task: Partial<Task> & { projectId: string; orderToken: string },
     ) => {
       const id = task.id || uuidv7();
@@ -609,7 +606,7 @@ export const taskActions = {
   createSibling: appAction(
     (
       state: RootState,
-      dispatch,
+
       taskId: string,
       position: "before" | "after",
     ): Task => {
@@ -632,13 +629,13 @@ export const taskActions = {
   handleDrop: appAction(
     (
       state: RootState,
-      _dispatch,
+
       taskId: string,
       targetId: string,
       edge: "top" | "bottom",
     ) => {},
   ),
-  toggleState: appAction((state: RootState, _dispatch, taskId: string) => {
+  toggleState: appAction((state: RootState, taskId: string) => {
     const task = taskSelectors.byId(state, taskId);
     if (!task) throw new Error("Task not found");
 
@@ -649,7 +646,7 @@ export const projectsListActions = {
   createProject: appAction(
     (
       state: RootState,
-      _dispatch,
+
       newProject: Partial<Project>,
       position:
         | [OrderableItem | undefined, OrderableItem | undefined]
@@ -839,15 +836,15 @@ export const projectsSelectors = {
 };
 
 export const projectsActions = {
-  create: appAction((state: RootState, _dispatch, project: Project) => {
+  create: appAction((state: RootState, project: Project) => {
     state.projects.byIds[project.id] = project;
     return project;
   }),
-  delete: appAction((state: RootState, _dispatch, id: string) => {
+  delete: appAction((state: RootState, id: string) => {
     delete state.projects.byIds[id];
   }),
   update: appAction(
-    (state: RootState, _dispatch, id: string, project: Partial<Project>) => {
+    (state: RootState, id: string, project: Partial<Project>) => {
       const projInState = projectsSelectors.byId(state, id);
       if (!projInState) throw new Error("Project not found");
 
@@ -859,7 +856,6 @@ export const projectsActions = {
   handleDrop: appAction(
     (
       state: RootState,
-      _dispatch,
       projectId: string,
       targetId: string,
       edge: "top" | "bottom",
@@ -896,7 +892,7 @@ export const projectsActions = {
   createTask: appAction(
     (
       state: RootState,
-      dispatch,
+
       projectId: string,
       position:
         | [OrderableItem | undefined, OrderableItem | undefined]
@@ -959,7 +955,7 @@ export const dropActions = {
   handleDrop: appAction(
     (
       state: RootState,
-      dispatch,
+
       id: string,
       targetId: string,
       edge: "top" | "bottom",

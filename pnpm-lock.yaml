@@ -36,7 +36,7 @@ importers:
         version: 0.28.0
       kysely-bun-worker:
         specifier: ^1.2.0
-        version: 1.2.0(bun-types@1.2.10)(kysely@0.28.0)
+        version: 1.2.0(bun-types@1.2.11)(kysely@0.28.0)
       kysely-plugin-serialize:
         specifier: ^0.8.2
         version: 0.8.2(kysely@0.28.0)
@@ -52,7 +52,7 @@ importers:
     devDependencies:
       '@types/bun':
         specifier: latest
-        version: 1.2.10
+        version: 1.2.11
 
   apps/hyperstate:
     dependencies:
@@ -1888,8 +1888,8 @@ packages:
     peerDependencies:
       typescript: '>=5.7.2'
 
-  '@types/bun@1.2.10':
-    resolution: {integrity: sha512-eilv6WFM3M0c9ztJt7/g80BDusK98z/FrFwseZgT4bXCq2vPhXD4z8R3oddmAn+R/Nmz9vBn4kweJKmGTZj+lg==}
+  '@types/bun@1.2.11':
+    resolution: {integrity: sha512-ZLbbI91EmmGwlWTRWuV6J19IUiUC5YQ3TCEuSHI3usIP75kuoA8/0PVF+LTrbEnVc8JIhpElWOxv1ocI1fJBbw==}
 
   '@types/direction@1.0.0':
     resolution: {integrity: sha512-et1wmqXm/5smJ8lTJfBnwD12/2Y7eVJLKbuaRT0h2xaKAoo1h8Dz2Io22GObDLFwxY1ddXRTLH3Gq5v44Fl/2w==}
@@ -2215,8 +2215,8 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
-  bun-types@1.2.10:
-    resolution: {integrity: sha512-b5ITZMnVdf3m1gMvJHG+gIfeJHiQPJak0f7925Hxu6ZN5VKA8AGy4GZ4lM+Xkn6jtWxg5S3ldWvfmXdvnkp3GQ==}
+  bun-types@1.2.11:
+    resolution: {integrity: sha512-dbkp5Lo8HDrXkLrONm6bk+yiiYQSntvFUzQp0v3pzTAsXk6FtgVMjdQ+lzFNVAmQFUkPQZ3WMZqH5tTo+Dp/IA==}
 
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
@@ -6547,9 +6547,9 @@ snapshots:
     dependencies:
       typescript: 5.7.3
 
-  '@types/bun@1.2.10':
+  '@types/bun@1.2.11':
     dependencies:
-      bun-types: 1.2.10
+      bun-types: 1.2.11
 
   '@types/direction@1.0.0': {}
 
@@ -6898,7 +6898,7 @@ snapshots:
       node-releases: 2.0.19
       update-browserslist-db: 1.1.3(browserslist@4.24.4)
 
-  bun-types@1.2.10:
+  bun-types@1.2.11:
     dependencies:
       '@types/node': 22.14.0
 
@@ -8037,9 +8037,9 @@ snapshots:
 
   kleur@4.1.5: {}
 
-  kysely-bun-worker@1.2.0(bun-types@1.2.10)(kysely@0.28.0):
+  kysely-bun-worker@1.2.0(bun-types@1.2.11)(kysely@0.28.0):
     dependencies:
-      bun-types: 1.2.10
+      bun-types: 1.2.11
       kysely: 0.28.0
       kysely-generic-sqlite: 1.2.0(kysely@0.28.0)
 
