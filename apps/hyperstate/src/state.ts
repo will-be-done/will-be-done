@@ -1,11 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Draft, isDraft, Patch, produceWithPatches } from "immer";
+// import { Draft, isDraft, Patch, produceWithPatches } from "immer";
 // import { memoize as originalMemoize } from "proxy-memoize";
 
-import { enablePatches, setAutoFreeze } from "immer";
-
-setAutoFreeze(false);
-enablePatches();
+import { create, isDraft, Draft, Patch } from "mutative";
 
 // let isActionExecuting = false;
 
@@ -63,9 +60,12 @@ export function createActionCreator<
           // TODO: add deep traversal draft check of result
         };
 
-        const [nextState, patches, inversePatches] = produceWithPatches(
+        const [nextState, patches, inversePatches] = create(
           state,
           performDraftAction,
+          {
+            enablePatches: true,
+          },
         );
 
         store.setState(nextState);
