@@ -353,8 +353,8 @@ export const dailyListSelectors = {
       });
     },
   ),
-  byDate: memoizeWithArgs(
-    (state: RootState, date: Date): DailyList | undefined => {
+  byDate: appSelector((query, date: Date): DailyList | undefined => {
+    return query((state) => {
       const allDailyLists = Object.values(state.dailyLists.byIds);
       const dmy = getDMY(date);
 
@@ -363,19 +363,22 @@ export const dailyListSelectors = {
           return dailyList;
         }
       }
-    },
-  ),
-  byDates: memoizeWithArgs((state: RootState, dates: Date[]): DailyList[] => {
-    return dates
-      .map((date) => dailyListSelectors.byDate(state, date))
-      .filter((d) => d != undefined);
+    });
+  }),
+  byDates: appSelector((query, dates: Date[]): DailyList[] => {
+    return query(
+      (state) =>
+        dates
+          .map((date) => dailyListSelectors.byDate(state, date))
+          .filter((d) => d != undefined),
+      shallowEqual,
+    );
   }),
 };
 export const dailyListActions = {
   handleDrop: appAction(
     (
       state: RootState,
-
       dailyListId: string,
       targetId: string,
       edge: "top" | "bottom",
@@ -384,7 +387,6 @@ export const dailyListActions = {
   createProjection: appAction(
     (
       state: RootState,
-
       dailyList: Partial<DailyList> & {
         projectId: string;
         orderToken: string;
@@ -405,7 +407,6 @@ export const dailyListActions = {
   create: appAction(
     (
       state: RootState,
-
       dailyList: Partial<DailyList> & {
         date: string;
       },
@@ -426,12 +427,10 @@ export const dailyListActions = {
     const dailyList = dailyListSelectors.byDate(state, date);
 
     if (!dailyList) {
-      const newList = dispatch(
-        dailyListActions.create({
-          id: makeDailyListId(date),
-          date: getDMY(date),
-        }),
-      );
+      const newList = dailyListActions.create(state, {
+        id: makeDailyListId(date),
+        date: getDMY(date),
+      });
 
       return newList;
     } else {
@@ -441,7 +440,7 @@ export const dailyListActions = {
   createManyIfNotPresent: appAction(
     (state: RootState, dates: Date[]): DailyList[] => {
       return dates.map((date) =>
-        dispatch(dailyListActions.createIfNotPresent(date)),
+        dailyListActions.createIfNotPresent(state, date),
       );
     },
   ),
@@ -452,22 +451,23 @@ export const taskProjectionSelectors = {
   canDrop(state: RootState, taskProjectionId: string, targetId: string) {
     return false;
   },
-  siblings: memoizeWithArgs(
+  siblings: appSelector(
     (
-      state: RootState,
+      query,
       taskProjectionId: string,
     ): [TaskProjection | undefined, TaskProjection | undefined] => {
-      const items = projectsListSelectors.childrenIds(state);
+      return query((state) => {
+        const items = projectsListSelectors.childrenIds(state);
+        const i = items.findIndex((it: string) => it === taskProjectionId);
 
-      const i = items.findIndex((it) => it === taskProjectionId);
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
 
-      const beforeId = items[i - 1];
-      const afterId = items[i + 1];
-
-      return [
-        beforeId ? taskProjectionSelectors.byId(state, beforeId) : undefined,
-        afterId ? taskProjectionSelectors.byId(state, afterId) : undefined,
-      ];
+        return [
+          beforeId ? taskProjectionSelectors.byId(state, beforeId) : undefined,
+          afterId ? taskProjectionSelectors.byId(state, afterId) : undefined,
+        ];
+      });
     },
   ),
 };
@@ -476,7 +476,6 @@ export const taskProjectionActions = {
   handleDrop: appAction(
     (
       state: RootState,
-
       taskProjectionId: string,
       targetId: string,
       edge: "top" | "bottom",
@@ -485,7 +484,6 @@ export const taskProjectionActions = {
   create: appAction(
     (
       state: RootState,
-
       taskProjection: Partial<TaskProjection> & {
         taskId: string;
         dailyListId: string;
@@ -508,7 +506,6 @@ export const taskProjectionActions = {
   createSibling: appAction(
     (
       state: RootState,
-
       taskProjectionId: string,
       position: "before" | "after",
     ): TaskProjection => {
@@ -519,17 +516,15 @@ export const taskProjectionActions = {
 
       if (!taskProjection) throw new Error("TaskProjection not found");
 
-      return dispatch(
-        taskProjectionActions.create({
-          taskId: taskProjection.taskId,
-          dailyListId: taskProjection.dailyListId,
-          orderToken: generateKeyPositionedBetween(
-            taskProjection,
-            taskProjectionSelectors.siblings(state, taskProjectionId),
-            position,
-          ),
-        }),
-      );
+      return taskProjectionActions.create(state, {
+        taskId: taskProjection.taskId,
+        dailyListId: taskProjection.dailyListId,
+        orderToken: generateKeyPositionedBetween(
+          taskProjection,
+          taskProjectionSelectors.siblings(state, taskProjectionId),
+          position,
+        ),
+      });
     },
   ),
 };
@@ -556,24 +551,26 @@ export const taskSelectors = {
 
     return task;
   },
-  siblings: memoizeWithArgs(
+  siblings: appSelector(
     (
-      state: RootState,
+      query,
       taskId: string,
     ): [ProjectItem | undefined, ProjectItem | undefined] => {
-      const items = projectsListSelectors.childrenIds(state);
+      return query((state) => {
+        const items = projectsListSelectors.childrenIds(state);
+        const i = items.findIndex((it: string) => it === taskId);
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
 
-      const i = items.findIndex((it) => it === taskId);
-      const beforeId = items[i - 1];
-      const afterId = items[i + 1];
-
-      return [
-        beforeId ? taskSelectors.byId(state, beforeId) : undefined,
-        afterId ? taskSelectors.byId(state, afterId) : undefined,
-      ];
+        return [
+          beforeId ? taskSelectors.byId(state, beforeId) : undefined,
+          afterId ? taskSelectors.byId(state, afterId) : undefined,
+        ];
+      });
     },
   ),
 };
+
 export const taskActions = {
   update: appAction((state: RootState, id: string, task: Partial<Task>) => {
     const taskInState = taskSelectors.byId(state, id);
@@ -586,7 +583,6 @@ export const taskActions = {
   createTask: appAction(
     (
       state: RootState,
-
       task: Partial<Task> & { projectId: string; orderToken: string },
     ) => {
       const id = task.id || uuidv7();
@@ -604,32 +600,24 @@ export const taskActions = {
     },
   ),
   createSibling: appAction(
-    (
-      state: RootState,
-
-      taskId: string,
-      position: "before" | "after",
-    ): Task => {
+    (state: RootState, taskId: string, position: "before" | "after"): Task => {
       const task = taskSelectors.byId(state, taskId);
 
       if (!task) throw new Error("Task not found");
 
-      return dispatch(
-        taskActions.createTask({
-          projectId: task.projectId,
-          orderToken: generateKeyPositionedBetween(
-            task,
-            taskSelectors.siblings(state, taskId),
-            position,
-          ),
-        }),
-      );
+      return taskActions.createTask(state, {
+        projectId: task.projectId,
+        orderToken: generateKeyPositionedBetween(
+          task,
+          taskSelectors.siblings(state, taskId),
+          position,
+        ),
+      });
     },
   ),
   handleDrop: appAction(
     (
       state: RootState,
-
       taskId: string,
       targetId: string,
       edge: "top" | "bottom",
@@ -677,40 +665,52 @@ export const projectsListActions = {
 };
 
 export const projectsListSelectors = {
-  all: memoize((state: RootState): Project[] => {
-    return Object.values(state.projects.byIds);
+  all: appSelector((query): Project[] => {
+    return query((state) => Object.values(state.projects.byIds), shallowEqual);
   }),
-  childrenIds: memoize((state: RootState): string[] => {
-    const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
-      id: p.id,
-      orderToken: p.orderToken,
-    }));
+  childrenIds: appSelector((query): string[] => {
+    return query((state) => {
+      const allIdsAndTokens = projectsListSelectors.all(state).map((p) => ({
+        id: p.id,
+        orderToken: p.orderToken,
+      }));
 
-    return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
+      return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
+    }, shallowEqual);
   }),
-  childrenIdsWithoutInbox: memoize((state: RootState): string[] => {
-    return projectsListSelectors
-      .childrenIds(state)
-      .filter((id) => id !== inboxId);
+  childrenIdsWithoutInbox: appSelector((query): string[] => {
+    return query(
+      (state) =>
+        projectsListSelectors.childrenIds(state).filter((id) => id !== inboxId),
+      shallowEqual,
+    );
   }),
-  firstChild: memoize((state: RootState): Project | undefined => {
-    const childrenIds = projectsListSelectors.childrenIds(state);
+  firstChild: appSelector((query): Project | undefined => {
+    const childrenIds = query((state) =>
+      projectsListSelectors.childrenIds(state),
+    );
     const firstChildId = childrenIds[0];
 
     return firstChildId
-      ? projectsSelectors.byId(state, firstChildId)
+      ? query((state) => projectsSelectors.byId(state, firstChildId))
       : undefined;
   }),
-  lastChild: memoize((state: RootState): Project | undefined => {
-    const childrenIds = projectsListSelectors.childrenIds(state);
-    const lastChildId = childrenIds[childrenIds.length - 1];
+  lastChild: appSelector((query): Project | undefined => {
+    return query((state) => {
+      const childrenIds = projectsListSelectors.childrenIds(state);
+      const lastChildId = childrenIds[childrenIds.length - 1];
 
-    return lastChildId ? projectsSelectors.byId(state, lastChildId) : undefined;
+      return lastChildId
+        ? projectsSelectors.byId(state, lastChildId)
+        : undefined;
+    });
   }),
-  inbox: memoize((state: RootState): Project => {
-    const inbox = projectsSelectors.byId(state, inboxId);
-    if (!inbox) throw new Error("Inbox not found");
-    return inbox;
+  inbox: appSelector((query): Project => {
+    return query((state) => {
+      const inbox = projectsSelectors.byId(state, inboxId);
+      if (!inbox) throw new Error("Inbox not found");
+      return inbox;
+    });
   }),
 };
 
@@ -743,25 +743,24 @@ export const projectsSelectors = {
       isTaskProjection(target)
     );
   },
-  siblings: memoizeWithArgs(
-    (
-      state: RootState,
-      projectId: string,
-    ): [Project | undefined, Project | undefined] => {
-      const items = projectsListSelectors.childrenIds(state);
-      const i = items.findIndex((it) => it === projectId);
+  siblings: appSelector(
+    (query, projectId: string): [Project | undefined, Project | undefined] => {
+      return query((state) => {
+        const items = projectsListSelectors.childrenIds(state);
+        const i = items.findIndex((it: string) => it === projectId);
 
-      const beforeId = items[i - 1];
-      const afterId = items[i + 1];
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
 
-      return [
-        beforeId ? projectsSelectors.byId(state, beforeId) : undefined,
-        afterId ? projectsSelectors.byId(state, afterId) : undefined,
-      ];
+        return [
+          beforeId ? projectsSelectors.byId(state, beforeId) : undefined,
+          afterId ? projectsSelectors.byId(state, afterId) : undefined,
+        ];
+      });
     },
   ),
-  childrenIds: memoizeWithArgs(
-    (state: RootState, projectId: string): string[] => {
+  childrenIds: appSelector((query, projectId: string): string[] => {
+    return query((state) => {
       const tasks = Object.values(state.tasks.byIds).filter(
         (task) => task.projectId === projectId,
       );
@@ -770,69 +769,79 @@ export const projectsSelectors = {
       );
 
       return [...tasks, ...templates].sort(fractionalCompare).map((p) => p.id);
-    },
-  ),
-  childrenCount: memoizeWithArgs(
-    (state: RootState, projectId: string): number => {
-      return projectsSelectors.childrenIds(state, projectId).length;
-    },
-  ),
-  firstChild: memoizeWithArgs(
-    (state: RootState, projectId: string): ProjectItem | undefined => {
-      const childrenIds = projectsSelectors.childrenIds(state, projectId);
-      const firstChildId = childrenIds[0];
-
-      return firstChildId
-        ? projectsSelectors.getItemById(state, firstChildId)
-        : undefined;
-    },
-  ),
-  lastChild: memoizeWithArgs(
-    (state: RootState, projectId: string): ProjectItem | undefined => {
-      const childrenIds = projectsSelectors.childrenIds(state, projectId);
-
-      const lastChildId = childrenIds[childrenIds.length - 1];
-
-      return lastChildId
-        ? projectsSelectors.getItemById(state, lastChildId)
-        : undefined;
-    },
-  ),
-  tasksIds: memoizeWithArgs((state: RootState, projectId: string): string[] => {
-    return projectsSelectors
-      .childrenIds(state, projectId)
-      .map((id) => taskSelectors.byId(state, id))
-      .map((task) => task?.id)
-      .filter((task) => task !== undefined);
+    }, shallowEqual);
   }),
-  notDoneTaskIds: memoizeWithArgs(
-    (state: RootState, projectId: string): string[] => {
-      return projectsSelectors.tasksIds(state, projectId).filter((id) => {
-        const task = taskSelectors.byId(state, id);
-        if (!task) return false;
+  childrenCount: appSelector((query, projectId: string): number => {
+    return query(
+      (state) => projectsSelectors.childrenIds(state, projectId).length,
+    );
+  }),
+  firstChild: appSelector(
+    (query, projectId: string): ProjectItem | undefined => {
+      return query((state) => {
+        const childrenIds = projectsSelectors.childrenIds(state, projectId);
+        const firstChildId = childrenIds[0];
 
-        return task.state !== "done";
+        return firstChildId
+          ? projectsSelectors.getItemById(state, firstChildId)
+          : undefined;
       });
     },
   ),
-  withoutTasksByIds: memoizeWithArgs(
-    (state: RootState, projectId: string, ids: string[]): string[] => {
-      const setIds = new Set(ids);
-      return projectsSelectors.childrenIds(state, projectId).filter((id) => {
-        return !setIds.has(id);
+  lastChild: appSelector(
+    (query, projectId: string): ProjectItem | undefined => {
+      return query((state) => {
+        const childrenIds = projectsSelectors.childrenIds(state, projectId);
+        const lastChildId = childrenIds[childrenIds.length - 1];
+
+        return lastChildId
+          ? projectsSelectors.getItemById(state, lastChildId)
+          : undefined;
       });
     },
   ),
-  getItemById: memoizeWithArgs(
-    (state: RootState, id: string): ProjectItem | undefined => {
+  tasksIds: appSelector((query, projectId: string): string[] => {
+    return query(
+      (state) =>
+        projectsSelectors
+          .childrenIds(state, projectId)
+          .map((id) => taskSelectors.byId(state, id))
+          .map((task) => task?.id)
+          .filter((task) => task !== undefined),
+      shallowEqual,
+    );
+  }),
+  notDoneTaskIds: appSelector((query, projectId: string): string[] => {
+    return query(
+      (state) =>
+        projectsSelectors.tasksIds(state, projectId).filter((id) => {
+          const task = taskSelectors.byId(state, id);
+          if (!task) return false;
+
+          return task.state !== "done";
+        }),
+      shallowEqual,
+    );
+  }),
+  withoutTasksByIds: appSelector(
+    (query, projectId: string, ids: string[]): string[] => {
+      return query((state) => {
+        const setIds = new Set(ids);
+        return projectsSelectors
+          .childrenIds(state, projectId)
+          .filter((id) => !setIds.has(id));
+      }, shallowEqual);
+    },
+  ),
+  getItemById: appSelector((query, id: string): ProjectItem | undefined => {
+    return query((state) => {
       const task = taskSelectors.byId(state, id);
       if (!task) return undefined;
 
       // TODO: add template support
-      //
       return task;
-    },
-  ),
+    });
+  }),
 };
 
 export const projectsActions = {
@@ -892,7 +901,6 @@ export const projectsActions = {
   createTask: appAction(
     (
       state: RootState,
-
       projectId: string,
       position:
         | [OrderableItem | undefined, OrderableItem | undefined]
@@ -909,12 +917,10 @@ export const projectsActions = {
         position,
       );
 
-      return dispatch(
-        taskActions.createTask({
-          projectId: projectId,
-          orderToken: orderToken,
-        }),
-      );
+      return taskActions.createTask(state, {
+        projectId: projectId,
+        orderToken: orderToken,
+      });
     },
   ),
 };
@@ -955,7 +961,6 @@ export const dropActions = {
   handleDrop: appAction(
     (
       state: RootState,
-
       id: string,
       targetId: string,
       edge: "top" | "bottom",
@@ -968,7 +973,7 @@ export const dropActions = {
       if (!dropFunction)
         return shouldNeverHappen("Drop type not found" + model.type);
 
-      return dispatch(dropFunction(id, targetId, edge));
+      return dropFunction(state, id, targetId, edge);
     },
   ),
 };
