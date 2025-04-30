@@ -11,7 +11,7 @@ import { useUnmount } from "../../utils";
 import { focusManager } from "@/states/FocusManager";
 import { getRootStore } from "@/models/initRootStore";
 import { useAppSelector } from "@/hooks/state";
-import { projectsListSelectors } from "@/models/models2";
+import { allProjectsSlice } from "@/models/models2";
 
 export const MoveModal = observer(function MoveModelComp({
   isOpen,
@@ -27,7 +27,7 @@ export const MoveModal = observer(function MoveModelComp({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const allProjects = useAppSelector(projectsListSelectors.all);
+  const allProjects = useAppSelector(allProjectsSlice.all);
 
   const projects = useMemo(() => {
     return allProjects

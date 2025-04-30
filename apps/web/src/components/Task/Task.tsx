@@ -33,10 +33,10 @@ import {
   appSlice,
   dropActions,
   dropSelectors,
-  projectsSelectors,
-  taskActions,
-  taskSelectors,
-  todoItemActions,
+  projectsSlice,
+  tasksSlice,
+  tasksSlice,
+  taskBoxesSlice,
 } from "@/models/models2";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 
@@ -91,13 +91,13 @@ export const TaskComp = observer(function TaskComponent({
   showProject: boolean;
 }) {
   const task = useAppSelector((state) =>
-    taskSelectors.byIdOrDefault(state, taskId),
+    tasksSlice.byIdOrDefault(state, taskId),
   );
   const taskBox = useAppSelector((state) =>
     appSlice.taskBoxByIdOrDefault(state, taskBoxId),
   );
   const project = useAppSelector((state) =>
-    projectsSelectors.byIdOrDefault(state, task.projectId),
+    projectsSlice.byIdOrDefault(state, task.projectId),
   );
 
   const [editingTitle, setEditingTitle] = useState<string>(task.title);
@@ -130,7 +130,7 @@ export const TaskComp = observer(function TaskComponent({
     (moveFocus: boolean = false) => {
       // const isFocused = focusableItem.isFocused;
       // const [up, down] = focusableItem.siblings;
-      taskActions.toggleState(store, taskId);
+      tasksSlice.toggleState(store, taskId);
       //
       // if (!moveFocus) return;
       //
@@ -271,7 +271,7 @@ export const TaskComp = observer(function TaskComponent({
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
-      const newBox = todoItemActions.createSibling(
+      const newBox = taskBoxesSlice.createSibling(
         store,
         taskBox,
         isAddAfter ? "after" : "before",
@@ -296,7 +296,7 @@ export const TaskComp = observer(function TaskComponent({
 
   const handleMove = (projectId: string) => {
     try {
-      taskActions.update(store, taskId, {
+      tasksSlice.update(store, taskId, {
         projectId,
       });
     } finally {
@@ -425,7 +425,7 @@ export const TaskComp = observer(function TaskComponent({
       prevIsEditing &&
       editingTitle !== taskTitle
     ) {
-      taskActions.update(store, taskId, {
+      tasksSlice.update(store, taskId, {
         title: editingTitle,
       });
     }
@@ -440,7 +440,7 @@ export const TaskComp = observer(function TaskComponent({
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
-      taskActions.update(store, taskId, {
+      tasksSlice.update(store, taskId, {
         title: editingTitle,
       });
     }

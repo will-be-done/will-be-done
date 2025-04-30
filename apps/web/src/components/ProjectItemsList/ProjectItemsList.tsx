@@ -1,9 +1,5 @@
 import { observer } from "mobx-react-lite";
-import {
-  Project,
-  projectsActions,
-  projectsSelectors,
-} from "../../models/models2";
+import { Project, projectsSlice, projectsSlice } from "../../models/models2";
 import { TaskComp } from "../Task/Task";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
@@ -107,7 +103,7 @@ const ProjectTitle = observer(function ProjectTitleComp({
           <EmojiPicker
             className="h-[326px] rounded-lg border shadow-md"
             onEmojiSelect={({ emoji }) => {
-              projectsActions.update(store, project.id, {
+              projectsSlice.update(store, project.id, {
                 icon: emoji,
               });
             }}
@@ -128,7 +124,7 @@ const ProjectTitle = observer(function ProjectTitleComp({
           className={cn({ hidden: !focusableItem.isEditing })}
           value={project.title}
           onChange={(e) => {
-            projectsActions.update(store, project.id, {
+            projectsSlice.update(store, project.id, {
               title: e.target.value,
             });
           }}
@@ -157,11 +153,11 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
 }) {
   const store = useAppStore();
   const taskIds = useAppSelector((state) =>
-    projectsSelectors.childrenIds(state, project.id),
+    projectsSlice.childrenIds(state, project.id),
   );
 
   const onAddNewTask = useCallback(() => {
-    const newTask = projectsActions.createTask(store, project.id, "prepend");
+    const newTask = projectsSlice.createTask(store, project.id, "prepend");
 
     focusManager.editByKey(buildFocusKey(newTask.id, newTask.type));
   }, [project.id, store]);
@@ -183,7 +179,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
                   "Are you sure you want to delete this project?",
                 );
                 if (shouldDelete) {
-                  projectsActions.delete(store, project.id);
+                  projectsSlice.delete(store, project.id);
                 }
               }}
             >

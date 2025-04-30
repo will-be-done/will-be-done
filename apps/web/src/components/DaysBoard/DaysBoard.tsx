@@ -30,14 +30,14 @@ import { buildFocusKey, focusManager } from "@/states/FocusManager";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import {
   DailyList,
-  dailyListActions,
-  dailyListSelectors,
+  dailyListsSlice,
+  dailyListsSlice,
   dropSelectors,
   getDMY,
   inboxId,
-  projectsListSelectors,
-  projectsSelectors,
-  taskProjectionSelectors,
+  allProjectsSlice,
+  projectsSlice,
+  taskProjectionsSlice,
 } from "@/models/models2";
 
 // All days of the week
@@ -115,7 +115,7 @@ const AddTaskColumnButton = observer(function AddTaskColumnButtonComp({
 
 const TaskProjection = ({ projectionId }: { projectionId: string }) => {
   const projection = useAppSelector((state) =>
-    taskProjectionSelectors.byIdOrDefault(state, projectionId),
+    taskProjectionsSlice.byIdOrDefault(state, projectionId),
   );
 
   return (
@@ -143,7 +143,7 @@ const ColumnView = observer(function ColumnViewComponent({
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
   const dailyList = useAppSelector((state) =>
-    dailyListSelectors.byIdOrDefault(state, dailyListId),
+    dailyListsSlice.byIdOrDefault(state, dailyListId),
   );
   const store = useAppStore();
 
@@ -185,7 +185,7 @@ const ColumnView = observer(function ColumnViewComponent({
   );
 
   const projectionIds = useAppSelector((state) =>
-    dailyListSelectors.childrenIds(state, dailyListId),
+    dailyListsSlice.childrenIds(state, dailyListId),
   );
 
   // TODO: return back
@@ -259,11 +259,11 @@ const ProjectSuggestions = ({
   dailyListsIds: string[];
 }) => {
   const project = useAppSelector((state) =>
-    projectsSelectors.byIdOrDefault(state, projectId),
+    projectsSlice.byIdOrDefault(state, projectId),
   );
 
   const taskIds = useAppSelector((state) =>
-    dailyListSelectors.notDoneTaskIdsExceptDailies(
+    dailyListsSlice.notDoneTaskIdsExceptDailies(
       state,
       projectId,
       dailyListsIds,
@@ -297,7 +297,7 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
   dailyListsIds: string[];
 }) {
   const selectedProjectIds = useAppSelector((state) =>
-    projectsListSelectors.childrenIds(state),
+    allProjectsSlice.childrenIds(state),
   );
 
   // TODO: feilter by selectedProjectIds
@@ -346,7 +346,7 @@ const BoardView = observer(function BoardViewComponent({
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      dailyListActions.createProjection(
+      dailyListsSlice.createProjection(
         store,
         dailyList.id,
         inboxId,
@@ -528,12 +528,12 @@ export const Board = observer(function BoardComponent() {
   }, [daysShift, setDaysShift]);
 
   const dailyListsIds = useAppSelector((state) =>
-    dailyListSelectors.idsByDates(state, weekDays),
+    dailyListsSlice.idsByDates(state, weekDays),
   );
   const store = useAppStore();
 
   useEffect(() => {
-    dailyListActions.createManyIfNotPresent(store, weekDays);
+    dailyListsSlice.createManyIfNotPresent(store, weekDays);
   }, [store, weekDays]);
 
   return (

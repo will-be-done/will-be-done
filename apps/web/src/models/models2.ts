@@ -243,12 +243,12 @@ export const appSlice = {
   },
 };
 
-export const todoItemActions = {
+export const taskBoxesSlice = {
   create: appAction((state: RootState, taskBox: TaskBox) => {
     if (isTask(taskBox)) {
-      return taskActions.createTask(state, taskBox);
+      return tasksSlice.createTask(state, taskBox);
     } else if (isTaskProjection(taskBox)) {
-      return taskProjectionActions.create(state, taskBox);
+      return taskProjectionsSlice.create(state, taskBox);
     } else {
       assertUnreachable(taskBox);
     }
@@ -256,9 +256,9 @@ export const todoItemActions = {
   createSibling: appAction(
     (state: RootState, taskBox: TaskBox, position: "before" | "after") => {
       if (isTask(taskBox)) {
-        return taskActions.createSibling(state, taskBox.id, position);
+        return tasksSlice.createSibling(state, taskBox.id, position);
       } else if (isTaskProjection(taskBox)) {
-        return taskProjectionActions.createSibling(state, taskBox.id, position);
+        return taskProjectionsSlice.createSibling(state, taskBox.id, position);
       } else {
         assertUnreachable(taskBox);
       }
@@ -273,9 +273,9 @@ export const todoItemActions = {
       edge: "top" | "bottom",
     ) => {
       if (isTask(taskBox)) {
-        return taskActions.handleDrop(state, taskBox.id, targetId, edge);
+        return tasksSlice.handleDrop(state, taskBox.id, targetId, edge);
       } else if (isTaskProjection(taskBox)) {
-        return taskProjectionActions.handleDrop(
+        return taskProjectionsSlice.handleDrop(
           state,
           taskBox.id,
           targetId,
@@ -288,10 +288,10 @@ export const todoItemActions = {
   ),
 };
 
-export const dailyListSelectors = {
+export const dailyListsSlice = {
   byId: (state: RootState, id: string) => state.dailyLists.byIds[id],
   byIdOrDefault: (state: RootState, id: string): DailyList => {
-    const dailyList = dailyListSelectors.byId(state, id);
+    const dailyList = dailyListsSlice.byId(state, id);
     if (!dailyList)
       return {
         type: "dailyList",
@@ -316,13 +316,13 @@ export const dailyListSelectors = {
   }),
   taskIds: appSelector((query, dailyListId: string): string[] => {
     const childrenIds = query((state) =>
-      dailyListSelectors.childrenIds(state, dailyListId),
+      dailyListsSlice.childrenIds(state, dailyListId),
     );
 
     return query(
       (state) =>
         childrenIds
-          .map((id) => taskProjectionSelectors.byId(state, id))
+          .map((id) => taskProjectionsSlice.byId(state, id))
           .map((proj) => proj?.taskId)
           .filter((t) => t !== undefined),
       shallowEqual,
@@ -331,11 +331,11 @@ export const dailyListSelectors = {
   notDoneTaskIdsExceptDailies: appSelector(
     (query, projectId: string, dailyListIds: string[]): string[] => {
       const exceptTaskIds = query(
-        (state) => dailyListSelectors.allTaskIds(state, dailyListIds),
+        (state) => dailyListsSlice.allTaskIds(state, dailyListIds),
         shallowEqual,
       );
       const notDoneTaskIds = query((state) =>
-        projectsSelectors.notDoneTaskIds(state, projectId),
+        projectsSlice.notDoneTaskIds(state, projectId),
       );
 
       return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));
@@ -345,44 +345,42 @@ export const dailyListSelectors = {
   allTaskIds: appSelector((query, dailyListIds: string[]): Set<string> => {
     return query((state) => {
       return new Set(
-        dailyListIds.flatMap((id) => dailyListSelectors.taskIds(state, id)),
+        dailyListIds.flatMap((id) => dailyListsSlice.taskIds(state, id)),
       );
     }, shallowEqual);
   }),
   firstChild: appSelector(
     (query, dailyListId: string): TaskProjection | undefined => {
       const childrenIds = query((state) =>
-        dailyListSelectors.childrenIds(state, dailyListId),
+        dailyListsSlice.childrenIds(state, dailyListId),
       );
       const firstChildId = childrenIds[0];
       if (!firstChildId) return undefined;
 
-      return query((state) =>
-        taskProjectionSelectors.byId(state, firstChildId),
-      );
+      return query((state) => taskProjectionsSlice.byId(state, firstChildId));
     },
   ),
   lastChild: appSelector(
     (query, dailyListId: string): TaskProjection | undefined => {
       const childrenIds = query((state) =>
-        dailyListSelectors.childrenIds(state, dailyListId),
+        dailyListsSlice.childrenIds(state, dailyListId),
       );
       const lastChildId = childrenIds[childrenIds.length - 1];
       if (!lastChildId) return undefined;
 
-      return query((state) => taskProjectionSelectors.byId(state, lastChildId));
+      return query((state) => taskProjectionsSlice.byId(state, lastChildId));
     },
   ),
   firstDoneChild: appSelector(
     (query, dailyListId: string): TaskProjection | undefined => {
       return query((state) => {
-        const childrenIds = dailyListSelectors.childrenIds(state, dailyListId);
+        const childrenIds = dailyListsSlice.childrenIds(state, dailyListId);
         const projections = childrenIds
-          .map((id) => taskProjectionSelectors.byId(state, id))
+          .map((id) => taskProjectionsSlice.byId(state, id))
           .filter((p) => p !== undefined);
 
         const tasksWithProjections = projections.map(
-          (proj) => [proj, taskSelectors.byId(state, proj.taskId)] as const,
+          (proj) => [proj, tasksSlice.byId(state, proj.taskId)] as const,
         );
 
         return tasksWithProjections.find(
@@ -401,17 +399,13 @@ export const dailyListSelectors = {
     );
   }),
   idByDate: appSelector((query, date: Date): string | undefined => {
-    const allDailyLists = query((state) =>
-      dailyListSelectors.dateIdsMap(state),
-    );
+    const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
     const dmy = getDMY(date);
 
     return allDailyLists[dmy];
   }),
   idsByDates: appSelector((query, dates: Date[]): string[] => {
-    const allDailyLists = query((state) =>
-      dailyListSelectors.dateIdsMap(state),
-    );
+    const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
 
     return dates
       .map((date) => {
@@ -420,8 +414,9 @@ export const dailyListSelectors = {
       })
       .filter((d) => d != undefined);
   }),
-};
-export const dailyListActions = {
+
+  // ----
+
   handleDrop: appAction(
     (
       state: RootState,
@@ -444,20 +439,16 @@ export const dailyListActions = {
         | "append"
         | "prepend",
     ) => {
-      const task = projectsActions.createTask(
-        state,
-        projectId,
-        projectPosition,
-      );
+      const task = projectsSlice.createTask(state, projectId, projectPosition);
 
       const orderToken = generateOrderTokenPositioned(
         state,
         dailyListId,
-        dailyListSelectors,
+        dailyListsSlice,
         listPosition,
       );
 
-      return taskProjectionActions.create(state, {
+      return taskProjectionsSlice.create(state, {
         taskId: task.id,
         dailyListId: dailyListId,
         orderToken: orderToken,
@@ -484,33 +475,34 @@ export const dailyListActions = {
     },
   ),
   createIfNotPresent: appAction((state: RootState, date: Date): DailyList => {
-    const dailyListId = dailyListSelectors.idByDate(state, date);
+    const dailyListId = dailyListsSlice.idByDate(state, date);
 
     if (!dailyListId) {
-      const newList = dailyListActions.create(state, {
+      const newList = dailyListsSlice.create(state, {
         id: makeDailyListId(date),
         date: getDMY(date),
       });
 
       return newList;
     } else {
-      return dailyListSelectors.byId(state, dailyListId)!;
+      return dailyListsSlice.byId(state, dailyListId)!;
     }
   }),
   createManyIfNotPresent: appAction(
     (state: RootState, dates: Date[]): DailyList[] => {
       // TODO: make it spawns a lot of Map in dailyListSelectors.idByDate
       return dates.map((date) =>
-        dailyListActions.createIfNotPresent(state, date),
+        dailyListsSlice.createIfNotPresent(state, date),
       );
     },
   ),
 };
+// export const dailyListSlice = {};
 
-export const taskProjectionSelectors = {
+export const taskProjectionsSlice = {
   byId: (state: RootState, id: string) => state.taskProjections.byIds[id],
   byIdOrDefault: (state: RootState, id: string): TaskProjection => {
-    const proj = taskProjectionSelectors.byId(state, id);
+    const proj = taskProjectionsSlice.byId(state, id);
     if (!proj)
       return {
         type: "projection",
@@ -530,7 +522,7 @@ export const taskProjectionSelectors = {
       query,
       taskProjectionId: string,
     ): [TaskProjection | undefined, TaskProjection | undefined] => {
-      const items = query((state) => projectsListSelectors.childrenIds(state));
+      const items = query((state) => allProjectsSlice.childrenIds(state));
       const i = items.findIndex((it: string) => it === taskProjectionId);
 
       const beforeId = items[i - 1];
@@ -538,17 +530,15 @@ export const taskProjectionSelectors = {
 
       return [
         beforeId
-          ? query((state) => taskProjectionSelectors.byId(state, beforeId))
+          ? query((state) => taskProjectionsSlice.byId(state, beforeId))
           : undefined,
         afterId
-          ? query((state) => taskProjectionSelectors.byId(state, afterId))
+          ? query((state) => taskProjectionsSlice.byId(state, afterId))
           : undefined,
       ];
     },
   ),
-};
 
-export const taskProjectionActions = {
   handleDrop: appAction(
     (
       state: RootState,
@@ -585,19 +575,16 @@ export const taskProjectionActions = {
       taskProjectionId: string,
       position: "before" | "after",
     ): TaskProjection => {
-      const taskProjection = taskProjectionSelectors.byId(
-        state,
-        taskProjectionId,
-      );
+      const taskProjection = taskProjectionsSlice.byId(state, taskProjectionId);
 
       if (!taskProjection) throw new Error("TaskProjection not found");
 
-      return taskProjectionActions.create(state, {
+      return taskProjectionsSlice.create(state, {
         taskId: taskProjection.taskId,
         dailyListId: taskProjection.dailyListId,
         orderToken: generateKeyPositionedBetween(
           taskProjection,
-          taskProjectionSelectors.siblings(state, taskProjectionId),
+          taskProjectionsSlice.siblings(state, taskProjectionId),
           position,
         ),
       });
@@ -605,16 +592,17 @@ export const taskProjectionActions = {
   ),
 };
 
-export const taskSelectors = {
+export const tasksSlice = {
   canDrop(state: RootState, taskId: string, targetId: string) {
     const model = appSlice.byId(state, targetId);
     if (!model) return shouldNeverHappen("target not found");
 
     return isTaskProjection(model) || isTask(model);
   },
-  byId: (state: RootState, id: string) => state.tasks.byIds[id],
+  byId: (state: RootState, id: string): Task | undefined =>
+    state.tasks.byIds[id],
   byIdOrDefault: (state: RootState, id: string): Task => {
-    const task = taskSelectors.byId(state, id);
+    const task = tasksSlice.byId(state, id);
     if (!task)
       return {
         type: "task",
@@ -632,32 +620,33 @@ export const taskSelectors = {
       query,
       taskId: string,
     ): [ProjectItem | undefined, ProjectItem | undefined] => {
-      const items = query((state) => projectsListSelectors.childrenIds(state));
+      const items = query((state) => allProjectsSlice.childrenIds(state));
       const i = items.findIndex((it: string) => it === taskId);
       const beforeId = items[i - 1];
       const afterId = items[i + 1];
 
       return [
         beforeId
-          ? query((state) => taskSelectors.byId(state, beforeId))
+          ? query((state) => tasksSlice.byId(state, beforeId))
           : undefined,
-        afterId
-          ? query((state) => taskSelectors.byId(state, afterId))
-          : undefined,
+        afterId ? query((state) => tasksSlice.byId(state, afterId)) : undefined,
       ];
     },
   ),
-};
 
-export const taskActions = {
-  update: appAction((state: RootState, id: string, task: Partial<Task>) => {
-    const taskInState = taskSelectors.byId(state, id);
-    if (!taskInState) throw new Error("Task not found");
+  // --actions
 
-    Object.assign(taskInState, task);
+  update: appAction(
+    (state: RootState, id: string, task: Partial<Task>): Task => {
+      const taskInState = tasksSlice.byId(state, id);
+      if (!taskInState) throw new Error("Task not found");
 
-    return taskInState;
-  }),
+      Object.assign(taskInState, task);
+
+      return taskInState;
+    },
+  ),
+
   createTask: appAction(
     (
       state: RootState,
@@ -679,15 +668,15 @@ export const taskActions = {
   ),
   createSibling: appAction(
     (state: RootState, taskId: string, position: "before" | "after"): Task => {
-      const task = taskSelectors.byId(state, taskId);
+      const task = tasksSlice.byId(state, taskId);
 
       if (!task) throw new Error("Task not found");
 
-      return taskActions.createTask(state, {
+      return tasksSlice.createTask(state, {
         projectId: task.projectId,
         orderToken: generateKeyPositionedBetween(
           task,
-          taskSelectors.siblings(state, taskId),
+          tasksSlice.siblings(state, taskId),
           position,
         ),
       });
@@ -702,53 +691,23 @@ export const taskActions = {
     ) => {},
   ),
   toggleState: appAction((state: RootState, taskId: string) => {
-    const task = taskSelectors.byId(state, taskId);
+    const task = tasksSlice.byId(state, taskId);
     if (!task) throw new Error("Task not found");
 
     task.state = task.state === "todo" ? "done" : "todo";
   }),
 };
-export const projectsListActions = {
-  createProject: appAction(
-    (
-      state: RootState,
 
-      newProject: Partial<Project>,
-      position:
-        | [OrderableItem | undefined, OrderableItem | undefined]
-        | "append"
-        | "prepend",
-    ) => {
-      const orderToken = generateOrderTokenPositioned(
-        state,
-        "all-projects-list",
-        projectsListSelectors,
-        position,
-      );
-
-      const id = newProject.id || uuidv7();
-      const project: Project = {
-        type: "project",
-        id: id,
-        orderToken: orderToken,
-        title: "New project",
-        icon: "",
-        isInbox: false,
-        ...newProject,
-      };
-
-      state.projects.byIds[id] = project;
-    },
-  ),
-};
-
-export const projectsListSelectors = {
+export const allProjectsSlice = {
   all: appSelector((query): Project[] => {
-    return query((state) => Object.values(state.projects.byIds), shallowEqual);
+    return query(
+      (state) => Object.values(state.projects.byIds).sort(fractionalCompare),
+      shallowEqual,
+    );
   }),
   childrenIds: appSelector((query): string[] => {
     return query((state) => {
-      const allIdsAndTokens = projectsListSelectors.all(state).map((p) => ({
+      const allIdsAndTokens = allProjectsSlice.all(state).map((p) => ({
         id: p.id,
         orderToken: p.orderToken,
       }));
@@ -759,43 +718,40 @@ export const projectsListSelectors = {
   childrenIdsWithoutInbox: appSelector((query): string[] => {
     return query(
       (state) =>
-        projectsListSelectors.childrenIds(state).filter((id) => id !== inboxId),
+        allProjectsSlice.childrenIds(state).filter((id) => id !== inboxId),
       shallowEqual,
     );
   }),
   firstChild: appSelector((query): Project | undefined => {
-    const childrenIds = query((state) =>
-      projectsListSelectors.childrenIds(state),
-    );
+    const childrenIds = query((state) => allProjectsSlice.childrenIds(state));
     const firstChildId = childrenIds[0];
 
     return firstChildId
-      ? query((state) => projectsSelectors.byId(state, firstChildId))
+      ? query((state) => projectsSlice.byId(state, firstChildId))
       : undefined;
   }),
   lastChild: appSelector((query): Project | undefined => {
     return query((state) => {
-      const childrenIds = projectsListSelectors.childrenIds(state);
+      const childrenIds = allProjectsSlice.childrenIds(state);
       const lastChildId = childrenIds[childrenIds.length - 1];
 
-      return lastChildId
-        ? projectsSelectors.byId(state, lastChildId)
-        : undefined;
+      return lastChildId ? projectsSlice.byId(state, lastChildId) : undefined;
     });
   }),
   inbox: appSelector((query): Project => {
     return query((state) => {
-      const inbox = projectsSelectors.byId(state, inboxId);
+      const inbox = projectsSlice.byId(state, inboxId);
       if (!inbox) throw new Error("Inbox not found");
       return inbox;
     });
   }),
 };
 
-export const projectsSelectors = {
-  byId: (state: RootState, id: string) => state.projects.byIds[id],
+export const projectsSlice = {
+  byId: (state: RootState, id: string): Project | undefined =>
+    state.projects.byIds[id],
   byIdOrDefault: (state: RootState, id: string): Project => {
-    const project = projectsSelectors.byId(state, id);
+    const project = projectsSlice.byId(state, id);
     if (!project)
       return {
         type: "project",
@@ -809,7 +765,7 @@ export const projectsSelectors = {
     return project;
   },
   canDrop(state: RootState, projectId: string, targetId: string) {
-    const target = projectsSelectors.byId(state, targetId);
+    const target = projectsSlice.byId(state, targetId);
     if (isProject(target) && target.isInbox) {
       return false;
     }
@@ -823,7 +779,7 @@ export const projectsSelectors = {
   },
   siblings: appSelector(
     (query, projectId: string): [Project | undefined, Project | undefined] => {
-      const items = query((state) => projectsListSelectors.childrenIds(state));
+      const items = query((state) => allProjectsSlice.childrenIds(state));
       const i = items.findIndex((it: string) => it === projectId);
 
       const beforeId = items[i - 1];
@@ -831,10 +787,10 @@ export const projectsSelectors = {
 
       return [
         beforeId
-          ? query((state) => projectsSelectors.byId(state, beforeId))
+          ? query((state) => projectsSlice.byId(state, beforeId))
           : undefined,
         afterId
-          ? query((state) => projectsSelectors.byId(state, afterId))
+          ? query((state) => projectsSlice.byId(state, afterId))
           : undefined,
       ];
     },
@@ -858,44 +814,38 @@ export const projectsSelectors = {
     return [...tasks, ...templates].sort(fractionalCompare).map((p) => p.id);
   }),
   childrenCount: appSelector((query, projectId: string): number => {
-    return query(
-      (state) => projectsSelectors.childrenIds(state, projectId).length,
-    );
+    return query((state) => projectsSlice.childrenIds(state, projectId).length);
   }),
   firstChild: appSelector(
     (query, projectId: string): ProjectItem | undefined => {
       const childrenIds = query((state) =>
-        projectsSelectors.childrenIds(state, projectId),
+        projectsSlice.childrenIds(state, projectId),
       );
       const firstChildId = childrenIds[0];
       if (!firstChildId) return undefined;
 
-      return query((state) =>
-        projectsSelectors.getItemById(state, firstChildId),
-      );
+      return query((state) => projectsSlice.getItemById(state, firstChildId));
     },
   ),
   lastChild: appSelector(
     (query, projectId: string): ProjectItem | undefined => {
       const childrenIds = query((state) =>
-        projectsSelectors.childrenIds(state, projectId),
+        projectsSlice.childrenIds(state, projectId),
       );
       const lastChildId = childrenIds[childrenIds.length - 1];
       if (!lastChildId) return undefined;
 
-      return query((state) =>
-        projectsSelectors.getItemById(state, lastChildId),
-      );
+      return query((state) => projectsSlice.getItemById(state, lastChildId));
     },
   ),
   tasksIds: appSelector((query, projectId: string): string[] => {
     const childrenIds = query((state) =>
-      projectsSelectors.childrenIds(state, projectId),
+      projectsSlice.childrenIds(state, projectId),
     );
     return query(
       (state) =>
         childrenIds
-          .map((id) => taskSelectors.byId(state, id))
+          .map((id) => tasksSlice.byId(state, id))
           .map((t) => t?.id)
           .filter((t) => t !== undefined),
       shallowEqual,
@@ -903,9 +853,9 @@ export const projectsSelectors = {
   }),
   notDoneTaskIds: appSelector((query, projectId: string): string[] => {
     return query((state) => {
-      const taskIds = projectsSelectors.tasksIds(state, projectId);
+      const taskIds = projectsSlice.tasksIds(state, projectId);
       return taskIds.filter((id) => {
-        const task = query((state) => taskSelectors.byId(state, id));
+        const task = query((state) => tasksSlice.byId(state, id));
         if (!task) return false;
 
         return task.state !== "done";
@@ -915,28 +865,55 @@ export const projectsSelectors = {
   withoutTasksByIds: appSelector(
     (query, projectId: string, ids: string[]): string[] => {
       const childrenIds = query((state) =>
-        projectsSelectors.childrenIds(state, projectId),
+        projectsSlice.childrenIds(state, projectId),
       );
       const setIds = new Set(ids);
       return childrenIds.filter((id) => !setIds.has(id));
     },
   ),
   getItemById: appSelector((query, id: string): ProjectItem | undefined => {
-    return query((state) => taskSelectors.byId(state, id));
+    return query((state) => tasksSlice.byId(state, id));
   }),
-};
 
-export const projectsActions = {
-  create: appAction((state: RootState, project: Project) => {
-    state.projects.byIds[project.id] = project;
-    return project;
-  }),
+  // --actions
+
+  create: appAction(
+    (
+      state: RootState,
+
+      newProject: Partial<Project>,
+      position:
+        | [OrderableItem | undefined, OrderableItem | undefined]
+        | "append"
+        | "prepend",
+    ) => {
+      const orderToken = generateOrderTokenPositioned(
+        state,
+        "all-projects-list",
+        allProjectsSlice,
+        position,
+      );
+
+      const id = newProject.id || uuidv7();
+      const project: Project = {
+        type: "project",
+        id: id,
+        orderToken: orderToken,
+        title: "New project",
+        icon: "",
+        isInbox: false,
+        ...newProject,
+      };
+
+      state.projects.byIds[id] = project;
+    },
+  ),
   delete: appAction((state: RootState, id: string) => {
     delete state.projects.byIds[id];
   }),
   update: appAction(
-    (state: RootState, id: string, project: Partial<Project>) => {
-      const projInState = projectsSelectors.byId(state, id);
+    (state: RootState, id: string, project: Partial<Project>): Project => {
+      const projInState = projectsSlice.byId(state, id);
       if (!projInState) throw new Error("Project not found");
 
       Object.assign(projInState, project);
@@ -951,17 +928,17 @@ export const projectsActions = {
       targetId: string,
       edge: "top" | "bottom",
     ) => {
-      if (!projectsSelectors.canDrop(state, projectId, targetId)) {
+      if (!projectsSlice.canDrop(state, projectId, targetId)) {
         return;
       }
 
-      const project = projectsSelectors.byId(state, projectId);
+      const project = projectsSlice.byId(state, projectId);
       if (!project) throw new Error("Project not found");
-      const target = projectsSelectors.byId(state, targetId);
+      const target = projectsSlice.byId(state, targetId);
       if (!target) throw new Error("Target not found");
 
       if (isProject(target)) {
-        const [up, down] = projectsSelectors.siblings(state, project.id);
+        const [up, down] = projectsSlice.siblings(state, project.id);
 
         let between: [string | undefined, string | undefined] = [
           project.orderToken,
@@ -988,18 +965,18 @@ export const projectsActions = {
         | [OrderableItem | undefined, OrderableItem | undefined]
         | "append"
         | "prepend",
-    ) => {
-      const project = projectsSelectors.byId(state, projectId);
+    ): Task => {
+      const project = projectsSlice.byId(state, projectId);
       if (!project) throw new Error("Project not found");
 
       const orderToken = generateOrderTokenPositioned(
         state,
         projectId,
-        projectsSelectors,
+        projectsSlice,
         position,
       );
 
-      return taskActions.createTask(state, {
+      return tasksSlice.createTask(state, {
         projectId: projectId,
         orderToken: orderToken,
       });
@@ -1008,21 +985,21 @@ export const projectsActions = {
 };
 
 const handleDropsByType = {
-  task: taskActions.handleDrop,
-  taskProjection: taskProjectionActions.handleDrop,
-  dailyList: dailyListActions.handleDrop,
-  project: projectsActions.handleDrop,
+  task: tasksSlice.handleDrop,
+  taskProjection: taskProjectionsSlice.handleDrop,
+  dailyList: dailyListsSlice.handleDrop,
+  project: projectsSlice.handleDrop,
 };
 
 const canDropsByType = {
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  task: taskSelectors.canDrop,
+  task: tasksSlice.canDrop,
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  taskProjection: taskProjectionSelectors.canDrop,
+  taskProjection: taskProjectionsSlice.canDrop,
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  dailyList: dailyListSelectors.canDrop,
+  dailyList: dailyListsSlice.canDrop,
   // eslint-disable-next-line @typescript-eslint/unbound-method
-  project: projectsSelectors.canDrop,
+  project: projectsSlice.canDrop,
 };
 
 export const dropSelectors = {

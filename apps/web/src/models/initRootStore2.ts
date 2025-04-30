@@ -1,6 +1,6 @@
 import { createStore, StoreApi } from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
-import { projectsSelectors, RootState, TaskState } from "./models2";
+import { projectsSlice, RootState, TaskState } from "./models2";
 import { getDbCtx } from "@/sync/db";
 import {
   ProjectData,

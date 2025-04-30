@@ -25,12 +25,7 @@ import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
 import { getRootStore } from "@/models/initRootStore";
 import { useAppSelector, useAppStore } from "@/hooks/state";
-import {
-  projectsActions,
-  projectsListActions,
-  projectsListSelectors,
-  projectsSelectors,
-} from "@/models/models2";
+import { projectsSlice, allProjectsSlice } from "@/models/models2";
 
 type State =
   | { type: "idle" }
@@ -75,7 +70,7 @@ const ProjectItem = function ProjectItemComp({
   projectId: string;
 }) {
   const project = useAppSelector((state) =>
-    projectsSelectors.byIdOrDefault(state, projectId),
+    projectsSlice.byIdOrDefault(state, projectId),
   );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectItem"),
@@ -115,7 +110,7 @@ const ProjectItem = function ProjectItemComp({
       e.preventDefault();
 
       const [up, down] = focusItem.siblings;
-      projectsActions.delete(store, project.id);
+      projectsSlice.delete(store, project.id);
 
       setTimeout(() => {
         if (down) {
@@ -184,7 +179,7 @@ const ProjectItem = function ProjectItemComp({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return projectsSelectors.canDrop(
+          return projectsSlice.canDrop(
             store.getState(),
             project.id,
             data.modelId,
@@ -311,9 +306,9 @@ const ProjectItem = function ProjectItemComp({
 };
 
 const InboxItem = function IboxItemComp() {
-  const inboxProject = useAppSelector(projectsListSelectors.inbox);
+  const inboxProject = useAppSelector(allProjectsSlice.inbox);
   const childrenCount = useAppSelector((state) => {
-    return projectsSelectors.childrenIds(state, inboxProject.id).length;
+    return projectsSlice.childrenIds(state, inboxProject.id).length;
   });
   const focusItem = useRegisterFocusItem(
     buildFocusKey(inboxProject.id, inboxProject.type),
@@ -339,7 +334,7 @@ const InboxItem = function IboxItemComp() {
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return projectsSelectors.canDrop(
+          return projectsSlice.canDrop(
             store.getState(),
             inboxProject.id,
             data.modelId,
@@ -449,11 +444,11 @@ const TodayItem = function TodayItemComp() {
 
 export const Sidebar = function SidebarComp() {
   const projectIdsWithoutInbox = useAppSelector(
-    projectsListSelectors.childrenIdsWithoutInbox,
+    allProjectsSlice.childrenIdsWithoutInbox,
   );
   const store = useAppStore();
   const createProject = () => {
-    projectsListActions.createProject(store, {}, "prepend");
+    projectsSlice.create(store, {}, "prepend");
   };
 
   const handleDownloadBackup = () => {
