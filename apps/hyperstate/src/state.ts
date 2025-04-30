@@ -390,8 +390,12 @@ type EqualityFn = (a: unknown, b: unknown) => boolean;
 
 // TODO: add dependencies cache check like in rereselect
 export function createSelectorCreator<TRootState = any>() {
-  const selectCreator = <TReturn, TParams extends unknown[]>(
+  const selectCreator = <
+    TReturn,
+    TParams extends (string | number | Date | Date[] | string[] | number[])[],
+  >(
     selectionLogic: SelectionLogic<TRootState, TReturn, TParams>,
+    selectEqualityFn: EqualityFn = defaultEqualityFn,
   ) => {
     const memoized = new Map<
       string,
@@ -440,6 +444,12 @@ export function createSelectorCreator<TRootState = any>() {
         // console.log("changed", selectionLogic, changed);
 
         if (!changed) {
+          memoized.set(key, {
+            value: mem.value,
+            previousState: state, // still need to update to new state
+            dependencies: mem.dependencies,
+          });
+
           return mem.value;
         }
       }
@@ -469,9 +479,20 @@ export function createSelectorCreator<TRootState = any>() {
         );
       }
 
+      if (mem && selectEqualityFn(mem.value, result)) {
+        memoized.set(key, {
+          value: mem.value,
+          previousState: state, // still need to update to new state
+          dependencies: dependencies,
+        });
+
+        return mem.value;
+      }
+
       memoized.set(key, {
         value: result,
-        previousState: state,
+        previousState: state, // still need to update to new state
+
         dependencies: dependencies,
       });
 

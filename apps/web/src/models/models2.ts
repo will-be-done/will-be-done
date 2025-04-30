@@ -182,7 +182,7 @@ export function getSiblingIds(
   return [items[i - 1], items[i + 1]] as const;
 }
 
-export const appSelectors = {
+export const appSlice = {
   taskBoxById(state: RootState, id: string) {
     const storages = [state.tasks, state.taskProjections];
     for (const storage of storages) {
@@ -196,7 +196,7 @@ export const appSelectors = {
     return undefined;
   },
   taskBoxByIdOrDefault(state: RootState, id: string): Task | TaskProjection {
-    const entity = appSelectors.taskBoxById(state, id);
+    const entity = appSlice.taskBoxById(state, id);
     if (!entity)
       return {
         type: "task",
@@ -228,7 +228,7 @@ export const appSelectors = {
     return undefined;
   },
   byIdOrDefault(state: RootState, id: string): AnyModel {
-    const entity = appSelectors.byId(state, id);
+    const entity = appSlice.byId(state, id);
     if (!entity)
       return {
         type: "project",
@@ -290,6 +290,17 @@ export const todoItemActions = {
 
 export const dailyListSelectors = {
   byId: (state: RootState, id: string) => state.dailyLists.byIds[id],
+  byIdOrDefault: (state: RootState, id: string): DailyList => {
+    const dailyList = dailyListSelectors.byId(state, id);
+    if (!dailyList)
+      return {
+        type: "dailyList",
+        id,
+        date: "",
+      };
+
+    return dailyList;
+  },
   canDrop(state: RootState, dailyListId: string, targetId: string) {
     return false;
   },
@@ -298,6 +309,7 @@ export const dailyListSelectors = {
       (state) =>
         Object.values(state.taskProjections.byIds)
           .filter((proj) => proj.dailyListId === dailyListId)
+          .sort(fractionalCompare)
           .map((proj) => proj.id),
       shallowEqual,
     );
@@ -315,6 +327,27 @@ export const dailyListSelectors = {
           .filter((t) => t !== undefined),
       shallowEqual,
     );
+  }),
+  notDoneTaskIdsExceptDailies: appSelector(
+    (query, projectId: string, dailyListIds: string[]): string[] => {
+      const exceptTaskIds = query(
+        (state) => dailyListSelectors.allTaskIds(state, dailyListIds),
+        shallowEqual,
+      );
+      const notDoneTaskIds = query((state) =>
+        projectsSelectors.notDoneTaskIds(state, projectId),
+      );
+
+      return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));
+    },
+    shallowEqual,
+  ),
+  allTaskIds: appSelector((query, dailyListIds: string[]): Set<string> => {
+    return query((state) => {
+      return new Set(
+        dailyListIds.flatMap((id) => dailyListSelectors.taskIds(state, id)),
+      );
+    }, shallowEqual);
   }),
   firstChild: appSelector(
     (query, dailyListId: string): TaskProjection | undefined => {
@@ -358,24 +391,32 @@ export const dailyListSelectors = {
       });
     },
   ),
-  byDate: appSelector((query, date: Date): DailyList | undefined => {
-    const allDailyLists = query(
-      (state) => Object.values(state.dailyLists.byIds),
-      shallowEqual,
+  dateIdsMap: appSelector((query): Record<string, string> => {
+    return query(
+      (state) =>
+        Object.fromEntries(
+          Object.values(state.dailyLists.byIds).map((d) => [d.date, d.id]),
+        ),
+      deepEqual,
+    );
+  }),
+  idByDate: appSelector((query, date: Date): string | undefined => {
+    const allDailyLists = query((state) =>
+      dailyListSelectors.dateIdsMap(state),
     );
     const dmy = getDMY(date);
 
-    return allDailyLists.find((dailyList) => dmy === dailyList.date);
+    return allDailyLists[dmy];
   }),
-  byDates: appSelector((query, dates: Date[]): DailyList[] => {
-    const allDailyLists = query(
-      (state) => Object.values(state.dailyLists.byIds),
-      shallowEqual,
+  idsByDates: appSelector((query, dates: Date[]): string[] => {
+    const allDailyLists = query((state) =>
+      dailyListSelectors.dateIdsMap(state),
     );
+
     return dates
       .map((date) => {
         const dmy = getDMY(date);
-        return allDailyLists.find((dailyList) => dmy === dailyList.date);
+        return allDailyLists[dmy];
       })
       .filter((d) => d != undefined);
   }),
@@ -392,21 +433,35 @@ export const dailyListActions = {
   createProjection: appAction(
     (
       state: RootState,
-      dailyList: Partial<DailyList> & {
-        projectId: string;
-        orderToken: string;
-      },
+      dailyListId: string,
+      projectId: string,
+      listPosition:
+        | [OrderableItem | undefined, OrderableItem | undefined]
+        | "append"
+        | "prepend",
+      projectPosition:
+        | [OrderableItem | undefined, OrderableItem | undefined]
+        | "append"
+        | "prepend",
     ) => {
-      // TODO
-      // const id = dailyList.id || uuidv7();
-      // state.dailyLists.byIds[id] = {
-      //   type: "dailyList",
-      //   id,
-      //   date: dailyList.date,
-      //   ...dailyList,
-      // };
-      //
-      // return id;
+      const task = projectsActions.createTask(
+        state,
+        projectId,
+        projectPosition,
+      );
+
+      const orderToken = generateOrderTokenPositioned(
+        state,
+        dailyListId,
+        dailyListSelectors,
+        listPosition,
+      );
+
+      return taskProjectionActions.create(state, {
+        taskId: task.id,
+        dailyListId: dailyListId,
+        orderToken: orderToken,
+      });
     },
   ),
   create: appAction(
@@ -429,9 +484,9 @@ export const dailyListActions = {
     },
   ),
   createIfNotPresent: appAction((state: RootState, date: Date): DailyList => {
-    const dailyList = dailyListSelectors.byDate(state, date);
+    const dailyListId = dailyListSelectors.idByDate(state, date);
 
-    if (!dailyList) {
+    if (!dailyListId) {
       const newList = dailyListActions.create(state, {
         id: makeDailyListId(date),
         date: getDMY(date),
@@ -439,11 +494,12 @@ export const dailyListActions = {
 
       return newList;
     } else {
-      return dailyList;
+      return dailyListSelectors.byId(state, dailyListId)!;
     }
   }),
   createManyIfNotPresent: appAction(
     (state: RootState, dates: Date[]): DailyList[] => {
+      // TODO: make it spawns a lot of Map in dailyListSelectors.idByDate
       return dates.map((date) =>
         dailyListActions.createIfNotPresent(state, date),
       );
@@ -453,6 +509,19 @@ export const dailyListActions = {
 
 export const taskProjectionSelectors = {
   byId: (state: RootState, id: string) => state.taskProjections.byIds[id],
+  byIdOrDefault: (state: RootState, id: string): TaskProjection => {
+    const proj = taskProjectionSelectors.byId(state, id);
+    if (!proj)
+      return {
+        type: "projection",
+        id,
+        taskId: "",
+        orderToken: "",
+        dailyListId: "",
+      };
+
+    return proj;
+  },
   canDrop(state: RootState, taskProjectionId: string, targetId: string) {
     return false;
   },
@@ -538,7 +607,7 @@ export const taskProjectionActions = {
 
 export const taskSelectors = {
   canDrop(state: RootState, taskId: string, targetId: string) {
-    const model = appSelectors.byId(state, targetId);
+    const model = appSlice.byId(state, targetId);
     if (!model) return shouldNeverHappen("target not found");
 
     return isTaskProjection(model) || isTask(model);
@@ -958,7 +1027,7 @@ const canDropsByType = {
 
 export const dropSelectors = {
   canDrop: (state: RootState, id: string, targetId: string) => {
-    const model = appSelectors.byId(state, id);
+    const model = appSlice.byId(state, id);
     if (!model) return false;
 
     const canDropFunction =
@@ -978,7 +1047,7 @@ export const dropActions = {
       targetId: string,
       edge: "top" | "bottom",
     ) => {
-      const model = appSelectors.byId(state, id);
+      const model = appSlice.byId(state, id);
       if (!model) return;
 
       const dropFunction =

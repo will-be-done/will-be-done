@@ -1,6 +1,5 @@
 import { observer } from "mobx-react-lite";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { DailyList, Task, TaskProjection } from "../../models/models";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
 import { dailyListRef } from "../../models/models";
@@ -28,7 +27,18 @@ import {
   ParentListItemProvider,
 } from "@/hooks/ParentListProvider";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
-import { getRootStore } from "@/models/initRootStore";
+import { useAppSelector, useAppStore } from "@/hooks/state";
+import {
+  DailyList,
+  dailyListActions,
+  dailyListSelectors,
+  dropSelectors,
+  getDMY,
+  inboxId,
+  projectsListSelectors,
+  projectsSelectors,
+  taskProjectionSelectors,
+} from "@/models/models2";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -103,18 +113,40 @@ const AddTaskColumnButton = observer(function AddTaskColumnButtonComp({
   );
 });
 
+const TaskProjection = ({ projectionId }: { projectionId: string }) => {
+  const projection = useAppSelector((state) =>
+    taskProjectionSelectors.byIdOrDefault(state, projectionId),
+  );
+
+  return (
+    <>
+      <TaskComp
+        taskId={projection.taskId}
+        taskBoxId={projection.id}
+        showProject={true}
+      />
+      {projection.orderToken}
+    </>
+  );
+};
+
 const ColumnView = observer(function ColumnViewComponent({
-  dailyList,
+  dailyListId,
   onTaskAdd,
   orderNumber,
 }: {
-  dailyList: DailyList;
+  dailyListId: string;
   onTaskAdd: (dailyList: DailyList) => void;
   orderNumber: number;
 }) {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
+  const dailyList = useAppSelector((state) =>
+    dailyListSelectors.byIdOrDefault(state, dailyListId),
+  );
+  const store = useAppStore();
+
   useEffect(() => {
     invariant(columnRef.current);
     invariant(scrollableRef.current);
@@ -123,18 +155,17 @@ const ColumnView = observer(function ColumnViewComponent({
         element: columnRef.current,
         getData: (): DndModelData => ({
           modelId: dailyList.id,
-          modelType: dailyList.$modelType,
+          modelType: dailyList.type,
         }),
         canDrop: ({ source }) => {
-          if (!isModelDNDData(source.data)) return false;
+          const data = source.data;
+          if (!isModelDNDData(data)) return false;
 
-          const entity = getRootStore().getEntity(
-            source.data.modelId,
-            source.data.modelType,
+          return dropSelectors.canDrop(
+            store.getState(),
+            dailyListId,
+            data.modelId,
           );
-          if (!entity) return false;
-
-          return dailyList.canDrop(entity);
         },
         getIsSticky: () => true,
         onDragEnter: () => setDndState(isTaskOver),
@@ -147,37 +178,46 @@ const ColumnView = observer(function ColumnViewComponent({
         canScroll: ({ source }) => isModelDNDData(source.data),
       }),
     );
-  }, [dailyList, dailyList.$modelType, dailyList.id]);
+  }, [dailyList.id, dailyList.type, dailyListId, store]);
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,
   );
 
-  const filteredProjections =
-    selectedProjectIds.length > 0
-      ? dailyList.projections.filter((proj) => {
-          return selectedProjectIds.includes(
-            proj.taskRef.current.projectRef.id,
-          );
-        })
-      : dailyList.projections;
+  const projectionIds = useAppSelector((state) =>
+    dailyListSelectors.childrenIds(state, dailyListId),
+  );
+
+  // TODO: return back
+  // const filteredProjections =
+  //   selectedProjectIds.length > 0
+  //     ? dailyList.projections.filter((proj) => {
+  //         return selectedProjectIds.includes(
+  //           proj.taskRef.current.projectRef.id,
+  //         );
+  //       })
+  //     : dailyList.projections;
+
+  const isToday = useMemo(() => {
+    return getDMY(new Date()) === dailyList.date;
+  }, [dailyList.date]);
 
   return (
     <ColumnListProvider
-      focusKey={buildFocusKey(dailyList.id, dailyList.$modelType, "ColumnView")}
+      focusKey={buildFocusKey(dailyList.id, dailyList.type, "ColumnView")}
       priority={(orderNumber + 100).toString()}
     >
       <div
         key={dailyList.id}
         className={`flex flex-col min-w-[200px] ${
-          dailyList.isToday ? "bg-gray-750 rounded-t-lg" : ""
+          isToday ? "bg-gray-750 rounded-t-lg" : ""
         } h-full `}
         ref={columnRef}
       >
         {/* Day header */}
         <div
           className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b ${
-            dailyList.isToday
+            isToday
               ? "text-blue-400 border-blue-500"
               : "text-gray-200 border-gray-700"
           }`}
@@ -193,19 +233,13 @@ const ColumnView = observer(function ColumnViewComponent({
           className="flex flex-col space-y-2 mt-2 overflow-y-auto"
           ref={scrollableRef}
         >
-          {filteredProjections.map((proj) => {
-            return (
-              <TaskComp
-                listItem={proj}
-                task={proj.taskRef.current}
-                showProject={true}
-                key={proj.id}
-              />
-            );
+          {projectionIds.map((id) => {
+            return <TaskProjection projectionId={id} key={id} />;
           })}
 
-          {dndState.type == "is-task-over" &&
-            dailyList.projections.length == 0 && <DropTaskIndicator />}
+          {dndState.type == "is-task-over" && projectionIds.length == 0 && (
+            <DropTaskIndicator />
+          )}
 
           {/* Add new task button and input */}
           <div className="mt-2">
@@ -217,61 +251,75 @@ const ColumnView = observer(function ColumnViewComponent({
   );
 });
 
-const TaskSuggestions = observer(function TaskSuggestionsComp({
-  displayedTasksIds,
+const ProjectSuggestions = ({
+  projectId,
+  dailyListsIds,
 }: {
-  displayedTasksIds: Set<string>;
-}) {
-  const { allProjectsList } = getRootStore();
-
-  const selectedProjectIds = useSelectedProjectIds(
-    (state) => state.selectedProjectIds,
+  projectId: string;
+  dailyListsIds: string[];
+}) => {
+  const project = useAppSelector((state) =>
+    projectsSelectors.byIdOrDefault(state, projectId),
   );
-  const selectedProjects =
-    selectedProjectIds.length > 0
-      ? allProjectsList.children.filter((project) =>
-          selectedProjectIds.includes(project.id),
-        )
-      : allProjectsList.children;
+
+  const taskIds = useAppSelector((state) =>
+    dailyListSelectors.notDoneTaskIdsExceptDailies(
+      state,
+      projectId,
+      dailyListsIds,
+    ),
+  );
+
+  console.log("taskIds", taskIds);
+
+  if (taskIds.length == 0) return null;
+
+  return (
+    <ParentListItemProvider
+      focusKey={buildFocusKey(projectId, project.type, "TaskSuggestions")}
+      priority={project.orderToken}
+    >
+      <div className="text-gray-400 text-sm mt-6 pb-2">
+        {project.icon || "🟡"} {project.title}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {taskIds.map((id) => (
+          <TaskComp taskBoxId={id} taskId={id} key={id} showProject={false} />
+        ))}
+      </div>
+    </ParentListItemProvider>
+  );
+};
+const TaskSuggestions = observer(function TaskSuggestionsComp({
+  dailyListsIds,
+}: {
+  dailyListsIds: string[];
+}) {
+  const selectedProjectIds = useAppSelector((state) =>
+    projectsListSelectors.childrenIds(state),
+  );
+
+  // TODO: feilter by selectedProjectIds
+  // const selectedProjectIds = useSelectedProjectIds(
+  //   (state) => state.selectedProjectIds,
+  // );
+  // const selectedProjects =
+  //   selectedProjectIds.length > 0
+  //     ? allProjectsList.children.filter((project) =>
+  //         selectedProjectIds.includes(project.id),
+  //       )
+  //     : allProjectsList.children;
 
   return (
     <div className="overflow-y-auto h-full">
-      {selectedProjects
-        .filter((ch) => ch.notDoneTask.length > 0)
-        .map((proj) => {
-          const tasks = proj.notDoneTask;
-          const filteredTasks = tasks.filter(
-            (t) => !displayedTasksIds.has(t.id),
-          );
-
-          if (filteredTasks.length == 0) return null;
-
-          return (
-            <ParentListItemProvider
-              focusKey={buildFocusKey(
-                proj.id,
-                proj.$modelType,
-                "TaskSuggestions",
-              )}
-              priority={proj.orderToken}
-            >
-              <div className="text-gray-400 text-sm mt-6 pb-2">
-                {proj.displayIcon} {proj.title}
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {filteredTasks.map((task) => (
-                  <TaskComp
-                    listItem={task}
-                    task={task}
-                    key={task.id}
-                    showProject={false}
-                  />
-                ))}
-              </div>
-            </ParentListItemProvider>
-          );
-        })}
+      {selectedProjectIds.map((projectId) => (
+        <ProjectSuggestions
+          key={projectId}
+          projectId={projectId}
+          dailyListsIds={dailyListsIds}
+        />
+      ))}
     </div>
   );
 });
@@ -279,22 +327,15 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
 const BoardView = observer(function BoardViewComponent({
   handleNextDay,
   handlePrevDay,
-  dailyLists,
+  dailyListsIds,
 }: {
   handleNextDay: () => void;
   handlePrevDay: () => void;
-  dailyLists: DailyList[];
+  dailyListsIds: string[];
 }) {
-  const { allProjectsList, projectsRegistry } = getRootStore();
-  const projectsList = allProjectsList.children.map((project) => {
-    return {
-      value: project.id,
-      label: project.title,
-      icon: () => <div>{project.displayIcon}</div>,
-    };
-  });
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
+  const store = useAppStore();
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,
@@ -305,21 +346,15 @@ const BoardView = observer(function BoardViewComponent({
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      const firstSelectedProject = selectedProjectIds[0]
-        ? projectsRegistry.getById(selectedProjectIds[0])
-        : undefined;
-      const project = firstSelectedProject
-        ? firstSelectedProject
-        : projectsRegistry.inboxProjectOrThrow;
-
-      const newItem = dailyList.createProjection(
-        [undefined, dailyList.firstChild],
-        { project },
+      dailyListActions.createProjection(
+        store,
+        dailyList.id,
+        inboxId,
+        "append",
+        "append",
       );
-
-      focusManager.editByKey(buildFocusKey(newItem.id, newItem.$modelType));
     },
-    [projectsRegistry, selectedProjectIds],
+    [store],
   );
 
   return (
@@ -367,14 +402,14 @@ const BoardView = observer(function BoardViewComponent({
           </div>
 
           <div className="">
-            <MultiSelect
-              options={projectsList}
-              onValueChange={setSelectedProjectIds}
-              defaultValue={selectedProjectIds}
-              placeholder="Select Projects"
-              variant="inverted"
-              maxCount={2}
-            />
+            {/* <MultiSelect */}
+            {/*   options={projectsList} */}
+            {/*   onValueChange={setSelectedProjectIds} */}
+            {/*   defaultValue={selectedProjectIds} */}
+            {/*   placeholder="Select Projects" */}
+            {/*   variant="inverted" */}
+            {/*   maxCount={2} */}
+            {/* /> */}
           </div>
 
           <div className="flex items-center space-x-1">
@@ -405,12 +440,12 @@ const BoardView = observer(function BoardViewComponent({
               maxWidth: "100%",
             }}
           >
-            {dailyLists.map((dailyList, i) => (
+            {dailyListsIds.map((id, i) => (
               <ColumnView
-                dailyList={dailyList}
+                dailyListId={id}
                 onTaskAdd={handleAddTask}
                 orderNumber={i}
-                key={dailyList.id}
+                key={id}
               />
             ))}
           </div>
@@ -430,7 +465,7 @@ const BoardView = observer(function BoardViewComponent({
           <h2 className="text-xl font-bold mb-4 text-gray-100">
             Task Suggestions
           </h2>
-          <TaskSuggestions displayedTasksIds={displayedTasksIds} />
+          <TaskSuggestions dailyListsIds={dailyListsIds} />
         </div>
       </ColumnListProvider>
     </div>
@@ -465,9 +500,6 @@ const useDaysPreferences = create<DaysPreferences>()(
 );
 
 export const Board = observer(function BoardComponent() {
-  const rootStore = getRootStore();
-  const { dailyListRegistry } = rootStore;
-
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const daysShift = useDaysPreferences((state) => state.daysShift);
   const setDaysShift = useDaysPreferences((state) => state.setDaysShift);
@@ -495,26 +527,20 @@ export const Board = observer(function BoardComponent() {
     setDaysShift(daysShift + 1);
   }, [daysShift, setDaysShift]);
 
-  useEffect(() => {
-    dailyListRegistry.createDailyListsIfNotExists(weekDays);
-  }, [dailyListRegistry, weekDays]);
+  const dailyListsIds = useAppSelector((state) =>
+    dailyListSelectors.idsByDates(state, weekDays),
+  );
+  const store = useAppStore();
 
-  const dailyLists = computed(
-    () => dailyListRegistry.getDailyListByDates(weekDays),
-    { equals: comparer.structural },
-  ).get();
-  const displayedTasksIds = computed(
-    () => {
-      return dailyListRegistry.getTaskIdsOfDailyLists(dailyLists);
-    },
-    { equals: comparer.structural },
-  ).get();
+  useEffect(() => {
+    dailyListActions.createManyIfNotPresent(store, weekDays);
+  }, [store, weekDays]);
 
   return (
     <BoardView
       handleNextDay={handleNextDay}
       handlePrevDay={handlePrevDay}
-      dailyLists={dailyLists}
+      dailyListsIds={dailyListsIds}
     />
   );
 });

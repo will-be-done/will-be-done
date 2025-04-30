@@ -30,7 +30,7 @@ import {
   parseColumnKey,
 } from "@/states/FocusManager";
 import {
-  appSelectors,
+  appSlice,
   dropActions,
   dropSelectors,
   projectsSelectors,
@@ -94,7 +94,7 @@ export const TaskComp = observer(function TaskComponent({
     taskSelectors.byIdOrDefault(state, taskId),
   );
   const taskBox = useAppSelector((state) =>
-    appSelectors.taskBoxByIdOrDefault(state, taskBoxId),
+    appSlice.taskBoxByIdOrDefault(state, taskBoxId),
   );
   const project = useAppSelector((state) =>
     projectsSelectors.byIdOrDefault(state, task.projectId),
