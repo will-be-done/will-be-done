@@ -9,7 +9,6 @@ import { observer } from "mobx-react-lite";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useUnmount } from "../../utils";
 import { focusManager } from "@/states/FocusManager";
-import { getRootStore } from "@/models/initRootStore";
 import { useAppSelector } from "@/hooks/state";
 import { allProjectsSlice } from "@/models/models2";
 

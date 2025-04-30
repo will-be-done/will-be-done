@@ -35,7 +35,6 @@ import {
   dropSelectors,
   projectsSlice,
   tasksSlice,
-  tasksSlice,
   taskBoxesSlice,
 } from "@/models/models2";
 import { useAppSelector, useAppStore } from "@/hooks/state";

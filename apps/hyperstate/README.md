@@ -1,12 +1,17 @@
-To features:
+Top features:
 
 1. You can use selectors in actions! In redux you can't use selector in reducer
 2. React-foreget ready
 3. No too much maigck like in legend
-5. Focused on devtools. You can see all function call names in devtool. Also special helper. Show how it looks for other instruments
+5. Focused on devtools. You can see all function call names in devtool. Also special helper. Show how it looks for other instruments. And show react-scan support
+6. Fast refresh just working!
+
 
 TO ADD:
 1. Example with deepEqual + big sorting list
+2. Add bob martin link about thought about he don't like sql. And I think sql on frontend is bad idea. TOO MUCH QUERIES TO WRITE
+3. Menotion how much times I tried to build local first from scratch. That it's
+very hard task. List all attempts
 
 Why not mobx-keystone:
 1. Too much magic. Due it's complexity hard to debug issues. 

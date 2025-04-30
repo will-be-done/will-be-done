@@ -31,13 +31,12 @@ import { useAppSelector, useAppStore } from "@/hooks/state";
 import {
   DailyList,
   dailyListsSlice,
-  dailyListsSlice,
   dropSelectors,
   getDMY,
   inboxId,
   allProjectsSlice,
   projectsSlice,
-  taskProjectionsSlice,
+  projectionsSlice,
 } from "@/models/models2";
 
 // All days of the week
@@ -115,7 +114,7 @@ const AddTaskColumnButton = observer(function AddTaskColumnButtonComp({
 
 const TaskProjection = ({ projectionId }: { projectionId: string }) => {
   const projection = useAppSelector((state) =>
-    taskProjectionsSlice.byIdOrDefault(state, projectionId),
+    projectionsSlice.byIdOrDefault(state, projectionId),
   );
 
   return (
@@ -125,7 +124,6 @@ const TaskProjection = ({ projectionId }: { projectionId: string }) => {
         taskBoxId={projection.id}
         showProject={true}
       />
-      {projection.orderToken}
     </>
   );
 };
@@ -269,8 +267,6 @@ const ProjectSuggestions = ({
       dailyListsIds,
     ),
   );
-
-  console.log("taskIds", taskIds);
 
   if (taskIds.length == 0) return null;
 

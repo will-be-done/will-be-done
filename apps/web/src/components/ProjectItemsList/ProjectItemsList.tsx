@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite";
-import { Project, projectsSlice, projectsSlice } from "../../models/models2";
+import { Project, projectsSlice } from "../../models/models2";
 import { TaskComp } from "../Task/Task";
 import { buildFocusKey, focusManager } from "@/states/FocusManager";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";

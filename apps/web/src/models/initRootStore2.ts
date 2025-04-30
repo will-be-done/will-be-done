@@ -21,17 +21,17 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       return store;
     }
     const rootState: RootState = {
-      projects: {
+      project: {
         byIds: {},
       },
-      tasks: {
+      task: {
         byIds: {},
       },
-      taskTemplates: {
+      template: {
         byIds: {},
       },
-      taskProjections: { byIds: {} },
-      dailyLists: { byIds: {} },
+      projection: { byIds: {} },
+      dailyList: { byIds: {} },
     };
 
     const dbCtx = await getDbCtx();
@@ -43,7 +43,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     for (const row of projectRows) {
       const data = JSON.parse(row.data as unknown as string) as ProjectData;
 
-      rootState.projects.byIds[row.id] = {
+      rootState.project.byIds[row.id] = {
         type: "project",
         id: row.id,
         title: data.title,
@@ -60,7 +60,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     for (const row of todoRows) {
       const data = JSON.parse(row.data as unknown as string) as TaskData;
 
-      rootState.tasks.byIds[row.id] = {
+      rootState.task.byIds[row.id] = {
         type: "task",
         id: row.id,
         title: data.title,
@@ -71,6 +71,11 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     }
 
     store = createStore(rootState);
+
+    store.subscribe((state, prevState, patches, reversePatches) => {
+      console.log("new pathces!", patches);
+    });
+
     console.log("SECOND INIT STORE DONE", store.getState());
     return store;
   } finally {
