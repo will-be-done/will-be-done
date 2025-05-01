@@ -4,6 +4,7 @@ import {
   AppModelChange,
   appSlice,
   dailyListType,
+  inboxId,
   projectionType,
   projectType,
   RootState,
@@ -28,13 +29,15 @@ import {
 } from "@/sync2/main";
 import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
 import { Selectable } from "kysely";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
+import { Syncer } from "@/sync/Syncer";
 
 let store: StoreApi<RootState>;
 
 type BroadcastChanges = Record<(typeof syncableTypes)[number], string[]>;
 
 const mapChangesForBC = (
-  changes: Record<(typeof syncableTables)[number], string[]>,
+  changes: Record<(typeof syncableTables)[number], { id: string }[]>,
 ) => {
   const res: BroadcastChanges = {
     [projectType]: [],
@@ -44,11 +47,11 @@ const mapChangesForBC = (
     [dailyListType]: [],
   };
 
-  for (const [table, ids] of Object.entries(changes)) {
+  for (const [table, data] of Object.entries(changes)) {
     const modelType = tableModelTypeMap[table];
     if (!modelType) throw new Error("Unknown table " + table);
 
-    res[modelType] = ids;
+    res[modelType] = data.map((d) => d.id);
   }
   return res;
 };
@@ -62,7 +65,16 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     }
     const rootState: RootState = {
       project: {
-        byIds: {},
+        byIds: {
+          [inboxId]: {
+            type: projectType,
+            id: inboxId,
+            title: "Inbox",
+            icon: "",
+            isInbox: true,
+            orderToken: generateJitteredKeyBetween(null, null),
+          },
+        },
       },
       task: {
         byIds: {},
@@ -78,6 +90,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     const bc = new BroadcastChannel(`changes-${dbCtx.clientId}2`);
     const changesToDbSaver = new ChangesToDbSaver(dbCtx.db);
     const changesTracker = new ChangesTracker(dbCtx.clientId, dbCtx.nextClock);
+    const syncer = new Syncer(dbCtx, dbCtx.clientId);
 
     const allData = await Promise.all(
       syncableTypes.map(async (modelType) => {
@@ -108,6 +121,41 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     console.log("final rootState", rootState);
 
     store = createStore(rootState);
+
+    syncer.startLoop();
+    syncer.emitter.on("onChangePersisted", (changes) => {
+      console.log("new server changes", changes);
+
+      const modelChanges: AppModelChange[] = [];
+      for (const [table, rows] of Object.entries(changes)) {
+        const modelType = tableModelTypeMap[table];
+        if (!modelType) throw new Error("Unknown table " + table);
+        const syncMap = syncMappings[modelType];
+        if (!syncMap)
+          throw new Error("Sync map not found of model " + modelType);
+
+        for (const row of rows) {
+          modelChanges.push({
+            id: row.id,
+            modelType: syncMap.modelType,
+            isDeleted: Boolean(row.isDeleted),
+            // @ts-expect-error it's ok
+            model: syncMap.mapDataToModel(row.data),
+          });
+        }
+      }
+
+      try {
+        appSlice.applyChanges(
+          store.withContextValue(skipSyncCtx, true),
+          modelChanges,
+        );
+      } catch (e) {
+        console.error("failed to apply changes", e);
+      }
+
+      bc.postMessage(mapChangesForBC(changes));
+    });
 
     changesToDbSaver.emitter.on("onChangePersisted", (changes) => {
       bc.postMessage(mapChangesForBC(changes));

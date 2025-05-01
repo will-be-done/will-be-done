@@ -292,20 +292,10 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 });
 
 export const App = observer(function App() {
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    void (async () => {
-      await initRootStore();
-      setIsReady(true);
-    })();
-  }, []);
-
   const [store, setStore] = useState<StoreApi<RootState> | null>(null);
 
   useEffect(() => {
     void (async () => {
-      console.log("init store...");
       setStore(await initStore());
     })();
   }, []);
@@ -314,27 +304,22 @@ export const App = observer(function App() {
     store && (
       <StoreProvider value={store}>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          {isReady && (
-            <KeyPressedCtxProvider>
-              <GlobalListener />
+          <KeyPressedCtxProvider>
+            {/* <GlobalListener /> */}
 
-              <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
-                <Sidebar />
-                <div className="flex-1 p-4 overflow-hidden">
-                  <Switch>
-                    <Route path="/today" component={Board} />
-                    <Route
-                      path="/projects/:projectId"
-                      component={ProjectPage}
-                    />
-                    <Route>
-                      <Redirect to="/today" />
-                    </Route>
-                  </Switch>
-                </div>
+            <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
+              <Sidebar />
+              <div className="flex-1 p-4 overflow-hidden">
+                <Switch>
+                  <Route path="/today" component={Board} />
+                  <Route path="/projects/:projectId" component={ProjectPage} />
+                  <Route>
+                    <Redirect to="/today" />
+                  </Route>
+                </Switch>
               </div>
-            </KeyPressedCtxProvider>
-          )}
+            </div>
+          </KeyPressedCtxProvider>
         </ThemeProvider>
       </StoreProvider>
     )

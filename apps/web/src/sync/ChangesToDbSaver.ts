@@ -32,7 +32,7 @@ const compressChanges = (chs: ModelChange[]) => {
 };
 
 export type SaverEvents = {
-  onChangePersisted(changes: Record<string, string[]>): void;
+  onChangePersisted(changes: Record<string, { id: string }[]>): void;
 };
 
 export class ChangesToDbSaver {
@@ -76,7 +76,7 @@ export class ChangesToDbSaver {
   private async applyChanges(chs: ModelChange[]) {
     const changesMap = compressChanges(chs);
 
-    const changesToNotify: Record<string, string[]> = {};
+    const changesToNotify: Record<string, { id: string }[]> = {};
     await this.db.runInAtomicTransaction((db) => {
       for (const [table, tableChanges] of changesMap) {
         if (tableChanges.changes.size === 0) continue;
@@ -85,7 +85,7 @@ export class ChangesToDbSaver {
         const dbChs: Insertable<SyncableTable>[] = [];
         for (const [, ch] of tableChanges.changes) {
           dbChs.push(mapToInsertable(ch));
-          changesToNotify[table].push(ch.rowId);
+          changesToNotify[table].push({ id: ch.rowId });
         }
 
         for (const chsChunk of chunk(dbChs, 5000)) {

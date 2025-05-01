@@ -26,7 +26,6 @@ export type SyncerEvents = {
   onChangePersisted(changes: Record<string, Selectable<SyncableTable>[]>): void;
 };
 
-// TODO: propagate changes to all tabs
 export class Syncer {
   private client = makeClient();
   private electionChannel: BroadcastChannel;
