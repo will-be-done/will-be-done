@@ -5,6 +5,7 @@ Top features:
 3. No too much maigck like in legend
 5. Focused on devtools. You can see all function call names in devtool. Also special helper. Show how it looks for other instruments. And show react-scan support
 6. Fast refresh just working!
+7. Mention mobx weird bug(when I deelete one focused item - all other was deleteing) due it's mutability. How react don't likes mutables
 
 
 TO ADD:

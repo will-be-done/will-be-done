@@ -1,15 +1,11 @@
 import {
   createActionCreator,
   createSelectorCreator,
-  createStore,
-  StoreApi,
 } from "@will-be-done/hyperstate";
 import { format } from "date-fns";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import uuidByString from "uuid-by-string";
-import AwaitLock from "await-lock";
-import { getDbCtx } from "@/sync/db";
 import { shouldNeverHappen } from "@/utils";
 import { deepEqual, shallowEqual } from "fast-equals";
 
@@ -169,6 +165,13 @@ export type DailyList = {
 };
 
 type AnyModel = Project | Task | TaskTemplate | TaskProjection | DailyList;
+
+type ModelType<T> = T extends { type: infer U } ? U : never;
+type ModelTypeUnion = ModelType<AnyModel>;
+export type ModelsMap = {
+  [K in ModelTypeUnion]: Extract<AnyModel, { type: K }>;
+};
+
 function assertUnreachable(x: never): never {
   throw new Error("Didn't expect to get here");
 }
@@ -188,7 +191,25 @@ export function getSiblingIds(
   return [items[i - 1], items[i + 1]] as const;
 }
 
+export type AppModelChange = {
+  id: string;
+  modelType: ModelTypeUnion;
+  isDeleted: boolean;
+  model: AnyModel;
+};
+
 export const appSlice = {
+  applyChanges: appAction((state: RootState, changes: AppModelChange[]) => {
+    console.log("applyChanges", changes);
+
+    for (const ch of changes) {
+      if (ch.isDeleted) {
+        delete state[ch.modelType].byIds[ch.id];
+      } else {
+        state[ch.modelType].byIds[ch.id] = ch.model;
+      }
+    }
+  }),
   taskBoxById(state: RootState, id: string) {
     const storages = [state.task, state.projection];
     for (const storage of storages) {
@@ -465,11 +486,11 @@ export const dailyListsSlice = {
   create: appAction(
     (
       state: RootState,
-      dailyList: Partial<DailyList> & {
+      dailyList: {
         date: string;
       },
     ): DailyList => {
-      const id = dailyList.id || uuidv7();
+      const id = uuidByString(dailyList.date);
 
       const list: DailyList = {
         type: dailyListType,
@@ -486,7 +507,6 @@ export const dailyListsSlice = {
 
     if (!dailyListId) {
       const newList = dailyListsSlice.create(state, {
-        id: makeDailyListId(date),
         date: getDMY(date),
       });
 

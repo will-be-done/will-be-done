@@ -2,7 +2,7 @@ import { generateInsert, generateUpdate, sql } from "@kikko-land/boono-sql";
 import { type IDb } from "@kikko-land/kikko";
 import { State } from "../utils/State";
 import { ModelChange } from "./ChangesTracker";
-import { Q, SyncableTable, SyncableTables } from "./schema";
+import { SyncableTable } from "./schema";
 import { Insertable } from "kysely";
 import { chunk } from "es-toolkit";
 import { createNanoEvents } from "nanoevents";
@@ -32,7 +32,7 @@ const compressChanges = (chs: ModelChange[]) => {
 };
 
 export type SaverEvents = {
-  onChangePersisted(changes: Record<string, Selectable<SyncableTable>[]>): void;
+  onChangePersisted(changes: Record<string, string[]>): void;
 };
 
 export class ChangesToDbSaver {
@@ -76,7 +76,7 @@ export class ChangesToDbSaver {
   private async applyChanges(chs: ModelChange[]) {
     const changesMap = compressChanges(chs);
 
-    const changesToNotify: Record<string, Selectable<SyncableTable>[]> = {};
+    const changesToNotify: Record<string, string[]> = {};
     await this.db.runInAtomicTransaction((db) => {
       for (const [table, tableChanges] of changesMap) {
         if (tableChanges.changes.size === 0) continue;
@@ -85,7 +85,7 @@ export class ChangesToDbSaver {
         const dbChs: Insertable<SyncableTable>[] = [];
         for (const [, ch] of tableChanges.changes) {
           dbChs.push(mapToInsertable(ch));
-          changesToNotify[table].push(mapToSelectable(ch));
+          changesToNotify[table].push(ch.rowId);
         }
 
         for (const chsChunk of chunk(dbChs, 5000)) {

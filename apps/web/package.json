@@ -50,6 +50,7 @@
     "mobx": "^6.13.7",
     "mobx-keystone": "^1.11.4",
     "mobx-react-lite": "^4.1.0",
+    "mutative": "^1.1.0",
     "nanoevents": "^9.1.0",
     "nanoid": "^5.1.5",
     "react": "^19.0.0",

@@ -52,7 +52,7 @@ export function createActionCreator<
           throw new Error("first argument must be a store");
 
         const store = arg;
-        const state = store.state;
+        const state = store.getState();
 
         let result!: TReturn;
         const performDraftAction = (draft: Draft<TRootState>): void => {
@@ -70,11 +70,14 @@ export function createActionCreator<
 
         store.setState(nextState);
 
+        if (patches.length === 0) return result;
+
+        // no need microtask cause I loose stackrace
         const notifyListenersAfterActions = () => {
           // TODO: think what to do better here
           try {
             const notifyListener = (listener: Listener<TRootState>) => {
-              return listener(nextState, state, patches, inversePatches);
+              return listener(store, nextState, state, patches, inversePatches);
             };
             store.getListeners().forEach(notifyListener);
           } catch (e) {
@@ -82,7 +85,7 @@ export function createActionCreator<
           }
         };
 
-        queueMicrotask(notifyListenersAfterActions);
+        notifyListenersAfterActions();
 
         return result;
       }
@@ -506,23 +509,36 @@ export function createSelectorCreator<TRootState = any>() {
 }
 
 type Listener<TState> = (
+  store: StoreApi<TState>,
   state: TState,
   prevState: TState,
   patches: Patch[],
   reversePatches: Patch[],
 ) => void;
 
+type Context<V> = { name: string; value: V };
+
+export const createContext = <V>(
+  name: string,
+  defaultValue: V,
+): Context<V> => ({
+  name,
+  value: defaultValue,
+});
+
 const storeSymbol = Symbol("storeSymbol");
 export type StoreApi<TState> = {
-  state: TState;
   setState: (state: TState) => void;
   getState: () => TState;
   getInitialState: () => TState;
   getListeners: () => Set<Listener<TState>>;
+  withContextValue: <V>(ctx: Context<V>, val: V) => StoreApi<TState>;
+  getContextValue<V>(ctx: Context<V>): V;
   // dispatch: Dispatch<TState>;
   // select: Select<TState>;
   subscribe: (
     listener: (
+      store: StoreApi<TState>,
       state: TState,
       prevState: TState,
       patches: Patch[],
@@ -543,14 +559,15 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
     currentDraft: undefined,
   };
 
-  const listeners = new Set<Listener>();
+  const listeners = new Set<Listener<TState>>();
 
-  type Listener = (
-    state: TState,
-    prevState: TState,
-    patches: Patch[],
-    reversePatches: Patch[],
-  ) => void;
+  // type Listener = (
+  //   state: TState,
+  //   prevState: TState,
+  //   patches: Patch[],
+  //   reversePatches: Patch[],
+  //   store: StoreApi<TState>,
+  // ) => void;
 
   // const dispatch = <TReturn>(actionFn: (state: TState) => TReturn): TReturn => {
   //   if (scope.currentDraft) {
@@ -599,33 +616,49 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
   //   return result;
   // };
 
-  return {
-    getListeners() {
-      return listeners;
-    },
-    getInitialState() {
-      return initialState;
-    },
-    getState(): TState {
-      return scope.state;
-    },
-    setState(state: TState) {
-      scope.state = state;
-    },
-    subscribe(listener: Listener) {
-      listeners.add(listener);
+  const createStore = (
+    contextMap: Record<string, Context<unknown>>,
+  ): StoreApi<TState> => {
+    const store: StoreApi<TState> = {
+      getContextValue<V>(ctx: Context<V>) {
+        if (!contextMap[ctx.name]) {
+          return ctx.value;
+        }
 
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    get state() {
-      return scope.state;
-    },
-    [storeSymbol]: true,
+        return contextMap[ctx.name].value as V;
+      },
+      withContextValue<V>(ctx: Context<V>, val: V) {
+        const newCtx = {
+          ...contextMap,
+          [ctx.name]: { name: ctx.name, value: val },
+        };
+
+        return createStore(newCtx);
+      },
+      getListeners() {
+        return listeners;
+      },
+      getInitialState() {
+        return initialState;
+      },
+      getState(): TState {
+        return scope.state;
+      },
+      setState(state: TState) {
+        scope.state = state;
+      },
+      subscribe(listener: Listener<TState>) {
+        listeners.add(listener);
+
+        return () => {
+          listeners.delete(listener);
+        };
+      },
+      [storeSymbol]: true,
+    };
+
+    return store;
   };
 
-  // scope.state[storeSymbol] = store;
-
-  // return store;
+  return createStore({});
 }

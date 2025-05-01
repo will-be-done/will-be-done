@@ -305,6 +305,7 @@ export const App = observer(function App() {
 
   useEffect(() => {
     void (async () => {
+      console.log("init store...");
       setStore(await initStore());
     })();
   }, []);

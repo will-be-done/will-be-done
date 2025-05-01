@@ -1,17 +1,57 @@
 import { createStore, StoreApi } from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
-import { projectsSlice, RootState, TaskState } from "./models2";
+import {
+  AppModelChange,
+  appSlice,
+  dailyListType,
+  projectionType,
+  projectType,
+  RootState,
+  taskTemplateType,
+  taskType,
+} from "./models2";
 import { getDbCtx } from "@/sync/db";
 import {
   ProjectData,
   projectsTable,
   Q,
-  TaskData,
-  tasksTable,
+  SyncableTable,
+  syncableTables,
 } from "@/sync/schema";
-import { produce } from "immer";
+import { ChangesTracker } from "@/sync2/ChangesTracker";
+import {
+  skipSyncCtx,
+  syncableTypes,
+  SyncMapping,
+  syncMappings,
+  tableModelTypeMap,
+} from "@/sync2/main";
+import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
+import { Selectable } from "kysely";
 
 let store: StoreApi<RootState>;
+
+type BroadcastChanges = Record<(typeof syncableTypes)[number], string[]>;
+
+const mapChangesForBC = (
+  changes: Record<(typeof syncableTables)[number], string[]>,
+) => {
+  const res: BroadcastChanges = {
+    [projectType]: [],
+    [taskType]: [],
+    [taskTemplateType]: [],
+    [projectionType]: [],
+    [dailyListType]: [],
+  };
+
+  for (const [table, ids] of Object.entries(changes)) {
+    const modelType = tableModelTypeMap[table];
+    if (!modelType) throw new Error("Unknown table " + table);
+
+    res[modelType] = ids;
+  }
+  return res;
+};
 
 const lock = new AwaitLock();
 export const initStore = async (): Promise<StoreApi<RootState>> => {
@@ -35,46 +75,96 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     };
 
     const dbCtx = await getDbCtx();
+    const bc = new BroadcastChannel(`changes-${dbCtx.clientId}2`);
+    const changesToDbSaver = new ChangesToDbSaver(dbCtx.db);
+    const changesTracker = new ChangesTracker(dbCtx.clientId, dbCtx.nextClock);
 
-    const projectRows = await dbCtx.db.runQuery(
-      Q.selectFrom(projectsTable).selectAll().where("isDeleted", "=", 0),
+    const allData = await Promise.all(
+      syncableTypes.map(async (modelType) => {
+        const syncMap = syncMappings[modelType];
+        const rows = await dbCtx.db.runQuery(
+          Q.selectFrom(syncMap.table as typeof projectsTable)
+            .selectAll()
+            .where("isDeleted", "=", 0),
+        );
+
+        return [syncMap, rows] satisfies [
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          SyncMapping<any, any>,
+          Selectable<SyncableTable>[],
+        ];
+      }),
     );
 
-    for (const row of projectRows) {
-      const data = JSON.parse(row.data as unknown as string) as ProjectData;
+    for (const [syncMap, rows] of allData) {
+      for (const row of rows) {
+        const data = JSON.parse(row.data as unknown as string) as ProjectData;
 
-      rootState.project.byIds[row.id] = {
-        type: "project",
-        id: row.id,
-        title: data.title,
-        icon: data.icon,
-        isInbox: data.isInbox,
-        orderToken: data.orderToken,
-      };
+        rootState[syncMap.modelType].byIds[row.id] =
+          syncMap.mapDataToModel(data);
+      }
     }
 
-    const todoRows = await dbCtx.db.runQuery(
-      Q.selectFrom(tasksTable).selectAll().where("isDeleted", "=", 0),
-    );
-
-    for (const row of todoRows) {
-      const data = JSON.parse(row.data as unknown as string) as TaskData;
-
-      rootState.task.byIds[row.id] = {
-        type: "task",
-        id: row.id,
-        title: data.title,
-        state: data.state as TaskState,
-        projectId: data.projectId,
-        orderToken: data.orderToken,
-      };
-    }
+    console.log("final rootState", rootState);
 
     store = createStore(rootState);
 
-    store.subscribe((state, prevState, patches, reversePatches) => {
-      console.log("new pathces!", patches);
+    changesToDbSaver.emitter.on("onChangePersisted", (changes) => {
+      bc.postMessage(mapChangesForBC(changes));
     });
+
+    store.subscribe((store, state, prevState, patches) => {
+      if (store.getContextValue(skipSyncCtx)) {
+        return;
+      }
+
+      const modelChanges = changesTracker.handleChange(
+        store,
+        state,
+        prevState,
+        patches,
+      );
+      console.log("modelChanges", modelChanges);
+
+      for (const ch of modelChanges) {
+        changesToDbSaver.addChange(ch);
+      }
+    });
+
+    bc.onmessage = async (ev) => {
+      const data = ev.data as BroadcastChanges;
+
+      const modelChanges: AppModelChange[] = [];
+      for (const [modelType, ids] of Object.entries(data)) {
+        if (!ids || ids.length === 0) continue;
+        const syncMap =
+          syncMappings[modelType as (typeof syncableTypes)[number]];
+
+        if (!syncMap)
+          throw new Error("Sync map not found of model " + modelType);
+
+        const rows = await dbCtx.db.runQuery(
+          Q.selectFrom(syncMap.table as typeof projectsTable)
+            .selectAll()
+            .where("id", "in", ids),
+        );
+
+        for (const row of rows) {
+          const data = JSON.parse(row.data as unknown as string) as ProjectData;
+          modelChanges.push({
+            id: row.id,
+            modelType: syncMap.modelType,
+            isDeleted: Boolean(row.isDeleted),
+            model: syncMap.mapDataToModel(data),
+          });
+        }
+      }
+
+      appSlice.applyChanges(
+        store.withContextValue(skipSyncCtx, true),
+        modelChanges,
+      );
+    };
 
     console.log("SECOND INIT STORE DONE", store.getState());
     return store;
@@ -90,3 +180,10 @@ export const getStore = () => {
 
   return store;
 };
+// if (import.meta.hot) {
+//   import.meta.hot.accept((newModule) => {
+//     if (newModule) {
+//       console.log("new module", newModule);
+//     }
+//   });
+// }
