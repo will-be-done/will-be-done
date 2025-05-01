@@ -1,4 +1,8 @@
-import { createStore, StoreApi } from "@will-be-done/hyperstate";
+import {
+  connectToDevTools,
+  createStore,
+  StoreApi,
+} from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
 import {
   AppModelChange,
@@ -90,7 +94,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     const bc = new BroadcastChannel(`changes-${dbCtx.clientId}2`);
     const changesToDbSaver = new ChangesToDbSaver(dbCtx.db);
     const changesTracker = new ChangesTracker(dbCtx.clientId, dbCtx.nextClock);
-    // const syncer = new Syncer(dbCtx, dbCtx.clientId);
+    const syncer = new Syncer(dbCtx, dbCtx.clientId);
 
     const allData = await Promise.all(
       syncableTypes.map(async (modelType) => {
@@ -121,41 +125,42 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     console.log("final rootState", rootState);
 
     store = createStore(rootState);
+    connectToDevTools(store);
 
-    // syncer.startLoop();
-    // syncer.emitter.on("onChangePersisted", (changes) => {
-    //   console.log("new server changes", changes);
-    //
-    //   const modelChanges: AppModelChange[] = [];
-    //   for (const [table, rows] of Object.entries(changes)) {
-    //     const modelType = tableModelTypeMap[table];
-    //     if (!modelType) throw new Error("Unknown table " + table);
-    //     const syncMap = syncMappings[modelType];
-    //     if (!syncMap)
-    //       throw new Error("Sync map not found of model " + modelType);
-    //
-    //     for (const row of rows) {
-    //       modelChanges.push({
-    //         id: row.id,
-    //         modelType: syncMap.modelType,
-    //         isDeleted: Boolean(row.isDeleted),
-    //         // @ts-expect-error it's ok
-    //         model: syncMap.mapDataToModel(row.data),
-    //       });
-    //     }
-    //   }
-    //
-    //   try {
-    //     appSlice.applyChanges(
-    //       store.withContextValue(skipSyncCtx, true),
-    //       modelChanges,
-    //     );
-    //   } catch (e) {
-    //     console.error("failed to apply changes", e);
-    //   }
-    //
-    //   bc.postMessage(mapChangesForBC(changes));
-    // });
+    syncer.startLoop();
+    syncer.emitter.on("onChangePersisted", (changes) => {
+      console.log("new server changes", changes);
+
+      const modelChanges: AppModelChange[] = [];
+      for (const [table, rows] of Object.entries(changes)) {
+        const modelType = tableModelTypeMap[table];
+        if (!modelType) throw new Error("Unknown table " + table);
+        const syncMap = syncMappings[modelType];
+        if (!syncMap)
+          throw new Error("Sync map not found of model " + modelType);
+
+        for (const row of rows) {
+          modelChanges.push({
+            id: row.id,
+            modelType: syncMap.modelType,
+            isDeleted: Boolean(row.isDeleted),
+            // @ts-expect-error it's ok
+            model: syncMap.mapDataToModel(row.data),
+          });
+        }
+      }
+
+      try {
+        appSlice.applyChanges(
+          store.withContextValue(skipSyncCtx, true),
+          modelChanges,
+        );
+      } catch (e) {
+        console.error("failed to apply changes", e);
+      }
+
+      bc.postMessage(mapChangesForBC(changes));
+    });
 
     changesToDbSaver.emitter.on("onChangePersisted", (changes) => {
       bc.postMessage(mapChangesForBC(changes));

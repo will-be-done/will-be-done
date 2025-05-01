@@ -1,6 +1,7 @@
 import {
   createActionCreator,
   createSelectorCreator,
+  createSlice,
 } from "@will-be-done/hyperstate";
 import { format } from "date-fns";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -202,957 +203,506 @@ export type AppModelChange = {
   model: AnyModel;
 };
 
-export const appSlice = {
-  resetAndApplyChanges: appAction(
-    (state: RootState, changes: AppModelChange[]) => {
-      for (const t of allTypes) {
-        for (const id of Object.keys(state[t].byIds)) {
-          delete state[t].byIds[id];
+export const appSlice = createSlice(
+  {
+    resetAndApplyChanges: appAction(
+      (state: RootState, changes: AppModelChange[]) => {
+        for (const t of allTypes) {
+          for (const id of Object.keys(state[t].byIds)) {
+            delete state[t].byIds[id];
+          }
+        }
+
+        appSlice.applyChanges(state, changes);
+      },
+    ),
+    applyChanges: appAction((state: RootState, changes: AppModelChange[]) => {
+      console.log("applyChanges", changes);
+
+      for (const ch of changes) {
+        if (ch.isDeleted) {
+          delete state[ch.modelType].byIds[ch.id];
+        } else {
+          state[ch.modelType].byIds[ch.id] = ch.model;
+        }
+      }
+    }),
+    // NOTE: some models have extra logic to delete them, so maybe it's better to avoid such way
+    // delete: appAction((state: RootState, id: string) => {
+    //   const item = appSlice.byId(state, id);
+    //   if (!item) return shouldNeverHappen("item not found");
+    //
+    //   delete state[item.type].byIds[item.id];
+    // }),
+    taskBoxById(state: RootState, id: string) {
+      const storages = [state.task, state.projection];
+      for (const storage of storages) {
+        const entity = storage.byIds[id];
+
+        if (entity) {
+          return entity;
         }
       }
 
-      appSlice.applyChanges(state, changes);
+      return undefined;
     },
-  ),
-  applyChanges: appAction((state: RootState, changes: AppModelChange[]) => {
-    console.log("applyChanges", changes);
+    taskBoxByIdOrDefault(state: RootState, id: string): Task | TaskProjection {
+      const entity = appSlice.taskBoxById(state, id);
+      if (!entity)
+        return {
+          type: taskType,
+          id,
+          title: "",
+          state: "todo",
+          projectId: "",
+          orderToken: "",
+        };
 
-    for (const ch of changes) {
-      if (ch.isDeleted) {
-        delete state[ch.modelType].byIds[ch.id];
-      } else {
-        state[ch.modelType].byIds[ch.id] = ch.model;
+      return entity;
+    },
+    byId(state: RootState, id: string) {
+      const storages = [
+        state.project,
+        state.task,
+        state.template,
+        state.projection,
+        state.dailyList,
+      ];
+      for (const storage of storages) {
+        const entity = storage.byIds[id];
+
+        if (entity) {
+          return entity;
+        }
       }
-    }
-  }),
-  // NOTE: some models have extra logic to delete them, so maybe it's better to avoid such way
-  // delete: appAction((state: RootState, id: string) => {
-  //   const item = appSlice.byId(state, id);
-  //   if (!item) return shouldNeverHappen("item not found");
-  //
-  //   delete state[item.type].byIds[item.id];
-  // }),
-  taskBoxById(state: RootState, id: string) {
-    const storages = [state.task, state.projection];
-    for (const storage of storages) {
-      const entity = storage.byIds[id];
 
-      if (entity) {
-        return entity;
+      return undefined;
+    },
+    byIdOrDefault(state: RootState, id: string): AnyModel {
+      const entity = appSlice.byId(state, id);
+      if (!entity) {
+        const project: Project = {
+          type: projectType,
+          id,
+          title: "",
+          icon: "",
+          isInbox: false,
+          orderToken: "",
+        };
+
+        return project;
       }
-    }
 
-    return undefined;
+      return entity;
+    },
   },
-  taskBoxByIdOrDefault(state: RootState, id: string): Task | TaskProjection {
-    const entity = appSlice.taskBoxById(state, id);
-    if (!entity)
-      return {
-        type: taskType,
-        id,
-        title: "",
-        state: "todo",
-        projectId: "",
-        orderToken: "",
-      };
+  "appSlice",
+);
 
-    return entity;
-  },
-  byId(state: RootState, id: string) {
-    const storages = [
-      state.project,
-      state.task,
-      state.template,
-      state.projection,
-      state.dailyList,
-    ];
-    for (const storage of storages) {
-      const entity = storage.byIds[id];
+export const taskBoxesSlice = createSlice(
+  {
+    delete: appAction((state: RootState, id: string) => {
+      const taskBox = appSlice.byId(state, id);
+      if (!taskBox) return shouldNeverHappen("entity not found");
 
-      if (entity) {
-        return entity;
-      }
-    }
-
-    return undefined;
-  },
-  byIdOrDefault(state: RootState, id: string): AnyModel {
-    const entity = appSlice.byId(state, id);
-    if (!entity) {
-      const project: Project = {
-        type: projectType,
-        id,
-        title: "",
-        icon: "",
-        isInbox: false,
-        orderToken: "",
-      };
-
-      return project;
-    }
-
-    return entity;
-  },
-};
-
-export const taskBoxesSlice = {
-  delete: appAction((state: RootState, id: string) => {
-    const taskBox = appSlice.byId(state, id);
-    if (!taskBox) return shouldNeverHappen("entity not found");
-
-    if (isTask(taskBox)) {
-      return tasksSlice.delete(state, taskBox.id);
-    } else if (isTaskProjection(taskBox)) {
-      return projectionsSlice.delete(state, taskBox.id);
-    } else {
-      shouldNeverHappen("unknown taskBox type", { taskBox });
-    }
-  }),
-  create: appAction((state: RootState, taskBox: TaskBox) => {
-    if (isTask(taskBox)) {
-      return tasksSlice.createTask(state, taskBox);
-    } else if (isTaskProjection(taskBox)) {
-      return projectionsSlice.create(state, taskBox);
-    } else {
-      assertUnreachable(taskBox);
-    }
-  }),
-  createSibling: appAction(
-    (state: RootState, taskBox: TaskBox, position: "before" | "after") => {
       if (isTask(taskBox)) {
-        return tasksSlice.createSibling(state, taskBox.id, position);
+        return tasksSlice.delete(state, taskBox.id);
       } else if (isTaskProjection(taskBox)) {
-        return projectionsSlice.createSibling(state, taskBox.id, position);
+        return projectionsSlice.delete(state, taskBox.id);
+      } else {
+        shouldNeverHappen("unknown taskBox type", { taskBox });
+      }
+    }),
+    create: appAction((state: RootState, taskBox: TaskBox) => {
+      if (isTask(taskBox)) {
+        return tasksSlice.createTask(state, taskBox);
+      } else if (isTaskProjection(taskBox)) {
+        return projectionsSlice.create(state, taskBox);
       } else {
         assertUnreachable(taskBox);
       }
-    },
-  ),
-  handleDrop: appAction(
-    (
-      state: RootState,
+    }),
+    createSibling: appAction(
+      (state: RootState, taskBox: TaskBox, position: "before" | "after") => {
+        if (isTask(taskBox)) {
+          return tasksSlice.createSibling(state, taskBox.id, position);
+        } else if (isTaskProjection(taskBox)) {
+          return projectionsSlice.createSibling(state, taskBox.id, position);
+        } else {
+          assertUnreachable(taskBox);
+        }
+      },
+    ),
+    handleDrop: appAction(
+      (
+        state: RootState,
 
-      taskBox: TaskBox,
-      targetId: string,
-      edge: "top" | "bottom",
-    ) => {
-      if (isTask(taskBox)) {
-        return tasksSlice.handleDrop(state, taskBox.id, targetId, edge);
-      } else if (isTaskProjection(taskBox)) {
-        return projectionsSlice.handleDrop(state, taskBox.id, targetId, edge);
-      } else {
-        assertUnreachable(taskBox);
-      }
-    },
-  ),
-};
-
-export const dailyListsSlice = {
-  byId: (state: RootState, id: string) => state.dailyList.byIds[id],
-  byIdOrDefault: (state: RootState, id: string): DailyList => {
-    const dailyList = dailyListsSlice.byId(state, id);
-    if (!dailyList)
-      return {
-        type: dailyListType,
-        id,
-        date: "",
-      };
-
-    return dailyList;
+        taskBox: TaskBox,
+        targetId: string,
+        edge: "top" | "bottom",
+      ) => {
+        if (isTask(taskBox)) {
+          return tasksSlice.handleDrop(state, taskBox.id, targetId, edge);
+        } else if (isTaskProjection(taskBox)) {
+          return projectionsSlice.handleDrop(state, taskBox.id, targetId, edge);
+        } else {
+          assertUnreachable(taskBox);
+        }
+      },
+    ),
   },
-  canDrop(state: RootState, dailyListId: string, targetId: string) {
-    const model = appSlice.byId(state, targetId);
-    if (!model) return shouldNeverHappen("target not found");
+  "taskBoxesSlice",
+);
 
-    return isTaskProjection(model) || isTask(model);
-  },
-  childrenIds: appSelector((query, dailyListId: string): string[] => {
-    return query(
-      (state) =>
-        Object.values(state.projection.byIds)
-          .filter((proj) => proj.dailyListId === dailyListId)
-          .sort(fractionalCompare)
-          .map((proj) => proj.id),
-      shallowEqual,
-    );
-  }),
-  taskIds: appSelector((query, dailyListId: string): string[] => {
-    const childrenIds = query((state) =>
-      dailyListsSlice.childrenIds(state, dailyListId),
-    );
+export const dailyListsSlice = createSlice(
+  {
+    byId: (state: RootState, id: string) => state.dailyList.byIds[id],
+    byIdOrDefault: (state: RootState, id: string): DailyList => {
+      const dailyList = dailyListsSlice.byId(state, id);
+      if (!dailyList)
+        return {
+          type: dailyListType,
+          id,
+          date: "",
+        };
 
-    return query(
-      (state) =>
-        childrenIds
-          .map((id) => projectionsSlice.byId(state, id))
-          .map((proj) => proj?.taskId)
-          .filter((t) => t !== undefined),
-      shallowEqual,
-    );
-  }),
-  notDoneTaskIdsExceptDailies: appSelector(
-    (query, projectId: string, dailyListIds: string[]): string[] => {
-      const exceptTaskIds = query(
-        (state) => dailyListsSlice.allTaskIds(state, dailyListIds),
+      return dailyList;
+    },
+    canDrop(state: RootState, dailyListId: string, targetId: string) {
+      const model = appSlice.byId(state, targetId);
+      if (!model) return shouldNeverHappen("target not found");
+
+      return isTaskProjection(model) || isTask(model);
+    },
+    childrenIds: appSelector((query, dailyListId: string): string[] => {
+      return query(
+        (state) =>
+          Object.values(state.projection.byIds)
+            .filter((proj) => proj.dailyListId === dailyListId)
+            .sort(fractionalCompare)
+            .map((proj) => proj.id),
         shallowEqual,
       );
-      const notDoneTaskIds = query((state) =>
-        projectsSlice.notDoneTaskIds(state, projectId),
-      );
-
-      return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));
-    },
-    shallowEqual,
-  ),
-  allTaskIds: appSelector((query, dailyListIds: string[]): Set<string> => {
-    return query((state) => {
-      return new Set(
-        dailyListIds.flatMap((id) => dailyListsSlice.taskIds(state, id)),
-      );
-    }, shallowEqual);
-  }),
-  firstChild: appSelector(
-    (query, dailyListId: string): TaskProjection | undefined => {
+    }),
+    taskIds: appSelector((query, dailyListId: string): string[] => {
       const childrenIds = query((state) =>
         dailyListsSlice.childrenIds(state, dailyListId),
       );
-      const firstChildId = childrenIds[0];
-      if (!firstChildId) return undefined;
 
-      return query((state) => projectionsSlice.byId(state, firstChildId));
-    },
-  ),
-  lastChild: appSelector(
-    (query, dailyListId: string): TaskProjection | undefined => {
-      const childrenIds = query((state) =>
-        dailyListsSlice.childrenIds(state, dailyListId),
+      return query(
+        (state) =>
+          childrenIds
+            .map((id) => projectionsSlice.byId(state, id))
+            .map((proj) => proj?.taskId)
+            .filter((t) => t !== undefined),
+        shallowEqual,
       );
-      const lastChildId = childrenIds[childrenIds.length - 1];
-      if (!lastChildId) return undefined;
-
-      return query((state) => projectionsSlice.byId(state, lastChildId));
-    },
-  ),
-  firstDoneChild: appSelector(
-    (query, dailyListId: string): TaskProjection | undefined => {
-      return query((state) => {
-        const childrenIds = dailyListsSlice.childrenIds(state, dailyListId);
-        const projections = childrenIds
-          .map((id) => projectionsSlice.byId(state, id))
-          .filter((p) => p !== undefined);
-
-        const tasksWithProjections = projections.map(
-          (proj) => [proj, tasksSlice.byId(state, proj.taskId)] as const,
+    }),
+    notDoneTaskIdsExceptDailies: appSelector(
+      (query, projectId: string, dailyListIds: string[]): string[] => {
+        const exceptTaskIds = query(
+          (state) => dailyListsSlice.allTaskIds(state, dailyListIds),
+          shallowEqual,
+        );
+        const notDoneTaskIds = query((state) =>
+          projectsSlice.notDoneTaskIds(state, projectId),
         );
 
-        return tasksWithProjections.find(
-          ([proj, task]) => task?.state === "done",
-        )?.[0];
-      });
-    },
-  ),
-  dateIdsMap: appSelector((query): Record<string, string> => {
-    return query(
-      (state) =>
-        Object.fromEntries(
-          Object.values(state.dailyList.byIds).map((d) => [d.date, d.id]),
-        ),
-      deepEqual,
-    );
-  }),
-  idByDate: appSelector((query, date: Date): string | undefined => {
-    const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
-    const dmy = getDMY(date);
+        return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));
+      },
+      shallowEqual,
+    ),
+    allTaskIds: appSelector((query, dailyListIds: string[]): Set<string> => {
+      return query((state) => {
+        return new Set(
+          dailyListIds.flatMap((id) => dailyListsSlice.taskIds(state, id)),
+        );
+      }, shallowEqual);
+    }),
+    firstChild: appSelector(
+      (query, dailyListId: string): TaskProjection | undefined => {
+        const childrenIds = query((state) =>
+          dailyListsSlice.childrenIds(state, dailyListId),
+        );
+        const firstChildId = childrenIds[0];
+        if (!firstChildId) return undefined;
 
-    return allDailyLists[dmy];
-  }),
-  idsByDates: appSelector((query, dates: Date[]): string[] => {
-    const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
+        return query((state) => projectionsSlice.byId(state, firstChildId));
+      },
+    ),
+    lastChild: appSelector(
+      (query, dailyListId: string): TaskProjection | undefined => {
+        const childrenIds = query((state) =>
+          dailyListsSlice.childrenIds(state, dailyListId),
+        );
+        const lastChildId = childrenIds[childrenIds.length - 1];
+        if (!lastChildId) return undefined;
 
-    return dates
-      .map((date) => {
-        const dmy = getDMY(date);
-        return allDailyLists[dmy];
-      })
-      .filter((d) => d != undefined);
-  }),
+        return query((state) => projectionsSlice.byId(state, lastChildId));
+      },
+    ),
+    firstDoneChild: appSelector(
+      (query, dailyListId: string): TaskProjection | undefined => {
+        return query((state) => {
+          const childrenIds = dailyListsSlice.childrenIds(state, dailyListId);
+          const projections = childrenIds
+            .map((id) => projectionsSlice.byId(state, id))
+            .filter((p) => p !== undefined);
 
-  // ----
+          const tasksWithProjections = projections.map(
+            (proj) => [proj, tasksSlice.byId(state, proj.taskId)] as const,
+          );
 
-  handleDrop: appAction(
-    (
-      state: RootState,
-      dailyListId: string,
-      dropId: string,
-      _edge: "top" | "bottom",
-    ) => {
-      const lastChild = dailyListsSlice.lastChild(state, dailyListId);
-      const between: [string | null, string | null] = [
-        lastChild?.orderToken || null,
-        null,
-      ];
-
-      const orderToken = generateJitteredKeyBetween(
-        between[0] || null,
-        between[1] || null,
+          return tasksWithProjections.find(
+            ([proj, task]) => task?.state === "done",
+          )?.[0];
+        });
+      },
+    ),
+    dateIdsMap: appSelector((query): Record<string, string> => {
+      return query(
+        (state) =>
+          Object.fromEntries(
+            Object.values(state.dailyList.byIds).map((d) => [d.date, d.id]),
+          ),
+        deepEqual,
       );
+    }),
+    idByDate: appSelector((query, date: Date): string | undefined => {
+      const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
+      const dmy = getDMY(date);
 
-      const dailyList = dailyListsSlice.byId(state, dailyListId);
-      if (!dailyList) return shouldNeverHappen("dailyList not found");
+      return allDailyLists[dmy];
+    }),
+    idsByDates: appSelector((query, dates: Date[]): string[] => {
+      const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
 
-      const drop = appSlice.byId(state, dropId);
-      if (!drop) return shouldNeverHappen("drop not found", { dropId });
+      return dates
+        .map((date) => {
+          const dmy = getDMY(date);
+          return allDailyLists[dmy];
+        })
+        .filter((d) => d != undefined);
+    }),
 
-      if (isTaskProjection(drop)) {
-        drop.orderToken = orderToken;
-        drop.dailyListId = dailyList.id;
-      } else if (isTask(drop)) {
-        projectionsSlice.create(state, {
-          taskId: drop.id,
-          dailyListId: dailyList.id,
+    // ----
+
+    handleDrop: appAction(
+      (
+        state: RootState,
+        dailyListId: string,
+        dropId: string,
+        _edge: "top" | "bottom",
+      ) => {
+        const lastChild = dailyListsSlice.lastChild(state, dailyListId);
+        const between: [string | null, string | null] = [
+          lastChild?.orderToken || null,
+          null,
+        ];
+
+        const orderToken = generateJitteredKeyBetween(
+          between[0] || null,
+          between[1] || null,
+        );
+
+        const dailyList = dailyListsSlice.byId(state, dailyListId);
+        if (!dailyList) return shouldNeverHappen("dailyList not found");
+
+        const drop = appSlice.byId(state, dropId);
+        if (!drop) return shouldNeverHappen("drop not found", { dropId });
+
+        if (isTaskProjection(drop)) {
+          drop.orderToken = orderToken;
+          drop.dailyListId = dailyList.id;
+        } else if (isTask(drop)) {
+          projectionsSlice.create(state, {
+            taskId: drop.id,
+            dailyListId: dailyList.id,
+            orderToken: orderToken,
+          });
+        } else {
+          shouldNeverHappen("unknown drop item type", drop);
+        }
+      },
+    ),
+    createProjection: appAction(
+      (
+        state: RootState,
+        dailyListId: string,
+        projectId: string,
+        listPosition:
+          | [OrderableItem | undefined, OrderableItem | undefined]
+          | "append"
+          | "prepend",
+        projectPosition:
+          | [OrderableItem | undefined, OrderableItem | undefined]
+          | "append"
+          | "prepend",
+      ) => {
+        const task = projectsSlice.createTask(
+          state,
+          projectId,
+          projectPosition,
+        );
+
+        const orderToken = generateOrderTokenPositioned(
+          state,
+          dailyListId,
+          dailyListsSlice,
+          listPosition,
+        );
+
+        return projectionsSlice.create(state, {
+          taskId: task.id,
+          dailyListId: dailyListId,
           orderToken: orderToken,
         });
-      } else {
-        shouldNeverHappen("unknown drop item type", drop);
-      }
-    },
-  ),
-  createProjection: appAction(
-    (
-      state: RootState,
-      dailyListId: string,
-      projectId: string,
-      listPosition:
-        | [OrderableItem | undefined, OrderableItem | undefined]
-        | "append"
-        | "prepend",
-      projectPosition:
-        | [OrderableItem | undefined, OrderableItem | undefined]
-        | "append"
-        | "prepend",
-    ) => {
-      const task = projectsSlice.createTask(state, projectId, projectPosition);
-
-      const orderToken = generateOrderTokenPositioned(
-        state,
-        dailyListId,
-        dailyListsSlice,
-        listPosition,
-      );
-
-      return projectionsSlice.create(state, {
-        taskId: task.id,
-        dailyListId: dailyListId,
-        orderToken: orderToken,
-      });
-    },
-  ),
-  create: appAction(
-    (
-      state: RootState,
-      dailyList: {
-        date: string;
       },
-    ): DailyList => {
-      const id = uuidByString(dailyList.date);
+    ),
+    create: appAction(
+      (
+        state: RootState,
+        dailyList: {
+          date: string;
+        },
+      ): DailyList => {
+        const id = uuidByString(dailyList.date);
 
-      const list: DailyList = {
-        type: dailyListType,
-        id,
-        ...dailyList,
-      };
-      state.dailyList.byIds[id] = list;
+        const list: DailyList = {
+          type: dailyListType,
+          id,
+          ...dailyList,
+        };
+        state.dailyList.byIds[id] = list;
 
-      return list;
-    },
-  ),
-  createIfNotPresent: appAction((state: RootState, date: Date): DailyList => {
-    const dailyListId = dailyListsSlice.idByDate(state, date);
+        return list;
+      },
+    ),
+    createIfNotPresent: appAction((state: RootState, date: Date): DailyList => {
+      const dailyListId = dailyListsSlice.idByDate(state, date);
 
-    if (!dailyListId) {
-      const newList = dailyListsSlice.create(state, {
-        date: getDMY(date),
-      });
+      if (!dailyListId) {
+        const newList = dailyListsSlice.create(state, {
+          date: getDMY(date),
+        });
 
-      return newList;
-    } else {
-      return dailyListsSlice.byId(state, dailyListId)!;
-    }
-  }),
-  createManyIfNotPresent: appAction(
-    (state: RootState, dates: Date[]): DailyList[] => {
-      // TODO: make it spawns a lot of Map in dailyListSelectors.idByDate
-      return dates.map((date) =>
-        dailyListsSlice.createIfNotPresent(state, date),
-      );
-    },
-  ),
-};
+        return newList;
+      } else {
+        return dailyListsSlice.byId(state, dailyListId)!;
+      }
+    }),
+    createManyIfNotPresent: appAction(
+      (state: RootState, dates: Date[]): DailyList[] => {
+        // TODO: make it spawns a lot of Map in dailyListSelectors.idByDate
+        return dates.map((date) =>
+          dailyListsSlice.createIfNotPresent(state, date),
+        );
+      },
+    ),
+  },
+  "dailyListsSlice",
+);
 // export const dailyListSlice = {};
 
-export const projectionsSlice = {
-  byId: (state: RootState, id: string) => state.projection.byIds[id],
-  byIdOrDefault: (state: RootState, id: string): TaskProjection => {
-    const proj = projectionsSlice.byId(state, id);
-    if (!proj)
-      return {
-        type: projectionType,
-        id,
-        taskId: "",
-        orderToken: "",
-        dailyListId: "",
-      };
+export const projectionsSlice = createSlice(
+  {
+    byId: (state: RootState, id: string) => state.projection.byIds[id],
+    byIdOrDefault: (state: RootState, id: string): TaskProjection => {
+      const proj = projectionsSlice.byId(state, id);
+      if (!proj)
+        return {
+          type: projectionType,
+          id,
+          taskId: "",
+          orderToken: "",
+          dailyListId: "",
+        };
 
-    return proj;
-  },
-  canDrop(state: RootState, taskProjectionId: string, targetId: string) {
-    const model = appSlice.byId(state, targetId);
-    if (!model) return shouldNeverHappen("target not found");
-
-    return isTaskProjection(model) || isTask(model);
-  },
-  siblings: appSelector(
-    (
-      query,
-      taskProjectionId: string,
-    ): [TaskProjection | undefined, TaskProjection | undefined] => {
-      const items = query((state) => allProjectsSlice.childrenIds(state));
-      const i = items.findIndex((it: string) => it === taskProjectionId);
-
-      const beforeId = items[i - 1];
-      const afterId = items[i + 1];
-
-      return [
-        beforeId
-          ? query((state) => projectionsSlice.byId(state, beforeId))
-          : undefined,
-        afterId
-          ? query((state) => projectionsSlice.byId(state, afterId))
-          : undefined,
-      ];
+      return proj;
     },
-  ),
+    canDrop(state: RootState, taskProjectionId: string, targetId: string) {
+      const model = appSlice.byId(state, targetId);
+      if (!model) return shouldNeverHappen("target not found");
 
-  projectionIdsByTaskId: appSelector((query, taskId: string): string[] => {
-    const projections = query(
-      (state) =>
-        Object.values(state.projection.byIds).filter(
-          (proj) => proj.taskId === taskId,
-        ),
-      shallowEqual,
-    );
-
-    return projections.map((p) => p.id);
-  }),
-
-  // --actions
-  delete: appAction((state: RootState, id: string) => {
-    const proj = projectionsSlice.byId(state, id);
-    if (!proj) return shouldNeverHappen("projection not found");
-
-    delete state.projection.byIds[proj.id];
-  }),
-  deleteProjectionsOfTask: appAction((state: RootState, taskId: string) => {
-    const projectionIds = projectionsSlice.projectionIdsByTaskId(state, taskId);
-
-    for (const id of projectionIds) {
-      projectionsSlice.delete(state, id);
-    }
-  }),
-  handleDrop: appAction(
-    (
-      state: RootState,
-      taskProjectionId: string,
-      dropId: string,
-      edge: "top" | "bottom",
-    ) => {
-      if (!projectionsSlice.canDrop(state, taskProjectionId, dropId)) {
-        return;
-      }
-
-      const taskProjection = projectionsSlice.byId(state, taskProjectionId);
-      if (!taskProjection) return shouldNeverHappen("task not found");
-
-      const dropItem = appSlice.byId(state, dropId);
-      if (!dropItem) return shouldNeverHappen("drop item not found");
-
-      const [up, down] = projectionsSlice.siblings(state, taskProjectionId);
-
-      let between: [string | undefined, string | undefined] = [
-        taskProjection.orderToken,
-        down?.orderToken,
-      ];
-
-      if (edge == "top") {
-        between = [up?.orderToken, taskProjection.orderToken];
-      }
-
-      const orderToken = generateJitteredKeyBetween(
-        between[0] || null,
-        between[1] || null,
-      );
-
-      if (isTaskProjection(dropItem)) {
-        dropItem.orderToken = orderToken;
-        dropItem.dailyListId = taskProjection.dailyListId;
-      } else if (isTask(dropItem)) {
-        projectionsSlice.create(state, {
-          taskId: dropItem.id,
-          dailyListId: taskProjection.dailyListId,
-          orderToken: orderToken,
-        });
-      } else {
-        shouldNeverHappen("unknown drop item type", dropItem);
-      }
+      return isTaskProjection(model) || isTask(model);
     },
-  ),
-  create: appAction(
-    (
-      state: RootState,
-      taskProjection: Partial<TaskProjection> & {
-        taskId: string;
-        dailyListId: string;
-        orderToken: string;
+    siblings: appSelector(
+      (
+        query,
+        taskProjectionId: string,
+      ): [TaskProjection | undefined, TaskProjection | undefined] => {
+        const items = query((state) => allProjectsSlice.childrenIds(state));
+        const i = items.findIndex((it: string) => it === taskProjectionId);
+
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
+
+        return [
+          beforeId
+            ? query((state) => projectionsSlice.byId(state, beforeId))
+            : undefined,
+          afterId
+            ? query((state) => projectionsSlice.byId(state, afterId))
+            : undefined,
+        ];
       },
-    ) => {
-      const id = taskProjection.id || uuidv7();
+    ),
 
-      const newTaskProjection: TaskProjection = {
-        type: projectionType,
-        id,
-        ...taskProjection,
-      };
-
-      state.projection.byIds[id] = newTaskProjection;
-
-      return newTaskProjection;
-    },
-  ),
-  createSibling: appAction(
-    (
-      state: RootState,
-      taskProjectionId: string,
-      position: "before" | "after",
-    ): TaskProjection => {
-      const taskProjection = projectionsSlice.byId(state, taskProjectionId);
-
-      if (!taskProjection) throw new Error("TaskProjection not found");
-
-      return projectionsSlice.create(state, {
-        taskId: taskProjection.taskId,
-        dailyListId: taskProjection.dailyListId,
-        orderToken: generateKeyPositionedBetween(
-          taskProjection,
-          projectionsSlice.siblings(state, taskProjectionId),
-          position,
-        ),
-      });
-    },
-  ),
-};
-
-export const tasksSlice = {
-  canDrop(state: RootState, taskId: string, targetId: string) {
-    const model = appSlice.byId(state, targetId);
-    if (!model) return shouldNeverHappen("target not found");
-
-    return isTaskProjection(model) || isTask(model);
-  },
-  byId: (state: RootState, id: string): Task | undefined =>
-    state.task.byIds[id],
-  byIdOrDefault: (state: RootState, id: string): Task => {
-    const task = tasksSlice.byId(state, id);
-    if (!task)
-      return {
-        type: taskType,
-        id,
-        title: "",
-        state: "todo",
-        projectId: "",
-        orderToken: "",
-      };
-
-    return task;
-  },
-  siblings: appSelector(
-    (
-      query,
-      taskId: string,
-    ): [ProjectItem | undefined, ProjectItem | undefined] => {
-      const items = query((state) => allProjectsSlice.childrenIds(state));
-      const i = items.findIndex((it: string) => it === taskId);
-      const beforeId = items[i - 1];
-      const afterId = items[i + 1];
-
-      return [
-        beforeId
-          ? query((state) => tasksSlice.byId(state, beforeId))
-          : undefined,
-        afterId ? query((state) => tasksSlice.byId(state, afterId)) : undefined,
-      ];
-    },
-  ),
-
-  // --actions
-
-  delete: appAction((state: RootState, id: string) => {
-    const task = tasksSlice.byId(state, id);
-    if (!task) return shouldNeverHappen("task not found");
-
-    delete state.task.byIds[task.id];
-
-    projectionsSlice.deleteProjectionsOfTask(state, task.id);
-  }),
-  update: appAction(
-    (state: RootState, id: string, task: Partial<Task>): Task => {
-      const taskInState = tasksSlice.byId(state, id);
-      if (!taskInState) throw new Error("Task not found");
-
-      Object.assign(taskInState, task);
-
-      return taskInState;
-    },
-  ),
-
-  createTask: appAction(
-    (
-      state: RootState,
-      task: Partial<Task> & { projectId: string; orderToken: string },
-    ) => {
-      const id = task.id || uuidv7();
-      const newTask: Task = {
-        type: taskType,
-        id,
-        title: "",
-        state: "todo",
-        ...task,
-      };
-
-      state.task.byIds[id] = newTask;
-
-      return newTask;
-    },
-  ),
-  createSibling: appAction(
-    (state: RootState, taskId: string, position: "before" | "after"): Task => {
-      const task = tasksSlice.byId(state, taskId);
-
-      if (!task) throw new Error("Task not found");
-
-      return tasksSlice.createTask(state, {
-        projectId: task.projectId,
-        orderToken: generateKeyPositionedBetween(
-          task,
-          tasksSlice.siblings(state, taskId),
-          position,
-        ),
-      });
-    },
-  ),
-  handleDrop: appAction(
-    (
-      state: RootState,
-      taskId: string,
-      dropId: string,
-      edge: "top" | "bottom",
-    ) => {
-      if (!tasksSlice.canDrop(state, taskId, dropId)) return;
-
-      const task = tasksSlice.byId(state, taskId);
-      if (!task) return shouldNeverHappen("task not found");
-
-      const dropItem = appSlice.byId(state, dropId);
-      if (!dropItem) return shouldNeverHappen("drop item not found");
-
-      const [up, down] = tasksSlice.siblings(state, taskId);
-
-      let between: [string | undefined, string | undefined] = [
-        task.orderToken,
-        down?.orderToken,
-      ];
-
-      if (edge == "top") {
-        between = [up?.orderToken, task.orderToken];
-      }
-
-      const orderToken = generateJitteredKeyBetween(
-        between[0] || null,
-        between[1] || null,
+    projectionIdsByTaskId: appSelector((query, taskId: string): string[] => {
+      const projections = query(
+        (state) =>
+          Object.values(state.projection.byIds).filter(
+            (proj) => proj.taskId === taskId,
+          ),
+        shallowEqual,
       );
 
-      if (isTask(dropItem) || isTaskTemplate(dropItem)) {
-        dropItem.orderToken = orderToken;
-        dropItem.projectId = task.projectId;
-      } else if (isTaskProjection(dropItem)) {
-        const taskOfDrop = tasksSlice.byId(state, dropItem.taskId);
-        if (!taskOfDrop) return shouldNeverHappen("task not found", dropItem);
+      return projections.map((p) => p.id);
+    }),
 
-        taskOfDrop.orderToken = orderToken;
-        taskOfDrop.projectId = task.projectId;
+    // --actions
+    delete: appAction((state: RootState, id: string) => {
+      const proj = projectionsSlice.byId(state, id);
+      if (!proj) return shouldNeverHappen("projection not found");
 
-        projectionsSlice.delete(state, dropItem.id);
-      } else {
-        shouldNeverHappen("unknown drop item type", dropItem);
-      }
-    },
-  ),
-  toggleState: appAction((state: RootState, taskId: string) => {
-    const task = tasksSlice.byId(state, taskId);
-    if (!task) throw new Error("Task not found");
-
-    task.state = task.state === "todo" ? "done" : "todo";
-  }),
-};
-
-export const allProjectsSlice = {
-  all: appSelector((query): Project[] => {
-    return query(
-      (state) => Object.values(state.project.byIds).sort(fractionalCompare),
-      shallowEqual,
-    );
-  }),
-  childrenIds: appSelector((query): string[] => {
-    return query((state) => {
-      const allIdsAndTokens = allProjectsSlice.all(state).map((p) => ({
-        id: p.id,
-        orderToken: p.orderToken,
-      }));
-
-      return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
-    }, shallowEqual);
-  }),
-  childrenIdsWithoutInbox: appSelector((query): string[] => {
-    return query(
-      (state) =>
-        allProjectsSlice.childrenIds(state).filter((id) => id !== inboxId),
-      shallowEqual,
-    );
-  }),
-  firstChild: appSelector((query): Project | undefined => {
-    const childrenIds = query((state) => allProjectsSlice.childrenIds(state));
-    const firstChildId = childrenIds[0];
-
-    return firstChildId
-      ? query((state) => projectsSlice.byId(state, firstChildId))
-      : undefined;
-  }),
-  lastChild: appSelector((query): Project | undefined => {
-    return query((state) => {
-      const childrenIds = allProjectsSlice.childrenIds(state);
-      const lastChildId = childrenIds[childrenIds.length - 1];
-
-      return lastChildId ? projectsSlice.byId(state, lastChildId) : undefined;
-    });
-  }),
-  inbox: appSelector((query): Project => {
-    return query((state) => {
-      const inbox = projectsSlice.byId(state, inboxId);
-      if (!inbox) throw new Error("Inbox not found");
-      return inbox;
-    });
-  }),
-};
-
-export const projectsSlice = {
-  byId: (state: RootState, id: string): Project | undefined =>
-    state.project.byIds[id],
-  byIdOrDefault: (state: RootState, id: string): Project => {
-    const project = projectsSlice.byId(state, id);
-    if (!project)
-      return {
-        type: projectType,
-        id,
-        title: "",
-        icon: "",
-        isInbox: false,
-        orderToken: "",
-      };
-
-    return project;
-  },
-  canDrop(state: RootState, projectId: string, dropTargetId: string) {
-    const target = appSlice.byId(state, dropTargetId);
-
-    if (isProject(target) && target.isInbox) {
-      return false;
-    }
-
-    return (
-      isProject(target) ||
-      isTask(target) ||
-      isTaskTemplate(target) ||
-      isTaskProjection(target)
-    );
-  },
-  siblings: appSelector(
-    (query, projectId: string): [Project | undefined, Project | undefined] => {
-      const items = query((state) => allProjectsSlice.childrenIds(state));
-      const i = items.findIndex((it: string) => it === projectId);
-
-      const beforeId = items[i - 1];
-      const afterId = items[i + 1];
-
-      return [
-        beforeId
-          ? query((state) => projectsSlice.byId(state, beforeId))
-          : undefined,
-        afterId
-          ? query((state) => projectsSlice.byId(state, afterId))
-          : undefined,
-      ];
-    },
-  ),
-  childrenIds: appSelector((query, projectId: string): string[] => {
-    const tasks = query(
-      (state) =>
-        Object.values(state.task.byIds)
-          .filter((task) => task.projectId === projectId)
-          .map((p) => ({ id: p.id, orderToken: p.orderToken })),
-      deepEqual,
-    );
-    const templates = query(
-      (state) =>
-        Object.values(state.template.byIds)
-          .filter((template) => template.projectId === projectId)
-          .map((p) => ({ id: p.id, orderToken: p.orderToken })),
-      deepEqual,
-    );
-
-    return [...tasks, ...templates].sort(fractionalCompare).map((p) => p.id);
-  }),
-  childrenCount: appSelector((query, projectId: string): number => {
-    return query((state) => projectsSlice.childrenIds(state, projectId).length);
-  }),
-  firstChild: appSelector(
-    (query, projectId: string): ProjectItem | undefined => {
-      const childrenIds = query((state) =>
-        projectsSlice.childrenIds(state, projectId),
-      );
-      const firstChildId = childrenIds[0];
-      if (!firstChildId) return undefined;
-
-      return query((state) => projectsSlice.getItemById(state, firstChildId));
-    },
-  ),
-  lastChild: appSelector(
-    (query, projectId: string): ProjectItem | undefined => {
-      const childrenIds = query((state) =>
-        projectsSlice.childrenIds(state, projectId),
-      );
-      const lastChildId = childrenIds[childrenIds.length - 1];
-      if (!lastChildId) return undefined;
-
-      return query((state) => projectsSlice.getItemById(state, lastChildId));
-    },
-  ),
-  tasksIds: appSelector((query, projectId: string): string[] => {
-    const childrenIds = query((state) =>
-      projectsSlice.childrenIds(state, projectId),
-    );
-    return query(
-      (state) =>
-        childrenIds
-          .map((id) => tasksSlice.byId(state, id))
-          .map((t) => t?.id)
-          .filter((t) => t !== undefined),
-      shallowEqual,
-    );
-  }),
-  notDoneTaskIds: appSelector((query, projectId: string): string[] => {
-    return query((state) => {
-      const taskIds = projectsSlice.tasksIds(state, projectId);
-      return taskIds.filter((id) => {
-        const task = query((state) => tasksSlice.byId(state, id));
-        if (!task) return false;
-
-        return task.state !== "done";
-      });
-    }, shallowEqual);
-  }),
-  withoutTasksByIds: appSelector(
-    (query, projectId: string, ids: string[]): string[] => {
-      const childrenIds = query((state) =>
-        projectsSlice.childrenIds(state, projectId),
-      );
-      const setIds = new Set(ids);
-      return childrenIds.filter((id) => !setIds.has(id));
-    },
-  ),
-  getItemById: appSelector((query, id: string): ProjectItem | undefined => {
-    return query((state) => tasksSlice.byId(state, id));
-  }),
-
-  // --actions
-
-  create: appAction(
-    (
-      state: RootState,
-
-      newProject: Partial<Project>,
-      position:
-        | [OrderableItem | undefined, OrderableItem | undefined]
-        | "append"
-        | "prepend",
-    ) => {
-      const orderToken = generateOrderTokenPositioned(
+      delete state.projection.byIds[proj.id];
+    }),
+    deleteProjectionsOfTask: appAction((state: RootState, taskId: string) => {
+      const projectionIds = projectionsSlice.projectionIdsByTaskId(
         state,
-        "all-projects-list",
-        allProjectsSlice,
-        position,
+        taskId,
       );
 
-      const id = newProject.id || uuidv7();
-      const project: Project = {
-        type: projectType,
-        id: id,
-        orderToken: orderToken,
-        title: "New project",
-        icon: "",
-        isInbox: false,
-        ...newProject,
-      };
-
-      state.project.byIds[id] = project;
-    },
-  ),
-  delete: appAction((state: RootState, id: string) => {
-    delete state.project.byIds[id];
-  }),
-  update: appAction(
-    (state: RootState, id: string, project: Partial<Project>): Project => {
-      const projInState = projectsSlice.byId(state, id);
-      if (!projInState) throw new Error("Project not found");
-
-      Object.assign(projInState, project);
-
-      return projInState;
-    },
-  ),
-  handleDrop: appAction(
-    (
-      state: RootState,
-      projectId: string,
-      dropItemId: string,
-      edge: "top" | "bottom",
-    ) => {
-      if (!projectsSlice.canDrop(state, projectId, dropItemId)) {
-        return;
+      for (const id of projectionIds) {
+        projectionsSlice.delete(state, id);
       }
+    }),
+    handleDrop: appAction(
+      (
+        state: RootState,
+        taskProjectionId: string,
+        dropId: string,
+        edge: "top" | "bottom",
+      ) => {
+        if (!projectionsSlice.canDrop(state, taskProjectionId, dropId)) {
+          return;
+        }
 
-      const project = projectsSlice.byId(state, projectId);
-      if (!project) throw new Error("Project not found");
-      const dropItem = appSlice.byId(state, dropItemId);
-      if (!dropItem) throw new Error("Target not found");
+        const taskProjection = projectionsSlice.byId(state, taskProjectionId);
+        if (!taskProjection) return shouldNeverHappen("task not found");
 
-      if (isProject(dropItem)) {
-        const [up, down] = projectsSlice.siblings(state, project.id);
+        const dropItem = appSlice.byId(state, dropId);
+        if (!dropItem) return shouldNeverHappen("drop item not found");
+
+        const [up, down] = projectionsSlice.siblings(state, taskProjectionId);
 
         let between: [string | undefined, string | undefined] = [
-          project.orderToken,
+          taskProjection.orderToken,
           down?.orderToken,
         ];
+
         if (edge == "top") {
-          between = [up?.orderToken, project.orderToken];
+          between = [up?.orderToken, taskProjection.orderToken];
         }
 
         const orderToken = generateJitteredKeyBetween(
@@ -1160,45 +710,535 @@ export const projectsSlice = {
           between[1] || null,
         );
 
-        dropItem.orderToken = orderToken;
-      } else if (isTask(dropItem) || isTaskTemplate(dropItem)) {
-        dropItem.projectId = project.id;
-      } else if (isTaskProjection(dropItem)) {
-        const task = tasksSlice.byId(state, dropItem.taskId);
-        if (!task) return shouldNeverHappen("task not found", dropItem);
+        if (isTaskProjection(dropItem)) {
+          dropItem.orderToken = orderToken;
+          dropItem.dailyListId = taskProjection.dailyListId;
+        } else if (isTask(dropItem)) {
+          projectionsSlice.create(state, {
+            taskId: dropItem.id,
+            dailyListId: taskProjection.dailyListId,
+            orderToken: orderToken,
+          });
+        } else {
+          shouldNeverHappen("unknown drop item type", dropItem);
+        }
+      },
+    ),
+    create: appAction(
+      (
+        state: RootState,
+        taskProjection: Partial<TaskProjection> & {
+          taskId: string;
+          dailyListId: string;
+          orderToken: string;
+        },
+      ) => {
+        const id = taskProjection.id || uuidv7();
 
-        task.projectId = project.id;
-      } else {
-        shouldNeverHappen("unknown drop item type", dropItem);
-      }
+        const newTaskProjection: TaskProjection = {
+          type: projectionType,
+          id,
+          ...taskProjection,
+        };
+
+        state.projection.byIds[id] = newTaskProjection;
+
+        return newTaskProjection;
+      },
+    ),
+    createSibling: appAction(
+      (
+        state: RootState,
+        taskProjectionId: string,
+        position: "before" | "after",
+      ): TaskProjection => {
+        const taskProjection = projectionsSlice.byId(state, taskProjectionId);
+
+        if (!taskProjection) throw new Error("TaskProjection not found");
+
+        return projectionsSlice.create(state, {
+          taskId: taskProjection.taskId,
+          dailyListId: taskProjection.dailyListId,
+          orderToken: generateKeyPositionedBetween(
+            taskProjection,
+            projectionsSlice.siblings(state, taskProjectionId),
+            position,
+          ),
+        });
+      },
+    ),
+  },
+  "projectionsSlice",
+);
+
+export const tasksSlice = createSlice(
+  {
+    canDrop(state: RootState, taskId: string, targetId: string) {
+      const model = appSlice.byId(state, targetId);
+      if (!model) return shouldNeverHappen("target not found");
+
+      return isTaskProjection(model) || isTask(model);
     },
-  ),
-  createTask: appAction(
-    (
-      state: RootState,
-      projectId: string,
-      position:
-        | [OrderableItem | undefined, OrderableItem | undefined]
-        | "append"
-        | "prepend",
-    ): Task => {
-      const project = projectsSlice.byId(state, projectId);
-      if (!project) throw new Error("Project not found");
+    byId: (state: RootState, id: string): Task | undefined =>
+      state.task.byIds[id],
+    byIdOrDefault: (state: RootState, id: string): Task => {
+      const task = tasksSlice.byId(state, id);
+      if (!task)
+        return {
+          type: taskType,
+          id,
+          title: "",
+          state: "todo",
+          projectId: "",
+          orderToken: "",
+        };
 
-      const orderToken = generateOrderTokenPositioned(
-        state,
-        projectId,
-        projectsSlice,
-        position,
+      return task;
+    },
+    siblings: appSelector(
+      (
+        query,
+        taskId: string,
+      ): [ProjectItem | undefined, ProjectItem | undefined] => {
+        const items = query((state) => allProjectsSlice.childrenIds(state));
+        const i = items.findIndex((it: string) => it === taskId);
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
+
+        return [
+          beforeId
+            ? query((state) => tasksSlice.byId(state, beforeId))
+            : undefined,
+          afterId
+            ? query((state) => tasksSlice.byId(state, afterId))
+            : undefined,
+        ];
+      },
+    ),
+
+    // --actions
+
+    delete: appAction((state: RootState, id: string) => {
+      const task = tasksSlice.byId(state, id);
+      if (!task) return shouldNeverHappen("task not found");
+
+      delete state.task.byIds[task.id];
+
+      projectionsSlice.deleteProjectionsOfTask(state, task.id);
+    }),
+    update: appAction(
+      (state: RootState, id: string, task: Partial<Task>): Task => {
+        const taskInState = tasksSlice.byId(state, id);
+        if (!taskInState) throw new Error("Task not found");
+
+        Object.assign(taskInState, task);
+
+        return taskInState;
+      },
+    ),
+
+    createTask: appAction(
+      (
+        state: RootState,
+        task: Partial<Task> & { projectId: string; orderToken: string },
+      ) => {
+        const id = task.id || uuidv7();
+        const newTask: Task = {
+          type: taskType,
+          id,
+          title: "",
+          state: "todo",
+          ...task,
+        };
+
+        state.task.byIds[id] = newTask;
+
+        return newTask;
+      },
+    ),
+    createSibling: appAction(
+      (
+        state: RootState,
+        taskId: string,
+        position: "before" | "after",
+      ): Task => {
+        const task = tasksSlice.byId(state, taskId);
+
+        if (!task) throw new Error("Task not found");
+
+        return tasksSlice.createTask(state, {
+          projectId: task.projectId,
+          orderToken: generateKeyPositionedBetween(
+            task,
+            tasksSlice.siblings(state, taskId),
+            position,
+          ),
+        });
+      },
+    ),
+    handleDrop: appAction(
+      (
+        state: RootState,
+        taskId: string,
+        dropId: string,
+        edge: "top" | "bottom",
+      ) => {
+        if (!tasksSlice.canDrop(state, taskId, dropId)) return;
+
+        const task = tasksSlice.byId(state, taskId);
+        if (!task) return shouldNeverHappen("task not found");
+
+        const dropItem = appSlice.byId(state, dropId);
+        if (!dropItem) return shouldNeverHappen("drop item not found");
+
+        const [up, down] = tasksSlice.siblings(state, taskId);
+
+        let between: [string | undefined, string | undefined] = [
+          task.orderToken,
+          down?.orderToken,
+        ];
+
+        if (edge == "top") {
+          between = [up?.orderToken, task.orderToken];
+        }
+
+        const orderToken = generateJitteredKeyBetween(
+          between[0] || null,
+          between[1] || null,
+        );
+
+        if (isTask(dropItem) || isTaskTemplate(dropItem)) {
+          dropItem.orderToken = orderToken;
+          dropItem.projectId = task.projectId;
+        } else if (isTaskProjection(dropItem)) {
+          const taskOfDrop = tasksSlice.byId(state, dropItem.taskId);
+          if (!taskOfDrop) return shouldNeverHappen("task not found", dropItem);
+
+          taskOfDrop.orderToken = orderToken;
+          taskOfDrop.projectId = task.projectId;
+
+          projectionsSlice.delete(state, dropItem.id);
+        } else {
+          shouldNeverHappen("unknown drop item type", dropItem);
+        }
+      },
+    ),
+    toggleState: appAction((state: RootState, taskId: string) => {
+      const task = tasksSlice.byId(state, taskId);
+      if (!task) throw new Error("Task not found");
+
+      task.state = task.state === "todo" ? "done" : "todo";
+    }),
+  },
+  "tasksSlice",
+);
+
+export const allProjectsSlice = createSlice(
+  {
+    all: appSelector((query): Project[] => {
+      return query(
+        (state) => Object.values(state.project.byIds).sort(fractionalCompare),
+        shallowEqual,
+      );
+    }),
+    childrenIds: appSelector((query): string[] => {
+      return query((state) => {
+        const allIdsAndTokens = allProjectsSlice.all(state).map((p) => ({
+          id: p.id,
+          orderToken: p.orderToken,
+        }));
+
+        return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
+      }, shallowEqual);
+    }),
+    childrenIdsWithoutInbox: appSelector((query): string[] => {
+      return query(
+        (state) =>
+          allProjectsSlice.childrenIds(state).filter((id) => id !== inboxId),
+        shallowEqual,
+      );
+    }),
+    firstChild: appSelector((query): Project | undefined => {
+      const childrenIds = query((state) => allProjectsSlice.childrenIds(state));
+      const firstChildId = childrenIds[0];
+
+      return firstChildId
+        ? query((state) => projectsSlice.byId(state, firstChildId))
+        : undefined;
+    }),
+    lastChild: appSelector((query): Project | undefined => {
+      return query((state) => {
+        const childrenIds = allProjectsSlice.childrenIds(state);
+        const lastChildId = childrenIds[childrenIds.length - 1];
+
+        return lastChildId ? projectsSlice.byId(state, lastChildId) : undefined;
+      });
+    }),
+    inbox: appSelector((query): Project => {
+      return query((state) => {
+        const inbox = projectsSlice.byId(state, inboxId);
+        if (!inbox) throw new Error("Inbox not found");
+        return inbox;
+      });
+    }),
+  },
+  "allProjectsSlice",
+);
+
+export const projectsSlice = createSlice(
+  {
+    byId: (state: RootState, id: string): Project | undefined =>
+      state.project.byIds[id],
+    byIdOrDefault: (state: RootState, id: string): Project => {
+      const project = projectsSlice.byId(state, id);
+      if (!project)
+        return {
+          type: projectType,
+          id,
+          title: "",
+          icon: "",
+          isInbox: false,
+          orderToken: "",
+        };
+
+      return project;
+    },
+    canDrop(state: RootState, projectId: string, dropTargetId: string) {
+      const target = appSlice.byId(state, dropTargetId);
+
+      if (isProject(target) && target.isInbox) {
+        return false;
+      }
+
+      return (
+        isProject(target) ||
+        isTask(target) ||
+        isTaskTemplate(target) ||
+        isTaskProjection(target)
+      );
+    },
+    siblings: appSelector(
+      (
+        query,
+        projectId: string,
+      ): [Project | undefined, Project | undefined] => {
+        const items = query((state) => allProjectsSlice.childrenIds(state));
+        const i = items.findIndex((it: string) => it === projectId);
+
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
+
+        return [
+          beforeId
+            ? query((state) => projectsSlice.byId(state, beforeId))
+            : undefined,
+          afterId
+            ? query((state) => projectsSlice.byId(state, afterId))
+            : undefined,
+        ];
+      },
+    ),
+    childrenIds: appSelector((query, projectId: string): string[] => {
+      const tasks = query(
+        (state) =>
+          Object.values(state.task.byIds)
+            .filter((task) => task.projectId === projectId)
+            .map((p) => ({ id: p.id, orderToken: p.orderToken })),
+        deepEqual,
+      );
+      const templates = query(
+        (state) =>
+          Object.values(state.template.byIds)
+            .filter((template) => template.projectId === projectId)
+            .map((p) => ({ id: p.id, orderToken: p.orderToken })),
+        deepEqual,
       );
 
-      return tasksSlice.createTask(state, {
-        projectId: projectId,
-        orderToken: orderToken,
-      });
-    },
-  ),
-};
+      return [...tasks, ...templates].sort(fractionalCompare).map((p) => p.id);
+    }),
+    childrenCount: appSelector((query, projectId: string): number => {
+      return query(
+        (state) => projectsSlice.childrenIds(state, projectId).length,
+      );
+    }),
+    firstChild: appSelector(
+      (query, projectId: string): ProjectItem | undefined => {
+        const childrenIds = query((state) =>
+          projectsSlice.childrenIds(state, projectId),
+        );
+        const firstChildId = childrenIds[0];
+        if (!firstChildId) return undefined;
+
+        return query((state) => projectsSlice.getItemById(state, firstChildId));
+      },
+    ),
+    lastChild: appSelector(
+      (query, projectId: string): ProjectItem | undefined => {
+        const childrenIds = query((state) =>
+          projectsSlice.childrenIds(state, projectId),
+        );
+        const lastChildId = childrenIds[childrenIds.length - 1];
+        if (!lastChildId) return undefined;
+
+        return query((state) => projectsSlice.getItemById(state, lastChildId));
+      },
+    ),
+    tasksIds: appSelector((query, projectId: string): string[] => {
+      const childrenIds = query((state) =>
+        projectsSlice.childrenIds(state, projectId),
+      );
+      return query(
+        (state) =>
+          childrenIds
+            .map((id) => tasksSlice.byId(state, id))
+            .map((t) => t?.id)
+            .filter((t) => t !== undefined),
+        shallowEqual,
+      );
+    }),
+    notDoneTaskIds: appSelector((query, projectId: string): string[] => {
+      return query((state) => {
+        const taskIds = projectsSlice.tasksIds(state, projectId);
+        return taskIds.filter((id) => {
+          const task = query((state) => tasksSlice.byId(state, id));
+          if (!task) return false;
+
+          return task.state !== "done";
+        });
+      }, shallowEqual);
+    }),
+    withoutTasksByIds: appSelector(
+      (query, projectId: string, ids: string[]): string[] => {
+        const childrenIds = query((state) =>
+          projectsSlice.childrenIds(state, projectId),
+        );
+        const setIds = new Set(ids);
+        return childrenIds.filter((id) => !setIds.has(id));
+      },
+    ),
+    getItemById: appSelector((query, id: string): ProjectItem | undefined => {
+      return query((state) => tasksSlice.byId(state, id));
+    }),
+
+    // --actions
+
+    create: appAction(
+      (
+        state: RootState,
+
+        newProject: Partial<Project>,
+        position:
+          | [OrderableItem | undefined, OrderableItem | undefined]
+          | "append"
+          | "prepend",
+      ) => {
+        const orderToken = generateOrderTokenPositioned(
+          state,
+          "all-projects-list",
+          allProjectsSlice,
+          position,
+        );
+
+        const id = newProject.id || uuidv7();
+        const project: Project = {
+          type: projectType,
+          id: id,
+          orderToken: orderToken,
+          title: "New project",
+          icon: "",
+          isInbox: false,
+          ...newProject,
+        };
+
+        state.project.byIds[id] = project;
+      },
+    ),
+    delete: appAction((state: RootState, id: string) => {
+      delete state.project.byIds[id];
+    }),
+    update: appAction(
+      (state: RootState, id: string, project: Partial<Project>): Project => {
+        const projInState = projectsSlice.byId(state, id);
+        if (!projInState) throw new Error("Project not found");
+
+        Object.assign(projInState, project);
+
+        return projInState;
+      },
+    ),
+    handleDrop: appAction(
+      (
+        state: RootState,
+        projectId: string,
+        dropItemId: string,
+        edge: "top" | "bottom",
+      ) => {
+        if (!projectsSlice.canDrop(state, projectId, dropItemId)) {
+          return;
+        }
+
+        const project = projectsSlice.byId(state, projectId);
+        if (!project) throw new Error("Project not found");
+        const dropItem = appSlice.byId(state, dropItemId);
+        if (!dropItem) throw new Error("Target not found");
+
+        if (isProject(dropItem)) {
+          const [up, down] = projectsSlice.siblings(state, project.id);
+
+          let between: [string | undefined, string | undefined] = [
+            project.orderToken,
+            down?.orderToken,
+          ];
+          if (edge == "top") {
+            between = [up?.orderToken, project.orderToken];
+          }
+
+          const orderToken = generateJitteredKeyBetween(
+            between[0] || null,
+            between[1] || null,
+          );
+
+          dropItem.orderToken = orderToken;
+        } else if (isTask(dropItem) || isTaskTemplate(dropItem)) {
+          dropItem.projectId = project.id;
+        } else if (isTaskProjection(dropItem)) {
+          const task = tasksSlice.byId(state, dropItem.taskId);
+          if (!task) return shouldNeverHappen("task not found", dropItem);
+
+          task.projectId = project.id;
+        } else {
+          shouldNeverHappen("unknown drop item type", dropItem);
+        }
+      },
+    ),
+    createTask: appAction(
+      (
+        state: RootState,
+        projectId: string,
+        position:
+          | [OrderableItem | undefined, OrderableItem | undefined]
+          | "append"
+          | "prepend",
+      ): Task => {
+        const project = projectsSlice.byId(state, projectId);
+        if (!project) throw new Error("Project not found");
+
+        const orderToken = generateOrderTokenPositioned(
+          state,
+          projectId,
+          projectsSlice,
+          position,
+        );
+
+        return tasksSlice.createTask(state, {
+          projectId: projectId,
+          orderToken: orderToken,
+        });
+      },
+    ),
+  },
+  "projectsSlice",
+);
 
 const handleDropsByType = {
   [taskType]: tasksSlice.handleDrop,
@@ -1218,37 +1258,37 @@ const canDropsByType = {
   [projectType]: projectsSlice.canDrop,
 };
 
-export const dropSelectors = {
-  canDrop: (state: RootState, id: string, targetId: string) => {
-    const model = appSlice.byId(state, id);
-    if (!model) return false;
-
-    const canDropFunction =
-      canDropsByType[model.type as keyof typeof canDropsByType];
-    if (!canDropFunction)
-      return shouldNeverHappen("Drop type not found" + model.type);
-
-    return canDropFunction(state, id, targetId);
-  },
-};
-
-export const dropActions = {
-  handleDrop: appAction(
-    (
-      state: RootState,
-      id: string,
-      targetId: string,
-      edge: "top" | "bottom",
-    ) => {
+export const dropSlice = createSlice(
+  {
+    canDrop: (state: RootState, id: string, targetId: string) => {
       const model = appSlice.byId(state, id);
-      if (!model) return;
+      if (!model) return false;
 
-      const dropFunction =
-        handleDropsByType[model.type as keyof typeof handleDropsByType];
-      if (!dropFunction)
+      const canDropFunction =
+        canDropsByType[model.type as keyof typeof canDropsByType];
+      if (!canDropFunction)
         return shouldNeverHappen("Drop type not found" + model.type);
 
-      return dropFunction(state, id, targetId, edge);
+      return canDropFunction(state, id, targetId);
     },
-  ),
-};
+    handleDrop: appAction(
+      (
+        state: RootState,
+        id: string,
+        targetId: string,
+        edge: "top" | "bottom",
+      ) => {
+        const model = appSlice.byId(state, id);
+        if (!model) return;
+
+        const dropFunction =
+          handleDropsByType[model.type as keyof typeof handleDropsByType];
+        if (!dropFunction)
+          return shouldNeverHappen("Drop type not found" + model.type);
+
+        return dropFunction(state, id, targetId, edge);
+      },
+    ),
+  },
+  "dropSlice",
+);

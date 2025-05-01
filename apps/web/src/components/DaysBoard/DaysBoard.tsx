@@ -31,7 +31,7 @@ import { useAppSelector, useAppStore } from "@/hooks/state";
 import {
   DailyList,
   dailyListsSlice,
-  dropSelectors,
+  dropSlice,
   getDMY,
   inboxId,
   allProjectsSlice,
@@ -159,11 +159,7 @@ const ColumnView = observer(function ColumnViewComponent({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return dropSelectors.canDrop(
-            store.getState(),
-            dailyListId,
-            data.modelId,
-          );
+          return dropSlice.canDrop(store.getState(), dailyListId, data.modelId);
         },
         getIsSticky: () => true,
         onDragEnter: () => setDndState(isTaskOver),

@@ -16,7 +16,7 @@ import { StoreApi, StoreProvider } from "@will-be-done/hyperstate";
 import {
   appSlice,
   dailyListType,
-  dropActions,
+  dropSlice,
   projectionType,
   projectType,
   RootState,
@@ -256,7 +256,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
             return;
           }
 
-          dropActions.handleDrop(
+          dropSlice.handleDrop(
             store,
             targetItemInfo[1].id,
             dropModelId,

@@ -30,8 +30,7 @@ import {
 } from "@/states/FocusManager";
 import {
   appSlice,
-  dropActions,
-  dropSelectors,
+  dropSlice,
   projectsSlice,
   tasksSlice,
   taskBoxesSlice,
@@ -194,12 +193,12 @@ export const TaskComp = observer(function TaskComponent({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dropActions.handleDrop(store, taskBox.id, id, "top");
+        dropSlice.handleDrop(store, taskBox.id, id, "top");
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dropActions.handleDrop(store, taskBox.id, id, "top");
+        dropSlice.handleDrop(store, taskBox.id, id, "top");
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -344,11 +343,7 @@ export const TaskComp = observer(function TaskComponent({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return dropSelectors.canDrop(
-            store.getState(),
-            taskBox.id,
-            data.modelId,
-          );
+          return dropSlice.canDrop(store.getState(), taskBox.id, data.modelId);
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {

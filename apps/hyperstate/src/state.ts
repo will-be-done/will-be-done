@@ -92,10 +92,11 @@ export function createSlice<T extends Record<string, Function>>(
   const result: Record<string, any> = {};
 
   for (const [key, sliceFn] of Object.entries(sliceFns)) {
+    const keyName = key + "Fn";
     // Create a unique name for the selector to avoid conflicts
     const fnText = `
       // Create named function with the same behavior
-      const ${key} = function (store, ...args) {
+      const ${keyName} = function (store, ...args) {
         if (typeof store === 'object' && store !== null && store[__storeSymbol] === true) {
           store = store.withContextValue(__fnNameCtx, "${key}");
           store = store.withContextValue(__sliceNameCtx, __sliceName);
@@ -105,7 +106,7 @@ export function createSlice<T extends Record<string, Function>>(
       }
       
       // Return the named function
-      return ${key};
+      return ${keyName};
     `;
 
     // Create the named function directly using Function constructor

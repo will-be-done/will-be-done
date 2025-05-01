@@ -6,7 +6,21 @@ Top features:
 5. Focused on devtools. You can see all function call names in devtool. Also special helper. Show how it looks for other instruments. And show react-scan support
 6. Fast refresh just working!
 7. Mention mobx weird bug(when I deelete one focused item - all other was deleteing) due it's mutability. How react don't likes mutables
+8. You can maintain all your code in one file for fast prototyping!
+9. All redux ecosystem! Like devtool and special sites for redux replay
+10. Much much much less boilerplate then redux
 
+The probelm: there is not good state manager that will be less verbious then redux, and not so mutable as mobx.
+We have zusteand, but it's tied to hooks. We have atoms, but it's too verbous on my opinion
+
+I want:
+1. Have immutable state manager, with all benefits as redux have and good integration with react forget. It also iunclude easy undo/redo ingration(mobx has problem with hook approoach where you need to wrap eveyting with observe + react hook approach relies more on immutable data, while with mutable approache you are going to have prlbems with use memo/use effect deps tracking and not only) And mobx ingertes really bad with react scan
+2. Ability to track where data is changed. No diffing, but really just select. Dif on big state too expensive
+It's easy to do with mobx(you jsut scrubeibe on specific field change) and very unperfomrant for redux
+3. Ability to call global selectors in actions/reducer
+4. Good chrome devtool support(no anoyunoums and weird funcitons calls without any context)
+5. Decent performance of selectors, like mobx has. Redux reselect too verbous,
+ you need to define selector beforehand
 
 TO ADD:
 1. Example with deepEqual + big sorting list
