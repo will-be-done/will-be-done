@@ -94,6 +94,13 @@ export const taskType = "task";
 export const taskTemplateType = "template";
 export const projectionType = "projection";
 export const dailyListType = "dailyList";
+export const allTypes = [
+  projectType,
+  taskType,
+  taskTemplateType,
+  projectionType,
+  dailyListType,
+] as const;
 
 export type RootState = {
   [projectType]: {
@@ -199,6 +206,17 @@ export type AppModelChange = {
 };
 
 export const appSlice = {
+  resetAndApplyChanges: appAction(
+    (state: RootState, changes: AppModelChange[]) => {
+      for (const t of allTypes) {
+        for (const id of Object.keys(state[t].byIds)) {
+          delete state[t].byIds[id];
+        }
+      }
+
+      appSlice.applyChanges(state, changes);
+    },
+  ),
   applyChanges: appAction((state: RootState, changes: AppModelChange[]) => {
     console.log("applyChanges", changes);
 

@@ -1,13 +1,18 @@
-import { standaloneAction } from "mobx-keystone";
-import { getDMY, RootStore } from "./models";
-import { Project, Task, DailyList, TaskProjection } from "./models";
+import { getDMY } from "./models2";
+import { StoreApi } from "@will-be-done/hyperstate";
 import {
-  projectRef,
-  taskRef,
-  dailyListRef,
-  allProjectsListRef,
-} from "./models";
-import { withoutSync } from "@/sync/syncable";
+  projectType,
+  taskType,
+  dailyListType,
+  projectionType,
+  type Project,
+  type Task,
+  type DailyList,
+  type TaskProjection,
+  type RootState,
+  appSlice,
+  type AppModelChange,
+} from "./models2";
 import uuidByString from "uuid-by-string";
 
 interface TaskBackup {
@@ -45,25 +50,25 @@ export interface Backup {
   dailyListProjections: DailyListProjectionBackup[];
 }
 
-export const getBackups = (store: RootStore): Backup => {
+export const getBackups = (state: RootState): Backup => {
   const tasks: TaskBackup[] = [];
   const projects: ProjectBackup[] = [];
   const dailyLists: DailyListBackup[] = [];
   const dailyListProjections: DailyListProjectionBackup[] = [];
 
   // Extract tasks
-  for (const task of store.taskRegistry.entities.values()) {
+  for (const task of Object.values(state.task.byIds)) {
     tasks.push({
       id: task.id,
       title: task.title,
       state: task.state,
-      projectId: task.projectRef.id,
+      projectId: task.projectId,
       orderToken: task.orderToken,
     });
   }
 
   // Extract projects
-  for (const project of store.projectsRegistry.entities.values()) {
+  for (const project of Object.values(state.project.byIds)) {
     projects.push({
       id: project.id,
       title: project.title,
@@ -74,7 +79,7 @@ export const getBackups = (store: RootStore): Backup => {
   }
 
   // Extract daily lists
-  for (const dailyList of store.dailyListRegistry.entities.values()) {
+  for (const dailyList of Object.values(state.dailyList.byIds)) {
     dailyLists.push({
       id: dailyList.id,
       date: dailyList.date,
@@ -82,12 +87,12 @@ export const getBackups = (store: RootStore): Backup => {
   }
 
   // Extract daily list projections
-  for (const projection of store.taskProjectionRegistry.entities.values()) {
+  for (const projection of Object.values(state.projection.byIds)) {
     dailyListProjections.push({
       id: projection.id,
-      taskId: projection.taskRef.id,
+      taskId: projection.taskId,
       orderToken: projection.orderToken,
-      listId: projection.dailyListRef.id,
+      listId: projection.dailyListId,
     });
   }
 
@@ -99,92 +104,110 @@ export const getBackups = (store: RootStore): Backup => {
   };
 };
 
-export const loadBackups = standaloneAction(
-  "myApp/arraySwap",
-  (store: RootStore, backup: Backup) => {
-    store.clearAll();
+export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
+  const changes: AppModelChange[] = [];
 
-    store.taskRegistry.entities.clear();
-    store.projectsRegistry.entities.clear();
-    store.dailyListRegistry.entities.clear();
-    store.taskProjectionRegistry.entities.clear();
+  // First, create all projects
+  for (const projectBackup of backup.projects) {
+    const project: Project = {
+      type: projectType,
+      id: projectBackup.id,
+      title: projectBackup.title,
+      icon: projectBackup.icon,
+      isInbox: projectBackup.isInbox,
+      orderToken: projectBackup.orderToken,
+    };
 
-    // First, create all projects
-    const projectMap = new Map<string, Project>();
-    for (const projectBackup of backup.projects) {
-      const project = new Project({
-        id: projectBackup.id,
-        title: projectBackup.title,
-        icon: projectBackup.icon,
-        isInbox: projectBackup.isInbox,
-        orderToken: projectBackup.orderToken,
-        listRef: allProjectsListRef(store.allProjectsList),
-      });
-      store.projectsRegistry.add(project);
-      projectMap.set(projectBackup.id, project);
+    changes.push({
+      id: project.id,
+      modelType: projectType,
+      isDeleted: false,
+      model: project,
+    });
+  }
+
+  // Then create all tasks
+  for (const taskBackup of backup.tasks) {
+    const project = backup.projects.find((p) => p.id === taskBackup.projectId);
+    if (!project) {
+      console.warn(
+        `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`,
+      );
+      continue;
     }
 
-    // Then create all tasks
-    const taskMap = new Map<string, Task>();
-    for (const taskBackup of backup.tasks) {
-      const project = projectMap.get(taskBackup.projectId);
-      if (!project) {
-        console.warn(
-          `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`,
-        );
-        continue;
-      }
+    const task: Task = {
+      type: taskType,
+      id: taskBackup.id,
+      title: taskBackup.title,
+      state: taskBackup.state,
+      projectId: taskBackup.projectId,
+      orderToken: taskBackup.orderToken,
+    };
 
-      const task = new Task({
-        id: taskBackup.id,
-        title: taskBackup.title,
-        state: taskBackup.state,
-        projectRef: projectRef(project),
-        orderToken: taskBackup.orderToken,
-      });
-      store.taskRegistry.add(task);
-      taskMap.set(taskBackup.id, task);
+    changes.push({
+      id: task.id,
+      modelType: taskType,
+      isDeleted: false,
+      model: task,
+    });
+  }
+
+  // Create daily lists
+  for (const dailyListBackup of backup.dailyLists) {
+    if (dailyListBackup.date.length !== 10) {
+      dailyListBackup.date = getDMY(new Date(dailyListBackup.date));
     }
 
-    // Create daily lists
-    const dailyListMap = new Map<string, DailyList>();
-    for (const dailyListBackup of backup.dailyLists) {
-      if (dailyListBackup.date.length !== 10) {
-        dailyListBackup.date = getDMY(new Date(dailyListBackup.date));
-      }
+    const dailyList: DailyList = {
+      type: dailyListType,
+      id: uuidByString(dailyListBackup.date),
+      date: dailyListBackup.date,
+    };
 
-      const dailyList = new DailyList({
-        id: uuidByString(dailyListBackup.date),
-        date: dailyListBackup.date,
-      });
+    changes.push({
+      id: dailyList.id,
+      modelType: dailyListType,
+      isDeleted: false,
+      model: dailyList,
+    });
+  }
 
-      const alreadyExists = store.dailyListRegistry.entities.get(dailyList.id);
-      if (alreadyExists) {
-        dailyListMap.set(dailyListBackup.id, alreadyExists);
-      } else {
-        store.dailyListRegistry.entities.set(dailyList.id, dailyList);
-        dailyListMap.set(dailyListBackup.id, dailyList);
-      }
+  // Finally create daily list projections
+  for (const projectionBackup of backup.dailyListProjections) {
+    const task = backup.tasks.find((t) => t.id === projectionBackup.taskId);
+    const dailyListId = backup.dailyLists.find(
+      (dl) => dl.id === projectionBackup.listId,
+    )?.id;
+
+    if (!task) {
+      console.warn(`Task ${projectionBackup.taskId} not found for projection`);
+      continue;
     }
 
-    // Finally create daily list projections
-    for (const projectionBackup of backup.dailyListProjections) {
-      const task = taskMap.get(projectionBackup.taskId);
-      const dailyList = dailyListMap.get(projectionBackup.listId);
-      if (!task || !dailyList) {
-        console.warn(
-          `Task ${projectionBackup.taskId} or DailyList ${projectionBackup.id} not found for projection`,
-        );
-        continue;
-      }
-
-      const projection = new TaskProjection({
-        id: projectionBackup.id,
-        taskRef: taskRef(task),
-        orderToken: projectionBackup.orderToken,
-        dailyListRef: dailyListRef(dailyList),
-      });
-      store.taskProjectionRegistry.add(projection);
+    if (!dailyListId) {
+      console.warn(
+        `DailyList ${projectionBackup.listId} not found for projection`,
+      );
+      continue;
     }
-  },
-);
+
+    const projection: TaskProjection = {
+      type: projectionType,
+      id: projectionBackup.id,
+      taskId: projectionBackup.taskId,
+      orderToken: projectionBackup.orderToken,
+      dailyListId: dailyListId,
+    };
+
+    changes.push({
+      id: projection.id,
+      modelType: projectionType,
+      isDeleted: false,
+      model: projection,
+    });
+  }
+
+  console.log(appSlice.resetAndApplyChanges);
+  appSlice.resetAndApplyChanges(store, changes);
+};

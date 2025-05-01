@@ -349,12 +349,12 @@ export const store = (() => {
   );
 
   console.log("res", res);
-  projectsSlice.update(store, {
-    ...res,
-    title: "Project 2",
-    // orderToken: "0",
-  });
-
+  // projectsSlice.update(store, {
+  //   ...res,
+  //   title: "Project 2",
+  //   // orderToken: "0",
+  // });
+  //
   console.log(
     "sorted projects after update",
     allProjectsSlice.getSortedProjectIds(store.getState()),

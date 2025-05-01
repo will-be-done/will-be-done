@@ -23,7 +23,6 @@ import { DndModelData, isModelDNDData } from "@/dnd/models";
 import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
-import { getRootStore } from "@/models/initRootStore";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import { projectsSlice, allProjectsSlice } from "@/models/models2";
 
@@ -452,7 +451,7 @@ export const Sidebar = function SidebarComp() {
   };
 
   const handleDownloadBackup = () => {
-    const backup = getBackups(getRootStore());
+    const backup = getBackups(store.getState());
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: "application/json",
     });
@@ -488,9 +487,8 @@ export const Sidebar = function SidebarComp() {
           if (!isValidBackup(parsedBackup)) {
             throw new Error("Invalid backup format");
           }
-          const rootStore = getRootStore();
+          loadBackups(store, parsedBackup);
           // TODO: clean db
-          loadBackups(rootStore, parsedBackup);
           // rootStore.dailyListRegistry.dropDuplicatedDailyLists();
         } catch (error) {
           console.error("Failed to load backup:", error);

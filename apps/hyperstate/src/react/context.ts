@@ -1,7 +1,8 @@
 import React from "react";
 import { StoreApi } from "../state";
 
-const storeContext = React.createContext<StoreApi<unknown> | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const storeContext = React.createContext<StoreApi<any> | null>(null);
 
 export const StoreProvider = storeContext.Provider;
 
