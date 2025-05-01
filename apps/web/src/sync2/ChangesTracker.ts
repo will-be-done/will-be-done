@@ -89,6 +89,7 @@ export class ChangesTracker {
       } else if (originalModel !== undefined && newModel === undefined) {
         const mappingInfo = syncMappings[originalModel.type];
         if (!mappingInfo) return shouldNeverHappen("mappingInfo not found");
+        // @ts-expect-error it's ok
         const data = mappingInfo.mapModelToData(originalModel);
 
         changes.push(

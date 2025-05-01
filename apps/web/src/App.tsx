@@ -1,41 +1,36 @@
-import { Link, Redirect, Route, Switch } from "wouter";
+import { Redirect, Route, Switch } from "wouter";
 import "./fixGlobal";
 import { Board } from "./components/DaysBoard/DaysBoard";
 import { observer } from "mobx-react-lite";
-import { DailyList, Project, Task, TaskProjection } from "./models/models";
-import {
-  getRootStore,
-  getUndoManager,
-  initRootStore,
-} from "./models/initRootStore";
-import { useEffect, useMemo, useState } from "react";
-import { detach } from "mobx-keystone";
+import { useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
-import { BaseListItem } from "./models/listActions";
-import { shouldNeverHappen, useUnmount } from "./utils";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import {
-  dropTargetForElements,
-  ElementDragPayload,
-  monitorForElements,
-} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
-import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
+import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isModelDNDData } from "./dnd/models";
-import { GlobalCallback } from "./globalListener/hooks";
 import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
 import { isInputElement } from "./utils/isInputElement";
 import { ThemeProvider } from "./components/ui/theme-provider";
-import { FocusItem, FocusKey, focusManager } from "./states/FocusManager";
+import { FocusKey, focusManager } from "./states/FocusManager";
 import { StoreApi, StoreProvider } from "@will-be-done/hyperstate";
-import { RootState } from "./models/models2";
+import {
+  appSlice,
+  dailyListType,
+  dropActions,
+  projectionType,
+  projectType,
+  RootState,
+  taskType,
+} from "./models/models2";
 import { initStore } from "./models/initRootStore2";
+import { useAppStore } from "./hooks/state";
+import { shouldNeverHappen } from "./utils";
+import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/entry-point/types";
+import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
+import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 
 const GlobalListener = observer(function GlobalListenerComponent() {
-  const undoManager = getUndoManager();
+  // const undoManager = getUndoManager();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -61,7 +56,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         e.code === "KeyU"
       ) {
         e.preventDefault();
-        undoManager.undo();
+        // undoManager.undo();
         return;
       }
 
@@ -71,7 +66,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         (e.code === "KeyR" && e.ctrlKey)
       ) {
         e.preventDefault();
-        undoManager.redo();
+        // undoManager.redo();
         return;
       }
 
@@ -84,7 +79,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undoManager]);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -193,6 +188,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
     };
   }, []);
 
+  const store = useAppStore();
   useEffect(() => {
     return combine(
       monitorForElements({
@@ -207,61 +203,47 @@ const GlobalListener = observer(function GlobalListenerComponent() {
             return;
           }
 
-          const sourceEntity = getRootStore().getEntity(
-            source.data.modelId,
-            source.data.modelType,
-          );
-          if (!sourceEntity) {
-            console.warn("Source entity not found");
+          const dropModelId = source.data.modelId;
 
-            return;
-          }
+          const targetImportanceOrder = [
+            taskType,
+            projectionType,
+            dailyListType,
+            projectType,
+          ];
 
-          const dropModels = location.current.dropTargets.flatMap((t) => {
+          const targetModels = location.current.dropTargets.flatMap((t) => {
             if (!isModelDNDData(t.data)) {
               return [] as const;
             }
-
-            const entity = getRootStore().getEntity(
-              t.data.modelId,
-              t.data.modelType,
-            );
+            const entity = appSlice.byId(store.getState(), t.data.modelId);
             if (!entity) return [] as const;
-
             return [[t, entity] as const];
           });
-          console.log("dropModels", dropModels);
 
-          // Task drop is more important than DailyList drop
-          const dropImportanceOrder = [
-            Task,
-            TaskProjection,
-            DailyList,
-            Project,
-          ];
-
-          type droppableEntity = Task | TaskProjection | DailyList | Project;
-          let dropInfo:
-            | readonly [DropTargetRecord, droppableEntity]
+          let targetItemInfo:
+            | readonly [DropTargetRecord, { id: string; type: string }]
             | undefined = undefined;
-          for (const importance of dropImportanceOrder) {
-            dropInfo = dropModels.find(
-              ([_, e]) => e instanceof importance,
-            ) as readonly [DropTargetRecord, droppableEntity];
+          for (const importanceType of targetImportanceOrder) {
+            targetItemInfo = targetModels.find(
+              ([_, e]) => e.type === importanceType,
+            ) as readonly [DropTargetRecord, { id: string; type: string }];
 
-            if (dropInfo) {
+            if (targetItemInfo) {
               break;
             }
           }
-          console.log("dropInfo", dropInfo);
 
-          if (!dropInfo) {
-            console.warn("Drop entity not found or not in importance list");
+          if (!targetItemInfo) {
+            shouldNeverHappen(
+              "Drop entity not found or not in importance list",
+            );
+
             return;
           }
 
           const closestEdgeOfTarget: Edge | null = extractClosestEdge(
-            dropInfo[0].data,
+            targetItemInfo[0].data,
           );
 
           if (
@@ -269,24 +251,21 @@ const GlobalListener = observer(function GlobalListenerComponent() {
             closestEdgeOfTarget != "top" &&
             closestEdgeOfTarget != "bottom"
           ) {
-            throw new Error("edge is not top or bottm");
-          }
-          // console.log(
-          //   "onDrop",
-          //   args,
-          //   "drop",
-          //   dropInfo[1],
-          //   "source",
-          //   sourceEntity,
-          //   "closestEdge",
-          //   closestEdgeOfTarget,
-          // );
+            shouldNeverHappen("edge is not top or bottom");
 
-          dropInfo[1].handleDrop(sourceEntity, closestEdgeOfTarget || "bottom");
+            return;
+          }
+
+          dropActions.handleDrop(
+            store,
+            targetItemInfo[1].id,
+            dropModelId,
+            closestEdgeOfTarget || "top",
+          );
         },
       }),
     );
-  }, []);
+  }, [store]);
 
   return <></>;
 });
@@ -305,7 +284,7 @@ export const App = observer(function App() {
       <StoreProvider value={store}>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
           <KeyPressedCtxProvider>
-            {/* <GlobalListener /> */}
+            <GlobalListener />
 
             <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
               <Sidebar />

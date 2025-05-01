@@ -19,14 +19,6 @@ import { createContext } from "@will-be-done/hyperstate";
 
 export const skipSyncCtx = createContext("skipSync", false);
 
-// export const syncableTypes = [
-//   projectType,
-//   taskType,
-//   taskTemplateType,
-//   projectionType,
-//   dailyListType,
-// ] as const;
-
 export type SyncMapping<
   TTable extends keyof SyncableTables = keyof SyncableTables,
   TModelType extends keyof ModelsMap = keyof ModelsMap,

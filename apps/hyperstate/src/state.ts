@@ -3,6 +3,7 @@
 // import { memoize as originalMemoize } from "proxy-memoize";
 
 import { create, isDraft, Draft, Patch } from "mutative";
+import { store } from "./models";
 
 // let isActionExecuting = false;
 
@@ -68,24 +69,9 @@ export function createActionCreator<
           },
         );
 
-        store.setState(nextState);
-
-        if (patches.length === 0) return result;
-
-        // no need microtask cause I loose stackrace
-        const notifyListenersAfterActions = () => {
-          // TODO: think what to do better here
-          try {
-            const notifyListener = (listener: Listener<TRootState>) => {
-              return listener(store, nextState, state, patches, inversePatches);
-            };
-            store.getListeners().forEach(notifyListener);
-          } catch (e) {
-            console.error(e);
-          }
-        };
-
-        notifyListenersAfterActions();
+        if (patches.length > 0) {
+          store.____setState(nextState, patches, inversePatches);
+        }
 
         return result;
       }
@@ -101,6 +87,7 @@ export function createActionCreator<
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export function createSlice<T extends Record<string, Function>>(
   sliceFns: T,
+  sliceName: string = "slice",
 ): T {
   const result: Record<string, any> = {};
 
@@ -108,9 +95,13 @@ export function createSlice<T extends Record<string, Function>>(
     // Create a unique name for the selector to avoid conflicts
     const fnText = `
       // Create named function with the same behavior
-      const ${key} = function (...args) {
+      const ${key} = function (store, ...args) {
+        if (typeof store === 'object' && store !== null && store[__storeSymbol] === true) {
+          store = store.withContextValue(__fnNameCtx, "${key}");
+          store = store.withContextValue(__sliceNameCtx, __sliceName);
+        }
         // Call the original with the same arguments
-        return __sliceFn.apply(this, args);
+        return __sliceFn.apply(this, [store, ...args]);
       }
       
       // Return the named function
@@ -118,8 +109,21 @@ export function createSlice<T extends Record<string, Function>>(
     `;
 
     // Create the named function directly using Function constructor
-    const createFn = new Function("__sliceFn", fnText);
-    const namedSliceFn = createFn(sliceFn);
+    const createFn = new Function(
+      "__sliceFn",
+      "__fnNameCtx",
+      "__storeSymbol",
+      "__sliceName",
+      "__sliceNameCtx",
+      fnText,
+    );
+    const namedSliceFn = createFn(
+      sliceFn,
+      fnNameContext,
+      storeSymbol,
+      sliceName,
+      sliceNameContext,
+    );
 
     // Copy the cache and all other properties from the original selector
     // This is crucial for memoized functions to maintain their caching behavior
@@ -526,9 +530,23 @@ export const createContext = <V>(
   value: defaultValue,
 });
 
+export const fnNameContext = createContext<string>(
+  "fnNameContext",
+  "anonymous",
+);
+
+export const sliceNameContext = createContext<string>(
+  "sliceNameContext",
+  "slice",
+);
+
 const storeSymbol = Symbol("storeSymbol");
 export type StoreApi<TState> = {
-  setState: (state: TState) => void;
+  ____setState: (
+    state: TState,
+    patches: Patch[],
+    reversePatches: Patch[],
+  ) => void;
   getState: () => TState;
   getInitialState: () => TState;
   getListeners: () => Set<Listener<TState>>;
@@ -644,8 +662,24 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
       getState(): TState {
         return scope.state;
       },
-      setState(state: TState) {
+      ____setState(state: TState, patches: Patch[], inversePatches: Patch[]) {
+        const prevState = scope.state;
         scope.state = state;
+
+        const notifyListeners = () => {
+          const notifyListener = (listener: Listener<TState>) => {
+            return listener(store, state, prevState, patches, inversePatches);
+          };
+          store.getListeners().forEach((listener) => {
+            try {
+              notifyListener(listener);
+            } catch (e) {
+              console.error(e);
+            }
+          });
+        };
+
+        notifyListeners();
       },
       subscribe(listener: Listener<TState>) {
         listeners.add(listener);

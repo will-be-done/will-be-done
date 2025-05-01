@@ -111,15 +111,13 @@ const ProjectItem = function ProjectItemComp({
       const [up, down] = focusItem.siblings;
       projectsSlice.delete(store, project.id);
 
-      setTimeout(() => {
-        if (down) {
-          focusManager.focusByKey(down.key);
-        } else if (up) {
-          focusManager.focusByKey(up.key);
-        } else {
-          focusManager.resetFocus();
-        }
-      }, 0);
+      if (down) {
+        focusManager.focusByKey(down.key);
+      } else if (up) {
+        focusManager.focusByKey(up.key);
+      } else {
+        focusManager.resetFocus();
+      }
     } else if (e.code === "KeyI" && noModifiers) {
       e.preventDefault();
 

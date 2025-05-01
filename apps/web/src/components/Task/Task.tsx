@@ -21,7 +21,6 @@ import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "../MoveModel/MoveModel";
 import { useGlobalListener } from "../../globalListener/hooks";
 import { isInputElement } from "../../utils/isInputElement";
-import { detach } from "mobx-keystone";
 import { useRegisterFocusItem } from "@/hooks/useLists";
 import {
   buildFocusKey,
@@ -173,13 +172,11 @@ export const TaskComp = observer(function TaskComponent({
     };
 
     const scroll = () => {
-      setTimeout(() => {
-        ref.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-          inline: "center",
-        });
-      }, 0);
+      ref.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center",
+      });
     };
 
     if (e.code === "Space" && noModifiers) {
@@ -252,17 +249,15 @@ export const TaskComp = observer(function TaskComponent({
       e.preventDefault();
 
       const [up, down] = focusableItem.siblings;
-      detach(taskBox);
+      taskBoxesSlice.delete(store, taskBox.id);
 
-      setTimeout(() => {
-        if (down) {
-          focusManager.focusByKey(down.key);
-        } else if (up) {
-          focusManager.focusByKey(up.key);
-        } else {
-          focusManager.resetFocus();
-        }
-      }, 0);
+      if (down) {
+        focusManager.focusByKey(down.key);
+      } else if (up) {
+        focusManager.focusByKey(up.key);
+      } else {
+        focusManager.resetFocus();
+      }
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 

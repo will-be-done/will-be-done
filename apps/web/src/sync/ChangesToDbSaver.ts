@@ -1,12 +1,12 @@
-import { generateInsert, generateUpdate, sql } from "@kikko-land/boono-sql";
+import { generateInsert } from "@kikko-land/boono-sql";
 import { type IDb } from "@kikko-land/kikko";
 import { State } from "../utils/State";
-import { ModelChange } from "./ChangesTracker";
 import { SyncableTable } from "./schema";
 import { Insertable } from "kysely";
 import { chunk } from "es-toolkit";
 import { createNanoEvents } from "nanoevents";
 import { Selectable } from "kysely";
+import { ModelChange } from "@/sync2/ChangesTracker";
 
 const compressChanges = (chs: ModelChange[]) => {
   const changesMap = new Map<

@@ -1,5 +1,6 @@
 // import { createSelectorCreator } from "reselect";
 // import { createSelectorCreator } from "reselect";
+import { connectToDevTools } from "./devtool";
 import {
   createActionCreator,
   createStore,
@@ -365,6 +366,8 @@ export const store = (() => {
   // console.log(projectsListSelectors.getIndexById(store.getState(), "1"));
   console.log(projectsSlice.getById(store.getState(), "2"));
   console.log(projectsSlice.getById(store.getState(), "2"));
+
+  connectToDevTools(store);
 
   return store;
 })();
