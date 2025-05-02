@@ -11,7 +11,7 @@ import { isModelDNDData } from "./dnd/models";
 import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
 import { isInputElement } from "./utils/isInputElement";
 import { ThemeProvider } from "./components/ui/theme-provider";
-import { FocusKey, focusManager } from "./states/FocusManager";
+import { FocusKey, focusManager, focusSlice } from "./states/FocusManager";
 import { StoreApi, StoreProvider } from "@will-be-done/hyperstate";
 import {
   appSlice,
@@ -32,9 +32,16 @@ import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 const GlobalListener = observer(function GlobalListenerComponent() {
   // const undoManager = getUndoManager();
 
+  const store = useAppStore();
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+      const isSomethingFocused = focusSlice.isSomethingFocused(
+        store.getState(),
+      );
+
+      const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+
+      if (isFocusDisabled || e.defaultPrevented) return;
 
       const activeElement =
         e.target instanceof Element ? e.target : document.activeElement;
@@ -70,8 +77,8 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         return;
       }
 
-      if (e.code === "Escape" && !focusManager.isSomethingFocused) {
-        focusManager.resetFocus();
+      if (e.code === "Escape" && !isSomethingFocused) {
+        focusSlice.resetFocus(store);
 
         return;
       }
@@ -79,11 +86,13 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [store]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+      const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+
+      if (isFocusDisabled || e.defaultPrevented) return;
 
       const activeElement =
         e.target instanceof Element ? e.target : document.activeElement;
@@ -134,34 +143,36 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       const isRight =
         e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
 
-      const focusedItem = focusManager.focusItem;
+      const focusItemKey = focusSlice.getFocusKey(store.getState());
+      const focusedItem = focusItemKey && focusManager.getItem(focusItemKey);
       if (focusedItem && (isUp || isDown)) {
         e.preventDefault();
 
-        const [up, down] = focusedItem.siblings;
+        const [up, down] = focusManager.getSiblings(focusedItem.key);
 
         if (isUp) {
           if (!up) return;
 
-          up.focus();
+          focusSlice.focusByKey(store, up.key);
         } else if (isDown) {
           if (!down) return;
 
-          down.focus();
+          focusSlice.focusByKey(store, down.key);
         }
       } else if (focusedItem && (isLeft || isRight)) {
         e.preventDefault();
 
-        const [left, right] = focusedItem.siblingColumnsFirstItem;
-        if (isLeft) {
-          if (!left) return;
-
-          left.focus();
-        } else if (isRight) {
-          if (!right) return;
-
-          right.focus();
-        }
+        // TODO: fix it
+        // const [left, right] = focusedItem.siblingColumnsFirstItem;
+        // if (isLeft) {
+        //   if (!left) return;
+        //
+        //   left.focus();
+        // } else if (isRight) {
+        //   if (!right) return;
+        //
+        //   right.focus();
+        // }
       }
     };
 
@@ -175,7 +186,7 @@ const GlobalListener = observer(function GlobalListenerComponent() {
         const focusableKey = focusedElement.getAttribute("data-focusable-key");
 
         if (focusableKey) {
-          focusManager.focusByKey(focusableKey as FocusKey);
+          focusSlice.focusByKey(store, focusableKey as FocusKey);
         }
       }
     };
@@ -186,9 +197,8 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [store]);
 
-  const store = useAppStore();
   useEffect(() => {
     return combine(
       monitorForElements({

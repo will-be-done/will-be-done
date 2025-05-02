@@ -35,6 +35,7 @@ import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
 import { Selectable } from "kysely";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { Syncer } from "@/sync/Syncer";
+import { initialFocusState } from "@/states/FocusManager";
 
 let store: StoreApi<RootState>;
 
@@ -88,6 +89,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       },
       projection: { byIds: {} },
       dailyList: { byIds: {} },
+      focus: initialFocusState,
     };
 
     const dbCtx = await getDbCtx();

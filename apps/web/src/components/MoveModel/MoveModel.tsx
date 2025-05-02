@@ -8,9 +8,9 @@ import {
 import { observer } from "mobx-react-lite";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useUnmount } from "../../utils";
-import { focusManager } from "@/states/FocusManager";
-import { useAppSelector } from "@/hooks/state";
+import { useAppSelector, useAppStore } from "@/hooks/state";
 import { allProjectsSlice } from "@/models/models2";
+import { focusSlice } from "@/states/FocusManager";
 
 export const MoveModal = observer(function MoveModelComp({
   isOpen,
@@ -26,7 +26,7 @@ export const MoveModal = observer(function MoveModelComp({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const allProjects = useAppSelector(allProjectsSlice.all);
+  const allProjects = useAppSelector(allProjectsSlice.allSorted);
 
   const projects = useMemo(() => {
     return allProjects
@@ -62,12 +62,13 @@ export const MoveModal = observer(function MoveModelComp({
     }
   };
 
+  const store = useAppStore();
   useEffect(() => {
-    focusManager.disableFocus();
-  }, [isOpen]);
+    focusSlice.disableFocus(store);
+  }, [store]);
 
   useUnmount(() => {
-    focusManager.enableFocus();
+    focusSlice.enableFocus(store);
   });
 
   return (

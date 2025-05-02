@@ -26,6 +26,7 @@ import {
   buildFocusKey,
   FocusKey,
   focusManager,
+  focusSlice,
   parseColumnKey,
 } from "@/states/FocusManager";
 import {
@@ -34,6 +35,8 @@ import {
   projectsSlice,
   tasksSlice,
   taskBoxesSlice,
+  isTask,
+  isTaskProjection,
 } from "@/models/models2";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 
@@ -110,7 +113,8 @@ export const TaskComp = observer(function TaskComponent({
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
-      focusManager.resetEdit();
+
+      focusSlice.resetEdit(store);
 
       // if (e.key === "Enter") {
       //   task.setTitle(editingTitle);
@@ -144,10 +148,20 @@ export const TaskComp = observer(function TaskComponent({
     [store, taskId],
   );
 
+  const isFocused = useAppSelector((state) =>
+    focusSlice.isFocused(state, focusableItem.key),
+  );
+  const isEditing = useAppSelector((state) =>
+    focusSlice.isEditing(state, focusableItem.key),
+  );
+
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    if (focusManager.isSomethingEditing) return;
-    if (!focusableItem.isFocused) return;
-    if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+    const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
+    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+
+    if (isSomethingEditing) return;
+    if (!isFocused) return;
+    if (isFocusDisabled || e.defaultPrevented) return;
 
     const target =
       e.target instanceof Element ? e.target : document.activeElement;
@@ -189,7 +203,10 @@ export const TaskComp = observer(function TaskComponent({
     } else if (isMoveLeft || isMoveRight) {
       e.preventDefault();
 
-      const [leftColumn, rightColumn] = focusableItem.columnSiblings;
+      const [leftColumn, rightColumn] = focusManager.getColumnSiblings(
+        focusableItem.key,
+      );
+
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
@@ -204,38 +221,60 @@ export const TaskComp = observer(function TaskComponent({
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
 
-      const [up, down] = focusableItem.siblings;
+      const [up, down] = focusManager.getSiblings(focusableItem.key);
 
       if (isMoveUp && up) {
-        // TODO: Return back
         const id = getId(up.key);
         if (!id) return;
 
-        // if ("listRef" in model) {
-        //   if (taskBox.listRef.id === model.listRef.id) {
-        //     // model.handleDrop(taskBox, "top");
-        //   } else {
-        //     model.handleDrop(taskBox, "bottom");
-        //   }
-        // } else {
-        //   model.handleDrop(taskBox, "top");
-        // }
+        const model = appSlice.byId(store.getState(), id);
+        if (!model) return;
+
+        let edge: "top" | "bottom" = "top";
+        if (isTask(model) && isTask(taskBox)) {
+          if (model.projectId === taskBox.projectId) {
+            edge = "top";
+          } else {
+            edge = "bottom";
+          }
+        } else if (isTaskProjection(model) && isTaskProjection(taskBox)) {
+          if (model.dailyListId === taskBox.dailyListId) {
+            edge = "top";
+          } else {
+            edge = "bottom";
+          }
+        } else {
+          edge = "top";
+        }
+
+        dropSlice.handleDrop(store, taskBox.id, id, edge);
 
         scroll();
       } else if (isMoveDown && down) {
-        // TODO: Return back
         const id = getId(down.key);
         if (!id) return;
 
-        // if ("listRef" in model) {
-        //   if (taskBox.listRef.id === model.listRef.id) {
-        //     model.handleDrop(taskBox, "bottom");
-        //   } else {
-        //     model.handleDrop(taskBox, "top");
-        //   }
-        // } else {
-        //   model.handleDrop(taskBox, "top");
-        // }
+        const model = appSlice.byId(store.getState(), id);
+        if (!model) return;
+
+        let edge: "top" | "bottom" = "top";
+        if (isTask(model) && isTask(taskBox)) {
+          if (model.projectId === taskBox.projectId) {
+            edge = "bottom";
+          } else {
+            edge = "top";
+          }
+        } else if (isTaskProjection(model) && isTaskProjection(taskBox)) {
+          if (model.dailyListId === taskBox.dailyListId) {
+            edge = "bottom";
+          } else {
+            edge = "top";
+          }
+        } else {
+          edge = "top";
+        }
+
+        dropSlice.handleDrop(store, taskBox.id, id, edge);
 
         scroll();
       }
@@ -247,20 +286,20 @@ export const TaskComp = observer(function TaskComponent({
     ) {
       e.preventDefault();
 
-      const [up, down] = focusableItem.siblings;
+      const [up, down] = focusManager.getSiblings(focusableItem.key);
       taskBoxesSlice.delete(store, taskBox.id);
 
       if (down) {
-        focusManager.focusByKey(down.key);
+        focusSlice.focusByKey(store, down.key);
       } else if (up) {
-        focusManager.focusByKey(up.key);
+        focusSlice.focusByKey(store, up.key);
       } else {
-        focusManager.resetFocus();
+        focusSlice.resetFocus(store);
       }
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      focusableItem.edit();
+      focusSlice.editByKey(store, focusableItem.key);
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
@@ -269,21 +308,23 @@ export const TaskComp = observer(function TaskComponent({
         taskBox,
         isAddAfter ? "after" : "before",
       );
-      focusManager.editByKey(buildFocusKey(newBox.id, newBox.type));
+      focusSlice.editByKey(store, buildFocusKey(newBox.id, newBox.type));
 
       return;
     }
   });
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
+    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+
     if (
-      focusableItem.isFocused &&
+      isFocused &&
       ref.current &&
       !ref.current.contains(e.target as Node) &&
-      !focusManager.isFocusDisabled &&
+      !isFocusDisabled &&
       !e.defaultPrevented
     ) {
-      focusManager.resetFocus();
+      focusSlice.resetFocus(store);
     }
   });
 
@@ -303,7 +344,7 @@ export const TaskComp = observer(function TaskComponent({
     const element = ref.current;
     invariant(element);
 
-    if (focusableItem.isEditing) return;
+    if (isEditing) return;
 
     return combine(
       draggable({
@@ -380,7 +421,7 @@ export const TaskComp = observer(function TaskComponent({
         },
       }),
     );
-  }, [focusableItem.isEditing, taskBox.id, taskBox.type, store]);
+  }, [isEditing, store, taskBox.id, taskBox.type]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -390,7 +431,7 @@ export const TaskComp = observer(function TaskComponent({
   }, []);
 
   useEffect(() => {
-    if (focusableItem.isFocused) {
+    if (isFocused) {
       const el = ref.current;
       if (!el) return;
 
@@ -400,32 +441,21 @@ export const TaskComp = observer(function TaskComponent({
       //   inline: "center",
       // });
     }
-  }, [focusableItem.isFocused]);
+  }, [isFocused]);
 
-  const prevIsEditing = usePrevious(focusableItem.isEditing);
+  const prevIsEditing = usePrevious(isEditing);
   const taskTitle = task.title;
   useEffect(() => {
     setEditingTitle(taskTitle);
   }, [taskTitle]);
 
   useEffect(() => {
-    if (
-      !focusableItem.isEditing &&
-      prevIsEditing &&
-      editingTitle !== taskTitle
-    ) {
+    if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
       tasksSlice.update(store, taskId, {
         title: editingTitle,
       });
     }
-  }, [
-    editingTitle,
-    focusableItem.isEditing,
-    prevIsEditing,
-    store,
-    taskId,
-    taskTitle,
-  ]);
+  }, [editingTitle, isEditing, prevIsEditing, store, taskId, taskTitle]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
@@ -443,20 +473,19 @@ export const TaskComp = observer(function TaskComponent({
         data-focusable-key={focusableItem.key}
         tabIndex={0}
         className={`p-3 rounded-lg border ${
-          focusableItem.isFocused
+          isFocused
             ? "border-blue-500 bg-gray-700"
             : "border-gray-700 bg-gray-750"
         } shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`}
         style={{}}
-        onClick={() => focusableItem.focus(true)}
+        onClick={() => focusSlice.focusByKey(store, focusableItem.key, true)}
         onDoubleClick={(e) => {
-          // e.preventDefault();
-          focusableItem.edit();
+          focusSlice.editByKey(store, focusableItem.key);
         }}
         ref={ref}
       >
         <div className="flex items-start gap-2">
-          {focusableItem.isEditing ? (
+          {isEditing ? (
             <>
               <div className="flex items-center justify-end">
                 <input

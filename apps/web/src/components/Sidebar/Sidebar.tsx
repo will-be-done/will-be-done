@@ -4,7 +4,6 @@ import { useRegisterFocusItem } from "@/hooks/useLists";
 import { useGlobalListener } from "@/globalListener/hooks";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
-import { buildFocusKey, focusManager } from "@/states/FocusManager";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
@@ -25,6 +24,7 @@ import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import { projectsSlice, allProjectsSlice } from "@/models/models2";
+import { buildFocusKey, focusManager, focusSlice } from "@/states/FocusManager";
 
 type State =
   | { type: "idle" }
@@ -81,21 +81,29 @@ const ProjectItem = function ProjectItemComp({
 
   const ref = useRef<HTMLAnchorElement>(null);
 
+  const isFocused = useAppSelector((state) =>
+    focusSlice.isFocused(state, focusItem.key),
+  );
+
   useGlobalListener("mousedown", (e: MouseEvent) => {
+    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+
     if (
-      focusItem.isFocused &&
+      isFocused &&
       ref.current &&
       !ref.current.contains(e.target as Node) &&
-      !focusManager.isFocusDisabled &&
+      !isFocusDisabled &&
       !e.defaultPrevented
     ) {
-      focusManager.resetFocus();
+      focusSlice.resetFocus(store);
     }
   });
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    if (!focusItem.isFocused) return;
-    if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+    if (!isFocused) return;
+    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+
+    if (isFocusDisabled || e.defaultPrevented) return;
     const activeElement =
       e.target instanceof Element ? e.target : document.activeElement;
     const isInput = activeElement && isInputElement(activeElement);
@@ -108,23 +116,24 @@ const ProjectItem = function ProjectItemComp({
     if (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") {
       e.preventDefault();
 
-      const [up, down] = focusItem.siblings;
+      const [up, down] = focusManager.getSiblings(focusItem.key);
       projectsSlice.delete(store, project.id);
 
       if (down) {
-        focusManager.focusByKey(down.key);
+        focusSlice.focusByKey(store, down.key);
       } else if (up) {
-        focusManager.focusByKey(up.key);
+        focusSlice.focusByKey(store, up.key);
       } else {
-        focusManager.resetFocus();
+        focusSlice.resetFocus(store);
       }
     } else if (e.code === "KeyI" && noModifiers) {
       e.preventDefault();
 
-      focusItem.edit();
+      focusSlice.editByKey(store, focusItem.key);
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
+      // TODO: fix it
       // const newProject = project.createSibling(isAddAfter ? "after" : "before");
       // focusManager.editByKey(
       //   buildFocusKey(newProject.id, newProject.$modelType, "ProjectItem"),
@@ -227,14 +236,17 @@ const ProjectItem = function ProjectItemComp({
     );
   }, [project.id, project.type, store]);
 
-  const isFocused = focusItem.isFocused;
-
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
-      focusManager.resetEdit();
+      focusSlice.resetEdit(store);
     }
   };
+
+  const isEditing = useAppSelector((state) =>
+    focusSlice.isEditing(state, focusItem.key),
+  );
+
   return (
     <>
       {closestEdge == "top" && <DropProjectIndicator />}
@@ -265,14 +277,14 @@ const ProjectItem = function ProjectItemComp({
             active || isFocused ? "bg-gray-800" : "hover:bg-gray-800",
             closestEdge == "whole" && "bg-gray-700",
             {
-              hidden: focusItem.isEditing,
+              hidden: isEditing,
             },
           )
         }
         href={`/projects/${project.id}`}
         onClick={() => {
           console.log("focusItem click", focusItem);
-          focusItem.focus();
+          focusSlice.focusByKey(store, focusItem.key);
         }}
       >
         <span className="text-base mr-2 flex-shrink-0">
@@ -311,7 +323,9 @@ const InboxItem = function IboxItemComp() {
     buildFocusKey(inboxProject.id, inboxProject.type),
     "0",
   );
-  const isFocused = focusItem.isFocused;
+  const isFocused = useAppSelector((state) =>
+    focusSlice.isFocused(state, focusItem.key),
+  );
   const store = useAppStore();
 
   const [closestEdge, setClosestEdge] = useState<"whole" | null>(null);
@@ -407,7 +421,9 @@ const InboxItem = function IboxItemComp() {
 const TodayItem = function TodayItemComp() {
   const id = "today";
   const focusItem = useRegisterFocusItem(buildFocusKey(id, id), "1");
-  const isFocused = focusItem.isFocused;
+  const isFocused = useAppSelector((state) =>
+    focusSlice.isFocused(state, focusItem.key),
+  );
 
   return (
     <Link

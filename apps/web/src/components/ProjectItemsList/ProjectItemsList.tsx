@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite";
 import { Project, projectsSlice } from "../../models/models2";
 import { TaskComp } from "../Task/Task";
-import { buildFocusKey, focusManager } from "@/states/FocusManager";
+import { buildFocusKey, focusSlice } from "@/states/FocusManager";
 import { ColumnListProvider } from "@/hooks/ParentListProvider";
 import { useRegisterFocusItem } from "@/hooks/useLists";
 import {
@@ -52,22 +52,33 @@ const ProjectTitle = observer(function ProjectTitleComp({
     "0",
   );
 
+  const isFocused = useAppSelector((state) =>
+    focusSlice.isFocused(state, focusableItem.key),
+  );
+  const isEditing = useAppSelector((state) =>
+    focusSlice.isEditing(state, focusableItem.key),
+  );
+
   useGlobalListener("mousedown", (e: MouseEvent) => {
+    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+
     if (
-      focusableItem.isFocused &&
+      isFocused &&
       ref.current &&
       !ref.current.contains(e.target as Node) &&
-      !focusManager.isFocusDisabled &&
+      !isFocusDisabled &&
       !e.defaultPrevented
     ) {
-      focusManager.resetFocus();
+      focusSlice.resetFocus(store);
     }
   });
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    if (focusManager.isSomethingEditing) return;
-    if (!focusableItem.isFocused) return;
-    if (focusManager.isFocusDisabled || e.defaultPrevented) return;
+    const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
+    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+    if (isSomethingEditing) return;
+    if (!isFocused) return;
+    if (isFocusDisabled || e.defaultPrevented) return;
 
     const target =
       e.target instanceof Element ? e.target : document.activeElement;
@@ -78,14 +89,15 @@ const ProjectTitle = observer(function ProjectTitleComp({
     if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      focusableItem.edit();
+      focusSlice.editByKey(store, focusableItem.key);
     }
   });
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
-      focusManager.resetEdit();
+
+      focusSlice.resetEdit(store);
     }
   };
 
@@ -121,7 +133,7 @@ const ProjectTitle = observer(function ProjectTitleComp({
             e.focus();
           }}
           type="text"
-          className={cn({ hidden: !focusableItem.isEditing })}
+          className={cn({ hidden: !isEditing })}
           value={project.title}
           onChange={(e) => {
             projectsSlice.update(store, project.id, {
@@ -132,11 +144,10 @@ const ProjectTitle = observer(function ProjectTitleComp({
         />
         <span
           onDoubleClick={(e) => {
-            // e.preventDefault();
-            focusableItem.edit();
+            focusSlice.editByKey(store, focusableItem.key);
           }}
           className={cn("select-none", {
-            hidden: focusableItem.isEditing,
+            hidden: isEditing,
           })}
         >
           {project.title}
@@ -159,7 +170,7 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
   const onAddNewTask = useCallback(() => {
     const newTask = projectsSlice.createTask(store, project.id, "prepend");
 
-    focusManager.editByKey(buildFocusKey(newTask.id, newTask.type));
+    focusSlice.editByKey(store, buildFocusKey(newTask.id, newTask.type));
   }, [project.id, store]);
 
   return (

@@ -3,7 +3,6 @@
 // import { memoize as originalMemoize } from "proxy-memoize";
 
 import { create, isDraft, Draft, Patch } from "mutative";
-import { store } from "./models";
 
 // let isActionExecuting = false;
 
@@ -633,6 +632,25 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
   //   }
   //
   //   return result;
+  // };
+
+  // let patchesToNotify: Patch[] = [];
+  // let inversePatchesToNotify: Patch[] = [];
+  // let prevState: TState | undefined;
+  // let lastStore: StoreApi<TState> | undefined;
+  // let wasQueued = false;
+  //
+  // const notifyListeners = () => {
+  //   const notifyListener = (listener: Listener<TState>) => {
+  //     return listener(scope.state, state, prevState, patches, inversePatches);
+  //   };
+  //   store.getListeners().forEach((listener) => {
+  //     try {
+  //       notifyListener(listener);
+  //     } catch (e) {
+  //       console.error(e);
+  //     }
+  //   });
   // };
 
   const createStore = (

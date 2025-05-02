@@ -1,26 +1,30 @@
-import { FocusItem, FocusKey, focusManager } from "@/states/FocusManager";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager";
+import { createContext, useContext, useEffect, useMemo } from "react";
+import { useAppStore } from "./state";
 
 export const ParentListContext = createContext<FocusKey | undefined>(undefined);
 
 export const useRegisterFocusColumn = (key: FocusKey, priority: string) => {
+  const store = useAppStore();
+
   const item = useMemo(() => {
-    return focusManager.registerColumn(key, priority);
+    return focusManager.buildColumn(key, priority);
   }, [key, priority]);
 
   useEffect(() => {
-    focusManager.registerColumn(key, priority);
+    focusManager.registerColumn(item);
 
     return () => {
-      focusManager.unregister(key);
+      focusManager.unregister(item.key);
     };
-  }, [key, priority]);
+  }, [item, store]);
 
   return item;
 };
 
 export const useRegisterFocusItem = (itemKey: FocusKey, priority: string) => {
   const parentListKey = useContext(ParentListContext);
+  const store = useAppStore();
 
   const item = useMemo(() => {
     if (!parentListKey) {
@@ -35,7 +39,7 @@ export const useRegisterFocusItem = (itemKey: FocusKey, priority: string) => {
     return () => {
       focusManager.unregister(item.key);
     };
-  }, [item, parentListKey]);
+  }, [item, store]);
 
   return item;
 };

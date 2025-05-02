@@ -9,6 +9,7 @@ import { uuidv7 } from "uuidv7";
 import uuidByString from "uuid-by-string";
 import { shouldNeverHappen } from "@/utils";
 import { deepEqual, shallowEqual } from "fast-equals";
+import { FocusState } from "@/states/FocusManager";
 
 export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
 
@@ -16,7 +17,8 @@ export const getDMY = (date: Date) => {
   return format(date, "yyyy-MM-dd");
 };
 
-const appSelector = createSelectorCreator<RootState>();
+export const appSelector = createSelectorCreator<RootState>();
+export const appAction = createActionCreator<RootState>();
 
 export const generateKeyPositionedBetween = (
   current: OrderableItem,
@@ -116,8 +118,8 @@ export type RootState = {
   [dailyListType]: {
     byIds: Record<string, DailyList>;
   };
+  focus: FocusState;
 };
-const appAction = createActionCreator<RootState>();
 
 const isObjectType =
   <T>(type: string) =>
@@ -375,34 +377,29 @@ export const dailyListsSlice = createSlice(
       return isTaskProjection(model) || isTask(model);
     },
     childrenIds: appSelector((query, dailyListId: string): string[] => {
-      return query(
-        (state) =>
-          Object.values(state.projection.byIds)
-            .filter((proj) => proj.dailyListId === dailyListId)
-            .sort(fractionalCompare)
-            .map((proj) => proj.id),
-        shallowEqual,
-      );
-    }),
+      const byIds = query((state) => state.projection.byIds);
+
+      return Object.values(byIds)
+        .filter((proj) => proj.dailyListId === dailyListId)
+        .sort(fractionalCompare)
+        .map((proj) => proj.id);
+    }, shallowEqual),
     taskIds: appSelector((query, dailyListId: string): string[] => {
       const childrenIds = query((state) =>
         dailyListsSlice.childrenIds(state, dailyListId),
       );
 
-      return query(
-        (state) =>
-          childrenIds
-            .map((id) => projectionsSlice.byId(state, id))
-            .map((proj) => proj?.taskId)
-            .filter((t) => t !== undefined),
-        shallowEqual,
+      return query((state) =>
+        childrenIds
+          .map((id) => projectionsSlice.byId(state, id))
+          .map((proj) => proj?.taskId)
+          .filter((t) => t !== undefined),
       );
-    }),
+    }, shallowEqual),
     notDoneTaskIdsExceptDailies: appSelector(
       (query, projectId: string, dailyListIds: string[]): string[] => {
-        const exceptTaskIds = query(
-          (state) => dailyListsSlice.allTaskIds(state, dailyListIds),
-          shallowEqual,
+        const exceptTaskIds = query((state) =>
+          dailyListsSlice.allTaskIds(state, dailyListIds),
         );
         const notDoneTaskIds = query((state) =>
           projectsSlice.notDoneTaskIds(state, projectId),
@@ -413,12 +410,12 @@ export const dailyListsSlice = createSlice(
       shallowEqual,
     ),
     allTaskIds: appSelector((query, dailyListIds: string[]): Set<string> => {
-      return query((state) => {
-        return new Set(
-          dailyListIds.flatMap((id) => dailyListsSlice.taskIds(state, id)),
-        );
-      }, shallowEqual);
-    }),
+      const taskIds = query((state) =>
+        dailyListIds.flatMap((id) => dailyListsSlice.taskIds(state, id)),
+      );
+
+      return new Set(taskIds);
+    }, shallowEqual),
     firstChild: appSelector(
       (query, dailyListId: string): TaskProjection | undefined => {
         const childrenIds = query((state) =>
@@ -936,21 +933,24 @@ export const tasksSlice = createSlice(
 export const allProjectsSlice = createSlice(
   {
     all: appSelector((query): Project[] => {
-      return query(
-        (state) => Object.values(state.project.byIds).sort(fractionalCompare),
-        shallowEqual,
-      );
-    }),
-    childrenIds: appSelector((query): string[] => {
-      return query((state) => {
-        const allIdsAndTokens = allProjectsSlice.all(state).map((p) => ({
-          id: p.id,
-          orderToken: p.orderToken,
-        }));
+      const byIds = query((state) => state.project.byIds);
 
-        return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
-      }, shallowEqual);
-    }),
+      return Object.values(byIds);
+    }, shallowEqual),
+    allSorted: appSelector((query): Project[] => {
+      const all = query((state) => allProjectsSlice.all(state));
+
+      return all.sort(fractionalCompare);
+    }, shallowEqual),
+    childrenIds: appSelector((query): string[] => {
+      const all = query((state) => allProjectsSlice.all(state));
+
+      const allIdsAndTokens = all.map((p) => ({
+        id: p.id,
+        orderToken: p.orderToken,
+      }));
+      return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
+    }, shallowEqual),
     childrenIdsWithoutInbox: appSelector((query): string[] => {
       return query(
         (state) =>
@@ -1039,23 +1039,18 @@ export const projectsSlice = createSlice(
       },
     ),
     childrenIds: appSelector((query, projectId: string): string[] => {
-      const tasks = query(
-        (state) =>
-          Object.values(state.task.byIds)
-            .filter((task) => task.projectId === projectId)
-            .map((p) => ({ id: p.id, orderToken: p.orderToken })),
-        deepEqual,
-      );
-      const templates = query(
-        (state) =>
-          Object.values(state.template.byIds)
-            .filter((template) => template.projectId === projectId)
-            .map((p) => ({ id: p.id, orderToken: p.orderToken })),
-        deepEqual,
-      );
+      const tasksByIds = query((state) => state.task.byIds);
+      const tasks = Object.values(tasksByIds)
+        .filter((task) => task.projectId === projectId)
+        .map((p) => ({ id: p.id, orderToken: p.orderToken }));
+
+      const templatesByIds = query((state) => state.template.byIds);
+      const templates = Object.values(templatesByIds)
+        .filter((template) => template.projectId === projectId)
+        .map((p) => ({ id: p.id, orderToken: p.orderToken }));
 
       return [...tasks, ...templates].sort(fractionalCompare).map((p) => p.id);
-    }),
+    }, shallowEqual),
     childrenCount: appSelector((query, projectId: string): number => {
       return query(
         (state) => projectsSlice.childrenIds(state, projectId).length,
@@ -1275,7 +1270,7 @@ export const dropSlice = createSlice(
       (
         state: RootState,
         id: string,
-        targetId: string,
+        dropId: string,
         edge: "top" | "bottom",
       ) => {
         const model = appSlice.byId(state, id);
@@ -1286,7 +1281,7 @@ export const dropSlice = createSlice(
         if (!dropFunction)
           return shouldNeverHappen("Drop type not found" + model.type);
 
-        return dropFunction(state, id, targetId, edge);
+        return dropFunction(state, id, dropId, edge);
       },
     ),
   },

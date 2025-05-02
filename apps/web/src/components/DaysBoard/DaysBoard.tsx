@@ -2,31 +2,20 @@ import { observer } from "mobx-react-lite";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
-import { dailyListRef } from "../../models/models";
 import { DropTaskIndicator, TaskComp } from "../Task/Task";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import {
-  dropTargetForElements,
-  ElementDragPayload,
-  monitorForElements,
-} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DndModelData, isModelDNDData } from "../../dnd/models";
-import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import invariant from "tiny-invariant";
-import { comparer, computed } from "mobx";
-import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
-import { MultiSelect } from "../ui/multi-select";
-import { Cat, Dog, Fish, Rabbit, Turtle } from "lucide-react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { useRegisterFocusColumn, useRegisterFocusItem } from "@/hooks/useLists";
+import { useRegisterFocusItem } from "@/hooks/useLists";
 import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/hooks/ParentListProvider";
-import { buildFocusKey, focusManager } from "@/states/FocusManager";
+import { buildFocusKey } from "@/states/FocusManager";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import {
   DailyList,
