@@ -5,14 +5,13 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 
-import { observer } from "mobx-react-lite";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useUnmount } from "../../utils";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import { allProjectsSlice } from "@/models/models2";
 import { focusSlice } from "@/states/FocusManager";
 
-export const MoveModal = observer(function MoveModelComp({
+export const MoveModal = ({
   isOpen,
   setIsOpen,
   handleMove,
@@ -22,7 +21,7 @@ export const MoveModal = observer(function MoveModelComp({
   setIsOpen: (val: boolean) => void;
   handleMove: (projectId: string) => void;
   exceptProjectId: string;
-}) {
+}) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -121,4 +120,4 @@ export const MoveModal = observer(function MoveModelComp({
       </div>
     </Dialog>
   );
-});
+};

@@ -1,7 +1,6 @@
 import { Redirect, Route, Switch } from "wouter";
 import "./fixGlobal";
 import { Board } from "./components/DaysBoard/DaysBoard";
-import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
@@ -29,7 +28,7 @@ import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/e
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 
-const GlobalListener = observer(function GlobalListenerComponent() {
+const GlobalListener = () => {
   // const undoManager = getUndoManager();
 
   const store = useAppStore();
@@ -282,9 +281,9 @@ const GlobalListener = observer(function GlobalListenerComponent() {
   }, [store]);
 
   return <></>;
-});
+};
 
-export const App = observer(function App() {
+export const App = () => {
   const [store, setStore] = useState<StoreApi<RootState> | null>(null);
 
   useEffect(() => {
@@ -317,4 +316,4 @@ export const App = observer(function App() {
       </StoreProvider>
     )
   );
-});
+};

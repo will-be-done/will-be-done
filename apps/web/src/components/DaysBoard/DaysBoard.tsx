@@ -1,4 +1,3 @@
-import { observer } from "mobx-react-lite";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
@@ -80,13 +79,13 @@ type DailyListDndState = { type: "idle" } | { type: "is-task-over" };
 const idle: DailyListDndState = { type: "idle" };
 const isTaskOver: DailyListDndState = { type: "is-task-over" };
 
-const AddTaskColumnButton = observer(function AddTaskColumnButtonComp({
+const AddTaskColumnButton = ({
   dailyList,
   onTaskAdd,
 }: {
   dailyList: DailyList;
   onTaskAdd: (dailyList: DailyList) => void;
-}) {
+}) => {
   const id = "add-task-button-" + dailyList.id;
   const item = useRegisterFocusItem(buildFocusKey(id, id), "zzzzzzzzzzzzzzzz");
 
@@ -99,7 +98,7 @@ const AddTaskColumnButton = observer(function AddTaskColumnButtonComp({
       + Add Task
     </button>
   );
-});
+};
 
 const TaskProjection = ({ projectionId }: { projectionId: string }) => {
   const projection = useAppSelector((state) =>
@@ -117,7 +116,7 @@ const TaskProjection = ({ projectionId }: { projectionId: string }) => {
   );
 };
 
-const ColumnView = observer(function ColumnViewComponent({
+const ColumnView = ({
   dailyListId,
   onTaskAdd,
   orderNumber,
@@ -125,7 +124,7 @@ const ColumnView = observer(function ColumnViewComponent({
   dailyListId: string;
   onTaskAdd: (dailyList: DailyList) => void;
   orderNumber: number;
-}) {
+}) => {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
@@ -232,7 +231,7 @@ const ColumnView = observer(function ColumnViewComponent({
       </div>
     </ColumnListProvider>
   );
-});
+};
 
 const ProjectSuggestions = ({
   projectId,
@@ -272,11 +271,7 @@ const ProjectSuggestions = ({
     </ParentListItemProvider>
   );
 };
-const TaskSuggestions = observer(function TaskSuggestionsComp({
-  dailyListsIds,
-}: {
-  dailyListsIds: string[];
-}) {
+const TaskSuggestions = ({ dailyListsIds }: { dailyListsIds: string[] }) => {
   const selectedProjectIds = useAppSelector((state) =>
     allProjectsSlice.childrenIds(state),
   );
@@ -303,9 +298,9 @@ const TaskSuggestions = observer(function TaskSuggestionsComp({
       ))}
     </div>
   );
-});
+};
 
-const BoardView = observer(function BoardViewComponent({
+const BoardView = ({
   handleNextDay,
   handlePrevDay,
   dailyListsIds,
@@ -313,7 +308,7 @@ const BoardView = observer(function BoardViewComponent({
   handleNextDay: () => void;
   handlePrevDay: () => void;
   dailyListsIds: string[];
-}) {
+}) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
   const store = useAppStore();
@@ -456,7 +451,7 @@ const BoardView = observer(function BoardViewComponent({
       </ColumnListProvider>
     </div>
   );
-});
+};
 
 type DaysPreferences = {
   daysWindow: number;
@@ -485,7 +480,7 @@ const useDaysPreferences = create<DaysPreferences>()(
   ),
 );
 
-export const Board = observer(function BoardComponent() {
+export const Board = () => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const daysShift = useDaysPreferences((state) => state.daysShift);
   const setDaysShift = useDaysPreferences((state) => state.setDaysShift);
@@ -529,4 +524,4 @@ export const Board = observer(function BoardComponent() {
       dailyListsIds={dailyListsIds}
     />
   );
-});
+};

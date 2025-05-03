@@ -1,4 +1,3 @@
-import { observer } from "mobx-react-lite";
 import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -48,13 +47,13 @@ type State =
 const idleState: State = { type: "idle" };
 const draggingState: State = { type: "dragging" };
 
-const TaskPrimitive = observer(function TaskPrimitiveComponent({
+const TaskPrimitive = ({
   title,
   style,
 }: {
   title: string;
   style: CSSProperties;
-}) {
+}) => {
   return (
     <div
       className={`p-3 rounded-lg border ${"border-gray-700 bg-gray-750"} shadow-md transition-colors`}
@@ -71,17 +70,17 @@ const TaskPrimitive = observer(function TaskPrimitiveComponent({
       </div>
     </div>
   );
-});
+};
 
-export const DropTaskIndicator = observer(function DropTaskIndicatorComp() {
+export const DropTaskIndicator = () => {
   return (
     <div
       className={`p-3 rounded-lg border border-blue-500 bg-gray-700 shadow-md transition-colors h-12`}
     ></div>
   );
-});
+};
 
-export const TaskComp = observer(function TaskComponent({
+export const TaskComp = ({
   taskId,
   taskBoxId,
   showProject,
@@ -89,7 +88,7 @@ export const TaskComp = observer(function TaskComponent({
   taskId: string;
   taskBoxId: string;
   showProject: boolean;
-}) {
+}) => {
   const task = useAppSelector((state) =>
     tasksSlice.byIdOrDefault(state, taskId),
   );
@@ -553,4 +552,4 @@ export const TaskComp = observer(function TaskComponent({
       )}
     </>
   );
-});
+};

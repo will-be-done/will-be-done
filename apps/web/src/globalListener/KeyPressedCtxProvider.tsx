@@ -1,7 +1,6 @@
 import { useEffect, PropsWithChildren } from "react";
 import { useEventTypes } from "./hooks";
 
-// eslint-disable-next-line mobx/missing-observer
 export const KeyPressedCtxProvider = ({ children }: PropsWithChildren) => {
   const callbacks = useEventTypes((st) => st.callbacks);
   const events = useEventTypes((st) => st.events);

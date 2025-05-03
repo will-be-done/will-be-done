@@ -1,4 +1,3 @@
-import { observer } from "mobx-react-lite";
 import { Project, projectsSlice } from "../../models/models2";
 import { TaskComp } from "../Task/Task";
 import { buildFocusKey, focusSlice } from "@/states/FocusManager";
@@ -16,13 +15,13 @@ import { isInputElement } from "@/utils/isInputElement";
 import { cn } from "@/lib/utils";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 
-const AddTaskButton = observer(function AddTaskButtonComp({
+const AddTaskButton = ({
   project,
   onTaskAdd,
 }: {
   project: Project;
   onTaskAdd: (project: Project) => void;
-}) {
+}) => {
   const id = "add-task-button-" + project.id;
   const focusItem = useRegisterFocusItem(
     buildFocusKey(id, id, "AddTaskButton"),
@@ -38,13 +37,9 @@ const AddTaskButton = observer(function AddTaskButtonComp({
       + Add Task
     </button>
   );
-});
+};
 
-const ProjectTitle = observer(function ProjectTitleComp({
-  project,
-}: {
-  project: Project;
-}) {
+const ProjectTitle = ({ project }: { project: Project }) => {
   const ref = useRef<HTMLDivElement | null>(null);
 
   const focusableItem = useRegisterFocusItem(
@@ -155,13 +150,9 @@ const ProjectTitle = observer(function ProjectTitleComp({
       </span>
     </h2>
   );
-});
+};
 
-export const ProjectItemsList = observer(function ProjectItemsListComp({
-  project,
-}: {
-  project: Project;
-}) {
+export const ProjectItemsList = ({ project }: { project: Project }) => {
   const store = useAppStore();
   const taskIds = useAppSelector((state) =>
     projectsSlice.childrenIds(state, project.id),
@@ -213,4 +204,4 @@ export const ProjectItemsList = observer(function ProjectItemsListComp({
       </div>
     </ColumnListProvider>
   );
-});
+};

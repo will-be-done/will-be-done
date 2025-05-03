@@ -1,10 +1,9 @@
-import { observer } from "mobx-react-lite";
 import { useParams } from "wouter";
 import { ProjectItemsList } from "../../components/ProjectItemsList/ProjectItemsList";
 import { Project, allProjectsSlice, projectsSlice } from "@/models/models2";
 import { useAppSelector } from "@/hooks/state";
 
-export const ProjectPage = observer(function ProjectPageComp() {
+export const ProjectPage = () => {
   const params = useParams<{ projectId: string }>();
   const project = useAppSelector((state): Project => {
     if (params.projectId == "inbox") {
@@ -19,4 +18,4 @@ export const ProjectPage = observer(function ProjectPageComp() {
   }
 
   return <ProjectItemsList project={project} />;
-});
+};
