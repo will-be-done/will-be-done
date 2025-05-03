@@ -519,7 +519,6 @@ export const TaskComp = ({
             </>
           )}
         </div>
-        {taskBox.id} - {taskBox.orderToken}
         {showProject && (
           <div className="text-right mt-3 text-gray-400 text-sm">
             {project.icon || "🟡"} {project.title}
