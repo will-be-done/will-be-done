@@ -2,6 +2,7 @@ import {
   connectToDevTools,
   createStore,
   StoreApi,
+  withUndoManager,
 } from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
 import {
@@ -124,9 +125,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       }
     }
 
-    console.log("final rootState", rootState);
-
-    store = createStore(rootState);
+    store = withUndoManager(createStore(rootState));
     connectToDevTools(store);
 
     syncer.startLoop();

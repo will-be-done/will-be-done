@@ -131,7 +131,7 @@ export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
     const project = backup.projects.find((p) => p.id === taskBackup.projectId);
     if (!project) {
       console.warn(
-        `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`,
+        `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`
       );
       continue;
     }
@@ -177,7 +177,7 @@ export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
   for (const projectionBackup of backup.dailyListProjections) {
     const task = backup.tasks.find((t) => t.id === projectionBackup.taskId);
     const dailyListId = backup.dailyLists.find(
-      (dl) => dl.id === projectionBackup.listId,
+      (dl) => dl.id === projectionBackup.listId
     )?.id;
 
     if (!task) {
@@ -187,7 +187,7 @@ export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
 
     if (!dailyListId) {
       console.warn(
-        `DailyList ${projectionBackup.listId} not found for projection`,
+        `DailyList ${projectionBackup.listId} not found for projection`
       );
       continue;
     }

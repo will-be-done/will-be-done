@@ -1,6 +1,6 @@
 import { appAction, appSelector, RootState } from "@/models/models2";
 import { shouldNeverHappen } from "@/utils";
-import { createSlice } from "@will-be-done/hyperstate";
+import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
 
 export type FocusKey = string & { __brand: never };
 
@@ -97,16 +97,20 @@ export const focusSlice = createSlice(
     }),
 
     // Write operations
-    disableFocus: appAction((state: RootState) => {
-      state.focus.isFocusDisabled = true;
-    }),
+    disableFocus: withoutUndoAction(
+      appAction((state: RootState) => {
+        state.focus.isFocusDisabled = true;
+      }),
+    ),
 
-    enableFocus: appAction((state: RootState) => {
-      state.focus.isFocusDisabled = false;
-    }),
+    enableFocus: withoutUndoAction(
+      appAction((state: RootState) => {
+        state.focus.isFocusDisabled = false;
+      }),
+    ),
 
-    focusByKey: appAction(
-      (state: RootState, key: FocusKey, skipElFocus = false) => {
+    focusByKey: withoutUndoAction(
+      appAction((state: RootState, key: FocusKey, skipElFocus = false) => {
         if (state.focus.focusItemKey === key) return;
 
         state.focus.focusItemKey = key;
@@ -139,24 +143,30 @@ export const focusSlice = createSlice(
             inline: "center",
           });
         }
-      },
+      }),
     ),
 
-    editByKey: appAction((state: RootState, key: FocusKey) => {
-      if (state.focus.editItemKey === key) return;
+    editByKey: withoutUndoAction(
+      appAction((state: RootState, key: FocusKey) => {
+        if (state.focus.editItemKey === key) return;
 
-      focusSlice.focusByKey(state, key, true);
-      state.focus.editItemKey = key;
-    }),
+        focusSlice.focusByKey(state, key, true);
+        state.focus.editItemKey = key;
+      }),
+    ),
 
-    resetFocus: appAction((state: RootState) => {
-      state.focus.focusItemKey = undefined;
-      state.focus.editItemKey = undefined;
-    }),
+    resetFocus: withoutUndoAction(
+      appAction((state: RootState) => {
+        state.focus.focusItemKey = undefined;
+        state.focus.editItemKey = undefined;
+      }),
+    ),
 
-    resetEdit: appAction((state: RootState) => {
-      state.focus.editItemKey = undefined;
-    }),
+    resetEdit: withoutUndoAction(
+      appAction((state: RootState) => {
+        state.focus.editItemKey = undefined;
+      }),
+    ),
   },
   "focusSlice",
 );

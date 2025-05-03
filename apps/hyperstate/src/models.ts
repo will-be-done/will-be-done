@@ -8,6 +8,7 @@ import {
   createSlice,
 } from "./state";
 import { deepEqual, shallowEqual } from "fast-equals";
+import { withoutUndoAction, withUndoManager } from "./undoManager";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
   item1: T,
@@ -256,6 +257,13 @@ export const projectsSlice = createSlice({
     byIds[project.id] = project;
     return project;
   }),
+  createWithoutUndo: withoutUndoAction(
+    appAction((state, project: Project) => {
+      const byIds = state.projects.byIds;
+      byIds[project.id] = project;
+      return project;
+    }),
+  ),
   update: appAction((state, project: Project): Project => {
     const projInState = projectsSlice.getById(state, project.id);
     if (!projInState) throw new Error("Project not found");
@@ -282,7 +290,7 @@ export const taskSlice = createSlice({
   }),
 });
 
-export const store = (() => {
+export const appStore = (() => {
   const state: RootState = {
     projects: { byIds: {} },
     tasks: { byIds: {} },
@@ -366,7 +374,7 @@ export const store = (() => {
 
   connectToDevTools(store);
 
-  return store;
+  return withUndoManager(store);
 })();
 
 // export const projectsSelectors = {

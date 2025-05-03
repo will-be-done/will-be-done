@@ -5,6 +5,7 @@ import "./App.css";
 import { useSelector } from "./react/hooks";
 import { allProjectsSlice, projectsSlice, RootState } from "./models";
 import { useStore } from "./react/context";
+import { getUndoManager } from "./undoManager";
 
 function useAppSelector<TStateSlice>(
   selector: (state: RootState) => TStateSlice,
@@ -43,6 +44,7 @@ function App() {
     allProjectsSlice.getSortedProjectIds(state),
   );
   const store = useAppStore();
+  const undoManager = getUndoManager(store);
 
   const updateProject = useCallback(() => {
     projectsSlice.update(store, {
@@ -85,11 +87,30 @@ function App() {
         >
           Create project
         </button>
+        <button
+          onClick={() => {
+            const id = Math.random().toString(36).slice(2);
+            projectsSlice.createWithoutUndo(store, {
+              id: id,
+              title: "Project " + id,
+              orderToken: id,
+              type: "project",
+            });
+          }}
+        >
+          Create project without undo
+        </button>
         <button onClick={insertMillion}>Insert million</button>
         <button onClick={updateProject}>Update project</button>
         <p>
           Edit <code>src/App.tsx</code> and save to test HMR
         </p>
+      </div>
+      <div>
+        <button onClick={() => undoManager.undo()}>Undo</button>
+        <button onClick={() => undoManager.redo()}>Redo</button>
+        <button onClick={() => undoManager.clearUndo()}>Clear undo</button>
+        <button onClick={() => undoManager.clearRedo()}>Clear redo</button>
       </div>
       <div>
         {projectIds.map((id) => (

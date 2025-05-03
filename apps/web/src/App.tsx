@@ -11,7 +11,11 @@ import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
 import { isInputElement } from "./utils/isInputElement";
 import { ThemeProvider } from "./components/ui/theme-provider";
 import { FocusKey, focusManager, focusSlice } from "./states/FocusManager";
-import { StoreApi, StoreProvider } from "@will-be-done/hyperstate";
+import {
+  getUndoManager,
+  StoreApi,
+  StoreProvider,
+} from "@will-be-done/hyperstate";
 import {
   appSlice,
   dailyListType,
@@ -29,9 +33,9 @@ import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types"
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 
 const GlobalListener = () => {
-  // const undoManager = getUndoManager();
-
   const store = useAppStore();
+  const undoManager = getUndoManager(store);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isSomethingFocused = focusSlice.isSomethingFocused(
@@ -62,7 +66,7 @@ const GlobalListener = () => {
         e.code === "KeyU"
       ) {
         e.preventDefault();
-        // undoManager.undo();
+        undoManager.undo();
         return;
       }
 
@@ -72,7 +76,7 @@ const GlobalListener = () => {
         (e.code === "KeyR" && e.ctrlKey)
       ) {
         e.preventDefault();
-        // undoManager.redo();
+        undoManager.redo();
         return;
       }
 
@@ -85,7 +89,7 @@ const GlobalListener = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [store]);
+  }, [store, undoManager]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

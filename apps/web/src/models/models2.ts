@@ -2,6 +2,7 @@ import {
   createActionCreator,
   createSelectorCreator,
   createSlice,
+  withoutUndoAction,
 } from "@will-be-done/hyperstate";
 import { format } from "date-fns";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -209,8 +210,8 @@ export type AppModelChange = {
 
 export const appSlice = createSlice(
   {
-    resetAndApplyChanges: appAction(
-      (state: RootState, changes: AppModelChange[]) => {
+    resetAndApplyChanges: withoutUndoAction(
+      appAction((state: RootState, changes: AppModelChange[]) => {
         for (const t of allTypes) {
           for (const id of Object.keys(state[t].byIds)) {
             delete state[t].byIds[id];
@@ -218,19 +219,21 @@ export const appSlice = createSlice(
         }
 
         appSlice.applyChanges(state, changes);
-      },
+      }),
     ),
-    applyChanges: appAction((state: RootState, changes: AppModelChange[]) => {
-      console.log("applyChanges", changes);
+    applyChanges: withoutUndoAction(
+      appAction((state: RootState, changes: AppModelChange[]) => {
+        console.log("applyChanges", changes);
 
-      for (const ch of changes) {
-        if (ch.isDeleted) {
-          delete state[ch.modelType].byIds[ch.id];
-        } else {
-          state[ch.modelType].byIds[ch.id] = ch.model;
+        for (const ch of changes) {
+          if (ch.isDeleted) {
+            delete state[ch.modelType].byIds[ch.id];
+          } else {
+            state[ch.modelType].byIds[ch.id] = ch.model;
+          }
         }
-      }
-    }),
+      }),
+    ),
     // NOTE: some models have extra logic to delete them, so maybe it's better to avoid such way
     // delete: appAction((state: RootState, id: string) => {
     //   const item = appSlice.byId(state, id);
