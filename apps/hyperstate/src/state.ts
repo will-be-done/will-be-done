@@ -652,11 +652,12 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
   ): StoreApi<TState> => {
     const store: StoreApi<TState> = {
       getContextValue<V>(ctx: Context<V>) {
-        if (!contextMap[ctx.name]) {
+        const data = contextMap[ctx.name];
+        if (!data) {
           return ctx.value;
         }
 
-        return contextMap[ctx.name].value as V;
+        return data.value as V;
       },
       withContextValue<V>(ctx: Context<V>, val: V) {
         const newCtx = {

@@ -1,4 +1,4 @@
-import { RootState } from "@/models/models2";
+import { RootState, SyncableState } from "@/models/models2";
 import { DistributiveOmit } from "@kikko-land/kikko";
 import { StoreApi } from "@will-be-done/hyperstate";
 import { Patch } from "mutative";
@@ -34,8 +34,8 @@ export class ChangesTracker {
       if (!Array.isArray(path)) {
         continue;
       }
-      const rootKey = path[0] as keyof RootState;
-      const secondKey = path[1] as keyof RootState[typeof rootKey];
+      const rootKey = path[0] as keyof SyncableState;
+      const secondKey = path[1] as keyof SyncableState[typeof rootKey];
 
       if (secondKey !== "byIds") {
         continue;
@@ -51,7 +51,7 @@ export class ChangesTracker {
 
         continue;
       }
-      const id = path[2] as keyof RootState[typeof rootKey]["byIds"];
+      const id = path[2] as keyof SyncableState[typeof rootKey]["byIds"];
 
       const originalModel = previousState[rootKey].byIds[id];
       const newModel = state[rootKey].byIds[id];

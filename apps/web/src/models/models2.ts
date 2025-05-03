@@ -102,7 +102,7 @@ export const allTypes = [
   dailyListType,
 ] as const;
 
-export type RootState = {
+export type SyncableState = {
   [projectType]: {
     byIds: Record<string, Project>;
   };
@@ -118,6 +118,8 @@ export type RootState = {
   [dailyListType]: {
     byIds: Record<string, DailyList>;
   };
+};
+export type RootState = SyncableState & {
   focus: FocusState;
 };
 
