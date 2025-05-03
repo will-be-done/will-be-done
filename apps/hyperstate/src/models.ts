@@ -7,7 +7,7 @@ import {
   createSelectorCreator,
   createSlice,
 } from "./state";
-import { deepEqual } from "fast-equals";
+import { deepEqual, shallowEqual } from "fast-equals";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
   item1: T,
@@ -188,17 +188,14 @@ export const allProjectsSlice = createSlice({
   // },
   allIdsAndTokens: appSelector(
     (query): { id: string; orderToken: string }[] => {
-      return query(
-        (state) =>
-          Object.values(state.projects.byIds).map((p) => ({
-            id: p.id,
-            orderToken: p.orderToken,
-          })),
-        (a: unknown, b: unknown) => {
-          return deepEqual(a, b);
-        },
-      );
+      const byIds = query((state) => state.projects.byIds);
+
+      return Object.values(byIds).map((p) => ({
+        id: p.id,
+        orderToken: p.orderToken,
+      }));
     },
+    deepEqual,
   ),
   getSortedProjectIds: appSelector((query): string[] => {
     const allIdsAndTokens = query(allProjectsSlice.allIdsAndTokens);
@@ -215,7 +212,7 @@ export const allProjectsSlice = createSlice({
       .sort(fractionalCompare)
       .map((p) => p.id)
       .slice(0, 10);
-  }),
+  }, shallowEqual),
   getLastChildId: appSelector((query): string | undefined => {
     const sortedProjects = query(allProjectsSlice.getSortedProjectIds);
 

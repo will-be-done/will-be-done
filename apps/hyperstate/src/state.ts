@@ -360,7 +360,7 @@ export function createSlice<T extends Record<string, Function>>(
 export type Selector<State, Result> = (state: State) => Result;
 
 export type QueryFunction<State> = {
-  <Result>(selector: Selector<State, Result>, equalityFn?: EqualityFn): Result;
+  <Result>(selector: Selector<State, Result>): Result;
 };
 export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
   /**
@@ -409,10 +409,7 @@ export function createSelectorCreator<TRootState = any>() {
       {
         previousState: TRootState | undefined;
         value: TReturn;
-        dependencies: Map<
-          Selector<TRootState, any>,
-          { value: any; equalityFn: EqualityFn }
-        >;
+        dependencies: Map<Selector<TRootState, any>, { value: any }>;
       }
     >();
 
@@ -436,12 +433,9 @@ export function createSelectorCreator<TRootState = any>() {
         }
 
         let changed = false;
-        for (const [
-          selector,
-          { value, equalityFn },
-        ] of mem.dependencies.entries()) {
+        for (const [selector, { value }] of mem.dependencies.entries()) {
           // console.log(selector, equalityFn);
-          if (!equalityFn(selector(state), value)) {
+          if (selector(state) !== value) {
             changed = true;
 
             break;

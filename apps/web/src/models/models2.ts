@@ -376,11 +376,22 @@ export const dailyListsSlice = createSlice(
 
       return isTaskProjection(model) || isTask(model);
     },
+    rawChildrenIdsAndTokens: appSelector(
+      (query, dailyListId: string): { id: string; orderToken: string }[] => {
+        const byIds = query((state) => state.projection.byIds);
+
+        return Object.values(byIds)
+          .filter((proj) => proj.dailyListId === dailyListId)
+          .map((proj) => ({ id: proj.id, orderToken: proj.orderToken }));
+      },
+      deepEqual,
+    ),
     childrenIds: appSelector((query, dailyListId: string): string[] => {
-      const byIds = query((state) => state.projection.byIds);
+      const byIds = query((state) =>
+        dailyListsSlice.rawChildrenIdsAndTokens(state, dailyListId),
+      );
 
       return Object.values(byIds)
-        .filter((proj) => proj.dailyListId === dailyListId)
         .sort(fractionalCompare)
         .map((proj) => proj.id);
     }, shallowEqual),
@@ -457,14 +468,12 @@ export const dailyListsSlice = createSlice(
       },
     ),
     dateIdsMap: appSelector((query): Record<string, string> => {
-      return query(
-        (state) =>
-          Object.fromEntries(
-            Object.values(state.dailyList.byIds).map((d) => [d.date, d.id]),
-          ),
-        deepEqual,
+      const byIds = query((state) => state.dailyList.byIds);
+
+      return Object.fromEntries(
+        Object.values(byIds).map((d) => [d.date, d.id]),
       );
-    }),
+    }, deepEqual),
     idByDate: appSelector((query, date: Date): string | undefined => {
       const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
       const dmy = getDMY(date);
@@ -491,10 +500,10 @@ export const dailyListsSlice = createSlice(
         dropId: string,
         _edge: "top" | "bottom",
       ) => {
-        const lastChild = dailyListsSlice.lastChild(state, dailyListId);
+        const firstChild = dailyListsSlice.firstChild(state, dailyListId);
         const between: [string | null, string | null] = [
-          lastChild?.orderToken || null,
           null,
+          firstChild?.orderToken || null,
         ];
 
         const orderToken = generateJitteredKeyBetween(
@@ -628,7 +637,15 @@ export const projectionsSlice = createSlice(
         query,
         taskProjectionId: string,
       ): [TaskProjection | undefined, TaskProjection | undefined] => {
-        const items = query((state) => allProjectsSlice.childrenIds(state));
+        const item = query((state) =>
+          projectionsSlice.byId(state, taskProjectionId),
+        );
+        if (!item)
+          return shouldNeverHappen("item not found", { taskProjectionId });
+
+        const items = query((state) =>
+          dailyListsSlice.childrenIds(state, item.dailyListId),
+        );
         const i = items.findIndex((it: string) => it === taskProjectionId);
 
         const beforeId = items[i - 1];
@@ -646,16 +663,12 @@ export const projectionsSlice = createSlice(
     ),
 
     projectionIdsByTaskId: appSelector((query, taskId: string): string[] => {
-      const projections = query(
-        (state) =>
-          Object.values(state.projection.byIds).filter(
-            (proj) => proj.taskId === taskId,
-          ),
-        shallowEqual,
-      );
+      const byIds = query((state) => state.projection.byIds);
 
-      return projections.map((p) => p.id);
-    }),
+      return Object.values(byIds)
+        .filter((proj) => proj.taskId === taskId)
+        .map((p) => p.id);
+    }, shallowEqual),
 
     // --actions
     delete: appAction((state: RootState, id: string) => {
@@ -752,9 +765,14 @@ export const projectionsSlice = createSlice(
         const taskProjection = projectionsSlice.byId(state, taskProjectionId);
 
         if (!taskProjection) throw new Error("TaskProjection not found");
+        const newTask = tasksSlice.createSibling(
+          state,
+          taskProjection.taskId,
+          position,
+        );
 
         return projectionsSlice.create(state, {
-          taskId: taskProjection.taskId,
+          taskId: newTask.id,
           dailyListId: taskProjection.dailyListId,
           orderToken: generateKeyPositionedBetween(
             taskProjection,
@@ -797,7 +815,12 @@ export const tasksSlice = createSlice(
         query,
         taskId: string,
       ): [ProjectItem | undefined, ProjectItem | undefined] => {
-        const items = query((state) => allProjectsSlice.childrenIds(state));
+        const task = query((state) => tasksSlice.byId(state, taskId));
+        if (!task) return shouldNeverHappen("task not found", { taskId });
+
+        const items = query((state) =>
+          projectsSlice.childrenIds(state, task.projectId),
+        );
         const i = items.findIndex((it: string) => it === taskId);
         const beforeId = items[i - 1];
         const afterId = items[i + 1];
@@ -952,12 +975,10 @@ export const allProjectsSlice = createSlice(
       return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
     }, shallowEqual),
     childrenIdsWithoutInbox: appSelector((query): string[] => {
-      return query(
-        (state) =>
-          allProjectsSlice.childrenIds(state).filter((id) => id !== inboxId),
-        shallowEqual,
-      );
-    }),
+      const childrenIds = query((state) => allProjectsSlice.childrenIds(state));
+
+      return childrenIds.filter((id) => id !== inboxId);
+    }, shallowEqual),
     firstChild: appSelector((query): Project | undefined => {
       const childrenIds = query((state) => allProjectsSlice.childrenIds(state));
       const firstChildId = childrenIds[0];
@@ -1082,26 +1103,26 @@ export const projectsSlice = createSlice(
       const childrenIds = query((state) =>
         projectsSlice.childrenIds(state, projectId),
       );
-      return query(
-        (state) =>
-          childrenIds
-            .map((id) => tasksSlice.byId(state, id))
-            .map((t) => t?.id)
-            .filter((t) => t !== undefined),
-        shallowEqual,
+      return query((state) =>
+        childrenIds
+          .map((id) => tasksSlice.byId(state, id))
+          .map((t) => t?.id)
+          .filter((t) => t !== undefined),
       );
-    }),
+    }, shallowEqual),
     notDoneTaskIds: appSelector((query, projectId: string): string[] => {
-      return query((state) => {
-        const taskIds = projectsSlice.tasksIds(state, projectId);
-        return taskIds.filter((id) => {
-          const task = query((state) => tasksSlice.byId(state, id));
-          if (!task) return false;
+      const taskIds = query((state) =>
+        projectsSlice.tasksIds(state, projectId),
+      );
+      const byIds = query((state) => state.task.byIds);
 
-          return task.state !== "done";
-        });
-      }, shallowEqual);
-    }),
+      return taskIds.filter((id) => {
+        const task = byIds[id];
+        if (!task) return false;
+
+        return task.state !== "done";
+      });
+    }, shallowEqual),
     withoutTasksByIds: appSelector(
       (query, projectId: string, ids: string[]): string[] => {
         const childrenIds = query((state) =>

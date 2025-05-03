@@ -15,7 +15,7 @@ import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/hooks/ParentListProvider";
-import { buildFocusKey } from "@/states/FocusManager";
+import { buildFocusKey, focusSlice } from "@/states/FocusManager";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import {
   DailyList,
@@ -327,12 +327,17 @@ const BoardView = observer(function BoardViewComponent({
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      dailyListsSlice.createProjection(
+      const projection = dailyListsSlice.createProjection(
         store,
         dailyList.id,
         inboxId,
-        "append",
-        "append",
+        "prepend",
+        "prepend",
+      );
+
+      focusSlice.editByKey(
+        store,
+        buildFocusKey(projection.id, projection.type),
       );
     },
     [store],

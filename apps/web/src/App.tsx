@@ -150,6 +150,8 @@ const GlobalListener = observer(function GlobalListenerComponent() {
 
         const [up, down] = focusManager.getSiblings(focusedItem.key);
 
+        console.log("up", up, "down", down);
+
         if (isUp) {
           if (!up) return;
 
@@ -162,17 +164,19 @@ const GlobalListener = observer(function GlobalListenerComponent() {
       } else if (focusedItem && (isLeft || isRight)) {
         e.preventDefault();
 
-        // TODO: fix it
-        // const [left, right] = focusedItem.siblingColumnsFirstItem;
-        // if (isLeft) {
-        //   if (!left) return;
-        //
-        //   left.focus();
-        // } else if (isRight) {
-        //   if (!right) return;
-        //
-        //   right.focus();
-        // }
+        const [left, right] = focusManager.getSiblingColumnsFirstItem(
+          focusedItem.key,
+        );
+
+        if (isLeft) {
+          if (!left) return;
+
+          focusSlice.focusByKey(store, left.key);
+        } else if (isRight) {
+          if (!right) return;
+
+          focusSlice.focusByKey(store, right.key);
+        }
       }
     };
 

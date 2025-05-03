@@ -107,12 +107,12 @@ export const focusSlice = createSlice(
 
     focusByKey: appAction(
       (state: RootState, key: FocusKey, skipElFocus = false) => {
-        if (state.focus.focusItemKey === key) return state;
+        if (state.focus.focusItemKey === key) return;
 
         state.focus.focusItemKey = key;
         state.focus.editItemKey = undefined;
 
-        if (skipElFocus) return state;
+        if (skipElFocus) return;
 
         const elements = document.querySelectorAll<HTMLElement>(
           '[data-focusable-key="' + key + '"]',
@@ -120,12 +120,12 @@ export const focusSlice = createSlice(
 
         if (!elements.length) {
           shouldNeverHappen("focusable element not found", { key });
-          return state;
+          return;
         }
 
         if (elements.length > 1) {
           shouldNeverHappen("focusable element > 1", { key, elements });
-          return state;
+          return;
         }
 
         const el = elements[0];
@@ -143,7 +143,7 @@ export const focusSlice = createSlice(
     ),
 
     editByKey: appAction((state: RootState, key: FocusKey) => {
-      if (state.focus.editItemKey === key) return state;
+      if (state.focus.editItemKey === key) return;
 
       focusSlice.focusByKey(state, key, true);
       state.focus.editItemKey = key;
@@ -283,7 +283,7 @@ export const focusManager = (() => {
     registerColumn: (item: FocusItem) => {
       if (scope.itemsById[item.key]) return scope.itemsById[item.key];
 
-      if (item.key !== columnKey) {
+      if (item.parentKey !== columnKey) {
         throw new Error("registerColumn only accepts column");
       }
 
@@ -345,10 +345,10 @@ export const focusManager = (() => {
         priority,
       };
     },
-    buildColumn: (parentKey: FocusKey, priority: string): FocusItem => {
+    buildColumn: (key: FocusKey, priority: string): FocusItem => {
       return {
-        key: columnKey,
-        parentKey,
+        key,
+        parentKey: columnKey,
         priority,
       };
     },
@@ -497,10 +497,10 @@ function printNode(
   output: string[],
   manager: {
     itemsById: Record<string, FocusItem>;
-    childrenMap: Record<string, string[]>;
+    childrenByParentId: Record<string, string[]>;
   },
 ) {
-  const childrenKeys = manager.childrenMap[node.key] || [];
+  const childrenKeys = manager.childrenByParentId[node.key] || [];
 
   childrenKeys.forEach((childKey, index) => {
     const childItem = manager.itemsById[childKey];

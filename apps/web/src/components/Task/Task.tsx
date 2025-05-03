@@ -210,12 +210,12 @@ export const TaskComp = observer(function TaskComponent({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dropSlice.handleDrop(store, taskBox.id, id, "top");
+        dropSlice.handleDrop(store, id, taskBox.id, "top");
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dropSlice.handleDrop(store, taskBox.id, id, "top");
+        dropSlice.handleDrop(store, id, taskBox.id, "top");
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -247,7 +247,7 @@ export const TaskComp = observer(function TaskComponent({
           edge = "top";
         }
 
-        dropSlice.handleDrop(store, taskBox.id, id, edge);
+        dropSlice.handleDrop(store, id, taskBox.id, edge);
 
         scroll();
       } else if (isMoveDown && down) {
@@ -274,7 +274,7 @@ export const TaskComp = observer(function TaskComponent({
           edge = "top";
         }
 
-        dropSlice.handleDrop(store, taskBox.id, id, edge);
+        dropSlice.handleDrop(store, id, taskBox.id, edge);
 
         scroll();
       }
@@ -400,7 +400,6 @@ export const TaskComp = observer(function TaskComponent({
           });
         },
         onDragEnter: (args) => {
-          console.log("onDragEnter", args);
           const data = args.source.data;
           if (isModelDNDData(data) && data.modelId !== taskBox.id) {
             setClosestEdge(extractClosestEdge(args.self.data));
@@ -489,6 +488,7 @@ export const TaskComp = observer(function TaskComponent({
             <>
               <div className="flex items-center justify-end">
                 <input
+                  key={task.id}
                   type="checkbox"
                   className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
                   aria-label="Task completion status"
@@ -520,6 +520,7 @@ export const TaskComp = observer(function TaskComponent({
             </>
           )}
         </div>
+        {taskBox.id} - {taskBox.orderToken}
         {showProject && (
           <div className="text-right mt-3 text-gray-400 text-sm">
             {project.icon || "🟡"} {project.title}
