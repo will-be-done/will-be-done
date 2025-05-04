@@ -10,6 +10,7 @@ import {
   appSlice,
   dailyListType,
   inboxId,
+  isTask,
   projectionType,
   projectType,
   RootState,
@@ -120,8 +121,12 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       for (const row of rows) {
         const data = JSON.parse(row.data as unknown as string) as ProjectData;
 
-        rootState[syncMap.modelType].byIds[row.id] =
-          syncMap.mapDataToModel(data);
+        const model = syncMap.mapDataToModel(data);
+        if (isTask(model) && !model.lastToggledAt) {
+          model.lastToggledAt = new Date().getTime();
+        }
+
+        rootState[syncMap.modelType].byIds[row.id] = model;
       }
     }
 

@@ -80,6 +80,8 @@ export const syncMappings: SyncMappingsType = {
         state: data.state as TaskState,
         projectId: data.projectId,
         orderToken: data.orderToken,
+        lastToggledAt:
+          data.lastToggledAt == 0 ? new Date().getTime() : data.lastToggledAt,
       };
     },
     mapModelToData(entity) {
@@ -89,6 +91,7 @@ export const syncMappings: SyncMappingsType = {
         state: entity.state,
         projectId: entity.projectId,
         orderToken: entity.orderToken,
+        lastToggledAt: entity.lastToggledAt,
       };
     },
   } satisfies SyncMapping<typeof tasksTable, typeof taskType>,

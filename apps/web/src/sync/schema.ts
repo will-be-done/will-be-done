@@ -46,6 +46,7 @@ export type TaskData = {
   state: string;
   projectId: string;
   orderToken: string;
+  lastToggledAt: number;
 };
 
 export type TaskTemplateData = {

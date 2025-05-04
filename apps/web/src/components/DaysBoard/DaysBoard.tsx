@@ -26,6 +26,7 @@ import {
   projectsSlice,
   projectionsSlice,
 } from "@/models/models2";
+import clsx from "clsx";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -100,7 +101,13 @@ const AddTaskColumnButton = ({
   );
 };
 
-const TaskProjection = ({ projectionId }: { projectionId: string }) => {
+const TaskProjection = ({
+  projectionId,
+  orderNumber,
+}: {
+  projectionId: string;
+  orderNumber: string;
+}) => {
   const projection = useAppSelector((state) =>
     projectionsSlice.byIdOrDefault(state, projectionId),
   );
@@ -108,6 +115,7 @@ const TaskProjection = ({ projectionId }: { projectionId: string }) => {
   return (
     <>
       <TaskComp
+        orderNumber={orderNumber}
         taskId={projection.taskId}
         taskBoxId={projection.id}
         showProject={true}
@@ -169,6 +177,9 @@ const ColumnView = ({
   const projectionIds = useAppSelector((state) =>
     dailyListsSlice.childrenIds(state, dailyListId),
   );
+  const doneProjectionIds = useAppSelector((state) =>
+    dailyListsSlice.doneChildrenIds(state, dailyListId),
+  );
 
   // TODO: return back
   // const filteredProjections =
@@ -184,6 +195,8 @@ const ColumnView = ({
     return getDMY(new Date()) === dailyList.date;
   }, [dailyList.date]);
 
+  const isOver = dndState.type == "is-task-over";
+
   return (
     <ColumnListProvider
       focusKey={buildFocusKey(dailyList.id, dailyList.type, "ColumnView")}
@@ -191,14 +204,16 @@ const ColumnView = ({
     >
       <div
         key={dailyList.id}
-        className={`flex flex-col min-w-[200px] ${
-          isToday ? "bg-gray-750 rounded-t-lg" : ""
-        } h-full `}
+        className={clsx(
+          "flex flex-col min-w-[200px] h-full border rounded-lg",
+          isToday && "bg-gray-750 rounded-t-lg",
+          isOver ? "border-blue-500" : "border-transparent",
+        )}
         ref={columnRef}
       >
         {/* Day header */}
         <div
-          className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b ${
+          className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b rounded-t-lg ${
             isToday
               ? "text-blue-400 border-blue-500"
               : "text-gray-200 border-gray-700"
@@ -215,13 +230,25 @@ const ColumnView = ({
           className="flex flex-col space-y-2 mt-2 overflow-y-auto"
           ref={scrollableRef}
         >
-          {projectionIds.map((id) => {
-            return <TaskProjection projectionId={id} key={id} />;
+          {projectionIds.map((id, i) => {
+            return (
+              <TaskProjection
+                projectionId={id}
+                key={id}
+                orderNumber={i.toString()}
+              />
+            );
           })}
 
-          {dndState.type == "is-task-over" && projectionIds.length == 0 && (
-            <DropTaskIndicator />
-          )}
+          {doneProjectionIds.map((id, i) => {
+            return (
+              <TaskProjection
+                projectionId={id}
+                key={id}
+                orderNumber={(projectionIds.length + i).toString()}
+              />
+            );
+          })}
 
           {/* Add new task button and input */}
           <div className="mt-2">
@@ -236,9 +263,11 @@ const ColumnView = ({
 const ProjectSuggestions = ({
   projectId,
   dailyListsIds,
+  orderNumber,
 }: {
   projectId: string;
   dailyListsIds: string[];
+  orderNumber: string;
 }) => {
   const project = useAppSelector((state) =>
     projectsSlice.byIdOrDefault(state, projectId),
@@ -257,15 +286,21 @@ const ProjectSuggestions = ({
   return (
     <ParentListItemProvider
       focusKey={buildFocusKey(projectId, project.type, "TaskSuggestions")}
-      priority={project.orderToken}
+      priority={orderNumber}
     >
       <div className="text-gray-400 text-sm mt-6 pb-2">
         {project.icon || "🟡"} {project.title}
       </div>
 
       <div className="flex flex-col gap-2">
-        {taskIds.map((id) => (
-          <TaskComp taskBoxId={id} taskId={id} key={id} showProject={false} />
+        {taskIds.map((id, i) => (
+          <TaskComp
+            taskBoxId={id}
+            orderNumber={i.toString()}
+            taskId={id}
+            key={id}
+            showProject={false}
+          />
         ))}
       </div>
     </ParentListItemProvider>
@@ -289,11 +324,12 @@ const TaskSuggestions = ({ dailyListsIds }: { dailyListsIds: string[] }) => {
 
   return (
     <div className="overflow-y-auto h-full">
-      {selectedProjectIds.map((projectId) => (
+      {selectedProjectIds.map((projectId, i) => (
         <ProjectSuggestions
           key={projectId}
           projectId={projectId}
           dailyListsIds={dailyListsIds}
+          orderNumber={i.toString()}
         />
       ))}
     </div>

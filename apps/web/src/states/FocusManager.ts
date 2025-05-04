@@ -209,6 +209,11 @@ export const focusManager = (() => {
 
   const manager = {
     getItem: (key: FocusKey) => scope.itemsById[key],
+    getColumns: () => {
+      const items = Object.values(scope.itemsById);
+      const columns = items.filter((item) => item.parentKey === columnKey);
+      return columns;
+    },
 
     // editItem: () => {
     //   if (!state.focus.editItemKey) return undefined;
@@ -362,6 +367,29 @@ export const focusManager = (() => {
         priority,
       };
     },
+
+    printNode(node: FocusItem, prefix: string, output: string[]) {
+      const childrenKeys = scope.childrenByParentId[node.key] || [];
+
+      childrenKeys.forEach((childKey, index) => {
+        const childItem = scope.itemsById[childKey];
+        if (!childItem) return;
+
+        const isLastChild = index === childrenKeys.length - 1;
+
+        output.push(
+          `${prefix}${isLastChild ? "└── " : "├── "}${childItem.key} (${
+            childItem.priority
+          })`,
+        );
+
+        focusManager.printNode(
+          childItem,
+          prefix + (isLastChild ? "    " : "│   "),
+          output,
+        );
+      });
+    },
   };
 
   return manager;
@@ -501,37 +529,19 @@ export const focusManager = (() => {
 //   return output.join("\n");
 // }
 
-function printNode(
-  node: FocusItem,
-  prefix: string,
-  output: string[],
-  manager: {
-    itemsById: Record<string, FocusItem>;
-    childrenByParentId: Record<string, string[]>;
-  },
-) {
-  const childrenKeys = manager.childrenByParentId[node.key] || [];
+export const print = () => {
+  for (const column of focusManager.getColumns()) {
+    console.log("column", column.key, column.priority);
 
-  childrenKeys.forEach((childKey, index) => {
-    const childItem = manager.itemsById[childKey];
-    if (!childItem) return;
+    const output: string[] = [];
+    focusManager.printNode(column, "", output);
 
-    const isLastChild = index === childrenKeys.length - 1;
+    console.log(output.join("\n"));
+  }
+};
 
-    output.push(
-      `${prefix}${isLastChild ? "└── " : "├── "}${childItem.key} (${
-        childItem.priority
-      })`,
-    );
-
-    printNode(
-      childItem,
-      prefix + (isLastChild ? "    " : "│   "),
-      output,
-      manager,
-    );
-  });
-}
+// @ts-expect-error it's ok
+window.printFocus = print;
 
 // // Create and export a singleton instance
 // export const focusManager = new FocusManager();

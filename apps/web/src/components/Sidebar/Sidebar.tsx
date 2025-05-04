@@ -65,15 +65,19 @@ const DropProjectIndicator = function DropProjectIndicatorComp() {
 
 const ProjectItem = function ProjectItemComp({
   projectId,
+  orderNumber,
 }: {
   projectId: string;
+  orderNumber: string;
 }) {
+  console.log("orderNumber", projectId, orderNumber);
+
   const project = useAppSelector((state) =>
     projectsSlice.byIdOrDefault(state, projectId),
   );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectItem"),
-    project.orderToken,
+    orderNumber,
   );
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
@@ -321,7 +325,7 @@ const InboxItem = function IboxItemComp() {
   });
   const focusItem = useRegisterFocusItem(
     buildFocusKey(inboxProject.id, inboxProject.type),
-    "0",
+    "*******",
   );
   const isFocused = useAppSelector((state) =>
     focusSlice.isFocused(state, focusItem.key),
@@ -420,7 +424,7 @@ const InboxItem = function IboxItemComp() {
 
 const TodayItem = function TodayItemComp() {
   const id = "today";
-  const focusItem = useRegisterFocusItem(buildFocusKey(id, id), "1");
+  const focusItem = useRegisterFocusItem(buildFocusKey(id, id), "******1");
   const isFocused = useAppSelector((state) =>
     focusSlice.isFocused(state, focusItem.key),
   );
@@ -569,8 +573,8 @@ export const Sidebar = function SidebarComp() {
 
           {/* Projects list - scrollable */}
           <div className="overflow-y-auto h-full  pb-[100px]">
-            {projectIdsWithoutInbox.map((id) => (
-              <ProjectItem key={id} projectId={id} />
+            {projectIdsWithoutInbox.map((id, i) => (
+              <ProjectItem key={id} projectId={id} orderNumber={i.toString()} />
             ))}
           </div>
         </div>

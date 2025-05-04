@@ -38,6 +38,7 @@ import {
   isTaskProjection,
 } from "@/models/models2";
 import { useAppSelector, useAppStore } from "@/hooks/state";
+import { padStart } from "es-toolkit/compat";
 
 type State =
   | { type: "idle" }
@@ -84,10 +85,12 @@ export const TaskComp = ({
   taskId,
   taskBoxId,
   showProject,
+  orderNumber,
 }: {
   taskId: string;
   taskBoxId: string;
   showProject: boolean;
+  orderNumber: string;
 }) => {
   const task = useAppSelector((state) =>
     tasksSlice.byIdOrDefault(state, taskId),
@@ -106,7 +109,7 @@ export const TaskComp = ({
   const store = useAppStore();
   const focusableItem = useRegisterFocusItem(
     buildFocusKey(taskBox.id, taskBox.type),
-    "orderToken" in taskBox ? taskBox.orderToken : "",
+    orderNumber,
   );
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
@@ -219,6 +222,7 @@ export const TaskComp = ({
       }
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
+      if (task.state === "done") return;
 
       const [up, down] = focusManager.getSiblings(focusableItem.key);
 
@@ -300,6 +304,8 @@ export const TaskComp = ({
 
       focusSlice.editByKey(store, focusableItem.key);
     } else if (isAddAfter || isAddBefore) {
+      if (task.state === "done") return;
+
       e.preventDefault();
 
       const newBox = taskBoxesSlice.createSibling(

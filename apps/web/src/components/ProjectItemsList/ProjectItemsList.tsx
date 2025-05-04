@@ -1,7 +1,11 @@
-import { Project, projectsSlice } from "../../models/models2";
+import { Project, projectsSlice, tasksSlice } from "../../models/models2";
 import { TaskComp } from "../Task/Task";
 import { buildFocusKey, focusSlice } from "@/states/FocusManager";
-import { ColumnListProvider } from "@/hooks/ParentListProvider";
+import {
+  ColumnListProvider,
+  ParentListItemProvider,
+} from "@/hooks/ParentListProvider";
+import { generateKeyBetween } from "fractional-indexing-jittered";
 import { useRegisterFocusItem } from "@/hooks/useLists";
 import {
   EmojiPicker,
@@ -14,6 +18,7 @@ import { useCallback, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement";
 import { cn } from "@/lib/utils";
 import { useAppSelector, useAppStore } from "@/hooks/state";
+import { padStart } from "es-toolkit/compat";
 
 const AddTaskButton = ({
   project,
@@ -154,7 +159,10 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 
 export const ProjectItemsList = ({ project }: { project: Project }) => {
   const store = useAppStore();
-  const taskIds = useAppSelector((state) =>
+  const doneChildrenIds = useAppSelector((state) =>
+    projectsSlice.doneChildrenIds(state, project.id),
+  );
+  const notDoneChildrenIds = useAppSelector((state) =>
     projectsSlice.childrenIds(state, project.id),
   );
 
@@ -163,6 +171,17 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
 
     focusSlice.editByKey(store, buildFocusKey(newTask.id, newTask.type));
   }, [project.id, store]);
+
+  const lastTaskI =
+    notDoneChildrenIds.length == 0 ? 0 : notDoneChildrenIds.length - 1;
+  // const lastTaskId = notDoneChildrenIds[notDoneChildrenIds.length - 1];
+  // const lastTask = useAppSelector((state) =>
+  //   lastTaskId ? tasksSlice.byIdOrDefault(state, lastTaskId) : null,
+  // );
+  // const notDonePriority = generateKeyBetween(
+  //   lastTask?.orderToken || null,
+  //   null,
+  // );
 
   return (
     <ColumnListProvider
@@ -189,11 +208,37 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
             </button>
           </div>
           <div className="flex flex-col space-y-2 mt-5 overflow-y-auto">
-            {taskIds.map((id) => {
+            {notDoneChildrenIds.map((id, i) => {
               return (
-                <TaskComp taskId={id} taskBoxId={id} showProject={false} />
+                <TaskComp
+                  orderNumber={i.toString()}
+                  key={id}
+                  taskId={id}
+                  taskBoxId={id}
+                  showProject={false}
+                />
               );
             })}
+            <ParentListItemProvider
+              focusKey={buildFocusKey(
+                project.id,
+                project.type,
+                "DoneProjectionsList",
+              )}
+              priority={(lastTaskI + 1).toString()}
+            >
+              {doneChildrenIds.map((id, i) => {
+                return (
+                  <TaskComp
+                    orderNumber={i.toString()}
+                    key={id}
+                    taskId={id}
+                    taskBoxId={id}
+                    showProject={false}
+                  />
+                );
+              })}
+            </ParentListItemProvider>
           </div>
 
           {/* Add new task button and input */}

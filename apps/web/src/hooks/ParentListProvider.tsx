@@ -2,6 +2,7 @@ import { PropsWithChildren, useEffect, useMemo } from "react";
 import { ParentListContext, useRegisterFocusItem } from "./useLists";
 import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager";
 import { useAppStore } from "./state";
+import { padStart } from "es-toolkit/compat";
 
 export const ColumnListProvider = ({
   focusKey,
@@ -12,10 +13,11 @@ export const ColumnListProvider = ({
   priority: string;
 }>) => {
   const store = useAppStore();
+  const paddedPriority = padStart(priority, 7, "0");
 
   const item = useMemo(() => {
-    return focusManager.buildColumn(focusKey, priority);
-  }, [focusKey, priority]);
+    return focusManager.buildColumn(focusKey, paddedPriority);
+  }, [focusKey, paddedPriority]);
 
   useEffect(() => {
     focusManager.registerColumn(item);
@@ -36,7 +38,9 @@ export const ParentListItemProvider = ({
   priority,
   children,
 }: PropsWithChildren<{ focusKey: FocusKey; priority: string }>) => {
-  useRegisterFocusItem(focusKey, priority);
+  const paddedPriority = padStart(priority, 7, "0");
+
+  useRegisterFocusItem(focusKey, paddedPriority);
 
   return (
     <ParentListContext.Provider value={focusKey}>

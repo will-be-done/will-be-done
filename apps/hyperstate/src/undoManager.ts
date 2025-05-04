@@ -29,7 +29,7 @@ export interface UndoManagerOptions {
 
 export const undoDisabledContext = createContext<boolean>(
   "undoDisabledContext",
-  false,
+  false
 );
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,7 +40,7 @@ export class UndoManager<T = any> {
 
   constructor(
     private store: StoreApi<T>,
-    private options: UndoManagerOptions = {},
+    private options: UndoManagerOptions = {}
   ) {
     // Subscribe to store changes
     this.store.subscribe(this.handleStoreChange);
@@ -51,7 +51,7 @@ export class UndoManager<T = any> {
     _state: T,
     _prevState: T,
     patches: Patch[],
-    inversePatches: Patch[],
+    inversePatches: Patch[]
   ) => {
     console.log("without undo", store.getContextValue(undoDisabledContext));
     // Skip recording if in the middle of undo/redo or if disabled
@@ -152,7 +152,7 @@ export class UndoManager<T = any> {
       storeWithUndoDisabled.____setState(
         newState,
         event.inversePatches,
-        event.patches,
+        event.patches
       );
     } finally {
       this.isUndoRedoing = false;
@@ -197,7 +197,7 @@ export class UndoManager<T = any> {
       storeWithUndoDisabled.____setState(
         newState,
         event.patches,
-        event.inversePatches,
+        event.inversePatches
       );
     } finally {
       this.isUndoRedoing = false;
@@ -221,7 +221,7 @@ export class UndoManager<T = any> {
 
 export const undoManagerContext = createContext<UndoManager | undefined>(
   "undoManager",
-  undefined,
+  undefined
 );
 
 export const getUndoManager = <T>(store: StoreApi<T>): UndoManager => {
@@ -241,17 +241,17 @@ export const getUndoManager = <T>(store: StoreApi<T>): UndoManager => {
  */
 export function withUndoManager<TState extends object>(
   store: StoreApi<TState>,
-  options?: UndoManagerOptions,
+  options?: UndoManagerOptions
 ): StoreApi<TState> {
   return store.withContextValue(
     undoManagerContext,
-    new UndoManager(store, options),
+    new UndoManager(store, options)
   );
 }
 
 export function withoutUndo<T, R>(
   store: StoreApi<T>,
-  fn: (store: StoreApi<T>) => R,
+  fn: (store: StoreApi<T>) => R
 ): R {
   return fn(store.withContextValue(undoDisabledContext, true));
 }
@@ -259,7 +259,7 @@ export function withoutUndo<T, R>(
 export function withoutUndoAction<
   TRootState,
   TReturn = unknown,
-  TParams extends unknown[] = unknown[],
+  TParams extends unknown[] = unknown[]
 >(fn: (arg: TRootState | StoreApi<TRootState>, ...params: TParams) => TReturn) {
   return (arg: TRootState | StoreApi<TRootState>, ...params: TParams) => {
     if (isDraft(arg)) {
