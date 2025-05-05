@@ -1,4 +1,10 @@
-import { appAction, appSelector, RootState } from "@/models/models2";
+import {
+  AnyModel,
+  appAction,
+  appSelector,
+  appSlice,
+  RootState,
+} from "@/models/models2";
 import { shouldNeverHappen } from "@/utils";
 import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
 
@@ -268,6 +274,33 @@ export const focusManager = (() => {
       return [allItems[index - 1], allItems[index + 1]] as [
         FocusItem | undefined,
         FocusItem | undefined,
+      ];
+    },
+
+    getModelSiblings(
+      state: RootState,
+      key: FocusKey,
+    ): [
+      [FocusItem, AnyModel] | [undefined, undefined],
+      [FocusItem, AnyModel] | [undefined, undefined],
+    ] {
+      const [up, down] = manager.getSiblings(key);
+
+      let upModel: AnyModel | undefined = undefined;
+      if (up) {
+        const { id } = parseColumnKey(up.key);
+        upModel = appSlice.byId(state, id);
+      }
+
+      let downModel: AnyModel | undefined = undefined;
+      if (down) {
+        const { id } = parseColumnKey(down.key);
+        downModel = appSlice.byId(state, id);
+      }
+
+      return [
+        up && upModel ? [up, upModel] : [undefined, undefined],
+        down && downModel ? [down, downModel] : [undefined, undefined],
       ];
     },
 

@@ -94,7 +94,7 @@ export const timeCompare = <T extends { lastToggledAt: number; id: string }>(
     return item1.id > item2.id ? 1 : -1;
   }
 
-  return item1.lastToggledAt > item2.lastToggledAt ? 1 : -1;
+  return item1.lastToggledAt < item2.lastToggledAt ? 1 : -1;
 };
 
 interface OrderableItem {
@@ -187,7 +187,12 @@ export type DailyList = {
   date: string;
 };
 
-type AnyModel = Project | Task | TaskTemplate | TaskProjection | DailyList;
+export type AnyModel =
+  | Project
+  | Task
+  | TaskTemplate
+  | TaskProjection
+  | DailyList;
 
 type ModelType<T> = T extends { type: infer U } ? U : never;
 type ModelTypeUnion = ModelType<AnyModel>;
@@ -317,6 +322,22 @@ export const appSlice = createSlice(
       }
 
       return entity;
+    },
+    taskOfModelId(state: RootState, id: string): Task | undefined {
+      const model = appSlice.byId(state, id);
+      if (!model) return undefined;
+
+      return appSlice.taskOfModel(state, model);
+    },
+
+    taskOfModel(state: RootState, model: AnyModel): Task | undefined {
+      if (isTask(model)) {
+        return model;
+      } else if (isTaskProjection(model)) {
+        return tasksSlice.byId(state, model.taskId);
+      } else {
+        return undefined;
+      }
     },
   },
   "appSlice",

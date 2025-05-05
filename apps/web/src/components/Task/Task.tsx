@@ -129,33 +129,34 @@ export const TaskComp = ({
     }
   };
 
-  const handleTick = useCallback(
-    (moveFocus: boolean = false) => {
-      // const isFocused = focusableItem.isFocused;
-      // const [up, down] = focusableItem.siblings;
-      tasksSlice.toggleState(store, taskId);
-      //
-      // if (!moveFocus) return;
-      //
-      // if (wasMoved && isFocused) {
-      //   setTimeout(() => {
-      //     if (up) {
-      //       focusManager.focusByKey(up.key);
-      //     } else if (down) {
-      //       focusManager.focusByKey(down.key);
-      //     }
-      //   }, 0);
-      // }
-    },
-    [store, taskId],
-  );
-
   const isFocused = useAppSelector((state) =>
     focusSlice.isFocused(state, focusableItem.key),
   );
   const isEditing = useAppSelector((state) =>
     focusSlice.isEditing(state, focusableItem.key),
   );
+
+  const handleTick = useCallback(() => {
+    const [[up, upModel], [down, downModel]] = focusManager.getModelSiblings(
+      store.getState(),
+      focusableItem.key,
+    );
+
+    const taskState = task.state;
+    tasksSlice.toggleState(store, taskId);
+
+    if (!isFocused) return;
+
+    const upTask = upModel && appSlice.taskOfModel(store.getState(), upModel);
+    const downTask =
+      downModel && appSlice.taskOfModel(store.getState(), downModel);
+
+    if (downTask && downTask.state === taskState) {
+      focusSlice.focusByKey(store, down.key);
+    } else if (upTask && upTask.state === taskState) {
+      focusSlice.focusByKey(store, up.key);
+    }
+  }, [focusableItem.key, isFocused, store, task.state, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
@@ -197,7 +198,7 @@ export const TaskComp = ({
     if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
-      handleTick(true);
+      handleTick();
     } else if (e.code === "KeyM" && noModifiers) {
       e.preventDefault();
 
