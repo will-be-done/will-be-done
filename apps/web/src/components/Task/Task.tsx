@@ -39,6 +39,7 @@ import {
 } from "@/models/models2";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import { padStart } from "es-toolkit/compat";
+import clsx from "clsx";
 
 type State =
   | { type: "idle" }
@@ -73,10 +74,18 @@ const TaskPrimitive = ({
   );
 };
 
-export const DropTaskIndicator = () => {
+export const DropTaskIndicator = ({
+  direction,
+}: {
+  direction: "top" | "bottom";
+}) => {
   return (
     <div
-      className={`p-3 rounded-lg border border-blue-500 bg-gray-700 shadow-md transition-colors h-12`}
+      className={clsx(
+        "absolute left-0 right-0 bottom-0 w-full bg-blue-500 h-[2px]",
+        direction == "top" && "top-[-5px]",
+        direction == "bottom" && "bottom-[-5px]",
+      )}
     ></div>
   );
 };
@@ -128,6 +137,7 @@ export const TaskComp = ({
       // }
     }
   };
+  const [dragId, setDragId] = useState<string | undefined>(undefined);
 
   const isFocused = useAppSelector((state) =>
     focusSlice.isFocused(state, focusableItem.key),
@@ -407,21 +417,25 @@ export const TaskComp = ({
         },
         onDragEnter: (args) => {
           const data = args.source.data;
-          if (isModelDNDData(data) && data.modelId !== taskBox.id) {
+          if (isModelDNDData(data)) {
+            setDragId(data.modelId);
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
         onDrag: (args) => {
           const data = args.source.data;
 
-          if (isModelDNDData(data) && data.modelId !== taskBox.id) {
+          if (isModelDNDData(data)) {
+            setDragId(data.modelId);
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
         onDragLeave: () => {
+          setDragId(undefined);
           setClosestEdge(null);
         },
         onDrop: () => {
+          setDragId(undefined);
           setClosestEdge(null);
         },
       }),
@@ -470,18 +484,50 @@ export const TaskComp = ({
     }
   });
 
-  return (
-    <>
-      {closestEdge == "top" && <DropTaskIndicator />}
+  // const [isHidden, setIsHidden] = useState(false);
+  // const isSelfDragging = dragId === taskBox.id;
+  // useEffect(() => {
+  //   const id = setTimeout(() => {
+  //     setIsHidden(
+  //       (dndState?.type === "dragging" || dndState?.type === "preview") &&
+  //         !isSelfDragging,
+  //     );
+  //   }, 40);
+  //
+  //   return () => {
+  //     clearTimeout(id);
+  //   };
+  // }, [dndState, isHidden, isSelfDragging]);
+  //
+  // console.log(
+  //   "isSelfDragging",
+  //   "dndState",
+  //   dndState.type,
+  //   "isSelfDragging",
+  //   isSelfDragging,
+  // );
+  //
+  // console.log("isHidden", isHidden);
 
+  return (
+    <div className="relative">
+      {closestEdge == "top" && <DropTaskIndicator direction="top" />}
       <div
         data-focusable-key={focusableItem.key}
         tabIndex={0}
-        className={`p-3 rounded-lg border ${
+        className={clsx(
+          `relative p-3 rounded-lg border  shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`,
           isFocused
             ? "border-blue-500 bg-gray-700"
-            : "border-gray-700 bg-gray-750"
-        } shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`}
+            : "border-gray-700 bg-gray-750",
+
+          // (dndState.type === "dragging" || dndState.type === "preview") &&
+          //   !isSelfDragging &&
+          //   "hidden",
+
+          // isHidden && "hidden",
+          // isSelfDragging && "h-12",
+        )}
         style={{}}
         onClick={() => focusSlice.focusByKey(store, focusableItem.key, true)}
         onDoubleClick={(e) => {
@@ -489,51 +535,56 @@ export const TaskComp = ({
         }}
         ref={ref}
       >
-        <div className="flex items-start gap-2">
-          {isEditing ? (
-            <>
-              <div className="flex items-center justify-end">
-                <input
-                  key={task.id}
-                  type="checkbox"
-                  className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
-                  aria-label="Task completion status"
+        {/* {!isSelfDragging && ( */}
+        <>
+          <div className="flex items-start gap-2">
+            {isEditing ? (
+              <>
+                <div className="flex items-center justify-end">
+                  <input
+                    key={task.id}
+                    type="checkbox"
+                    className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
+                    aria-label="Task completion status"
+                  />
+                </div>
+                <TextareaAutosize
+                  ref={handleRef}
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  onKeyDown={(e) => handleInputKeyDown(e)}
+                  className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none "
+                  aria-label="Edit task title"
                 />
-              </div>
-              <TextareaAutosize
-                ref={handleRef}
-                value={editingTitle}
-                onChange={(e) => setEditingTitle(e.target.value)}
-                onKeyDown={(e) => handleInputKeyDown(e)}
-                className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none "
-                aria-label="Edit task title"
-              />
-            </>
-          ) : (
-            <>
-              <div className="flex justify-end">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
-                  checked={task.state === "done"}
-                  onChange={(e) => {
-                    handleTick();
-                  }}
-                  aria-label="Task completion status"
-                />
-              </div>
-              <div className="text-gray-200 min-h-6">{task.title}</div>
-            </>
-          )}
-        </div>
-        {showProject && (
-          <div className="text-right mt-3 text-gray-400 text-sm">
-            {project.icon || "🟡"} {project.title}
+              </>
+            ) : (
+              <>
+                <div className="flex justify-end">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
+                    checked={task.state === "done"}
+                    onChange={(e) => {
+                      handleTick();
+                    }}
+                    aria-label="Task completion status"
+                  />
+                </div>
+                <div className="text-gray-200 min-h-6">{task.title}</div>
+              </>
+            )}
           </div>
-        )}
+          {showProject && (
+            <div className="text-right mt-3 text-gray-400 text-sm">
+              {project.icon || "🟡"} {project.title}
+            </div>
+          )}
+        </>
+        {/* )} */}
       </div>
+      {closestEdge == "bottom" && <DropTaskIndicator direction="bottom" />}
 
-      {closestEdge == "bottom" && <DropTaskIndicator />}
+      {/* {!isSelfDragging && closestEdge == "bottom" && <DropTaskIndicator />} */}
 
       {dndState.type === "preview" &&
         ReactDOM.createPortal(
@@ -556,6 +607,6 @@ export const TaskComp = ({
           exceptProjectId={project.id}
         />
       )}
-    </>
+    </div>
   );
 };
