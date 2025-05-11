@@ -80,6 +80,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
             icon: "",
             isInbox: true,
             orderToken: generateJitteredKeyBetween(null, null),
+            createdAt: new Date().getTime(),
           },
         },
       },

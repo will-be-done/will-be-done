@@ -157,9 +157,10 @@ export const TaskComp = ({
 
     if (!isFocused) return;
 
-    const upTask = upModel && appSlice.taskOfModel(store.getState(), upModel);
+    const upTask =
+      upModel && taskBoxesSlice.taskOfModel(store.getState(), upModel);
     const downTask =
-      downModel && appSlice.taskOfModel(store.getState(), downModel);
+      downModel && taskBoxesSlice.taskOfModel(store.getState(), downModel);
 
     if (downTask && downTask.state === taskState) {
       focusSlice.focusByKey(store, down.key);
@@ -330,19 +331,19 @@ export const TaskComp = ({
     }
   });
 
-  useGlobalListener("mousedown", (e: MouseEvent) => {
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
-
-    if (
-      isFocused &&
-      ref.current &&
-      !ref.current.contains(e.target as Node) &&
-      !isFocusDisabled &&
-      !e.defaultPrevented
-    ) {
-      focusSlice.resetFocus(store);
-    }
-  });
+  // useGlobalListener("mousedown", (e: MouseEvent) => {
+  //   const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+  //
+  //   if (
+  //     isFocused &&
+  //     ref.current &&
+  //     !ref.current.contains(e.target as Node) &&
+  //     !isFocusDisabled &&
+  //     !e.defaultPrevented
+  //   ) {
+  //     focusSlice.resetFocus(store);
+  //   }
+  // });
 
   const handleMove = (projectId: string) => {
     try {
@@ -449,18 +450,18 @@ export const TaskComp = ({
     el.selectionStart = el.value.length;
   }, []);
 
-  useEffect(() => {
-    if (isFocused) {
-      const el = ref.current;
-      if (!el) return;
-
-      // el.scrollIntoView({
-      //   behavior: "smooth",
-      //   block: "center",
-      //   inline: "center",
-      // });
-    }
-  }, [isFocused]);
+  // useEffect(() => {
+  //   if (isFocused) {
+  //     const el = ref.current;
+  //     if (!el) return;
+  //
+  //     // el.scrollIntoView({
+  //     //   behavior: "smooth",
+  //     //   block: "center",
+  //     //   inline: "center",
+  //     // });
+  //   }
+  // }, [isFocused]);
 
   const prevIsEditing = usePrevious(isEditing);
   const taskTitle = task.title;

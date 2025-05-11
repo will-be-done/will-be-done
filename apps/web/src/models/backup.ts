@@ -22,6 +22,7 @@ interface TaskBackup {
   projectId: string;
   orderToken: string;
   lastToggledAt: number;
+  createdAt: number;
 }
 
 interface ProjectBackup {
@@ -30,6 +31,7 @@ interface ProjectBackup {
   icon: string;
   isInbox: boolean;
   orderToken: string;
+  createdAt: number;
 }
 
 interface DailyListBackup {
@@ -42,6 +44,7 @@ interface DailyListProjectionBackup {
   taskId: string;
   orderToken: string;
   listId: string;
+  createdAt: number;
 }
 
 export interface Backup {
@@ -66,6 +69,7 @@ export const getBackups = (state: RootState): Backup => {
       projectId: task.projectId,
       orderToken: task.orderToken,
       lastToggledAt: task.lastToggledAt,
+      createdAt: task.createdAt,
     });
   }
 
@@ -77,6 +81,7 @@ export const getBackups = (state: RootState): Backup => {
       icon: project.icon,
       isInbox: project.isInbox,
       orderToken: project.orderToken,
+      createdAt: project.createdAt,
     });
   }
 
@@ -95,6 +100,7 @@ export const getBackups = (state: RootState): Backup => {
       taskId: projection.taskId,
       orderToken: projection.orderToken,
       listId: projection.dailyListId,
+      createdAt: projection.createdAt,
     });
   }
 
@@ -118,6 +124,7 @@ export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
       icon: projectBackup.icon,
       isInbox: projectBackup.isInbox,
       orderToken: projectBackup.orderToken,
+      createdAt: projectBackup.createdAt,
     };
 
     changes.push({
@@ -146,6 +153,7 @@ export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
       projectId: taskBackup.projectId,
       orderToken: taskBackup.orderToken,
       lastToggledAt: taskBackup.lastToggledAt,
+      createdAt: taskBackup.createdAt,
     };
 
     changes.push({
@@ -196,6 +204,7 @@ export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
     }
 
     const projection: TaskProjection = {
+      createdAt: projectionBackup.createdAt,
       type: projectionType,
       id: projectionBackup.id,
       taskId: projectionBackup.taskId,

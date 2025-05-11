@@ -27,6 +27,7 @@ import {
   projectionsSlice,
 } from "@/models/models2";
 import clsx from "clsx";
+import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -213,7 +214,7 @@ const ColumnView = ({
       >
         {/* Day header */}
         <div
-          className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b rounded-t-lg ${
+          className={`text-center font-bold pb-2 sticky top-0 bg-gray-800 border-b z-100 mt-2 ${
             isToday
               ? "text-blue-400 border-blue-500"
               : "text-gray-200 border-gray-700"
@@ -227,7 +228,7 @@ const ColumnView = ({
 
         {/* Tasks column */}
         <div
-          className="flex flex-col space-y-2 mt-2 overflow-y-auto"
+          className="flex flex-col space-y-2 mt-2 overflow-y-auto pt-1"
           ref={scrollableRef}
         >
           {projectionIds.map((id, i) => {
@@ -257,82 +258,6 @@ const ColumnView = ({
         </div>
       </div>
     </ColumnListProvider>
-  );
-};
-
-const ProjectSuggestions = ({
-  projectId,
-  dailyListsIds,
-  orderNumber,
-}: {
-  projectId: string;
-  dailyListsIds: string[];
-  orderNumber: string;
-}) => {
-  const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectId),
-  );
-
-  const taskIds = useAppSelector((state) =>
-    dailyListsSlice.notDoneTaskIdsExceptDailies(
-      state,
-      projectId,
-      dailyListsIds,
-    ),
-  );
-
-  if (taskIds.length == 0) return null;
-
-  return (
-    <ParentListItemProvider
-      focusKey={buildFocusKey(projectId, project.type, "TaskSuggestions")}
-      priority={orderNumber}
-    >
-      <div className="text-gray-400 text-sm mt-6 pb-2">
-        {project.icon || "🟡"} {project.title}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        {taskIds.map((id, i) => (
-          <TaskComp
-            taskBoxId={id}
-            orderNumber={i.toString()}
-            taskId={id}
-            key={id}
-            showProject={false}
-          />
-        ))}
-      </div>
-    </ParentListItemProvider>
-  );
-};
-const TaskSuggestions = ({ dailyListsIds }: { dailyListsIds: string[] }) => {
-  const selectedProjectIds = useAppSelector((state) =>
-    allProjectsSlice.childrenIds(state),
-  );
-
-  // TODO: feilter by selectedProjectIds
-  // const selectedProjectIds = useSelectedProjectIds(
-  //   (state) => state.selectedProjectIds,
-  // );
-  // const selectedProjects =
-  //   selectedProjectIds.length > 0
-  //     ? allProjectsList.children.filter((project) =>
-  //         selectedProjectIds.includes(project.id),
-  //       )
-  //     : allProjectsList.children;
-
-  return (
-    <div className="overflow-y-auto h-full">
-      {selectedProjectIds.map((projectId, i) => (
-        <ProjectSuggestions
-          key={projectId}
-          projectId={projectId}
-          dailyListsIds={dailyListsIds}
-          orderNumber={i.toString()}
-        />
-      ))}
-    </div>
   );
 };
 
@@ -375,9 +300,9 @@ const BoardView = ({
   );
 
   return (
-    <div className="grid grid-cols-7 gap-4 h-full">
+    <div className="h-full">
       {/* 80% section (4/5 columns) */}
-      <div className="col-span-5 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
+      <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center">
             <button
@@ -468,23 +393,6 @@ const BoardView = ({
           </div>
         </div>
       </div>
-
-      <ColumnListProvider
-        focusKey={buildFocusKey(
-          "task-suggestions",
-          "task-suggestions",
-          "BoardView",
-        )}
-        priority="500"
-      >
-        {/* 20% section (1/5 columns) */}
-        <div className="col-span-2 bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 h-full overflow-y-auto">
-          <h2 className="text-xl font-bold mb-4 text-gray-100">
-            Task Suggestions
-          </h2>
-          <TaskSuggestions dailyListsIds={dailyListsIds} />
-        </div>
-      </ColumnListProvider>
     </div>
   );
 };
@@ -552,6 +460,14 @@ export const Board = () => {
   useEffect(() => {
     dailyListsSlice.createManyIfNotPresent(store, weekDays);
   }, [store, weekDays]);
+
+  const setExceptDailyListIds = useSuggestionsStore(
+    (state) => state.setExceptDailyListIds,
+  );
+
+  useEffect(() => {
+    setExceptDailyListIds(dailyListsIds);
+  }, [dailyListsIds, setExceptDailyListIds]);
 
   return (
     <BoardView

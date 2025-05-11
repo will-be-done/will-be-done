@@ -31,6 +31,7 @@ import { shouldNeverHappen } from "./utils";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/entry-point/types";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import { TaskDetails } from "./components/TaskDetails/TaskDetails";
 
 const GlobalListener = () => {
   const store = useAppStore();
@@ -303,9 +304,11 @@ export const App = () => {
           <KeyPressedCtxProvider>
             <GlobalListener />
 
-            <div className="w-full h-screen bg-gray-900 overflow-hidden flex">
-              <Sidebar />
-              <div className="flex-1 p-4 overflow-hidden">
+            <div className="w-full h-screen bg-gray-900 overflow-hidden grid grid-cols-20 gap-2 py-2 px-2">
+              <div className="col-span-4 overflow-hidden">
+                <Sidebar />
+              </div>
+              <div className="flex-1 overflow-hidden col-span-12">
                 <Switch>
                   <Route path="/today" component={Board} />
                   <Route path="/projects/:projectId" component={ProjectPage} />
@@ -313,6 +316,10 @@ export const App = () => {
                     <Redirect to="/today" />
                   </Route>
                 </Switch>
+              </div>
+
+              <div className="col-span-4">
+                <TaskDetails />
               </div>
             </div>
           </KeyPressedCtxProvider>

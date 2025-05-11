@@ -57,6 +57,7 @@ export const syncMappings: SyncMappingsType = {
         icon: data.icon,
         isInbox: data.isInbox,
         orderToken: data.orderToken,
+        createdAt: data.createdAt ?? 0,
       };
     },
     mapModelToData(entity) {
@@ -66,6 +67,7 @@ export const syncMappings: SyncMappingsType = {
         icon: entity.icon,
         isInbox: entity.isInbox,
         orderToken: entity.orderToken,
+        createdAt: entity.createdAt,
       };
     },
   } satisfies SyncMapping<typeof projectsTable, typeof projectType>,
@@ -82,6 +84,7 @@ export const syncMappings: SyncMappingsType = {
         orderToken: data.orderToken,
         lastToggledAt:
           data.lastToggledAt == 0 ? new Date().getTime() : data.lastToggledAt,
+        createdAt: data.createdAt ?? 0,
       };
     },
     mapModelToData(entity) {
@@ -92,6 +95,7 @@ export const syncMappings: SyncMappingsType = {
         projectId: entity.projectId,
         orderToken: entity.orderToken,
         lastToggledAt: entity.lastToggledAt,
+        createdAt: entity.createdAt,
       };
     },
   } satisfies SyncMapping<typeof tasksTable, typeof taskType>,
@@ -104,6 +108,7 @@ export const syncMappings: SyncMappingsType = {
         id: data.id,
         projectId: data.projectId,
         orderToken: data.orderToken,
+        createdAt: data.createdAt ?? 0,
       };
     },
     mapModelToData(entity) {
@@ -111,6 +116,7 @@ export const syncMappings: SyncMappingsType = {
         id: entity.id,
         projectId: entity.projectId,
         orderToken: entity.orderToken,
+        createdAt: entity.createdAt,
       };
     },
   } satisfies SyncMapping<typeof taskTemplatesTable, typeof taskTemplateType>,
@@ -124,6 +130,7 @@ export const syncMappings: SyncMappingsType = {
         taskId: data.taskId,
         orderToken: data.orderToken,
         dailyListId: data.dailyListId,
+        createdAt: data.createdAt ?? 0,
       };
     },
     mapModelToData(entity) {
@@ -132,6 +139,7 @@ export const syncMappings: SyncMappingsType = {
         taskId: entity.taskId,
         orderToken: entity.orderToken,
         dailyListId: entity.dailyListId,
+        createdAt: entity.createdAt,
       };
     },
   } satisfies SyncMapping<typeof taskProjectionsTable, typeof projectionType>,

@@ -149,6 +149,7 @@ export type Project = {
   icon: string;
   isInbox: boolean;
   orderToken: string;
+  createdAt: number;
 };
 
 type ProjectItem = Task | TaskTemplate;
@@ -162,6 +163,7 @@ export type Task = {
   projectId: string;
   orderToken: string;
   lastToggledAt: number;
+  createdAt: number;
 };
 
 export type TaskTemplate = {
@@ -169,6 +171,7 @@ export type TaskTemplate = {
   id: string;
   projectId: string;
   orderToken: string;
+  createdAt: number;
 };
 
 export type TaskProjection = {
@@ -177,6 +180,7 @@ export type TaskProjection = {
   taskId: string;
   orderToken: string;
   dailyListId: string;
+  createdAt: number;
 };
 
 export type TaskBox = Task | TaskProjection;
@@ -284,6 +288,7 @@ export const appSlice = createSlice(
           projectId: "",
           orderToken: "",
           lastToggledAt: 0,
+          createdAt: 0,
         };
 
       return entity;
@@ -316,6 +321,7 @@ export const appSlice = createSlice(
           icon: "",
           isInbox: false,
           orderToken: "",
+          createdAt: 0,
         };
 
         return project;
@@ -323,14 +329,42 @@ export const appSlice = createSlice(
 
       return entity;
     },
-    taskOfModelId(state: RootState, id: string): Task | undefined {
-      const model = appSlice.byId(state, id);
+  },
+  "appSlice",
+);
+
+export const taskBoxesSlice = createSlice(
+  {
+    taskOfModelId: appSelector((query, id: string): Task | undefined => {
+      const model = query((state) => appSlice.byId(state, id));
       if (!model) return undefined;
 
-      return appSlice.taskOfModel(state, model);
-    },
+      return query((state) => taskBoxesSlice.taskOfModel(state, model));
+    }),
+    taskOfModelIdOrDefault: appSelector((query, id: string): Task => {
+      const model = query((state) => appSlice.byId(state, id));
+      const defaultTask: Task = {
+        type: taskType,
+        id,
+        title: "",
+        state: "todo",
+        projectId: "",
+        orderToken: "",
+        lastToggledAt: 0,
+        createdAt: 0,
+      };
 
-    taskOfModel(state: RootState, model: AnyModel): Task | undefined {
+      if (!model) {
+        return defaultTask;
+      }
+
+      return (
+        query((state) => taskBoxesSlice.taskOfModel(state, model)) ||
+        defaultTask
+      );
+    }),
+
+    taskOfModel: (state: RootState, model: AnyModel): Task | undefined => {
       if (isTask(model)) {
         return model;
       } else if (isTaskProjection(model)) {
@@ -339,12 +373,6 @@ export const appSlice = createSlice(
         return undefined;
       }
     },
-  },
-  "appSlice",
-);
-
-export const taskBoxesSlice = createSlice(
-  {
     delete: appAction((state: RootState, id: string) => {
       const taskBox = appSlice.byId(state, id);
       if (!taskBox) return shouldNeverHappen("entity not found");
@@ -499,9 +527,9 @@ export const dailyListsSlice = createSlice(
       );
     }, shallowEqual),
     notDoneTaskIdsExceptDailies: appSelector(
-      (query, projectId: string, dailyListIds: string[]): string[] => {
+      (query, projectId: string, exceptDailyListIds: string[]): string[] => {
         const exceptTaskIds = query((state) =>
-          dailyListsSlice.allTaskIds(state, dailyListIds),
+          dailyListsSlice.allTaskIds(state, exceptDailyListIds),
         );
         const notDoneTaskIds = query((state) =>
           projectsSlice.notDoneTaskIds(state, projectId),
@@ -695,6 +723,7 @@ export const projectionsSlice = createSlice(
           taskId: "",
           orderToken: "",
           dailyListId: "",
+          createdAt: 0,
         };
 
       return proj;
@@ -840,6 +869,7 @@ export const projectionsSlice = createSlice(
         const newTaskProjection: TaskProjection = {
           type: projectionType,
           id,
+          createdAt: new Date().getTime(),
           ...taskProjection,
         };
 
@@ -910,6 +940,7 @@ export const tasksSlice = createSlice(
           projectId: "",
           orderToken: "",
           lastToggledAt: 0,
+          createdAt: 0,
         };
 
       return task;
@@ -973,6 +1004,7 @@ export const tasksSlice = createSlice(
           title: "",
           state: "todo",
           lastToggledAt: Date.now(),
+          createdAt: Date.now(),
           ...task,
         };
 
@@ -1126,6 +1158,7 @@ export const projectsSlice = createSlice(
           icon: "",
           isInbox: false,
           orderToken: "",
+          createdAt: 0,
         };
 
       return project;
@@ -1284,6 +1317,7 @@ export const projectsSlice = createSlice(
           title: "New project",
           icon: "",
           isInbox: false,
+          createdAt: new Date().getTime(),
           ...newProject,
         };
 

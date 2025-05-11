@@ -38,6 +38,7 @@ export type ProjectData = {
   icon: string;
   isInbox: boolean;
   orderToken: string;
+  createdAt: number;
 };
 
 export type TaskData = {
@@ -47,12 +48,14 @@ export type TaskData = {
   projectId: string;
   orderToken: string;
   lastToggledAt: number;
+  createdAt: number;
 };
 
 export type TaskTemplateData = {
   id: string;
   orderToken: string;
   projectId: string;
+  createdAt: number;
 };
 
 export type TaskProjectionData = {
@@ -60,6 +63,7 @@ export type TaskProjectionData = {
   taskId: string;
   orderToken: string;
   dailyListId: string;
+  createdAt: number;
 };
 
 export type DailyListData = {
