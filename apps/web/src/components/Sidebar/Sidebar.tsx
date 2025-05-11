@@ -290,7 +290,7 @@ const ProjectItem = function ProjectItemComp({
         href={`/projects/${project.id}`}
         onClick={() => {
           console.log("focusItem click", focusItem);
-          focusSlice.focusByKey(store, focusItem.key);
+          focusSlice.focusByKey(store, focusItem.key, true);
         }}
       >
         <span className="text-base mr-2 flex-shrink-0">

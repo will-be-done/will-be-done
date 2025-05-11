@@ -346,13 +346,10 @@ export const TaskComp = ({
   // });
 
   const handleMove = (projectId: string) => {
-    try {
-      tasksSlice.update(store, taskId, {
-        projectId,
-      });
-    } finally {
-      setIsMoveModalOpen(false);
-    }
+    setIsMoveModalOpen(false);
+    tasksSlice.update(store, taskId, {
+      projectId,
+    });
   };
 
   const ref = useRef<HTMLDivElement | null>(null);

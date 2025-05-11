@@ -59,19 +59,19 @@ const ProjectTitle = ({ project }: { project: Project }) => {
     focusSlice.isEditing(state, focusableItem.key),
   );
 
-  useGlobalListener("mousedown", (e: MouseEvent) => {
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
-
-    if (
-      isFocused &&
-      ref.current &&
-      !ref.current.contains(e.target as Node) &&
-      !isFocusDisabled &&
-      !e.defaultPrevented
-    ) {
-      focusSlice.resetFocus(store);
-    }
-  });
+  // useGlobalListener("mousedown", (e: MouseEvent) => {
+  //   const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+  //
+  //   if (
+  //     isFocused &&
+  //     ref.current &&
+  //     !ref.current.contains(e.target as Node) &&
+  //     !isFocusDisabled &&
+  //     !e.defaultPrevented
+  //   ) {
+  //     focusSlice.resetFocus(store);
+  //   }
+  // });
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());

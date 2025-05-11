@@ -56,8 +56,8 @@ export const MoveModal = ({
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
     } else if (e.key === "Enter" && projects[selectedIndex]) {
       e.preventDefault();
-      handleMove(projects[selectedIndex].id);
       setIsOpen(false);
+      handleMove(projects[selectedIndex].id);
     }
   };
 

@@ -194,7 +194,7 @@ const GlobalListener = () => {
         const focusableKey = focusedElement.getAttribute("data-focusable-key");
 
         if (focusableKey) {
-          focusSlice.focusByKey(store, focusableKey as FocusKey);
+          focusSlice.focusByKey(store, focusableKey as FocusKey, true);
         }
       }
     };

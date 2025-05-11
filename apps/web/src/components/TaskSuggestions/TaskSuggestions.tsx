@@ -102,7 +102,7 @@ export const TaskSuggestions = () => {
         "task-suggestions",
         "BoardView",
       )}
-      priority="500"
+      priority="0"
     >
       {/* 20% section (1/5 columns) */}
       <div className="shadow-lg p-4 pr-0 flex flex-col h-full h-full overflow-y-auto">
