@@ -56,6 +56,8 @@ export function createActionCreator<
 
         let result!: TReturn;
         const performDraftAction = (draft: Draft<TRootState>): void => {
+          // @ts-expect-error it's ok
+          draft[storeSymbol] = store;
           result = actionFn(draft as TRootState, ...params);
           // TODO: add deep traversal draft check of result
         };
@@ -534,7 +536,7 @@ export const sliceNameContext = createContext<string>(
   "slice",
 );
 
-const storeSymbol = Symbol("storeSymbol");
+export const storeSymbol = Symbol("storeSymbol");
 export type StoreApi<TState> = {
   ____setState: (
     state: TState,

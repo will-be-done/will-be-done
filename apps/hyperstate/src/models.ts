@@ -9,6 +9,7 @@ import {
 } from "./state";
 import { deepEqual, shallowEqual } from "fast-equals";
 import { withoutUndoAction, withUndoManager } from "./undoManager";
+import { update, withEntityListener } from "./entity";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
   item1: T,
@@ -22,19 +23,19 @@ export const fractionalCompare = <T extends { id: string; orderToken: string }>(
 };
 
 export type RootState = {
-  projects: {
+  project: {
     byIds: Record<string, Project>;
   };
-  tasks: {
+  task: {
     byIds: Record<string, Task>;
   };
-  taskTemplates: {
+  taskTemplate: {
     byIds: Record<string, TaskTemplate>;
   };
-  taskProjections: {
+  taskProjection: {
     byIds: Record<string, TaskProjection>;
   };
-  dailyLists: {
+  dailyList: {
     byIds: Record<string, DailyList>;
   };
 };
@@ -189,7 +190,7 @@ export const allProjectsSlice = createSlice({
   // },
   allIdsAndTokens: appSelector(
     (query): { id: string; orderToken: string }[] => {
-      const byIds = query((state) => state.projects.byIds);
+      const byIds = query((state) => state.project.byIds);
 
       return Object.values(byIds).map((p) => ({
         id: p.id,
@@ -230,7 +231,7 @@ export const allProjectsSlice = createSlice({
 
 export const projectsSlice = createSlice({
   getById: appSelector((query, id: string) => {
-    const res = query((state) => state.projects.byIds[id]);
+    const res = query((state) => state.project.byIds[id]);
     return res;
   }),
   canDrop(
@@ -241,7 +242,7 @@ export const projectsSlice = createSlice({
   },
 
   insertMillion: appAction((state) => {
-    const byIds = state.projects.byIds;
+    const byIds = state.project.byIds;
     for (let i = 0; i < 100000; i++) {
       const id = Math.random().toString(36).slice(2);
       byIds[id] = {
@@ -253,13 +254,13 @@ export const projectsSlice = createSlice({
     }
   }),
   create: appAction((state, project: Project) => {
-    const byIds = state.projects.byIds;
+    const byIds = state.project.byIds;
     byIds[project.id] = project;
     return project;
   }),
   createWithoutUndo: withoutUndoAction(
     appAction((state, project: Project) => {
-      const byIds = state.projects.byIds;
+      const byIds = state.project.byIds;
       byIds[project.id] = project;
       return project;
     }),
@@ -268,12 +269,13 @@ export const projectsSlice = createSlice({
     const projInState = projectsSlice.getById(state, project.id);
     if (!projInState) throw new Error("Project not found");
 
-    Object.assign(projInState, project);
+    update(state, project.id, project);
+    // Object.assign(projInState, project);
 
     return projInState;
   }),
   createWithTask: appAction((state, project: Project, task: Task) => {
-    const byIds = state.projects.byIds;
+    const byIds = state.project.byIds;
     byIds[project.id] = project;
 
     taskSlice.createTask(state, task);
@@ -283,7 +285,7 @@ export const projectsSlice = createSlice({
 
 export const taskSlice = createSlice({
   createTask: appAction((state, task: Task) => {
-    const byIds = state.tasks.byIds;
+    const byIds = state.task.byIds;
     byIds[task.id] = task;
 
     return task;
@@ -292,11 +294,11 @@ export const taskSlice = createSlice({
 
 export const appStore = (() => {
   const state: RootState = {
-    projects: { byIds: {} },
-    tasks: { byIds: {} },
-    taskTemplates: { byIds: {} },
-    taskProjections: { byIds: {} },
-    dailyLists: { byIds: {} },
+    project: { byIds: {} },
+    task: { byIds: {} },
+    taskTemplate: { byIds: {} },
+    taskProjection: { byIds: {} },
+    dailyList: { byIds: {} },
   };
 
   const store = createStore(state);
@@ -374,7 +376,15 @@ export const appStore = (() => {
 
   connectToDevTools(store);
 
-  return withUndoManager(store);
+  return withEntityListener(withUndoManager(store), {
+    project(state, action) {
+      if (action.action === "create") {
+        console.log("create", action.entityType, action.new);
+      } else if (action.action === "update") {
+        console.log("update", action.entityType, action.new, action.old);
+      }
+    },
+  });
 })();
 
 // export const projectsSelectors = {
