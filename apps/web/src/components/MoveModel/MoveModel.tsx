@@ -12,12 +12,10 @@ import { allProjectsSlice } from "@/models/models2";
 import { focusSlice } from "@/states/FocusManager";
 
 export const MoveModal = ({
-  isOpen,
   setIsOpen,
   handleMove,
   exceptProjectId,
 }: {
-  isOpen: boolean;
   setIsOpen: (val: boolean) => void;
   handleMove: (projectId: string) => void;
   exceptProjectId: string;
@@ -39,12 +37,6 @@ export const MoveModal = ({
     setSelectedIndex(0);
   }, [searchQuery]);
 
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isOpen]);
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown" || (e.ctrlKey && e.code === "KeyJ")) {
       e.preventDefault();
@@ -64,6 +56,8 @@ export const MoveModal = ({
   const store = useAppStore();
   useEffect(() => {
     focusSlice.disableFocus(store);
+
+    inputRef.current?.focus();
   }, [store]);
 
   useUnmount(() => {
@@ -75,7 +69,7 @@ export const MoveModal = ({
       static
       className="relative z-50"
       open
-      onClose={() => setIsOpen(!isOpen)}
+      onClose={() => setIsOpen(false)}
       onKeyDown={handleKeyDown}
     >
       <div className="fixed inset-0 bg-black/60" aria-hidden="true" />

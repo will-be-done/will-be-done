@@ -28,6 +28,8 @@ import {
 } from "@/models/models2";
 import clsx from "clsx";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
+import { Layout } from "../Layout/Layout";
+import { TaskSuggestions } from "../TaskSuggestions/TaskSuggestions";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -475,5 +477,13 @@ export const Board = () => {
       handlePrevDay={handlePrevDay}
       dailyListsIds={dailyListsIds}
     />
+  );
+};
+
+export const BoardPage = () => {
+  return (
+    <Layout sidebarContent={<TaskSuggestions />}>
+      <Board />
+    </Layout>
   );
 };

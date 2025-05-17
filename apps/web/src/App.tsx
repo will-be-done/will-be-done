@@ -1,6 +1,6 @@
 import { Redirect, Route, Switch } from "wouter";
 import "./fixGlobal";
-import { Board } from "./components/DaysBoard/DaysBoard";
+import { Board, BoardPage } from "./components/DaysBoard/DaysBoard";
 import { useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
@@ -304,24 +304,24 @@ export const App = () => {
           <KeyPressedCtxProvider>
             <GlobalListener />
 
-            <div className="w-full h-screen bg-gray-900 overflow-hidden grid grid-cols-20 gap-2 py-2 px-2">
-              <div className="col-span-4 overflow-hidden">
-                <Sidebar />
-              </div>
-              <div className="flex-1 overflow-hidden col-span-12">
-                <Switch>
-                  <Route path="/today" component={Board} />
-                  <Route path="/projects/:projectId" component={ProjectPage} />
-                  <Route>
-                    <Redirect to="/today" />
-                  </Route>
-                </Switch>
-              </div>
-
-              <div className="col-span-4">
-                <TaskDetails />
-              </div>
-            </div>
+            <Switch>
+              <Route path="/today" component={BoardPage} />
+              <Route path="/projects/:projectId" component={ProjectPage} />
+              <Route>
+                <Redirect to="/today" />
+              </Route>
+            </Switch>
+            {/* <div className="w-full h-screen bg-gray-900 overflow-hidden grid grid-cols-20 gap-2 py-2 px-2"> */}
+            {/*   <div className="col-span-4 overflow-hidden"> */}
+            {/*     <Sidebar /> */}
+            {/*   </div> */}
+            {/*   <div className="flex-1 overflow-hidden col-span-12"> */}
+            {/*   </div> */}
+            {/**/}
+            {/*   <div className="col-span-4"> */}
+            {/*     <TaskDetails /> */}
+            {/*   </div> */}
+            {/* </div> */}
           </KeyPressedCtxProvider>
         </ThemeProvider>
       </StoreProvider>

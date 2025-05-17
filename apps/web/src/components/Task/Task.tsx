@@ -213,6 +213,8 @@ export const TaskComp = ({
     } else if (e.code === "KeyM" && noModifiers) {
       e.preventDefault();
 
+      // NOTE: this is needed to restore focus back correctly after modal close
+      ref.current?.focus();
       setIsMoveModalOpen(true);
     } else if (isMoveLeft || isMoveRight) {
       e.preventDefault();
@@ -599,7 +601,6 @@ export const TaskComp = ({
 
       {isMoveModalOpen && (
         <MoveModal
-          isOpen={isMoveModalOpen}
           setIsOpen={setIsMoveModalOpen}
           handleMove={handleMove}
           exceptProjectId={project.id}

@@ -12,15 +12,14 @@ import {
   projectsSlice,
 } from "@/models/models2";
 import { TaskComp } from "../Task/Task";
-import { useEffect } from "react";
 
-const ProjectSuggestions = ({
+function ProjectSuggestions({
   projectId,
   orderNumber,
 }: {
   projectId: string;
   orderNumber: string;
-}) => {
+}) {
   const exceptDailyListIds = useSuggestionsStore(
     useShallow((state) => state.exceptDailyListIds),
   );
@@ -63,7 +62,7 @@ const ProjectSuggestions = ({
       </div>
     </ParentListItemProvider>
   );
-};
+}
 
 const TaskSuggestionsBody = () => {
   const selectedProjectIds = useAppSelector((state) =>
