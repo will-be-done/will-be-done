@@ -49,6 +49,7 @@ export type TaskData = {
   orderToken: string;
   lastToggledAt: number;
   createdAt: number;
+  horizon: "week" | "month" | "year" | "someday" | undefined;
 };
 
 export type TaskTemplateData = {

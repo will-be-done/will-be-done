@@ -163,6 +163,7 @@ export type Task = {
   projectId: string;
   orderToken: string;
   lastToggledAt: number;
+  horizon: "week" | "month" | "year" | "someday";
   createdAt: number;
 };
 
@@ -289,6 +290,7 @@ export const appSlice = createSlice(
           orderToken: "",
           lastToggledAt: 0,
           createdAt: 0,
+          horizon: "someday",
         };
 
       return entity;
@@ -352,6 +354,7 @@ export const taskBoxesSlice = createSlice(
         orderToken: "",
         lastToggledAt: 0,
         createdAt: 0,
+        horizon: "someday",
       };
 
       if (!model) {
@@ -527,12 +530,17 @@ export const dailyListsSlice = createSlice(
       );
     }, shallowEqual),
     notDoneTaskIdsExceptDailies: appSelector(
-      (query, projectId: string, exceptDailyListIds: string[]): string[] => {
+      (
+        query,
+        projectId: string,
+        exceptDailyListIds: string[],
+        taskHorizons: Task["horizon"][],
+      ): string[] => {
         const exceptTaskIds = query((state) =>
           dailyListsSlice.allTaskIds(state, exceptDailyListIds),
         );
         const notDoneTaskIds = query((state) =>
-          projectsSlice.notDoneTaskIds(state, projectId),
+          projectsSlice.notDoneTaskIds(state, projectId, taskHorizons),
         );
 
         return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));
@@ -941,6 +949,7 @@ export const tasksSlice = createSlice(
           orderToken: "",
           lastToggledAt: 0,
           createdAt: 0,
+          horizon: "someday",
         };
 
       return task;
@@ -1005,6 +1014,7 @@ export const tasksSlice = createSlice(
           state: "todo",
           lastToggledAt: Date.now(),
           createdAt: Date.now(),
+          horizon: "someday",
           ...task,
         };
 
@@ -1264,19 +1274,22 @@ export const projectsSlice = createSlice(
           .filter((t) => t !== undefined),
       );
     }, shallowEqual),
-    notDoneTaskIds: appSelector((query, projectId: string): string[] => {
-      const taskIds = query((state) =>
-        projectsSlice.tasksIds(state, projectId),
-      );
-      const byIds = query((state) => state.task.byIds);
+    notDoneTaskIds: appSelector(
+      (query, projectId: string, taskHorizons: Task["horizon"][]): string[] => {
+        const taskIds = query((state) =>
+          projectsSlice.tasksIds(state, projectId),
+        );
+        const byIds = query((state) => state.task.byIds);
 
-      return taskIds.filter((id) => {
-        const task = byIds[id];
-        if (!task) return false;
+        return taskIds.filter((id) => {
+          const task = byIds[id];
+          if (!task) return false;
 
-        return task.state !== "done";
-      });
-    }, shallowEqual),
+          return task.state !== "done" && taskHorizons.includes(task.horizon);
+        });
+      },
+      shallowEqual,
+    ),
     withoutTasksByIds: appSelector(
       (query, projectId: string, ids: string[]): string[] => {
         const childrenIds = query((state) =>

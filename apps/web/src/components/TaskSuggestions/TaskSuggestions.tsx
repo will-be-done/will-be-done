@@ -10,8 +10,10 @@ import {
   allProjectsSlice,
   dailyListsSlice,
   projectsSlice,
+  Task,
 } from "@/models/models2";
 import { TaskComp } from "../Task/Task";
+import { useFilterStore } from "./filterStore";
 
 function ProjectSuggestions({
   projectId,
@@ -23,6 +25,7 @@ function ProjectSuggestions({
   const exceptDailyListIds = useSuggestionsStore(
     useShallow((state) => state.exceptDailyListIds),
   );
+  const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
   const project = useAppSelector((state) =>
     projectsSlice.byIdOrDefault(state, projectId),
@@ -33,6 +36,7 @@ function ProjectSuggestions({
       state,
       projectId,
       exceptDailyListIds,
+      taskHorizons,
     ),
   );
 
@@ -93,6 +97,29 @@ const TaskSuggestionsBody = () => {
   );
 };
 
+const HorizonCheck = ({ horizon }: { horizon: Task["horizon"] }) => {
+  const setTaskHorizons = useFilterStore((state) => state.setHorizons);
+  const horizons = useFilterStore((state) => state.horizons);
+
+  return (
+    <label className="ml-2">
+      <input
+        type="checkbox"
+        className="h-4 w-4 bg-gray-700 border-gray-600 rounded"
+        checked={horizons.includes(horizon)}
+        onChange={(e) => {
+          setTaskHorizons(
+            e.target.checked
+              ? [...horizons, horizon]
+              : horizons.filter((h) => h !== horizon),
+          );
+        }}
+      />{" "}
+      {horizon}
+    </label>
+  );
+};
+
 export const TaskSuggestions = () => {
   return (
     <ColumnListProvider
@@ -103,6 +130,12 @@ export const TaskSuggestions = () => {
       )}
       priority="0"
     >
+      <div className="gap-2">
+        <HorizonCheck horizon="someday" />
+        <HorizonCheck horizon="week" />
+        <HorizonCheck horizon="month" />
+        <HorizonCheck horizon="year" />
+      </div>
       {/* 20% section (1/5 columns) */}
       <div className="shadow-lg p-4 pr-0 flex flex-col h-full h-full overflow-y-auto">
         <TaskSuggestionsBody />

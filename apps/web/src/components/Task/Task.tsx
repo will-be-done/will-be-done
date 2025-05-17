@@ -206,7 +206,31 @@ export const TaskComp = ({
       });
     };
 
-    if (e.code === "Space" && noModifiers) {
+    if (e.code === "Digit1" && noModifiers) {
+      e.preventDefault();
+
+      tasksSlice.update(store, taskId, {
+        horizon: "week",
+      });
+    } else if (e.code === "Digit2" && noModifiers) {
+      e.preventDefault();
+
+      tasksSlice.update(store, taskId, {
+        horizon: "month",
+      });
+    } else if (e.code === "Digit3" && noModifiers) {
+      e.preventDefault();
+
+      tasksSlice.update(store, taskId, {
+        horizon: "year",
+      });
+    } else if (e.code === "Digit4" && noModifiers) {
+      e.preventDefault();
+
+      tasksSlice.update(store, taskId, {
+        horizon: "someday",
+      });
+    } else if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
       handleTick();
@@ -574,11 +598,14 @@ export const TaskComp = ({
               </>
             )}
           </div>
-          {showProject && (
-            <div className="text-right mt-3 text-gray-400 text-sm">
-              {project.icon || "🟡"} {project.title}
-            </div>
-          )}
+          <div className="flex justify-between  mt-3 text-gray-400 text-sm">
+            <div>{task.horizon}</div>
+            {showProject && (
+              <div className="text-right text-gray-400 text-sm">
+                {project.icon || "🟡"} {project.title}
+              </div>
+            )}
+          </div>
         </>
         {/* )} */}
       </div>

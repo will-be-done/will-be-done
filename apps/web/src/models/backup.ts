@@ -23,6 +23,7 @@ interface TaskBackup {
   orderToken: string;
   lastToggledAt: number;
   createdAt: number;
+  horizon?: "week" | "month" | "year" | "someday";
 }
 
 interface ProjectBackup {
@@ -154,6 +155,7 @@ export const loadBackups = (store: StoreApi<RootState>, backup: Backup) => {
       orderToken: taskBackup.orderToken,
       lastToggledAt: taskBackup.lastToggledAt,
       createdAt: taskBackup.createdAt,
+      horizon: taskBackup.horizon || "someday",
     };
 
     changes.push({

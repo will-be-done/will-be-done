@@ -85,6 +85,7 @@ export const syncMappings: SyncMappingsType = {
         lastToggledAt:
           data.lastToggledAt == 0 ? new Date().getTime() : data.lastToggledAt,
         createdAt: data.createdAt ?? 0,
+        horizon: data.horizon || "someday",
       };
     },
     mapModelToData(entity) {
@@ -96,6 +97,7 @@ export const syncMappings: SyncMappingsType = {
         orderToken: entity.orderToken,
         lastToggledAt: entity.lastToggledAt,
         createdAt: entity.createdAt,
+        horizon: entity.horizon,
       };
     },
   } satisfies SyncMapping<typeof tasksTable, typeof taskType>,
