@@ -421,42 +421,42 @@ const InboxItem = function IboxItemComp() {
   );
 };
 
-const TodayItem = function TodayItemComp() {
-  const id = "today";
-  const focusItem = useRegisterFocusItem(buildFocusKey(id, id), "******1");
-  const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusItem.key),
-  );
-
-  return (
-    <Link
-      data-focusable-key={focusItem.key}
-      href="/today"
-      className={(active) =>
-        `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
-          active || isFocused ? "bg-gray-800" : "hover:bg-gray-800"
-        }`
-      }
-    >
-      <span className="text-amber-500 mr-2 flex-shrink-0">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
-      </span>
-      <span className="text-white text-sm">Today</span>
-    </Link>
-  );
-};
+// const TodayItem = function TodayItemComp() {
+//   const id = "today";
+//   const focusItem = useRegisterFocusItem(buildFocusKey(id, id), "******1");
+//   const isFocused = useAppSelector((state) =>
+//     focusSlice.isFocused(state, focusItem.key),
+//   );
+//
+//   return (
+//     <Link
+//       data-focusable-key={focusItem.key}
+//       href="/today"
+//       className={(active) =>
+//         `flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer ${
+//           active || isFocused ? "bg-gray-800" : "hover:bg-gray-800"
+//         }`
+//       }
+//     >
+//       <span className="text-amber-500 mr-2 flex-shrink-0">
+//         <svg
+//           xmlns="http://www.w3.org/2000/svg"
+//           width="18"
+//           height="18"
+//           viewBox="0 0 24 24"
+//           fill="none"
+//           stroke="currentColor"
+//           strokeWidth="2"
+//           strokeLinecap="round"
+//           strokeLinejoin="round"
+//         >
+//           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+//         </svg>
+//       </span>
+//       <span className="text-white text-sm">Today</span>
+//     </Link>
+//   );
+// };
 
 export const ProjectsSidebarContent = () => {
   const projectIdsWithoutInbox = useAppSelector(
@@ -535,7 +535,7 @@ export const ProjectsSidebarContent = () => {
       <div className="bg-gray-900 h-full flex flex-col">
         <div className="px-2 py-1 flex-shrink-0">
           <InboxItem />
-          <TodayItem />
+          {/* <TodayItem /> */}
         </div>
 
         <div className="mt-3 px-2 flex-1 min-h-0 overflow-hidden">

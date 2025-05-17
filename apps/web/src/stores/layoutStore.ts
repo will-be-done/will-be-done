@@ -2,15 +2,19 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 interface LayoutState {
-  sidebarWidth: number;
-  setSidebarWidth: (width: number) => void;
+  leftSidebarWidth: number;
+  rightSidebarWidth: number;
+  setLeftSidebarWidth: (width: number) => void;
+  setRightSidebarWidth: (width: number) => void;
 }
 
 export const useLayoutStore = create<LayoutState>()(
   persist(
     (set) => ({
-      sidebarWidth: 20,
-      setSidebarWidth: (width) => set({ sidebarWidth: width }),
+      leftSidebarWidth: 20,
+      rightSidebarWidth: 25,
+      setLeftSidebarWidth: (width) => set({ leftSidebarWidth: width }),
+      setRightSidebarWidth: (width) => set({ rightSidebarWidth: width }),
     }),
     {
       name: "layout-storage",
