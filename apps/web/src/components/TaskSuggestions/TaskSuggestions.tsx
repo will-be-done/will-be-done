@@ -14,6 +14,7 @@ import {
 } from "@/models/models2";
 import { TaskComp } from "../Task/Task";
 import { useFilterStore } from "./filterStore";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 function ProjectSuggestions({
   projectId,
@@ -25,6 +26,13 @@ function ProjectSuggestions({
   const exceptDailyListIds = useSuggestionsStore(
     useShallow((state) => state.exceptDailyListIds),
   );
+  const isProjectCollapsed = useFilterStore((state) =>
+    state.isProjectCollapsed(projectId),
+  );
+  const toggleCollapsedProjectId = useFilterStore(
+    (state) => state.toggleCollapsedProjectId,
+  );
+
   const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
   const project = useAppSelector((state) =>
@@ -46,23 +54,34 @@ function ProjectSuggestions({
     <ParentListItemProvider
       focusKey={buildFocusKey(projectId, project.type, "TaskSuggestions")}
       priority={orderNumber}
+      disabled={isProjectCollapsed}
     >
       <div>
-        <div className="text-gray-400 text-sm pb-2">
+        <button
+          className="text-gray-400 pb-2 cursor-pointer flex items-center "
+          onClick={() => toggleCollapsedProjectId(projectId)}
+        >
           {project.icon || "🟡"} {project.title}
-        </div>
+          {isProjectCollapsed ? (
+            <ChevronRight className="inline-block ml-1" size={16} />
+          ) : (
+            <ChevronDown className="inline-block ml-1" size={16} />
+          )}
+        </button>
 
-        <div className="flex flex-col gap-2">
-          {taskIds.map((id, i) => (
-            <TaskComp
-              taskBoxId={id}
-              orderNumber={i.toString()}
-              taskId={id}
-              key={id}
-              showProject={false}
-            />
-          ))}
-        </div>
+        {!isProjectCollapsed && (
+          <div className="flex flex-col gap-2">
+            {taskIds.map((id, i) => (
+              <TaskComp
+                taskBoxId={id}
+                orderNumber={i.toString()}
+                taskId={id}
+                key={id}
+                showProject={false}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </ParentListItemProvider>
   );

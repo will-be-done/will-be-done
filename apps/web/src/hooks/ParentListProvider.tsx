@@ -33,11 +33,14 @@ export const ColumnListProvider = ({
   );
 };
 
-export const ParentListItemProvider = ({
+export const ParentListItemProviderBody = ({
   focusKey,
   priority,
   children,
-}: PropsWithChildren<{ focusKey: FocusKey; priority: string }>) => {
+}: PropsWithChildren<{
+  focusKey: FocusKey;
+  priority: string;
+}>) => {
   const paddedPriority = padStart(priority, 7, "0");
 
   useRegisterFocusItem(focusKey, paddedPriority);
@@ -46,5 +49,26 @@ export const ParentListItemProvider = ({
     <ParentListContext.Provider value={focusKey}>
       {children}
     </ParentListContext.Provider>
+  );
+};
+
+export const ParentListItemProvider = ({
+  focusKey,
+  priority,
+  children,
+  disabled,
+}: PropsWithChildren<{
+  focusKey: FocusKey;
+  priority: string;
+  disabled?: boolean;
+}>) => {
+  if (disabled) {
+    return <>{children}</>;
+  }
+
+  return (
+    <ParentListItemProviderBody focusKey={focusKey} priority={priority}>
+      {children}
+    </ParentListItemProviderBody>
   );
 };

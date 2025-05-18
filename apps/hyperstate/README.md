@@ -9,6 +9,7 @@ Top features:
 8. You can maintain all your code in one file for fast prototyping!
 9. All redux ecosystem! Like devtool and special sites for redux replay
 10. Much much much less boilerplate then redux
+11. Full HMR support, even selector! Redux don't have this
 
 The probelm: there is not good state manager that will be less verbious then redux, and not so mutable as mobx.
 We have zusteand, but it's tied to hooks. We have atoms, but it's too verbous on my opinion
