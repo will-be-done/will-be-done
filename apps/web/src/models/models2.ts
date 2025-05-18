@@ -2,6 +2,7 @@ import {
   createActionCreator,
   createSelectorCreator,
   createSlice,
+  replaceSlices,
   withoutUndoAction,
 } from "@will-be-done/hyperstate";
 import { format } from "date-fns";
@@ -11,7 +12,6 @@ import uuidByString from "uuid-by-string";
 import { shouldNeverHappen } from "@/utils";
 import { deepEqual, shallowEqual } from "fast-equals";
 import { FocusState } from "@/states/FocusManager";
-import { sortBy } from "es-toolkit";
 
 export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
 
@@ -1476,3 +1476,24 @@ export const dropSlice = createSlice(
   },
   "dropSlice",
 );
+
+export const allSlices = {
+  appSlice,
+  taskBoxesSlice,
+  dailyListsSlice,
+  projectionsSlice,
+  tasksSlice,
+  allProjectsSlice,
+  projectsSlice,
+  dropSlice,
+};
+
+if (import.meta.hot) {
+  import.meta.hot.accept((newModule) => {
+    if (newModule) {
+      const newAllSlices: typeof allSlices = newModule.allSlices;
+
+      replaceSlices("allSlices", allSlices, newAllSlices);
+    }
+  });
+}

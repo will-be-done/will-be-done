@@ -85,6 +85,13 @@ export function createActionCreator<
 
   // return actionCreator as ActionCreatorFunction<TRootState>;
 }
+
+// const replaceSliceFnName = "replaceSlice";
+// // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+// type CreatedSlice<T extends Record<string, Function>> = T & {
+//   [replaceSliceFnName]: (slice: CreatedSlice<T>) => void;
+// };
+
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export function createSlice<T extends Record<string, Function>>(
   sliceFns: T,
@@ -105,7 +112,7 @@ export function createSlice<T extends Record<string, Function>>(
         // Call the original with the same arguments
         return __sliceFn.apply(this, [store, ...args]);
       }
-      
+
       // Return the named function
       return ${keyName};
     `;
@@ -137,6 +144,43 @@ export function createSlice<T extends Record<string, Function>>(
 
   return result as T;
 }
+
+declare global {
+  interface Window {
+    __HYPERSTATE_ORIGINAL_ALL_SLICES?: Record<string, Record<string, any>>;
+  }
+}
+
+export const replaceSlices = (
+  namespace: string,
+  oldSlices: Record<string, Record<string, any>>,
+  newSlices: Record<string, Record<string, any>>,
+) => {
+  if (!window.__HYPERSTATE_ORIGINAL_ALL_SLICES) {
+    window.__HYPERSTATE_ORIGINAL_ALL_SLICES = {};
+    window.__HYPERSTATE_ORIGINAL_ALL_SLICES[namespace] = oldSlices;
+  }
+
+  for (const [key, newSlice] of Object.entries(newSlices)) {
+    const oldSlice = window.__HYPERSTATE_ORIGINAL_ALL_SLICES[namespace]?.[key];
+
+    if (!oldSlice) continue;
+
+    for (const [key, newSliceFn] of Object.entries(newSlice)) {
+      oldSlice[key] = newSliceFn;
+    }
+  }
+
+  for (const storeRef of knownStores) {
+    let store = storeRef.deref();
+    if (!store) continue;
+
+    store = store.withContextValue(fnNameContext, "replaceSlices");
+    store = store.withContextValue(sliceNameContext, "root");
+
+    store.____setState({ ...store.getState() }, [], []);
+  }
+};
 
 // export type Action<
 //   TRootState,
@@ -564,6 +608,7 @@ export type StoreApi<TState> = {
 
 // const storeSymbol = Symbol("storeSymbol");
 
+const knownStores: WeakRef<StoreApi<any>>[] = [];
 export function createStore<TState>(initialState: TState): StoreApi<TState> {
   const scope: {
     state: TState;
@@ -710,5 +755,8 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
     return store;
   };
 
-  return createStore({});
+  const newStore = createStore({});
+  knownStores.push(new WeakRef(newStore));
+
+  return newStore;
 }

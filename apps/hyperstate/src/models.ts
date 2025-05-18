@@ -6,6 +6,7 @@ import {
   createStore,
   createSelectorCreator,
   createSlice,
+  replaceSlices,
 } from "./state";
 import { deepEqual, shallowEqual } from "fast-equals";
 import { withoutUndoAction, withUndoManager } from "./undoManager";
@@ -208,12 +209,12 @@ export const allProjectsSlice = createSlice({
     //   orderToken: p.orderToken,
     // }));
 
-    console.log("SORITNG PROJECTS", allIdsAndTokens);
+    console.log("SORITNkiiGii iPROJiEiiCTS", allIdsAndTokens);
 
     return [...allIdsAndTokens]
       .sort(fractionalCompare)
       .map((p) => p.id)
-      .slice(0, 10);
+      .slice(0, 1);
   }, shallowEqual),
   getLastChildId: appSelector((query): string | undefined => {
     const sortedProjects = query(allProjectsSlice.getSortedProjectIds);
@@ -238,6 +239,8 @@ export const projectsSlice = createSlice({
     _project: string,
     target: { id: string; type: string },
   ): target is Project | TaskTemplate | Task | TaskProjection {
+    console.log("canDrop", target);
+
     return true;
   },
 
@@ -269,7 +272,7 @@ export const projectsSlice = createSlice({
     const projInState = projectsSlice.getById(state, project.id);
     if (!projInState) throw new Error("Project not found");
 
-    update(state, project.id, project);
+    update(state, project.id, { ...project, title: "New title 123" });
     // Object.assign(projInState, project);
 
     return projInState;
@@ -292,7 +295,23 @@ export const taskSlice = createSlice({
   }),
 });
 
-export const appStore = (() => {
+export const allSlices = {
+  taskSlice,
+  projectsSlice,
+  allProjectsSlice,
+};
+
+if (import.meta.hot) {
+  import.meta.hot.accept((newModule) => {
+    if (newModule) {
+      const newAllSlices: typeof allSlices = newModule.allSlices;
+
+      replaceSlices("allSlices", allSlices, newAllSlices);
+    }
+  });
+}
+
+export const appStore = () => {
   const state: RootState = {
     project: { byIds: {} },
     task: { byIds: {} },
@@ -385,7 +404,7 @@ export const appStore = (() => {
       }
     },
   });
-})();
+};
 
 // export const projectsSelectors = {
 //   getSiblingsIds(state: RootState, projectId: string) {

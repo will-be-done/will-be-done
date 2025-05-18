@@ -7,7 +7,7 @@ import { appStore } from "./models.ts";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <StoreProvider value={appStore}>
+    <StoreProvider value={appStore()}>
       <App />
     </StoreProvider>
   </StrictMode>,
