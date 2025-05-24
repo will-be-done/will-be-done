@@ -16,11 +16,11 @@ import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types"
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { appSlice } from "@/store/slices/appSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
-import {projectType} from "@/store/slices/projectsSlice.ts";
+import { projectType } from "@/store/slices/projectsSlice.ts";
 
-import {taskType} from "@/store/slices/tasksSlice.ts";
-import {projectionType} from "@/store/slices/projectionsSlice.ts";
-import {dailyListType} from "@/store/slices/dailyListsSlice.ts";
+import { taskType } from "@/store/slices/tasksSlice.ts";
+import { projectionType } from "@/store/slices/projectionsSlice.ts";
+import { dailyListType } from "@/store/slices/dailyListsSlice.ts";
 
 export function GlobalListener() {
   const store = useAppStore();

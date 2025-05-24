@@ -22,7 +22,7 @@ export const Layout = ({
     const deltaPercentage = (deltaX / containerWidth) * 100;
     const newWidth = Math.max(
       15,
-      Math.min(40, leftSidebarWidth + deltaPercentage)
+      Math.min(40, leftSidebarWidth + deltaPercentage),
     );
     setLeftSidebarWidth(newWidth);
   };
@@ -32,7 +32,7 @@ export const Layout = ({
     const deltaPercentage = (deltaX / containerWidth) * 100;
     const newWidth = Math.max(
       20,
-      Math.min(40, rightSidebarWidth - deltaPercentage)
+      Math.min(40, rightSidebarWidth - deltaPercentage),
     );
     setRightSidebarWidth(newWidth);
   };

@@ -2,10 +2,10 @@ import { DistributiveOmit } from "@kikko-land/kikko";
 import { StoreApi } from "@will-be-done/hyperstate";
 import { Patch } from "mutative";
 import { uuidv7 } from "uuidv7";
-import { syncMappings } from "./main";
-import { shouldNeverHappen } from "@/utils";
+import { syncMappings } from "./mapping.ts";
+import { shouldNeverHappen } from "@/utils.ts";
 
-import {RootState, SyncableState} from "@/store/store.ts";
+import { RootState, SyncableState } from "@/store/store.ts";
 
 export type ModelChange = {
   id: string;

@@ -1,21 +1,45 @@
-import {connectToDevTools, createStore, StoreApi, withUndoManager,} from "@will-be-done/hyperstate";
+import {
+  connectToDevTools,
+  createStore,
+  StoreApi,
+  withUndoManager,
+} from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
-import {getDbCtx} from "@/sync/db";
-import {ProjectData, projectsTable, Q, SyncableTable, syncableTables,} from "@/sync/schema";
-import {ChangesTracker} from "@/sync/ChangesTracker";
-import {skipSyncCtx, syncableTypes, SyncMapping, syncMappings, tableModelTypeMap,} from "@/sync/main";
-import {ChangesToDbSaver} from "@/sync/ChangesToDbSaver";
-import {Selectable} from "kysely";
-import {generateJitteredKeyBetween} from "fractional-indexing-jittered";
-import {Syncer} from "@/sync/Syncer";
-import {FocusState, initialFocusState} from "@/store/slices/focusSlice.ts";
-import {appSlice} from "@/store/slices/appSlice.ts";
-import {inboxId, Project, projectType} from "@/store/slices/projectsSlice.ts";
+import { getDbCtx } from "@/store/sync/db";
+import { Q, SyncableTable, syncableTables } from "@/store/sync/schema";
+import { ChangesTracker } from "@/store/sync/ChangesTracker";
+import {
+  skipSyncCtx,
+  syncableTypes,
+  SyncMapping,
+  syncMappings,
+  tableModelTypeMap,
+} from "@/store/sync/mapping.ts";
+import { ChangesToDbSaver } from "@/store/sync/ChangesToDbSaver";
+import { Selectable } from "kysely";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
+import { Syncer } from "@/store/sync/Syncer";
+import { FocusState, initialFocusState } from "@/store/slices/focusSlice.ts";
+import { appSlice } from "@/store/slices/appSlice.ts";
+import {
+  inboxId,
+  Project,
+  ProjectData,
+  projectsTable,
+  projectType,
+} from "@/store/slices/projectsSlice.ts";
+import "./z.hot.ts";
 
-import {isTask, Task, taskType} from "@/store/slices/tasksSlice.ts";
-import {TaskTemplate, taskTemplateType} from "@/store/slices/taskTemplatesSlice.ts";
-import {projectionType, TaskProjection} from "@/store/slices/projectionsSlice.ts";
-import {DailyList, dailyListType} from "@/store/slices/dailyListsSlice.ts";
+import { isTask, Task, taskType } from "@/store/slices/tasksSlice.ts";
+import {
+  TaskTemplate,
+  taskTemplateType,
+} from "@/store/slices/taskTemplatesSlice.ts";
+import {
+  projectionType,
+  TaskProjection,
+} from "@/store/slices/projectionsSlice.ts";
+import { DailyList, dailyListType } from "@/store/slices/dailyListsSlice.ts";
 
 export const allTypes = [
   projectType,
@@ -25,11 +49,11 @@ export const allTypes = [
   dailyListType,
 ] as const;
 export type AnyModel =
-    | Project
-    | Task
-    | TaskTemplate
-    | TaskProjection
-    | DailyList;
+  | Project
+  | Task
+  | TaskTemplate
+  | TaskProjection
+  | DailyList;
 type ModelType<T> = T extends { type: infer U } ? U : never;
 export type ModelTypeUnion = ModelType<AnyModel>;
 export type ModelsMap = {
@@ -66,7 +90,7 @@ let store: StoreApi<RootState>;
 type BroadcastChanges = Record<(typeof syncableTypes)[number], string[]>;
 
 const mapChangesForBC = (
-  changes: Record<(typeof syncableTables)[number], { id: string }[]>
+  changes: Record<(typeof syncableTables)[number], { id: string }[]>,
 ) => {
   const res: BroadcastChanges = {
     [projectType]: [],
@@ -129,15 +153,15 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
         const rows = await dbCtx.db.runQuery(
           Q.selectFrom(syncMap.table as typeof projectsTable)
             .selectAll()
-            .where("isDeleted", "=", 0)
+            .where("isDeleted", "=", 0),
         );
 
         return [syncMap, rows] satisfies [
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           SyncMapping<any, any>,
-          Selectable<SyncableTable>[]
+          Selectable<SyncableTable>[],
         ];
-      })
+      }),
     );
 
     for (const [syncMap, rows] of allData) {
@@ -182,7 +206,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       try {
         appSlice.applyChanges(
           store.withContextValue(skipSyncCtx, true),
-          modelChanges
+          modelChanges,
         );
       } catch (e) {
         console.error("failed to apply changes", e);
@@ -204,7 +228,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
         store,
         state,
         prevState,
-        patches
+        patches,
       );
       console.log("modelChanges", modelChanges);
 
@@ -228,7 +252,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
         const rows = await dbCtx.db.runQuery(
           Q.selectFrom(syncMap.table as typeof projectsTable)
             .selectAll()
-            .where("id", "in", ids)
+            .where("id", "in", ids),
         );
 
         for (const row of rows) {
@@ -244,7 +268,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
 
       appSlice.applyChanges(
         store.withContextValue(skipSyncCtx, true),
-        modelChanges
+        modelChanges,
       );
     };
 

@@ -9,7 +9,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useUnmount } from "../../utils";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { focusSlice } from "@/store/slices/focusSlice.ts";
-import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
+import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
 
 export const MoveModal = ({
   setIsOpen,

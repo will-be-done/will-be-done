@@ -1,8 +1,8 @@
 import { shouldNeverHappen } from "@/utils.ts";
 import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
-import {appSlice} from "@/store/slices/appSlice.ts";
-import {appAction, appSelector} from "@/store/z.selectorAction.ts";
-import {AnyModel, RootState} from "@/store/store.ts";
+import { appSlice } from "@/store/slices/appSlice.ts";
+import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { AnyModel, RootState } from "@/store/store.ts";
 
 export type FocusKey = string & { __brand: never };
 

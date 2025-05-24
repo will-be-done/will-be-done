@@ -1,32 +1,81 @@
-import {createSlice} from "@will-be-done/hyperstate";
-import {appSlice} from "@/store/slices/appSlice.ts";
-import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
-import {fractionalCompare, generateOrderTokenPositioned, OrderableItem, timeCompare,} from "@/store/order.ts";
-import {shallowEqual} from "fast-equals";
-import {isTask, Task, tasksSlice} from "@/store/slices/tasksSlice.ts";
-import {uuidv7} from "uuidv7";
-import {generateJitteredKeyBetween} from "fractional-indexing-jittered";
-import {shouldNeverHappen} from "@/utils.ts";
+import { createSlice } from "@will-be-done/hyperstate";
+import { appSlice } from "@/store/slices/appSlice.ts";
+import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
+import {
+  fractionalCompare,
+  generateOrderTokenPositioned,
+  OrderableItem,
+  timeCompare,
+} from "@/store/order.ts";
+import { shallowEqual } from "fast-equals";
+import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
+import { uuidv7 } from "uuidv7";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
+import { shouldNeverHappen } from "@/utils.ts";
 
-import {appAction, appSelector} from "@/store/z.selectorAction.ts";
-import {isObjectType} from "@/store/z.utils.ts";
-import {isTaskTemplate, TaskTemplate} from "@/store/slices/taskTemplatesSlice.ts";
-import {isTaskProjection} from "@/store/slices/projectionsSlice.ts";
-import {RootState} from "@/store/store.ts";
+import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { isObjectType } from "@/store/z.utils.ts";
+import {
+  isTaskTemplate,
+  TaskTemplate,
+} from "@/store/slices/taskTemplatesSlice.ts";
+import { isTaskProjection } from "@/store/slices/projectionsSlice.ts";
+import { RootState } from "@/store/store.ts";
+import { SyncMapping } from "../sync/mapping";
 
 export type Project = {
-    type: typeof projectType;
-    id: string;
-    title: string;
-    icon: string;
-    isInbox: boolean;
-    orderToken: string;
-    createdAt: number;
+  type: typeof projectType;
+  id: string;
+  title: string;
+  icon: string;
+  isInbox: boolean;
+  orderToken: string;
+  createdAt: number;
 };
 export const projectType = "project";
 export const isProject = isObjectType<Project>(projectType);
-
 export type ProjectItem = Task | TaskTemplate;
+
+export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
+export type ProjectData = {
+  id: string;
+  title: string;
+  icon: string;
+  isInbox: boolean;
+  orderToken: string;
+  createdAt: number;
+};
+export const projectsTable = "projects";
+
+export const projectsSyncMap: SyncMapping<
+  typeof projectsTable,
+  typeof projectType
+> = {
+  table: projectsTable,
+  modelType: projectType,
+  mapDataToModel(data) {
+    return {
+      type: projectType,
+      id: data.id,
+      title: data.title,
+      icon: data.icon,
+      isInbox: data.isInbox,
+      orderToken: data.orderToken,
+      createdAt: data.createdAt ?? 0,
+    };
+  },
+  mapModelToData(entity) {
+    return {
+      id: entity.id,
+      title: entity.title,
+      icon: entity.icon,
+      isInbox: entity.isInbox,
+      orderToken: entity.orderToken,
+      createdAt: entity.createdAt,
+    };
+  },
+};
+
 export const projectsSlice = createSlice(
   {
     byId: (state: RootState, id: string): Project | undefined =>
@@ -295,5 +344,3 @@ export const projectsSlice = createSlice(
   },
   "projectsSlice",
 );
-
-export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";

@@ -2,8 +2,8 @@ import AwaitLock from "await-lock";
 import { IDb, initDbClient, ISqlToRun, sql } from "@kikko-land/kikko";
 import sqlWasmUrl from "wa-sqlite/dist/wa-sqlite-async.wasm?url";
 import { nanoid } from "nanoid";
-import { preferencesTable, Q, syncableTables } from "./schema";
-import { waSqliteWebBackend } from "@/lib/wa-sqlite-backend/backend";
+import { preferencesTable, Q, syncableTables } from "./schema.ts";
+import { waSqliteWebBackend } from "@/lib/wa-sqlite-backend/backend.ts";
 
 export interface IDbCtx {
   db: IDb;

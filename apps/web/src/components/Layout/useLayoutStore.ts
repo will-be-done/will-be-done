@@ -18,6 +18,6 @@ export const useLayoutStore = create<LayoutState>()(
     }),
     {
       name: "layout-storage",
-    }
-  )
+    },
+  ),
 );

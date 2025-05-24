@@ -10,145 +10,145 @@
 
 // Import Routes
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as IndexImport } from './routes/index'
-import { Route as TimelineIndexImport } from './routes/timeline/index'
-import { Route as ProjectsIndexImport } from './routes/projects/index'
-import { Route as TimelineDateImport } from './routes/timeline/$date'
-import { Route as ProjectsProjectIdImport } from './routes/projects/$projectId'
+import { Route as rootRoute } from "./routes/__root";
+import { Route as IndexImport } from "./routes/index";
+import { Route as TimelineIndexImport } from "./routes/timeline/index";
+import { Route as ProjectsIndexImport } from "./routes/projects/index";
+import { Route as TimelineDateImport } from "./routes/timeline/$date";
+import { Route as ProjectsProjectIdImport } from "./routes/projects/$projectId";
 
 // Create/Update Routes
 
 const IndexRoute = IndexImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRoute,
-} as any)
+} as any);
 
 const TimelineIndexRoute = TimelineIndexImport.update({
-  id: '/timeline/',
-  path: '/timeline/',
+  id: "/timeline/",
+  path: "/timeline/",
   getParentRoute: () => rootRoute,
-} as any)
+} as any);
 
 const ProjectsIndexRoute = ProjectsIndexImport.update({
-  id: '/projects/',
-  path: '/projects/',
+  id: "/projects/",
+  path: "/projects/",
   getParentRoute: () => rootRoute,
-} as any)
+} as any);
 
 const TimelineDateRoute = TimelineDateImport.update({
-  id: '/timeline/$date',
-  path: '/timeline/$date',
+  id: "/timeline/$date",
+  path: "/timeline/$date",
   getParentRoute: () => rootRoute,
-} as any)
+} as any);
 
 const ProjectsProjectIdRoute = ProjectsProjectIdImport.update({
-  id: '/projects/$projectId',
-  path: '/projects/$projectId',
+  id: "/projects/$projectId",
+  path: "/projects/$projectId",
   getParentRoute: () => rootRoute,
-} as any)
+} as any);
 
 // Populate the FileRoutesByPath interface
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexImport
-      parentRoute: typeof rootRoute
-    }
-    '/projects/$projectId': {
-      id: '/projects/$projectId'
-      path: '/projects/$projectId'
-      fullPath: '/projects/$projectId'
-      preLoaderRoute: typeof ProjectsProjectIdImport
-      parentRoute: typeof rootRoute
-    }
-    '/timeline/$date': {
-      id: '/timeline/$date'
-      path: '/timeline/$date'
-      fullPath: '/timeline/$date'
-      preLoaderRoute: typeof TimelineDateImport
-      parentRoute: typeof rootRoute
-    }
-    '/projects/': {
-      id: '/projects/'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof ProjectsIndexImport
-      parentRoute: typeof rootRoute
-    }
-    '/timeline/': {
-      id: '/timeline/'
-      path: '/timeline'
-      fullPath: '/timeline'
-      preLoaderRoute: typeof TimelineIndexImport
-      parentRoute: typeof rootRoute
-    }
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexImport;
+      parentRoute: typeof rootRoute;
+    };
+    "/projects/$projectId": {
+      id: "/projects/$projectId";
+      path: "/projects/$projectId";
+      fullPath: "/projects/$projectId";
+      preLoaderRoute: typeof ProjectsProjectIdImport;
+      parentRoute: typeof rootRoute;
+    };
+    "/timeline/$date": {
+      id: "/timeline/$date";
+      path: "/timeline/$date";
+      fullPath: "/timeline/$date";
+      preLoaderRoute: typeof TimelineDateImport;
+      parentRoute: typeof rootRoute;
+    };
+    "/projects/": {
+      id: "/projects/";
+      path: "/projects";
+      fullPath: "/projects";
+      preLoaderRoute: typeof ProjectsIndexImport;
+      parentRoute: typeof rootRoute;
+    };
+    "/timeline/": {
+      id: "/timeline/";
+      path: "/timeline";
+      fullPath: "/timeline";
+      preLoaderRoute: typeof TimelineIndexImport;
+      parentRoute: typeof rootRoute;
+    };
   }
 }
 
 // Create and export the route tree
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/timeline/$date': typeof TimelineDateRoute
-  '/projects': typeof ProjectsIndexRoute
-  '/timeline': typeof TimelineIndexRoute
+  "/": typeof IndexRoute;
+  "/projects/$projectId": typeof ProjectsProjectIdRoute;
+  "/timeline/$date": typeof TimelineDateRoute;
+  "/projects": typeof ProjectsIndexRoute;
+  "/timeline": typeof TimelineIndexRoute;
 }
 
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/timeline/$date': typeof TimelineDateRoute
-  '/projects': typeof ProjectsIndexRoute
-  '/timeline': typeof TimelineIndexRoute
+  "/": typeof IndexRoute;
+  "/projects/$projectId": typeof ProjectsProjectIdRoute;
+  "/timeline/$date": typeof TimelineDateRoute;
+  "/projects": typeof ProjectsIndexRoute;
+  "/timeline": typeof TimelineIndexRoute;
 }
 
 export interface FileRoutesById {
-  __root__: typeof rootRoute
-  '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/timeline/$date': typeof TimelineDateRoute
-  '/projects/': typeof ProjectsIndexRoute
-  '/timeline/': typeof TimelineIndexRoute
+  __root__: typeof rootRoute;
+  "/": typeof IndexRoute;
+  "/projects/$projectId": typeof ProjectsProjectIdRoute;
+  "/timeline/$date": typeof TimelineDateRoute;
+  "/projects/": typeof ProjectsIndexRoute;
+  "/timeline/": typeof TimelineIndexRoute;
 }
 
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/projects/$projectId'
-    | '/timeline/$date'
-    | '/projects'
-    | '/timeline'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/projects/$projectId"
+    | "/timeline/$date"
+    | "/projects"
+    | "/timeline";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/projects/$projectId'
-    | '/timeline/$date'
-    | '/projects'
-    | '/timeline'
+    | "/"
+    | "/projects/$projectId"
+    | "/timeline/$date"
+    | "/projects"
+    | "/timeline";
   id:
-    | '__root__'
-    | '/'
-    | '/projects/$projectId'
-    | '/timeline/$date'
-    | '/projects/'
-    | '/timeline/'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/projects/$projectId"
+    | "/timeline/$date"
+    | "/projects/"
+    | "/timeline/";
+  fileRoutesById: FileRoutesById;
 }
 
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
-  TimelineDateRoute: typeof TimelineDateRoute
-  ProjectsIndexRoute: typeof ProjectsIndexRoute
-  TimelineIndexRoute: typeof TimelineIndexRoute
+  IndexRoute: typeof IndexRoute;
+  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute;
+  TimelineDateRoute: typeof TimelineDateRoute;
+  ProjectsIndexRoute: typeof ProjectsIndexRoute;
+  TimelineIndexRoute: typeof TimelineIndexRoute;
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -157,11 +157,11 @@ const rootRouteChildren: RootRouteChildren = {
   TimelineDateRoute: TimelineDateRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,
   TimelineIndexRoute: TimelineIndexRoute,
-}
+};
 
 export const routeTree = rootRoute
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
 /* ROUTE_MANIFEST_START
 {

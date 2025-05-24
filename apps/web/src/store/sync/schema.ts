@@ -6,12 +6,21 @@ import {
   SqliteIntrospector,
   SqliteQueryCompiler,
 } from "kysely";
+import { ProjectData, projectsTable } from "@/store/slices/projectsSlice.ts";
+import { TaskData, tasksTable } from "@/store/slices/tasksSlice.ts";
+import {
+  TaskTemplateData,
+  taskTemplatesTable,
+} from "@/store/slices/taskTemplatesSlice.ts";
+import {
+  TaskProjectionData,
+  taskProjectionsTable,
+} from "@/store/slices/projectionsSlice.ts";
+import {
+  DailyListData,
+  dailyListsTable,
+} from "@/store/slices/dailyListsSlice.ts";
 
-export const projectsTable = "projects";
-export const tasksTable = "tasks";
-export const taskTemplatesTable = "task_templates";
-export const taskProjectionsTable = "task_projections";
-export const dailyListsTable = "daily_lists";
 export const migrationsTable = "migrations";
 export const preferencesTable = "preferences";
 
@@ -30,46 +39,6 @@ export type SyncableTable<T extends object | null = object> = {
   lastUpdatedOnServerAt: string;
   isDeleted: number;
   data: JSONColumnType<T>;
-};
-
-export type ProjectData = {
-  id: string;
-  title: string;
-  icon: string;
-  isInbox: boolean;
-  orderToken: string;
-  createdAt: number;
-};
-
-export type TaskData = {
-  id: string;
-  title: string;
-  state: string;
-  projectId: string;
-  orderToken: string;
-  lastToggledAt: number;
-  createdAt: number;
-  horizon: "week" | "month" | "year" | "someday" | undefined;
-};
-
-export type TaskTemplateData = {
-  id: string;
-  orderToken: string;
-  projectId: string;
-  createdAt: number;
-};
-
-export type TaskProjectionData = {
-  id: string;
-  taskId: string;
-  orderToken: string;
-  dailyListId: string;
-  createdAt: number;
-};
-
-export type DailyListData = {
-  id: string;
-  date: string;
 };
 
 export type MigrationsTable = {

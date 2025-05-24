@@ -32,10 +32,10 @@ import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
 import { taskBoxesSlice } from "@/store/slices/taskBoxesSlice.ts";
 import { appSlice } from "@/store/slices/appSlice.ts";
-import {isTask, tasksSlice} from "@/store/slices/tasksSlice.ts";
+import { isTask, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
-import {isTaskProjection} from "@/store/slices/projectionsSlice.ts";
+import { isTaskProjection } from "@/store/slices/projectionsSlice.ts";
 
 type State =
   | { type: "idle" }
