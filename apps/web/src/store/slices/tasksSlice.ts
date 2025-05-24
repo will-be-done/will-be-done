@@ -170,7 +170,7 @@ export const tasksSlice = createSlice(
           state: "todo",
           lastToggledAt: Date.now(),
           createdAt: Date.now(),
-          horizon: "someday",
+          horizon: "week",
           ...task,
         };
 

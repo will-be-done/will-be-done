@@ -28,7 +28,6 @@ import {
   projectsTable,
   projectType,
 } from "@/store/slices/projectsSlice.ts";
-import "./z.hot.ts";
 
 import { isTask, Task, taskType } from "@/store/slices/tasksSlice.ts";
 import {

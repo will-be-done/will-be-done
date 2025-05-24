@@ -5,6 +5,7 @@ import { initStore } from "@/store/store.ts";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { StoreProvider } from "@will-be-done/hyperstate";
+import "@/store/z.hot.ts";
 
 export const Route = createRootRoute({
   component: RouteComponent,
