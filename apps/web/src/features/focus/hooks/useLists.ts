@@ -3,7 +3,7 @@ import {
   focusSlice,
   focusManager,
 } from "@/store/slices/focusSlice.ts";
-import { createContext, useContext, useEffect, useMemo } from "react";
+import { createContext, use, useEffect, useMemo } from "react";
 import { useAppStore } from "../../../hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
 
@@ -31,7 +31,7 @@ export const useRegisterFocusColumn = (key: FocusKey, priority: string) => {
 export const useRegisterFocusItem = (itemKey: FocusKey, priority: string) => {
   const paddedPriority = padStart(priority, 7, "0");
 
-  const parentListKey = useContext(ParentListContext);
+  const parentListKey = use(ParentListContext);
   const store = useAppStore();
 
   const item = useMemo(() => {

@@ -22,13 +22,13 @@ const handleDropsByType = {
   [projectType]: projectsSlice.handleDrop,
 };
 const canDropsByType = {
-  // eslint-disable-next-line @typescript-eslint/unbound-method
+   
   [taskType]: tasksSlice.canDrop,
-  // eslint-disable-next-line @typescript-eslint/unbound-method
+   
   [projectionType]: projectionsSlice.canDrop,
-  // eslint-disable-next-line @typescript-eslint/unbound-method
+   
   [dailyListType]: dailyListsSlice.canDrop,
-  // eslint-disable-next-line @typescript-eslint/unbound-method
+   
   [projectType]: projectsSlice.canDrop,
 };
 export const dropSlice = createSlice(

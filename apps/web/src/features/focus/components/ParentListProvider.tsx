@@ -31,9 +31,9 @@ export const ColumnListProvider = ({
   }, [item, store]);
 
   return (
-    <ParentListContext.Provider value={focusKey}>
+    <ParentListContext value={focusKey}>
       {children}
-    </ParentListContext.Provider>
+    </ParentListContext>
   );
 };
 
@@ -50,9 +50,9 @@ export const ParentListItemProviderBody = ({
   useRegisterFocusItem(focusKey, paddedPriority);
 
   return (
-    <ParentListContext.Provider value={focusKey}>
+    <ParentListContext value={focusKey}>
       {children}
-    </ParentListContext.Provider>
+    </ParentListContext>
   );
 };
 

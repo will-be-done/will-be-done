@@ -117,25 +117,8 @@ interface MultiSelectProps
   className?: string;
 }
 
-export const MultiSelect = React.forwardRef<
-  HTMLButtonElement,
-  MultiSelectProps
->(
-  (
-    {
-      options,
-      onValueChange,
-      variant,
-      defaultValue = [],
-      placeholder = "Select options",
-      animation = 0,
-      maxCount = 3,
-      modalPopover = false,
-      asChild = false,
-      className,
-      ...props
-    },
-    ref,
+export const MultiSelect = (
+    { ref, options, onValueChange, variant, defaultValue = [], placeholder = "Select options", animation = 0, maxCount = 3, modalPopover = false, asChild = false, className, ...props }: MultiSelectProps & { ref?: React.RefObject<HTMLButtonElement | null> },
   ) => {
     const [selectedValues, setSelectedValues] =
       React.useState<string[]>(defaultValue);
@@ -373,7 +356,6 @@ export const MultiSelect = React.forwardRef<
         )}
       </Popover>
     );
-  },
-);
+  };
 
 MultiSelect.displayName = "MultiSelect";
