@@ -7,6 +7,7 @@ import {tasksSlice} from "@/store/slices/tasksSlice.ts";
 import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
 import {projectsSlice} from "@/store/slices/projectsSlice.ts";
 import {dropSlice} from "@/store/slices/dropSlice.ts";
+import {focusSlice} from "@/store/slices/focusSlice.ts";
 
 export const allSlices = {
   appSlice,
@@ -17,6 +18,7 @@ export const allSlices = {
   allProjectsSlice,
   projectsSlice,
   dropSlice,
+  focusSlice,
 };
 
 if (import.meta.hot) {

@@ -1,9 +1,8 @@
 import {createSlice} from "@will-be-done/hyperstate";
-import {inboxId, Project} from "@/store/models.ts";
 import {shallowEqual} from "fast-equals";
 import {fractionalCompare} from "@/store/order.ts";
-import {projectsSlice} from "@/store/slices/projectsSlice.ts";
-import {appSelector} from "@/store/selectorAction.ts";
+import {inboxId, Project, projectsSlice} from "@/store/slices/projectsSlice.ts";
+import {appSelector} from "@/store/z.selectorAction.ts";
 
 export const allProjectsSlice = createSlice(
     {

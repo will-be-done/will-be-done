@@ -1,20 +1,28 @@
 import {createSlice} from "@will-be-done/hyperstate";
-import {DailyList, dailyListType, isTask, isTaskProjection, RootState, Task, TaskProjection} from "@/store/models.ts";
 import {appSlice} from "@/store/slices/appSlice.ts";
 import {shouldNeverHappen} from "@/utils.ts";
 import {deepEqual, shallowEqual} from "fast-equals";
 import {generateJitteredKeyBetween} from "fractional-indexing-jittered";
 import uuidByString from "uuid-by-string";
 import {fractionalCompare, generateOrderTokenPositioned, OrderableItem, timeCompare} from "@/store/order.ts";
-import {projectionsSlice} from "@/store/slices/projectionsSlice.ts";
-import {tasksSlice} from "@/store/slices/tasksSlice.ts";
+import {isTaskProjection, projectionsSlice, TaskProjection} from "@/store/slices/projectionsSlice.ts";
+import {isTask, Task, tasksSlice} from "@/store/slices/tasksSlice.ts";
 import {projectsSlice} from "@/store/slices/projectsSlice.ts";
 import {format} from "date-fns";
-import {appAction, appSelector} from "@/store/selectorAction.ts";
+import {appAction, appSelector} from "@/store/z.selectorAction.ts";
+import {isObjectType} from "@/store/z.utils.ts";
+import {RootState} from "@/store/store.ts";
 
 export const getDMY = (date: Date) => {
     return format(date, "yyyy-MM-dd");
 };
+export const dailyListType = "dailyList";
+export type DailyList = {
+    type: typeof dailyListType;
+    id: string;
+    date: string;
+};
+export const isDailyList = isObjectType<DailyList>(dailyListType);
 export const dailyListsSlice = createSlice(
     {
         byId: (state: RootState, id: string) => state.dailyList.byIds[id],

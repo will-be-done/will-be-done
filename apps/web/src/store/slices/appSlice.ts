@@ -1,17 +1,11 @@
 import {createSlice, withoutUndoAction} from "@will-be-done/hyperstate";
-import {
-    allTypes,
-    AnyModel,
-    AppModelChange,
-    isTask,
-    Project,
-    projectType, RootState,
-    Task,
-    TaskProjection,
-    taskType
-} from "@/store/models.ts";
 
-import {appAction} from "@/store/selectorAction.ts";
+import {appAction} from "@/store/z.selectorAction.ts";
+import {Project, projectType} from "@/store/slices/projectsSlice.ts";
+
+import {isTask, Task, taskType} from "@/store/slices/tasksSlice.ts";
+import {TaskProjection} from "@/store/slices/projectionsSlice.ts";
+import {allTypes, AnyModel, AppModelChange, RootState} from "@/store/store.ts";
 
 export const appSlice = createSlice(
     {

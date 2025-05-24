@@ -1,43 +1,66 @@
-import {
-  connectToDevTools,
-  createStore,
-  StoreApi,
-  withUndoManager,
-} from "@will-be-done/hyperstate";
+import {connectToDevTools, createStore, StoreApi, withUndoManager,} from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
-import { getDbCtx } from "@/sync/db";
-import {
-  ProjectData,
-  projectsTable,
-  Q,
-  SyncableTable,
-  syncableTables,
-} from "@/sync/schema";
-import { ChangesTracker } from "@/sync/ChangesTracker";
-import {
-  skipSyncCtx,
-  syncableTypes,
-  SyncMapping,
-  syncMappings,
-  tableModelTypeMap,
-} from "@/sync/main";
-import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
-import { Selectable } from "kysely";
-import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
-import { Syncer } from "@/sync/Syncer";
-import { initialFocusState } from "@/store/slices/focusSlice.ts";
-import {
-  AppModelChange,
-  dailyListType,
-  inboxId,
-  isTask,
-  projectionType,
-  projectType, RootState,
-  taskTemplateType,
-  taskType
-} from "@/store/models.ts";
+import {getDbCtx} from "@/sync/db";
+import {ProjectData, projectsTable, Q, SyncableTable, syncableTables,} from "@/sync/schema";
+import {ChangesTracker} from "@/sync/ChangesTracker";
+import {skipSyncCtx, syncableTypes, SyncMapping, syncMappings, tableModelTypeMap,} from "@/sync/main";
+import {ChangesToDbSaver} from "@/sync/ChangesToDbSaver";
+import {Selectable} from "kysely";
+import {generateJitteredKeyBetween} from "fractional-indexing-jittered";
+import {Syncer} from "@/sync/Syncer";
+import {FocusState, initialFocusState} from "@/store/slices/focusSlice.ts";
 import {appSlice} from "@/store/slices/appSlice.ts";
+import {inboxId, Project, projectType} from "@/store/slices/projectsSlice.ts";
 
+import {isTask, Task, taskType} from "@/store/slices/tasksSlice.ts";
+import {TaskTemplate, taskTemplateType} from "@/store/slices/taskTemplatesSlice.ts";
+import {projectionType, TaskProjection} from "@/store/slices/projectionsSlice.ts";
+import {DailyList, dailyListType} from "@/store/slices/dailyListsSlice.ts";
+
+export const allTypes = [
+  projectType,
+  taskType,
+  taskTemplateType,
+  projectionType,
+  dailyListType,
+] as const;
+export type AnyModel =
+    | Project
+    | Task
+    | TaskTemplate
+    | TaskProjection
+    | DailyList;
+type ModelType<T> = T extends { type: infer U } ? U : never;
+export type ModelTypeUnion = ModelType<AnyModel>;
+export type ModelsMap = {
+  [K in ModelTypeUnion]: Extract<AnyModel, { type: K }>;
+};
+export type SyncableState = {
+  [projectType]: {
+    byIds: Record<string, Project>;
+  };
+  [taskType]: {
+    byIds: Record<string, Task>;
+  };
+  [taskTemplateType]: {
+    byIds: Record<string, TaskTemplate>;
+  };
+  [projectionType]: {
+    byIds: Record<string, TaskProjection>;
+  };
+  [dailyListType]: {
+    byIds: Record<string, DailyList>;
+  };
+};
+export type RootState = SyncableState & {
+  focus: FocusState;
+};
+export type AppModelChange = {
+  id: string;
+  modelType: ModelTypeUnion;
+  isDeleted: boolean;
+  model: AnyModel;
+};
 let store: StoreApi<RootState>;
 
 type BroadcastChanges = Record<(typeof syncableTypes)[number], string[]>;
@@ -231,18 +254,3 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     lock.release();
   }
 };
-
-export const getStore = () => {
-  if (!store) {
-    throw new Error("Store not initialized");
-  }
-
-  return store;
-};
-// if (import.meta.hot) {
-//   import.meta.hot.accept((newModule) => {
-//     if (newModule) {
-//       console.log("new module", newModule);
-//     }
-//   });
-// }

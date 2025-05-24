@@ -1,12 +1,13 @@
 import {createSlice} from "@will-be-done/hyperstate";
 import {shouldNeverHappen} from "@/utils.ts";
-import { assertUnreachable } from "@/utils/assert.ts";
-import {AnyModel, isTask, isTaskProjection, RootState, Task, TaskBox, taskType} from "@/store/models.ts";
+import {assertUnreachable} from "@/utils/assert.ts";
 import {appSlice} from "@/store/slices/appSlice.ts";
-import {projectionsSlice} from "@/store/slices/projectionsSlice.ts";
-import {tasksSlice} from "@/store/slices/tasksSlice.ts";
-import {appAction, appSelector} from "@/store/selectorAction.ts";
+import {isTaskProjection, projectionsSlice, TaskProjection} from "@/store/slices/projectionsSlice.ts";
+import {isTask, Task, tasksSlice, taskType} from "@/store/slices/tasksSlice.ts";
+import {appAction, appSelector} from "@/store/z.selectorAction.ts";
+import {AnyModel, RootState} from "@/store/store.ts";
 
+export type TaskBox = Task | TaskProjection;
 export const taskBoxesSlice = createSlice(
     {
         taskOfModelId: appSelector((query, id: string): Task | undefined => {

@@ -1,8 +1,8 @@
 import { shouldNeverHappen } from "@/utils.ts";
 import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
-import {AnyModel, RootState} from "@/store/models.ts";
 import {appSlice} from "@/store/slices/appSlice.ts";
-import {appAction, appSelector} from "@/store/selectorAction.ts";
+import {appAction, appSelector} from "@/store/z.selectorAction.ts";
+import {AnyModel, RootState} from "@/store/store.ts";
 
 export type FocusKey = string & { __brand: never };
 
@@ -412,7 +412,7 @@ export const focusManager = (() => {
           })`,
         );
 
-        focusSlice.printNode(
+        manager.printNode(
           childItem,
           prefix + (isLastChild ? "    " : "│   "),
           output,
@@ -559,11 +559,11 @@ export const focusManager = (() => {
 // }
 
 export const print = () => {
-  for (const column of focusSlice.getColumns()) {
+  for (const column of focusManager.getColumns()) {
     console.log("column", column.key, column.priority);
 
     const output: string[] = [];
-    focusSlice.printNode(column, "", output);
+    focusManager.printNode(column, "", output);
 
     console.log(output.join("\n"));
   }

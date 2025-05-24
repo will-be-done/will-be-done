@@ -1,18 +1,12 @@
 import { StoreApi } from "@will-be-done/hyperstate";
 import uuidByString from "uuid-by-string";
-import {
-  AppModelChange,
-  DailyList,
-  dailyListType,
-  Project,
-  projectionType,
-  projectType, RootState,
-  Task,
-  TaskProjection,
-  taskType
-} from "@/store/models.ts";
 import {appSlice} from "@/store/slices/appSlice.ts";
-import {getDMY} from "@/store/slices/dailyListsSlice.ts";
+import {DailyList, dailyListType, getDMY} from "@/store/slices/dailyListsSlice.ts";
+import {Project, projectType} from "@/store/slices/projectsSlice.ts";
+
+import {Task, taskType} from "@/store/slices/tasksSlice.ts";
+import {projectionType, TaskProjection} from "@/store/slices/projectionsSlice.ts";
+import {AppModelChange, RootState} from "@/store/store.ts";
 
 interface TaskBackup {
   id: string;

@@ -1,14 +1,30 @@
 import {createSlice} from "@will-be-done/hyperstate";
 import {appSlice} from "@/store/slices/appSlice.ts";
 import {shouldNeverHappen} from "@/utils.ts";
-import {isTask, isTaskProjection, isTaskTemplate, ProjectItem, RootState, Task, taskType} from "@/store/models.ts";
-import {projectionsSlice} from "@/store/slices/projectionsSlice.ts";
+import {isTaskProjection, projectionsSlice} from "@/store/slices/projectionsSlice.ts";
 import {uuidv7} from "uuidv7";
 import {generateJitteredKeyBetween} from "fractional-indexing-jittered";
-import {projectsSlice} from "@/store/slices/projectsSlice.ts";
+import {ProjectItem, projectsSlice} from "@/store/slices/projectsSlice.ts";
 import {generateKeyPositionedBetween} from "@/store/order.ts";
-import {appAction, appSelector} from "@/store/selectorAction.ts";
+import {appAction, appSelector} from "@/store/z.selectorAction.ts";
+import {isObjectType} from "@/store/z.utils.ts";
+import {isTaskTemplate} from "@/store/slices/taskTemplatesSlice.ts";
+import {RootState} from "@/store/store.ts";
 
+export const taskType = "task";
+export type TaskState = "todo" | "done";
+export type Task = {
+    type: typeof taskType;
+    id: string;
+    title: string;
+    state: TaskState;
+    projectId: string;
+    orderToken: string;
+    lastToggledAt: number;
+    horizon: "week" | "month" | "year" | "someday";
+    createdAt: number;
+};
+export const isTask = isObjectType<Task>(taskType);
 export const tasksSlice = createSlice(
     {
         canDrop(state: RootState, taskId: string, dropId: string) {

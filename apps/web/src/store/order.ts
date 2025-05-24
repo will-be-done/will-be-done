@@ -1,6 +1,7 @@
 import {generateJitteredKeyBetween} from "fractional-indexing-jittered";
 
-import {RootState} from "@/store/models.ts";
+
+import {RootState} from "@/store/store.ts";
 
 export const generateOrderTokenPositioned = (
     state: RootState,

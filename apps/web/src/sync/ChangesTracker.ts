@@ -4,7 +4,8 @@ import { Patch } from "mutative";
 import { uuidv7 } from "uuidv7";
 import { syncMappings } from "./main";
 import { shouldNeverHappen } from "@/utils";
-import {RootState, SyncableState} from "@/store/models.ts";
+
+import {RootState, SyncableState} from "@/store/store.ts";
 
 export type ModelChange = {
   id: string;

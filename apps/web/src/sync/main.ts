@@ -7,15 +7,13 @@ import {
   taskTemplatesTable,
 } from "@/sync/schema";
 import { createContext } from "@will-be-done/hyperstate";
-import {
-    dailyListType,
-    ModelsMap,
-    projectionType,
-    projectType,
-    TaskState,
-    taskTemplateType,
-    taskType
-} from "@/store/models.ts";
+import {projectType} from "@/store/slices/projectsSlice.ts";
+
+import {TaskState, taskType} from "@/store/slices/tasksSlice.ts";
+import {taskTemplateType} from "@/store/slices/taskTemplatesSlice.ts";
+import {projectionType} from "@/store/slices/projectionsSlice.ts";
+import {dailyListType} from "@/store/slices/dailyListsSlice.ts";
+import {ModelsMap} from "@/store/store.ts";
 
 export const skipSyncCtx = createContext("skipSync", false);
 

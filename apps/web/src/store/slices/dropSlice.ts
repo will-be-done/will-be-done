@@ -1,13 +1,13 @@
-import {dailyListType, projectionType, projectType, RootState, taskType} from "@/store/models.ts";
-import {tasksSlice} from "@/store/slices/tasksSlice.ts";
-import {projectionsSlice} from "@/store/slices/projectionsSlice.ts";
-import {dailyListsSlice} from "@/store/slices/dailyListsSlice.ts";
-import {projectsSlice} from "@/store/slices/projectsSlice.ts";
+import {tasksSlice, taskType} from "@/store/slices/tasksSlice.ts";
+import {projectionsSlice, projectionType} from "@/store/slices/projectionsSlice.ts";
+import {dailyListsSlice, dailyListType} from "@/store/slices/dailyListsSlice.ts";
+import {projectsSlice, projectType} from "@/store/slices/projectsSlice.ts";
 import {createSlice} from "@will-be-done/hyperstate";
 import {appSlice} from "@/store/slices/appSlice.ts";
 import {shouldNeverHappen} from "@/utils.ts";
 
-import {appAction} from "@/store/selectorAction.ts";
+import {appAction} from "@/store/z.selectorAction.ts";
+import {RootState} from "@/store/store.ts";
 
 const handleDropsByType = {
     [taskType]: tasksSlice.handleDrop,

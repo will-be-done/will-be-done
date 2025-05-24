@@ -9,10 +9,11 @@ import { useAppSelector } from "@/hooks/stateHooks.ts";
 import { TaskComp } from "@/components/Task/Task";
 import { useFilterStore } from "./filterStore";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import {Task} from "@/store/models.ts";
 import {dailyListsSlice} from "@/store/slices/dailyListsSlice.ts";
 import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
 import {projectsSlice} from "@/store/slices/projectsSlice.ts";
+
+import {Task} from "@/store/slices/tasksSlice.ts";
 
 function ProjectSuggestions({
   projectId,

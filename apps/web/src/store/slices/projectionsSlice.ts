@@ -1,15 +1,26 @@
 import {createSlice} from "@will-be-done/hyperstate";
-import {isTask, isTaskProjection, projectionType, RootState, TaskProjection} from "@/store/models.ts";
 import {appSlice} from "@/store/slices/appSlice.ts";
 import {shouldNeverHappen} from "@/utils.ts";
 import {dailyListsSlice} from "@/store/slices/dailyListsSlice.ts";
 import {shallowEqual} from "fast-equals";
 import {generateJitteredKeyBetween} from "fractional-indexing-jittered";
 import {uuidv7} from "uuidv7";
-import {tasksSlice} from "@/store/slices/tasksSlice.ts";
+import {isTask, tasksSlice} from "@/store/slices/tasksSlice.ts";
 import {generateKeyPositionedBetween} from "@/store/order.ts";
-import {appAction, appSelector} from "@/store/selectorAction.ts";
+import {appAction, appSelector} from "@/store/z.selectorAction.ts";
+import {isObjectType} from "@/store/z.utils.ts";
+import {RootState} from "@/store/store.ts";
 
+export const projectionType = "projection";
+export type TaskProjection = {
+    type: typeof projectionType;
+    id: string;
+    taskId: string;
+    orderToken: string;
+    dailyListId: string;
+    createdAt: number;
+};
+export const isTaskProjection = isObjectType<TaskProjection>(projectionType);
 export const projectionsSlice = createSlice(
     {
         byId: (state: RootState, id: string) => state.projection.byIds[id],

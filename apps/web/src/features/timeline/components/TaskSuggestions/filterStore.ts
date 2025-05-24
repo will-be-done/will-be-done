@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import {Task} from "@/store/models.ts";
+
+
+import {Task} from "@/store/slices/tasksSlice.ts";
 
 type FilterStore = {
   horizons: Task["horizon"][];

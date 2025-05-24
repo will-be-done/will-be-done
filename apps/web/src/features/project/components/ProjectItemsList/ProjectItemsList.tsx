@@ -18,9 +18,8 @@ import { isInputElement } from "@/utils/isInputElement.ts";
 import { cn } from "@/lib/utils.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
-import {Project} from "@/store/models.ts";
 import {tasksSlice} from "@/store/slices/tasksSlice.ts";
-import {projectsSlice} from "@/store/slices/projectsSlice.ts";
+import {Project, projectsSlice} from "@/store/slices/projectsSlice.ts";
 
 const AddTaskButton = ({
   project,

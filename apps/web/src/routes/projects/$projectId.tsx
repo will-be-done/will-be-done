@@ -3,9 +3,8 @@ import { useAppSelector } from "@/hooks/stateHooks.ts";
 import { Layout } from "@/components/Layout/Layout";
 import { ProjectsSidebarContent } from "@/features/project/components/Sidebar/ProjectsSidebarContent";
 import { ProjectItemsList } from "@/features/project/components/ProjectItemsList/ProjectItemsList";
-import {Project} from "@/store/models.ts";
 import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
-import {projectsSlice} from "@/store/slices/projectsSlice.ts";
+import {Project, projectsSlice} from "@/store/slices/projectsSlice.ts";
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: RouteComponent,

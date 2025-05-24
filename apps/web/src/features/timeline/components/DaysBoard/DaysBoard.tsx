@@ -20,11 +20,10 @@ import clsx from "clsx";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
 import { Layout } from "../../../../components/Layout/Layout";
 import { TaskSuggestions } from "../TaskSuggestions/TaskSuggestions";
-import {DailyList, inboxId} from "@/store/models.ts";
-import {dailyListsSlice, getDMY} from "@/store/slices/dailyListsSlice.ts";
+import {DailyList, dailyListsSlice, getDMY} from "@/store/slices/dailyListsSlice.ts";
 import {projectionsSlice} from "@/store/slices/projectionsSlice.ts";
 import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
-import {projectsSlice} from "@/store/slices/projectsSlice.ts";
+import {inboxId, projectsSlice} from "@/store/slices/projectsSlice.ts";
 import {dropSlice} from "@/store/slices/dropSlice.ts";
 
 // All days of the week
