@@ -1,13 +1,4 @@
 import {
-  dailyListType,
-  ModelsMap,
-  projectionType,
-  projectType,
-  TaskState,
-  taskTemplateType,
-  taskType,
-} from "@/models/models2";
-import {
   dailyListsTable,
   projectsTable,
   SyncableTables,
@@ -16,6 +7,15 @@ import {
   taskTemplatesTable,
 } from "@/sync/schema";
 import { createContext } from "@will-be-done/hyperstate";
+import {
+    dailyListType,
+    ModelsMap,
+    projectionType,
+    projectType,
+    TaskState,
+    taskTemplateType,
+    taskType
+} from "@/store/models.ts";
 
 export const skipSyncCtx = createContext("skipSync", false);
 

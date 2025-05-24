@@ -1,10 +1,10 @@
-import { RootState, SyncableState } from "@/models/models2";
 import { DistributiveOmit } from "@kikko-land/kikko";
 import { StoreApi } from "@will-be-done/hyperstate";
 import { Patch } from "mutative";
 import { uuidv7 } from "uuidv7";
 import { syncMappings } from "./main";
 import { shouldNeverHappen } from "@/utils";
+import {RootState, SyncableState} from "@/store/models.ts";
 
 export type ModelChange = {
   id: string;

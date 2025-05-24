@@ -1,6 +1,6 @@
-import { Task } from "@/models/models2";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import {Task} from "@/store/models.ts";
 
 type FilterStore = {
   horizons: Task["horizon"][];

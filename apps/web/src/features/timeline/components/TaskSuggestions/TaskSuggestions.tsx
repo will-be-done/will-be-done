@@ -2,19 +2,17 @@ import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/features/focus/components/ParentListProvider.tsx";
-import { buildFocusKey } from "@/states/FocusManager";
+import { buildFocusKey } from "@/store/slices/focusSlice.ts";
 import { useSuggestionsStore } from "./suggestionsStore";
 import { useShallow } from "zustand/react/shallow";
 import { useAppSelector } from "@/hooks/stateHooks.ts";
-import {
-  allProjectsSlice,
-  dailyListsSlice,
-  projectsSlice,
-  Task,
-} from "@/models/models2";
 import { TaskComp } from "@/components/Task/Task";
 import { useFilterStore } from "./filterStore";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import {Task} from "@/store/models.ts";
+import {dailyListsSlice} from "@/store/slices/dailyListsSlice.ts";
+import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
+import {projectsSlice} from "@/store/slices/projectsSlice.ts";
 
 function ProjectSuggestions({
   projectId,

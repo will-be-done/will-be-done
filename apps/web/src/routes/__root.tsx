@@ -1,7 +1,7 @@
 import { GlobalListener } from "@/features/global-listener/components/GlobalListener.tsx";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { KeyPressedCtxProvider } from "@/features/global-listener/components/KeyPressedCtxProvider.tsx";
-import { initStore } from "@/models/initRootStore2";
+import { initStore } from "@/store/initRootStore2";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { StoreProvider } from "@will-be-done/hyperstate";

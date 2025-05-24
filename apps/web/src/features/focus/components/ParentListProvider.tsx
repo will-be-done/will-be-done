@@ -1,6 +1,10 @@
 import { PropsWithChildren, useEffect, useMemo } from "react";
 import { ParentListContext, useRegisterFocusItem } from "../hooks/useLists.ts";
-import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager.ts";
+import {
+  FocusKey,
+  focusManager,
+  focusSlice,
+} from "@/store/slices/focusSlice.ts";
 import { useAppStore } from "../../../hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
 

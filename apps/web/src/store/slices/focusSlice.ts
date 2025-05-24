@@ -1,12 +1,8 @@
-import {
-  AnyModel,
-  appAction,
-  appSelector,
-  appSlice,
-  RootState,
-} from "@/models/models2";
-import { shouldNeverHappen } from "@/utils";
+import { shouldNeverHappen } from "@/utils.ts";
 import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
+import {AnyModel, RootState} from "@/store/models.ts";
+import {appSlice} from "@/store/slices/appSlice.ts";
+import {appAction, appSelector} from "@/store/selectorAction.ts";
 
 export type FocusKey = string & { __brand: never };
 
@@ -416,7 +412,7 @@ export const focusManager = (() => {
           })`,
         );
 
-        focusManager.printNode(
+        focusSlice.printNode(
           childItem,
           prefix + (isLastChild ? "    " : "│   "),
           output,
@@ -563,11 +559,11 @@ export const focusManager = (() => {
 // }
 
 export const print = () => {
-  for (const column of focusManager.getColumns()) {
+  for (const column of focusSlice.getColumns()) {
     console.log("column", column.key, column.priority);
 
     const output: string[] = [];
-    focusManager.printNode(column, "", output);
+    focusSlice.printNode(column, "", output);
 
     console.log(output.join("\n"));
   }
@@ -577,8 +573,8 @@ export const print = () => {
 window.printFocus = print;
 
 // // Create and export a singleton instance
-// export const focusManager = new FocusManager();
+// export const focusSlice = new FocusManager();
 //
 // // Expose the focus manager to the window for debugging
-// (window as unknown as { focusManager: FocusManager }).focusManager =
-//   focusManager;
+// (window as unknown as { focusSlice: FocusManager }).focusSlice =
+//   focusSlice;

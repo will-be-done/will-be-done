@@ -1,4 +1,8 @@
-import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager.ts";
+import {
+  FocusKey,
+  focusSlice,
+  focusManager,
+} from "@/store/slices/focusSlice.ts";
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { useAppStore } from "../../../hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";

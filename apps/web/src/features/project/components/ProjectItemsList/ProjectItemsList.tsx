@@ -1,6 +1,5 @@
-import { Project, projectsSlice, tasksSlice } from "../../../../models/models2.ts";
 import { TaskComp } from "../../../../components/Task/Task.tsx";
-import { buildFocusKey, focusSlice } from "@/states/FocusManager.ts";
+import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
 import {
   ColumnListProvider,
   ParentListItemProvider,
@@ -19,6 +18,9 @@ import { isInputElement } from "@/utils/isInputElement.ts";
 import { cn } from "@/lib/utils.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
+import {Project} from "@/store/models.ts";
+import {tasksSlice} from "@/store/slices/tasksSlice.ts";
+import {projectsSlice} from "@/store/slices/projectsSlice.ts";
 
 const AddTaskButton = ({
   project,

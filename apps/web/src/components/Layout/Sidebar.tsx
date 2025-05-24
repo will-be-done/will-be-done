@@ -1,6 +1,6 @@
 import { ColumnListProvider } from "@/features/focus/components/ParentListProvider.tsx";
 import { cn } from "@/lib/utils";
-import { buildFocusKey } from "@/states/FocusManager";
+import { buildFocusKey } from "@/store/slices/focusSlice.ts";
 import { Link } from "@tanstack/react-router";
 
 export const Sidebar = function SidebarComp({

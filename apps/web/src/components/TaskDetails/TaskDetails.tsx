@@ -1,6 +1,6 @@
 import { useAppSelector } from "@/hooks/stateHooks.ts";
-import { taskBoxesSlice } from "@/models/models2";
-import { parseColumnKey } from "@/states/FocusManager";
+import { parseColumnKey } from "@/store/slices/focusSlice.ts";
+import {taskBoxesSlice} from "@/store/slices/taskBoxesSlice.ts";
 
 export const TaskDetails = () => {
   const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);

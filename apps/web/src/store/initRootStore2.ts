@@ -5,18 +5,6 @@ import {
   withUndoManager,
 } from "@will-be-done/hyperstate";
 import AwaitLock from "await-lock";
-import {
-  AppModelChange,
-  appSlice,
-  dailyListType,
-  inboxId,
-  isTask,
-  projectionType,
-  projectType,
-  RootState,
-  taskTemplateType,
-  taskType,
-} from "./models2";
 import { getDbCtx } from "@/sync/db";
 import {
   ProjectData,
@@ -37,7 +25,18 @@ import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
 import { Selectable } from "kysely";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { Syncer } from "@/sync/Syncer";
-import { initialFocusState } from "@/states/FocusManager";
+import { initialFocusState } from "@/store/slices/focusSlice.ts";
+import {
+  AppModelChange,
+  dailyListType,
+  inboxId,
+  isTask,
+  projectionType,
+  projectType, RootState,
+  taskTemplateType,
+  taskType
+} from "@/store/models.ts";
+import {appSlice} from "@/store/slices/appSlice.ts";
 
 let store: StoreApi<RootState>;
 

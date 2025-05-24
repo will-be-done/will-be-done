@@ -2,22 +2,26 @@ import { useEffect, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { getUndoManager } from "@will-be-done/hyperstate";
-import {
-  appSlice,
-  dailyListType,
-  dropSlice,
-  projectionType,
-  projectType,
-  taskType,
-} from "@/models/models2.ts";
 import { useAppStore } from "@/hooks/stateHooks.ts";
-import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager.ts";
+import {
+  FocusKey,
+  focusManager,
+  focusSlice,
+} from "@/store/slices/focusSlice.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { isModelDNDData } from "@/features/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+import {
+  dailyListType,
+  projectionType,
+  projectType,
+  taskType,
+} from "@/store/models.ts";
+import { appSlice } from "@/store/slices/appSlice.ts";
+import { dropSlice } from "@/store/slices/dropSlice.ts";
 
 export function GlobalListener() {
   const store = useAppStore();

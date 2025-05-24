@@ -14,22 +14,18 @@ import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/features/focus/components/ParentListProvider.tsx";
-import { buildFocusKey, focusSlice } from "@/states/FocusManager";
+import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import {
-  DailyList,
-  dailyListsSlice,
-  dropSlice,
-  getDMY,
-  inboxId,
-  allProjectsSlice,
-  projectsSlice,
-  projectionsSlice,
-} from "@/models/models2";
 import clsx from "clsx";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
 import { Layout } from "../../../../components/Layout/Layout";
 import { TaskSuggestions } from "../TaskSuggestions/TaskSuggestions";
+import {DailyList, inboxId} from "@/store/models.ts";
+import {dailyListsSlice, getDMY} from "@/store/slices/dailyListsSlice.ts";
+import {projectionsSlice} from "@/store/slices/projectionsSlice.ts";
+import {allProjectsSlice} from "@/store/slices/allProjectsSlice.ts";
+import {projectsSlice} from "@/store/slices/projectsSlice.ts";
+import {dropSlice} from "@/store/slices/dropSlice.ts";
 
 // All days of the week
 const allWeekdays: string[] = [
