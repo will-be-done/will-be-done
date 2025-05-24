@@ -16,7 +16,7 @@ import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping";
 
 export const taskType = "task";
-export type TaskState = "todo" | "done";
+type TaskState = "todo" | "done";
 export type Task = {
   type: typeof taskType;
   id: string;

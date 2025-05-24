@@ -23,7 +23,7 @@ import { projectsTable } from "@/store/slices/projectsSlice.ts";
 
 const lastAppliedServerClockKey = "lastAppliedServerClock";
 
-export type SyncerEvents = {
+type SyncerEvents = {
   onChangePersisted(changes: Record<string, Selectable<SyncableTable>[]>): void;
 };
 

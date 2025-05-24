@@ -16,7 +16,7 @@ import {
 import { appAction, appSelector } from "@/store/z.selectorAction.ts";
 import { AnyModel, RootState } from "@/store/store.ts";
 
-export type TaskBox = Task | TaskProjection;
+type TaskBox = Task | TaskProjection;
 export const taskBoxesSlice = createSlice(
   {
     taskOfModelId: appSelector((query, id: string): Task | undefined => {

@@ -30,7 +30,7 @@ const compressChanges = (chs: ModelChange[]) => {
   return changesMap;
 };
 
-export type SaverEvents = {
+type SaverEvents = {
   onChangePersisted(changes: Record<string, { id: string }[]>): void;
 };
 

@@ -11,7 +11,7 @@ export interface IDbCtx {
   nextClock: () => string;
 }
 
-export const initClock = (clientId: string) => {
+const initClock = (clientId: string) => {
   let now = Date.now();
   let n = 0;
 
@@ -29,7 +29,7 @@ export const initClock = (clientId: string) => {
   };
 };
 
-export const getClientId = () => {
+const getClientId = () => {
   const id = localStorage.getItem("clientId");
 
   if (id) return id;
@@ -50,7 +50,7 @@ function initDbCtx(db: IDb): IDbCtx {
   };
 }
 
-export const createAppTables = (db: IDb) => {
+const createAppTables = (db: IDb) => {
   return db.runInTransaction(async (db) => {
     const createSyncTable = async (table: string) => {
       await db.runQuery(

@@ -162,5 +162,5 @@ export {
   EmojiPicker,
   EmojiPickerSearch,
   EmojiPickerContent,
-  EmojiPickerFooter,
+  
 };

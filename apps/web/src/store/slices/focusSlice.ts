@@ -36,7 +36,7 @@ export const parseColumnKey = (
 
 const columnKey = "focus-manager-column^^focus-manager-column" as FocusKey;
 
-export type FocusItem = {
+type FocusItem = {
   key: FocusKey;
   parentKey: FocusKey;
   priority: string;
@@ -558,7 +558,7 @@ export const focusManager = (() => {
 //   return output.join("\n");
 // }
 
-export const print = () => {
+const print = () => {
   for (const column of focusManager.getColumns()) {
     console.log("column", column.key, column.priority);
 

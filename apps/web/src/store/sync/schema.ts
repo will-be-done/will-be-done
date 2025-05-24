@@ -21,7 +21,7 @@ import {
   dailyListsTable,
 } from "@/store/slices/dailyListsSlice.ts";
 
-export const migrationsTable = "migrations";
+const migrationsTable = "migrations";
 export const preferencesTable = "preferences";
 
 export const syncableTables = [
@@ -41,12 +41,12 @@ export type SyncableTable<T extends object | null = object> = {
   data: JSONColumnType<T>;
 };
 
-export type MigrationsTable = {
+type MigrationsTable = {
   id: string;
   name: string;
 };
 
-export type PreferencesTable = {
+type PreferencesTable = {
   key: string;
   value: string;
 };
@@ -65,7 +65,7 @@ export interface SyncableTables {
   [dailyListsTable]: DailyListsTable;
 }
 
-export interface Database extends SyncableTables {
+interface Database extends SyncableTables {
   [migrationsTable]: MigrationsTable;
   [preferencesTable]: PreferencesTable;
 }

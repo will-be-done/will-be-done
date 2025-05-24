@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { useUnmount } from "@/utils.ts";
 
-export type GlobalCallback<E = unknown> = (e: E) => void;
+type GlobalCallback<E = unknown> = (e: E) => void;
 
 type EventsStore = {
   callbacks: Map<keyof WindowEventMap, Map<string, GlobalCallback>>;

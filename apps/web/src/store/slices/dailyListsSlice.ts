@@ -27,7 +27,7 @@ export const getDMY = (date: Date) => {
   return format(date, "yyyy-MM-dd");
 };
 export const dailyListType = "dailyList";
-export const isDailyList = isObjectType<DailyList>(dailyListType);
+const isDailyList = isObjectType<DailyList>(dailyListType);
 
 export type DailyList = {
   type: typeof dailyListType;

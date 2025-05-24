@@ -37,7 +37,7 @@ export const ColumnListProvider = ({
   );
 };
 
-export const ParentListItemProviderBody = ({
+const ParentListItemProviderBody = ({
   focusKey,
   priority,
   children,

@@ -33,7 +33,7 @@ export type Project = {
   createdAt: number;
 };
 export const projectType = "project";
-export const isProject = isObjectType<Project>(projectType);
+const isProject = isObjectType<Project>(projectType);
 export type ProjectItem = Task | TaskTemplate;
 
 export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";

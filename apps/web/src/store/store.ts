@@ -54,7 +54,7 @@ export type AnyModel =
   | TaskProjection
   | DailyList;
 type ModelType<T> = T extends { type: infer U } ? U : never;
-export type ModelTypeUnion = ModelType<AnyModel>;
+type ModelTypeUnion = ModelType<AnyModel>;
 export type ModelsMap = {
   [K in ModelTypeUnion]: Extract<AnyModel, { type: K }>;
 };

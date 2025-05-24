@@ -9,7 +9,7 @@ import { padStart } from "es-toolkit/compat";
 
 export const ParentListContext = createContext<FocusKey | undefined>(undefined);
 
-export const useRegisterFocusColumn = (key: FocusKey, priority: string) => {
+const useRegisterFocusColumn = (key: FocusKey, priority: string) => {
   const store = useAppStore();
   const paddedPriority = padStart(priority, 7, "0");
 
