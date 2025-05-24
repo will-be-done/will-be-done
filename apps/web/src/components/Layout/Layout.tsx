@@ -1,7 +1,7 @@
-import { Sidebar } from "../Sidebar/Sidebar";
+import { Sidebar } from "./Sidebar";
 import { TaskDetails } from "../TaskDetails/TaskDetails";
-import { useLayoutStore } from "../../stores/layoutStore";
-import { ResizableDivider } from "../ResizableDivider/ResizableDivider";
+import { useLayoutStore } from "./useLayoutStore.ts";
+import { ResizableDivider } from "@/lib/resizable-divider/ResizableDivider";
 
 export const Layout = ({
   children,

@@ -1,4 +1,4 @@
-import { ColumnListProvider } from "@/hooks/ParentListProvider";
+import { ColumnListProvider } from "@/features/focus/components/ParentListProvider.tsx";
 import { cn } from "@/lib/utils";
 import { buildFocusKey } from "@/states/FocusManager";
 import { Link } from "@tanstack/react-router";

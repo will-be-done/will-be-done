@@ -1,18 +1,18 @@
 import {
   ColumnListProvider,
   ParentListItemProvider,
-} from "@/hooks/ParentListProvider";
+} from "@/features/focus/components/ParentListProvider.tsx";
 import { buildFocusKey } from "@/states/FocusManager";
 import { useSuggestionsStore } from "./suggestionsStore";
 import { useShallow } from "zustand/react/shallow";
-import { useAppSelector } from "@/hooks/state";
+import { useAppSelector } from "@/hooks/stateHooks.ts";
 import {
   allProjectsSlice,
   dailyListsSlice,
   projectsSlice,
   Task,
 } from "@/models/models2";
-import { TaskComp } from "../Task/Task";
+import { TaskComp } from "@/components/Task/Task";
 import { useFilterStore } from "./filterStore";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
@@ -24,19 +24,19 @@ function ProjectSuggestions({
   orderNumber: string;
 }) {
   const exceptDailyListIds = useSuggestionsStore(
-    useShallow((state) => state.exceptDailyListIds),
+    useShallow((state) => state.exceptDailyListIds)
   );
   const isProjectCollapsed = useFilterStore((state) =>
-    state.isProjectCollapsed(projectId),
+    state.isProjectCollapsed(projectId)
   );
   const toggleCollapsedProjectId = useFilterStore(
-    (state) => state.toggleCollapsedProjectId,
+    (state) => state.toggleCollapsedProjectId
   );
 
   const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
   const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectId),
+    projectsSlice.byIdOrDefault(state, projectId)
   );
 
   const taskIds = useAppSelector((state) =>
@@ -44,8 +44,8 @@ function ProjectSuggestions({
       state,
       projectId,
       exceptDailyListIds,
-      taskHorizons,
-    ),
+      taskHorizons
+    )
   );
 
   if (taskIds.length == 0) return null;
@@ -89,7 +89,7 @@ function ProjectSuggestions({
 
 const TaskSuggestionsBody = () => {
   const selectedProjectIds = useAppSelector((state) =>
-    allProjectsSlice.childrenIds(state),
+    allProjectsSlice.childrenIds(state)
   );
 
   // TODO: feilter by selectedProjectIds
@@ -130,7 +130,7 @@ const HorizonCheck = ({ horizon }: { horizon: Task["horizon"] }) => {
           setTaskHorizons(
             e.target.checked
               ? [...horizons, horizon]
-              : horizons.filter((h) => h !== horizon),
+              : horizons.filter((h) => h !== horizon)
           );
         }}
       />{" "}
@@ -145,7 +145,7 @@ export const TaskSuggestions = () => {
       focusKey={buildFocusKey(
         "task-suggestions",
         "task-suggestions",
-        "BoardView",
+        "BoardView"
       )}
       priority="0"
     >

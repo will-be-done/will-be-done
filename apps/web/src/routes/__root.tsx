@@ -1,6 +1,6 @@
-import { GlobalListener } from "@/components/GlobalListener/GlobalListener";
+import { GlobalListener } from "@/features/global-listener/components/GlobalListener.tsx";
 import { ThemeProvider } from "@/components/ui/theme-provider";
-import { KeyPressedCtxProvider } from "@/globalListener/KeyPressedCtxProvider";
+import { KeyPressedCtxProvider } from "@/features/global-listener/components/KeyPressedCtxProvider.tsx";
 import { initStore } from "@/models/initRootStore2";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";

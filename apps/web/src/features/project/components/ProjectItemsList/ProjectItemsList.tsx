@@ -1,23 +1,23 @@
-import { Project, projectsSlice, tasksSlice } from "../../models/models2";
-import { TaskComp } from "../Task/Task";
-import { buildFocusKey, focusSlice } from "@/states/FocusManager";
+import { Project, projectsSlice, tasksSlice } from "../../../../models/models2.ts";
+import { TaskComp } from "../../../../components/Task/Task.tsx";
+import { buildFocusKey, focusSlice } from "@/states/FocusManager.ts";
 import {
   ColumnListProvider,
   ParentListItemProvider,
-} from "@/hooks/ParentListProvider";
+} from "@/features/focus/components/ParentListProvider.tsx";
 import { generateKeyBetween } from "fractional-indexing-jittered";
-import { useRegisterFocusItem } from "@/hooks/useLists";
+import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import {
   EmojiPicker,
   EmojiPickerContent,
   EmojiPickerSearch,
-} from "../ui/emoji-picker";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { useGlobalListener } from "@/globalListener/hooks";
+} from "../../../../components/ui/emoji-picker.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover.tsx";
+import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { useCallback, useRef } from "react";
-import { isInputElement } from "@/utils/isInputElement";
-import { cn } from "@/lib/utils";
-import { useAppSelector, useAppStore } from "@/hooks/state";
+import { isInputElement } from "@/utils/isInputElement.ts";
+import { cn } from "@/lib/utils.ts";
+import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
 
 const AddTaskButton = ({
@@ -30,7 +30,7 @@ const AddTaskButton = ({
   const id = "add-task-button-" + project.id;
   const focusItem = useRegisterFocusItem(
     buildFocusKey(id, id, "AddTaskButton"),
-    "zzzzzzzzzzzzzzzz",
+    "zzzzzzzzzzzzzzzz"
   );
 
   return (
@@ -49,14 +49,14 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 
   const focusableItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectTitle"),
-    "0",
+    "0"
   );
 
   const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusableItem.key),
+    focusSlice.isFocused(state, focusableItem.key)
   );
   const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusableItem.key),
+    focusSlice.isEditing(state, focusableItem.key)
   );
 
   // useGlobalListener("mousedown", (e: MouseEvent) => {
@@ -160,10 +160,10 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 export const ProjectItemsList = ({ project }: { project: Project }) => {
   const store = useAppStore();
   const doneChildrenIds = useAppSelector((state) =>
-    projectsSlice.doneChildrenIds(state, project.id),
+    projectsSlice.doneChildrenIds(state, project.id)
   );
   const notDoneChildrenIds = useAppSelector((state) =>
-    projectsSlice.childrenIds(state, project.id),
+    projectsSlice.childrenIds(state, project.id)
   );
 
   const onAddNewTask = useCallback(() => {
@@ -197,7 +197,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
               className="ml-auto text-red-700"
               onClick={() => {
                 const shouldDelete = confirm(
-                  "Are you sure you want to delete this project?",
+                  "Are you sure you want to delete this project?"
                 );
                 if (shouldDelete) {
                   projectsSlice.delete(store, project.id);
@@ -223,7 +223,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
               focusKey={buildFocusKey(
                 project.id,
                 project.type,
-                "DoneProjectionsList",
+                "DoneProjectionsList"
               )}
               priority={(lastTaskI + 1).toString()}
             >

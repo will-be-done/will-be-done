@@ -1,6 +1,6 @@
-import { getBackups, loadBackups, Backup } from "../../models/backup";
-import { useRegisterFocusItem } from "@/hooks/useLists";
-import { useGlobalListener } from "@/globalListener/hooks";
+import { getBackups, loadBackups, Backup } from "@/models/backup";
+import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
+import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -16,11 +16,11 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import invariant from "tiny-invariant";
-import { DndModelData, isModelDNDData } from "@/dnd/models";
+import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
-import { useAppSelector, useAppStore } from "@/hooks/state";
+import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { projectsSlice, allProjectsSlice } from "@/models/models2";
 import { buildFocusKey, focusManager, focusSlice } from "@/states/FocusManager";
 import { Link } from "@tanstack/react-router";
@@ -45,7 +45,7 @@ const ProjectDragPreview = function TaskPrimitiveComponent({
   return (
     <div
       className={cn(
-        "flex items-center px-2 py-1.5 rounded-lg cursor-pointer bg-gray-900",
+        "flex items-center px-2 py-1.5 rounded-lg cursor-pointer bg-gray-900"
       )}
       style={style}
     >
@@ -72,11 +72,11 @@ const ProjectItem = function ProjectItemComp({
   console.log("orderNumber", projectId, orderNumber);
 
   const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectId),
+    projectsSlice.byIdOrDefault(state, projectId)
   );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectItem"),
-    orderNumber,
+    orderNumber
   );
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
@@ -85,7 +85,7 @@ const ProjectItem = function ProjectItemComp({
   const ref = useRef<HTMLAnchorElement>(null);
 
   const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusItem.key),
+    focusSlice.isFocused(state, focusItem.key)
   );
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
@@ -191,7 +191,7 @@ const ProjectItem = function ProjectItemComp({
           return projectsSlice.canDrop(
             store.getState(),
             project.id,
-            data.modelId,
+            data.modelId
           );
         },
         getIsSticky: () => true,
@@ -235,7 +235,7 @@ const ProjectItem = function ProjectItemComp({
         onDrop: () => {
           setClosestEdge(null);
         },
-      }),
+      })
     );
   }, [project.id, project.type, store]);
 
@@ -247,7 +247,7 @@ const ProjectItem = function ProjectItemComp({
   };
 
   const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusItem.key),
+    focusSlice.isEditing(state, focusItem.key)
   );
 
   return (
@@ -282,7 +282,7 @@ const ProjectItem = function ProjectItemComp({
           closestEdge == "whole" && "bg-gray-700",
           {
             hidden: isEditing,
-          },
+          }
         )}
         href={`/projects/${project.id}`}
         onClick={() => {
@@ -311,7 +311,7 @@ const ProjectItem = function ProjectItemComp({
               height: dndState.rect.height,
             }}
           />,
-          dndState.container,
+          dndState.container
         )}
     </>
   );
@@ -324,10 +324,10 @@ const InboxItem = function IboxItemComp() {
   });
   const focusItem = useRegisterFocusItem(
     buildFocusKey(inboxProject.id, inboxProject.type),
-    "*******",
+    "*******"
   );
   const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusItem.key),
+    focusSlice.isFocused(state, focusItem.key)
   );
   const store = useAppStore();
 
@@ -351,7 +351,7 @@ const InboxItem = function IboxItemComp() {
           return projectsSlice.canDrop(
             store.getState(),
             inboxProject.id,
-            data.modelId,
+            data.modelId
           );
         },
 
@@ -380,7 +380,7 @@ const InboxItem = function IboxItemComp() {
         onDrop: () => {
           setClosestEdge(null);
         },
-      }),
+      })
     );
   }, [inboxProject.id, inboxProject.type, store]);
 
@@ -394,7 +394,7 @@ const InboxItem = function IboxItemComp() {
       className={cn(
         "flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer [&.active]:bg-gray-800",
         isFocused ? "bg-gray-800" : "hover:bg-gray-800",
-        closestEdge == "whole" && "bg-gray-700",
+        closestEdge == "whole" && "bg-gray-700"
       )}
     >
       <span className="text-amber-500 mr-2 flex-shrink-0">
@@ -460,7 +460,7 @@ const InboxItem = function IboxItemComp() {
 
 export const ProjectsSidebarContent = () => {
   const projectIdsWithoutInbox = useAppSelector(
-    allProjectsSlice.childrenIdsWithoutInbox,
+    allProjectsSlice.childrenIdsWithoutInbox
   );
   const store = useAppStore();
 
@@ -522,7 +522,7 @@ export const ProjectsSidebarContent = () => {
         } catch (error) {
           console.error("Failed to load backup:", error);
           alert(
-            "Failed to load backup file. Please make sure it's a valid backup file.",
+            "Failed to load backup file. Please make sure it's a valid backup file."
           );
         }
       };

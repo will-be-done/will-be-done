@@ -1,7 +1,7 @@
 import { PropsWithChildren, useEffect, useMemo } from "react";
-import { ParentListContext, useRegisterFocusItem } from "./useLists";
-import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager";
-import { useAppStore } from "./state";
+import { ParentListContext, useRegisterFocusItem } from "../hooks/useLists.ts";
+import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager.ts";
+import { useAppStore } from "../../../hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
 
 export const ColumnListProvider = ({

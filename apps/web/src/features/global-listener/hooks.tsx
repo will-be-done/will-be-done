@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { create } from "zustand";
-import { useUnmount } from "../utils";
+import { useUnmount } from "@/utils.ts";
 
 export type GlobalCallback<E = unknown> = (e: E) => void;
 
@@ -26,7 +26,7 @@ export const useEventTypes = create<EventsStore>((set) => ({
 
 export const useGlobalListener = <K extends keyof WindowEventMap>(
   key: K,
-  cb: GlobalCallback<WindowEventMap[K]>,
+  cb: GlobalCallback<WindowEventMap[K]>
 ) => {
   const addEvent = useEventTypes((st) => st.addEvent);
   const callbacks = useEventTypes((st) => st.callbacks);

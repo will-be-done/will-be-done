@@ -1,6 +1,6 @@
-import { Board, BoardPage } from "@/components/DaysBoard/DaysBoard";
+import { Board } from "@/features/timeline/components/DaysBoard/DaysBoard";
 import { Layout } from "@/components/Layout/Layout";
-import { TaskSuggestions } from "@/components/TaskSuggestions/TaskSuggestions";
+import { TaskSuggestions } from "@/features/timeline/components/TaskSuggestions/TaskSuggestions";
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";

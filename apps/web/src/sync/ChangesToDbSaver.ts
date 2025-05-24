@@ -6,7 +6,7 @@ import { Insertable } from "kysely";
 import { chunk } from "es-toolkit";
 import { createNanoEvents } from "nanoevents";
 import { Selectable } from "kysely";
-import { ModelChange } from "@/sync2/ChangesTracker";
+import { ModelChange } from "@/sync/ChangesTracker";
 
 const compressChanges = (chs: ModelChange[]) => {
   const changesMap = new Map<
@@ -53,7 +53,7 @@ export class ChangesToDbSaver {
     while (true) {
       const res = await Promise.race([
         new Promise<"timeout">((resolve) =>
-          setTimeout(() => resolve("timeout"), 500),
+          setTimeout(() => resolve("timeout"), 500)
         ),
         this.changesCounter.newEmitted(),
       ]);

@@ -14,13 +14,13 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import ReactDOM from "react-dom";
-import { DndModelData, isModelDNDData } from "../../dnd/models";
+import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { usePrevious, useUnmount } from "../../utils";
-import { MoveModal } from "../MoveModel/MoveModel";
-import { useGlobalListener } from "../../globalListener/hooks";
+import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
+import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
-import { useRegisterFocusItem } from "@/hooks/useLists";
+import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import {
   buildFocusKey,
   FocusKey,
@@ -37,7 +37,7 @@ import {
   isTask,
   isTaskProjection,
 } from "@/models/models2";
-import { useAppSelector, useAppStore } from "@/hooks/state";
+import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
 import clsx from "clsx";
 
@@ -84,7 +84,7 @@ export const DropTaskIndicator = ({
       className={clsx(
         "absolute left-0 right-0 bottom-0 w-full bg-blue-500 h-[2px]",
         direction == "top" && "top-[-5px]",
-        direction == "bottom" && "bottom-[-5px]",
+        direction == "bottom" && "bottom-[-5px]"
       )}
     ></div>
   );
@@ -102,13 +102,13 @@ export const TaskComp = ({
   orderNumber: string;
 }) => {
   const task = useAppSelector((state) =>
-    tasksSlice.byIdOrDefault(state, taskId),
+    tasksSlice.byIdOrDefault(state, taskId)
   );
   const taskBox = useAppSelector((state) =>
-    appSlice.taskBoxByIdOrDefault(state, taskBoxId),
+    appSlice.taskBoxByIdOrDefault(state, taskBoxId)
   );
   const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, task.projectId),
+    projectsSlice.byIdOrDefault(state, task.projectId)
   );
 
   const [editingTitle, setEditingTitle] = useState<string>(task.title);
@@ -118,7 +118,7 @@ export const TaskComp = ({
   const store = useAppStore();
   const focusableItem = useRegisterFocusItem(
     buildFocusKey(taskBox.id, taskBox.type),
-    orderNumber,
+    orderNumber
   );
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
@@ -140,16 +140,16 @@ export const TaskComp = ({
   const [dragId, setDragId] = useState<string | undefined>(undefined);
 
   const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusableItem.key),
+    focusSlice.isFocused(state, focusableItem.key)
   );
   const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusableItem.key),
+    focusSlice.isEditing(state, focusableItem.key)
   );
 
   const handleTick = useCallback(() => {
     const [[up, upModel], [down, downModel]] = focusManager.getModelSiblings(
       store.getState(),
-      focusableItem.key,
+      focusableItem.key
     );
 
     const taskState = task.state;
@@ -244,7 +244,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       const [leftColumn, rightColumn] = focusManager.getColumnSiblings(
-        focusableItem.key,
+        focusableItem.key
       );
 
       if (isMoveLeft && leftColumn) {
@@ -349,7 +349,7 @@ export const TaskComp = ({
       const newBox = taskBoxesSlice.createSibling(
         store,
         taskBox,
-        isAddAfter ? "after" : "before",
+        isAddAfter ? "after" : "before"
       );
       focusSlice.editByKey(store, buildFocusKey(newBox.id, newBox.type));
 
@@ -462,7 +462,7 @@ export const TaskComp = ({
           setDragId(undefined);
           setClosestEdge(null);
         },
-      }),
+      })
     );
   }, [isEditing, store, taskBox.id, taskBox.type]);
 
@@ -543,7 +543,7 @@ export const TaskComp = ({
           `relative p-3 rounded-lg border  shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`,
           isFocused
             ? "border-blue-500 bg-gray-700"
-            : "border-gray-700 bg-gray-750",
+            : "border-gray-700 bg-gray-750"
 
           // (dndState.type === "dragging" || dndState.type === "preview") &&
           //   !isSelfDragging &&
@@ -623,7 +623,7 @@ export const TaskComp = ({
               height: dndState.rect.height,
             }}
           />,
-          dndState.container,
+          dndState.container
         )}
 
       {isMoveModalOpen && (

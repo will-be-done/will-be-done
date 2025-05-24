@@ -34,10 +34,7 @@ export class Syncer {
 
   emitter = createNanoEvents<SyncerEvents>();
 
-  constructor(
-    private dbCtx: IDbCtx,
-    private clientId: string,
-  ) {
+  constructor(private dbCtx: IDbCtx, private clientId: string) {
     this.electionChannel = new BroadcastChannel("election-" + clientId);
     this.elector = createLeaderElection(this.electionChannel);
   }
@@ -118,7 +115,7 @@ export class Syncer {
 
     const changesToSend = await this.dbCtx.db.runQuery(baseQ);
     const changesToSendMap = new Map(
-      changesToSend.map((c) => [c.tableName + c.id, c]),
+      changesToSend.map((c) => [c.tableName + c.id, c])
     );
 
     const finalChangesToApply: Record<string, typeof changesFromServer> = {};
@@ -153,16 +150,17 @@ export class Syncer {
       async (db) => {
         // to make tx exclusive
         await db.runQuery(
-          sql2`CREATE TABLE IF NOT EXISTS _dummy_lock_table (x);`,
+          sql2`CREATE TABLE IF NOT EXISTS _dummy_lock_table (x);`
         );
         await db.runQuery(sql2`DELETE FROM _dummy_lock_table`);
 
         // We must be sure that we don't running sync process in separate tab
-        const lastServerAppliedClockInTx =
-          await this.getLastServerAppliedClock(db);
+        const lastServerAppliedClockInTx = await this.getLastServerAppliedClock(
+          db
+        );
         if (lastServerAppliedClockInTx !== lastServerClock) {
           throw new Error(
-            `lastServerAppliedClockInTx !== lastServerClock: ${lastServerAppliedClockInTx} !== ${lastServerClock}. Multiple instances trying to update db`,
+            `lastServerAppliedClockInTx !== lastServerClock: ${lastServerAppliedClockInTx} !== ${lastServerClock}. Multiple instances trying to update db`
           );
         }
 
@@ -197,10 +195,10 @@ export class Syncer {
           Q.insertInto(preferencesTable).orReplace().values({
             key: lastAppliedServerClockKey,
             value: maxServerClock,
-          }),
+          })
         );
       },
-      { type: "exclusive" },
+      { type: "exclusive" }
     );
 
     this.emitter.emit("onChangePersisted", changesToNotify);
@@ -232,7 +230,7 @@ export class Syncer {
             "lastUpdatedOnClientAt",
             sql<string>`'${sql.raw(t)}'`.as("tableName"),
           ])
-          .where("needSync", "=", 1),
+          .where("needSync", "=", 1)
       );
     }
 
@@ -265,16 +263,17 @@ export class Syncer {
       async (db) => {
         // to make tx exclusive
         await db.runQuery(
-          sql2`CREATE TABLE IF NOT EXISTS _dummy_lock_table (x);`,
+          sql2`CREATE TABLE IF NOT EXISTS _dummy_lock_table (x);`
         );
         await db.runQuery(sql2`DELETE FROM _dummy_lock_table`);
 
         // We must be sure that we don't running sync process in separate tab
-        const lastServerAppliedClockInTx =
-          await this.getLastServerAppliedClock(db);
+        const lastServerAppliedClockInTx = await this.getLastServerAppliedClock(
+          db
+        );
         if (lastServerAppliedClockInTx !== lastServerClock) {
           throw new Error(
-            `lastServerAppliedClockInTx !== lastServerClock: ${lastServerAppliedClockInTx} !== ${lastServerClock}. Multiple instances trying to update db`,
+            `lastServerAppliedClockInTx !== lastServerClock: ${lastServerAppliedClockInTx} !== ${lastServerClock}. Multiple instances trying to update db`
           );
         }
 
@@ -282,7 +281,7 @@ export class Syncer {
           Q.insertInto(preferencesTable).orReplace().values({
             key: lastAppliedServerClockKey,
             value: res.lastAppliedClock,
-          }),
+          })
         );
 
         await Promise.all(
@@ -302,12 +301,12 @@ export class Syncer {
                   });
 
                   return eb.or(ands);
-                }),
+                })
             );
-          }),
+          })
         );
       },
-      { type: "exclusive" },
+      { type: "exclusive" }
     );
   }
 
@@ -316,7 +315,7 @@ export class Syncer {
       await db.runQuery(
         Q.selectFrom(preferencesTable)
           .select(["value"])
-          .where("key", "=", lastAppliedServerClockKey),
+          .where("key", "=", lastAppliedServerClockKey)
       )
     )[0]?.value;
   }

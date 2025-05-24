@@ -9,13 +9,13 @@ import {
   projectionType,
   projectType,
   taskType,
-} from "@/models/models2";
-import { useAppStore } from "@/hooks/state";
-import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager";
-import { isInputElement } from "@/utils/isInputElement";
-import { isModelDNDData } from "@/dnd/models";
+} from "@/models/models2.ts";
+import { useAppStore } from "@/hooks/stateHooks.ts";
+import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager.ts";
+import { isInputElement } from "@/utils/isInputElement.ts";
+import { isModelDNDData } from "@/features/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
-import { shouldNeverHappen } from "@/utils";
+import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 

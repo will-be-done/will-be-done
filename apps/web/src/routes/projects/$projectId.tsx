@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAppSelector } from "@/hooks/state";
+import { useAppSelector } from "@/hooks/stateHooks.ts";
 import { allProjectsSlice, Project, projectsSlice } from "@/models/models2";
 import { Layout } from "@/components/Layout/Layout";
-import { ProjectsSidebarContent } from "@/components/Sidebar/ProjectsSidebarContent";
-import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemsList";
+import { ProjectsSidebarContent } from "@/features/project/components/Sidebar/ProjectsSidebarContent";
+import { ProjectItemsList } from "@/features/project/components/ProjectItemsList/ProjectItemsList";
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: RouteComponent,

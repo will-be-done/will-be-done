@@ -25,14 +25,14 @@ import {
   SyncableTable,
   syncableTables,
 } from "@/sync/schema";
-import { ChangesTracker } from "@/sync2/ChangesTracker";
+import { ChangesTracker } from "@/sync/ChangesTracker";
 import {
   skipSyncCtx,
   syncableTypes,
   SyncMapping,
   syncMappings,
   tableModelTypeMap,
-} from "@/sync2/main";
+} from "@/sync/main";
 import { ChangesToDbSaver } from "@/sync/ChangesToDbSaver";
 import { Selectable } from "kysely";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -44,7 +44,7 @@ let store: StoreApi<RootState>;
 type BroadcastChanges = Record<(typeof syncableTypes)[number], string[]>;
 
 const mapChangesForBC = (
-  changes: Record<(typeof syncableTables)[number], { id: string }[]>,
+  changes: Record<(typeof syncableTables)[number], { id: string }[]>
 ) => {
   const res: BroadcastChanges = {
     [projectType]: [],
@@ -107,15 +107,15 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
         const rows = await dbCtx.db.runQuery(
           Q.selectFrom(syncMap.table as typeof projectsTable)
             .selectAll()
-            .where("isDeleted", "=", 0),
+            .where("isDeleted", "=", 0)
         );
 
         return [syncMap, rows] satisfies [
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           SyncMapping<any, any>,
-          Selectable<SyncableTable>[],
+          Selectable<SyncableTable>[]
         ];
-      }),
+      })
     );
 
     for (const [syncMap, rows] of allData) {
@@ -160,7 +160,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       try {
         appSlice.applyChanges(
           store.withContextValue(skipSyncCtx, true),
-          modelChanges,
+          modelChanges
         );
       } catch (e) {
         console.error("failed to apply changes", e);
@@ -182,7 +182,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
         store,
         state,
         prevState,
-        patches,
+        patches
       );
       console.log("modelChanges", modelChanges);
 
@@ -206,7 +206,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
         const rows = await dbCtx.db.runQuery(
           Q.selectFrom(syncMap.table as typeof projectsTable)
             .selectAll()
-            .where("id", "in", ids),
+            .where("id", "in", ids)
         );
 
         for (const row of rows) {
@@ -222,7 +222,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
 
       appSlice.applyChanges(
         store.withContextValue(skipSyncCtx, true),
-        modelChanges,
+        modelChanges
       );
     };
 

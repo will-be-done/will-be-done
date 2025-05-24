@@ -1,21 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
-import { DropTaskIndicator, TaskComp } from "../Task/Task";
+import { DropTaskIndicator, TaskComp } from "../../../../components/Task/Task";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { DndModelData, isModelDNDData } from "../../dnd/models";
+import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import invariant from "tiny-invariant";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { useRegisterFocusItem } from "@/hooks/useLists";
+import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import {
   ColumnListProvider,
   ParentListItemProvider,
-} from "@/hooks/ParentListProvider";
+} from "@/features/focus/components/ParentListProvider.tsx";
 import { buildFocusKey, focusSlice } from "@/states/FocusManager";
-import { useAppSelector, useAppStore } from "@/hooks/state";
+import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import {
   DailyList,
   dailyListsSlice,
@@ -28,7 +28,7 @@ import {
 } from "@/models/models2";
 import clsx from "clsx";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
-import { Layout } from "../Layout/Layout";
+import { Layout } from "../../../../components/Layout/Layout";
 import { TaskSuggestions } from "../TaskSuggestions/TaskSuggestions";
 
 // All days of the week
@@ -74,8 +74,8 @@ const useSelectedProjectIds = create<ProjectIdsStore>()(
     {
       name: "select-project-ids-storage",
       storage: createJSONStorage(() => localStorage),
-    },
-  ),
+    }
+  )
 );
 
 type DailyListDndState = { type: "idle" } | { type: "is-task-over" };
@@ -112,7 +112,7 @@ const TaskProjection = ({
   orderNumber: string;
 }) => {
   const projection = useAppSelector((state) =>
-    projectionsSlice.byIdOrDefault(state, projectionId),
+    projectionsSlice.byIdOrDefault(state, projectionId)
   );
 
   return (
@@ -140,7 +140,7 @@ const ColumnView = ({
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
   const dailyList = useAppSelector((state) =>
-    dailyListsSlice.byIdOrDefault(state, dailyListId),
+    dailyListsSlice.byIdOrDefault(state, dailyListId)
   );
   const store = useAppStore();
 
@@ -169,19 +169,19 @@ const ColumnView = ({
       autoScrollForElements({
         element: scrollableRef.current,
         canScroll: ({ source }) => isModelDNDData(source.data),
-      }),
+      })
     );
   }, [dailyList.id, dailyList.type, dailyListId, store]);
 
   const selectedProjectIds = useSelectedProjectIds(
-    (state) => state.selectedProjectIds,
+    (state) => state.selectedProjectIds
   );
 
   const projectionIds = useAppSelector((state) =>
-    dailyListsSlice.childrenIds(state, dailyListId),
+    dailyListsSlice.childrenIds(state, dailyListId)
   );
   const doneProjectionIds = useAppSelector((state) =>
-    dailyListsSlice.doneChildrenIds(state, dailyListId),
+    dailyListsSlice.doneChildrenIds(state, dailyListId)
   );
 
   // TODO: return back
@@ -210,7 +210,7 @@ const ColumnView = ({
         className={clsx(
           "flex flex-col min-w-[200px] h-full border rounded-lg",
           isToday && "bg-gray-750 rounded-t-lg",
-          isOver ? "border-blue-500" : "border-transparent",
+          isOver ? "border-blue-500" : "border-transparent"
         )}
         ref={columnRef}
       >
@@ -277,10 +277,10 @@ const BoardView = ({
   const store = useAppStore();
 
   const selectedProjectIds = useSelectedProjectIds(
-    (state) => state.selectedProjectIds,
+    (state) => state.selectedProjectIds
   );
   const setSelectedProjectIds = useSelectedProjectIds(
-    (state) => state.setSelectedProjectIds,
+    (state) => state.setSelectedProjectIds
   );
 
   const handleAddTask = useCallback(
@@ -290,15 +290,15 @@ const BoardView = ({
         dailyList.id,
         inboxId,
         "prepend",
-        "prepend",
+        "prepend"
       );
 
       focusSlice.editByKey(
         store,
-        buildFocusKey(projection.id, projection.type),
+        buildFocusKey(projection.id, projection.type)
       );
     },
-    [store],
+    [store]
   );
 
   return (
@@ -422,8 +422,8 @@ const useDaysPreferences = create<DaysPreferences>()(
     {
       name: "days-preferences",
       storage: createJSONStorage(() => localStorage),
-    },
-  ),
+    }
+  )
 );
 
 export const Board = () => {
@@ -433,7 +433,7 @@ export const Board = () => {
 
   const startingDate = useMemo(
     () => addDays(startOfDay(new Date()), daysShift),
-    [daysShift],
+    [daysShift]
   );
 
   const weekDays = useMemo(
@@ -441,7 +441,7 @@ export const Board = () => {
       Array.from({ length: 7 }, (_, i) => {
         return addDays(startingDate, i);
       }).filter((_, i) => i < daysToShow),
-    [startingDate, daysToShow],
+    [startingDate, daysToShow]
   );
 
   // Handle previous day
@@ -455,7 +455,7 @@ export const Board = () => {
   }, [daysShift, setDaysShift]);
 
   const dailyListsIds = useAppSelector((state) =>
-    dailyListsSlice.idsByDates(state, weekDays),
+    dailyListsSlice.idsByDates(state, weekDays)
   );
   const store = useAppStore();
 
@@ -464,7 +464,7 @@ export const Board = () => {
   }, [store, weekDays]);
 
   const setExceptDailyListIds = useSuggestionsStore(
-    (state) => state.setExceptDailyListIds,
+    (state) => state.setExceptDailyListIds
   );
 
   useEffect(() => {
@@ -477,13 +477,5 @@ export const Board = () => {
       handlePrevDay={handlePrevDay}
       dailyListsIds={dailyListsIds}
     />
-  );
-};
-
-export const BoardPage = () => {
-  return (
-    <Layout sidebarContent={<TaskSuggestions />}>
-      <Board />
-    </Layout>
   );
 };

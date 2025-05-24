@@ -21,15 +21,15 @@ export const skipSyncCtx = createContext("skipSync", false);
 
 export type SyncMapping<
   TTable extends keyof SyncableTables = keyof SyncableTables,
-  TModelType extends keyof ModelsMap = keyof ModelsMap,
+  TModelType extends keyof ModelsMap = keyof ModelsMap
 > = {
   table: TTable;
   modelType: TModelType;
   mapDataToModel(
-    data: SyncableTables[TTable]["data"]["__select__"],
+    data: SyncableTables[TTable]["data"]["__select__"]
   ): ModelsMap[TModelType];
   mapModelToData(
-    entity: ModelsMap[TModelType],
+    entity: ModelsMap[TModelType]
   ): SyncableTables[TTable]["data"]["__select__"];
 };
 
@@ -165,5 +165,5 @@ export const syncMappings: SyncMappingsType = {
 };
 
 export const tableModelTypeMap = Object.fromEntries(
-  syncableTypes.map((t) => [syncMappings[t].table, t]),
+  syncableTypes.map((t) => [syncMappings[t].table, t])
 );
