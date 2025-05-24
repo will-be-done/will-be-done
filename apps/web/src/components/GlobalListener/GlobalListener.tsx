@@ -1,39 +1,25 @@
-import { Redirect, Route, Switch } from "wouter";
-import "./fixGlobal";
-import { Board, BoardPage } from "./components/DaysBoard/DaysBoard";
 import { useEffect, useState } from "react";
-import { Sidebar } from "./components/Sidebar/Sidebar";
-import { ProjectPage } from "./pages/ProjectPage/ProjectPage";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { isModelDNDData } from "./dnd/models";
-import { KeyPressedCtxProvider } from "./globalListener/KeyPressedCtxProvider";
-import { isInputElement } from "./utils/isInputElement";
-import { ThemeProvider } from "./components/ui/theme-provider";
-import { FocusKey, focusManager, focusSlice } from "./states/FocusManager";
-import {
-  getUndoManager,
-  StoreApi,
-  StoreProvider,
-} from "@will-be-done/hyperstate";
+import { getUndoManager } from "@will-be-done/hyperstate";
 import {
   appSlice,
   dailyListType,
   dropSlice,
   projectionType,
   projectType,
-  RootState,
   taskType,
-} from "./models/models2";
-import { initStore } from "./models/initRootStore2";
-import { useAppStore } from "./hooks/state";
-import { shouldNeverHappen } from "./utils";
-import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/entry-point/types";
+} from "@/models/models2";
+import { useAppStore } from "@/hooks/state";
+import { FocusKey, focusManager, focusSlice } from "@/states/FocusManager";
+import { isInputElement } from "@/utils/isInputElement";
+import { isModelDNDData } from "@/dnd/models";
+import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
+import { shouldNeverHappen } from "@/utils";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { TaskDetails } from "./components/TaskDetails/TaskDetails";
 
-const GlobalListener = () => {
+export function GlobalListener() {
   const store = useAppStore();
   const undoManager = getUndoManager(store);
 
@@ -58,8 +44,6 @@ const GlobalListener = () => {
       if (e.target instanceof HTMLElement && e.target.shadowRoot) {
         return;
       }
-
-      console.log("global key", e);
 
       // Handle undo (cmd+z/ctrl+z)
       if (
@@ -104,7 +88,6 @@ const GlobalListener = () => {
       // Check if the active element IS any kind of input element
       const isInput = activeElement && isInputElement(activeElement);
 
-      console.log("isInput", isInput, activeElement);
       // If it's an input, return early
       if (isInput) return;
 
@@ -153,8 +136,6 @@ const GlobalListener = () => {
         e.preventDefault();
 
         const [up, down] = focusManager.getSiblings(focusedItem.key);
-
-        console.log("up", up, "down", down);
 
         if (isUp) {
           if (!up) return;
@@ -286,45 +267,4 @@ const GlobalListener = () => {
   }, [store]);
 
   return <></>;
-};
-
-export const App = () => {
-  const [store, setStore] = useState<StoreApi<RootState> | null>(null);
-
-  useEffect(() => {
-    void (async () => {
-      setStore(await initStore());
-    })();
-  }, []);
-
-  return (
-    store && (
-      <StoreProvider value={store}>
-        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <KeyPressedCtxProvider>
-            <GlobalListener />
-
-            <Switch>
-              <Route path="/today" component={BoardPage} />
-              <Route path="/projects/:projectId" component={ProjectPage} />
-              <Route>
-                <Redirect to="/today" />
-              </Route>
-            </Switch>
-            {/* <div className="w-full h-screen bg-gray-900 overflow-hidden grid grid-cols-20 gap-2 py-2 px-2"> */}
-            {/*   <div className="col-span-4 overflow-hidden"> */}
-            {/*     <Sidebar /> */}
-            {/*   </div> */}
-            {/*   <div className="flex-1 overflow-hidden col-span-12"> */}
-            {/*   </div> */}
-            {/**/}
-            {/*   <div className="col-span-4"> */}
-            {/*     <TaskDetails /> */}
-            {/*   </div> */}
-            {/* </div> */}
-          </KeyPressedCtxProvider>
-        </ThemeProvider>
-      </StoreProvider>
-    )
-  );
-};
+}

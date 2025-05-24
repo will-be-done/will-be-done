@@ -1,4 +1,3 @@
-import { Link, useRoute } from "wouter";
 import { getBackups, loadBackups, Backup } from "../../models/backup";
 import { useRegisterFocusItem } from "@/hooks/useLists";
 import { useGlobalListener } from "@/globalListener/hooks";
@@ -24,6 +23,7 @@ import { isInputElement } from "@/utils/isInputElement";
 import { useAppSelector, useAppStore } from "@/hooks/state";
 import { projectsSlice, allProjectsSlice } from "@/models/models2";
 import { buildFocusKey, focusManager, focusSlice } from "@/states/FocusManager";
+import { Link } from "@tanstack/react-router";
 
 type State =
   | { type: "idle" }
@@ -271,19 +271,19 @@ const ProjectItem = function ProjectItemComp({
       {/*   onKeyDown={handleInputKeyDown} */}
       {/* /> */}
       <Link
+        to="/projects/$projectId"
+        params={{ projectId: project.id }}
         data-focusable-key={focusItem.key}
         ref={ref}
         key={project.id}
-        className={(active) =>
-          cn(
-            "flex items-center px-2 py-1.5 rounded-lg cursor-pointer",
-            active || isFocused ? "bg-gray-800" : "hover:bg-gray-800",
-            closestEdge == "whole" && "bg-gray-700",
-            {
-              hidden: isEditing,
-            },
-          )
-        }
+        className={cn(
+          "flex items-center px-2 py-1.5 rounded-lg cursor-pointer [&.active]:bg-gray-800",
+          isFocused ? "bg-gray-800" : "hover:bg-gray-800",
+          closestEdge == "whole" && "bg-gray-700",
+          {
+            hidden: isEditing,
+          },
+        )}
         href={`/projects/${project.id}`}
         onClick={() => {
           console.log("focusItem click", focusItem);
@@ -386,16 +386,16 @@ const InboxItem = function IboxItemComp() {
 
   return (
     <Link
+      to="/projects/$projectId"
+      params={{ projectId: "inbox" }}
       ref={ref}
       data-focusable-key={focusItem.key}
       href="/projects/inbox"
-      className={(active) =>
-        cn(
-          "flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer",
-          isFocused || active ? "bg-gray-800" : "hover:bg-gray-800",
-          closestEdge == "whole" && "bg-gray-700",
-        )
-      }
+      className={cn(
+        "flex items-center px-2 py-2 rounded-lg hover:bg-gray-800 cursor-pointer [&.active]:bg-gray-800",
+        isFocused ? "bg-gray-800" : "hover:bg-gray-800",
+        closestEdge == "whole" && "bg-gray-700",
+      )}
     >
       <span className="text-amber-500 mr-2 flex-shrink-0">
         <svg
