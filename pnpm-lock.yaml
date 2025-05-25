@@ -168,6 +168,12 @@ importers:
       '@trpc/client':
         specifier: ^11.1.0
         version: 11.1.0(@trpc/server@11.1.0(typescript@5.7.3))(typescript@5.7.3)
+      '@will-be-done/api':
+        specifier: workspace:*
+        version: link:../api
+      '@will-be-done/hyperstate':
+        specifier: workspace:*
+        version: link:../hyperstate
       await-lock:
         specifier: ^3.0.0
         version: 3.0.0
@@ -222,9 +228,15 @@ importers:
       tailwind-merge:
         specifier: ^3.2.0
         version: 3.2.0
+      tailwindcss:
+        specifier: ^4.1.7
+        version: 4.1.7
       tiny-invariant:
         specifier: ^1.2.0
         version: 1.3.3
+      tw-animate-css:
+        specifier: ^1.3.0
+        version: 1.3.0
       uuid-by-string:
         specifier: ^4.0.0
         version: 4.0.0
@@ -3627,6 +3639,9 @@ packages:
   tailwindcss@4.0.17:
     resolution: {integrity: sha512-OErSiGzRa6rLiOvaipsDZvLMSpsBZ4ysB4f0VKGXUrjw2jfkJRd6kjRKV2+ZmTCNvwtvgdDam5D7w6WXsdLJZw==}
 
+  tailwindcss@4.1.7:
+    resolution: {integrity: sha512-kr1o/ErIdNhTz8uzAYL7TpaUuzKIE6QPQ4qmSdxnoX/lo+5wmUHQA6h3L5yIqEImSRnAAURDirLu/BgiXGPAhg==}
+
   tapable@2.2.1:
     resolution: {integrity: sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==}
     engines: {node: '>=6'}
@@ -3728,6 +3743,9 @@ packages:
 
   tunnel-agent@0.6.0:
     resolution: {integrity: sha512-McnNiV1l8RYeY8tBgEpuodCC1mLUdbSN+CYBL7kJsJNInOP8UjDDEwdk6Mw60vdLLrr5NHKZhMAOSrR2NZuQ+w==}
+
+  tw-animate-css@1.3.0:
+    resolution: {integrity: sha512-jrJ0XenzS9KVuDThJDvnhalbl4IYiMQ/XvpA0a2FL8KmlK+6CSMviO7ROY/I7z1NnUs5NnDhlM6fXmF40xPxzw==}
 
   tweetnacl@0.14.5:
     resolution: {integrity: sha512-KXXFFdAbFXY4geFIwoyNK+f5Z1b7swfXABfL7HXCmoIWMKU3dmS26672A4EeQtDzLKy7SXmfBu51JolvEKwtGA==}
@@ -7468,6 +7486,8 @@ snapshots:
 
   tailwindcss@4.0.17: {}
 
+  tailwindcss@4.1.7: {}
+
   tapable@2.2.1: {}
 
   thread-stream@3.1.0:
@@ -7549,6 +7569,8 @@ snapshots:
   tunnel-agent@0.6.0:
     dependencies:
       safe-buffer: 5.2.1
+
+  tw-animate-css@1.3.0: {}
 
   tweetnacl@0.14.5: {}
 
