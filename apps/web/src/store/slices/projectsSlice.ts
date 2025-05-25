@@ -109,6 +109,17 @@ export const projectsSlice = createSlice(
         isTaskProjection(target)
       );
     },
+    dropdownProjectsList: appSelector(
+      (query): { value: string; label: string }[] => {
+        const projects = query((state) => allProjectsSlice.childrenIds(state));
+        return projects.map((id) => {
+          const project = query((state) => projectsSlice.byId(state, id));
+          if (!project) return { value: id, label: "" };
+
+          return { value: id, label: project.title };
+        });
+      },
+    ),
     siblings: appSelector(
       (
         query,

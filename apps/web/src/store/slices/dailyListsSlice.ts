@@ -104,50 +104,74 @@ export const dailyListsSlice = createSlice(
       },
     ),
 
-    childrenIds: appSelector((query, dailyListId: string): string[] => {
-      const byIds = query((state) => state.projection.byIds);
-      const tasksByIds = query((state) => state.task.byIds);
+    childrenIds: appSelector(
+      (
+        query,
+        dailyListId: string,
+        includeOnlyProjectIds: string[] = [],
+      ): string[] => {
+        const byIds = query((state) => state.projection.byIds);
+        const tasksByIds = query((state) => state.task.byIds);
 
-      const projections = Object.values(byIds).filter(
-        (proj) => proj.dailyListId === dailyListId,
-      );
+        const projections = Object.values(byIds).filter(
+          (proj) => proj.dailyListId === dailyListId,
+        );
 
-      const todoProjections: TaskProjection[] = [];
-      for (const proj of projections) {
-        const task = tasksByIds[proj.taskId];
+        const todoProjections: TaskProjection[] = [];
+        for (const proj of projections) {
+          const task = tasksByIds[proj.taskId];
 
-        if (task?.state === "todo") {
-          todoProjections.push(proj);
+          if (
+            task?.state === "todo" &&
+            (includeOnlyProjectIds.length > 0
+              ? includeOnlyProjectIds.includes(task.projectId)
+              : true)
+          ) {
+            todoProjections.push(proj);
+          }
         }
-      }
 
-      return todoProjections.sort(fractionalCompare).map((proj) => proj.id);
-    }, shallowEqual),
-    doneChildrenIds: appSelector((query, dailyListId: string): string[] => {
-      const byIds = query((state) => state.projection.byIds);
-      const tasksByIds = query((state) => state.task.byIds);
+        return todoProjections.sort(fractionalCompare).map((proj) => proj.id);
+      },
+      shallowEqual,
+    ),
+    doneChildrenIds: appSelector(
+      (
+        query,
+        dailyListId: string,
+        includeOnlyProjectIds: string[] = [],
+      ): string[] => {
+        const byIds = query((state) => state.projection.byIds);
+        const tasksByIds = query((state) => state.task.byIds);
 
-      const projections = Object.values(byIds).filter(
-        (proj) => proj.dailyListId === dailyListId,
-      );
+        const projections = Object.values(byIds).filter(
+          (proj) => proj.dailyListId === dailyListId,
+        );
 
-      const todoProjections: {
-        id: string;
-        lastToggledAt: number;
-      }[] = [];
-      for (const proj of projections) {
-        const task = tasksByIds[proj.taskId];
+        const todoProjections: {
+          id: string;
+          lastToggledAt: number;
+        }[] = [];
+        for (const proj of projections) {
+          const task = tasksByIds[proj.taskId];
 
-        if (task?.state === "done") {
-          todoProjections.push({
-            id: proj.id,
-            lastToggledAt: task.lastToggledAt,
-          });
+          if (
+            task?.state === "done" &&
+            (includeOnlyProjectIds.length > 0
+              ? includeOnlyProjectIds.includes(task.projectId)
+              : true)
+          ) {
+            todoProjections.push({
+              id: proj.id,
+              lastToggledAt: task.lastToggledAt,
+            });
+          }
         }
-      }
 
-      return todoProjections.sort(timeCompare).map((proj) => proj.id);
-    }, shallowEqual),
+        return todoProjections.sort(timeCompare).map((proj) => proj.id);
+      },
+      shallowEqual,
+    ),
     taskIds: appSelector((query, dailyListId: string): string[] => {
       const childrenIds = query((state) =>
         dailyListsSlice.childrenIds(state, dailyListId),

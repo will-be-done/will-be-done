@@ -29,7 +29,8 @@ import { projectionsSlice } from "@/store/slices/projectionsSlice.ts";
 import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
 import { inboxId, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -178,21 +179,11 @@ const ColumnView = ({
   );
 
   const projectionIds = useAppSelector((state) =>
-    dailyListsSlice.childrenIds(state, dailyListId),
+    dailyListsSlice.childrenIds(state, dailyListId, selectedProjectIds),
   );
   const doneProjectionIds = useAppSelector((state) =>
-    dailyListsSlice.doneChildrenIds(state, dailyListId),
+    dailyListsSlice.doneChildrenIds(state, dailyListId, selectedProjectIds),
   );
-
-  // TODO: return back
-  // const filteredProjections =
-  //   selectedProjectIds.length > 0
-  //     ? dailyList.projections.filter((proj) => {
-  //         return selectedProjectIds.includes(
-  //           proj.taskRef.current.projectRef.id,
-  //         );
-  //       })
-  //     : dailyList.projections;
 
   const isToday = useMemo(() => {
     return getDMY(new Date()) === dailyList.date;
@@ -275,6 +266,7 @@ const BoardView = ({
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
   const store = useAppStore();
+  const projectsList = useAppSelector(projectsSlice.dropdownProjectsList);
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,
@@ -282,6 +274,25 @@ const BoardView = ({
   const setSelectedProjectIds = useSelectedProjectIds(
     (state) => state.setSelectedProjectIds,
   );
+
+  // const handleProjectIdsChange = useCallback(
+  //   (ids: string[]) => {
+  //     void navigate({
+  //       to: "/timeline/$date",
+  //       replace: true,
+  //       params: {
+  //         date: format(currentDate, "yyyy-MM-dd"),
+  //       },
+  //       search:
+  //         ids.length > 0
+  //           ? {
+  //               projectIds: ids,
+  //             }
+  //           : undefined,
+  //     });
+  //   },
+  //   [currentDate, navigate],
+  // );
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
@@ -352,14 +363,14 @@ const BoardView = ({
           </div>
 
           <div className="">
-            {/* <MultiSelect */}
-            {/*   options={projectsList} */}
-            {/*   onValueChange={setSelectedProjectIds} */}
-            {/*   defaultValue={selectedProjectIds} */}
-            {/*   placeholder="Select Projects" */}
-            {/*   variant="inverted" */}
-            {/*   maxCount={2} */}
-            {/* /> */}
+            <MultiSelect
+              options={projectsList}
+              onValueChange={setSelectedProjectIds}
+              defaultValue={selectedProjectIds}
+              placeholder="Select Projects"
+              variant="inverted"
+              maxCount={2}
+            />
           </div>
 
           <div className="flex items-center space-x-1">
