@@ -4,6 +4,7 @@ import { TaskSuggestions } from "@/features/timeline/components/TaskSuggestions/
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";
+import { parse } from "date-fns";
 
 const filterParams = z.object({
   projectIds: z.array(z.string()).optional(),
@@ -15,9 +16,12 @@ export const Route = createFileRoute("/timeline/$date")({
 });
 
 function RouteComponent() {
+  const params = Route.useParams();
+  const date = parse(params.date, "yyyy-MM-dd", new Date());
+
   return (
     <Layout sidebarContent={<TaskSuggestions />}>
-      <Board />
+      <Board selectedDate={date} />
     </Layout>
   );
 }

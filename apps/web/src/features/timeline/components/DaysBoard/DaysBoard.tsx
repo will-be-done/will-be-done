@@ -29,6 +29,7 @@ import { projectionsSlice } from "@/store/slices/projectionsSlice.ts";
 import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
 import { inboxId, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
+import { Link } from "@tanstack/react-router";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -263,12 +264,12 @@ const ColumnView = ({
 };
 
 const BoardView = ({
-  handleNextDay,
-  handlePrevDay,
+  previousDate,
+  nextDate,
   dailyListsIds,
 }: {
-  handleNextDay: () => void;
-  handlePrevDay: () => void;
+  previousDate: Date;
+  nextDate: Date;
   dailyListsIds: string[];
 }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
@@ -306,8 +307,11 @@ const BoardView = ({
       <div className="bg-gray-800 rounded-lg shadow-lg p-4 flex flex-col h-full border border-gray-700 overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center">
-            <button
-              onClick={handlePrevDay}
+            <Link
+              to="/timeline/$date"
+              params={{
+                date: format(previousDate, "yyyy-MM-dd"),
+              }}
               className="p-1 ml-4 bg-gray-700 rounded hover:bg-gray-600 transition-colors text-gray-300 cursor-pointer"
               aria-label="Previous day"
             >
@@ -323,9 +327,12 @@ const BoardView = ({
                   clipRule="evenodd"
                 />
               </svg>
-            </button>
-            <button
-              onClick={handleNextDay}
+            </Link>
+            <Link
+              to="/timeline/$date"
+              params={{
+                date: format(nextDate, "yyyy-MM-dd"),
+              }}
               className="p-1 ml-1 bg-gray-700 rounded hover:bg-gray-600 transition-colors text-gray-300 cursor-pointer"
               aria-label="Next day"
             >
@@ -341,7 +348,7 @@ const BoardView = ({
                   clipRule="evenodd"
                 />
               </svg>
-            </button>
+            </Link>
           </div>
 
           <div className="">
@@ -425,15 +432,12 @@ const useDaysPreferences = create<DaysPreferences>()(
   ),
 );
 
-export const Board = () => {
+export const Board = ({ selectedDate }: { selectedDate: Date }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
-  const daysShift = useDaysPreferences((state) => state.daysShift);
-  const setDaysShift = useDaysPreferences((state) => state.setDaysShift);
 
-  const startingDate = useMemo(
-    () => addDays(startOfDay(new Date()), daysShift),
-    [daysShift],
-  );
+  const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
+  const previousDate = useMemo(() => subDays(selectedDate, 1), [selectedDate]);
+  const nextDate = useMemo(() => addDays(selectedDate, 1), [selectedDate]);
 
   const weekDays = useMemo(
     () =>
@@ -442,16 +446,6 @@ export const Board = () => {
       }).filter((_, i) => i < daysToShow),
     [startingDate, daysToShow],
   );
-
-  // Handle previous day
-  const handlePrevDay = useCallback((): void => {
-    setDaysShift(daysShift - 1);
-  }, [daysShift, setDaysShift]);
-
-  // Handle next day
-  const handleNextDay = useCallback((): void => {
-    setDaysShift(daysShift + 1);
-  }, [daysShift, setDaysShift]);
 
   const dailyListsIds = useAppSelector((state) =>
     dailyListsSlice.idsByDates(state, weekDays),
@@ -472,8 +466,8 @@ export const Board = () => {
 
   return (
     <BoardView
-      handleNextDay={handleNextDay}
-      handlePrevDay={handlePrevDay}
+      previousDate={previousDate}
+      nextDate={nextDate}
       dailyListsIds={dailyListsIds}
     />
   );
