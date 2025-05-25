@@ -80,9 +80,19 @@ export const taskBoxesSlice = createSlice(
       }
     }),
     createSibling: appAction(
-      (state: RootState, taskBox: TaskBox, position: "before" | "after") => {
+      (
+        state: RootState,
+        taskBox: TaskBox,
+        position: "before" | "after",
+        taskParams?: Partial<Task>,
+      ) => {
         if (isTask(taskBox)) {
-          return tasksSlice.createSibling(state, taskBox.id, position);
+          return tasksSlice.createSibling(
+            state,
+            taskBox.id,
+            position,
+            taskParams,
+          );
         } else if (isTaskProjection(taskBox)) {
           return projectionsSlice.createSibling(state, taskBox.id, position);
         } else {

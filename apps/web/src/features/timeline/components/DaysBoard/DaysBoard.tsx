@@ -120,7 +120,7 @@ const TaskProjection = ({
         orderNumber={orderNumber}
         taskId={projection.taskId}
         taskBoxId={projection.id}
-        showProject={true}
+        alwaysShowProject
       />
     </>
   );
@@ -232,6 +232,11 @@ const ColumnView = ({
           className="flex flex-col space-y-2 mt-2 overflow-y-auto pt-1"
           ref={scrollableRef}
         >
+          {/* Add new task button and input */}
+          <div className="mb-4">
+            <AddTaskColumnButton dailyList={dailyList} onTaskAdd={onTaskAdd} />
+          </div>
+
           {projectionIds.map((id, i) => {
             return (
               <TaskProjection
@@ -251,11 +256,6 @@ const ColumnView = ({
               />
             );
           })}
-
-          {/* Add new task button and input */}
-          <div className="mt-2">
-            <AddTaskColumnButton dailyList={dailyList} onTaskAdd={onTaskAdd} />
-          </div>
         </div>
       </div>
     </ColumnListProvider>

@@ -13,7 +13,7 @@ import {
   type Edge,
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import ReactDOM from "react-dom";
+import ReactDOM, { unstable_batchedUpdates } from "react-dom";
 import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { usePrevious, useUnmount } from "../../utils";
@@ -32,7 +32,7 @@ import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
 import { taskBoxesSlice } from "@/store/slices/taskBoxesSlice.ts";
 import { appSlice } from "@/store/slices/appSlice.ts";
-import { isTask, tasksSlice } from "@/store/slices/tasksSlice.ts";
+import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
 import { isTaskProjection } from "@/store/slices/projectionsSlice.ts";
@@ -54,7 +54,7 @@ const TaskPrimitive = ({
 }) => {
   return (
     <div
-      className={`p-3 rounded-lg border ${"border-gray-700 bg-gray-750"} shadow-md transition-colors`}
+      className={`p-3 rounded-lg border ${"border-gray-700 bg-gray-750"} shadow-md`}
       style={style}
     >
       <div className="flex items-center gap-2">
@@ -89,13 +89,17 @@ export const DropTaskIndicator = ({
 export const TaskComp = ({
   taskId,
   taskBoxId,
-  showProject,
+  displayedUnderProjectId,
+  alwaysShowProject,
   orderNumber,
+  newTaskParams,
 }: {
   taskId: string;
   taskBoxId: string;
-  showProject: boolean;
+  displayedUnderProjectId?: string;
+  alwaysShowProject?: boolean;
   orderNumber: string;
+  newTaskParams?: Partial<Task>;
 }) => {
   const task = useAppSelector((state) =>
     tasksSlice.byIdOrDefault(state, taskId),
@@ -342,12 +346,15 @@ export const TaskComp = ({
 
       e.preventDefault();
 
-      const newBox = taskBoxesSlice.createSibling(
-        store,
-        taskBox,
-        isAddAfter ? "after" : "before",
-      );
-      focusSlice.editByKey(store, buildFocusKey(newBox.id, newBox.type));
+      unstable_batchedUpdates(() => {
+        const newBox = taskBoxesSlice.createSibling(
+          store,
+          taskBox,
+          isAddAfter ? "after" : "before",
+          newTaskParams,
+        );
+        focusSlice.editByKey(store, buildFocusKey(newBox.id, newBox.type));
+      });
 
       return;
     }
@@ -536,7 +543,7 @@ export const TaskComp = ({
         data-focusable-key={focusableItem.key}
         tabIndex={0}
         className={clsx(
-          `relative p-3 rounded-lg border  shadow-md transition-colors whitespace-break-spaces [overflow-wrap:anywhere]`,
+          `relative p-3 rounded-lg border  shadow-md  whitespace-break-spaces [overflow-wrap:anywhere]`,
           isFocused
             ? "border-blue-500 bg-gray-700"
             : "border-gray-700 bg-gray-750",
@@ -596,7 +603,7 @@ export const TaskComp = ({
           </div>
           <div className="flex justify-between  mt-3 text-gray-400 text-sm">
             <div>{task.horizon}</div>
-            {showProject && (
+            {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
               <div className="text-right text-gray-400 text-sm">
                 {project.icon || "🟡"} {project.title}
               </div>

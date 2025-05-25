@@ -31,7 +31,7 @@ export const Layout = ({
     const containerWidth = window.innerWidth;
     const deltaPercentage = (deltaX / containerWidth) * 100;
     const newWidth = Math.max(
-      20,
+      15,
       Math.min(40, rightSidebarWidth - deltaPercentage),
     );
     setRightSidebarWidth(newWidth);

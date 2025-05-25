@@ -166,12 +166,18 @@ export const dailyListsSlice = createSlice(
         projectId: string,
         exceptDailyListIds: string[],
         taskHorizons: Task["horizon"][],
+        alwaysIncludeTaskIds: string[] = [],
       ): string[] => {
         const exceptTaskIds = query((state) =>
           dailyListsSlice.allTaskIds(state, exceptDailyListIds),
         );
         const notDoneTaskIds = query((state) =>
-          projectsSlice.notDoneTaskIds(state, projectId, taskHorizons),
+          projectsSlice.notDoneTaskIds(
+            state,
+            projectId,
+            taskHorizons,
+            alwaysIncludeTaskIds,
+          ),
         );
 
         return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));

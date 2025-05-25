@@ -35,7 +35,7 @@ const AddTaskButton = ({
   const id = "add-task-button-" + project.id;
   const focusItem = useRegisterFocusItem(
     buildFocusKey(id, id, "AddTaskButton"),
-    "zzzzzzzzzzzzzzzz",
+    "01",
   );
 
   return (
@@ -54,7 +54,7 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 
   const focusableItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectTitle"),
-    "0",
+    "00",
   );
 
   const isFocused = useAppSelector((state) =>
@@ -164,11 +164,14 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 
 export const ProjectItemsList = ({ project }: { project: Project }) => {
   const store = useAppStore();
+  const id = useAppSelector(focusSlice.getFocusedModelId);
+  const idsToAlwaysInclude = id ? [id] : [];
+
   const doneChildrenIds = useAppSelector((state) =>
-    projectsSlice.doneChildrenIds(state, project.id),
+    projectsSlice.doneChildrenIds(state, project.id, idsToAlwaysInclude),
   );
   const notDoneChildrenIds = useAppSelector((state) =>
-    projectsSlice.childrenIds(state, project.id),
+    projectsSlice.childrenIds(state, project.id, idsToAlwaysInclude),
   );
 
   const onAddNewTask = useCallback(() => {
@@ -179,14 +182,6 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
 
   const lastTaskI =
     notDoneChildrenIds.length == 0 ? 0 : notDoneChildrenIds.length - 1;
-  // const lastTaskId = notDoneChildrenIds[notDoneChildrenIds.length - 1];
-  // const lastTask = useAppSelector((state) =>
-  //   lastTaskId ? tasksSlice.byIdOrDefault(state, lastTaskId) : null,
-  // );
-  // const notDonePriority = generateKeyBetween(
-  //   lastTask?.orderToken || null,
-  //   null,
-  // );
 
   return (
     <ColumnListProvider
@@ -212,15 +207,21 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
               Delete
             </button>
           </div>
-          <div className="flex flex-col space-y-2 mt-5 overflow-y-auto">
+
+          {/* Add new task button and input */}
+          <div className="my-5">
+            <AddTaskButton project={project} onTaskAdd={onAddNewTask} />
+          </div>
+
+          <div className="flex flex-col space-y-2 overflow-y-auto">
             {notDoneChildrenIds.map((id, i) => {
               return (
                 <TaskComp
-                  orderNumber={i.toString()}
+                  orderNumber={(i + 2).toString()}
                   key={id}
                   taskId={id}
                   taskBoxId={id}
-                  showProject={false}
+                  displayedUnderProjectId={project.id}
                 />
               );
             })}
@@ -230,7 +231,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
                 project.type,
                 "DoneProjectionsList",
               )}
-              priority={(lastTaskI + 1).toString()}
+              priority={(lastTaskI + 2).toString()}
             >
               {doneChildrenIds.map((id, i) => {
                 return (
@@ -239,16 +240,11 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
                     key={id}
                     taskId={id}
                     taskBoxId={id}
-                    showProject={false}
+                    displayedUnderProjectId={project.id}
                   />
                 );
               })}
             </ParentListItemProvider>
-          </div>
-
-          {/* Add new task button and input */}
-          <div className="mt-2">
-            <AddTaskButton project={project} onTaskAdd={onAddNewTask} />
           </div>
         </div>
       </div>

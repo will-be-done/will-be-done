@@ -2,7 +2,7 @@ import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/features/focus/components/ParentListProvider.tsx";
-import { buildFocusKey } from "@/store/slices/focusSlice.ts";
+import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
 import { useSuggestionsStore } from "./suggestionsStore";
 import { useShallow } from "zustand/react/shallow";
 import { useAppSelector } from "@/hooks/stateHooks.ts";
@@ -38,13 +38,20 @@ function ProjectSuggestions({
     projectsSlice.byIdOrDefault(state, projectId),
   );
 
+  const id = useAppSelector(focusSlice.getFocusedModelId);
+  const idsToAlwaysInclude = id ? [id] : [];
   const taskIds = useAppSelector((state) =>
     dailyListsSlice.notDoneTaskIdsExceptDailies(
       state,
       projectId,
       exceptDailyListIds,
       taskHorizons,
+      idsToAlwaysInclude,
     ),
+  );
+
+  const preferredHorizon = useFilterStore((state) =>
+    state.getPreferredHorizon(),
   );
 
   if (taskIds.length == 0) return null;
@@ -76,7 +83,8 @@ function ProjectSuggestions({
                 orderNumber={i.toString()}
                 taskId={id}
                 key={id}
-                showProject={false}
+                displayedUnderProjectId={projectId}
+                newTaskParams={{ horizon: preferredHorizon }}
               />
             ))}
           </div>

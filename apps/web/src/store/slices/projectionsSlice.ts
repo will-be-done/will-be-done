@@ -5,7 +5,7 @@ import { dailyListsSlice } from "@/store/slices/dailyListsSlice.ts";
 import { shallowEqual } from "fast-equals";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
-import { isTask, tasksSlice } from "@/store/slices/tasksSlice.ts";
+import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { generateKeyPositionedBetween } from "@/store/order.ts";
 import { appAction, appSelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
@@ -230,6 +230,7 @@ export const projectionsSlice = createSlice(
         state: RootState,
         taskProjectionId: string,
         position: "before" | "after",
+        taskParams?: Partial<Task>,
       ): TaskProjection => {
         const taskProjection = projectionsSlice.byId(state, taskProjectionId);
 
@@ -238,6 +239,7 @@ export const projectionsSlice = createSlice(
           state,
           taskProjection.taskId,
           position,
+          taskParams,
         );
 
         return projectionsSlice.create(state, {

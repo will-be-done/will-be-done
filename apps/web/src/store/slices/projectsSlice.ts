@@ -130,34 +130,54 @@ export const projectsSlice = createSlice(
         ];
       },
     ),
-    childrenIds: appSelector((query, projectId: string): string[] => {
-      const tasksByIds = query((state) => state.task.byIds);
-      const tasks = Object.values(tasksByIds).filter(
-        (task) => task.projectId === projectId,
-      );
+    childrenIds: appSelector(
+      (
+        query,
+        projectId: string,
+        alwaysIncludeChildIds: string[] = [],
+      ): string[] => {
+        const tasksByIds = query((state) => state.task.byIds);
+        const tasks = Object.values(tasksByIds).filter(
+          (task) =>
+            task.projectId === projectId ||
+            alwaysIncludeChildIds.includes(task.id),
+        );
 
-      const todoTasks = tasks.filter((t) => t.state === "todo");
+        const todoTasks = tasks.filter((t) => t.state === "todo");
 
-      const templatesByIds = query((state) => state.template.byIds);
-      const templates = Object.values(templatesByIds).filter(
-        (template) => template.projectId === projectId,
-      );
+        const templatesByIds = query((state) => state.template.byIds);
+        const templates = Object.values(templatesByIds).filter(
+          (template) =>
+            template.projectId === projectId ||
+            alwaysIncludeChildIds.includes(template.id),
+        );
 
-      return [...todoTasks, ...templates]
-        .sort(fractionalCompare)
-        .map((p) => p.id);
-    }, shallowEqual),
-    doneChildrenIds: appSelector((query, projectId: string): string[] => {
-      const tasksByIds = query((state) => state.task.byIds);
-      const tasks = Object.values(tasksByIds).filter(
-        (task) => task.projectId === projectId,
-      );
+        return [...todoTasks, ...templates]
+          .sort(fractionalCompare)
+          .map((p) => p.id);
+      },
+      shallowEqual,
+    ),
+    doneChildrenIds: appSelector(
+      (
+        query,
+        projectId: string,
+        alwaysIncludeTaskIds: string[] = [],
+      ): string[] => {
+        const tasksByIds = query((state) => state.task.byIds);
+        const tasks = Object.values(tasksByIds).filter(
+          (task) =>
+            task.projectId === projectId ||
+            alwaysIncludeTaskIds.includes(task.id),
+        );
 
-      const doneTasks = tasks.filter((t) => t.state === "done");
-      const sortedDoneTasks = doneTasks.sort(timeCompare);
+        const doneTasks = tasks.filter((t) => t.state === "done");
+        const sortedDoneTasks = doneTasks.sort(timeCompare);
 
-      return sortedDoneTasks.map((p) => p.id);
-    }, shallowEqual),
+        return sortedDoneTasks.map((p) => p.id);
+      },
+      shallowEqual,
+    ),
     childrenCount: appSelector((query, projectId: string): number => {
       return query(
         (state) => projectsSlice.childrenIds(state, projectId).length,
@@ -197,7 +217,12 @@ export const projectsSlice = createSlice(
       );
     }, shallowEqual),
     notDoneTaskIds: appSelector(
-      (query, projectId: string, taskHorizons: Task["horizon"][]): string[] => {
+      (
+        query,
+        projectId: string,
+        taskHorizons: Task["horizon"][],
+        alwaysIncludeTaskIds: string[] = [],
+      ): string[] => {
         const taskIds = query((state) =>
           projectsSlice.tasksIds(state, projectId),
         );
@@ -207,7 +232,12 @@ export const projectsSlice = createSlice(
           const task = byIds[id];
           if (!task) return false;
 
-          return task.state !== "done" && taskHorizons.includes(task.horizon);
+          if (task.state === "done") return false;
+
+          return (
+            taskHorizons.includes(task.horizon) ||
+            alwaysIncludeTaskIds.includes(task.id)
+          );
         });
       },
       shallowEqual,

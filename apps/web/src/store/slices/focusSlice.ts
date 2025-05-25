@@ -64,6 +64,13 @@ export const initialFocusState: FocusState = {
 export const focusSlice = createSlice(
   {
     getFocusKey: (state: RootState) => state.focus.focusItemKey,
+    getFocusedModelId: appSelector((query): string | undefined => {
+      const key = query(focusSlice.getFocusKey);
+
+      if (!key) return undefined;
+
+      return parseColumnKey(key).id;
+    }),
     getEditKey: (state: RootState) => state.focus.editItemKey,
     // Read operations
     //

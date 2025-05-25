@@ -184,6 +184,7 @@ export const tasksSlice = createSlice(
         state: RootState,
         taskId: string,
         position: "before" | "after",
+        taskParams?: Partial<Task>,
       ): Task => {
         const task = tasksSlice.byId(state, taskId);
 
@@ -196,6 +197,7 @@ export const tasksSlice = createSlice(
             tasksSlice.siblings(state, taskId),
             position,
           ),
+          ...taskParams,
         });
       },
     ),

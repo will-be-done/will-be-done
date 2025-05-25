@@ -445,7 +445,18 @@ type EqualityFn = (a: unknown, b: unknown) => boolean;
 export function createSelectorCreator<TRootState = any>() {
   const selectCreator = <
     TReturn,
-    TParams extends (string | number | Date | Date[] | string[] | number[])[],
+    TParams extends (
+      | string
+      | number
+      | Date
+      | Date[]
+      | string[]
+      | number[]
+      | undefined
+      | undefined[]
+      | null
+      | null[]
+    )[],
   >(
     selectionLogic: SelectionLogic<TRootState, TReturn, TParams>,
     selectEqualityFn: EqualityFn = defaultEqualityFn,
