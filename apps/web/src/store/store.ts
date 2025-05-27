@@ -179,7 +179,7 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
     store = withUndoManager(createStore(rootState));
     connectToDevTools(store);
 
-    // syncer.startLoop();
+    syncer.startLoop();
     syncer.emitter.on("onChangePersisted", (changes) => {
       console.log("new server changes", changes);
 
