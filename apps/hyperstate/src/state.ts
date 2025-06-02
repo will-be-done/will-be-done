@@ -416,6 +416,11 @@ export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
   ...args: TArgs
 ) => Result;
 
+export type SimpleSelectionLogic<State, Result, TArgs extends unknown[]> = (
+  state: State,
+  ...args: TArgs
+) => Result;
+
 // export type Select<TRootState> = <TReturn>(
 //   selectCreator: (query: Querier<TRootState, TReturn>) => TReturn,
 // ) => TReturn;
@@ -441,7 +446,61 @@ export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
 const defaultEqualityFn = (a: unknown, b: unknown) => a === b;
 type EqualityFn = (a: unknown, b: unknown) => boolean;
 
+// TODO: use weakmap
 // TODO: add dependencies cache check like in rereselect
+function isObject(value: any): value is object {
+  return typeof value === "object" && value !== null;
+}
+
+type WeakKey = object; // Simplified for this context
+
+// // Structure for storing individual dependency values weakly
+// type DependencyCacheValue = {
+//   valueRef?: WeakRef<WeakKey>;
+//   valuePrimitive?: any;
+// };
+
+// --- Improved Cache Key Generation ---
+const UNDEFINED_JSON_REPLACEMENT = {
+  __is_undefined_cache_key_sentinel__: true,
+};
+
+function serializeForCacheKey(param: any): any {
+  if (param === undefined) {
+    return UNDEFINED_JSON_REPLACEMENT;
+  }
+  if (param instanceof Date) {
+    // Use getTime() for a stable, numeric representation of the date
+    return `Date(${param.getTime()})`;
+  }
+  if (Array.isArray(param)) {
+    // Recursively serialize elements within nested arrays
+    return param.map(serializeForCacheKey);
+  }
+  return param;
+}
+
+export function generateCacheKey(
+  params: ReadonlyArray<
+    | string
+    | number
+    | Date
+    | Date[]
+    | string[]
+    | number[]
+    | undefined
+    | undefined[]
+    | null
+    | null[]
+  >,
+): string {
+  const processedParams = params.map(serializeForCacheKey);
+  // JSON.stringify is robust for primitives and arrays once undefined/Date are handled.
+  // It distinguishes numbers from strings (e.g., 1 vs "1" in the JSON output).
+  return JSON.stringify(processedParams);
+}
+
+// --- createSelectorCreator Implementation ---
 export function createSelectorCreator<TRootState = any>() {
   const selectCreator = <
     TReturn,
@@ -461,100 +520,160 @@ export function createSelectorCreator<TRootState = any>() {
     selectionLogic: SelectionLogic<TRootState, TReturn, TParams>,
     selectEqualityFn: EqualityFn = defaultEqualityFn,
   ) => {
-    const memoized = new Map<
-      string,
-      {
-        previousState: TRootState | undefined;
-        value: TReturn;
-        dependencies: Map<Selector<TRootState, any>, { value: any }>;
-      }
-    >();
+    type CacheEntry = {
+      previousState: TRootState | undefined;
+      // For the main selector result:
+      valueRef?: WeakRef<WeakKey>; // WeakRef if TReturn is an object
+      valuePrimitive?: TReturn; // Direct value if TReturn is primitive
+      valueUnregisterToken?: object; // Unique token for FinalizationRegistry
+      // For dependencies: Stored with strong references
+      dependencies: Map<Selector<TRootState, any>, { value: any }>;
+    };
+
+    const memoized = new Map<string, CacheEntry>();
+
+    const registry = new FinalizationRegistry<string>(
+      (cacheKeyHoldingStaleValue) => {
+        if (memoized.has(cacheKeyHoldingStaleValue)) {
+          memoized.delete(cacheKeyHoldingStaleValue);
+          console.log(
+            `%cCACHE: Entry for key '${cacheKeyHoldingStaleValue}' removed because its main value was GC'd.`,
+            "color: red; font-weight: bold;",
+          );
+        }
+      },
+    );
 
     const wrappedSelector = (state: TRootState, ...params: TParams) => {
       if (isDraft(state)) {
-        const query: QueryFunction<TRootState> = (
+        const queryDraft: QueryFunction<TRootState> = (
           querier: Selector<TRootState, any>,
-        ) => {
-          return querier(state);
-        };
-
-        return selectionLogic(query, ...params);
+        ) => querier(state);
+        return selectionLogic(queryDraft, ...params);
       }
 
-      const key = params.join(",");
-      const mem = memoized.get(key);
+      const key = generateCacheKey(params);
+      const currentEntry = memoized.get(key);
+      let mainOldValueInstance: TReturn | undefined = undefined;
+      let oldUnregisterToken: object | undefined = undefined;
 
-      if (mem) {
-        if (mem.previousState === state) {
-          return mem.value;
+      if (currentEntry) {
+        oldUnregisterToken = currentEntry.valueUnregisterToken;
+        if (currentEntry.valueRef) {
+          const dereferencedValue = currentEntry.valueRef.deref();
+          if (dereferencedValue === undefined) {
+            // Main value was GC'd. Registry should handle cleanup.
+          } else {
+            mainOldValueInstance = dereferencedValue as TReturn;
+          }
+        } else {
+          mainOldValueInstance = currentEntry.valuePrimitive;
         }
 
-        let changed = false;
-        for (const [selector, { value }] of mem.dependencies.entries()) {
-          // console.log(selector, equalityFn);
-          if (selector(state) !== value) {
-            changed = true;
+        if (mainOldValueInstance !== undefined) {
+          if (currentEntry.previousState === state) {
+            return mainOldValueInstance;
+          }
 
-            break;
+          let depsChanged = false;
+          for (const [
+            depSelector,
+            oldDepData, // This is now { value: any }
+          ] of currentEntry.dependencies.entries()) {
+            const newDepValue = depSelector(state);
+            // Direct comparison with the strongly held old dependency value
+            if (newDepValue !== oldDepData.value) {
+              depsChanged = true;
+              break;
+            }
+          }
+
+          if (!depsChanged) {
+            memoized.set(key, {
+              ...currentEntry,
+              previousState: state,
+            });
+            return mainOldValueInstance;
           }
         }
-
-        // console.log("changed", selectionLogic, changed);
-
-        if (!changed) {
-          memoized.set(key, {
-            value: mem.value,
-            previousState: state, // still need to update to new state
-            dependencies: mem.dependencies,
-          });
-
-          return mem.value;
-        }
       }
 
-      const dependencies = new Map<Selector<TRootState, any>, any>();
+      // Recompute
+      const newDependencies = new Map<
+        Selector<TRootState, any>,
+        { value: any } // Storing dependency values directly (strong reference)
+      >();
       const query: QueryFunction<TRootState> = (
         querier: Selector<TRootState, any>,
-        equalityFn: (a: unknown, b: unknown) => boolean = defaultEqualityFn,
       ) => {
-        // console.log("query", querier);
-        // console.log("---");
-        // console.log(equalityFn);
-
-        if (dependencies.has(querier)) return dependencies.get(querier);
+        const existingDep = newDependencies.get(querier);
+        if (existingDep) {
+          return existingDep.value;
+        }
         const value = querier(state);
-        dependencies.set(querier, { value, equalityFn });
-
+        newDependencies.set(querier, { value }); // Store the actual value
         return value;
       };
 
-      const result = selectionLogic(query, ...params);
+      const newResult = selectionLogic(query, ...params);
 
-      if (dependencies.size === 0) {
+      if (newDependencies.size === 0) {
         throw new Error(
           "Selector malfunction: " +
             "The selection logic must select some data by calling `query(selector)` at least once.",
         );
       }
 
-      if (mem && selectEqualityFn(mem.value, result)) {
-        memoized.set(key, {
-          value: mem.value,
-          previousState: state, // still need to update to new state
-          dependencies: dependencies,
-        });
+      let valueToStore: TReturn = newResult;
+      let valueToReturn: TReturn = newResult;
+      let newUnregisterToken: object | undefined = undefined;
+      let actualValueObjectToRegister: WeakKey | undefined = undefined;
 
-        return mem.value;
+      if (
+        mainOldValueInstance !== undefined &&
+        selectEqualityFn(mainOldValueInstance, newResult)
+      ) {
+        valueToStore = mainOldValueInstance;
+        valueToReturn = mainOldValueInstance;
+        if (isObject(mainOldValueInstance)) {
+          actualValueObjectToRegister = mainOldValueInstance as WeakKey;
+          newUnregisterToken = oldUnregisterToken;
+        }
+      } else {
+        if (isObject(newResult)) {
+          actualValueObjectToRegister = newResult as WeakKey;
+          newUnregisterToken = {};
+        }
       }
 
-      memoized.set(key, {
-        value: result,
-        previousState: state, // still need to update to new state
+      if (
+        oldUnregisterToken &&
+        (!newUnregisterToken || newUnregisterToken !== oldUnregisterToken)
+      ) {
+        registry.unregister(oldUnregisterToken);
+      }
 
-        dependencies: dependencies,
-      });
+      const newCacheEntry: CacheEntry = {
+        previousState: state,
+        dependencies: newDependencies, // newDependencies now holds strong refs to dep values
+        valueUnregisterToken: newUnregisterToken,
+      };
 
-      return result;
+      if (actualValueObjectToRegister) {
+        newCacheEntry.valueRef = new WeakRef(actualValueObjectToRegister);
+        if (newUnregisterToken && newUnregisterToken !== oldUnregisterToken) {
+          registry.register(
+            actualValueObjectToRegister,
+            key,
+            newUnregisterToken,
+          );
+        }
+      } else {
+        newCacheEntry.valuePrimitive = valueToStore;
+      }
+
+      memoized.set(key, newCacheEntry);
+      return valueToReturn;
     };
 
     return wrappedSelector;

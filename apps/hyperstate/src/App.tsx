@@ -37,12 +37,23 @@ const Project = ({ id }: { id: string }) => {
     </div>
   );
 };
-function App() {
-  const [count, setCount] = useState(0);
 
+const SortedProjects = () => {
   const projectIds = useAppSelector((state) =>
     allProjectsSlice.getSortedProjectIds(state),
   );
+
+  return (
+    <div>
+      {projectIds.map((id) => (
+        <Project key={id} id={id} />
+      ))}
+    </div>
+  );
+};
+function App() {
+  const [count, setCount] = useState(0);
+
   const store = useAppStore();
   const undoManager = getUndoManager(store);
 
@@ -58,6 +69,8 @@ function App() {
   const insertMillion = useCallback(() => {
     projectsSlice.insertMillion(store);
   }, [store]);
+
+  const [isHidden, setIsHidden] = useState(false);
 
   return (
     <>
@@ -112,11 +125,8 @@ function App() {
         <button onClick={() => undoManager.clearUndo()}>Clear undo</button>
         <button onClick={() => undoManager.clearRedo()}>Clear redo</button>
       </div>
-      <div>
-        {projectIds.map((id) => (
-          <Project key={id} id={id} />
-        ))}
-      </div>
+      <button onClick={() => setIsHidden((v) => !v)}>Toggle hidden</button>
+      {isHidden && <SortedProjects />}
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
       </p>

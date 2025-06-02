@@ -193,6 +193,7 @@ export const allProjectsSlice = createSlice({
     (query): { id: string; orderToken: string }[] => {
       const byIds = query((state) => state.project.byIds);
 
+      console.log("getting all ids and tokens");
       return Object.values(byIds).map((p) => ({
         id: p.id,
         orderToken: p.orderToken,
@@ -209,12 +210,11 @@ export const allProjectsSlice = createSlice({
     //   orderToken: p.orderToken,
     // }));
 
-    console.log("SORITNkiiGii iPROJiEiiCTS", allIdsAndTokens);
-
+    console.log("SORTING!");
     return [...allIdsAndTokens]
       .sort(fractionalCompare)
       .map((p) => p.id)
-      .slice(0, 1);
+      .slice(0, 10);
   }, shallowEqual),
   getLastChildId: appSelector((query): string | undefined => {
     const sortedProjects = query(allProjectsSlice.getSortedProjectIds);

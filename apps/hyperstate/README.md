@@ -22,6 +22,7 @@ It's easy to do with mobx(you jsut scrubeibe on specific field change) and very 
 4. Good chrome devtool support(no anoyunoums and weird funcitons calls without any context)
 5. Decent performance of selectors, like mobx has. Redux reselect too verbous,
  you need to define selector beforehand
+6. Ability to eaily describe state. With mobx class appoach I loose ability to use unions. Or I will need to use inheritance.
 
 TO ADD:
 1. Example with deepEqual + big sorting list
@@ -95,3 +96,7 @@ The trade-off is obvious: I'm building a mini-framework. The store logic, the di
 For my specific needs – especially the critical requirement for efficient, granular change tracking in a local-first app – this custom Immer-based approach provides the best balance. It gives me the precise capabilities I need without the drawbacks or impedance mismatch I found with Redux or MobX in the context of modern React. It's more DIY, but it directly solves the core problems.
 
 
+Why selector this way?
+
+Check https://github.com/dai-shi/proxy-memoize/issues/81 , proxy based will not work
+Also, I don't like that I need to declare deps beforehand like it's done in reselect 
