@@ -7,6 +7,7 @@
     "dev": "vite",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,html,css,scss,yaml,yml}\"",
     "build": "tsc -b && vite build",
+    "ts": "tsc -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",

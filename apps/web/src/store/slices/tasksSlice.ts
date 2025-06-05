@@ -11,9 +11,14 @@ import { ProjectItem, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { generateKeyPositionedBetween } from "@/store/order.ts";
 import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
-import { isTaskTemplate } from "@/store/slices/taskTemplatesSlice.ts";
+import {
+  isTaskTemplate,
+  TaskTemplate,
+  taskTemplatesSlice,
+} from "@/store/slices/taskTemplatesSlice.ts";
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping";
+import { projectItemsSlice } from "./projectItemsSlice";
 
 export const taskType = "task";
 type TaskState = "todo" | "done";
@@ -119,7 +124,7 @@ export const tasksSlice = createSlice(
         if (!task) return shouldNeverHappen("task not found", { taskId });
 
         const items = query((state) =>
-          projectsSlice.childrenIds(state, task.projectId),
+          projectItemsSlice.childrenIds(state, task.projectId),
         );
         const i = items.findIndex((it: string) => it === taskId);
         const beforeId = items[i - 1];
@@ -254,6 +259,26 @@ export const tasksSlice = createSlice(
 
       task.state = task.state === "todo" ? "done" : "todo";
       task.lastToggledAt = Date.now();
+    }),
+
+    createFromTemplate: appAction(
+      (state: RootState, taskTemplate: TaskTemplate) => {
+        const newId = uuidv7();
+        state.task.byIds[newId] = {
+          id: newId,
+          title: taskTemplate.title,
+          state: "todo",
+          projectId: taskTemplate.projectId,
+          type: taskType,
+          orderToken: taskTemplate.orderToken,
+          lastToggledAt: Date.now(),
+          horizon: taskTemplate.horizon,
+          createdAt: taskTemplate.createdAt,
+        };
+      },
+    ),
+    deleteById: appAction((state: RootState, id: string) => {
+      delete state.task.byIds[id];
     }),
   },
   "tasksSlice",

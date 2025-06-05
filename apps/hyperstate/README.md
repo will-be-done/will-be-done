@@ -23,6 +23,17 @@ It's easy to do with mobx(you jsut scrubeibe on specific field change) and very 
 5. Decent performance of selectors, like mobx has. Redux reselect too verbous,
  you need to define selector beforehand
 6. Ability to eaily describe state. With mobx class appoach I loose ability to use unions. Or I will need to use inheritance.
+7. Easy to use(no need twice about how to do things), easy to scale and with good react
+integration.
+8. And devtool. Maybe own or maybe reuse redux devtool.
+9. Immutable state. Where I can easy define any shape of state. Like, I can define OR type. And with mobx I would need to use inheritance or move methods out of class.
+10. Project is battle test on medium size project. I am building todo app, and every day
+I poslish hyperstate to make sure that it's easy to use from DX perspective.
+11. Also, code should look straight. Selector looks like just simple functions, actions
+too.
+
+redux - easy to use-, easy to scale+, works good with react +
+mobx - easy to use+, easy to scale+, works good with react -
 
 TO ADD:
 1. Example with deepEqual + big sorting list

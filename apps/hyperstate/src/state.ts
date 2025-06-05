@@ -545,6 +545,10 @@ function formatDebugTreeSimple(entries: DebugEntry[]): string {
     while (i < entries.length) {
       const entry = entries[i];
 
+      if (!entry) {
+        throw new Error("entry not found");
+      }
+
       // If we hit an entry at or shallower than parentDepth, we're done with this parent's children
       if (entry.depth <= parentDepth) {
         break;
@@ -563,6 +567,10 @@ function formatDebugTreeSimple(entries: DebugEntry[]): string {
       const entry = entries[childIndex];
       const isLast = arrayIndex === children.length - 1;
       const isFirst = childIndex === 0; // First entry in entire array
+
+      if (!entry) {
+        throw new Error("entry not found");
+      }
 
       // Choose connector
       let connector = "├──";

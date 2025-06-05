@@ -22,6 +22,7 @@ import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping.ts";
+import { projectItemsSlice } from "./projectItemsSlice.ts";
 
 export const getDMY = (date: Date) => {
   return format(date, "yyyy-MM-dd");
@@ -196,7 +197,7 @@ export const dailyListsSlice = createSlice(
           dailyListsSlice.allTaskIds(state, exceptDailyListIds),
         );
         const notDoneTaskIds = query((state) =>
-          projectsSlice.notDoneTaskIds(
+          projectItemsSlice.notDoneTaskIds(
             state,
             projectId,
             taskHorizons,
@@ -318,7 +319,7 @@ export const dailyListsSlice = createSlice(
           | "append"
           | "prepend",
       ) => {
-        const task = projectsSlice.createTask(
+        const task = projectItemsSlice.createTask(
           state,
           projectId,
           projectPosition,

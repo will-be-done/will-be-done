@@ -1,13 +1,7 @@
 import { createSlice } from "@will-be-done/hyperstate";
 import { appSlice } from "@/store/slices/appSlice.ts";
 import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
-import {
-  fractionalCompare,
-  generateOrderTokenPositioned,
-  OrderableItem,
-  timeCompare,
-} from "@/store/order.ts";
-import { shallowEqual } from "fast-equals";
+import { generateOrderTokenPositioned, OrderableItem } from "@/store/order.ts";
 import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { uuidv7 } from "uuidv7";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -22,6 +16,7 @@ import {
 import { isTaskProjection } from "@/store/slices/projectionsSlice.ts";
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping";
+import { projectItemsSlice } from "./projectItemsSlice";
 
 export type Project = {
   type: typeof projectType;
@@ -109,166 +104,8 @@ export const projectsSlice = createSlice(
         isTaskProjection(target)
       );
     },
-    dropdownProjectsList: appQuerySelector(
-      (query): { value: string; label: string }[] => {
-        const projects = query((state) => allProjectsSlice.childrenIds(state));
-        return projects.map((id) => {
-          const project = query((state) => projectsSlice.byId(state, id));
-          if (!project) return { value: id, label: "" };
 
-          return { value: id, label: project.title };
-        });
-      },
-    ),
-    siblings: appQuerySelector(
-      (
-        query,
-        projectId: string,
-      ): [Project | undefined, Project | undefined] => {
-        const items = query((state) => allProjectsSlice.childrenIds(state));
-        const i = items.findIndex((it: string) => it === projectId);
-
-        const beforeId = items[i - 1];
-        const afterId = items[i + 1];
-
-        return [
-          beforeId
-            ? query((state) => projectsSlice.byId(state, beforeId))
-            : undefined,
-          afterId
-            ? query((state) => projectsSlice.byId(state, afterId))
-            : undefined,
-        ];
-      },
-    ),
-    childrenIds: appQuerySelector(
-      (
-        query,
-        projectId: string,
-        alwaysIncludeChildIds: string[] = [],
-      ): string[] => {
-        const tasksByIds = query((state) => state.task.byIds);
-        const tasks = Object.values(tasksByIds).filter(
-          (task) =>
-            task.projectId === projectId ||
-            alwaysIncludeChildIds.includes(task.id),
-        );
-
-        const todoTasks = tasks.filter((t) => t.state === "todo");
-
-        const templatesByIds = query((state) => state.template.byIds);
-        const templates = Object.values(templatesByIds).filter(
-          (template) =>
-            template.projectId === projectId ||
-            alwaysIncludeChildIds.includes(template.id),
-        );
-
-        return [...todoTasks, ...templates]
-          .sort(fractionalCompare)
-          .map((p) => p.id);
-      },
-      shallowEqual,
-    ),
-    doneChildrenIds: appQuerySelector(
-      (
-        query,
-        projectId: string,
-        alwaysIncludeTaskIds: string[] = [],
-      ): string[] => {
-        const tasksByIds = query((state) => state.task.byIds);
-        const tasks = Object.values(tasksByIds).filter(
-          (task) =>
-            task.projectId === projectId ||
-            alwaysIncludeTaskIds.includes(task.id),
-        );
-
-        const doneTasks = tasks.filter((t) => t.state === "done");
-        const sortedDoneTasks = doneTasks.sort(timeCompare);
-
-        return sortedDoneTasks.map((p) => p.id);
-      },
-      shallowEqual,
-    ),
-    childrenCount: appQuerySelector((query, projectId: string): number => {
-      return query(
-        (state) => projectsSlice.childrenIds(state, projectId).length,
-      );
-    }),
-    firstChild: appQuerySelector(
-      (query, projectId: string): ProjectItem | undefined => {
-        const childrenIds = query((state) =>
-          projectsSlice.childrenIds(state, projectId),
-        );
-        const firstChildId = childrenIds[0];
-        if (!firstChildId) return undefined;
-
-        return query((state) => projectsSlice.getItemById(state, firstChildId));
-      },
-    ),
-    lastChild: appQuerySelector(
-      (query, projectId: string): ProjectItem | undefined => {
-        const childrenIds = query((state) =>
-          projectsSlice.childrenIds(state, projectId),
-        );
-        const lastChildId = childrenIds[childrenIds.length - 1];
-        if (!lastChildId) return undefined;
-
-        return query((state) => projectsSlice.getItemById(state, lastChildId));
-      },
-    ),
-    tasksIds: appQuerySelector((query, projectId: string): string[] => {
-      const childrenIds = query((state) =>
-        projectsSlice.childrenIds(state, projectId),
-      );
-      return query((state) =>
-        childrenIds
-          .map((id) => tasksSlice.byId(state, id))
-          .map((t) => t?.id)
-          .filter((t) => t !== undefined),
-      );
-    }, shallowEqual),
-    notDoneTaskIds: appQuerySelector(
-      (
-        query,
-        projectId: string,
-        taskHorizons: Task["horizon"][],
-        alwaysIncludeTaskIds: string[] = [],
-      ): string[] => {
-        const taskIds = query((state) =>
-          projectsSlice.tasksIds(state, projectId),
-        );
-        const byIds = query((state) => state.task.byIds);
-
-        return taskIds.filter((id) => {
-          const task = byIds[id];
-          if (!task) return false;
-
-          if (task.state === "done") return false;
-
-          return (
-            taskHorizons.includes(task.horizon) ||
-            alwaysIncludeTaskIds.includes(task.id)
-          );
-        });
-      },
-      shallowEqual,
-    ),
-    withoutTasksByIds: appQuerySelector(
-      (query, projectId: string, ids: string[]): string[] => {
-        const childrenIds = query((state) =>
-          projectsSlice.childrenIds(state, projectId),
-        );
-        const setIds = new Set(ids);
-        return childrenIds.filter((id) => !setIds.has(id));
-      },
-    ),
-    getItemById: appQuerySelector(
-      (query, id: string): ProjectItem | undefined => {
-        return query((state) => tasksSlice.byId(state, id));
-      },
-    ),
-
-    // --actions
+    // -- actions
 
     create: appAction(
       (
@@ -331,7 +168,7 @@ export const projectsSlice = createSlice(
         if (!dropItem) throw new Error("Target not found");
 
         if (isProject(dropItem)) {
-          const [up, down] = projectsSlice.siblings(state, project.id);
+          const [up, down] = allProjectsSlice.siblings(state, project.id);
 
           let between: [string | undefined, string | undefined] = [
             project.orderToken,
@@ -357,31 +194,6 @@ export const projectsSlice = createSlice(
         } else {
           shouldNeverHappen("unknown drop item type", dropItem);
         }
-      },
-    ),
-    createTask: appAction(
-      (
-        state: RootState,
-        projectId: string,
-        position:
-          | [OrderableItem | undefined, OrderableItem | undefined]
-          | "append"
-          | "prepend",
-      ): Task => {
-        const project = projectsSlice.byId(state, projectId);
-        if (!project) throw new Error("Project not found");
-
-        const orderToken = generateOrderTokenPositioned(
-          state,
-          projectId,
-          projectsSlice,
-          position,
-        );
-
-        return tasksSlice.createTask(state, {
-          projectId: projectId,
-          orderToken: orderToken,
-        });
       },
     ),
   },

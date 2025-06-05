@@ -29,6 +29,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
 import { projectsSlice } from "@/store/slices/projectsSlice.ts";
+import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
 
 type State =
   | { type: "idle" }
@@ -325,7 +326,7 @@ const ProjectItem = function ProjectItemComp({
 const InboxItem = function IboxItemComp() {
   const inboxProject = useAppSelector(allProjectsSlice.inbox);
   const childrenCount = useAppSelector((state) => {
-    return projectsSlice.childrenIds(state, inboxProject.id).length;
+    return projectItemsSlice.childrenIds(state, inboxProject.id).length;
   });
   const focusItem = useRegisterFocusItem(
     buildFocusKey(inboxProject.id, inboxProject.type),

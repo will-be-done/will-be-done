@@ -6,57 +6,93 @@ import {
   Project,
   projectsSlice,
 } from "@/store/slices/projectsSlice.ts";
-import { appQuerySelector } from "@/store/z.selectorAction.ts";
+import { appQuerySelector, appSelector } from "@/store/z.selectorAction.ts";
 
 export const allProjectsSlice = createSlice(
   {
-    all: appQuerySelector((query): Project[] => {
-      const byIds = query((state) => state.project.byIds);
+    byIds: appSelector((state) => {
+      return state.project.byIds;
+    }),
+    byId: appSelector((state, id: string) => {
+      return state.project.byIds[id];
+    }),
+    all: appSelector((state): Project[] => {
+      const byIds = allProjectsSlice.byIds(state);
 
       return Object.values(byIds);
-    }, shallowEqual),
-    allSorted: appQuerySelector((query): Project[] => {
-      const all = query((state) => allProjectsSlice.all(state));
+    }),
+    allSorted: appSelector((state): Project[] => {
+      const all = allProjectsSlice.all(state);
 
       return all.sort(fractionalCompare);
-    }, shallowEqual),
-    childrenIds: appQuerySelector((query): string[] => {
-      const all = query((state) => allProjectsSlice.all(state));
+    }),
+    childrenIds: appSelector((state): string[] => {
+      const all = allProjectsSlice.all(state);
 
       const allIdsAndTokens = all.map((p) => ({
         id: p.id,
         orderToken: p.orderToken,
       }));
+
       return allIdsAndTokens.sort(fractionalCompare).map((p) => p.id);
     }, shallowEqual),
-    childrenIdsWithoutInbox: appQuerySelector((query): string[] => {
-      const childrenIds = query((state) => allProjectsSlice.childrenIds(state));
+    childrenIdsWithoutInbox: appSelector((state): string[] => {
+      const childrenIds = allProjectsSlice.childrenIds(state);
 
       return childrenIds.filter((id) => id !== inboxId);
     }, shallowEqual),
-    firstChild: appQuerySelector((query): Project | undefined => {
-      const childrenIds = query((state) => allProjectsSlice.childrenIds(state));
+    firstChild: appSelector((state): Project | undefined => {
+      const childrenIds = allProjectsSlice.childrenIds(state);
       const firstChildId = childrenIds[0];
 
-      return firstChildId
-        ? query((state) => projectsSlice.byId(state, firstChildId))
-        : undefined;
+      return firstChildId ? projectsSlice.byId(state, firstChildId) : undefined;
     }),
-    lastChild: appQuerySelector((query): Project | undefined => {
-      return query((state) => {
-        const childrenIds = allProjectsSlice.childrenIds(state);
-        const lastChildId = childrenIds[childrenIds.length - 1];
+    lastChild: appSelector((state): Project | undefined => {
+      const childrenIds = allProjectsSlice.childrenIds(state);
+      const lastChildId = childrenIds[childrenIds.length - 1];
 
-        return lastChildId ? projectsSlice.byId(state, lastChildId) : undefined;
-      });
+      return lastChildId ? projectsSlice.byId(state, lastChildId) : undefined;
     }),
-    inbox: appQuerySelector((query): Project => {
-      return query((state) => {
-        const inbox = projectsSlice.byId(state, inboxId);
-        if (!inbox) throw new Error("Inbox not found");
-        return inbox;
-      });
+    inbox: appSelector((state): Project => {
+      const inbox = projectsSlice.byId(state, inboxId);
+      if (!inbox) throw new Error("Inbox not found");
+      return inbox;
     }),
+
+    siblings: appQuerySelector(
+      (
+        query,
+        projectId: string,
+      ): [Project | undefined, Project | undefined] => {
+        const items = query((state) => allProjectsSlice.childrenIds(state));
+        const i = items.findIndex((it: string) => it === projectId);
+
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
+
+        return [
+          beforeId
+            ? query((state) => projectsSlice.byId(state, beforeId))
+            : undefined,
+          afterId
+            ? query((state) => projectsSlice.byId(state, afterId))
+            : undefined,
+        ];
+      },
+    ),
+
+    // TODO: move to allProjectsSlice
+    dropdownProjectsList: appQuerySelector(
+      (query): { value: string; label: string }[] => {
+        const projects = query((state) => allProjectsSlice.childrenIds(state));
+        return projects.map((id) => {
+          const project = query((state) => projectsSlice.byId(state, id));
+          if (!project) return { value: id, label: "" };
+
+          return { value: id, label: project.title };
+        });
+      },
+    ),
   },
   "allProjectsSlice",
 );

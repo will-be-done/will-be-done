@@ -266,7 +266,7 @@ const BoardView = ({
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
   const store = useAppStore();
-  const projectsList = useAppSelector(projectsSlice.dropdownProjectsList);
+  const projectsList = useAppSelector(allProjectsSlice.dropdownProjectsList);
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,

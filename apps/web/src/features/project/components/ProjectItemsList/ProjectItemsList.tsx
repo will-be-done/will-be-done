@@ -24,6 +24,7 @@ import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
 import { tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
+import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
 
 const AddTaskButton = ({
   project,
@@ -168,14 +169,14 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
   const idsToAlwaysInclude = id ? [id] : [];
 
   const doneChildrenIds = useAppSelector((state) =>
-    projectsSlice.doneChildrenIds(state, project.id, idsToAlwaysInclude),
+    projectItemsSlice.doneChildrenIds(state, project.id, idsToAlwaysInclude),
   );
   const notDoneChildrenIds = useAppSelector((state) =>
-    projectsSlice.childrenIds(state, project.id, idsToAlwaysInclude),
+    projectItemsSlice.childrenIds(state, project.id, idsToAlwaysInclude),
   );
 
   const onAddNewTask = useCallback(() => {
-    const newTask = projectsSlice.createTask(store, project.id, "prepend");
+    const newTask = projectItemsSlice.createTask(store, project.id, "prepend");
 
     focusSlice.editByKey(store, buildFocusKey(newTask.id, newTask.type));
   }, [project.id, store]);
