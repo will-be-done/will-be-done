@@ -9,7 +9,7 @@ import { uuidv7 } from "uuidv7";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { ProjectItem, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { generateKeyPositionedBetween } from "@/store/order.ts";
-import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import { isTaskTemplate } from "@/store/slices/taskTemplatesSlice.ts";
 import { RootState } from "@/store/store.ts";
@@ -93,7 +93,7 @@ export const tasksSlice = createSlice(
     },
     byId: (state: RootState, id: string): Task | undefined =>
       state.task.byIds[id],
-    byIdOrDefault: appSelector((query, id: string): Task => {
+    byIdOrDefault: appQuerySelector((query, id: string): Task => {
       const task = query((state) => tasksSlice.byId(state, id));
       if (!task)
         return {
@@ -110,7 +110,7 @@ export const tasksSlice = createSlice(
 
       return task;
     }),
-    siblings: appSelector(
+    siblings: appQuerySelector(
       (
         query,
         taskId: string,

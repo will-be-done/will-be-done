@@ -13,19 +13,19 @@ import {
   tasksSlice,
   taskType,
 } from "@/store/slices/tasksSlice.ts";
-import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { AnyModel, RootState } from "@/store/store.ts";
 
 type TaskBox = Task | TaskProjection;
 export const taskBoxesSlice = createSlice(
   {
-    taskOfModelId: appSelector((query, id: string): Task | undefined => {
+    taskOfModelId: appQuerySelector((query, id: string): Task | undefined => {
       const model = query((state) => appSlice.byId(state, id));
       if (!model) return undefined;
 
       return query((state) => taskBoxesSlice.taskOfModel(state, model));
     }),
-    taskOfModelIdOrDefault: appSelector((query, id: string): Task => {
+    taskOfModelIdOrDefault: appQuerySelector((query, id: string): Task => {
       const model = query((state) => appSlice.byId(state, id));
       const defaultTask: Task = {
         type: taskType,

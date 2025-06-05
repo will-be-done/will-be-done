@@ -1,7 +1,7 @@
 import { shouldNeverHappen } from "@/utils.ts";
 import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
 import { appSlice } from "@/store/slices/appSlice.ts";
-import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { AnyModel, RootState } from "@/store/store.ts";
 
 export type FocusKey = string & { __brand: never };
@@ -64,7 +64,7 @@ export const initialFocusState: FocusState = {
 export const focusSlice = createSlice(
   {
     getFocusKey: (state: RootState) => state.focus.focusItemKey,
-    getFocusedModelId: appSelector((query): string | undefined => {
+    getFocusedModelId: appQuerySelector((query): string | undefined => {
       const key = query(focusSlice.getFocusKey);
 
       if (!key) return undefined;
@@ -74,31 +74,31 @@ export const focusSlice = createSlice(
     getEditKey: (state: RootState) => state.focus.editItemKey,
     // Read operations
     //
-    isFocusDisabled: appSelector((query): boolean => {
+    isFocusDisabled: appQuerySelector((query): boolean => {
       return query((state) => state.focus.isFocusDisabled);
     }),
-    isFocused: appSelector((query, key: FocusKey): boolean => {
+    isFocused: appQuerySelector((query, key: FocusKey): boolean => {
       return query((state) => {
         if (state.focus.isFocusDisabled) return false;
         return state.focus.focusItemKey === key;
       });
     }),
 
-    isEditing: appSelector((query, key: FocusKey): boolean => {
+    isEditing: appQuerySelector((query, key: FocusKey): boolean => {
       return query((state) => {
         if (state.focus.isFocusDisabled) return false;
         return state.focus.editItemKey === key;
       });
     }),
 
-    isSomethingEditing: appSelector((query): boolean => {
+    isSomethingEditing: appQuerySelector((query): boolean => {
       return query((state) => {
         if (state.focus.isFocusDisabled) return false;
         return !!state.focus.editItemKey;
       });
     }),
 
-    isSomethingFocused: appSelector((query): boolean => {
+    isSomethingFocused: appQuerySelector((query): boolean => {
       return query((state) => {
         if (state.focus.isFocusDisabled) return false;
         return !!state.focus.focusItemKey;

@@ -7,7 +7,7 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { generateKeyPositionedBetween } from "@/store/order.ts";
-import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping";
@@ -100,7 +100,7 @@ export const projectionsSlice = createSlice(
 
       return isTaskProjection(model) || isTask(model);
     },
-    siblings: appSelector(
+    siblings: appQuerySelector(
       (
         query,
         taskProjectionId: string,
@@ -130,13 +130,16 @@ export const projectionsSlice = createSlice(
       },
     ),
 
-    projectionIdsByTaskId: appSelector((query, taskId: string): string[] => {
-      const byIds = query((state) => state.projection.byIds);
+    projectionIdsByTaskId: appQuerySelector(
+      (query, taskId: string): string[] => {
+        const byIds = query((state) => state.projection.byIds);
 
-      return Object.values(byIds)
-        .filter((proj) => proj.taskId === taskId)
-        .map((p) => p.id);
-    }, shallowEqual),
+        return Object.values(byIds)
+          .filter((proj) => proj.taskId === taskId)
+          .map((p) => p.id);
+      },
+      shallowEqual,
+    ),
 
     // --actions
     delete: appAction((state: RootState, id: string) => {

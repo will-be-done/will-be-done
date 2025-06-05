@@ -13,7 +13,7 @@ import { uuidv7 } from "uuidv7";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { shouldNeverHappen } from "@/utils.ts";
 
-import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import {
   isTaskTemplate,
@@ -109,7 +109,7 @@ export const projectsSlice = createSlice(
         isTaskProjection(target)
       );
     },
-    dropdownProjectsList: appSelector(
+    dropdownProjectsList: appQuerySelector(
       (query): { value: string; label: string }[] => {
         const projects = query((state) => allProjectsSlice.childrenIds(state));
         return projects.map((id) => {
@@ -120,7 +120,7 @@ export const projectsSlice = createSlice(
         });
       },
     ),
-    siblings: appSelector(
+    siblings: appQuerySelector(
       (
         query,
         projectId: string,
@@ -141,7 +141,7 @@ export const projectsSlice = createSlice(
         ];
       },
     ),
-    childrenIds: appSelector(
+    childrenIds: appQuerySelector(
       (
         query,
         projectId: string,
@@ -169,7 +169,7 @@ export const projectsSlice = createSlice(
       },
       shallowEqual,
     ),
-    doneChildrenIds: appSelector(
+    doneChildrenIds: appQuerySelector(
       (
         query,
         projectId: string,
@@ -189,12 +189,12 @@ export const projectsSlice = createSlice(
       },
       shallowEqual,
     ),
-    childrenCount: appSelector((query, projectId: string): number => {
+    childrenCount: appQuerySelector((query, projectId: string): number => {
       return query(
         (state) => projectsSlice.childrenIds(state, projectId).length,
       );
     }),
-    firstChild: appSelector(
+    firstChild: appQuerySelector(
       (query, projectId: string): ProjectItem | undefined => {
         const childrenIds = query((state) =>
           projectsSlice.childrenIds(state, projectId),
@@ -205,7 +205,7 @@ export const projectsSlice = createSlice(
         return query((state) => projectsSlice.getItemById(state, firstChildId));
       },
     ),
-    lastChild: appSelector(
+    lastChild: appQuerySelector(
       (query, projectId: string): ProjectItem | undefined => {
         const childrenIds = query((state) =>
           projectsSlice.childrenIds(state, projectId),
@@ -216,7 +216,7 @@ export const projectsSlice = createSlice(
         return query((state) => projectsSlice.getItemById(state, lastChildId));
       },
     ),
-    tasksIds: appSelector((query, projectId: string): string[] => {
+    tasksIds: appQuerySelector((query, projectId: string): string[] => {
       const childrenIds = query((state) =>
         projectsSlice.childrenIds(state, projectId),
       );
@@ -227,7 +227,7 @@ export const projectsSlice = createSlice(
           .filter((t) => t !== undefined),
       );
     }, shallowEqual),
-    notDoneTaskIds: appSelector(
+    notDoneTaskIds: appQuerySelector(
       (
         query,
         projectId: string,
@@ -253,7 +253,7 @@ export const projectsSlice = createSlice(
       },
       shallowEqual,
     ),
-    withoutTasksByIds: appSelector(
+    withoutTasksByIds: appQuerySelector(
       (query, projectId: string, ids: string[]): string[] => {
         const childrenIds = query((state) =>
           projectsSlice.childrenIds(state, projectId),
@@ -262,9 +262,11 @@ export const projectsSlice = createSlice(
         return childrenIds.filter((id) => !setIds.has(id));
       },
     ),
-    getItemById: appSelector((query, id: string): ProjectItem | undefined => {
-      return query((state) => tasksSlice.byId(state, id));
-    }),
+    getItemById: appQuerySelector(
+      (query, id: string): ProjectItem | undefined => {
+        return query((state) => tasksSlice.byId(state, id));
+      },
+    ),
 
     // --actions
 

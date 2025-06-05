@@ -133,6 +133,10 @@ export function createSlice<T extends Record<string, Function>>(
       sliceName,
       sliceNameContext,
     );
+    //@ts-expect-error it's ok
+    sliceFn.sliceName = keyName;
+    //@ts-expect-error it's ok
+    sliceFn.namedFn = namedSliceFn;
 
     // Copy the cache and all other properties from the original selector
     // This is crucial for memoized functions to maintain their caching behavior
@@ -403,12 +407,12 @@ export const replaceSlices = (
 // ) => Result;
 //
 
-export type Selector<State, Result> = (state: State) => Result;
+export type QuerySelector<State, Result> = (state: State) => Result;
 
 export type QueryFunction<State> = {
-  <Result>(selector: Selector<State, Result>): Result;
+  <Result>(selector: QuerySelector<State, Result>): Result;
 };
-export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
+export type QuerySelectionLogic<State, Result, TArgs extends unknown[]> = (
   /**
    * Executes another selector and mark it as a dependency.
    */
@@ -416,49 +420,36 @@ export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
   ...args: TArgs
 ) => Result;
 
-export type SimpleSelectionLogic<State, Result, TArgs extends unknown[]> = (
+export type SelectionLogic<State, Result, TArgs extends unknown[]> = (
   state: State,
   ...args: TArgs
 ) => Result;
 
-// export type Select<TRootState> = <TReturn>(
-//   selectCreator: (query: Querier<TRootState, TReturn>) => TReturn,
-// ) => TReturn;
-//
-// export type SelectFn<
-//   TRootState,
-//   TReturn = unknown,
-//   TParams extends unknown[] = unknown[],
-// > = (query: Select<TRootState>, ...params: TParams) => TReturn;
-//
-// // Define a type for the action creator itself
-// export type SelectCreator<TRootState, TReturn, TParams extends unknown[]> = (
-//   query: Select<TRootState>,
-//   ...params: TParams
-// ) => TReturn;
-//
-// export interface SelectCreatorFunction<TRootState = any> {
-//   <TReturn, TParams extends unknown[]>(
-//     selectFn: SelectFn<TRootState, TReturn, TParams>,
-//   ): (state: TRootState, ...params: TParams) => TReturn;
-// }
+export type DebuggableSelectionLogic<
+  State,
+  Result,
+  TArgs extends unknown[],
+> = ((state: State, ...args: TArgs) => Result) & {
+  debug(state: State, ...args: TArgs): Result;
+};
+
+export type SlicedFn<State, Result, TArgs extends unknown[]> = SelectionLogic<
+  State,
+  Result,
+  TArgs
+> & {
+  sliceName: string;
+  namedFn: SelectionLogic<State, Result, TArgs>;
+};
 
 const defaultEqualityFn = (a: unknown, b: unknown) => a === b;
 type EqualityFn = (a: unknown, b: unknown) => boolean;
 
-// TODO: use weakmap
-// TODO: add dependencies cache check like in rereselect
 function isObject(value: any): value is object {
   return typeof value === "object" && value !== null;
 }
 
 type WeakKey = object; // Simplified for this context
-
-// // Structure for storing individual dependency values weakly
-// type DependencyCacheValue = {
-//   valueRef?: WeakRef<WeakKey>;
-//   valuePrimitive?: any;
-// };
 
 // --- Improved Cache Key Generation ---
 const UNDEFINED_JSON_REPLACEMENT = {
@@ -500,8 +491,131 @@ export function generateCacheKey(
   return JSON.stringify(processedParams);
 }
 
-// --- createSelectorCreator Implementation ---
-export function createSelectorCreator<TRootState = any>() {
+const isTracking = Symbol("isTracking");
+const raw = Symbol("raw");
+const wasStateCalled = Symbol("wasStateCalled");
+
+type Trackable<T> = T & {
+  [isTracking]: boolean;
+  [raw]: T;
+  [wasStateCalled]: () => boolean;
+};
+function trackAccess<T extends object>(obj: T): Trackable<T> {
+  let wasCalled = false;
+  return new Proxy(
+    {
+      ...obj,
+      [isTracking]: true,
+      [raw]: obj,
+      [wasStateCalled]: () => wasCalled,
+    },
+    {
+      get(target, prop) {
+        if (
+          prop !== raw &&
+          prop !== wasStateCalled &&
+          prop !== isTracking &&
+          prop !== storeSymbol
+        ) {
+          wasCalled = true;
+        }
+
+        return (target as any)[prop];
+      },
+    },
+  );
+}
+function isTrackable<T extends object>(obj: T): obj is Trackable<T> {
+  return (obj as any)[isTracking] === true;
+}
+
+function formatDebugTreeSimple(entries: DebugEntry[]): string {
+  const output: string[] = [];
+  if (!entries.length) return "";
+
+  function printRecursive(
+    startIndex: number,
+    parentDepth: number,
+    prefix: string,
+  ): number {
+    const children: number[] = [];
+    let i = startIndex;
+
+    // Find all direct children (entries at parentDepth + 1)
+    while (i < entries.length) {
+      const entry = entries[i];
+
+      // If we hit an entry at or shallower than parentDepth, we're done with this parent's children
+      if (entry.depth <= parentDepth) {
+        break;
+      }
+
+      // If this is a direct child (exactly one level deeper)
+      if (entry.depth === parentDepth + 1) {
+        children.push(i);
+      }
+
+      i++;
+    }
+
+    // Process each direct child
+    children.forEach((childIndex, arrayIndex) => {
+      const entry = entries[childIndex];
+      const isLast = arrayIndex === children.length - 1;
+      const isFirst = childIndex === 0; // First entry in entire array
+
+      // Choose connector
+      let connector = "├──";
+      if (isFirst && parentDepth === -1) {
+        // parentDepth -1 means we're at root level
+        connector = "┌──";
+      } else if (isLast) {
+        connector = "└──";
+      }
+
+      // Format entry
+      let entryDisplay = `${entry.sliceName} ${entry.log}`;
+      if (entry.duration !== undefined) {
+        entryDisplay += ` (duration: ${entry.duration}ms)`;
+      }
+
+      output.push(`${prefix}${connector} ${entryDisplay}`);
+
+      // Recursively print this child's children
+      const newPrefix = prefix + (isLast ? "   " : "│  ");
+      printRecursive(childIndex + 1, entry.depth, newPrefix);
+    });
+
+    return i;
+  }
+
+  // Start with parentDepth -1 to find all root entries (depth 0)
+  printRecursive(0, -1, "");
+  return output.join("\n");
+}
+let currentSelectorDependencies: Map<
+  SelectionLogic<any, any, any>,
+  { value: WeakRef<WeakKey> | any; params: any[] }
+> = new Map();
+
+const isSlicedFn = <State, Result, TArgs extends unknown[]>(
+  fn: SelectionLogic<State, Result, TArgs>,
+): fn is SlicedFn<State, Result, TArgs> => {
+  return "sliceName" in fn;
+};
+
+let depth = -1;
+let isDebug = false;
+let debugEntries: DebugEntry[] = [];
+type DebugEntry = {
+  depth: number;
+  sliceName: string;
+  log: string;
+  duration?: number;
+};
+
+// IDEA: maybe use map tree for args instead on stringify?
+export function createSelectorCreator<TRootState extends object>() {
   const selectCreator = <
     TReturn,
     TParams extends (
@@ -527,7 +641,359 @@ export function createSelectorCreator<TRootState = any>() {
       valuePrimitive?: TReturn; // Direct value if TReturn is primitive
       valueUnregisterToken?: object; // Unique token for FinalizationRegistry
       // For dependencies: Stored with strong references
-      dependencies: Map<Selector<TRootState, any>, { value: any }>;
+      dependencies: Map<
+        SelectionLogic<any, any, any>,
+        {
+          value: any;
+          params: any[];
+        }
+      >;
+      wasStateCalled: boolean;
+    };
+
+    const memoized = new Map<string, CacheEntry>();
+
+    const registry = new FinalizationRegistry<string>(
+      (cacheKeyHoldingStaleValue) => {
+        if (memoized.has(cacheKeyHoldingStaleValue)) {
+          memoized.delete(cacheKeyHoldingStaleValue);
+
+          if (!isSlicedFn(selectorCache)) {
+            throw new Error("selectionLogic must be a sliced function");
+          }
+
+          console.log(
+            `%cCACHE: Entry for key ${selectorCache.sliceName}(${cacheKeyHoldingStaleValue}) removed because its main value was GC'd.`,
+            "color: red; font-weight: bold;",
+          );
+        }
+      },
+    );
+
+    // setInterval(() => {
+    //   if (!isSlicedFn(selectorCache)) {
+    //     throw new Error("selectionLogic must be a sliced function");
+    //   }
+    //
+    //   console.log("memoized", selectorCache.sliceName, new Map(memoized));
+    // }, 5000);
+
+    const selectorCache = ((__state: TRootState, ...params: TParams) => {
+      if (!isSlicedFn(selectorCache)) {
+        throw new Error("selectionLogic must be a sliced function");
+      }
+
+      depth++;
+      let realState: TRootState;
+      if (isTrackable(__state)) {
+        realState = __state[raw];
+      } else {
+        realState = __state;
+      }
+
+      if (isDraft(realState)) {
+        return selectionLogic(realState, ...params);
+      }
+
+      if (isDebug) {
+        debugEntries.push({
+          depth,
+          sliceName: selectorCache.sliceName,
+          log: "wrap call",
+        });
+      }
+
+      const setAndReturn = <TReturn>(newResult: TReturn) => {
+        currentSelectorDependencies.set(selectorCache.namedFn, {
+          value: newResult,
+          params,
+        });
+        debugEntries.push({
+          depth,
+          sliceName: selectorCache.sliceName,
+          log: "set dep",
+        });
+        // console.log("setDeps", selectorCache.sliceName, newResult, params);
+
+        return newResult;
+      };
+
+      const trackableState = trackAccess(realState);
+
+      const key = generateCacheKey(params);
+      const currentEntry = memoized.get(key);
+      let mainOldValueInstance: TReturn | undefined = undefined;
+      let oldUnregisterToken: object | undefined = undefined;
+
+      try {
+        if (currentEntry) {
+          if (isDebug) {
+            debugEntries.push({
+              depth,
+              sliceName: selectorCache.sliceName,
+              log: "cache hit",
+            });
+          }
+
+          oldUnregisterToken = currentEntry.valueUnregisterToken;
+
+          if (currentEntry.valueRef) {
+            const dereferencedValue = currentEntry.valueRef.deref();
+            if (dereferencedValue === undefined) {
+              // Main value was GC'd. Registry should handle cleanup.
+            } else {
+              mainOldValueInstance = dereferencedValue as TReturn;
+            }
+          } else {
+            mainOldValueInstance = currentEntry.valuePrimitive;
+          }
+
+          if (mainOldValueInstance !== undefined) {
+            if (currentEntry.previousState === realState) {
+              if (isDebug) {
+                debugEntries.push({
+                  depth,
+                  sliceName: selectorCache.sliceName,
+                  log: "same state and args, return cache",
+                });
+              }
+
+              return setAndReturn(mainOldValueInstance);
+            }
+
+            if (!currentEntry.wasStateCalled) {
+              if (isDebug) {
+                debugEntries.push({
+                  depth,
+                  sliceName: selectorCache.sliceName,
+                  log: "start deps check",
+                });
+              }
+
+              let depsChanged = false;
+              for (const [
+                depSelector,
+                oldDepData,
+              ] of currentEntry.dependencies.entries()) {
+                const oldDepValue = oldDepData.value;
+
+                const newDepValue = depSelector(
+                  realState,
+                  ...oldDepData.params,
+                );
+
+                if (newDepValue !== oldDepValue) {
+                  depsChanged = true;
+                  break;
+                }
+              }
+
+              if (!depsChanged) {
+                if (isDebug) {
+                  if (currentEntry.dependencies.size === 0) {
+                    debugEntries.push({
+                      depth,
+                      sliceName: selectorCache.sliceName,
+                      log: "WARNING: no deps to check",
+                    });
+                  } else {
+                    debugEntries.push({
+                      depth,
+                      sliceName: selectorCache.sliceName,
+                      log: "same deps, return cache",
+                    });
+                  }
+                }
+
+                memoized.set(key, {
+                  ...currentEntry,
+                  previousState: realState,
+                });
+
+                return setAndReturn(mainOldValueInstance);
+              }
+
+              if (isDebug) {
+                debugEntries.push({
+                  depth,
+                  sliceName: selectorCache.sliceName,
+                  log: "not same deps, recalculate",
+                });
+              }
+            } else {
+              if (isDebug) {
+                debugEntries.push({
+                  depth,
+                  sliceName: selectorCache.sliceName,
+                  log: "skip dep check due to state call",
+                });
+              }
+            }
+          }
+        } else {
+          if (isDebug) {
+            debugEntries.push({
+              depth,
+              sliceName: selectorCache.sliceName,
+              log: "cache miss",
+            });
+          }
+        }
+
+        let startTime: number | undefined;
+        let duration: number | undefined;
+
+        if (isDebug) {
+          startTime = performance.now();
+        }
+        const previousSelectorDependencies = currentSelectorDependencies;
+        currentSelectorDependencies = new Map();
+        const selectorDependencies = currentSelectorDependencies;
+
+        const newResult = selectionLogic(trackableState, ...params);
+        if (startTime !== undefined) {
+          duration = performance.now() - startTime;
+        }
+        currentSelectorDependencies = previousSelectorDependencies;
+
+        let valueToStore: TReturn = newResult;
+        let valueToReturn: TReturn = newResult;
+        let newUnregisterToken: object | undefined = undefined;
+        let actualValueObjectToRegister: WeakKey | undefined = undefined;
+
+        if (isDebug) {
+          debugEntries.push({
+            depth,
+            sliceName: selectorCache.sliceName,
+            log: "selector call",
+            duration,
+          });
+        }
+
+        if (
+          mainOldValueInstance !== undefined &&
+          selectEqualityFn(mainOldValueInstance, newResult)
+        ) {
+          if (isDebug) {
+            debugEntries.push({
+              depth,
+              sliceName: selectorCache.sliceName,
+              log: "return is not changed, returning cache",
+            });
+          }
+
+          valueToStore = mainOldValueInstance;
+          valueToReturn = mainOldValueInstance;
+          if (isObject(mainOldValueInstance)) {
+            actualValueObjectToRegister = mainOldValueInstance as WeakKey;
+            newUnregisterToken = oldUnregisterToken;
+          }
+        } else {
+          if (isDebug) {
+            debugEntries.push({
+              depth,
+              sliceName: selectorCache.sliceName,
+              log: "return is changed, returning new value",
+            });
+          }
+
+          if (isObject(newResult)) {
+            actualValueObjectToRegister = newResult as WeakKey;
+            newUnregisterToken = {};
+          }
+        }
+
+        if (
+          oldUnregisterToken &&
+          (!newUnregisterToken || newUnregisterToken !== oldUnregisterToken)
+        ) {
+          registry.unregister(oldUnregisterToken);
+        }
+
+        const newCacheEntry: CacheEntry = {
+          previousState: realState,
+          dependencies: selectorDependencies,
+          wasStateCalled: trackableState[wasStateCalled](),
+          valueUnregisterToken: newUnregisterToken,
+        };
+
+        if (actualValueObjectToRegister) {
+          newCacheEntry.valueRef = new WeakRef(actualValueObjectToRegister);
+          if (newUnregisterToken && newUnregisterToken !== oldUnregisterToken) {
+            registry.register(
+              actualValueObjectToRegister,
+              key,
+              newUnregisterToken,
+            );
+          }
+        } else {
+          newCacheEntry.valuePrimitive = valueToStore;
+        }
+
+        memoized.set(key, newCacheEntry);
+
+        return setAndReturn(valueToReturn);
+      } finally {
+        depth--;
+
+        if (depth === -1) {
+          currentSelectorDependencies = new Map();
+        }
+      }
+    }) as DebuggableSelectionLogic<TRootState, TReturn, TParams>;
+
+    selectorCache.debug = (state: TRootState, ...args: TParams) => {
+      debugEntries = [];
+      isDebug = true;
+
+      const startTime = performance.now();
+      try {
+        return selectorCache(state, ...args);
+      } finally {
+        isDebug = false;
+        const duration = performance.now() - startTime;
+        console.log(
+          formatDebugTreeSimple(debugEntries) +
+            `\ntotal duration: ${duration}ms`,
+        );
+        debugEntries = [];
+      }
+    };
+
+    return selectorCache;
+  };
+
+  return selectCreator;
+}
+
+// --- createSelectorCreator Implementation ---
+export function createQuerySelectorCreator<TRootState = any>() {
+  const selectCreator = <
+    TReturn,
+    TParams extends (
+      | string
+      | number
+      | Date
+      | Date[]
+      | string[]
+      | number[]
+      | undefined
+      | undefined[]
+      | null
+      | null[]
+    )[],
+  >(
+    selectionLogic: QuerySelectionLogic<TRootState, TReturn, TParams>,
+    selectEqualityFn: EqualityFn = defaultEqualityFn,
+  ) => {
+    type CacheEntry = {
+      previousState: TRootState | undefined;
+      // For the main selector result:
+      valueRef?: WeakRef<WeakKey>; // WeakRef if TReturn is an object
+      valuePrimitive?: TReturn; // Direct value if TReturn is primitive
+      valueUnregisterToken?: object; // Unique token for FinalizationRegistry
+      // For dependencies: Stored with strong references
+      dependencies: Map<QuerySelector<TRootState, any>, { value: any }>;
     };
 
     const memoized = new Map<string, CacheEntry>();
@@ -547,7 +1013,7 @@ export function createSelectorCreator<TRootState = any>() {
     const wrappedSelector = (state: TRootState, ...params: TParams) => {
       if (isDraft(state)) {
         const queryDraft: QueryFunction<TRootState> = (
-          querier: Selector<TRootState, any>,
+          querier: QuerySelector<TRootState, any>,
         ) => querier(state);
         return selectionLogic(queryDraft, ...params);
       }
@@ -600,11 +1066,11 @@ export function createSelectorCreator<TRootState = any>() {
 
       // Recompute
       const newDependencies = new Map<
-        Selector<TRootState, any>,
+        QuerySelector<TRootState, any>,
         { value: any } // Storing dependency values directly (strong reference)
       >();
       const query: QueryFunction<TRootState> = (
-        querier: Selector<TRootState, any>,
+        querier: QuerySelector<TRootState, any>,
       ) => {
         const existingDep = newDependencies.get(querier);
         if (existingDep) {

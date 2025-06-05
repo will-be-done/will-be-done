@@ -18,7 +18,7 @@ import {
 import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { format } from "date-fns";
-import { appAction, appSelector } from "@/store/z.selectorAction.ts";
+import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping.ts";
@@ -74,7 +74,7 @@ export const dailyListsSlice = createSlice(
 
       return dailyList;
     },
-    canDrop: appSelector(
+    canDrop: appQuerySelector(
       (query, dailyListId: string, dropId: string): boolean => {
         const model = query((state) => appSlice.byId(state, dropId));
         if (!model) return shouldNeverHappen("target not found");
@@ -104,7 +104,7 @@ export const dailyListsSlice = createSlice(
       },
     ),
 
-    childrenIds: appSelector(
+    childrenIds: appQuerySelector(
       (
         query,
         dailyListId: string,
@@ -135,7 +135,7 @@ export const dailyListsSlice = createSlice(
       },
       shallowEqual,
     ),
-    doneChildrenIds: appSelector(
+    doneChildrenIds: appQuerySelector(
       (
         query,
         dailyListId: string,
@@ -172,7 +172,7 @@ export const dailyListsSlice = createSlice(
       },
       shallowEqual,
     ),
-    taskIds: appSelector((query, dailyListId: string): string[] => {
+    taskIds: appQuerySelector((query, dailyListId: string): string[] => {
       const childrenIds = query((state) =>
         dailyListsSlice.childrenIds(state, dailyListId),
       );
@@ -184,7 +184,7 @@ export const dailyListsSlice = createSlice(
           .filter((t) => t !== undefined),
       );
     }, shallowEqual),
-    notDoneTaskIdsExceptDailies: appSelector(
+    notDoneTaskIdsExceptDailies: appQuerySelector(
       (
         query,
         projectId: string,
@@ -208,14 +208,17 @@ export const dailyListsSlice = createSlice(
       },
       shallowEqual,
     ),
-    allTaskIds: appSelector((query, dailyListIds: string[]): Set<string> => {
-      const taskIds = query((state) =>
-        dailyListIds.flatMap((id) => dailyListsSlice.taskIds(state, id)),
-      );
+    allTaskIds: appQuerySelector(
+      (query, dailyListIds: string[]): Set<string> => {
+        const taskIds = query((state) =>
+          dailyListIds.flatMap((id) => dailyListsSlice.taskIds(state, id)),
+        );
 
-      return new Set(taskIds);
-    }, shallowEqual),
-    firstChild: appSelector(
+        return new Set(taskIds);
+      },
+      shallowEqual,
+    ),
+    firstChild: appQuerySelector(
       (query, dailyListId: string): TaskProjection | undefined => {
         const childrenIds = query((state) =>
           dailyListsSlice.childrenIds(state, dailyListId),
@@ -226,7 +229,7 @@ export const dailyListsSlice = createSlice(
         return query((state) => projectionsSlice.byId(state, firstChildId));
       },
     ),
-    lastChild: appSelector(
+    lastChild: appQuerySelector(
       (query, dailyListId: string): TaskProjection | undefined => {
         const childrenIds = query((state) =>
           dailyListsSlice.childrenIds(state, dailyListId),
@@ -237,20 +240,20 @@ export const dailyListsSlice = createSlice(
         return query((state) => projectionsSlice.byId(state, lastChildId));
       },
     ),
-    dateIdsMap: appSelector((query): Record<string, string> => {
+    dateIdsMap: appQuerySelector((query): Record<string, string> => {
       const byIds = query((state) => state.dailyList.byIds);
 
       return Object.fromEntries(
         Object.values(byIds).map((d) => [d.date, d.id]),
       );
     }, deepEqual),
-    idByDate: appSelector((query, date: Date): string | undefined => {
+    idByDate: appQuerySelector((query, date: Date): string | undefined => {
       const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
       const dmy = getDMY(date);
 
       return allDailyLists[dmy];
     }),
-    idsByDates: appSelector((query, dates: Date[]): string[] => {
+    idsByDates: appQuerySelector((query, dates: Date[]): string[] => {
       const allDailyLists = query((state) => dailyListsSlice.dateIdsMap(state));
 
       return dates

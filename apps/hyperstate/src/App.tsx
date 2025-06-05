@@ -40,7 +40,7 @@ const Project = ({ id }: { id: string }) => {
 
 const SortedProjects = () => {
   const projectIds = useAppSelector((state) =>
-    allProjectsSlice.getSortedProjectIds(state),
+    allProjectsSlice.getSortedProjectIds.debug(state),
   );
 
   return (

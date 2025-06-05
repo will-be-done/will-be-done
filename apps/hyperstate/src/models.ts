@@ -4,9 +4,10 @@ import { connectToDevTools } from "./devtool";
 import {
   createActionCreator,
   createStore,
-  createSelectorCreator,
+  createQuerySelectorCreator,
   createSlice,
   replaceSlices,
+  createSelectorCreator,
 } from "./state";
 import { deepEqual, shallowEqual } from "fast-equals";
 import { withoutUndoAction, withUndoManager } from "./undoManager";
@@ -41,7 +42,8 @@ export type RootState = {
   };
 };
 const appAction = createActionCreator<RootState>();
-const appSelector = createSelectorCreator<RootState>();
+const appSelector = createQuerySelectorCreator<RootState>();
+const appSelector2 = createSelectorCreator<RootState>();
 // const appSelector = <TResult>(
 //   selectionLogic: SelectionLogic<RootState, TResult>,
 // ) => {
@@ -189,9 +191,10 @@ export const allProjectsSlice = createSlice({
   //     .map((p) => p.id)
   //     .slice(0, 100);
   // },
-  allIdsAndTokens: appSelector(
-    (query): { id: string; orderToken: string }[] => {
-      const byIds = query((state) => state.project.byIds);
+  byIds: appSelector2((state) => state.project.byIds),
+  allIdsAndTokens: appSelector2(
+    (state): { id: string; orderToken: string }[] => {
+      const byIds = allProjectsSlice.byIds(state);
 
       console.log("getting all ids and tokens");
       return Object.values(byIds).map((p) => ({
@@ -201,8 +204,8 @@ export const allProjectsSlice = createSlice({
     },
     deepEqual,
   ),
-  getSortedProjectIds: appSelector((query): string[] => {
-    const allIdsAndTokens = query(allProjectsSlice.allIdsAndTokens);
+  getSortedProjectIds: appSelector2((state): string[] => {
+    const allIdsAndTokens = allProjectsSlice.allIdsAndTokens(state);
     // console.log({ allIdsAndTokens: allIdsAndTokens() });
     // const byIds = query(projectsListSelectors.all);
     // const allIdsAndTokens = byIds.map((p) => ({
@@ -370,10 +373,10 @@ export const appStore = () => {
     },
   );
 
-  console.log(
-    "sorted projects beforr update",
-    allProjectsSlice.getSortedProjectIds(store.getState()),
-  );
+  // console.log(
+  //   "sorted projects beforr update",
+  //   allProjectsSlice.getSortedProjectIds(store.getState()),
+  // );
 
   console.log("res", res);
   // projectsSlice.update(store, {
@@ -382,10 +385,10 @@ export const appStore = () => {
   //   // orderToken: "0",
   // });
   //
-  console.log(
-    "sorted projects after update",
-    allProjectsSlice.getSortedProjectIds(store.getState()),
-  );
+  // console.log(
+  //   "sorted projects after update",
+  //   allProjectsSlice.getSortedProjectIds(store.getState()),
+  // );
 
   console.log("store", store.getState());
   // console.log(projectsListSelectors.getIndexesById(store.getState()));
