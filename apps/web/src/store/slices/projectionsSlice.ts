@@ -11,6 +11,7 @@ import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping";
+import { projectItemsSlice } from "./projectItemsSlice";
 
 export const projectionType = "projection";
 export const isTaskProjection = isObjectType<TaskProjection>(projectionType);
@@ -238,7 +239,7 @@ export const projectionsSlice = createSlice(
         const taskProjection = projectionsSlice.byId(state, taskProjectionId);
 
         if (!taskProjection) throw new Error("TaskProjection not found");
-        const newTask = tasksSlice.createSibling(
+        const newTask = projectItemsSlice.createSibling(
           state,
           taskProjection.taskId,
           position,

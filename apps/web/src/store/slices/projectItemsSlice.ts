@@ -3,11 +3,12 @@ import { appAction, appQuerySelector } from "../z.selectorAction";
 import { shallowEqual } from "fast-equals";
 import {
   fractionalCompare,
+  generateKeyPositionedBetween,
   generateOrderTokenPositioned,
   OrderableItem,
   timeCompare,
 } from "../order";
-import { isTask, Task, tasksSlice, taskType } from "./tasksSlice";
+import { defaultTask, isTask, Task, tasksSlice, taskType } from "./tasksSlice";
 import {
   isTaskTemplate,
   TaskTemplate,
@@ -16,8 +17,11 @@ import {
 } from "./taskTemplatesSlice";
 import { shouldNeverHappen } from "@/utils";
 import { projectsSlice } from "./projectsSlice";
+import { RootState } from "../store";
 
 export type ProjectItem = Task | TaskTemplate;
+
+// TODO: rename: projectItemsListSlice
 export const projectItemsSlice = createSlice(
   {
     childrenIds: appQuerySelector(
@@ -145,20 +149,70 @@ export const projectItemsSlice = createSlice(
         );
       },
     ),
-    getItemById: appQuerySelector(
-      (query, id: string): ProjectItem | undefined => {
-        return query(
-          (state) =>
-            tasksSlice.byId(state, id) || taskTemplatesSlice.byId(state, id),
-        );
-      },
-    ),
+    getItemById: appQuerySelector((query, id: string): ProjectItem => {
+      return query(
+        (state) =>
+          tasksSlice.byId(state, id) ||
+          taskTemplatesSlice.byId(state, id) ||
+          defaultTask,
+      );
+    }),
 
     // --actions
 
+    siblings: appQuerySelector(
+      (
+        query,
+        itemId: string,
+      ): [ProjectItem | undefined, ProjectItem | undefined] => {
+        const task = query((state) =>
+          projectItemsSlice.getItemById(state, itemId),
+        );
+        if (!task)
+          return shouldNeverHappen("item not found", { taskId: itemId });
+
+        const items = query((state) =>
+          projectItemsSlice.childrenIds(state, task.projectId),
+        );
+        const i = items.findIndex((it: string) => it === itemId);
+        const beforeId = items[i - 1];
+        const afterId = items[i + 1];
+
+        return [
+          beforeId
+            ? query((state) => projectItemsSlice.getItemById(state, beforeId))
+            : undefined,
+          afterId
+            ? query((state) => projectItemsSlice.getItemById(state, afterId))
+            : undefined,
+        ];
+      },
+    ),
+    createSibling: appAction(
+      (
+        state: RootState,
+        itemId: string,
+        position: "before" | "after",
+        taskParams?: Partial<Task>,
+      ): Task => {
+        const projectItem = projectItemsSlice.getItemById(state, itemId);
+
+        if (!projectItem) throw new Error("Task not found");
+
+        return tasksSlice.createTask(state, {
+          projectId: projectItem.projectId,
+          orderToken: generateKeyPositionedBetween(
+            projectItem,
+            projectItemsSlice.siblings(state, itemId),
+            position,
+          ),
+          ...taskParams,
+        });
+      },
+    ),
     deleteById: appAction((state, id: string) => {
       tasksSlice.deleteById(state, id);
-      taskTemplatesSlice.deleteById(state, id);
+      taskTemplatesSlice.delete(state, id);
     }),
     toggleItemType: appAction(
       (
@@ -172,11 +226,11 @@ export const projectItemsSlice = createSlice(
 
         projectItemsSlice.deleteById(state, item.id);
         if (isTask(item) && newType === taskTemplateType) {
-          taskTemplatesSlice.createFromTask(state, item);
+          return taskTemplatesSlice.createFromTask(state, item);
         } else if (isTaskTemplate(item) && newType === taskType) {
-          tasksSlice.createFromTemplate(state, item);
+          return tasksSlice.createFromTemplate(state, item);
         } else {
-          shouldNeverHappen("Unknown conversion", { item, newType });
+          return shouldNeverHappen("Unknown conversion", { item, newType });
         }
       },
     ),

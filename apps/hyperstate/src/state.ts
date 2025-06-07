@@ -626,18 +626,30 @@ type DebugEntry = {
 export function createSelectorCreator<TRootState extends object>() {
   const selectCreator = <
     TReturn,
-    TParams extends (
-      | string
-      | number
-      | Date
-      | Date[]
-      | string[]
-      | number[]
-      | undefined
-      | undefined[]
-      | null
-      | null[]
-    )[],
+    TParams extends any[],
+    // | string
+    // | number
+    // | Date
+    // | Date[]
+    // | string[]
+    // | number[]
+    // | undefined
+    // | undefined[]
+    // | null
+    // | null[]
+    // | Record<
+    //     string,
+    //     | string
+    //     | number
+    //     | Date
+    //     | Date[]
+    //     | string[]
+    //     | number[]
+    //     | undefined
+    //     | undefined[]
+    //     | null
+    //     | null[]
+    //   >
   >(
     selectionLogic: SelectionLogic<TRootState, TReturn, TParams>,
     selectEqualityFn: EqualityFn = defaultEqualityFn,

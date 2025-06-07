@@ -30,12 +30,12 @@ import {
 } from "@/store/slices/focusSlice.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
-import { taskBoxesSlice } from "@/store/slices/taskBoxesSlice.ts";
 import { appSlice } from "@/store/slices/appSlice.ts";
 import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
 import { isTaskProjection } from "@/store/slices/projectionsSlice.ts";
+import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
 
 type State =
   | { type: "idle" }
@@ -86,6 +86,8 @@ export const DropTaskIndicator = ({
   );
 };
 
+// TODO: rename to project item
+// TODO: think about to remove taskBox
 export const TaskComp = ({
   taskId,
   taskBoxId,
@@ -101,17 +103,17 @@ export const TaskComp = ({
   orderNumber: string;
   newTaskParams?: Partial<Task>;
 }) => {
-  const task = useAppSelector((state) =>
-    tasksSlice.byIdOrDefault(state, taskId),
+  const projectItem = useAppSelector((state) =>
+    projectItemsSlice.getItemById(state, taskId),
   );
   const taskBox = useAppSelector((state) =>
     appSlice.taskBoxByIdOrDefault(state, taskBoxId),
   );
   const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, task.projectId),
+    projectsSlice.byIdOrDefault(state, projectItem.projectId),
   );
 
-  const [editingTitle, setEditingTitle] = useState<string>(task.title);
+  const [editingTitle, setEditingTitle] = useState<string>(projectItem.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -147,27 +149,28 @@ export const TaskComp = ({
   );
 
   const handleTick = useCallback(() => {
+    if (!isTask(projectItem)) return;
+
     const [[up, upModel], [down, downModel]] = focusManager.getModelSiblings(
       store.getState(),
       focusableItem.key,
     );
 
-    const taskState = task.state;
+    const taskState = projectItem.state;
     tasksSlice.toggleState(store, taskId);
 
     if (!isFocused) return;
 
-    const upTask =
-      upModel && taskBoxesSlice.taskOfModel(store.getState(), upModel);
+    const upTask = upModel && appSlice.taskOfModel(store.getState(), upModel);
     const downTask =
-      downModel && taskBoxesSlice.taskOfModel(store.getState(), downModel);
+      downModel && appSlice.taskOfModel(store.getState(), downModel);
 
     if (downTask && downTask.state === taskState) {
       focusSlice.focusByKey(store, down.key);
     } else if (upTask && upTask.state === taskState) {
       focusSlice.focusByKey(store, up.key);
     }
-  }, [focusableItem.key, isFocused, store, task.state, taskId]);
+  }, [focusableItem.key, isFocused, projectItem, store, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
@@ -260,7 +263,7 @@ export const TaskComp = ({
       }
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
-      if (task.state === "done") return;
+      if (isTask(projectItem) && projectItem.state === "done") return;
 
       const [up, down] = focusManager.getSiblings(focusableItem.key);
 
@@ -328,7 +331,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       const [up, down] = focusManager.getSiblings(focusableItem.key);
-      taskBoxesSlice.delete(store, taskBox.id);
+      appSlice.delete(store, taskBox.id);
 
       if (down) {
         focusSlice.focusByKey(store, down.key);
@@ -342,12 +345,13 @@ export const TaskComp = ({
 
       focusSlice.editByKey(store, focusableItem.key);
     } else if (isAddAfter || isAddBefore) {
-      if (task.state === "done") return;
+      if (isTask(projectItem) && projectItem.state === "done") return;
 
       e.preventDefault();
 
       unstable_batchedUpdates(() => {
-        const newBox = taskBoxesSlice.createSibling(
+        // TODO: maybe pass as prop to Task component
+        const newBox = appSlice.createTaskBoxSibling(
           store,
           taskBox,
           isAddAfter ? "after" : "before",
@@ -490,7 +494,7 @@ export const TaskComp = ({
   // }, [isFocused]);
 
   const prevIsEditing = usePrevious(isEditing);
-  const taskTitle = task.title;
+  const taskTitle = projectItem.title;
   useEffect(() => {
     setEditingTitle(taskTitle);
   }, [taskTitle]);
@@ -569,7 +573,7 @@ export const TaskComp = ({
               <>
                 <div className="flex items-center justify-end">
                   <input
-                    key={task.id}
+                    key={projectItem.id}
                     type="checkbox"
                     className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
                     aria-label="Task completion status"
@@ -586,23 +590,27 @@ export const TaskComp = ({
               </>
             ) : (
               <>
-                <div className="flex justify-end">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
-                    checked={task.state === "done"}
-                    onChange={(e) => {
-                      handleTick();
-                    }}
-                    aria-label="Task completion status"
-                  />
-                </div>
-                <div className="text-gray-200 min-h-6">{task.title}</div>
+                {isTask(projectItem) && (
+                  <>
+                    <div className="flex justify-end">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
+                        checked={projectItem.state === "done"}
+                        onChange={(e) => {
+                          handleTick();
+                        }}
+                        aria-label="Task completion status"
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="text-gray-200 min-h-6">{projectItem.title}</div>
               </>
             )}
           </div>
           <div className="flex justify-between  mt-3 text-gray-400 text-sm">
-            <div>{task.horizon}</div>
+            <div>{projectItem.horizon}</div>
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
               <div className="text-right text-gray-400 text-sm">
                 {project.icon || "🟡"} {project.title}
@@ -619,7 +627,7 @@ export const TaskComp = ({
       {dndState.type === "preview" &&
         ReactDOM.createPortal(
           <TaskPrimitive
-            title={task.title}
+            title={projectItem.title}
             style={{
               boxSizing: "border-box",
               width: dndState.rect.width,

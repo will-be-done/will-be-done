@@ -1,16 +1,30 @@
 import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
 
-import { appAction } from "@/store/z.selectorAction.ts";
+import { appAction, appSelector } from "@/store/z.selectorAction.ts";
 import { Project, projectType } from "@/store/slices/projectsSlice.ts";
 
-import { isTask, Task, taskType } from "@/store/slices/tasksSlice.ts";
-import { TaskProjection } from "@/store/slices/projectionsSlice.ts";
+import {
+  defaultTask,
+  isTask,
+  Task,
+  tasksSlice,
+  taskType,
+} from "@/store/slices/tasksSlice.ts";
+import {
+  isTaskProjection,
+  projectionsSlice,
+  TaskProjection,
+} from "@/store/slices/projectionsSlice.ts";
 import {
   allTypes,
   AnyModel,
   AppModelChange,
   RootState,
+  slices,
 } from "@/store/store.ts";
+import { isTaskTemplate, TaskTemplate } from "./taskTemplatesSlice";
+import { assertUnreachable } from "@/utils/assert";
+import { projectItemsSlice } from "./projectItemsSlice";
 
 export const appSlice = createSlice(
   {
@@ -47,8 +61,8 @@ export const appSlice = createSlice(
     //
     //   delete state[item.type].byIds[item.id];
     // }),
-    taskBoxById(state: RootState, id: string) {
-      const storages = [state.task, state.projection];
+    taskBoxById: appSelector((state: RootState, id: string) => {
+      const storages = [state.task, state.projection, state.template];
       for (const storage of storages) {
         const entity = storage.byIds[id];
 
@@ -58,34 +72,40 @@ export const appSlice = createSlice(
       }
 
       return undefined;
-    },
-    taskBoxByIdOrDefault(state: RootState, id: string): Task | TaskProjection {
-      const entity = appSlice.taskBoxById(state, id);
-      if (!entity)
-        return {
-          type: taskType,
-          id,
-          title: "",
-          state: "todo",
-          projectId: "",
-          orderToken: "",
-          lastToggledAt: 0,
-          createdAt: 0,
-          horizon: "someday",
-        };
+    }),
+    taskBoxByIdOrDefault: appSelector(
+      (state: RootState, id: string): Task | TaskProjection | TaskTemplate => {
+        const entity = appSlice.taskBoxById(state, id);
+        if (!entity)
+          return {
+            type: taskType,
+            id,
+            title: "",
+            state: "todo",
+            projectId: "",
+            orderToken: "",
+            lastToggledAt: 0,
+            createdAt: 0,
+            horizon: "someday",
+          };
 
-      return entity;
-    },
-    byId(state: RootState, id: string) {
-      const storages = [
-        state.project,
-        state.task,
-        state.template,
-        state.projection,
-        state.dailyList,
-      ];
-      for (const storage of storages) {
-        const entity = storage.byIds[id];
+        return entity;
+      },
+    ),
+    taskOfModel: appSelector(
+      (state: RootState, model: AnyModel): Task | undefined => {
+        if (isTask(model)) {
+          return model;
+        } else if (isTaskProjection(model)) {
+          return tasksSlice.byId(state, model.taskId);
+        } else {
+          return undefined;
+        }
+      },
+    ),
+    byId: appSelector((state: RootState, id: string): AnyModel | undefined => {
+      for (const storage of Object.values(slices)) {
+        const entity = storage.byId(state, id);
 
         if (entity) {
           return entity;
@@ -93,25 +113,42 @@ export const appSlice = createSlice(
       }
 
       return undefined;
-    },
-    byIdOrDefault(state: RootState, id: string): AnyModel {
+    }),
+    byIdOrDefault: appSelector((state: RootState, id: string): AnyModel => {
       const entity = appSlice.byId(state, id);
       if (!entity) {
-        const project: Project = {
-          type: projectType,
-          id,
-          title: "",
-          icon: "",
-          isInbox: false,
-          orderToken: "",
-          createdAt: 0,
-        };
-
-        return project;
+        return defaultTask;
       }
 
       return entity;
-    },
+    }),
+    delete: appAction((state: RootState, id: string): void => {
+      for (const slice of Object.values(slices)) {
+        slice.delete(state, id);
+      }
+    }),
+    // TODO: maybe pass as prop to Task component
+    createTaskBoxSibling: appAction(
+      (
+        state: RootState,
+        taskBox: Task | TaskProjection | TaskTemplate,
+        position: "before" | "after",
+        taskParams?: Partial<Task>,
+      ) => {
+        if (isTask(taskBox) || isTaskTemplate(taskBox)) {
+          return projectItemsSlice.createSibling(
+            state,
+            taskBox.id,
+            position,
+            taskParams,
+          );
+        } else if (isTaskProjection(taskBox)) {
+          return projectionsSlice.createSibling(state, taskBox.id, position);
+        } else {
+          assertUnreachable(taskBox);
+        }
+      },
+    ),
   },
   "appSlice",
 );

@@ -61,7 +61,7 @@ export const taskTemplatesSlice = createSlice(
     createFromTask: appAction((state, task: Task) => {
       const newId = uuidv7();
 
-      state.template.byIds[newId] = {
+      const template: TaskTemplate = {
         id: newId,
         type: taskTemplateType,
         title: task.title,
@@ -70,8 +70,11 @@ export const taskTemplatesSlice = createSlice(
         createdAt: task.createdAt,
         horizon: task.horizon,
       };
+      state.template.byIds[newId] = template;
+
+      return template;
     }),
-    deleteById: appAction((state, id: string) => {
+    delete: appAction((state, id: string) => {
       delete state.template.byIds[id];
     }),
   },

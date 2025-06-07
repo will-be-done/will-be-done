@@ -1,5 +1,5 @@
 import { replaceSlices } from "@will-be-done/hyperstate";
-import { taskBoxesSlice } from "@/store/slices/taskBoxesSlice.ts";
+// import { taskBoxesSlice } from "@/store/slices/taskBoxesSlice.ts";
 import { appSlice } from "@/store/slices/appSlice.ts";
 import { dailyListsSlice } from "@/store/slices/dailyListsSlice.ts";
 import { projectionsSlice } from "@/store/slices/projectionsSlice.ts";
@@ -9,15 +9,17 @@ import { projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
 import { focusSlice } from "@/store/slices/focusSlice.ts";
 import { taskTemplatesSlice } from "./slices/taskTemplatesSlice";
+import { projectItemsSlice } from "./slices/projectItemsSlice";
 
 export const allSlices = {
   appSlice,
-  taskBoxesSlice,
+  // taskBoxesSlice,
   dailyListsSlice,
   projectionsSlice,
   tasksSlice,
   allProjectsSlice,
   projectsSlice,
+  projectItemsSlice,
   dropSlice,
   focusSlice,
   taskTemplatesSlice,

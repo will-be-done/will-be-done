@@ -7,7 +7,11 @@ import { uuidv7 } from "uuidv7";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { shouldNeverHappen } from "@/utils.ts";
 
-import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
+import {
+  appAction,
+  appQuerySelector,
+  appSelector,
+} from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import {
   isTaskTemplate,
@@ -75,7 +79,7 @@ export const projectsSlice = createSlice(
   {
     byId: (state: RootState, id: string): Project | undefined =>
       state.project.byIds[id],
-    byIdOrDefault: (state: RootState, id: string): Project => {
+    byIdOrDefault: appSelector((state: RootState, id: string): Project => {
       const project = projectsSlice.byId(state, id);
       if (!project)
         return {
@@ -89,7 +93,7 @@ export const projectsSlice = createSlice(
         };
 
       return project;
-    },
+    }),
     canDrop(state: RootState, projectId: string, dropTargetId: string) {
       const target = appSlice.byId(state, dropTargetId);
 
@@ -157,7 +161,7 @@ export const projectsSlice = createSlice(
         projectId: string,
         dropItemId: string,
         edge: "top" | "bottom",
-      ) => {
+      ): void => {
         if (!projectsSlice.canDrop(state, projectId, dropItemId)) {
           return;
         }

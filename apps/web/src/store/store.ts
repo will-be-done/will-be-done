@@ -25,20 +25,32 @@ import {
   inboxId,
   Project,
   ProjectData,
+  projectsSlice,
   projectsTable,
   projectType,
 } from "@/store/slices/projectsSlice.ts";
 
-import { isTask, Task, taskType } from "@/store/slices/tasksSlice.ts";
+import {
+  isTask,
+  Task,
+  tasksSlice,
+  taskType,
+} from "@/store/slices/tasksSlice.ts";
 import {
   TaskTemplate,
+  taskTemplatesSlice,
   taskTemplateType,
 } from "@/store/slices/taskTemplatesSlice.ts";
 import {
+  projectionsSlice,
   projectionType,
   TaskProjection,
 } from "@/store/slices/projectionsSlice.ts";
-import { DailyList, dailyListType } from "@/store/slices/dailyListsSlice.ts";
+import {
+  DailyList,
+  dailyListsSlice,
+  dailyListType,
+} from "@/store/slices/dailyListsSlice.ts";
 
 export const allTypes = [
   projectType,
@@ -75,6 +87,15 @@ export type SyncableState = {
     byIds: Record<string, DailyList>;
   };
 };
+
+export const slices = {
+  [projectType]: projectsSlice,
+  [taskType]: tasksSlice,
+  [taskTemplateType]: taskTemplatesSlice,
+  [projectionType]: projectionsSlice,
+  [dailyListType]: dailyListsSlice,
+};
+
 export type RootState = SyncableState & {
   focus: FocusState;
 };

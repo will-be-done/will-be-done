@@ -46,6 +46,18 @@ export type TaskData = {
 export const tasksTable = "tasks";
 export const isTask = isObjectType<Task>(taskType);
 
+export const defaultTask: Task = {
+  type: taskType,
+  id: "123", // TODO: put uuid here
+  title: "default task",
+  state: "todo",
+  projectId: "",
+  orderToken: "",
+  lastToggledAt: 0,
+  createdAt: 0,
+  horizon: "someday",
+};
+
 export const taskSyncMap: SyncMapping<typeof tasksTable, typeof taskType> = {
   table: tasksTable,
   modelType: taskType,
@@ -100,46 +112,10 @@ export const tasksSlice = createSlice(
       state.task.byIds[id],
     byIdOrDefault: appQuerySelector((query, id: string): Task => {
       const task = query((state) => tasksSlice.byId(state, id));
-      if (!task)
-        return {
-          type: taskType,
-          id,
-          title: "",
-          state: "todo",
-          projectId: "",
-          orderToken: "",
-          lastToggledAt: 0,
-          createdAt: 0,
-          horizon: "someday",
-        };
+      if (!task) return defaultTask;
 
       return task;
     }),
-    siblings: appQuerySelector(
-      (
-        query,
-        taskId: string,
-      ): [ProjectItem | undefined, ProjectItem | undefined] => {
-        const task = query((state) => tasksSlice.byId(state, taskId));
-        if (!task) return shouldNeverHappen("task not found", { taskId });
-
-        const items = query((state) =>
-          projectItemsSlice.childrenIds(state, task.projectId),
-        );
-        const i = items.findIndex((it: string) => it === taskId);
-        const beforeId = items[i - 1];
-        const afterId = items[i + 1];
-
-        return [
-          beforeId
-            ? query((state) => tasksSlice.byId(state, beforeId))
-            : undefined,
-          afterId
-            ? query((state) => tasksSlice.byId(state, afterId))
-            : undefined,
-        ];
-      },
-    ),
 
     // --actions
 
@@ -184,35 +160,13 @@ export const tasksSlice = createSlice(
         return newTask;
       },
     ),
-    createSibling: appAction(
-      (
-        state: RootState,
-        taskId: string,
-        position: "before" | "after",
-        taskParams?: Partial<Task>,
-      ): Task => {
-        const task = tasksSlice.byId(state, taskId);
-
-        if (!task) throw new Error("Task not found");
-
-        return tasksSlice.createTask(state, {
-          projectId: task.projectId,
-          orderToken: generateKeyPositionedBetween(
-            task,
-            tasksSlice.siblings(state, taskId),
-            position,
-          ),
-          ...taskParams,
-        });
-      },
-    ),
     handleDrop: appAction(
       (
         state: RootState,
         taskId: string,
         dropId: string,
         edge: "top" | "bottom",
-      ) => {
+      ): void => {
         if (!tasksSlice.canDrop(state, taskId, dropId)) return;
 
         const task = tasksSlice.byId(state, taskId);
@@ -221,7 +175,7 @@ export const tasksSlice = createSlice(
         const dropItem = appSlice.byId(state, dropId);
         if (!dropItem) return shouldNeverHappen("drop item not found");
 
-        const [up, down] = tasksSlice.siblings(state, taskId);
+        const [up, down] = projectItemsSlice.siblings(state, taskId);
 
         let between: [string | undefined, string | undefined] = [
           task.orderToken,
@@ -264,7 +218,7 @@ export const tasksSlice = createSlice(
     createFromTemplate: appAction(
       (state: RootState, taskTemplate: TaskTemplate) => {
         const newId = uuidv7();
-        state.task.byIds[newId] = {
+        const newTask: Task = {
           id: newId,
           title: taskTemplate.title,
           state: "todo",
@@ -275,6 +229,9 @@ export const tasksSlice = createSlice(
           horizon: taskTemplate.horizon,
           createdAt: taskTemplate.createdAt,
         };
+        state.task.byIds[newId] = newTask;
+
+        return newTask;
       },
     ),
     deleteById: appAction((state: RootState, id: string) => {

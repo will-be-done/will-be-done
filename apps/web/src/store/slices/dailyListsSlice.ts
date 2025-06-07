@@ -379,6 +379,9 @@ export const dailyListsSlice = createSlice(
         );
       },
     ),
+    delete: appAction((state: RootState, id: string) => {
+      delete state.dailyList.byIds[id];
+    }),
   },
   "dailyListsSlice",
 );

@@ -1,0 +1,126 @@
+import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
+import { appSlice } from "@/store/slices/appSlice";
+import {
+  buildFocusKey,
+  focusSlice,
+  parseColumnKey,
+} from "@/store/slices/focusSlice.ts";
+import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
+import { isTask, Task, taskType } from "@/store/slices/tasksSlice";
+import {
+  isTaskTemplate,
+  TaskTemplate,
+  taskTemplateType,
+} from "@/store/slices/taskTemplatesSlice";
+
+// TODO: rename to ModelDetails
+export const Details = () => {
+  const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
+  const { id } = currentFocusKey ? parseColumnKey(currentFocusKey) : {};
+  const item = useAppSelector((state) => appSlice.byId(state, id || ""));
+
+  if (isTask(item)) {
+    return <TaskDetails task={item} />;
+  } else if (isTaskTemplate(item)) {
+    return <TaskTemplateDetails taskTemplate={item} />;
+  } else {
+    return null;
+  }
+};
+
+export const TaskDetails = ({ task }: { task: Task }) => {
+  const lastToggledAt = new Date(task.lastToggledAt);
+  const createdAt = new Date(task.createdAt);
+  const store = useAppStore();
+
+  const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
+  const parsedFocusKey = currentFocusKey
+    ? parseColumnKey(currentFocusKey)
+    : undefined;
+
+  return (
+    <div>
+      <h1 className="whitespace-break-spaces [overflow-wrap:anywhere]">
+        {task.title}
+      </h1>
+
+      <div className="mt-4">
+        Last toggled at: {lastToggledAt.toLocaleString()}
+      </div>
+      <div>Created at: {createdAt.toLocaleString()}</div>
+
+      <button
+        type="button"
+        onClick={() => {
+          const template = projectItemsSlice.toggleItemType(
+            store,
+            task,
+            taskTemplateType,
+          );
+
+          if (parsedFocusKey) {
+            // setTimeout(() => {
+            focusSlice.focusByKey(
+              store,
+              buildFocusKey(
+                template.id,
+                template.type,
+                parsedFocusKey.component,
+              ),
+              true,
+            );
+            // }, 0);
+          }
+        }}
+      >
+        Make template
+      </button>
+    </div>
+  );
+};
+
+export const TaskTemplateDetails = ({
+  taskTemplate,
+}: {
+  taskTemplate: TaskTemplate;
+}) => {
+  const store = useAppStore();
+  const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
+  const parsedFocusKey = currentFocusKey
+    ? parseColumnKey(currentFocusKey)
+    : undefined;
+
+  return (
+    <div>
+      <h1 className="whitespace-break-spaces [overflow-wrap:anywhere]">
+        {taskTemplate.title}
+      </h1>
+      <div>It's task template!</div>
+      <button
+        type="button"
+        onClick={() => {
+          console.log("current focus", parsedFocusKey);
+          const task = projectItemsSlice.toggleItemType(
+            store,
+            taskTemplate,
+            taskType,
+          );
+
+          // TODO: force react to rerender
+
+          if (parsedFocusKey) {
+            // setTimeout(() => {
+            focusSlice.focusByKey(
+              store,
+              buildFocusKey(task.id, task.type, parsedFocusKey.component),
+              true,
+            );
+            // }, 0);
+          }
+        }}
+      >
+        Make task
+      </button>
+    </div>
+  );
+};
