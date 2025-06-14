@@ -242,6 +242,7 @@ export const projectItemsSlice = createSlice(
           | [OrderableItem | undefined, OrderableItem | undefined]
           | "append"
           | "prepend",
+        taskAttrs?: Partial<Task>,
       ): Task => {
         const project = projectsSlice.byId(state, projectId);
         if (!project) throw new Error("Project not found");
@@ -254,6 +255,7 @@ export const projectItemsSlice = createSlice(
         );
 
         return tasksSlice.createTask(state, {
+          ...taskAttrs,
           projectId: projectId,
           orderToken: orderToken,
         });

@@ -305,7 +305,7 @@ export const dailyListsSlice = createSlice(
         }
       },
     ),
-    createProjection: appAction(
+    createProjectionWithTask: appAction(
       (
         state: RootState,
         dailyListId: string,
@@ -318,13 +318,31 @@ export const dailyListsSlice = createSlice(
           | [OrderableItem | undefined, OrderableItem | undefined]
           | "append"
           | "prepend",
-      ) => {
+      ): TaskProjection => {
         const task = projectItemsSlice.createTask(
           state,
           projectId,
           projectPosition,
         );
 
+        return dailyListsSlice.createProjection(
+          state,
+          dailyListId,
+          task.id,
+          listPosition,
+        );
+      },
+    ),
+    createProjection: appAction(
+      (
+        state: RootState,
+        dailyListId: string,
+        taskId: string,
+        listPosition:
+          | [OrderableItem | undefined, OrderableItem | undefined]
+          | "append"
+          | "prepend",
+      ): TaskProjection => {
         const orderToken = generateOrderTokenPositioned(
           state,
           dailyListId,
@@ -333,7 +351,7 @@ export const dailyListsSlice = createSlice(
         );
 
         return projectionsSlice.create(state, {
-          taskId: task.id,
+          taskId: taskId,
           dailyListId: dailyListId,
           orderToken: orderToken,
         });

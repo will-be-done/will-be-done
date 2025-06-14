@@ -1310,6 +1310,7 @@ export function createStore<TState>(initialState: TState): StoreApi<TState> {
   //   });
   // };
 
+  // TODO: maybe store last N states and use weakRef on previous state at selectors?
   const createStore = (
     contextMap: Record<string, Context<unknown>>,
   ): StoreApi<TState> => {

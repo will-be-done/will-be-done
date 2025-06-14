@@ -292,6 +292,14 @@ export const initStore = async (): Promise<StoreApi<RootState>> => {
       );
     };
 
+    // taskTemplatesSlice.cleanAll(store);
+    void (async () => {
+      while (true) {
+        taskTemplatesSlice.genTasksAndProjections(store, new Date());
+        await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+      }
+    })();
+
     console.log("SECOND INIT STORE DONE", store.getState());
     return store;
   } finally {

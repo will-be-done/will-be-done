@@ -10,6 +10,7 @@ import { isTask, Task, taskType } from "@/store/slices/tasksSlice";
 import {
   isTaskTemplate,
   TaskTemplate,
+  taskTemplatesSlice,
   taskTemplateType,
 } from "@/store/slices/taskTemplatesSlice";
 
@@ -90,16 +91,20 @@ export const TaskTemplateDetails = ({
     ? parseColumnKey(currentFocusKey)
     : undefined;
 
+  const ruleText = useAppSelector((state) =>
+    taskTemplatesSlice.ruleText(state, taskTemplate.id),
+  );
+
   return (
     <div>
       <h1 className="whitespace-break-spaces [overflow-wrap:anywhere]">
         {taskTemplate.title}
       </h1>
       <div>It's task template!</div>
+      <div className="my-2">Repeat freq: {ruleText}</div>
       <button
         type="button"
         onClick={() => {
-          console.log("current focus", parsedFocusKey);
           const task = projectItemsSlice.toggleItemType(
             store,
             taskTemplate,

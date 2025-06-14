@@ -9,7 +9,11 @@ import { uuidv7 } from "uuidv7";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { ProjectItem, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { generateKeyPositionedBetween } from "@/store/order.ts";
-import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
+import {
+  appAction,
+  appQuerySelector,
+  appSelector,
+} from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import {
   isTaskTemplate,
@@ -19,6 +23,8 @@ import {
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping";
 import { projectItemsSlice } from "./projectItemsSlice";
+import { template } from "es-toolkit/compat";
+import { shallowEqual } from "fast-equals";
 
 export const taskType = "task";
 type TaskState = "todo" | "done";
@@ -32,6 +38,10 @@ export type Task = {
   lastToggledAt: number;
   horizon: "week" | "month" | "year" | "someday";
   createdAt: number;
+  templateData?: {
+    templateId: string;
+    templateDate: number;
+  };
 };
 export type TaskData = {
   id: string;
@@ -42,13 +52,15 @@ export type TaskData = {
   lastToggledAt: number;
   createdAt: number;
   horizon: "week" | "month" | "year" | "someday" | undefined;
+  templateId?: string;
+  templateDate?: number;
 };
 export const tasksTable = "tasks";
 export const isTask = isObjectType<Task>(taskType);
 
 export const defaultTask: Task = {
   type: taskType,
-  id: "123", // TODO: put uuid here
+  id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
   title: "default task",
   state: "todo",
   projectId: "",
@@ -73,7 +85,14 @@ export const taskSyncMap: SyncMapping<typeof tasksTable, typeof taskType> = {
         data.lastToggledAt == 0 ? new Date().getTime() : data.lastToggledAt,
       createdAt: data.createdAt ?? 0,
       horizon: data.horizon || "someday",
-    };
+      templateData:
+        data.templateId && data.templateDate
+          ? {
+              templateId: data.templateId,
+              templateDate: data.templateDate,
+            }
+          : undefined,
+    } satisfies Task;
   },
   mapModelToData(entity) {
     return {
@@ -85,7 +104,9 @@ export const taskSyncMap: SyncMapping<typeof tasksTable, typeof taskType> = {
       lastToggledAt: entity.lastToggledAt,
       createdAt: entity.createdAt,
       horizon: entity.horizon,
-    };
+      templateId: entity.templateData?.templateId,
+      templateDate: entity.templateData?.templateDate,
+    } satisfies TaskData;
   },
 };
 
@@ -116,12 +137,20 @@ export const tasksSlice = createSlice(
 
       return task;
     }),
+    all: appSelector((state): Task[] => Object.values(state.task.byIds)),
+    taskIdsOfTemplateId: appSelector((state, id: string): string[] => {
+      const tasks = tasksSlice.all(state);
+
+      return tasks
+        .filter((t) => t.templateData?.templateId == id)
+        .map((t) => t.id);
+    }, shallowEqual),
 
     // --actions
 
     delete: appAction((state: RootState, id: string) => {
       const task = tasksSlice.byId(state, id);
-      if (!task) return shouldNeverHappen("task not found");
+      if (!task) return;
 
       delete state.task.byIds[task.id];
 

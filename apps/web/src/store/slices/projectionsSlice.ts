@@ -145,7 +145,7 @@ export const projectionsSlice = createSlice(
     // --actions
     delete: appAction((state: RootState, id: string) => {
       const proj = projectionsSlice.byId(state, id);
-      if (!proj) return shouldNeverHappen("projection not found");
+      if (!proj) return;
 
       delete state.projection.byIds[proj.id];
     }),

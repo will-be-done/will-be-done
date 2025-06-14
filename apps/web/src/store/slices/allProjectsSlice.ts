@@ -80,8 +80,6 @@ export const allProjectsSlice = createSlice(
         ];
       },
     ),
-
-    // TODO: move to allProjectsSlice
     dropdownProjectsList: appQuerySelector(
       (query): { value: string; label: string }[] => {
         const projects = query((state) => allProjectsSlice.childrenIds(state));

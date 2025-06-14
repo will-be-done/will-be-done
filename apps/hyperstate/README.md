@@ -111,3 +111,34 @@ Why selector this way?
 
 Check https://github.com/dai-shi/proxy-memoize/issues/81 , proxy based will not work
 Also, I don't like that I need to declare deps beforehand like it's done in reselect 
+
+
+## Why SQL builders could be not perfect way?
+
+How I can express this in sql?
+```typescript
+{
+newTasksInRange: appSelector(
+  (state, fromDate: Date, toDate: Date): Task[] => {
+    const newTasks: Task[] = [];
+
+    for (const t of taskTemplatesSlice.all(state)) {
+      const rule = taskTemplatesSlice.rule(state, t.id);
+
+      rule.between(fromDate, toDate).forEach((_) => {
+        const time = new Date();
+
+        const id = uuidByString(t.id + "_" + time.getTime());
+
+        if (!tasksSlice.byId(state, id)) {
+          newTasks.push(templateToTask(t, time));
+        }
+      });
+    }
+
+    return newTasks;
+  },
+  deepEqual,
+),
+}
+```

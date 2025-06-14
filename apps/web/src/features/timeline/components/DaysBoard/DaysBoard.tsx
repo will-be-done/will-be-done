@@ -296,7 +296,7 @@ const BoardView = ({
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      const projection = dailyListsSlice.createProjection(
+      const projection = dailyListsSlice.createProjectionWithTask(
         store,
         dailyList.id,
         inboxId,
