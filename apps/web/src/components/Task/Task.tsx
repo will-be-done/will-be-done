@@ -36,6 +36,8 @@ import { projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
 import { isTaskProjection } from "@/store/slices/projectionsSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
+import { RotateCw, CircleDashed } from "lucide-react";
+import { isTaskTemplate } from "@/store/slices/taskTemplatesSlice.ts";
 
 type State =
   | { type: "idle" }
@@ -568,6 +570,14 @@ export const TaskComp = ({
       >
         {/* {!isSelfDragging && ( */}
         <>
+          <div className="absolute top-2 right-2 flex gap-1">
+            {isTaskTemplate(projectItem) && (
+              <CircleDashed className="h-3 w-3 text-gray-400" />
+            )}
+            {isTask(projectItem) && projectItem.templateData && (
+              <RotateCw className="h-3 w-3 text-gray-400" />
+            )}
+          </div>
           <div className="flex items-start gap-2">
             {isEditing ? (
               <>
