@@ -23,6 +23,10 @@ import {
 } from "../ui/dialog";
 import { useState } from "react";
 import { RepeatConfigModal } from "./RepeatConfigModal";
+import {
+  isTaskProjection,
+  TaskProjection,
+} from "@/store/slices/projectionsSlice";
 
 // TODO: rename to ModelDetails
 export const Details = () => {
@@ -31,15 +35,37 @@ export const Details = () => {
   const item = useAppSelector((state) => appSlice.byId(state, id || ""));
 
   if (isTask(item)) {
-    return <TaskDetails task={item} />;
+    return <TaskDetails task={item} showMakeTemplate={true} />;
   } else if (isTaskTemplate(item)) {
     return <TaskTemplateDetails taskTemplate={item} />;
+  } else if (isTaskProjection(item)) {
+    return <TaskProjectionDetails taskProjection={item} />;
   } else {
     return null;
   }
 };
 
-export const TaskDetails = ({ task }: { task: Task }) => {
+export const TaskProjectionDetails = ({
+  taskProjection,
+}: {
+  taskProjection: TaskProjection;
+}) => {
+  const store = useAppStore();
+  const task = tasksSlice.byIdOrDefault(
+    store.getState(),
+    taskProjection.taskId,
+  );
+
+  return <TaskDetails task={task} showMakeTemplate={false} />;
+};
+
+export const TaskDetails = ({
+  task,
+  showMakeTemplate,
+}: {
+  task: Task;
+  showMakeTemplate?: boolean;
+}) => {
   const lastToggledAt = new Date(task.lastToggledAt);
   const createdAt = new Date(task.createdAt);
   const store = useAppStore();
@@ -62,9 +88,11 @@ export const TaskDetails = ({ task }: { task: Task }) => {
       </div>
       <div>Created at: {createdAt.toLocaleString()}</div>
 
-      <button type="button" onClick={() => setRRuleModalOpen(true)}>
-        Make template
-      </button>
+      {showMakeTemplate && (
+        <button type="button" onClick={() => setRRuleModalOpen(true)}>
+          Make template
+        </button>
+      )}
 
       {isRRuleModalOpen && (
         <RepeatConfigModal
