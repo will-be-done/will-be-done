@@ -13,6 +13,16 @@ import {
   taskTemplatesSlice,
   taskTemplateType,
 } from "@/store/slices/taskTemplatesSlice";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "../ui/dialog";
+import { useState } from "react";
+import { RepeatConfigModal } from "./RepeatConfigModal";
 
 // TODO: rename to ModelDetails
 export const Details = () => {
@@ -34,6 +44,8 @@ export const TaskDetails = ({ task }: { task: Task }) => {
   const createdAt = new Date(task.createdAt);
   const store = useAppStore();
 
+  const [isRRuleModalOpen, setRRuleModalOpen] = useState(false);
+
   const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
   const parsedFocusKey = currentFocusKey
     ? parseColumnKey(currentFocusKey)
@@ -50,32 +62,21 @@ export const TaskDetails = ({ task }: { task: Task }) => {
       </div>
       <div>Created at: {createdAt.toLocaleString()}</div>
 
-      <button
-        type="button"
-        onClick={() => {
-          const template = projectItemsSlice.toggleItemType(
-            store,
-            task,
-            taskTemplateType,
-          );
-
-          if (parsedFocusKey) {
-            // setTimeout(() => {
-            focusSlice.focusByKey(
-              store,
-              buildFocusKey(
-                template.id,
-                template.type,
-                parsedFocusKey.component,
-              ),
-              true,
-            );
-            // }, 0);
-          }
-        }}
-      >
+      <button type="button" onClick={() => setRRuleModalOpen(true)}>
         Make template
       </button>
+
+      {isRRuleModalOpen && (
+        <RepeatConfigModal
+          isOpen={isRRuleModalOpen}
+          onClose={() => setRRuleModalOpen(false)}
+          onOk={(data, rule) => {
+            console.log(data, rule.toString());
+            setRRuleModalOpen(false);
+            // TODO: handle rrule config result here
+          }}
+        />
+      )}
     </div>
   );
 };
