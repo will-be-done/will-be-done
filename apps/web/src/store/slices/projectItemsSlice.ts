@@ -214,26 +214,6 @@ export const projectItemsSlice = createSlice(
       tasksSlice.deleteById(state, id);
       taskTemplatesSlice.delete(state, id);
     }),
-    toggleItemType: appAction(
-      (
-        state,
-        item: ProjectItem,
-        newType: typeof taskType | typeof taskTemplateType,
-      ) => {
-        if (item.type == newType) {
-          throw new Error("Item already in correct type");
-        }
-
-        projectItemsSlice.deleteById(state, item.id);
-        if (isTask(item) && newType === taskTemplateType) {
-          return taskTemplatesSlice.createFromTask(state, item);
-        } else if (isTaskTemplate(item) && newType === taskType) {
-          return tasksSlice.createFromTemplate(state, item);
-        } else {
-          return shouldNeverHappen("Unknown conversion", { item, newType });
-        }
-      },
-    ),
     createTask: appAction(
       (
         state,

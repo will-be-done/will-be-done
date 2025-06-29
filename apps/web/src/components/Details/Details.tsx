@@ -6,7 +6,7 @@ import {
   parseColumnKey,
 } from "@/store/slices/focusSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
-import { isTask, Task, taskType } from "@/store/slices/tasksSlice";
+import { isTask, Task, tasksSlice, taskType } from "@/store/slices/tasksSlice";
 import {
   isTaskTemplate,
   TaskTemplate,
@@ -71,9 +71,24 @@ export const TaskDetails = ({ task }: { task: Task }) => {
           isOpen={isRRuleModalOpen}
           onClose={() => setRRuleModalOpen(false)}
           onOk={(data, rule) => {
-            console.log(data, rule.toString());
             setRRuleModalOpen(false);
-            // TODO: handle rrule config result here
+
+            const template = taskTemplatesSlice.createFromTask(store, task, {
+              repeatRule: rule.toString(),
+            });
+            console.log(rule.toString());
+
+            if (parsedFocusKey) {
+              focusSlice.focusByKey(
+                store,
+                buildFocusKey(
+                  template.id,
+                  template.type,
+                  parsedFocusKey.component,
+                ),
+                true,
+              );
+            }
           }}
         />
       )}
@@ -106,11 +121,7 @@ export const TaskTemplateDetails = ({
       <button
         type="button"
         onClick={() => {
-          const task = projectItemsSlice.toggleItemType(
-            store,
-            taskTemplate,
-            taskType,
-          );
+          const task = tasksSlice.createFromTemplate(store, taskTemplate);
 
           // TODO: force react to rerender
 

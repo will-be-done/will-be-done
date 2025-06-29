@@ -93,10 +93,7 @@ const getRuleOptions = (values: z.infer<typeof FormSchema>) => {
     endDate,
   } = values;
   const timeParts = time.split(":");
-  const hour = parseInt(timeParts[0] || "0", 10);
-  const minute = parseInt(timeParts[1] || "0", 10);
   const dtstart = new Date(startDate);
-  dtstart.setHours(hour, minute, 0, 0);
   const options: Partial<Options> = {
     freq: getFreq(selectedType),
     interval: repeatEvery,
@@ -121,6 +118,10 @@ const getRuleOptions = (values: z.infer<typeof FormSchema>) => {
     until.setHours(23, 59, 59, 999);
     options.until = until;
   }
+  const hour = parseInt(timeParts[0] || "0", 10);
+  const minute = parseInt(timeParts[1] || "0", 10);
+  options.byhour = [hour];
+  options.byminute = [minute];
   return options;
 };
 

@@ -246,6 +246,8 @@ export const tasksSlice = createSlice(
 
     createFromTemplate: appAction(
       (state: RootState, taskTemplate: TaskTemplate) => {
+        projectItemsSlice.deleteById(state, taskTemplate.id);
+
         const newId = uuidv7();
         const newTask: Task = {
           id: newId,

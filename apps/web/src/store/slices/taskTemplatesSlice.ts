@@ -74,7 +74,7 @@ export const taskTemplateSyncMap: SyncMapping<
 const startOfCurrentDay = startOfDay(new Date());
 
 const defaultRule = `
-DTSTART:${format(startOfCurrentDay, "yyyyMMdd") + "T000000"};
+DTSTART:${format(startOfCurrentDay, "yyyyMMdd") + "T000000Z"};
 RRULE:FREQ=DAILY;BYHOUR=10
 `.trim();
 
@@ -93,6 +93,11 @@ const defaultTemplate: TaskTemplate = {
 const generateTaskId = (taskTemplateId: string, date: Date) => {
   return uuidByString(taskTemplateId + "_" + date.getTime());
 };
+
+function toUTC(now: Date): Date {
+  const timezoneOffset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - timezoneOffset);
+}
 
 const templateToTask = (tmpl: TaskTemplate, date: Date): Task => {
   return {
@@ -131,30 +136,30 @@ export const taskTemplatesSlice = createSlice(
     ruleText: appSelector((state, id: string): string => {
       const rule = taskTemplatesSlice.rule(state, id);
 
-      if (rule.options.byhour && rule.options.byhour.length > 0) {
-        const offsetMinutes = -new Date().getTimezoneOffset();
-        const offsetHours = Math.floor(offsetMinutes / 60);
-        const offsetMins = offsetMinutes % 60;
-
-        // Create new options with adjusted hours
-        const newOptions = {
-          ...rule.options,
-          byhour: rule.options.byhour.map((hour) =>
-            Math.floor((hour + offsetHours + 24) % 24),
-          ),
-        };
-
-        // Handle minute offset if it exists
-        if (offsetMins !== 0) {
-          const currentMinute = rule.options.byminute?.[0] || 0;
-          const newMinute = (currentMinute + offsetMins + 60) % 60;
-          newOptions.byminute = [newMinute];
-        }
-
-        // Create a new RRule with adjusted options
-        const localRule = new RRule(newOptions);
-        return localRule.toText();
-      }
+      // if (rule.options.byhour && rule.options.byhour.length > 0) {
+      //   const offsetMinutes = -new Date().getTimezoneOffset();
+      //   const offsetHours = Math.floor(offsetMinutes / 60);
+      //   const offsetMins = offsetMinutes % 60;
+      //
+      //   // Create new options with adjusted hours
+      //   const newOptions = {
+      //     ...rule.options,
+      //     byhour: rule.options.byhour.map((hour) =>
+      //       Math.floor((hour + offsetHours + 24) % 24),
+      //     ),
+      //   };
+      //
+      //   // Handle minute offset if it exists
+      //   if (offsetMins !== 0) {
+      //     const currentMinute = rule.options.byminute?.[0] || 0;
+      //     const newMinute = (currentMinute + offsetMins + 60) % 60;
+      //     newOptions.byminute = [newMinute];
+      //   }
+      //
+      //   // Create a new RRule with adjusted options
+      //   const localRule = new RRule(newOptions);
+      //   return localRule.toText();
+      // }
 
       return rule.toText();
     }),
@@ -188,7 +193,7 @@ export const taskTemplatesSlice = createSlice(
         const rule = taskTemplatesSlice.rule(state, templateId);
 
         rule
-          .between(new Date(template.lastGeneratedAt), toDate)
+          .between(toUTC(new Date(template.lastGeneratedAt)), toUTC(toDate))
           .forEach((date) => {
             const taskId = generateTaskId(template.id, date);
             if (!tasksSlice.byId(state, taskId)) {
@@ -264,30 +269,34 @@ export const taskTemplatesSlice = createSlice(
 
       return generatedTasks;
     }),
-    createFromTask: appAction((state, task: Task) => {
-      const newId = uuidv7();
+    createFromTask: appAction(
+      (state, task: Task, data: Partial<TaskTemplate>) => {
+        projectItemsSlice.deleteById(state, task.id);
 
-      const template: TaskTemplate = {
-        id: newId,
-        type: taskTemplateType,
-        title: task.title,
-        projectId: task.projectId,
-        orderToken: task.orderToken,
-        createdAt: task.createdAt,
-        repeatRule: defaultRule,
-        horizon: task.horizon,
-        lastGeneratedAt: startOfDay(task.createdAt).getTime() - 1,
-      };
-      state.template.byIds[newId] = template;
+        const newId = uuidv7();
+        const template: TaskTemplate = {
+          id: newId,
+          type: taskTemplateType,
+          title: task.title,
+          projectId: task.projectId,
+          orderToken: task.orderToken,
+          createdAt: task.createdAt,
+          repeatRule: defaultRule,
+          horizon: task.horizon,
+          lastGeneratedAt: startOfDay(task.createdAt).getTime() - 1,
+          ...data,
+        };
+        state.template.byIds[newId] = template;
 
-      taskTemplatesSlice.genTaskAndProjectionsForTemplate(
-        state,
-        template.id,
-        new Date(),
-      );
+        taskTemplatesSlice.genTaskAndProjectionsForTemplate(
+          state,
+          template.id,
+          new Date(),
+        );
 
-      return template;
-    }),
+        return template;
+      },
+    ),
     update: appAction(
       (state, id: string, data: Partial<TaskTemplate>): TaskTemplate => {
         const template = taskTemplatesSlice.byId(state, id);
