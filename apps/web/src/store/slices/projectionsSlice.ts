@@ -7,7 +7,11 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { generateKeyPositionedBetween } from "@/store/order.ts";
-import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
+import {
+  appAction,
+  appQuerySelector,
+  appSelector,
+} from "@/store/z.selectorAction.ts";
 import { isObjectType } from "@/store/z.utils.ts";
 import { RootState } from "@/store/store.ts";
 import { SyncMapping } from "../sync/mapping";
@@ -140,6 +144,27 @@ export const projectionsSlice = createSlice(
           .map((p) => p.id);
       },
       shallowEqual,
+    ),
+
+    projectionsOfTask: appSelector(
+      (state, taskId: string): TaskProjection[] => {
+        const byIds = state.projection.byIds;
+
+        return Object.values(byIds).filter((proj) => proj.taskId === taskId);
+      },
+      shallowEqual,
+    ),
+
+    lastProjectionOfTask: appSelector(
+      (state, taskId: string): TaskProjection | undefined => {
+        const projections = projectionsSlice.projectionsOfTask(state, taskId);
+
+        if (projections.length === 0) return undefined;
+
+        return projections.reduce((latest, current) =>
+          current.createdAt > latest.createdAt ? current : latest,
+        );
+      },
     ),
 
     // --actions

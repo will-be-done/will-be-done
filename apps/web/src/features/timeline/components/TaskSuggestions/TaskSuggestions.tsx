@@ -85,6 +85,7 @@ function ProjectSuggestions({
                 key={id}
                 displayedUnderProjectId={projectId}
                 newTaskParams={{ horizon: preferredHorizon }}
+                displayLastProjectionTime
               />
             ))}
           </div>

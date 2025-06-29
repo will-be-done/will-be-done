@@ -34,10 +34,15 @@ import { appSlice } from "@/store/slices/appSlice.ts";
 import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { dropSlice } from "@/store/slices/dropSlice.ts";
-import { isTaskProjection } from "@/store/slices/projectionsSlice.ts";
+import {
+  isTaskProjection,
+  projectionsSlice,
+} from "@/store/slices/projectionsSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
 import { RotateCw, CircleDashed } from "lucide-react";
 import { isTaskTemplate } from "@/store/slices/taskTemplatesSlice.ts";
+import { cn } from "@/lib/utils";
+import { startOfDay } from "date-fns";
 
 type State =
   | { type: "idle" }
@@ -97,6 +102,7 @@ export const TaskComp = ({
   alwaysShowProject,
   orderNumber,
   newTaskParams,
+  displayLastProjectionTime,
 }: {
   taskId: string;
   taskBoxId: string;
@@ -104,6 +110,7 @@ export const TaskComp = ({
   alwaysShowProject?: boolean;
   orderNumber: string;
   newTaskParams?: Partial<Task>;
+  displayLastProjectionTime?: boolean;
 }) => {
   const projectItem = useAppSelector((state) =>
     projectItemsSlice.getItemById(state, taskId),
@@ -114,6 +121,11 @@ export const TaskComp = ({
   const project = useAppSelector((state) =>
     projectsSlice.byIdOrDefault(state, projectItem.projectId),
   );
+  const lastProjectionTime = useAppSelector(
+    (state) => projectionsSlice.lastProjectionOfTask(state, taskId)?.createdAt,
+  );
+  const shouldHighlightProjectionTime =
+    lastProjectionTime && startOfDay(new Date()).getTime() > lastProjectionTime;
 
   const [editingTitle, setEditingTitle] = useState<string>(projectItem.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -621,8 +633,24 @@ export const TaskComp = ({
           </div>
           <div className="flex justify-between  mt-3 text-gray-400 text-sm">
             <div>{projectItem.horizon}</div>
+
+            {lastProjectionTime !== undefined &&
+              lastProjectionTime !== 0 &&
+              displayLastProjectionTime && (
+                <div
+                  className={cn("text-center text-gray-400", {
+                    "text-amber-400": shouldHighlightProjectionTime,
+                  })}
+                >
+                  {new Date(lastProjectionTime).toLocaleDateString("en-US", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </div>
+              )}
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
-              <div className="text-right text-gray-400 text-sm">
+              <div className="text-right text-gray-400 ">
                 {project.icon || "🟡"} {project.title}
               </div>
             )}

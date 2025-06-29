@@ -123,6 +123,7 @@ const TaskProjection = ({
         taskId={projection.taskId}
         taskBoxId={projection.id}
         alwaysShowProject
+        displayLastProjectionTime={false}
       />
     </>
   );

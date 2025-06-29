@@ -223,6 +223,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
                   taskId={id}
                   taskBoxId={id}
                   displayedUnderProjectId={project.id}
+                  displayLastProjectionTime
                 />
               );
             })}
@@ -237,6 +238,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
               {doneChildrenIds.map((id, i) => {
                 return (
                   <TaskComp
+                    displayLastProjectionTime
                     orderNumber={i.toString()}
                     key={id}
                     taskId={id}
