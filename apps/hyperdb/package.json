@@ -11,8 +11,10 @@
     "test": "CI=true vitest"
   },
   "dependencies": {
+    "@types/sql.js": "^1.4.9",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "sql.js": "^1.13.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",

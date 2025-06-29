@@ -1,8 +1,13 @@
 type IndexValue = string | number | boolean | null;
+type Tuple = IndexValue[];
 
 interface ScanOptions {
+  gt?: Tuple;
+  gte?: Tuple;
+  lt?: Tuple;
+  lte?: Tuple;
+  reverse?: boolean;
   limit?: number;
-  offset?: number;
 }
 
 type TableSchema = Record<string, any> & { id: string };
@@ -121,8 +126,136 @@ class BTree<T extends TableSchema> {
     return this.searchNode(node.children[i], key);
   }
 
+  *scanRange(
+    lowerBound?: string,
+    upperBound?: string,
+    lowerInclusive: boolean = true,
+    upperInclusive: boolean = true,
+    reverse: boolean = false
+  ): Generator<T> {
+    yield* this.scanRangeNode(
+      this.root,
+      lowerBound,
+      upperBound,
+      lowerInclusive,
+      upperInclusive,
+      reverse
+    );
+  }
+
+  private *scanRangeNode(
+    node: BTreeNode<T>,
+    lowerBound?: string,
+    upperBound?: string,
+    lowerInclusive: boolean = true,
+    upperInclusive: boolean = true,
+    reverse: boolean = false
+  ): Generator<T> {
+    if (node.isLeaf) {
+      const indices = reverse 
+        ? Array.from({length: node.values.length}, (_, i) => node.values.length - 1 - i)
+        : Array.from({length: node.values.length}, (_, i) => i);
+
+      for (const i of indices) {
+        const key = node.keys[i];
+        
+        // Check if key is within bounds
+        if (lowerBound !== undefined) {
+          const cmp = this.compareKeys(key, lowerBound);
+          if (cmp < 0 || (!lowerInclusive && cmp === 0)) continue;
+        }
+        
+        if (upperBound !== undefined) {
+          const cmp = this.compareKeys(key, upperBound);
+          if (cmp > 0 || (!upperInclusive && cmp === 0)) continue;
+        }
+
+        for (const value of node.values[i]) {
+          yield value;
+        }
+      }
+    } else {
+      if (reverse) {
+        // Reverse traversal
+        for (let i = node.keys.length; i >= 0; i--) {
+          // Visit right child first in reverse
+          if (i < node.children.length) {
+            yield* this.scanRangeNode(
+              node.children[i],
+              lowerBound,
+              upperBound,
+              lowerInclusive,
+              upperInclusive,
+              reverse
+            );
+          }
+
+          // Then visit the key (if not the rightmost iteration)
+          if (i > 0) {
+            const keyIndex = i - 1;
+            const key = node.keys[keyIndex];
+            
+            if (lowerBound !== undefined) {
+              const cmp = this.compareKeys(key, lowerBound);
+              if (cmp < 0 || (!lowerInclusive && cmp === 0)) continue;
+            }
+            
+            if (upperBound !== undefined) {
+              const cmp = this.compareKeys(key, upperBound);
+              if (cmp > 0 || (!upperInclusive && cmp === 0)) continue;
+            }
+
+            for (const value of node.values[keyIndex]) {
+              yield value;
+            }
+          }
+        }
+      } else {
+        // Forward traversal
+        for (let i = 0; i < node.keys.length; i++) {
+          // Visit left child first
+          yield* this.scanRangeNode(
+            node.children[i],
+            lowerBound,
+            upperBound,
+            lowerInclusive,
+            upperInclusive,
+            reverse
+          );
+
+          // Then visit the key
+          const key = node.keys[i];
+          
+          if (lowerBound !== undefined) {
+            const cmp = this.compareKeys(key, lowerBound);
+            if (cmp < 0 || (!lowerInclusive && cmp === 0)) continue;
+          }
+          
+          if (upperBound !== undefined) {
+            const cmp = this.compareKeys(key, upperBound);
+            if (cmp > 0 || (!upperInclusive && cmp === 0)) continue;
+          }
+
+          for (const value of node.values[i]) {
+            yield value;
+          }
+        }
+
+        // Visit rightmost child
+        yield* this.scanRangeNode(
+          node.children[node.children.length - 1],
+          lowerBound,
+          upperBound,
+          lowerInclusive,
+          upperInclusive,
+          reverse
+        );
+      }
+    }
+  }
+
   *scanAll(): Generator<T> {
-    yield* this.scanNode(this.root);
+    yield* this.scanRange();
   }
 
   private *scanNode(node: BTreeNode<T>): Generator<T> {
@@ -208,6 +341,46 @@ class CompositeIndex<T extends TableSchema> {
     const idSet = this.btree.search(key);
     for (const id of idSet) {
       yield id;
+    }
+  }
+
+  *scanRange(options: ScanOptions = {}): Generator<string> {
+    const { gt, gte, lt, lte, reverse, limit } = options;
+    
+    let lowerBound: string | undefined;
+    let lowerInclusive = true;
+    let upperBound: string | undefined;
+    let upperInclusive = true;
+
+    if (gte !== undefined) {
+      lowerBound = JSON.stringify(gte);
+      lowerInclusive = true;
+    } else if (gt !== undefined) {
+      lowerBound = JSON.stringify(gt);
+      lowerInclusive = false;
+    }
+
+    if (lte !== undefined) {
+      upperBound = JSON.stringify(lte);
+      upperInclusive = true;
+    } else if (lt !== undefined) {
+      upperBound = JSON.stringify(lt);
+      upperInclusive = false;
+    }
+
+    let count = 0;
+    for (const id of this.btree.scanRange(
+      lowerBound,
+      upperBound,
+      lowerInclusive,
+      upperInclusive,
+      reverse || false
+    )) {
+      if (limit !== undefined && count >= limit) {
+        break;
+      }
+      yield id;
+      count++;
     }
   }
 
@@ -329,7 +502,6 @@ export class HyperDB {
   *scan<T extends TableSchema>(
     tableDef: TableDefinition<T>,
     indexName: string,
-    values: IndexValue[],
     options: ScanOptions = {},
   ): Generator<T> {
     const tableIndexes = this.indexes.get(tableDef.name);
@@ -347,27 +519,13 @@ export class HyperDB {
       throw new Error(`Table ${tableDef.name} not found`);
     }
 
-    let count = 0;
-    const offset = options.offset || 0;
-    const limit = options.limit;
-
-    // Stream IDs and immediately look up records to avoid loading all IDs in memory
-    for (const id of index.scanIds(values)) {
-      if (count < offset) {
-        count++;
-        continue;
-      }
-
-      if (limit && count >= offset + limit) {
-        break;
-      }
-
+    // Stream IDs using range scan and immediately look up records
+    for (const id of index.scanRange(options)) {
       // Find the actual record in the table by ID
       const record = records.find((r: T) => r.id === id);
       if (record) {
         yield record;
       }
-      count++;
     }
   }
 }

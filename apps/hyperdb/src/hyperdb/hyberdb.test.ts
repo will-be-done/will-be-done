@@ -36,7 +36,7 @@ describe("HyperDB", () => {
     });
 
     // Find by id
-    const usersById = Array.from(db.scan(usersTables, "ids", ["123"]));
+    const usersById = Array.from(db.scan(usersTables, "ids", { gte: ["123"], lte: ["123"] }));
     expect(usersById).toHaveLength(1);
     expect(usersById[0]).toEqual({
       id: "123",
@@ -46,7 +46,7 @@ describe("HyperDB", () => {
     });
 
     // Find by group
-    const usersByGroup = Array.from(db.scan(usersTables, "groups", ["356"]));
+    const usersByGroup = Array.from(db.scan(usersTables, "groups", { gte: ["356"], lte: ["356"] }));
     expect(usersByGroup).toHaveLength(1);
     expect(usersByGroup[0].groupId).toBe("356");
   });
@@ -75,7 +75,7 @@ describe("HyperDB", () => {
 
     // Find by composite index (firstName, lastName)
     const usersByFullName = Array.from(
-      db.scan(usersTables, "fullName", ["Sergey", "Sova"])
+      db.scan(usersTables, "fullName", { gte: ["Sergey", "Sova"], lte: ["Sergey", "Sova"] })
     );
     expect(usersByFullName).toHaveLength(1);
     expect(usersByFullName[0]).toEqual({
@@ -87,7 +87,7 @@ describe("HyperDB", () => {
 
     // Find another combination
     const usersBySova = Array.from(
-      db.scan(usersTables, "fullName", ["Petr", "Sova"])
+      db.scan(usersTables, "fullName", { gte: ["Petr", "Sova"], lte: ["Petr", "Sova"] })
     );
     expect(usersBySova).toHaveLength(1);
     expect(usersBySova[0].firstName).toBe("Petr");
@@ -111,18 +111,18 @@ describe("HyperDB", () => {
     expect(updatedCount).toBe(1);
 
     // Verify update
-    const updatedUser = Array.from(db.scan(usersTables, "ids", ["123"]));
+    const updatedUser = Array.from(db.scan(usersTables, "ids", { gte: ["123"], lte: ["123"] }));
     expect(updatedUser).toHaveLength(1);
     expect(updatedUser[0].firstName).toBe("Sergei");
 
     // Verify indexes are updated
     const oldNameSearch = Array.from(
-      db.scan(usersTables, "fullName", ["Sergey", "Sova"])
+      db.scan(usersTables, "fullName", { gte: ["Sergey", "Sova"], lte: ["Sergey", "Sova"] })
     );
     expect(oldNameSearch).toHaveLength(0);
 
     const newNameSearch = Array.from(
-      db.scan(usersTables, "fullName", ["Sergei", "Sova"])
+      db.scan(usersTables, "fullName", { gte: ["Sergei", "Sova"], lte: ["Sergei", "Sova"] })
     );
     expect(newNameSearch).toHaveLength(1);
     expect(newNameSearch[0].firstName).toBe("Sergei");
@@ -145,7 +145,7 @@ describe("HyperDB", () => {
 
     // Verify both users exist
     const usersBeforeDelete = Array.from(
-      db.scan(usersTables, "groups", ["356"])
+      db.scan(usersTables, "groups", { gte: ["356"], lte: ["356"] })
     );
     expect(usersBeforeDelete).toHaveLength(2);
 
@@ -159,20 +159,20 @@ describe("HyperDB", () => {
 
     // Verify only one user remains
     const usersAfterDelete = Array.from(
-      db.scan(usersTables, "groups", ["356"])
+      db.scan(usersTables, "groups", { gte: ["356"], lte: ["356"] })
     );
     expect(usersAfterDelete).toHaveLength(1);
     expect(usersAfterDelete[0].id).toBe("123");
 
     // Verify deleted user cannot be found by id
     const deletedUserSearch = Array.from(
-      db.scan(usersTables, "ids", ["234"])
+      db.scan(usersTables, "ids", { gte: ["234"], lte: ["234"] })
     );
     expect(deletedUserSearch).toHaveLength(0);
 
     // Verify deleted user cannot be found by composite index
     const deletedUserByName = Array.from(
-      db.scan(usersTables, "fullName", ["Petr", "Sova"])
+      db.scan(usersTables, "fullName", { gte: ["Petr", "Sova"], lte: ["Petr", "Sova"] })
     );
     expect(deletedUserByName).toHaveLength(0);
   });
@@ -190,21 +190,21 @@ describe("HyperDB", () => {
 
     // Test limit
     const limitedResults = Array.from(
-      db.scan(usersTables, "groups", ["group1"], { limit: 2 })
+      db.scan(usersTables, "groups", { gte: ["group1"], lte: ["group1"], limit: 2 })
     );
     expect(limitedResults).toHaveLength(2);
 
-    // Test offset
-    const offsetResults = Array.from(
-      db.scan(usersTables, "groups", ["group1"], { offset: 2 })
+    // Test scanning all with range (equivalent to old offset/limit)
+    const allResults = Array.from(
+      db.scan(usersTables, "groups", { gte: ["group1"], lte: ["group1"] })
     );
-    expect(offsetResults).toHaveLength(3);
+    expect(allResults).toHaveLength(5);
 
-    // Test limit + offset
-    const limitOffsetResults = Array.from(
-      db.scan(usersTables, "groups", ["group1"], { limit: 2, offset: 2 })
+    // Test limit with larger range
+    const limitedRange = Array.from(
+      db.scan(usersTables, "groups", { gte: ["group1"], limit: 3 })
     );
-    expect(limitOffsetResults).toHaveLength(2);
+    expect(limitedRange).toHaveLength(3);
   });
 
   it("handles non-existent indexes gracefully", () => {
@@ -216,7 +216,7 @@ describe("HyperDB", () => {
     });
 
     expect(() => {
-      Array.from(db.scan(usersTables, "nonExistentIndex", ["value"]));
+      Array.from(db.scan(usersTables, "nonExistentIndex", { gte: ["value"] }));
     }).toThrow("Index nonExistentIndex not found");
   });
 
@@ -244,7 +244,7 @@ describe("HyperDB", () => {
     });
 
     // Should be able to query by the automatic "ids" index
-    const userById = Array.from(db.scan(usersTables, "ids", ["test-id-1"]));
+    const userById = Array.from(db.scan(usersTables, "ids", { gte: ["test-id-1"], lte: ["test-id-1"] }));
     expect(userById).toHaveLength(1);
     expect(userById[0]).toEqual({
       id: "test-id-1",
@@ -254,12 +254,12 @@ describe("HyperDB", () => {
     });
 
     // Verify that other indexes still work via two-phase lookup
-    const usersByGroup = Array.from(db.scan(usersTables, "groups", ["test-group"]));
+    const usersByGroup = Array.from(db.scan(usersTables, "groups", { gte: ["test-group"], lte: ["test-group"] }));
     expect(usersByGroup).toHaveLength(1);
     expect(usersByGroup[0].id).toBe("test-id-1");
 
     const usersByFullName = Array.from(
-      db.scan(usersTables, "fullName", ["John", "Doe"])
+      db.scan(usersTables, "fullName", { gte: ["John", "Doe"], lte: ["John", "Doe"] })
     );
     expect(usersByFullName).toHaveLength(1);
     expect(usersByFullName[0].id).toBe("test-id-1");
@@ -289,17 +289,17 @@ describe("HyperDB", () => {
     }
 
     // Test that individual composite queries work
-    const aWith1 = Array.from(sortDb.scan(sortTestTable, "composite", ["A", "1"]));
+    const aWith1 = Array.from(sortDb.scan(sortTestTable, "composite", { gte: ["A", "1"], lte: ["A", "1"] }));
     expect(aWith1).toHaveLength(1);
     expect(aWith1[0].id).toBe("4");
 
-    const bWith2 = Array.from(sortDb.scan(sortTestTable, "composite", ["B", "2"]));
+    const bWith2 = Array.from(sortDb.scan(sortTestTable, "composite", { gte: ["B", "2"], lte: ["B", "2"] }));
     expect(bWith2).toHaveLength(1);
     expect(bWith2[0].id).toBe("1");
 
-    // Test that queries for first column only don't work (need exact match)
-    const aOnly = Array.from(sortDb.scan(sortTestTable, "composite", ["A"]));
-    expect(aOnly).toHaveLength(0); // Composite index requires all columns
+    // Test range queries - all records starting with "A"
+    const aRange = Array.from(sortDb.scan(sortTestTable, "composite", { gte: ["A"], lt: ["B"] }));
+    expect(aRange).toHaveLength(3); // Should find A-1, A-2, A-3
 
     // Verify specific composite searches work correctly
     const testCases = [
@@ -312,7 +312,7 @@ describe("HyperDB", () => {
     ];
 
     for (const { search, expectedId } of testCases) {
-      const result = Array.from(sortDb.scan(sortTestTable, "composite", search));
+      const result = Array.from(sortDb.scan(sortTestTable, "composite", { gte: search, lte: search }));
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(expectedId);
     }
@@ -365,19 +365,19 @@ describe("HyperDB", () => {
     }
 
     // Scan all users in group2
-    const group2Users = Array.from(db.scan(usersTables, "groups", ["group2"]));
+    const group2Users = Array.from(db.scan(usersTables, "groups", { gte: ["group2"], lte: ["group2"] }));
     expect(group2Users).toHaveLength(5);
 
     // Verify specific composite searches work correctly
     const aliceWilliams = Array.from(
-      db.scan(usersTables, "fullName", ["Alice", "Williams"])
+      db.scan(usersTables, "fullName", { gte: ["Alice", "Williams"], lte: ["Alice", "Williams"] })
     );
     expect(aliceWilliams).toHaveLength(1);
     expect(aliceWilliams[0].id).toBe("1");
 
     // Note: We have "Bob Smith" in group1 (id: "002") and group2 (id: "2")
     const bobSmithUsers = Array.from(
-      db.scan(usersTables, "fullName", ["Bob", "Smith"])
+      db.scan(usersTables, "fullName", { gte: ["Bob", "Smith"], lte: ["Bob", "Smith"] })
     );
     expect(bobSmithUsers).toHaveLength(2); // Should find both Bob Smith users
     const bobSmithGroup2 = bobSmithUsers.find(u => u.groupId === "group2");
@@ -392,10 +392,72 @@ describe("HyperDB", () => {
 
     for (const { search, expectedId } of specificSearches) {
       const result = Array.from(
-        db.scan(usersTables, "fullName", search)
+        db.scan(usersTables, "fullName", { gte: search, lte: search })
       );
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe(expectedId);
     }
+  });
+
+  it("supports range scanning with gt, gte, lt, lte operators", () => {
+    // Insert test data with numeric and string values
+    const rangeTestTable = table<{ id: string; score: number; category: string }>("rangeTest", {
+      scoreIndex: ["score"],
+      categoryIndex: ["category"],
+      composite: ["category", "score"],
+    });
+    
+    const rangeDb = new HyperDB([rangeTestTable]);
+
+    const testData = [
+      { id: "1", score: 10, category: "A" },
+      { id: "2", score: 20, category: "A" },
+      { id: "3", score: 30, category: "B" },
+      { id: "4", score: 40, category: "B" },
+      { id: "5", score: 50, category: "C" },
+    ];
+
+    for (const record of testData) {
+      rangeDb.insert(rangeTestTable, record);
+    }
+
+    // Test gt (greater than)
+    const gtResults = Array.from(rangeDb.scan(rangeTestTable, "scoreIndex", { gt: [25] }));
+    expect(gtResults).toHaveLength(3); // scores 30, 40, 50
+    expect(gtResults.map(r => r.score)).toEqual([30, 40, 50]);
+
+    // Test gte (greater than or equal)
+    const gteResults = Array.from(rangeDb.scan(rangeTestTable, "scoreIndex", { gte: [30] }));
+    expect(gteResults).toHaveLength(3); // scores 30, 40, 50
+    expect(gteResults.map(r => r.score)).toEqual([30, 40, 50]);
+
+    // Test lt (less than)
+    const ltResults = Array.from(rangeDb.scan(rangeTestTable, "scoreIndex", { lt: [35] }));
+    expect(ltResults).toHaveLength(3); // scores 10, 20, 30
+    expect(ltResults.map(r => r.score)).toEqual([10, 20, 30]);
+
+    // Test lte (less than or equal)
+    const lteResults = Array.from(rangeDb.scan(rangeTestTable, "scoreIndex", { lte: [30] }));
+    expect(lteResults).toHaveLength(3); // scores 10, 20, 30
+    expect(lteResults.map(r => r.score)).toEqual([10, 20, 30]);
+
+    // Test range (gte + lte)
+    const rangeResults = Array.from(rangeDb.scan(rangeTestTable, "scoreIndex", { gte: [20], lte: [40] }));
+    expect(rangeResults).toHaveLength(3); // scores 20, 30, 40
+    expect(rangeResults.map(r => r.score)).toEqual([20, 30, 40]);
+
+    // Test reverse order
+    const reverseResults = Array.from(rangeDb.scan(rangeTestTable, "scoreIndex", { reverse: true }));
+    expect(reverseResults.map(r => r.score)).toEqual([50, 40, 30, 20, 10]);
+
+    // Test limit
+    const limitResults = Array.from(rangeDb.scan(rangeTestTable, "scoreIndex", { limit: 2 }));
+    expect(limitResults).toHaveLength(2);
+    expect(limitResults.map(r => r.score)).toEqual([10, 20]);
+
+    // Test composite range - all category "A" and "B" records
+    const compositeRange = Array.from(rangeDb.scan(rangeTestTable, "composite", { gte: ["A"], lt: ["C"] }));
+    expect(compositeRange).toHaveLength(4); // A-10, A-20, B-30, B-40
+    expect(compositeRange.map(r => `${r.category}-${r.score}`)).toEqual(["A-10", "A-20", "B-30", "B-40"]);
   });
 });
