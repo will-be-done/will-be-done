@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@types/sql.js": "^1.4.9",
+    "es": "^0.8.0",
+    "es-toolkit": "^1.35.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sql.js": "^1.13.0"

@@ -59,6 +59,12 @@ importers:
       '@types/sql.js':
         specifier: ^1.4.9
         version: 1.4.9
+      es:
+        specifier: ^0.8.0
+        version: 0.8.0
+      es-toolkit:
+        specifier: ^1.35.0
+        version: 1.35.0
       react:
         specifier: ^19.1.0
         version: 19.1.0
@@ -586,6 +592,10 @@ packages:
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
+
+  '@babel/runtime-corejs3@7.27.6':
+    resolution: {integrity: sha512-vDVrlmRAY8z9Ul/HxT+8ceAru95LQgkSKiXkSYZvqtbkPSfhZJgpRp45Cldbh1GJ1kxzQkI70AqyrTI58KpaWQ==}
+    engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.27.0':
     resolution: {integrity: sha512-VtPOkrdPHZsKc/clNqyi9WUA8TINkZ4cGk63UUE3u4pmB2k+ZMQRDuIOagv8UVd6j7k0T3+RRIb7beKTebNbcw==}
@@ -2608,6 +2618,9 @@ packages:
     resolution: {integrity: sha512-9Kr/j4O16ISv8zBBhJoi4bXOYNTkFLOqSL3UDB0njXxCXNezjeyVrJyGOWtgfs/q2km1gwBcfH8q1yEGoMYunA==}
     engines: {node: '>=18'}
 
+  core-js-pure@3.43.0:
+    resolution: {integrity: sha512-i/AgxU2+A+BbJdMxh3v7/vxi2SbFqxiFmg6VsDwYB4jkucrd1BZNA9a9gphC0fYMG5IBSgQcbQnk865VCLe7xA==}
+
   core-util-is@1.0.2:
     resolution: {integrity: sha512-3lqz5YjWTYnW6dlDa5TLaTCcShfar1e40rmcJVwCBJC6mWlFuj0eCHIElmG1g5kyuJ/GD+8Wn4FFCcz4gJPfaQ==}
 
@@ -2787,6 +2800,10 @@ packages:
 
   es6-promise@2.0.1:
     resolution: {integrity: sha512-0RBMKyLahxssuXDDS9zjzquXG/HMFRGEuG0K0w+BV/g6Zurm3/VyzuxlefeHLxroW4cmsISDa/7jcmAY5OMTSQ==}
+
+  es@0.8.0:
+    resolution: {integrity: sha512-v2tAXZCtqh6NbWUr+5KLYmvYa5O0fZNcn4AZYFtkTx6aEunEW7OdbtVe60ROaOEEapHGvjXdTvnrh34HxLDGvQ==}
+    engines: {node: '>= 6.0'}
 
   esbuild@0.24.2:
     resolution: {integrity: sha512-+9egpBW8I3CD5XPe0n6BfT5fxLzxrlDzqydF3aviG+9ni1lDC/OvMHcxqEFV0+LANZG5R1bFMWfUrjVsdwxJvA==}
@@ -3983,6 +4000,9 @@ packages:
     resolution: {integrity: sha512-dYqgNSZbDwkaJ2ceRd9ojCGjBq+mOm9LmtXnAnEGyHhN/5R7iDW2TRw3h+o/jCFxus3P2LfWIIiwowAjANm7IA==}
     engines: {node: '>= 0.4'}
 
+  reqlib@1.0.13:
+    resolution: {integrity: sha512-rOTp+ANgEDlfMAjN9/0DV2b5Jkx4eD8F/jsWSOphrXzhV8zSiLOKifDXDUOTgxFjlARnUDsUCiL3FKGC6Irm7g==}
+
   request@2.88.2:
     resolution: {integrity: sha512-MsvtOrfG9ZcrOwAW+Qi+F6HbD0CWXEh9ou77uOb7FM2WPhwT7smM833PzanhJLsgXjN89Ir6V2PczXNnMpwKhw==}
     engines: {node: '>= 6'}
@@ -5036,6 +5056,10 @@ snapshots:
     dependencies:
       '@babel/core': 7.27.7
       '@babel/helper-plugin-utils': 7.27.1
+
+  '@babel/runtime-corejs3@7.27.6':
+    dependencies:
+      core-js-pure: 3.43.0
 
   '@babel/runtime@7.27.0':
     dependencies:
@@ -6983,6 +7007,8 @@ snapshots:
 
   cookie@1.0.2: {}
 
+  core-js-pure@3.43.0: {}
+
   core-util-is@1.0.2: {}
 
   cross-spawn@7.0.6:
@@ -7163,6 +7189,11 @@ snapshots:
   es-toolkit@1.35.0: {}
 
   es6-promise@2.0.1: {}
+
+  es@0.8.0:
+    dependencies:
+      '@babel/runtime-corejs3': 7.27.6
+      reqlib: 1.0.13
 
   esbuild@0.24.2:
     optionalDependencies:
@@ -8437,6 +8468,10 @@ snapshots:
       get-proto: 1.0.1
       gopd: 1.2.0
       set-function-name: 2.0.2
+
+  reqlib@1.0.13:
+    dependencies:
+      '@babel/runtime-corejs3': 7.27.6
 
   request@2.88.2:
     dependencies:

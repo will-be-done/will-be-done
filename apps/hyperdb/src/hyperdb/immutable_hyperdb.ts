@@ -218,38 +218,155 @@ class DatabaseVersion {
 // Transaction provides a mutable interface over immutable versions
 export class Transaction {
   private currentVersion: DatabaseVersion;
-  private readonly operations: Array<{ type: string; indexName: string; key: string; value: any }> = [];
+  private readonly operations: Array<{ type: string; tableName: string; record: any }> = [];
+  private readonly tableDefinitions: Map<string, TableDefinition<any>>;
 
-  constructor(baseVersion: DatabaseVersion) {
+  constructor(baseVersion: DatabaseVersion, tableDefinitions: Map<string, TableDefinition<any>>) {
     this.currentVersion = baseVersion;
+    this.tableDefinitions = tableDefinitions;
   }
 
-  insert<T>(indexName: string, key: string, value: T): void {
-    this.operations.push({ type: 'insert', indexName, key, value });
+  insert<T extends { id: string }>(tableName: string, record: T): void {
+    this.operations.push({ type: 'insert', tableName, record });
     
-    const currentIndex = this.currentVersion.getIndex<T>(indexName);
-    if (!currentIndex) {
-      // Create new index
-      const newRoot = new ImmutableBTreeNode<T>(
-        generateNodeId(),
-        true, // isLeaf
-        [key],
-        [value],
-        [],
-        1
-      );
-      this.currentVersion = this.currentVersion.withUpdatedIndex(indexName, newRoot);
-    } else {
-      // For primary indexes (ending with '_ids'), remove existing entries first
-      if (indexName.endsWith('_ids')) {
-        const newRoot = this.insertWithReplace(currentIndex, key, value);
-        this.currentVersion = this.currentVersion.withUpdatedIndex(indexName, newRoot);
-      } else {
-        // For secondary indexes, always allow duplicates - just insert
-        const newRoot = currentIndex.insert(key, value);
-        this.currentVersion = this.currentVersion.withUpdatedIndex(indexName, newRoot);
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    // Remove old record from all indexes if it exists (for updates)
+    const existingRecord = this.getRecordById(tableName, record.id);
+    if (existingRecord) {
+      this.removeFromAllIndexes(tableDef, existingRecord);
+    }
+
+    // Insert new record into all indexes
+    this.insertIntoAllIndexes(tableDef, record);
+  }
+
+  private getRecordById<T>(tableName: string, id: string): T | null {
+    const primaryIndexName = `${tableName}_ids`;
+    const primaryIndex = this.currentVersion.getIndex<T>(primaryIndexName);
+    if (!primaryIndex) return null;
+
+    // Scan for the specific ID
+    for (const record of primaryIndex.scan({ gte: id, lte: id })) {
+      if ((record as any).id === id) {
+        return record;
       }
     }
+    return null;
+  }
+
+  private removeFromAllIndexes<T>(tableDef: TableDefinition<T>, record: T & { id: string }): void {
+    // Remove from primary index
+    const primaryIndexName = `${tableDef.name}_ids`;
+    const primaryIndex = this.currentVersion.getIndex<T>(primaryIndexName);
+    if (primaryIndex) {
+      const newPrimaryIndex = this.removeByKey(primaryIndex, record.id);
+      this.currentVersion = this.currentVersion.withUpdatedIndex(primaryIndexName, newPrimaryIndex);
+    }
+
+    // Remove from all secondary indexes
+    for (const [indexName, columns] of Object.entries(tableDef.indexes)) {
+      const fullIndexName = `${tableDef.name}_${indexName}`;
+      const index = this.currentVersion.getIndex<T>(fullIndexName);
+      if (index) {
+        const key = this.buildIndexKey(record, columns, true); // Include ID for secondary indexes
+        // For secondary indexes, we can now remove by unique key
+        const newIndex = this.removeByKey(index, key);
+        this.currentVersion = this.currentVersion.withUpdatedIndex(fullIndexName, newIndex);
+      }
+    }
+  }
+
+  private insertIntoAllIndexes<T>(tableDef: TableDefinition<T>, record: T & { id: string }): void {
+    // Insert into primary index (unique by ID)
+    const primaryIndexName = `${tableDef.name}_ids`;
+    let primaryIndex = this.currentVersion.getIndex<T>(primaryIndexName);
+    if (!primaryIndex) {
+      primaryIndex = new ImmutableBTreeNode<T>(
+        generateNodeId(),
+        true,
+        [],
+        [],
+        [],
+        0
+      );
+    }
+    const newPrimaryIndex = primaryIndex.insert(record.id, record);
+    this.currentVersion = this.currentVersion.withUpdatedIndex(primaryIndexName, newPrimaryIndex);
+
+    // Insert into all secondary indexes (allow duplicates)
+    for (const [indexName, columns] of Object.entries(tableDef.indexes)) {
+      const fullIndexName = `${tableDef.name}_${indexName}`;
+      let index = this.currentVersion.getIndex<T>(fullIndexName);
+      if (!index) {
+        index = new ImmutableBTreeNode<T>(
+          generateNodeId(),
+          true,
+          [],
+          [],
+          [],
+          0
+        );
+      }
+      const key = this.buildIndexKey(record, columns, true); // Include ID for secondary indexes
+      const newIndex = index.insert(key, record);
+      this.currentVersion = this.currentVersion.withUpdatedIndex(fullIndexName, newIndex);
+    }
+  }
+
+  private buildIndexKey<T>(record: T, columns: (keyof T)[], includeId: boolean = false): string {
+    const keyParts = columns.map(col => String(record[col]));
+    if (includeId && (record as any).id) {
+      keyParts.push(String((record as any).id));
+    }
+    return keyParts.join('\x00');
+  }
+
+  private removeSpecificRecord<T>(node: BTreeNode<T>, targetKey: string, targetRecord: T): BTreeNode<T> {
+    if (node.isLeaf) {
+      const newKeys: string[] = [];
+      const newValues: T[] = [];
+      let newSize = 0;
+
+      for (let i = 0; i < node.keys.length; i++) {
+        // Only remove if both key and record match (for secondary indexes with duplicates)
+        if (node.keys[i] !== targetKey || !this.recordsEqual(node.values![i], targetRecord)) {
+          newKeys.push(node.keys[i]);
+          newValues.push(node.values![i]);
+          newSize++;
+        }
+      }
+
+      return new ImmutableBTreeNode(
+        generateNodeId(),
+        true,
+        newKeys,
+        newValues,
+        [],
+        newSize
+      );
+    } else {
+      // For internal nodes, recursively remove from children
+      const newChildren = node.children!.map(child => this.removeSpecificRecord(child, targetKey, targetRecord));
+      const newSize = newChildren.reduce((sum, child) => sum + child.size, 0);
+
+      return new ImmutableBTreeNode(
+        generateNodeId(),
+        false,
+        node.keys,
+        [],
+        newChildren,
+        newSize
+      );
+    }
+  }
+
+  private recordsEqual<T>(a: T, b: T): boolean {
+    // Simple equality check - in a real implementation you might want something more sophisticated
+    return JSON.stringify(a) === JSON.stringify(b);
   }
 
   private insertWithReplace<T>(index: BTreeNode<T>, key: string, value: T): BTreeNode<T> {
@@ -298,29 +415,54 @@ export class Transaction {
   }
 
   *scan<T>(
+    tableName: string,
     indexName: string,
     options: {
-      gte?: string;
-      lte?: string;
-      gt?: string;
-      lt?: string;
+      gte?: any[];
+      lte?: any[];
+      gt?: any[];
+      lt?: any[];
       reverse?: boolean;
       limit?: number;
     } = {}
   ): Generator<T> {
-    const index = this.currentVersion.getIndex<T>(indexName);
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    const fullIndexName = indexName === 'ids' ? `${tableName}_ids` : `${tableName}_${indexName}`;
+    const index = this.currentVersion.getIndex<T>(fullIndexName);
     if (!index) {
       return;
     }
 
+    // Convert tuple options to string keys
+    const stringOptions = {
+      gte: options.gte ? this.tupleToKey(options.gte) : undefined,
+      lte: options.lte ? this.tupleToKey(options.lte) : undefined,
+      gt: options.gt ? this.tupleToKey(options.gt) : undefined,
+      lt: options.lt ? this.tupleToKey(options.lt) : undefined,
+      reverse: options.reverse,
+      limit: options.limit
+    };
+
     let count = 0;
-    for (const item of index.scan(options)) {
+    for (const item of index.scan(stringOptions)) {
       if (options.limit && count >= options.limit) {
         break;
       }
       yield item;
       count++;
     }
+  }
+
+  private tupleToKey(tuple: any[]): string {
+    return tuple.map(v => this.encodeValue(v)).join('\x00');
+  }
+
+  private encodeValue(value: any): string {
+    return String(value);
   }
 
   // Get the final version (for commit)
@@ -339,6 +481,8 @@ export class ImmutableHyperDB {
   private currentVersion: DatabaseVersion;
   private versionHistory: DatabaseVersion[] = [];
   private readonly maxHistorySize: number;
+  private readonly tableDefinitions = new Map<string, TableDefinition<any>>();
+  private activeTransaction: Transaction | null = null;
 
   constructor(maxHistorySize: number = 10) {
     this.maxHistorySize = maxHistorySize;
@@ -346,13 +490,26 @@ export class ImmutableHyperDB {
     this.versionHistory.push(this.currentVersion);
   }
 
+  // Register a table schema
+  registerTable<T>(tableDef: TableDefinition<T>): void {
+    this.tableDefinitions.set(tableDef.name, tableDef);
+  }
+
   // Start a new transaction
   beginTransaction(): Transaction {
-    return new Transaction(this.currentVersion);
+    if (this.activeTransaction) {
+      throw new Error("Another transaction is already active. Only one transaction allowed at a time.");
+    }
+    this.activeTransaction = new Transaction(this.currentVersion, this.tableDefinitions);
+    return this.activeTransaction;
   }
 
   // Commit a transaction
   commit(transaction: Transaction): void {
+    if (this.activeTransaction !== transaction) {
+      throw new Error("Cannot commit transaction that is not the active transaction");
+    }
+    
     const transactionVersion = transaction.getVersion();
     const newVersion = transactionVersion.withNewVersionId();
     this.currentVersion = newVersion;
@@ -362,39 +519,90 @@ export class ImmutableHyperDB {
     if (this.versionHistory.length > this.maxHistorySize) {
       this.versionHistory.shift();
     }
+    
+    // Clear active transaction
+    this.activeTransaction = null;
   }
 
   // Rollback is implicit - just don't commit the transaction
   rollback(transaction: Transaction): void {
+    if (this.activeTransaction === transaction) {
+      this.activeTransaction = null;
+    }
     // No-op - transaction is just discarded
     // The beauty of immutable structures!
   }
 
   // Read operations (can be done without transaction)
   *scan<T>(
+    tableName: string,
     indexName: string,
     options: {
-      gte?: string;
-      lte?: string;
-      gt?: string;
-      lt?: string;
+      gte?: any[];
+      lte?: any[];
+      gt?: any[];
+      lt?: any[];
       reverse?: boolean;
       limit?: number;
     } = {}
   ): Generator<T> {
-    const index = this.currentVersion.getIndex<T>(indexName);
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    const fullIndexName = indexName === 'ids' ? `${tableName}_ids` : `${tableName}_${indexName}`;
+    const index = this.currentVersion.getIndex<T>(fullIndexName);
     if (!index) {
       return;
     }
 
+    // Convert tuple options to string keys
+    // For secondary indexes, we need to handle the fact that keys include record ID
+    const isSecondaryIndex = indexName !== 'ids';
+    let stringOptions;
+    
+    if (isSecondaryIndex) {
+      // For secondary indexes, we use prefix matching since keys have ID appended
+      const gtePrefix = options.gte ? this.tupleToKey(options.gte) : undefined;
+      const ltePrefix = options.lte ? this.tupleToKey(options.lte) : undefined;
+      
+      stringOptions = {
+        gte: gtePrefix,
+        lte: ltePrefix ? ltePrefix + '\xFF' : undefined, // \xFF is greater than any ID
+        gt: options.gt ? this.tupleToKey(options.gt) : undefined,
+        lt: options.lt ? this.tupleToKey(options.lt) + '\xFF' : undefined,
+        reverse: options.reverse,
+        limit: options.limit
+      };
+    } else {
+      // Primary index uses exact keys
+      stringOptions = {
+        gte: options.gte ? this.tupleToKey(options.gte) : undefined,
+        lte: options.lte ? this.tupleToKey(options.lte) : undefined,
+        gt: options.gt ? this.tupleToKey(options.gt) : undefined,
+        lt: options.lt ? this.tupleToKey(options.lt) : undefined,
+        reverse: options.reverse,
+        limit: options.limit
+      };
+    }
+
     let count = 0;
-    for (const item of index.scan(options)) {
+    for (const item of index.scan(stringOptions)) {
       if (options.limit && count >= options.limit) {
         break;
       }
       yield item;
       count++;
     }
+  }
+
+  private tupleToKey(tuple: any[]): string {
+    return tuple.map(v => this.encodeValue(v)).join('\x00');
+  }
+
+  private encodeValue(value: any): string {
+    return String(value);
   }
 
   // Get current version info
@@ -421,7 +629,7 @@ export class ImmutableHyperDB {
   // Create read-only transaction from specific version
   beginTransactionFromVersion(versionId: number): Transaction | undefined {
     const version = this.getVersionSnapshot(versionId);
-    return version ? new Transaction(version) : undefined;
+    return version ? new Transaction(version, this.tableDefinitions) : undefined;
   }
 }
 
@@ -444,113 +652,5 @@ export function table<T>(
   return { name, indexes };
 }
 
-// Higher-level API that combines multiple indexes per table
-export class TypedImmutableHyperDB {
-  private db = new ImmutableHyperDB();
-  private tableDefinitions = new Map<string, TableDefinition<any>>();
-
-  registerTable<T>(tableDef: TableDefinition<T>): void {
-    this.tableDefinitions.set(tableDef.name, tableDef);
-  }
-
-  beginTransaction(): TypedTransaction {
-    return new TypedTransaction(this.db.beginTransaction(), this.tableDefinitions);
-  }
-
-  commit(transaction: TypedTransaction): void {
-    this.db.commit(transaction.getInternalTransaction());
-  }
-
-  rollback(transaction: TypedTransaction): void {
-    this.db.rollback(transaction.getInternalTransaction());
-  }
-
-  *scan<T>(
-    tableDef: TableDefinition<T>,
-    indexName: string,
-    options: {
-      gte?: any[];
-      lte?: any[];
-      gt?: any[];
-      lt?: any[];
-      reverse?: boolean;
-      limit?: number;
-    } = {}
-  ): Generator<T> {
-    const fullIndexName = `${tableDef.name}_${indexName}`;
-    
-    // Convert tuple options to string keys
-    const stringOptions = {
-      gte: options.gte ? this.tupleToKey(options.gte) : undefined,
-      lte: options.lte ? this.tupleToKey(options.lte) : undefined,
-      gt: options.gt ? this.tupleToKey(options.gt) : undefined,
-      lt: options.lt ? this.tupleToKey(options.lt) : undefined,
-      reverse: options.reverse,
-      limit: options.limit
-    };
-
-    yield* this.db.scan<T>(fullIndexName, stringOptions);
-  }
-
-  private tupleToKey(tuple: any[]): string {
-    return tuple.map(v => String(v)).join('\x00');
-  }
-}
-
-export class TypedTransaction {
-  constructor(
-    private transaction: Transaction,
-    private tableDefinitions: ReadonlyMap<string, TableDefinition<any>>
-  ) {}
-
-  insert<T>(tableDef: TableDefinition<T>, record: T & { id: string }): void {
-    // Insert into all indexes for this table
-    for (const [indexName, columns] of Object.entries(tableDef.indexes)) {
-      const fullIndexName = `${tableDef.name}_${indexName}`;
-      const key = this.buildIndexKey(record, columns);
-      this.transaction.insert(fullIndexName, key, record);
-    }
-
-    // Always insert into primary index (by id)
-    const primaryIndexName = `${tableDef.name}_ids`;
-    this.transaction.insert(primaryIndexName, record.id, record);
-  }
-
-  *scan<T>(
-    tableDef: TableDefinition<T>,
-    indexName: string,
-    options: {
-      gte?: any[];
-      lte?: any[];
-      gt?: any[];
-      lt?: any[];
-      reverse?: boolean;
-      limit?: number;
-    } = {}
-  ): Generator<T> {
-    const fullIndexName = `${tableDef.name}_${indexName}`;
-    
-    const stringOptions = {
-      gte: options.gte ? this.tupleToKey(options.gte) : undefined,
-      lte: options.lte ? this.tupleToKey(options.lte) : undefined,
-      gt: options.gt ? this.tupleToKey(options.gt) : undefined,
-      lt: options.lt ? this.tupleToKey(options.lt) : undefined,
-      reverse: options.reverse,
-      limit: options.limit
-    };
-
-    yield* this.transaction.scan<T>(fullIndexName, stringOptions);
-  }
-
-  getInternalTransaction(): Transaction {
-    return this.transaction;
-  }
-
-  private buildIndexKey<T>(record: T, columns: (keyof T)[]): string {
-    return columns.map(col => String(record[col])).join('\x00');
-  }
-
-  private tupleToKey(tuple: any[]): string {
-    return tuple.map(v => String(v)).join('\x00');
-  }
-}
+// Type alias for the main database - now it's all unified
+export { ImmutableHyperDB as TypedImmutableHyperDB };
