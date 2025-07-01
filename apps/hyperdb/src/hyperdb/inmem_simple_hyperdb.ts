@@ -230,13 +230,13 @@ function* selectKey(
       continue;
     }
 
-    yield value;
-    count++;
-
-    // Check limit
-    if (limit && count >= limit) {
+    // Check limit before yielding
+    if (limit !== undefined && count >= limit) {
       break;
     }
+
+    yield value;
+    count++;
   }
 }
 
@@ -289,10 +289,10 @@ export class InmemDriver implements DBDriver {
     }
     const index = tableData.indexes[indexName as string];
 
-    for (const data of selectKey(
-      index,
-      normalizeTupleBounds(options || {}, index.columns.length),
-    )) {
+    const normalizedBounds = normalizeTupleBounds(options || {}, index.columns.length);
+    const scanOptions = { ...normalizedBounds, limit: options?.limit };
+
+    for (const data of selectKey(index, scanOptions)) {
       yield data;
     }
   }
@@ -339,7 +339,7 @@ export class SqlDriver implements DBDriver {
   ): Generator<unknown> {
     const { where, params } = this.buildWhereClause(indexName, table, options);
     const orderClause = this.buildOrderClause(indexName, table);
-    const limitClause = options.limit ? `LIMIT ${options.limit}` : "";
+    const limitClause = options.limit !== undefined ? `LIMIT ${options.limit}` : "";
 
     const sql = `
       SELECT data FROM ${table}
@@ -384,27 +384,36 @@ export class SqlDriver implements DBDriver {
     const conditions: string[] = [];
     const params: any[] = [];
 
-    const buildColumnComparison = (operator: string, values: Tuple) => {
-      // JSON path comparisons for composite indexes
-      for (let i = 0; i < Math.min(values.length, indexColumns.length); i++) {
-        const col = indexColumns[i];
-        const jsonPath = `json_extract(data, '$.${String(col)}')`;
-        conditions.push(`${jsonPath} ${operator} ?`);
-        params.push(values[i]);
+    // Handle tuple comparisons using row value constructors (supported in SQLite)
+    const buildTupleComparison = (operator: string, values: Tuple) => {
+      const columnPaths = indexColumns.slice(0, values.length).map(col => 
+        `json_extract(data, '$.${String(col)}')`
+      );
+      
+      if (values.length === 1) {
+        // Simple case: single column
+        conditions.push(`${columnPaths[0]} ${operator} ?`);
+        params.push(values[0]);
+      } else {
+        // Use row value constructor for tuple comparison
+        const columnList = columnPaths.join(', ');
+        const valueList = values.map(() => '?').join(', ');
+        conditions.push(`(${columnList}) ${operator} (${valueList})`);
+        params.push(...values);
       }
     };
 
     if (options.gt) {
-      buildColumnComparison(">", options.gt);
+      buildTupleComparison(">", options.gt);
     }
     if (options.gte) {
-      buildColumnComparison(">=", options.gte);
+      buildTupleComparison(">=", options.gte);
     }
     if (options.lt) {
-      buildColumnComparison("<", options.lt);
+      buildTupleComparison("<", options.lt);
     }
     if (options.lte) {
-      buildColumnComparison("<=", options.lte);
+      buildTupleComparison("<=", options.lte);
     }
 
     const whereClause =
