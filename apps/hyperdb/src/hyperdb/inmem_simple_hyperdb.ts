@@ -1,12 +1,46 @@
-import { orderBy } from "es-toolkit";
+import { orderBy, sortBy, omitBy } from "es-toolkit";
+import initSqlJs, { type Database } from "sql.js";
 
 type ScanOptions = {
-  lte?: unknown[];
-  gte?: unknown[];
-  lt?: unknown[];
-  gt?: unknown[];
+  // prefix?: Tuple;
+  lte?: Tuple;
+  gte?: Tuple;
+  lt?: Tuple;
+  gt?: Tuple;
   limit?: number;
 };
+type Bounds = {
+  /** This prevents developers from accidentally using ScanArgs instead of TupleBounds */
+  prefix?: never;
+  gte?: Tuple;
+  gt?: Tuple;
+  lte?: Tuple;
+  lt?: Tuple;
+};
+
+export const MIN = Symbol("MIN");
+export const MAX = Symbol("MAX");
+
+function normalizeTupleBounds(args: ScanOptions, tupleCount: number): Bounds {
+  let gte: Tuple | undefined;
+  let gt: Tuple | undefined;
+  let lte: Tuple | undefined;
+  let lt: Tuple | undefined;
+
+  if (args.gte) {
+    gte = [...args.gte, ...new Array(tupleCount - args.gte.length).fill(MIN)];
+  } else if (args.gt) {
+    gt = [...args.gt, ...new Array(tupleCount - args.gt.length).fill(MIN)];
+  }
+
+  if (args.lte) {
+    lte = [...args.lte, ...new Array(tupleCount - args.lte.length).fill(MAX)];
+  } else if (args.lt) {
+    lt = [...args.lt, ...new Array(tupleCount - args.lt.length).fill(MAX)];
+  }
+
+  return omitBy({ gte, gt, lte, lt }, (x) => x === undefined);
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Base schema type that all table records must extend
@@ -14,7 +48,7 @@ type TableSchema = Record<string, unknown> & { id: string };
 
 // Index definition maps index names to arrays of column names
 type IndexDefinition<T extends TableSchema> = {
-  [indexName: string]: { path: (keyof T)[]; value: keyof T | typeof SELF };
+  [indexName: string]: { cols: (keyof T)[] };
 };
 
 // Table definition combines name with its indexes and schema type
@@ -32,8 +66,6 @@ export function table<T extends TableSchema>(
   return { name, indexes };
 }
 
-export const SELF = Symbol("self");
-
 // Extract schema type from table definition
 type ExtractSchema<T> = T extends TableDefinition<infer S> ? S : never;
 
@@ -43,29 +75,120 @@ type FindTableByName<
   TName extends string,
 > = Extract<TTables[number], { name: TName }>;
 
-type Index = {
+type InmemIndex = {
   isUnique: boolean;
   columns: string[];
-  valueDef: typeof SELF | string;
-  data: { keys: unknown[]; value: unknown }[];
+  data: { keys: Tuple; value: unknown }[];
 };
 
-function compareKeys(keys1: unknown[], keys2: unknown[]): number {
-  const minLength = Math.min(keys1.length, keys2.length);
+const encodingByte = {
+  null: "b",
+  integer: "c",
+  float: "d",
+  string: "e",
+  virtual: "z",
+} as const;
 
-  for (let i = 0; i < minLength; i++) {
-    const val1 = keys1[i];
-    const val2 = keys2[i];
-
-    if (val1 < val2) return -1;
-    if (val1 > val2) return 1;
+export class UnreachableError extends Error {
+  constructor(obj: never, message?: string) {
+    super((message + ": " || "Unreachable: ") + obj);
   }
-
-  // If all compared values are equal, compare by length
-  return keys1.length - keys2.length;
 }
 
-function insertKey(index: Index, keys: unknown[], value: unknown): Index {
+export type Value = string | number | boolean | null | typeof MIN | typeof MAX;
+export type Tuple = Value[];
+type EncodingType = keyof typeof encodingByte;
+export const encodingRank = sortBy(
+  Object.entries(encodingByte) as [EncodingType, string][],
+  [(obj: [EncodingType, string]): string => obj[1]],
+).map(([key]) => key as EncodingType);
+
+export function compare<K extends string | number | boolean>(
+  a: K,
+  b: K,
+): number {
+  if (a > b) {
+    return 1;
+  }
+  if (a < b) {
+    return -1;
+  }
+  return 0;
+}
+
+export function encodingTypeOf(value: Value): EncodingType {
+  if (value === null) {
+    return "null";
+  }
+  if (value === true || value === false) {
+    return "integer";
+  }
+  if (typeof value === "string") {
+    return "string";
+  }
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return "integer";
+  }
+  if (typeof value === "number") {
+    return "float";
+  }
+  if (value === MIN || value === MAX) {
+    return "virtual";
+  }
+
+  throw new UnreachableError(value, "Unknown value type");
+}
+
+export function compareValue(a: Value, b: Value): number {
+  const at = encodingTypeOf(a);
+  const bt = encodingTypeOf(b);
+  if (at === bt) {
+    if (at === "integer") {
+      return compare(a as number, b as number);
+    } else if (at === "float") {
+      return compare(a as number, b as number);
+    } else if (at === "null") {
+      return 0;
+    } else if (at === "string") {
+      return compare(a as string, b as string);
+    } else if (at === "virtual") {
+      throw new Error("Cannot save virtual values into tuple");
+    } else {
+      throw new UnreachableError(at);
+    }
+  }
+
+  if (b == MIN) {
+    return 1;
+  }
+  if (b == MAX) {
+    return -1;
+  }
+
+  return compare(encodingRank.indexOf(at), encodingRank.indexOf(bt));
+}
+
+export function compareTuple(a: Tuple, b: Tuple) {
+  const len = Math.min(a.length, b.length);
+
+  for (let i = 0; i < len; i++) {
+    const dir = compareValue(a[i], b[i]);
+    if (dir === 0) {
+      continue;
+    }
+    return dir;
+  }
+
+  if (a.length > b.length) {
+    return 1;
+  } else if (a.length < b.length) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+function insertKey(index: InmemIndex, keys: Tuple, value: unknown): InmemIndex {
   const newData = orderBy(
     [...index.data, { keys, value }],
     keys.map((_, i) => (obj) => obj.keys[i]),
@@ -79,7 +202,7 @@ function insertKey(index: Index, keys: unknown[], value: unknown): Index {
 }
 
 function* selectKey(
-  index: Index,
+  index: InmemIndex,
   scanOptions: ScanOptions,
 ): Generator<unknown> {
   const { gte, lte, gt, lt, limit } = scanOptions;
@@ -88,22 +211,22 @@ function* selectKey(
 
   for (const { keys, value } of data) {
     // Check greater than or equal (gte)
-    if (gte && compareKeys(keys, gte) < 0) {
+    if (gte && compareTuple(keys, gte) < 0) {
       continue;
     }
 
     // Check greater than (gt)
-    if (gt && compareKeys(keys, gt) <= 0) {
+    if (gt && compareTuple(keys, gt) <= 0) {
       continue;
     }
 
     // Check less than or equal (lte)
-    if (lte && compareKeys(keys, lte) > 0) {
+    if (lte && compareTuple(keys, lte) > 0) {
       continue;
     }
 
     // Check less than (lt)
-    if (lt && compareKeys(keys, lt) >= 0) {
+    if (lt && compareTuple(keys, lt) >= 0) {
       continue;
     }
 
@@ -117,26 +240,36 @@ function* selectKey(
   }
 }
 
-export class InmemDB<TTables extends readonly TableDefinition<any>[]> {
-  // private tableDefinitions = new Map<string, TTables[number]>();
+interface DBDriver {
+  loadTables(table: TableDefinition<any>[]): void;
+  selectKey(
+    table: string,
+    indexName: string,
+    options: ScanOptions,
+  ): Generator<unknown>;
+  insert(tableName: string, values: Record<string, unknown>[]): void;
+}
+
+export class InmemDriver implements DBDriver {
   data = new Map<
-    TTables[number]["name"],
+    string,
     {
-      indexes: Record<string, Index>;
+      indexes: Record<string, InmemIndex>;
     }
   >();
 
-  constructor(tables: TTables) {
+  constructor() {}
+
+  loadTables(tables: TableDefinition<any>[]): void {
     for (const tableDef of tables) {
       // this.tableDefinitions.set(tableDef.name, tableDef);
-      const indexes: Record<string, Index> = {};
+      const indexes: Record<string, InmemIndex> = {};
 
       for (const [indexName, columns] of Object.entries(tableDef.indexes)) {
         indexes[indexName] = {
           isUnique: false,
           data: [],
-          columns: columns.path as string[],
-          valueDef: columns.value as string | typeof SELF,
+          columns: columns.cols as string[],
         };
       }
       this.data.set(tableDef.name, {
@@ -145,49 +278,263 @@ export class InmemDB<TTables extends readonly TableDefinition<any>[]> {
     }
   }
 
-  // Scan method with proper return typing
-  *scan<TName extends TTables[number]["name"]>(
-    table: FindTableByName<TTables, TName>,
-    indexName: keyof FindTableByName<TTables, TName>["indexes"],
-    options?: ScanOptions,
-  ): Generator<ExtractSchema<FindTableByName<TTables, TName>>> {
-    const tableName = table.name;
+  *selectKey(
+    tableName: string,
+    indexName: string,
+    options: ScanOptions,
+  ): Generator<unknown> {
     const tableData = this.data.get(tableName);
     if (!tableData) {
       throw new Error(`Table ${tableName} not found`);
     }
     const index = tableData.indexes[indexName as string];
 
-    for (const data of selectKey(index, options || {})) {
+    for (const data of selectKey(
+      index,
+      normalizeTupleBounds(options || {}, index.columns.length),
+    )) {
+      yield data;
+    }
+  }
+
+  insert(tableName: string, values: Record<string, unknown>[]): void {
+    let tblData = this.data.get(tableName);
+    if (!tblData) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    for (const record of values) {
+      for (const [indexName, index] of Object.entries(tblData.indexes)) {
+        const newIndex = insertKey(
+          index,
+          index.columns.map((key) => record[key] as Value),
+          record,
+        );
+
+        tblData = {
+          ...tblData,
+          indexes: {
+            ...tblData.indexes,
+            [indexName]: newIndex,
+          },
+        };
+      }
+    }
+
+    this.data.set(tableName, tblData);
+  }
+}
+
+export class SqlDriver implements DBDriver {
+  private db: Database;
+  private tableDefinitions = new Map<string, TableDefinition<any>>();
+
+  constructor(db: Database) {
+    this.db = db;
+  }
+  *selectKey(
+    table: string,
+    indexName: string,
+    options: ScanOptions,
+  ): Generator<unknown> {
+    const { where, params } = this.buildWhereClause(indexName, table, options);
+    const orderClause = this.buildOrderClause(indexName, table);
+    const limitClause = options.limit ? `LIMIT ${options.limit}` : "";
+
+    const sql = `
+      SELECT data FROM ${table}
+      ${where}
+      ${orderClause}
+      ${limitClause}
+    `.trim();
+    console.log(sql);
+
+    const q = this.db.prepare(sql);
+    try {
+      q.bind(params);
+
+      while (q.step()) {
+        const res = q.get();
+
+        const record = JSON.parse(res[0] as string) as unknown;
+        yield record;
+      }
+    } catch (error) {
+      throw new Error(`Scan failed for index ${indexName}: ${error}`);
+    } finally {
+      q.free();
+    }
+  }
+
+  private buildWhereClause(
+    indexName: string,
+    tableName: string,
+    options: ScanOptions,
+  ): { where: string; params: any[] } {
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    const indexColumns = tableDef.indexes[indexName].cols;
+    if (!indexColumns) {
+      throw new Error(`Index ${indexName} not found on table ${tableName}`);
+    }
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    const buildColumnComparison = (operator: string, values: Tuple) => {
+      // JSON path comparisons for composite indexes
+      for (let i = 0; i < Math.min(values.length, indexColumns.length); i++) {
+        const col = indexColumns[i];
+        const jsonPath = `json_extract(data, '$.${String(col)}')`;
+        conditions.push(`${jsonPath} ${operator} ?`);
+        params.push(values[i]);
+      }
+    };
+
+    if (options.gt) {
+      buildColumnComparison(">", options.gt);
+    }
+    if (options.gte) {
+      buildColumnComparison(">=", options.gte);
+    }
+    if (options.lt) {
+      buildColumnComparison("<", options.lt);
+    }
+    if (options.lte) {
+      buildColumnComparison("<=", options.lte);
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    return { where: whereClause, params };
+  }
+
+  private buildOrderClause(
+    indexName: string,
+    tableName: string,
+    reverse: boolean = false,
+  ): string {
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) {
+      return "";
+    }
+
+    const indexColumns = tableDef.indexes[indexName];
+    if (!indexColumns) {
+      return "";
+    }
+
+    const orderColumns = indexColumns.cols
+      .map((col) => {
+        const jsonPath = `json_extract(data, '$.${String(col)}')`;
+        return `${jsonPath} ${reverse ? "DESC" : "ASC"}`;
+      })
+      .join(", ");
+
+    return `ORDER BY ${orderColumns}`;
+  }
+
+  insert(tableName: string, values: Record<string, unknown>[]): void {
+    const valuesQ = values.map(() => "(?, ?)").join(", ");
+    const insertSQL = `INSERT INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+
+    this.db.exec(
+      insertSQL,
+      // @ts-expect-error it's ok
+      values.flatMap((v) => [v.id, JSON.stringify(v)]),
+    );
+
+    console.log(insertSQL);
+  }
+
+  loadTables(tableDefinitions: TableDefinition<any>[]): void {
+    for (const tableDef of tableDefinitions) {
+      this.createTable(tableDef.name);
+      this.createIndexes(tableDef);
+      this.tableDefinitions.set(tableDef.name, tableDef);
+    }
+  }
+
+  private createTable(tableName: string): void {
+    // Create main table
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS ${tableName} (
+        id TEXT PRIMARY KEY,
+        data TEXT NOT NULL
+      )
+    `;
+    console.log(createTableSQL);
+    this.db.exec(createTableSQL);
+  }
+
+  private createIndexes(tableDef: TableDefinition<any>): void {
+    for (const [indexName, { cols }] of Object.entries(tableDef.indexes)) {
+      if (indexName !== "ids") {
+        // Create a composite index using JSON path expressions
+        const columnPaths = cols
+          .map((col) => `json_extract(data, '$.${String(col)}') ASC`)
+          .join(", ");
+        const createIndexSQL = `
+          CREATE INDEX IF NOT EXISTS idx_${tableDef.name}_${indexName} 
+          ON ${tableDef.name}(${columnPaths})
+        `;
+        console.log(createIndexSQL);
+        this.db.exec(createIndexSQL);
+      }
+    }
+  }
+
+  static async init() {
+    try {
+      // Try to use sql.js directly (works in Node.js with proper setup)
+      const SQL = await initSqlJs();
+
+      return new SqlDriver(new SQL.Database());
+    } catch (error) {
+      console.error(error);
+      throw new Error(
+        "sql.js is required but not available. Use HyperDBSQLite.create() for proper async initialization.",
+      );
+    }
+  }
+}
+
+export class DB<TTables extends TableDefinition<any>[]> {
+  data = new Map<
+    TTables[number]["name"],
+    {
+      indexes: Record<string, InmemIndex>;
+    }
+  >();
+  driver: DBDriver;
+
+  constructor(driver: DBDriver, tables: TTables) {
+    driver.loadTables(tables);
+    this.driver = driver;
+  }
+
+  // Scan method with proper return typing
+  *scan<TName extends TTables[number]["name"]>(
+    table: FindTableByName<TTables, TName>,
+    indexName: keyof FindTableByName<TTables, TName>["indexes"],
+    options?: ScanOptions,
+  ): Generator<ExtractSchema<FindTableByName<TTables, TName>>> {
+    for (const data of this.driver.selectKey(
+      table.name,
+      indexName as string,
+      options || {},
+    )) {
       yield data as ExtractSchema<FindTableByName<TTables, TName>>;
     }
   }
 
   insert<TName extends TTables[number]["name"]>(
     table: FindTableByName<TTables, TName>,
-    record: ExtractSchema<FindTableByName<TTables, TName>>,
+    records: ExtractSchema<FindTableByName<TTables, TName>>[],
   ) {
-    let tblData = this.data.get(table.name);
-    if (!tblData) {
-      throw new Error(`Table ${table.name} not found`);
-    }
-
-    for (const [indexName, index] of Object.entries(tblData.indexes)) {
-      const newIndex = insertKey(
-        index,
-        index.columns.map((key) => record[key]),
-        index.valueDef === SELF ? record : record[index.valueDef],
-      );
-
-      tblData = {
-        ...tblData,
-        indexes: {
-          ...tblData.indexes,
-          [indexName]: newIndex,
-        },
-      };
-    }
-
-    this.data.set(table.name, tblData);
+    this.driver.insert(table.name, records);
   }
 }

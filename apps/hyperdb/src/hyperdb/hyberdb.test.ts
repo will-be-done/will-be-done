@@ -42,7 +42,7 @@ describe("HyperDB", () => {
       id: "123",
       firstName: "Sergey",
       lastName: "Sova",
-      groupId: "356",
+      groupId: "356"u
     });
 
     // Find by group
