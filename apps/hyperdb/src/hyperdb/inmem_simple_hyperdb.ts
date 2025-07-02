@@ -1,5 +1,6 @@
 import { orderBy, sortBy, omitBy } from "es-toolkit";
 import initSqlJs, { type Database } from "sql.js";
+import { orderedArray } from "./ordered-array";
 
 type ScanOptions = {
   // prefix?: Tuple;
@@ -182,57 +183,6 @@ export function compareTuple(a: Tuple, b: Tuple) {
   }
 }
 
-function insertKey(index: InmemIndex, keys: Tuple, value: unknown): InmemIndex {
-  const newData = orderBy(
-    [...index.data, { keys, value }],
-    keys.map((_, i) => (obj) => obj.keys[i]),
-    keys.map(() => "asc"),
-  );
-
-  return {
-    ...index,
-    data: newData,
-  };
-}
-
-function* selectKey(
-  index: InmemIndex,
-  scanOptions: ScanOptions,
-): Generator<unknown> {
-  const { gte, lte, gt, lt, limit } = scanOptions;
-  const data = index.data;
-  let count = 0;
-
-  for (const { keys, value } of data) {
-    // Check greater than or equal (gte)
-    if (gte && compareTuple(keys, gte) < 0) {
-      continue;
-    }
-
-    // Check greater than (gt)
-    if (gt && compareTuple(keys, gt) <= 0) {
-      continue;
-    }
-
-    // Check less than or equal (lte)
-    if (lte && compareTuple(keys, lte) > 0) {
-      continue;
-    }
-
-    // Check less than (lt)
-    if (lt && compareTuple(keys, lt) >= 0) {
-      continue;
-    }
-
-    // Check limit before yielding
-    if (limit !== undefined && count >= limit) {
-      break;
-    }
-
-    yield value;
-    count++;
-  }
-}
 
 interface DBDriver {
   loadTables(table: TableDefinition<any>[]): void;
@@ -251,6 +201,11 @@ export class InmemDriver implements DBDriver {
       indexes: Record<string, InmemIndex>;
     }
   >();
+  
+  private orderedArrayHelper = orderedArray(
+    (item: { keys: Tuple; value: unknown }) => item.keys,
+    compareTuple
+  );
 
   constructor() {}
 
@@ -287,38 +242,52 @@ export class InmemDriver implements DBDriver {
       options || {},
       index.columns.length,
     );
-    const scanOptions = { ...normalizedBounds, limit: options?.limit };
+    const { gte, lte, gt, lt, limit } = { ...normalizedBounds, limit: options?.limit };
+    
+    let startIdx = 0;
+    let endIdx = index.data.length - 1;
 
-    for (const data of selectKey(index, scanOptions)) {
-      yield data;
+    // Find starting position using search
+    if (gte) {
+      const result = this.orderedArrayHelper.searchFirst(index.data, gte);
+      startIdx = result.found !== undefined ? result.found : result.closest;
+    } else if (gt) {
+      const result = this.orderedArrayHelper.searchLast(index.data, gt);
+      startIdx = result.found !== undefined ? result.found + 1 : result.closest;
+    }
+
+    // Find ending position using search
+    if (lte) {
+      const result = this.orderedArrayHelper.searchLast(index.data, lte);
+      endIdx = result.found !== undefined ? result.found : result.closest - 1;
+    } else if (lt) {
+      const result = this.orderedArrayHelper.searchFirst(index.data, lt);
+      endIdx = result.found !== undefined ? result.found - 1 : result.closest - 1;
+    }
+
+    let count = 0;
+    for (let i = startIdx; i <= endIdx && i < index.data.length; i++) {
+      if (limit !== undefined && count >= limit) {
+        break;
+      }
+      
+      yield index.data[i].value;
+      count++;
     }
   }
 
   insert(tableName: string, values: Record<string, unknown>[]): void {
-    let tblData = this.data.get(tableName);
+    const tblData = this.data.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
     }
 
     for (const record of values) {
-      for (const [indexName, index] of Object.entries(tblData.indexes)) {
-        const newIndex = insertKey(
-          index,
-          index.columns.map((key) => record[key] as Value),
-          record,
-        );
-
-        tblData = {
-          ...tblData,
-          indexes: {
-            ...tblData.indexes,
-            [indexName]: newIndex,
-          },
-        };
+      for (const index of Object.values(tblData.indexes)) {
+        const keys = index.columns.map((key) => record[key] as Value);
+        this.orderedArrayHelper.insertAfter(index.data, { keys, value: record });
       }
     }
-
-    this.data.set(tableName, tblData);
   }
 }
 
