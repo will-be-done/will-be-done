@@ -69,12 +69,6 @@ export function table<T extends TableSchema>(
 // Extract schema type from table definition
 type ExtractSchema<T> = T extends TableDefinition<infer S> ? S : never;
 
-// Extract table definition from table name
-type FindTableByName<
-  TTables extends readonly TableDefinition<any>[],
-  TName extends string,
-> = Extract<TTables[number], { name: TName }>;
-
 type InmemIndex = {
   isUnique: boolean;
   columns: string[];
@@ -289,7 +283,10 @@ export class InmemDriver implements DBDriver {
     }
     const index = tableData.indexes[indexName as string];
 
-    const normalizedBounds = normalizeTupleBounds(options || {}, index.columns.length);
+    const normalizedBounds = normalizeTupleBounds(
+      options || {},
+      index.columns.length,
+    );
     const scanOptions = { ...normalizedBounds, limit: options?.limit };
 
     for (const data of selectKey(index, scanOptions)) {
@@ -339,7 +336,8 @@ export class SqlDriver implements DBDriver {
   ): Generator<unknown> {
     const { where, params } = this.buildWhereClause(indexName, table, options);
     const orderClause = this.buildOrderClause(indexName, table);
-    const limitClause = options.limit !== undefined ? `LIMIT ${options.limit}` : "";
+    const limitClause =
+      options.limit !== undefined ? `LIMIT ${options.limit}` : "";
 
     const sql = `
       SELECT data FROM ${table}
@@ -386,18 +384,18 @@ export class SqlDriver implements DBDriver {
 
     // Handle tuple comparisons using row value constructors (supported in SQLite)
     const buildTupleComparison = (operator: string, values: Tuple) => {
-      const columnPaths = indexColumns.slice(0, values.length).map(col => 
-        `json_extract(data, '$.${String(col)}')`
-      );
-      
+      const columnPaths = indexColumns
+        .slice(0, values.length)
+        .map((col) => `json_extract(data, '$.${String(col)}')`);
+
       if (values.length === 1) {
         // Simple case: single column
         conditions.push(`${columnPaths[0]} ${operator} ?`);
         params.push(values[0]);
       } else {
         // Use row value constructor for tuple comparison
-        const columnList = columnPaths.join(', ');
-        const valueList = values.map(() => '?').join(', ');
+        const columnList = columnPaths.join(", ");
+        const valueList = values.map(() => "?").join(", ");
         conditions.push(`(${columnList}) ${operator} (${valueList})`);
         params.push(...values);
       }
@@ -481,18 +479,16 @@ export class SqlDriver implements DBDriver {
 
   private createIndexes(tableDef: TableDefinition<any>): void {
     for (const [indexName, { cols }] of Object.entries(tableDef.indexes)) {
-      if (indexName !== "ids") {
-        // Create a composite index using JSON path expressions
-        const columnPaths = cols
-          .map((col) => `json_extract(data, '$.${String(col)}') ASC`)
-          .join(", ");
-        const createIndexSQL = `
+      // Create a composite index using JSON path expressions
+      const columnPaths = cols
+        .map((col) => `json_extract(data, '$.${String(col)}') ASC`)
+        .join(", ");
+      const createIndexSQL = `
           CREATE INDEX IF NOT EXISTS idx_${tableDef.name}_${indexName} 
           ON ${tableDef.name}(${columnPaths})
         `;
-        console.log(createIndexSQL);
-        this.db.exec(createIndexSQL);
-      }
+      console.log(createIndexSQL);
+      this.db.exec(createIndexSQL);
     }
   }
 
@@ -511,38 +507,38 @@ export class SqlDriver implements DBDriver {
   }
 }
 
-export class DB<TTables extends TableDefinition<any>[]> {
+export class DB {
   data = new Map<
-    TTables[number]["name"],
+    string,
     {
       indexes: Record<string, InmemIndex>;
     }
   >();
   driver: DBDriver;
 
-  constructor(driver: DBDriver, tables: TTables) {
+  constructor(driver: DBDriver, tables: TableDefinition<any>[]) {
     driver.loadTables(tables);
     this.driver = driver;
   }
 
   // Scan method with proper return typing
-  *scan<TName extends TTables[number]["name"]>(
-    table: FindTableByName<TTables, TName>,
-    indexName: keyof FindTableByName<TTables, TName>["indexes"],
+  *scan<TTable extends TableDefinition<any>>(
+    table: TTable,
+    indexName: keyof TTable["indexes"],
     options?: ScanOptions,
-  ): Generator<ExtractSchema<FindTableByName<TTables, TName>>> {
+  ): Generator<ExtractSchema<TTable>> {
     for (const data of this.driver.selectKey(
       table.name,
       indexName as string,
       options || {},
     )) {
-      yield data as ExtractSchema<FindTableByName<TTables, TName>>;
+      yield data as ExtractSchema<TTable>;
     }
   }
 
-  insert<TName extends TTables[number]["name"]>(
-    table: FindTableByName<TTables, TName>,
-    records: ExtractSchema<FindTableByName<TTables, TName>>[],
+  insert<TTable extends TableDefinition<any>>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
   ) {
     this.driver.insert(table.name, records);
   }

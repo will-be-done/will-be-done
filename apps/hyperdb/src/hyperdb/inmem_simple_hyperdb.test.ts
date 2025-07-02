@@ -12,9 +12,19 @@ import {
   UnreachableError,
 } from "./inmem_simple_hyperdb";
 
+export const fractionalCompare = <T extends { id: string; orderToken: string }>(
+  item1: T,
+  item2: T,
+): number => {
+  if (item1.orderToken === item2.orderToken) {
+    return item1.id > item2.id ? 1 : -1;
+  }
+
+  return item1.orderToken > item2.orderToken ? 1 : -1;
+};
 describe("InmemDB", async () => {
   for (const driver of [await SqlDriver.init(), new InmemDriver()]) {
-    it("works with todo app", () => {
+    it("works with todo app" + driver.constructor.name, () => {
       type Task = {
         type: "task";
         id: string;
@@ -24,18 +34,31 @@ describe("InmemDB", async () => {
         projectId: string;
         orderToken: string;
       };
+      type TaskTemplate = {
+        type: "taskTemplate";
+        id: string;
+        title: string;
+        projectId: string;
+        orderToken: string;
+        repeatRule: string;
+        lastGeneratedAt: number;
+      };
 
       const tasksTable = table<Task>("tasks", {
         ids: { cols: ["id"] },
-        projectOrdered: { cols: ["projectId", "orderToken"] },
-        done: { cols: ["projectId", "state", "lastToggledAt"] },
+        projectIdState: { cols: ["projectId", "state", "lastToggledAt"] },
       });
 
-      const db = new DB(driver, [tasksTable]);
+      const taskTemplatesTable = table<TaskTemplate>("taskTemplates", {
+        ids: { cols: ["id"] },
+        projectId: { cols: ["projectId", "orderToken"] },
+      });
+
+      const db = new DB(driver, [tasksTable, taskTemplatesTable]);
 
       const tasks: Task[] = [
         {
-          id: "1",
+          id: "task-1",
           title: "Task 1",
           state: "done",
           projectId: "1",
@@ -44,7 +67,7 @@ describe("InmemDB", async () => {
           lastToggledAt: 0,
         },
         {
-          id: "2",
+          id: "task-2",
           title: "Task 2",
           state: "todo",
           projectId: "1",
@@ -53,7 +76,7 @@ describe("InmemDB", async () => {
           lastToggledAt: 1,
         },
         {
-          id: "3",
+          id: "task-3",
           title: "Task 2",
           state: "done",
           projectId: "1",
@@ -62,7 +85,7 @@ describe("InmemDB", async () => {
           lastToggledAt: 2,
         },
         {
-          id: "4",
+          id: "task-4",
           title: "Task 2",
           state: "todo",
           projectId: "2",
@@ -73,37 +96,114 @@ describe("InmemDB", async () => {
       ];
       db.insert(tasksTable, tasks);
 
-      const byIds = function (ids: string[]) {
+      const templates: TaskTemplate[] = [
+        {
+          id: "template-1",
+          title: "Template 1",
+          projectId: "1",
+          orderToken: "h",
+          type: "taskTemplate",
+          lastGeneratedAt: 0,
+          repeatRule: "RRULE:FREQ=DAILY;BYHOUR=10",
+        },
+        {
+          id: "template-2",
+          title: "Template 2",
+          projectId: "1",
+          orderToken: "i",
+          type: "taskTemplate",
+          lastGeneratedAt: 1,
+          repeatRule: "RRULE:FREQ=DAILY;BYHOUR=10",
+        },
+      ];
+
+      db.insert(taskTemplatesTable, templates);
+
+      const taskByIds = function (ids: string[]) {
         const tasks: Task[] = [];
 
         for (const id of ids) {
-          tasks.push(
-            ...Array.from(db.scan(tasksTable, "ids", { gte: [id], lte: [id] })),
-          );
+          tasks.push(...db.scan(tasksTable, "ids", { gte: [id], lte: [id] }));
         }
 
         return tasks;
       };
 
-      const doneChildrenIds = function (
+      const templateByIds = function (ids: string[]) {
+        const templates: TaskTemplate[] = [];
+
+        for (const id of ids) {
+          templates.push(
+            ...db.scan(taskTemplatesTable, "ids", { gte: [id], lte: [id] }),
+          );
+        }
+
+        return templates;
+      };
+
+      const templateChildrenIds = function (
         projectId: string,
-        alwaysIncludeTaskIds: string[],
+        alwaysIncludeChildIds: string[] = [],
       ) {
-        const tasks: Task[] = Array.from(
-          db.scan(tasksTable, "done", {
-            lte: [projectId, "done"],
-            gte: [projectId, "done"],
+        const templates: TaskTemplate[] = Array.from(
+          db.scan(taskTemplatesTable, "projectId", {
+            lte: [projectId],
+            gte: [projectId],
           }),
         );
-        tasks.push(...byIds(alwaysIncludeTaskIds));
+
+        if (alwaysIncludeChildIds.length > 0) {
+          templates.push(...templateByIds(alwaysIncludeChildIds));
+        }
+
+        return templates;
+      };
+
+      const taskWithStateChildrenIds = function (
+        projectId: string,
+        state: "todo" | "done",
+        alwaysIncludeTaskIds: string[] = [],
+      ) {
+        const tasks: Task[] = Array.from(
+          db.scan(tasksTable, "projectIdState", {
+            lte: [projectId, state],
+            gte: [projectId, state],
+          }),
+        );
+        tasks.push(...taskByIds(alwaysIncludeTaskIds));
         return tasks;
       };
 
-      expect(doneChildrenIds("1", [])).toEqual([tasks[0], tasks[2]]);
-      expect(doneChildrenIds("1", ["4"])).toEqual([
+      const childrenIds = function (
+        projectId: string,
+        alwaysIncludeChildIds: string[] = [],
+      ) {
+        const todoTasks = taskWithStateChildrenIds(
+          projectId,
+          "todo",
+          alwaysIncludeChildIds,
+        );
+        const templates = templateChildrenIds(projectId, alwaysIncludeChildIds);
+
+        return [...todoTasks, ...templates]
+          .sort(fractionalCompare)
+          .map((p) => p.id);
+      };
+
+      expect(taskWithStateChildrenIds("1", "done", [])).toEqual([
+        tasks[0],
+        tasks[2],
+      ]);
+      expect(taskWithStateChildrenIds("1", "done", ["task-4"])).toEqual([
         tasks[0],
         tasks[2],
         tasks[3],
+      ]);
+
+      expect(childrenIds("1", [])).toEqual([
+        "task-2",
+        "template-1",
+        "template-2",
       ]);
     });
   }
