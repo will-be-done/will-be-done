@@ -6,6 +6,7 @@ import {
   MIN,
   type Bounds,
   type DBDriver,
+  type Row,
   type ScanOptions,
   type TableDefinition,
   type Tuple,
@@ -15,7 +16,7 @@ import {
 type InmemIndex = {
   isUnique: boolean;
   columns: string[];
-  data: { keys: Tuple; value: unknown }[];
+  data: { keys: Tuple; value: Row }[];
 };
 
 const encodingByte = {
@@ -145,6 +146,7 @@ export class InmemDriver implements DBDriver {
     string,
     {
       indexes: Record<string, InmemIndex>;
+      records: Map<string, Row>;
     }
   >();
 
@@ -154,6 +156,42 @@ export class InmemDriver implements DBDriver {
   );
 
   constructor() {}
+
+  update(tableName: string, values: Row[]): void {
+    const tblData = this.data.get(tableName);
+    if (!tblData) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    const ids = values.map((v) => v.id);
+
+    this.delete(tableName, ids);
+    this.insert(tableName, values);
+  }
+
+  // values is "id" of Row
+  delete(tableName: string, values: string[]): void {
+    const tblData = this.data.get(tableName);
+    if (!tblData) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    for (const id of values) {
+      tblData.records.delete(id);
+
+      for (const index of Object.values(tblData.indexes)) {
+        const idHelper = orderedArray(
+          (item: { keys: Tuple; value: unknown }) => (item.value as any).id,
+          (a, b) => (a === b ? 0 : a > b ? 1 : -1),
+        );
+
+        const result = idHelper.search(index.data, id);
+        if (result.found !== undefined) {
+          index.data.splice(result.found, 1);
+        }
+      }
+    }
+  }
 
   loadTables(tables: TableDefinition<any>[]): void {
     for (const tableDef of tables) {
@@ -169,9 +207,25 @@ export class InmemDriver implements DBDriver {
       }
       this.data.set(tableDef.name, {
         indexes: indexes,
+        records: new Map(),
       });
     }
   }
+
+  // *selectByIds(table: string, ids: string[]): Generator<unknown> {
+  //   const tblData = this.data.get(table);
+  //   if (!tblData) {
+  //     throw new Error(`Table ${table} not found`);
+  //   }
+  //
+  //   for (const id of ids) {
+  //     if (!tblData.records.has(id)) {
+  //       continue;
+  //     }
+  //
+  //     yield tblData.records.get(id);
+  //   }
+  // }
 
   *selectKey(
     tableName: string,
@@ -226,15 +280,31 @@ export class InmemDriver implements DBDriver {
     }
   }
 
-  insert(tableName: string, values: Record<string, unknown>[]): void {
+  insert(tableName: string, values: Row[]): void {
     const tblData = this.data.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
     }
 
+    const ids = new Set<string>();
+
+    for (const { id } of values) {
+      if (ids.has(id)) {
+        throw new Error("Record already exists");
+      }
+      ids.add(id);
+    }
+
     for (const record of values) {
+      if (tblData.records.has(record.id)) {
+        throw new Error("Record already exists");
+      }
+
+      tblData.records.set(record.id, record);
+
       for (const index of Object.values(tblData.indexes)) {
         const keys = index.columns.map((key) => record[key] as Value);
+
         this.orderedArrayHelper.insertAfter(index.data, {
           keys,
           value: record,

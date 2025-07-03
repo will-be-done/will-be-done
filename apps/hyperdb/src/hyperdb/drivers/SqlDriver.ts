@@ -2,6 +2,7 @@
 import type { Database } from "sql.js";
 import type {
   DBDriver,
+  Row,
   ScanOptions,
   TableDefinition,
   Tuple,
@@ -15,6 +16,14 @@ export class SqlDriver implements DBDriver {
   constructor(db: Database) {
     this.db = db;
   }
+  update(tableName: string, values: Row[]): void {
+    throw new Error("Method not implemented.");
+  }
+
+  delete(tableName: string, values: string[]): void {
+    throw new Error("Method not implemented.");
+  }
+
   *selectKey(
     table: string,
     indexName: string,

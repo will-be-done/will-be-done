@@ -22,22 +22,22 @@ export const MAX = Symbol("MAX");
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Base schema type that all table records must extend
-export type TableSchema = Record<string, unknown> & { id: string };
+export type Row = Record<string, unknown> & { id: string };
 
 // Index definition maps index names to arrays of column names
-export type IndexDefinition<T extends TableSchema> = {
+export type IndexDefinition<T extends Row> = {
   [indexName: string]: { cols: (keyof T)[] };
 };
 
 // Table definition combines name with its indexes and schema type
-export interface TableDefinition<T extends TableSchema> {
+export interface TableDefinition<T extends Row> {
   name: string;
   indexes: IndexDefinition<T>;
   _schemaType?: T; // Phantom type to carry schema information
 }
 
 // Helper function to create typed table definitions
-export function table<T extends TableSchema>(
+export function table<T extends Row>(
   name: string,
   indexes: IndexDefinition<T>,
 ): TableDefinition<T> {
@@ -54,7 +54,10 @@ export interface DBDriver {
     indexName: string,
     options: ScanOptions,
   ): Generator<unknown> | Generator<Promise<unknown>>;
-  insert(tableName: string, values: Record<string, unknown>[]): void;
+  // selectByIds(table: string, ids: string[]): Generator<unknown>;
+  insert(tableName: string, values: Row[]): void;
+  update(tableName: string, values: Row[]): void;
+  delete(tableName: string, values: string[]): void;
 }
 
 export class DB {
@@ -64,6 +67,19 @@ export class DB {
     driver.loadTables(tables);
     this.driver = driver;
   }
+
+  // *scanByIds<TTable extends TableDefinition<any>>(
+  //   table: TTable,
+  //   ids: string[],
+  // ): Generator<ExtractSchema<TTable>> {
+  //   for (const data of this.driver.selectByIds(table.name, ids)) {
+  //     if (data instanceof Promise) {
+  //       throw new Error("async scan not supported");
+  //     }
+  //
+  //     yield data as ExtractSchema<TTable>;
+  //   }
+  // }
 
   // Scan method with proper return typing
   *scan<TTable extends TableDefinition<any>>(
@@ -113,12 +129,24 @@ export class DB {
   ) {
     this.driver.insert(table.name, records);
   }
+
+  update<TTable extends TableDefinition<any>>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
+  ) {
+    this.driver.update(table.name, records);
+  }
+
+  delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
+    this.driver.delete(table.name, ids);
+  }
 }
 
 // TODO:
 // 0. DONE test asyncScan
-// 1. update, delete support
+// 1. DONE update, delete support
 // 2. generator based selector + ability to subscribe to selector
+// 3. hash type index
 // 3. tx support
 // 4. DONE separate by files
 // 5. ONLY ON THE END: fix index typing issue
