@@ -1,6 +1,7 @@
 import { test } from "vitest";
 
 const scan = function* () {
+  // @ts-expect-error ignore
   const a = yield {
     command: "doScan",
     args: {
@@ -34,6 +35,7 @@ test("works with generators", () => {
   let result = gen.next();
 
   while (!result.done) {
+    // @ts-expect-error ignore
     if (result.value?.command === "doScan") {
       result = gen.next("123"); // Send value back to generator
     } else {

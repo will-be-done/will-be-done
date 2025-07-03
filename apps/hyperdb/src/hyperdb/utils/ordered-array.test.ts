@@ -6,7 +6,7 @@ import {
   orderedArray,
   searchFirst,
   searchLast,
-} from "./ordered-array";
+} from "./ordered-array.ts";
 
 describe("ordered array", () => {
   const { search, insert, update, remove } = orderedArray<
