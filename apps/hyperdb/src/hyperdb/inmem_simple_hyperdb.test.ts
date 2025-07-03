@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
   DB,
   InmemDriver,
@@ -22,6 +22,7 @@ export const fractionalCompare = <T extends { id: string; orderToken: string }>(
 
   return item1.orderToken > item2.orderToken ? 1 : -1;
 };
+
 describe("InmemDB", async () => {
   for (const driver of [await SqlDriver.init(), new InmemDriver()]) {
     it("works with todo app" + driver.constructor.name, () => {

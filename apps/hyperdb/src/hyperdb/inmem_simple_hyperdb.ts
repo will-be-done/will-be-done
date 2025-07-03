@@ -1,4 +1,4 @@
-import { orderBy, sortBy, omitBy } from "es-toolkit";
+import { sortBy, omitBy } from "es-toolkit";
 import initSqlJs, { type Database } from "sql.js";
 import { orderedArray } from "./ordered-array";
 
@@ -183,14 +183,13 @@ export function compareTuple(a: Tuple, b: Tuple) {
   }
 }
 
-
 interface DBDriver {
   loadTables(table: TableDefinition<any>[]): void;
   selectKey(
     table: string,
     indexName: string,
     options: ScanOptions,
-  ): Generator<unknown>;
+  ): Generator<unknown> | Generator<Promise<unknown>>;
   insert(tableName: string, values: Record<string, unknown>[]): void;
 }
 
@@ -201,10 +200,10 @@ export class InmemDriver implements DBDriver {
       indexes: Record<string, InmemIndex>;
     }
   >();
-  
+
   private orderedArrayHelper = orderedArray(
     (item: { keys: Tuple; value: unknown }) => item.keys,
-    compareTuple
+    compareTuple,
   );
 
   constructor() {}
@@ -242,8 +241,11 @@ export class InmemDriver implements DBDriver {
       options || {},
       index.columns.length,
     );
-    const { gte, lte, gt, lt, limit } = { ...normalizedBounds, limit: options?.limit };
-    
+    const { gte, lte, gt, lt, limit } = {
+      ...normalizedBounds,
+      limit: options?.limit,
+    };
+
     let startIdx = 0;
     let endIdx = index.data.length - 1;
 
@@ -262,7 +264,8 @@ export class InmemDriver implements DBDriver {
       endIdx = result.found !== undefined ? result.found : result.closest - 1;
     } else if (lt) {
       const result = this.orderedArrayHelper.searchFirst(index.data, lt);
-      endIdx = result.found !== undefined ? result.found - 1 : result.closest - 1;
+      endIdx =
+        result.found !== undefined ? result.found - 1 : result.closest - 1;
     }
 
     let count = 0;
@@ -270,7 +273,7 @@ export class InmemDriver implements DBDriver {
       if (limit !== undefined && count >= limit) {
         break;
       }
-      
+
       yield index.data[i].value;
       count++;
     }
@@ -285,7 +288,10 @@ export class InmemDriver implements DBDriver {
     for (const record of values) {
       for (const index of Object.values(tblData.indexes)) {
         const keys = index.columns.map((key) => record[key] as Value);
-        this.orderedArrayHelper.insertAfter(index.data, { keys, value: record });
+        this.orderedArrayHelper.insertAfter(index.data, {
+          keys,
+          value: record,
+        });
       }
     }
   }
@@ -477,12 +483,6 @@ export class SqlDriver implements DBDriver {
 }
 
 export class DB {
-  data = new Map<
-    string,
-    {
-      indexes: Record<string, InmemIndex>;
-    }
-  >();
   driver: DBDriver;
 
   constructor(driver: DBDriver, tables: TableDefinition<any>[]) {
@@ -501,7 +501,34 @@ export class DB {
       indexName as string,
       options || {},
     )) {
+      if (data instanceof Promise) {
+        throw new Error("async scan not supported");
+      }
+
       yield data as ExtractSchema<TTable>;
+    }
+  }
+  // Scan method with proper return typing
+  async *asyncScan<TTable extends TableDefinition<any>>(
+    table: TTable,
+    indexName: keyof TTable["indexes"],
+    options?: ScanOptions,
+  ): AsyncGenerator<ExtractSchema<TTable>> {
+    const gen = this.driver.selectKey(
+      table.name,
+      indexName as string,
+      options || {},
+    );
+
+    let res = gen.next();
+
+    while (!res.done) {
+      if (res.value instanceof Promise) {
+        res = gen.next((await res.value) as ExtractSchema<TTable>);
+      } else {
+        yield res.value as ExtractSchema<TTable>;
+        res = gen.next();
+      }
     }
   }
 
@@ -512,3 +539,11 @@ export class DB {
     this.driver.insert(table.name, records);
   }
 }
+
+// TODO:
+// 0. DONE test asyncScan
+// 1. update, delete support
+// 2. generator based selector + ability to subscribe to selector
+// 3. tx support
+// 4. separate by files
+// 5. ONLY ON THE END: fix index typing issue
