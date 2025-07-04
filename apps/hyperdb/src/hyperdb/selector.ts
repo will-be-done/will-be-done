@@ -2,7 +2,6 @@
 import { uniq } from "es-toolkit";
 import {
   type ExtractSchema,
-  type Row,
   type ScanOptions,
   type TableDefinition,
 } from "./db";
@@ -83,7 +82,11 @@ export function subscribe<TReturn>(
 
   const dbs = uniq(selectCmds.map((cmd) => cmd.db));
   for (const db of dbs) {
-    dbUnsubscribes.push(db.subscribe((op) => {}));
+    dbUnsubscribes.push(
+      db.subscribe((op) => {
+        console.log("db.subscribe", op);
+      }),
+    );
   }
 
   return () => {

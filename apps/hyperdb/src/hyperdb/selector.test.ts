@@ -9,14 +9,13 @@ type Task = {
   id: string;
   title: string;
   state: "todo" | "done";
-  lastToggledAt: number;
   projectId: string;
   orderToken: string;
 };
 
 const tasksTable = table<Task>("tasks", {
   ids: { cols: ["id"] },
-  projectIdState: { cols: ["projectId", "state", "lastToggledAt"] },
+  projectIdState: { cols: ["projectId", "state"] },
 });
 
 const driver = new InmemDriver();
@@ -35,4 +34,28 @@ test("works", () => {
       console.log("tasks", tasks);
     },
   );
+
+  db.insert(tasksTable, [
+    {
+      id: "task-1",
+      title: "inserted",
+      state: "todo",
+      projectId: "2",
+      orderToken: "d",
+      type: "task",
+    },
+  ]);
+
+  db.update(tasksTable, [
+    {
+      id: "task-1",
+      title: "updated",
+      state: "todo",
+      projectId: "2",
+      orderToken: "d",
+      type: "task",
+    },
+  ]);
+
+  db.delete(tasksTable, ["task-1"]);
 });

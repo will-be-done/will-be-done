@@ -98,7 +98,7 @@ export class SubscribableDB {
 
     for (const oldRecord of this.db.hashScan(
       table,
-      "ids",
+      "id",
       records.map((r) => r.id),
     )) {
       previousRecords.set(oldRecord.id, oldRecord);
@@ -128,7 +128,7 @@ export class SubscribableDB {
 
   delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
     const opsToNotify: DeleteOp[] = [];
-    for (const oldRecord of this.db.hashScan(table, "ids", ids)) {
+    for (const oldRecord of this.db.hashScan(table, "id", ids)) {
       opsToNotify.push({ type: "delete", table, oldValue: oldRecord });
     }
 

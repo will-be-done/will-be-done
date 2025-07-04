@@ -21,7 +21,6 @@ type InmemIndex = {
 
 const encodingByte = {
   null: "b",
-  integer: "c",
   float: "d",
   string: "e",
   virtual: "z",
@@ -78,13 +77,10 @@ export function encodingTypeOf(value: Value): EncodingType {
     return "null";
   }
   if (value === true || value === false) {
-    return "integer";
+    return "float";
   }
   if (typeof value === "string") {
     return "string";
-  }
-  if (typeof value === "number" && Number.isInteger(value)) {
-    return "integer";
   }
   if (typeof value === "number") {
     return "float";
@@ -100,9 +96,7 @@ export function compareValue(a: Value, b: Value): number {
   const at = encodingTypeOf(a);
   const bt = encodingTypeOf(b);
   if (at === bt) {
-    if (at === "integer") {
-      return compare(a as number, b as number);
-    } else if (at === "float") {
+    if (at === "float") {
       return compare(a as number, b as number);
     } else if (at === "null") {
       return 0;
@@ -158,7 +152,29 @@ export const isRowInRange = (
     indexDef.cols.length,
   );
 
-  const rowTuple = indexDef.cols.map((col) => row[col as string]);
+  const rowTuple = indexDef.cols.map((col) => row[col as string]) as Tuple;
+
+  // Check gte (greater than or equal)
+  if (gte && compareTuple(rowTuple, gte) < 0) {
+    return false;
+  }
+
+  // Check gt (greater than)
+  if (gt && compareTuple(rowTuple, gt) <= 0) {
+    return false;
+  }
+
+  // Check lte (less than or equal)
+  if (lte && compareTuple(rowTuple, lte) > 0) {
+    return false;
+  }
+
+  // Check lt (less than)
+  if (lt && compareTuple(rowTuple, lt) >= 0) {
+    return false;
+  }
+
+  return true;
 };
 
 export class InmemDriver implements DBDriver {

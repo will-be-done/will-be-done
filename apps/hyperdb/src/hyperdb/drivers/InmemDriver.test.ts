@@ -5,16 +5,17 @@ import {
   compareValue,
   encodingTypeOf,
   UnreachableError,
+  isRowInRange,
 } from "./InmemDriver.ts";
-import { MAX, MIN } from "../db.ts";
+import { MAX, MIN, type TableDefinition } from "../db.ts";
 
 describe("Value and Tuple Comparison Edge Cases", () => {
   describe("encodingTypeOf", () => {
     it("should correctly identify encoding types", () => {
       expect(encodingTypeOf(null)).toBe("null");
-      expect(encodingTypeOf(true)).toBe("integer");
-      expect(encodingTypeOf(false)).toBe("integer");
-      expect(encodingTypeOf(42)).toBe("integer");
+      expect(encodingTypeOf(true)).toBe("float");
+      expect(encodingTypeOf(false)).toBe("float");
+      expect(encodingTypeOf(42)).toBe("float");
       expect(encodingTypeOf(3.14)).toBe("float");
       expect(encodingTypeOf("hello")).toBe("string");
       expect(encodingTypeOf(MIN)).toBe("virtual");
@@ -128,6 +129,298 @@ describe("Value and Tuple Comparison Edge Cases", () => {
       // But MIN/MAX vs regular values work for bounds
       expect(compareTuple([1, 0], [1, null])).toBe(1); // 0 > null in encoding order
       expect(compareTuple([null, 1], [1, null])).toBe(-1); // null < 1 in encoding order
+    });
+  });
+});
+
+describe("isRowInRange", () => {
+  const mockTable: TableDefinition<any> = {
+    name: "test_table",
+    indexes: {
+      primary: {
+        cols: ["id"],
+      },
+      name_age: {
+        cols: ["name", "age"],
+      },
+      score: {
+        cols: ["score"],
+      },
+    },
+  };
+
+  const sampleRow = {
+    id: "1",
+    name: "Alice",
+    age: 25,
+    score: 85.5,
+  };
+
+  describe("single column index", () => {
+    it("should return true when row is in range with gte", () => {
+      expect(isRowInRange(sampleRow, mockTable, "score", { gte: [80.1] })).toBe(
+        true,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { gte: [85.5] })).toBe(
+        true,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { gte: [90.1] })).toBe(
+        false,
+      );
+    });
+
+    it("should return true when row is in range with gt", () => {
+      expect(isRowInRange(sampleRow, mockTable, "score", { gt: [80.1] })).toBe(
+        true,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { gt: [85.5] })).toBe(
+        false,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { gt: [90.1] })).toBe(
+        false,
+      );
+    });
+
+    it("should return true when row is in range with lte", () => {
+      expect(isRowInRange(sampleRow, mockTable, "score", { lte: [90.1] })).toBe(
+        true,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { lte: [85.5] })).toBe(
+        true,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { lte: [80.1] })).toBe(
+        false,
+      );
+    });
+
+    it("should return true when row is in range with lt", () => {
+      expect(isRowInRange(sampleRow, mockTable, "score", { lt: [90.1] })).toBe(
+        true,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { lt: [85.5] })).toBe(
+        false,
+      );
+      expect(isRowInRange(sampleRow, mockTable, "score", { lt: [80.1] })).toBe(
+        false,
+      );
+    });
+  });
+
+  describe("multi-column index", () => {
+    it("should return true when row is in range with gte", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gte: ["Alice", 20] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gte: ["Alice", 25] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gte: ["Alice", 30] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gte: ["Bob", 20] }),
+      ).toBe(false);
+    });
+
+    it("should return true when row is in range with gt", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gt: ["Alice", 20] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gt: ["Alice", 25] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gt: ["Alice", 30] }),
+      ).toBe(false);
+    });
+
+    it("should return true when row is in range with lte", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lte: ["Alice", 30] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lte: ["Alice", 25] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lte: ["Alice", 20] }),
+      ).toBe(false);
+    });
+
+    it("should return true when row is in range with lt", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lt: ["Alice", 30] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lt: ["Alice", 25] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lt: ["Alice", 20] }),
+      ).toBe(false);
+    });
+  });
+
+  describe("combined bounds", () => {
+    it("should handle gte and lte together", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gte: [80.1],
+          lte: [90.1],
+        }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gte: [85.5],
+          lte: [90.1],
+        }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gte: [90.1],
+          lte: [95.1],
+        }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gte: [70.1],
+          lte: [80.1],
+        }),
+      ).toBe(false);
+    });
+
+    it("should handle gt and lt together", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", { gt: [80.1], lt: [90.1] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", { gt: [85.5], lt: [90.1] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", { gt: [90.1], lt: [95.1] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", { gt: [70.1], lt: [85.5] }),
+      ).toBe(false);
+    });
+
+    it("should handle mixed bounds", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gte: [80.1],
+          lt: [90.1],
+        }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gt: [80.1],
+          lte: [90.1],
+        }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gte: [85.5],
+          lt: [90.1],
+        }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "score", {
+          gt: [85.5],
+          lte: [90.1],
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe("partial tuple bounds", () => {
+    it("should handle partial tuples with gte", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gte: ["Alice"] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gte: ["Bob"] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { gte: ["Aaron"] }),
+      ).toBe(true);
+    });
+
+    it("should handle partial tuples with lte", () => {
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lte: ["Alice"] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lte: ["Aaron"] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(sampleRow, mockTable, "name_age", { lte: ["Bob"] }),
+      ).toBe(true);
+    });
+  });
+
+  describe("empty options", () => {
+    it("should return true for empty options", () => {
+      expect(isRowInRange(sampleRow, mockTable, "score", {})).toBe(true);
+      expect(isRowInRange(sampleRow, mockTable, "name_age", {})).toBe(true);
+    });
+  });
+
+  describe("edge cases with different data types", () => {
+    const mixedRow = {
+      id: "2",
+      name: null,
+      age: 0,
+      score: 1, // Use integer instead of boolean for consistency
+    };
+
+    const booleanRow = {
+      id: "3",
+      name: "Bob",
+      age: 30,
+      score: true, // Separate test with boolean
+    };
+
+    it("should handle null values", () => {
+      expect(
+        isRowInRange(mixedRow, mockTable, "name_age", { gte: [null, 0] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(mixedRow, mockTable, "name_age", { gt: [null, 0] }),
+      ).toBe(false);
+      expect(
+        isRowInRange(mixedRow, mockTable, "name_age", { gte: ["Alice", 0] }),
+      ).toBe(false);
+    });
+
+    it("should handle boolean values", () => {
+      expect(
+        isRowInRange(booleanRow, mockTable, "score", { gte: [true] }),
+      ).toBe(true);
+      expect(isRowInRange(booleanRow, mockTable, "score", { gt: [true] })).toBe(
+        false,
+      );
+      expect(
+        isRowInRange(booleanRow, mockTable, "score", { gte: [false] }),
+      ).toBe(true);
+      expect(
+        isRowInRange(booleanRow, mockTable, "score", { lt: [false] }),
+      ).toBe(false);
+    });
+
+    it("should handle integer values", () => {
+      expect(isRowInRange(mixedRow, mockTable, "score", { gte: [0] })).toBe(
+        true,
+      );
+      expect(isRowInRange(mixedRow, mockTable, "score", { gte: [1] })).toBe(
+        true,
+      );
+      expect(isRowInRange(mixedRow, mockTable, "score", { gte: [2] })).toBe(
+        false,
+      );
+      expect(isRowInRange(mixedRow, mockTable, "score", { lt: [2] })).toBe(
+        true,
+      );
+      expect(isRowInRange(mixedRow, mockTable, "score", { lt: [1] })).toBe(
+        false,
+      );
     });
   });
 });
