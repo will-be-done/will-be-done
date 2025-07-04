@@ -45,9 +45,8 @@ const taskTemplatesTable = table<TaskTemplate>("taskTemplates", {
 });
 
 describe("db", async () => {
-  // await SqlDriver.init(),
-  for (const driver of [new InmemDriver()]) {
-    it.only("insert, delete, update - " + driver.constructor.name, () => {
+  for (const driver of [new InmemDriver(), await SqlDriver.init()]) {
+    it("insert, delete, update - " + driver.constructor.name, () => {
       const db = new DB(driver, [tasksTable, taskTemplatesTable]);
       const updatedTask = (): Task => ({
         id: "task-1",
@@ -83,7 +82,10 @@ describe("db", async () => {
 
       expect(
         Array.from(
-          db.scan(tasksTable, "ids", { gte: ["task-1"], lte: ["task-1"] }),
+          db.intervalScan(tasksTable, "ids", {
+            gte: ["task-1"],
+            lte: ["task-1"],
+          }),
         ),
       ).toEqual([tasks[0]]);
 
@@ -91,7 +93,10 @@ describe("db", async () => {
 
       expect(
         Array.from(
-          db.scan(tasksTable, "ids", { gte: ["task-1"], lte: ["task-1"] }),
+          db.intervalScan(tasksTable, "ids", {
+            gte: ["task-1"],
+            lte: ["task-1"],
+          }),
         ),
       ).toEqual([updatedTask()]);
 
@@ -99,14 +104,17 @@ describe("db", async () => {
 
       expect(
         Array.from(
-          db.scan(tasksTable, "ids", { gte: ["task-1"], lte: ["task-1"] }),
+          db.intervalScan(tasksTable, "ids", {
+            gte: ["task-1"],
+            lte: ["task-1"],
+          }),
         ),
       ).toEqual([]);
     });
   }
 
   for (const driver of [new InmemDriver()]) {
-    it.only(
+    it(
       "doesn't insert duplicate id records - " + driver.constructor.name,
       () => {
         const justTask: Task = {
@@ -225,7 +233,9 @@ describe("db", async () => {
         const tasks: Task[] = [];
 
         for (const id of ids) {
-          tasks.push(...db.scan(tasksTable, "ids", { gte: [id], lte: [id] }));
+          tasks.push(
+            ...db.intervalScan(tasksTable, "ids", { gte: [id], lte: [id] }),
+          );
         }
 
         return tasks;
@@ -236,7 +246,10 @@ describe("db", async () => {
 
         for (const id of ids) {
           templates.push(
-            ...db.scan(taskTemplatesTable, "ids", { gte: [id], lte: [id] }),
+            ...db.intervalScan(taskTemplatesTable, "ids", {
+              gte: [id],
+              lte: [id],
+            }),
           );
         }
 
@@ -248,7 +261,7 @@ describe("db", async () => {
         alwaysIncludeChildIds: string[] = [],
       ) {
         const templates: TaskTemplate[] = Array.from(
-          db.scan(taskTemplatesTable, "projectId", {
+          db.intervalScan(taskTemplatesTable, "projectId", {
             lte: [projectId],
             gte: [projectId],
           }),
@@ -267,7 +280,7 @@ describe("db", async () => {
         alwaysIncludeTaskIds: string[] = [],
       ) {
         const tasks: Task[] = Array.from(
-          db.scan(tasksTable, "projectIdState", {
+          db.intervalScan(tasksTable, "projectIdState", {
             lte: [projectId, state],
             gte: [projectId, state],
           }),
@@ -322,7 +335,7 @@ describe("Database Operations Edge Cases", async () => {
 
         const db = new DB(driver, [testTable]);
 
-        const results = Array.from(db.scan(testTable, "byValue"));
+        const results = Array.from(db.intervalScan(testTable, "byValue"));
         expect(results).toEqual([]);
       });
 
@@ -346,33 +359,33 @@ describe("Database Operations Edge Cases", async () => {
 
         // Test gt
         const gtResults = Array.from(
-          db.scan(testTable, "composite", { gt: [1, "a"] }),
+          db.intervalScan(testTable, "composite", { gt: [1, "a"] }),
         );
         expect(gtResults.length).toBe(4);
         expect(gtResults[0].id).toBe("2");
 
         // Test gte
         const gteResults = Array.from(
-          db.scan(testTable, "composite", { gte: [1, "a"] }),
+          db.intervalScan(testTable, "composite", { gte: [1, "a"] }),
         );
         expect(gteResults.length).toBe(5);
         expect(gteResults[0].id).toBe("1");
 
         // Test lt
         const ltResults = Array.from(
-          db.scan(testTable, "composite", { lt: [2, "b"] }),
+          db.intervalScan(testTable, "composite", { lt: [2, "b"] }),
         );
         expect(ltResults.length).toBe(3);
 
         // Test lte
         const lteResults = Array.from(
-          db.scan(testTable, "composite", { lte: [2, "b"] }),
+          db.intervalScan(testTable, "composite", { lte: [2, "b"] }),
         );
         expect(lteResults.length).toBe(4);
 
         // Test combined bounds
         const combinedResults = Array.from(
-          db.scan(testTable, "composite", {
+          db.intervalScan(testTable, "composite", {
             gte: [1, "b"],
             lte: [2, "a"],
           }),
@@ -398,13 +411,13 @@ describe("Database Operations Edge Cases", async () => {
 
         // Test limit without bounds
         const limitResults = Array.from(
-          db.scan(testTable, "byValue", { limit: 3 }),
+          db.intervalScan(testTable, "byValue", { limit: 3 }),
         );
         expect(limitResults.length).toBe(3);
 
         // Test limit with bounds
         const limitBoundResults = Array.from(
-          db.scan(testTable, "byValue", {
+          db.intervalScan(testTable, "byValue", {
             gte: [5],
             limit: 2,
           }),
@@ -415,7 +428,7 @@ describe("Database Operations Edge Cases", async () => {
 
         // Test limit of 0
         const zeroLimitResults = Array.from(
-          db.scan(testTable, "byValue", { limit: 0 }),
+          db.intervalScan(testTable, "byValue", { limit: 0 }),
         );
         expect(zeroLimitResults.length).toBe(0);
       });
@@ -461,18 +474,21 @@ describe("Database Operations Edge Cases", async () => {
 
         db.insert(testTable, records);
 
-        expect(Array.from(db.scan(testTable, "byNull")).length).toBe(2);
+        expect(Array.from(db.intervalScan(testTable, "byNull")).length).toBe(2);
         expect(
-          Array.from(db.scan(testTable, "byInt", { gte: [42] })).length,
+          Array.from(db.intervalScan(testTable, "byInt", { gte: [42] })).length,
         ).toBe(1);
         expect(
-          Array.from(db.scan(testTable, "byFloat", { lt: [3.5] })).length,
+          Array.from(db.intervalScan(testTable, "byFloat", { lt: [3.5] }))
+            .length,
         ).toBe(2);
         expect(
-          Array.from(db.scan(testTable, "byString", { gte: ["hello"] })).length,
+          Array.from(db.intervalScan(testTable, "byString", { gte: ["hello"] }))
+            .length,
         ).toBe(2);
         expect(
-          Array.from(db.scan(testTable, "byBool", { gte: [true] })).length,
+          Array.from(db.intervalScan(testTable, "byBool", { gte: [true] }))
+            .length,
         ).toBe(1);
       });
 
@@ -486,12 +502,15 @@ describe("Database Operations Edge Cases", async () => {
 
         expect(() => {
           Array.from(
-            db.scan({ name: "nonexistent", indexes: {} } as any, "byValue"),
+            db.intervalScan(
+              { name: "nonexistent", indexes: {} } as any,
+              "byValue",
+            ),
           );
         }).toThrow();
 
         expect(() => {
-          Array.from(db.scan(testTable, "nonexistent" as any));
+          Array.from(db.intervalScan(testTable, "nonexistent" as any));
         }).toThrow();
       });
 
@@ -513,12 +532,12 @@ describe("Database Operations Edge Cases", async () => {
 
         // Test partial bounds - should work with shorter tuples
         const partialResults = Array.from(
-          db.scan(testTable, "triple", { gte: [1] }),
+          db.intervalScan(testTable, "triple", { gte: [1] }),
         );
         expect(partialResults.length).toBe(3);
 
         const partialResults2 = Array.from(
-          db.scan(testTable, "triple", { gte: [1, "b"] }),
+          db.intervalScan(testTable, "triple", { gte: [1, "b"] }),
         );
         expect(partialResults2.length).toBe(2);
       });
@@ -540,7 +559,7 @@ describe("Database Operations Edge Cases", async () => {
         db.insert(testTable, records);
 
         const results = Array.from(
-          db.scan(testTable, "byValue", { gte: [5], lte: [5] }),
+          db.intervalScan(testTable, "byValue", { gte: [5], lte: [5] }),
         );
         expect(results.length).toBe(3);
       });

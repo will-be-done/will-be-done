@@ -39,7 +39,10 @@ const encodingRank = sortBy(
   [(obj: [EncodingType, string]): string => obj[1]],
 ).map(([key]) => key as EncodingType);
 
-function normalizeTupleBounds(args: ScanOptions, tupleCount: number): Bounds {
+export function normalizeTupleBounds(
+  args: ScanOptions,
+  tupleCount: number,
+): Bounds {
   let gte: Tuple | undefined;
   let gt: Tuple | undefined;
   let lte: Tuple | undefined;
@@ -141,6 +144,23 @@ export function compareTuple(a: Tuple, b: Tuple) {
     return 0;
   }
 }
+
+export const isRowInRange = (
+  row: Row,
+  table: TableDefinition<any>,
+  indexName: string,
+  options: ScanOptions,
+) => {
+  const indexDef = table.indexes[indexName];
+
+  const { gte, lte, gt, lt } = normalizeTupleBounds(
+    options || {},
+    indexDef.cols.length,
+  );
+
+  const rowTuple = indexDef.cols.map((col) => row[col as string]);
+};
+
 export class InmemDriver implements DBDriver {
   data = new Map<
     string,
@@ -212,22 +232,26 @@ export class InmemDriver implements DBDriver {
     }
   }
 
-  // *selectByIds(table: string, ids: string[]): Generator<unknown> {
-  //   const tblData = this.data.get(table);
-  //   if (!tblData) {
-  //     throw new Error(`Table ${table} not found`);
-  //   }
-  //
-  //   for (const id of ids) {
-  //     if (!tblData.records.has(id)) {
-  //       continue;
-  //     }
-  //
-  //     yield tblData.records.get(id);
-  //   }
-  // }
+  *hashScan(table: string, column: string, ids: string[]): Generator<unknown> {
+    if (column !== "id") {
+      throw new Error("hash scan only supports id column");
+    }
 
-  *selectKey(
+    const tblData = this.data.get(table);
+    if (!tblData) {
+      throw new Error(`Table ${table} not found`);
+    }
+
+    for (const id of ids) {
+      if (!tblData.records.has(id)) {
+        continue;
+      }
+
+      yield tblData.records.get(id);
+    }
+  }
+
+  *intervalScan(
     tableName: string,
     indexName: string,
     options: ScanOptions,

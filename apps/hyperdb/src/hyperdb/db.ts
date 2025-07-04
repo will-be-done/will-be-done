@@ -49,12 +49,12 @@ export type ExtractSchema<T> = T extends TableDefinition<infer S> ? S : never;
 
 export interface DBDriver {
   loadTables(table: TableDefinition<any>[]): void;
-  selectKey(
+  intervalScan(
     table: string,
     indexName: string,
     options: ScanOptions,
   ): Generator<unknown> | Generator<Promise<unknown>>;
-  // selectByIds(table: string, ids: string[]): Generator<unknown>;
+  hashScan(table: string, column: string, values: Value[]): Generator<unknown>;
   insert(tableName: string, values: Row[]): void;
   update(tableName: string, values: Row[]): void;
   delete(tableName: string, values: string[]): void;
@@ -62,32 +62,39 @@ export interface DBDriver {
 
 export class DB {
   driver: DBDriver;
+  tables: TableDefinition<any>[];
 
   constructor(driver: DBDriver, tables: TableDefinition<any>[]) {
     driver.loadTables(tables);
     this.driver = driver;
+    this.tables = tables;
   }
 
-  // *scanByIds<TTable extends TableDefinition<any>>(
-  //   table: TTable,
-  //   ids: string[],
-  // ): Generator<ExtractSchema<TTable>> {
-  //   for (const data of this.driver.selectByIds(table.name, ids)) {
-  //     if (data instanceof Promise) {
-  //       throw new Error("async scan not supported");
-  //     }
-  //
-  //     yield data as ExtractSchema<TTable>;
-  //   }
-  // }
+  *hashScan<TTable extends TableDefinition<any>>(
+    table: TTable,
+    column: string,
+    ids: string[],
+  ): Generator<ExtractSchema<TTable>> {
+    if (column !== "id") {
+      throw new Error("hash scan only supports id column");
+    }
+
+    for (const data of this.driver.hashScan(table.name, column, ids)) {
+      if (data instanceof Promise) {
+        throw new Error("async scan not supported");
+      }
+
+      yield data as ExtractSchema<TTable>;
+    }
+  }
 
   // Scan method with proper return typing
-  *scan<TTable extends TableDefinition<any>>(
+  *intervalScan<TTable extends TableDefinition<any>>(
     table: TTable,
     indexName: keyof TTable["indexes"],
     options?: ScanOptions,
   ): Generator<ExtractSchema<TTable>> {
-    for (const data of this.driver.selectKey(
+    for (const data of this.driver.intervalScan(
       table.name,
       indexName as string,
       options || {},
@@ -100,12 +107,12 @@ export class DB {
     }
   }
   // Scan method with proper return typing
-  async *asyncScan<TTable extends TableDefinition<any>>(
+  async *asyncIntervalScan<TTable extends TableDefinition<any>>(
     table: TTable,
     indexName: keyof TTable["indexes"],
     options?: ScanOptions,
   ): AsyncGenerator<ExtractSchema<TTable>> {
-    const gen = this.driver.selectKey(
+    const gen = this.driver.intervalScan(
       table.name,
       indexName as string,
       options || {},

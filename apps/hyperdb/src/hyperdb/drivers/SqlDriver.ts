@@ -6,6 +6,7 @@ import type {
   ScanOptions,
   TableDefinition,
   Tuple,
+  Value,
 } from "../db.ts";
 import initSqlJs from "sql.js";
 
@@ -16,15 +17,43 @@ export class SqlDriver implements DBDriver {
   constructor(db: Database) {
     this.db = db;
   }
+
   update(tableName: string, values: Row[]): void {
-    throw new Error("Method not implemented.");
+    if (values.length === 0) return;
+
+    const valuesQ = values.map(() => "(?, ?)").join(", ");
+    const updateSQL = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+
+    this.db.exec(
+      updateSQL,
+      values.flatMap((v) => [v.id, JSON.stringify(v)]),
+    );
   }
 
   delete(tableName: string, values: string[]): void {
+    if (values.length === 0) return;
+
+    const placeholders = values.map(() => "?").join(", ");
+    const deleteSQL = `DELETE FROM ${tableName} WHERE id IN (${placeholders})`;
+    this.db.exec(deleteSQL, values);
+  }
+
+  hashScan(table: string, column: string, values: Value[]): Generator<unknown> {
+    // if (column !== "id") {
+    //   throw new Error("hash scan only supports id column");
+    // }
+    //
+    // for (const data of this.intervalScan(table, column, values)) {
+    //   if (data instanceof Promise) {
+    //     throw new Error("async scan not supported");
+    //   }
+    //
+    //   yield data;
+    // }
     throw new Error("Method not implemented.");
   }
 
-  *selectKey(
+  *intervalScan(
     table: string,
     indexName: string,
     options: ScanOptions,
