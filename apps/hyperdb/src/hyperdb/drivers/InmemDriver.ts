@@ -143,7 +143,7 @@ export const isRowInRange = (
   row: Row,
   table: TableDefinition<any>,
   indexName: string,
-  options: ScanOptions,
+  options?: ScanOptions,
 ) => {
   const indexDef = table.indexes[indexName];
 

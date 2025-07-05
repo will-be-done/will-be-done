@@ -9,6 +9,7 @@ import type {
   Value,
 } from "../db.ts";
 import initSqlJs from "sql.js";
+import { chunk } from "es-toolkit";
 
 export class SqlDriver implements DBDriver {
   private db: Database;
@@ -18,39 +19,77 @@ export class SqlDriver implements DBDriver {
     this.db = db;
   }
 
+  insert(tableName: string, values: Record<string, unknown>[]): void {
+    const allValues = chunk(values, 12000);
+    for (const values of allValues) {
+      const valuesQ = values.map(() => "(?, ?)").join(", ");
+      const insertSQL = `INSERT INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+
+      this.db.exec(
+        insertSQL,
+        // @ts-expect-error it's ok
+        values.flatMap((v) => [v.id, JSON.stringify(v)]),
+      );
+      console.log(insertSQL);
+    }
+  }
+
   update(tableName: string, values: Row[]): void {
     if (values.length === 0) return;
 
-    const valuesQ = values.map(() => "(?, ?)").join(", ");
-    const updateSQL = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+    const allValues = chunk(values, 12000);
+    for (const values of allValues) {
+      const valuesQ = values.map(() => "(?, ?)").join(", ");
+      const updateSQL = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
 
-    this.db.exec(
-      updateSQL,
-      values.flatMap((v) => [v.id, JSON.stringify(v)]),
-    );
+      this.db.exec(
+        updateSQL,
+        values.flatMap((v) => [v.id, JSON.stringify(v)]),
+      );
+    }
   }
 
   delete(tableName: string, values: string[]): void {
     if (values.length === 0) return;
 
-    const placeholders = values.map(() => "?").join(", ");
-    const deleteSQL = `DELETE FROM ${tableName} WHERE id IN (${placeholders})`;
-    this.db.exec(deleteSQL, values);
+    const allValues = chunk(values, 12000);
+    for (const values of allValues) {
+      const placeholders = values.map(() => "?").join(", ");
+      const deleteSQL = `DELETE FROM ${tableName} WHERE id IN (${placeholders})`;
+      this.db.exec(deleteSQL, values);
+    }
   }
 
-  hashScan(table: string, column: string, values: Value[]): Generator<unknown> {
-    // if (column !== "id") {
-    //   throw new Error("hash scan only supports id column");
-    // }
-    //
-    // for (const data of this.intervalScan(table, column, values)) {
-    //   if (data instanceof Promise) {
-    //     throw new Error("async scan not supported");
-    //   }
-    //
-    //   yield data;
-    // }
-    throw new Error("Method not implemented.");
+  *hashScan(
+    table: string,
+    column: string,
+    values: Value[],
+  ): Generator<unknown> {
+    if (column !== "id") {
+      throw new Error("hash scan only supports id column");
+    }
+
+    const allIds = chunk(values, 32000);
+    for (const values of allIds) {
+      const placeholders = values.map(() => "?").join(", ");
+      const sql = `SELECT data FROM ${table} WHERE id IN (${placeholders})`;
+
+      const q = this.db.prepare(sql);
+      try {
+        q.bind(values as string[]);
+
+        while (q.step()) {
+          const res = q.get();
+
+          const record = JSON.parse(res[0] as string) as unknown;
+          yield record;
+        }
+      } catch (error) {
+        throw new Error(`Hash id sacn failed for index ${table}: ${error}`);
+      } finally {
+        q.free();
+      }
+    }
   }
 
   *intervalScan(
@@ -166,19 +205,6 @@ export class SqlDriver implements DBDriver {
       .join(", ");
 
     return `ORDER BY ${orderColumns}`;
-  }
-
-  insert(tableName: string, values: Record<string, unknown>[]): void {
-    const valuesQ = values.map(() => "(?, ?)").join(", ");
-    const insertSQL = `INSERT INTO ${tableName} (id, data) VALUES ${valuesQ}`;
-
-    this.db.exec(
-      insertSQL,
-      // @ts-expect-error it's ok
-      values.flatMap((v) => [v.id, JSON.stringify(v)]),
-    );
-
-    console.log(insertSQL);
   }
 
   loadTables(tableDefinitions: TableDefinition<any>[]): void {

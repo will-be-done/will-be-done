@@ -7,36 +7,36 @@ import type {
   TableDefinition,
 } from "./db";
 
-type InsertOp = {
+export type InsertOp = {
   type: "insert";
   table: TableDefinition<any>;
   newValue: Row;
 };
 
-type UpdateOp = {
+export type UpdateOp = {
   type: "update";
   table: TableDefinition<any>;
   oldValue: Row;
   newValue: Row;
 };
 
-type DeleteOp = {
+export type DeleteOp = {
   type: "delete";
   table: TableDefinition<any>;
   oldValue: Row;
 };
 
-type Op = InsertOp | UpdateOp | DeleteOp;
+export type Op = InsertOp | UpdateOp | DeleteOp;
 
 export class SubscribableDB {
-  private subscribers: ((op: Op) => void)[] = [];
+  private subscribers: ((op: Op[]) => void)[] = [];
   private db: DB;
 
   constructor(db: DB) {
     this.db = db;
   }
 
-  subscribe(cb: (op: Op) => void): () => void {
+  subscribe(cb: (op: Op[]) => void): () => void {
     this.subscribers.push(cb);
 
     return () => {
@@ -83,11 +83,14 @@ export class SubscribableDB {
     records: ExtractSchema<TTable>[],
   ) {
     this.db.insert(table, records);
-    for (const record of records) {
-      this.subscribers.forEach((s) =>
-        s({ type: "insert", table, newValue: record }),
-      );
-    }
+    const ops = records.map(
+      (record): Op => ({
+        type: "insert",
+        table,
+        newValue: record,
+      }),
+    );
+    this.subscribers.forEach((s) => s(ops));
   }
 
   update<TTable extends TableDefinition<any>>(
@@ -114,16 +117,16 @@ export class SubscribableDB {
 
     this.db.update(table, records);
 
-    for (const record of records) {
-      this.subscribers.forEach((s) =>
-        s({
-          type: "update",
-          table,
-          oldValue: previousRecords.get(record.id)!,
-          newValue: record,
-        }),
-      );
-    }
+    const ops = records.map(
+      (record): Op => ({
+        type: "update",
+        table,
+        oldValue: previousRecords.get(record.id)!,
+        newValue: record,
+      }),
+    );
+
+    this.subscribers.forEach((s) => s(ops));
   }
 
   delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
@@ -134,8 +137,6 @@ export class SubscribableDB {
 
     this.db.delete(table, ids);
 
-    for (const op of opsToNotify) {
-      this.subscribers.forEach((s) => s(op));
-    }
+    this.subscribers.forEach((s) => s(opsToNotify));
   }
 }
