@@ -26,7 +26,7 @@ describe("SubscribableDB", () => {
 
         const operations: Op[] = [];
         const unsubscribe = subscribableDB.subscribe((op) => {
-          operations.push(op);
+          operations.push(...op);
         });
 
         const tasks: Task[] = [
@@ -103,10 +103,10 @@ describe("SubscribableDB", () => {
         const operations2: Op[] = [];
 
         const unsubscribe1 = subscribableDB.subscribe((op) => {
-          operations1.push(op);
+          operations1.push(...op);
         });
         const unsubscribe2 = subscribableDB.subscribe((op) => {
-          operations2.push(op);
+          operations2.push(...op);
         });
 
         const task: Task = {
@@ -133,7 +133,7 @@ describe("SubscribableDB", () => {
 
         const operations: Op[] = [];
         const unsubscribe = subscribableDB.subscribe((op) => {
-          operations.push(op);
+          operations.push(...op);
         });
 
         const task: Task = {
@@ -185,7 +185,7 @@ describe("SubscribableDB", () => {
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
-          operations.push(op);
+          operations.push(...op);
         });
 
         // Delete non-existent record should not throw or notify
@@ -241,7 +241,7 @@ describe("SubscribableDB", () => {
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
-          operations.push(op);
+          operations.push(...op);
         });
 
         const tasks: Task[] = [
@@ -321,7 +321,7 @@ describe("SubscribableDB", () => {
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
-          operations.push(op);
+          operations.push(...op);
         });
 
         // Empty insert
@@ -343,7 +343,7 @@ describe("SubscribableDB", () => {
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
-          operations.push(op);
+          operations.push(...op);
         });
 
         // Step 1: Insert initial tasks
@@ -437,4 +437,3 @@ describe("SubscribableDB", () => {
     });
   }
 });
-

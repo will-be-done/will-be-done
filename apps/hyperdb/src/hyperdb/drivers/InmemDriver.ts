@@ -50,13 +50,13 @@ export function normalizeTupleBounds(
   if (args.gte) {
     gte = [...args.gte, ...new Array(tupleCount - args.gte.length).fill(MIN)];
   } else if (args.gt) {
-    gt = [...args.gt, ...new Array(tupleCount - args.gt.length).fill(MIN)];
+    gt = [...args.gt, ...new Array(tupleCount - args.gt.length).fill(MAX)];
   }
 
   if (args.lte) {
     lte = [...args.lte, ...new Array(tupleCount - args.lte.length).fill(MAX)];
   } else if (args.lt) {
-    lt = [...args.lt, ...new Array(tupleCount - args.lt.length).fill(MAX)];
+    lt = [...args.lt, ...new Array(tupleCount - args.lt.length).fill(MIN)];
   }
 
   return omitBy({ gte, gt, lte, lt }, (x) => x === undefined);
@@ -103,7 +103,9 @@ export function compareValue(a: Value, b: Value): number {
     } else if (at === "string") {
       return compare(a as string, b as string);
     } else if (at === "virtual") {
-      throw new Error("Cannot save virtual values into tuple");
+      if (a === MAX && b === MIN) return 1;
+      if (a === MIN && b === MAX) return -1;
+      return 0;
     } else {
       throw new UnreachableError(at);
     }

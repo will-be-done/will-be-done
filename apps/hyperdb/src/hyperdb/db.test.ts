@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DB, table } from "./db.ts";
 import { SqlDriver } from "./drivers/SqlDriver.ts";
 import { InmemDriver } from "./drivers/InmemDriver.ts";
-import { update } from "es-toolkit/compat";
+import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver.ts";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
   item1: T,
@@ -45,7 +45,11 @@ const taskTemplatesTable = table<TaskTemplate>("taskTemplates", {
 });
 
 describe("db", async () => {
-  for (const driver of [new InmemDriver(), await SqlDriver.init()]) {
+  for (const driver of [
+    new InmemDriver(),
+    await SqlDriver.init(),
+    new BptreeInmemDriver(),
+  ]) {
     it("insert, delete, update - " + driver.constructor.name, () => {
       const db = new DB(driver, [tasksTable, taskTemplatesTable]);
       const updatedTask = (): Task => ({
@@ -113,7 +117,11 @@ describe("db", async () => {
     });
   }
 
-  for (const driver of [new InmemDriver()]) {
+  for (const driver of [
+    await SqlDriver.init(),
+    new InmemDriver(),
+    new BptreeInmemDriver(),
+  ]) {
     it(
       "doesn't insert duplicate id records - " + driver.constructor.name,
       () => {
@@ -162,7 +170,11 @@ describe("db", async () => {
     );
   }
 
-  for (const driver of [await SqlDriver.init(), new InmemDriver()]) {
+  for (const driver of [
+    await SqlDriver.init(),
+    new InmemDriver(),
+    new BptreeInmemDriver(),
+  ]) {
     it("works with todo app" + driver.constructor.name, () => {
       const db = new DB(driver, [tasksTable, taskTemplatesTable]);
 
@@ -325,7 +337,11 @@ describe("db", async () => {
 });
 
 describe("Database Operations Edge Cases", async () => {
-  for (const driver of [new InmemDriver(), await SqlDriver.init()]) {
+  for (const driver of [
+    new InmemDriver(),
+    await SqlDriver.init(),
+    new BptreeInmemDriver(),
+  ]) {
     describe(`${driver.constructor.name}`, () => {
       it("should handle empty database scans", () => {
         type TestRecord = { id: string; value: number };

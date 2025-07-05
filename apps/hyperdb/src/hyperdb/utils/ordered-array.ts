@@ -7,27 +7,27 @@ export type SearchResult =
 const identity = (x: any) => x;
 const compare = (a: any, b: any) => (a === b ? 0 : a > b ? 1 : -1);
 
-export function orderedArray<T, K = T>(
-  getKey: (item: T) => K,
-  compareKey: (a: K, b: K) => number = compare,
+export function orderedArray<TValue, TKey = TValue>(
+  getKey: (item: TValue) => TKey,
+  compareKey: (a: TKey, b: TKey) => number = compare,
 ) {
   return {
-    search: <I extends T>(list: Array<I>, key: K) =>
+    search: <I extends TValue>(list: Array<I>, key: TKey) =>
       search(list, key, getKey, compareKey),
-    searchFirst: <I extends T>(list: Array<I>, key: K) =>
+    searchFirst: <I extends TValue>(list: Array<I>, key: TKey) =>
       searchFirst(list, key, getKey, compareKey),
-    searchLast: <I extends T>(list: Array<I>, key: K) =>
+    searchLast: <I extends TValue>(list: Array<I>, key: TKey) =>
       searchLast(list, key, getKey, compareKey),
-    insert: <I extends T>(list: Array<I>, item: I) =>
+    insert: <I extends TValue>(list: Array<I>, item: I) =>
       insert(list, item, getKey, compareKey),
-    insertBefore: <I extends T>(list: Array<I>, item: I) =>
+    insertBefore: <I extends TValue>(list: Array<I>, item: I) =>
       insertBefore(list, item, getKey, compareKey),
-    insertAfter: <I extends T>(list: Array<I>, item: I) =>
+    insertAfter: <I extends TValue>(list: Array<I>, item: I) =>
       insertAfter(list, item, getKey, compareKey),
     // prettier-ignore
-    update: <I extends T>(list: Array<I>, key: K, fn: (existing: I | undefined) => I | undefined | void) =>
+    update: <I extends TValue>(list: Array<I>, key: TKey, fn: (existing: I | undefined) => I | undefined | void) =>
 			update(list, key, fn, getKey, compareKey),
-    remove: <I extends T>(list: Array<I>, key: K) =>
+    remove: <I extends TValue>(list: Array<I>, key: TKey) =>
       remove(list, key, getKey, compareKey),
   };
 }

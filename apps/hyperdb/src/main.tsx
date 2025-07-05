@@ -7,6 +7,7 @@ import { InmemDriver } from "./hyperdb/drivers/InmemDriver.ts";
 import { DB } from "./hyperdb/db.ts";
 import { projectsTable } from "./db.ts";
 import { DBProvider } from "./react/context.ts";
+import { BptreeInmemDriver } from "./hyperdb/drivers/bptree-inmem-driver.ts";
 
 export const WrapApp = ({ children }: { children: React.ReactNode }) => {
   const [db, setDB] = useState<SubscribableDB | null>(null);
@@ -19,7 +20,7 @@ export const WrapApp = ({ children }: { children: React.ReactNode }) => {
     //   setDB(new SubscribableDB(new DB(driver, [projectsTable])));
     //   console.log("SQL", SQL);
     // })();
-    setDB(new SubscribableDB(new DB(new InmemDriver(), [projectsTable])));
+    setDB(new SubscribableDB(new DB(new BptreeInmemDriver(), [projectsTable])));
   }, []);
 
   return db && <DBProvider value={db}>{children}</DBProvider>;
