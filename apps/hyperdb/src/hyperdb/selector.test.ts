@@ -1,8 +1,8 @@
-import { test } from "vitest";
+import { describe, test } from "vitest";
 import { DB, table } from "./db";
-import { InmemDriver } from "./drivers/InmemDriver";
-import { selectAll, selector, initSelector } from "./selector";
+import { selectRange, selector, initSelector, selectEqual } from "./selector";
 import { SubscribableDB } from "./subscribable-db";
+import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 
 type Task = {
   type: "task";
@@ -14,15 +14,15 @@ type Task = {
 };
 
 const tasksTable = table<Task>("tasks", {
-  ids: { cols: ["id"] },
-  projectIdState: { cols: ["projectId", "state"] },
+  id: { col: "id", type: "equal" },
+  projectIdState: { cols: ["projectId", "state"], type: "range" },
 });
 
-const driver = new InmemDriver();
+const driver = new BptreeInmemDriver();
 export const db = new SubscribableDB(new DB(driver, [tasksTable]));
 
 const allTasks = selector(function* () {
-  const tasks = yield* selectAll(tasksTable, "projectIdState", {
+  const tasks = yield* selectRange(tasksTable, "projectIdState", {
     gte: ["1"],
     lte: ["1"],
   });
@@ -36,34 +36,74 @@ const allDoneTasks = selector(function* (state: Task["state"]) {
   return tasks.filter((task) => task.state === state);
 });
 
-test("works", () => {
-  const selector = initSelector(db, () => allDoneTasks("done"));
+const specificTask = selector(function* (id: string) {
+  const tasks = yield* selectEqual(tasksTable, "id", [id]);
+  return tasks[0];
+});
 
-  selector.subscribe(() => {
-    console.log("new tasks!", selector.getSnapshot());
+describe("selector", () => {
+  test("works with range", () => {
+    const selector = initSelector(db, () => allDoneTasks("done"));
+
+    selector.subscribe(() => {
+      console.log("new tasks!", selector.getSnapshot());
+    });
+
+    db.insert(tasksTable, [
+      {
+        id: "task-1",
+        title: "inserted",
+        state: "done",
+        projectId: "1",
+        orderToken: "d",
+        type: "task",
+      },
+    ]);
+
+    db.update(tasksTable, [
+      {
+        id: "task-1",
+        title: "updated",
+        state: "todo",
+        projectId: "2",
+        orderToken: "d",
+        type: "task",
+      },
+    ]);
+
+    db.delete(tasksTable, ["task-1"]);
   });
 
-  db.insert(tasksTable, [
-    {
-      id: "task-1",
-      title: "inserted",
-      state: "done",
-      projectId: "1",
-      orderToken: "d",
-      type: "task",
-    },
-  ]);
+  test("works with equal", () => {
+    const selector = initSelector(db, () => specificTask("task-1"));
 
-  db.update(tasksTable, [
-    {
-      id: "task-1",
-      title: "updated",
-      state: "todo",
-      projectId: "2",
-      orderToken: "d",
-      type: "task",
-    },
-  ]);
+    console.log("current state", selector.getSnapshot());
+    selector.subscribe(() => {
+      console.log("new state!", selector.getSnapshot());
+    });
 
-  db.delete(tasksTable, ["task-1"]);
+    db.insert(tasksTable, [
+      {
+        id: "task-1",
+        title: "inserted",
+        state: "done",
+        projectId: "1",
+        orderToken: "d",
+        type: "task",
+      },
+    ]);
+
+    db.update(tasksTable, [
+      {
+        id: "task-1",
+        title: "updated",
+        state: "todo",
+        projectId: "2",
+        orderToken: "d",
+        type: "task",
+      },
+    ]);
+
+    db.delete(tasksTable, ["task-1"]);
+  });
 });

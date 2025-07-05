@@ -13,7 +13,7 @@ import {
 import { useDB } from "./react/context";
 
 const Project = ({ id }: { id: string }) => {
-  const project = useSyncSelector(() => getById(id));
+  const project = useSyncSelector(() => getById(id), [id]);
   const db = useDB();
 
   return (

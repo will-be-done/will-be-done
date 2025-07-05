@@ -46,10 +46,10 @@ export class SubscribableDB {
 
   *hashScan<TTable extends TableDefinition<any>>(
     table: TTable,
-    column: string,
+    indexName: string,
     ids: string[],
   ): Generator<ExtractSchema<TTable>> {
-    for (const data of this.db.hashScan(table, column, ids)) {
+    for (const data of this.db.hashScan(table, indexName, ids)) {
       yield data;
     }
   }
@@ -101,7 +101,7 @@ export class SubscribableDB {
 
     for (const oldRecord of this.db.hashScan(
       table,
-      "id",
+      table.idIndexName,
       records.map((r) => r.id),
     )) {
       previousRecords.set(oldRecord.id, oldRecord);
@@ -131,7 +131,7 @@ export class SubscribableDB {
 
   delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
     const opsToNotify: DeleteOp[] = [];
-    for (const oldRecord of this.db.hashScan(table, "id", ids)) {
+    for (const oldRecord of this.db.hashScan(table, table.idIndexName, ids)) {
       opsToNotify.push({ type: "delete", table, oldValue: oldRecord });
     }
 

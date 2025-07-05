@@ -250,7 +250,7 @@ export class InmemDriver implements DBDriver {
     }
   }
 
-  *hashScan(table: string, column: string, ids: string[]): Generator<unknown> {
+  *equalScan(table: string, column: string, ids: string[]): Generator<unknown> {
     if (column !== "id") {
       throw new Error("hash scan only supports id column");
     }

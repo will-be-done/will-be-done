@@ -1,12 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { DBDriver, Row, ScanOptions, TableDefinition, Value } from "../db";
 import { InMemoryBinaryPlusTree } from "../utils/bptree";
-import { compareTuple, normalizeTupleBounds } from "./InmemDriver";
+import {
+  compareTuple,
+  normalizeTupleBounds,
+  UnreachableError,
+} from "./InmemDriver";
 
-type Index = {
+type RangeIndex = {
+  type: "range";
+  name: string;
   tree: InMemoryBinaryPlusTree<Value[], Row>;
   columns: string[];
 };
+
+type EqualIndex = {
+  type: "equal";
+  name: string;
+  column: string;
+  records: Map<string, Row>;
+};
+
+type Index = RangeIndex | EqualIndex;
 
 const makeIndexKey = (row: Row, indexColumns: string[]): Value[] => {
   return indexColumns.map((col) => row[col] as Value);
@@ -17,7 +32,7 @@ export class BptreeInmemDriver implements DBDriver {
     string,
     {
       indexes: Record<string, Index>;
-      records: Map<string, Row>;
+      idIndexName: string;
     }
   >();
 
@@ -28,20 +43,46 @@ export class BptreeInmemDriver implements DBDriver {
       // this.tableDefinitions.set(tableDef.name, tableDef);
       const indexes: Record<string, Index> = {};
 
-      for (const [indexName, columns] of Object.entries(tableDef.indexes)) {
-        const cols = [...(columns.cols as string[])];
-        if (cols[cols.length - 1] !== "id") {
-          cols.push("id");
-        }
+      for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
+        if (indexDef.type === "range") {
+          const cols = [...(indexDef.cols as string[])];
+          if (cols[cols.length - 1] !== "id") {
+            cols.push("id");
+          }
 
-        indexes[indexName] = {
-          tree: new InMemoryBinaryPlusTree<Value[], Row>(15, 30, compareTuple),
-          columns: cols,
-        };
+          indexes[indexName] = {
+            type: "range",
+            name: indexName,
+            tree: new InMemoryBinaryPlusTree<Value[], Row>(
+              100,
+              200,
+              compareTuple,
+            ),
+            columns: cols,
+          };
+        } else if (indexDef.type === "equal") {
+          indexes[indexName] = {
+            type: "equal",
+            name: indexName,
+            column: indexDef.col as string,
+            records: new Map(),
+          };
+        } else {
+          throw new UnreachableError(indexDef);
+        }
       }
+      const idIndex = Object.values(indexes).find(
+        (index): index is EqualIndex =>
+          index.type === "equal" && index.column === "id",
+      );
+
+      if (!idIndex) {
+        throw new Error("Table must have one equal id index");
+      }
+
       this.data.set(tableDef.name, {
         indexes: indexes,
-        records: new Map(),
+        idIndexName: idIndex.name,
       });
     }
   }
@@ -84,22 +125,17 @@ export class BptreeInmemDriver implements DBDriver {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    // const ids = new Set<string>();
-    //
-    // for (const { id } of values) {
-    //   if (ids.has(id)) {
-    //     throw new Error("Record already exists");
-    //   }
-    //   ids.add(id);
-    // }
-
-    // for (const record of values) {
-    //   tblData.records.set(record.id, record);
-    // }
-
     for (const index of Object.values(tblData.indexes)) {
-      for (const record of values) {
-        index.tree.set(makeIndexKey(record, index.columns), record);
+      if (index.type === "range") {
+        for (const record of values) {
+          index.tree.set(makeIndexKey(record, index.columns), record);
+        }
+      } else if (index.type === "equal") {
+        for (const record of values) {
+          index.records.set(record.id, record);
+        }
+      } else {
+        throw new UnreachableError(index);
       }
     }
   }
@@ -111,13 +147,19 @@ export class BptreeInmemDriver implements DBDriver {
     }
 
     for (const id of values) {
-      const record = tblData.records.get(id);
+      const index = tblData.indexes[tblData.idIndexName];
+      if (!index) throw new Error("Index not found");
+      if (index.type !== "equal") throw new Error("ID index is not equal type");
+
+      const record = index.records.get(id);
       if (!record) continue;
 
-      tblData.records.delete(id);
-
       for (const index of Object.values(tblData.indexes)) {
-        index.tree.delete(makeIndexKey(record, index.columns));
+        if (index.type === "range") {
+          index.tree.delete(makeIndexKey(record, index.columns));
+        } else if (index.type === "equal") {
+          index.records.delete(id);
+        }
       }
     }
   }
@@ -133,7 +175,14 @@ export class BptreeInmemDriver implements DBDriver {
     }
     const index = tableData.indexes[indexName as string];
 
-    if (!index) throw new Error("Index not found");
+    if (!index)
+      throw new Error(
+        "Index not found: " + indexName + " for table: " + tableName,
+      );
+    if (index.type !== "range")
+      throw new Error(
+        `Range index required: ${indexName} for table: ${tableName}`,
+      );
 
     if (options?.limit === 0) return;
 
@@ -142,10 +191,7 @@ export class BptreeInmemDriver implements DBDriver {
       index.columns.length,
     );
 
-    const idx = tableData.indexes[indexName as string];
-    if (!idx) throw new Error("Index not found");
-
-    const results = idx.tree.list({
+    const results = index.tree.list({
       ...normalizedBounds,
       limit: options?.limit ?? undefined,
     });
@@ -155,22 +201,27 @@ export class BptreeInmemDriver implements DBDriver {
     }
   }
 
-  *hashScan(table: string, column: string, ids: string[]): Generator<unknown> {
-    if (column !== "id") {
-      throw new Error("hash scan only supports id column");
-    }
-
+  *equalScan(
+    table: string,
+    indexName: string,
+    ids: string[],
+  ): Generator<unknown> {
     const tblData = this.data.get(table);
     if (!tblData) {
       throw new Error(`Table ${table} not found`);
     }
 
+    const index = tblData.indexes[indexName];
+    if (!index)
+      throw new Error("Index not found: " + indexName + " for table: " + table);
+    if (index.type !== "equal") throw new Error("Equal index required");
+
     for (const id of ids) {
-      if (!tblData.records.has(id)) {
+      if (!index.records.has(id)) {
         continue;
       }
 
-      yield tblData.records.get(id);
+      yield index.records.get(id);
     }
   }
 }

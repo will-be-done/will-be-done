@@ -20,10 +20,12 @@ export class SqlDriver implements DBDriver {
   }
 
   insert(tableName: string, values: Record<string, unknown>[]): void {
+    if (values.length === 0) return;
+
     const allValues = chunk(values, 12000);
     for (const values of allValues) {
       const valuesQ = values.map(() => "(?, ?)").join(", ");
-      const insertSQL = `INSERT INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+      const insertSQL = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
 
       this.db.exec(
         insertSQL,
@@ -60,14 +62,23 @@ export class SqlDriver implements DBDriver {
     }
   }
 
-  *hashScan(
+  *equalScan(
     table: string,
-    column: string,
+    indexName: string,
     values: Value[],
   ): Generator<unknown> {
-    if (column !== "id") {
-      throw new Error("hash scan only supports id column");
+    const tableDef = this.tableDefinitions.get(table);
+    if (!tableDef) {
+      throw new Error(`Table ${table} not found`);
     }
+
+    const indexDef = tableDef.indexes[indexName];
+    if (!indexDef) throw new Error(`Index ${indexName} not found`);
+
+    if (indexDef.type !== "equal")
+      throw new Error("equal scan only supports equal indexes");
+    if (indexDef.col !== "id")
+      throw new Error("equal scan only supports id column");
 
     const allIds = chunk(values, 32000);
     for (const values of allIds) {
@@ -137,10 +148,11 @@ export class SqlDriver implements DBDriver {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    const indexColumns = tableDef.indexes[indexName].cols;
-    if (!indexColumns) {
-      throw new Error(`Index ${indexName} not found on table ${tableName}`);
-    }
+    const indexDef = tableDef.indexes[indexName];
+    if (!indexDef) throw new Error(`Index ${indexName} not found`);
+
+    const indexColumns =
+      indexDef.type === "range" ? indexDef.cols : [indexDef.col];
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -192,12 +204,15 @@ export class SqlDriver implements DBDriver {
       return "";
     }
 
-    const indexColumns = tableDef.indexes[indexName];
-    if (!indexColumns) {
+    const indexDef = tableDef.indexes[indexName];
+    if (!indexDef) {
       return "";
     }
 
-    const orderColumns = indexColumns.cols
+    const indexColumns =
+      indexDef.type === "range" ? indexDef.cols : [indexDef.col];
+
+    const orderColumns = indexColumns
       .map((col) => {
         const jsonPath = `json_extract(data, '$.${String(col)}')`;
         return `${jsonPath} ${reverse ? "DESC" : "ASC"}`;
@@ -228,7 +243,9 @@ export class SqlDriver implements DBDriver {
   }
 
   private createIndexes(tableDef: TableDefinition<any>): void {
-    for (const [indexName, { cols }] of Object.entries(tableDef.indexes)) {
+    for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
+      const cols = indexDef.type === "range" ? indexDef.cols : [indexDef.col];
+
       // Create a composite index using JSON path expressions
       const columnPaths = cols
         .map((col) => `json_extract(data, '$.${String(col)}') ASC`)

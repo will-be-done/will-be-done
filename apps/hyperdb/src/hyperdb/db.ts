@@ -24,24 +24,76 @@ export const MAX = Symbol("MAX");
 // Base schema type that all table records must extend
 export type Row = Record<string, unknown> & { id: string };
 
+export type EqualIndexDef<T extends Row> = {
+  col: keyof T;
+  type: "equal";
+  name: string;
+};
+
+export type RangeIndexDef<T extends Row> = {
+  cols: (keyof T)[];
+  type: "range";
+  name: string;
+};
+export type IndexDef<T extends Row> = RangeIndexDef<T> | EqualIndexDef<T>;
+
 // Index definition maps index names to arrays of column names
-export type IndexDefinition<T extends Row> = {
-  [indexName: string]: { cols: (keyof T)[] };
+export type AllIndexes<T extends Row> = {
+  [indexName: string]: IndexDef<T>;
+};
+
+type EqualIndexDefInput<T extends Row> = {
+  type: "equal";
+  col: keyof T;
+};
+
+type RangeIndexDefInput<T extends Row> = {
+  type: "range";
+  cols: (keyof T)[];
+};
+export type AllIndexesDefInput<T extends Row> = {
+  [indexName: string]: EqualIndexDefInput<T> | RangeIndexDefInput<T>;
 };
 
 // Table definition combines name with its indexes and schema type
 export interface TableDefinition<T extends Row> {
   name: string;
-  indexes: IndexDefinition<T>;
+  indexes: AllIndexes<T>;
+  idIndexName: string;
   _schemaType?: T; // Phantom type to carry schema information
 }
 
 // Helper function to create typed table definitions
 export function table<T extends Row>(
   name: string,
-  indexes: IndexDefinition<T>,
+  indexes: AllIndexesDefInput<T>,
 ): TableDefinition<T> {
-  return { name, indexes };
+  const finalIndexes: AllIndexes<T> = Object.fromEntries(
+    Object.entries(indexes).map(([indexName, indexDef]) => {
+      if (indexDef.type === "range") {
+        return [
+          indexName,
+          { ...indexDef, name: indexName } satisfies RangeIndexDef<T>,
+        ];
+      } else {
+        return [
+          indexName,
+          { ...indexDef, name: indexName } satisfies EqualIndexDef<T>,
+        ];
+      }
+    }),
+  );
+
+  const indexDef = Object.values(finalIndexes).find(
+    (index): index is IndexDef<T> =>
+      index.type === "equal" && index.col === "id",
+  );
+
+  if (!indexDef) {
+    throw new Error("Table must have one equal id index");
+  }
+
+  return { name, indexes: finalIndexes, idIndexName: indexDef.name };
 }
 
 // Extract schema type from table definition
@@ -54,7 +106,7 @@ export interface DBDriver {
     indexName: string,
     options: ScanOptions,
   ): Generator<unknown> | Generator<Promise<unknown>>;
-  hashScan(table: string, column: string, values: Value[]): Generator<unknown>;
+  equalScan(table: string, column: string, values: Value[]): Generator<unknown>;
   insert(tableName: string, values: Row[]): void;
   update(tableName: string, values: Row[]): void;
   delete(tableName: string, values: string[]): void;
@@ -65,6 +117,16 @@ export class DB {
   tables: TableDefinition<any>[];
 
   constructor(driver: DBDriver, tables: TableDefinition<any>[]) {
+    for (const table of tables) {
+      const idIndex = Object.values(table.indexes).find(
+        (index): index is IndexDef<any> => index.type === "equal",
+      );
+
+      if (!idIndex) {
+        throw new Error("Table must have one equal id index");
+      }
+    }
+
     driver.loadTables(tables);
     this.driver = driver;
     this.tables = tables;
@@ -72,14 +134,10 @@ export class DB {
 
   *hashScan<TTable extends TableDefinition<any>>(
     table: TTable,
-    column: string,
+    indexName: string,
     ids: string[],
   ): Generator<ExtractSchema<TTable>> {
-    if (column !== "id") {
-      throw new Error("hash scan only supports id column");
-    }
-
-    for (const data of this.driver.hashScan(table.name, column, ids)) {
+    for (const data of this.driver.equalScan(table.name, indexName, ids)) {
       if (data instanceof Promise) {
         throw new Error("async scan not supported");
       }

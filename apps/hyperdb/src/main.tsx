@@ -7,6 +7,9 @@ import { InmemDriver } from "./hyperdb/drivers/InmemDriver.ts";
 import { DB } from "./hyperdb/db.ts";
 import { projectsTable } from "./db.ts";
 import { DBProvider } from "./react/context.ts";
+import workletURL from "sql.js/dist/sql-wasm.wasm?url";
+import initSqlJs from "sql.js/dist/sql-wasm.js";
+import { SqlDriver } from "./hyperdb/drivers/SqlDriver.ts";
 import { BptreeInmemDriver } from "./hyperdb/drivers/bptree-inmem-driver.ts";
 
 export const WrapApp = ({ children }: { children: React.ReactNode }) => {

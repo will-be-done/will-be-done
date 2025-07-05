@@ -1,7 +1,6 @@
-import type { S } from "vitest/dist/chunks/reporters.d.CfRkRKN2.js";
 import { DB, table } from "./hyperdb/db";
 import { InmemDriver } from "./hyperdb/drivers/InmemDriver";
-import { selectAll, selector } from "./hyperdb/selector";
+import { selectEqual, selectRange, selector } from "./hyperdb/selector";
 import { SubscribableDB } from "./hyperdb/subscribable-db";
 
 export type Project = {
@@ -11,34 +10,31 @@ export type Project = {
   orderToken: string;
 };
 export const projectsTable = table<Project>("projects", {
-  ids: { cols: ["id"] },
-  ordered: { cols: ["orderToken"] },
+  ids: { col: "id", type: "equal" },
+  ordered: { cols: ["orderToken"], type: "range" },
 });
 
 export const getAllProjects = selector(function* () {
-  const tasks = yield* selectAll(projectsTable, "ordered");
+  const tasks = yield* selectRange(projectsTable, "ordered");
 
   return tasks;
 });
 
 export const getFirst10ProjectsIds = selector(function* () {
-  const tasks = yield* selectAll(projectsTable, "ordered", { limit: 10 });
+  const tasks = yield* selectRange(projectsTable, "ordered", { limit: 10 });
 
   return tasks.map((p) => p.id);
 });
 
 export const getById = selector(function* (id: string) {
-  const tasks = yield* selectAll(projectsTable, "ids", {
-    gte: [id],
-    lte: [id],
-  });
+  const tasks = yield* selectEqual(projectsTable, "ids", [id]);
 
   return tasks[0];
 });
 
 export const insertMillion = (db: SubscribableDB) => {
   const projects: Project[] = [];
-  for (let i = 0; i < 1000000; i++) {
+  for (let i = 0; i < 10000; i++) {
     const id = Math.random().toString(36).slice(2);
     projects.push({
       id: id,
