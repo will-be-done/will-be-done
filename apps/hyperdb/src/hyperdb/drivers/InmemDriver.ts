@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 // import { orderedArray } from "../utils/ordered-array.ts";
 // import {
 //   type DBDriver,
