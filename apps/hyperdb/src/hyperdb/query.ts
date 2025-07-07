@@ -1,6 +1,6 @@
-import type { TableDefinition } from "./table";
+import type { TableDefinition, ExtractSchema, ExtractIndexes } from "./table";
 
-type WhereClause = {
+export type WhereClause = {
   lt: { col: string; val: string }[];
   lte: { col: string; val: string }[];
   gt: { col: string; val: string }[];
@@ -8,6 +8,21 @@ type WhereClause = {
   eq: { col: string; val: string }[];
 };
 
+// Extract column names from an index
+export type ExtractIndexColumns<
+  TTable,
+  TIndexName extends keyof ExtractIndexes<TTable>,
+> = ExtractIndexes<TTable>[TIndexName]["cols"] extends readonly (infer TCol)[]
+  ? TCol extends keyof ExtractSchema<TTable>
+    ? TCol
+    : never
+  : never;
+
+// Value type for a given column
+export type ExtractColumnValue<
+  TTable,
+  TCol extends keyof ExtractSchema<TTable>,
+> = ExtractSchema<TTable>[TCol];
 
 type SelectQuery = {
   from: TableDefinition;
@@ -15,7 +30,7 @@ type SelectQuery = {
   where: WhereClause[];
 };
 
-class QueryBuilder {
+class QueryBuilder<TTable, TIndexName extends keyof ExtractIndexes<TTable>> {
   private conditions: WhereClause = {
     lt: [],
     lte: [],
@@ -24,8 +39,8 @@ class QueryBuilder {
     eq: [],
   };
 
-  private clone(): QueryBuilder {
-    const builder = new QueryBuilder();
+  private clone(): QueryBuilder<TTable, TIndexName> {
+    const builder = new QueryBuilder<TTable, TIndexName>();
     builder.conditions = {
       lt: [...this.conditions.lt],
       lte: [...this.conditions.lte],
@@ -36,33 +51,48 @@ class QueryBuilder {
     return builder;
   }
 
-  eq(col: string, val: string): QueryBuilder {
+  eq<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
+    col: TCol,
+    val: ExtractColumnValue<TTable, TCol>,
+  ): QueryBuilder<TTable, TIndexName> {
     const builder = this.clone();
-    builder.conditions.eq.push({ col, val });
+    builder.conditions.eq.push({ col: col as string, val: val as string });
     return builder;
   }
 
-  lt(col: string, val: string): QueryBuilder {
+  lt<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
+    col: TCol,
+    val: ExtractColumnValue<TTable, TCol>,
+  ): QueryBuilder<TTable, TIndexName> {
     const builder = this.clone();
-    builder.conditions.lt.push({ col, val });
+    builder.conditions.lt.push({ col: col as string, val: val as string });
     return builder;
   }
 
-  lte(col: string, val: string): QueryBuilder {
+  lte<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
+    col: TCol,
+    val: ExtractColumnValue<TTable, TCol>,
+  ): QueryBuilder<TTable, TIndexName> {
     const builder = this.clone();
-    builder.conditions.lte.push({ col, val });
+    builder.conditions.lte.push({ col: col as string, val: val as string });
     return builder;
   }
 
-  gt(col: string, val: string): QueryBuilder {
+  gt<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
+    col: TCol,
+    val: ExtractColumnValue<TTable, TCol>,
+  ): QueryBuilder<TTable, TIndexName> {
     const builder = this.clone();
-    builder.conditions.gt.push({ col, val });
+    builder.conditions.gt.push({ col: col as string, val: val as string });
     return builder;
   }
 
-  gte(col: string, val: string): QueryBuilder {
+  gte<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
+    col: TCol,
+    val: ExtractColumnValue<TTable, TCol>,
+  ): QueryBuilder<TTable, TIndexName> {
     const builder = this.clone();
-    builder.conditions.gte.push({ col, val });
+    builder.conditions.gte.push({ col: col as string, val: val as string });
     return builder;
   }
 
@@ -71,42 +101,54 @@ class QueryBuilder {
   }
 }
 
-class SelectQueryBuilder {
-  private table: TableDefinition;
-  private index: string;
-  
-  constructor(table: TableDefinition, index: string) {
+class SelectQueryBuilder<
+  TTable,
+  TIndexName extends keyof ExtractIndexes<TTable>,
+> {
+  private table: TTable;
+  private index: TIndexName;
+
+  constructor(table: TTable, index: TIndexName) {
     this.table = table;
     this.index = index;
   }
 
-  where(callback: (q: QueryBuilder) => QueryBuilder | QueryBuilder[]): SelectQuery {
-    const queryBuilder = new QueryBuilder();
+  where(
+    callback: (
+      q: QueryBuilder<TTable, TIndexName>,
+    ) => QueryBuilder<TTable, TIndexName> | QueryBuilder<TTable, TIndexName>[],
+  ): SelectQuery {
+    const queryBuilder = new QueryBuilder<TTable, TIndexName>();
     const result = callback(queryBuilder);
-    
+
     if (Array.isArray(result)) {
       return {
-        from: this.table,
-        index: this.index,
-        where: result.map(builder => builder.getConditions()),
+        from: this.table as TableDefinition,
+        index: this.index as string,
+        where: result.map((builder) => builder.getConditions()),
       };
     } else {
       return {
-        from: this.table,
-        index: this.index,
+        from: this.table as TableDefinition,
+        index: this.index as string,
         where: [result.getConditions()],
       };
     }
   }
 }
 
-export const selectFrom = (
-  table: TableDefinition,
-  index: string,
-): SelectQueryBuilder => {
+export const selectFrom = <
+  TTable extends TableDefinition,
+  TIndexName extends keyof ExtractIndexes<TTable>,
+>(
+  table: TTable,
+  index: TIndexName,
+): SelectQueryBuilder<TTable, TIndexName> => {
   return new SelectQueryBuilder(table, index);
 };
 
-export const or = (...builders: QueryBuilder[]): QueryBuilder[] => {
+export const or = <TTable, TIndexName extends keyof ExtractIndexes<TTable>>(
+  ...builders: QueryBuilder<TTable, TIndexName>[]
+): QueryBuilder<TTable, TIndexName>[] => {
   return builders;
 };
