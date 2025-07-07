@@ -249,7 +249,7 @@ export const projectsSlice = createSlice({
 
   insertMillion: appAction((state) => {
     const byIds = state.project.byIds;
-    for (let i = 0; i < 300000; i++) {
+    for (let i = 0; i < 1000000; i++) {
       const id = Math.random().toString(36).slice(2);
       byIds[id] = {
         id,

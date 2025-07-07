@@ -11,6 +11,7 @@ import {
   update,
 } from "./db";
 import { useDB } from "./react/context";
+import { dispatch } from "./hyperdb/action";
 
 const Project = ({ id }: { id: string }) => {
   const project = useSyncSelector(() => getById(id), [id]);
@@ -50,7 +51,7 @@ function App() {
   const db = useDB();
 
   const insert = useCallback(() => {
-    insertMillion(db);
+    dispatch(db, insertMillion());
   }, [db]);
 
   const updateProject = useCallback(() => {

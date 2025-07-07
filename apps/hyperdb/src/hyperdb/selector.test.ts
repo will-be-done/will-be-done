@@ -1,8 +1,9 @@
 import { describe, test } from "vitest";
-import { DB, table } from "./db";
-import { selectRange, selector, initSelector, selectEqual } from "./selector";
+import { DB } from "./db";
+import { selectRange, selector, initSelector } from "./selector";
 import { SubscribableDB } from "./subscribable-db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
+import { table } from "./table";
 
 type Task = {
   type: "task";
@@ -13,19 +14,21 @@ type Task = {
   orderToken: string;
 };
 
-const tasksTable = table<Task>("tasks", {
-  id: { col: "id", type: "equal" },
-  projectIdState: { cols: ["projectId", "state"], type: "range" },
+const tasksTable = table<Task>("tasks").withIndexes({
+  id: { cols: ["id"], type: "hash" },
+  projectIdState: { cols: ["projectId", "state"], type: "btree" },
 });
 
 const driver = new BptreeInmemDriver();
 export const db = new SubscribableDB(new DB(driver, [tasksTable]));
 
 const allTasks = selector(function* () {
-  const tasks = yield* selectRange(tasksTable, "projectIdState", {
-    gte: ["1"],
-    lte: ["1"],
-  });
+  const tasks = yield* selectRange(tasksTable, "projectIdState", [
+    {
+      gte: [{ projectId: "1" }],
+      lte: [{ projectId: "1" }],
+    },
+  ]);
 
   return tasks;
 });
@@ -37,7 +40,12 @@ const allDoneTasks = selector(function* (state: Task["state"]) {
 });
 
 const specificTask = selector(function* (id: string) {
-  const tasks = yield* selectEqual(tasksTable, "id", [id]);
+  const tasks = yield* selectRange(tasksTable, "id", [
+    {
+      lte: [{ id }],
+      gte: [{ id }],
+    },
+  ]);
   return tasks[0];
 });
 

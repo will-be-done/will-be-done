@@ -369,6 +369,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
     // End bound in the same leaf.
     if (
       end !== undefined &&
+      leaf.values.length > 0 &&
       this.compareKey(leaf.values[leaf.values.length - 1].key, end) >= 0
     ) {
       const result = this.searchLeafValues(leaf.values, end);

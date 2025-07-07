@@ -1,21 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { DBDriver, Row, ScanOptions, TableDefinition, Value } from "../db";
+import type {
+  DBDriver,
+  Row,
+  ScanValue,
+  SelectOptions,
+  TupleScanOptions,
+} from "../db";
+import type { IndexDefinitions, TableDefinition } from "../table";
+import { UnreachableError } from "../utils";
 import { InMemoryBinaryPlusTree } from "../utils/bptree";
-import {
-  compareTuple,
-  normalizeTupleBounds,
-  UnreachableError,
-} from "./InmemDriver";
+import { compareTuple, normalizeTupleBounds } from "./tuple";
 
 type RangeIndex = {
-  type: "range";
+  type: "btree";
   name: string;
-  tree: InMemoryBinaryPlusTree<Value[], Row>;
+  tree: InMemoryBinaryPlusTree<ScanValue[], Row>;
   columns: string[];
 };
 
 type EqualIndex = {
-  type: "equal";
+  type: "hash";
   name: string;
   column: string;
   records: Map<string, Row>;
@@ -23,8 +27,8 @@ type EqualIndex = {
 
 type Index = RangeIndex | EqualIndex;
 
-const makeIndexKey = (row: Row, indexColumns: string[]): Value[] => {
-  return indexColumns.map((col) => row[col] as Value);
+const makeIndexKey = (row: Row, indexColumns: string[]): ScanValue[] => {
+  return indexColumns.map((col) => row[col] as ScanValue);
 };
 
 export class BptreeInmemDriver implements DBDriver {
@@ -38,49 +42,53 @@ export class BptreeInmemDriver implements DBDriver {
 
   constructor() {}
 
-  loadTables(tables: TableDefinition<any>[]): void {
+  loadTables(tables: TableDefinition<any, IndexDefinitions<any>>[]): void {
     for (const tableDef of tables) {
       // this.tableDefinitions.set(tableDef.name, tableDef);
       const indexes: Record<string, Index> = {};
 
       for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
-        if (indexDef.type === "range") {
+        if (indexDef.type === "btree") {
           const cols = [...(indexDef.cols as string[])];
           if (cols[cols.length - 1] !== "id") {
             cols.push("id");
           }
 
           indexes[indexName] = {
-            type: "range",
+            type: "btree",
             name: indexName,
-            tree: new InMemoryBinaryPlusTree<Value[], Row>(
+            tree: new InMemoryBinaryPlusTree<ScanValue[], Row>(
               100,
               200,
               compareTuple,
             ),
             columns: cols,
           };
-        } else if (indexDef.type === "equal") {
+        } else if (indexDef.type === "hash") {
+          if (indexDef.cols.length !== 1) {
+            throw new Error("Hash index must have exactly one column");
+          }
+
           indexes[indexName] = {
-            type: "equal",
+            type: "hash",
             name: indexName,
-            column: indexDef.col as string,
+            column: indexDef.cols[0] as string,
             records: new Map(),
           };
         } else {
-          throw new UnreachableError(indexDef);
+          throw new Error("Invalid index type" + indexDef.type);
         }
       }
       const idIndex = Object.values(indexes).find(
         (index): index is EqualIndex =>
-          index.type === "equal" && index.column === "id",
+          index.type === "hash" && index.column === "id",
       );
 
       if (!idIndex) {
         throw new Error("Table must have one equal id index");
       }
 
-      this.data.set(tableDef.name, {
+      this.data.set(tableDef.tableName, {
         indexes: indexes,
         idIndexName: idIndex.name,
       });
@@ -126,11 +134,11 @@ export class BptreeInmemDriver implements DBDriver {
     }
 
     for (const index of Object.values(tblData.indexes)) {
-      if (index.type === "range") {
+      if (index.type === "btree") {
         for (const record of values) {
           index.tree.set(makeIndexKey(record, index.columns), record);
         }
-      } else if (index.type === "equal") {
+      } else if (index.type === "hash") {
         for (const record of values) {
           index.records.set(record.id, record);
         }
@@ -149,15 +157,15 @@ export class BptreeInmemDriver implements DBDriver {
     for (const id of values) {
       const index = tblData.indexes[tblData.idIndexName];
       if (!index) throw new Error("Index not found");
-      if (index.type !== "equal") throw new Error("ID index is not equal type");
+      if (index.type !== "hash") throw new Error("ID index is not equal type");
 
       const record = index.records.get(id);
       if (!record) continue;
 
       for (const index of Object.values(tblData.indexes)) {
-        if (index.type === "range") {
+        if (index.type === "btree") {
           index.tree.delete(makeIndexKey(record, index.columns));
-        } else if (index.type === "equal") {
+        } else if (index.type === "hash") {
           index.records.delete(id);
         }
       }
@@ -167,7 +175,8 @@ export class BptreeInmemDriver implements DBDriver {
   *intervalScan(
     tableName: string,
     indexName: string,
-    options: ScanOptions,
+    allOptions: TupleScanOptions[],
+    selectOptions: SelectOptions,
   ): Generator<unknown> {
     const tableData = this.data.get(tableName);
     if (!tableData) {
@@ -179,49 +188,95 @@ export class BptreeInmemDriver implements DBDriver {
       throw new Error(
         "Index not found: " + indexName + " for table: " + tableName,
       );
-    if (index.type !== "range")
-      throw new Error(
-        `Range index required: ${indexName} for table: ${tableName}`,
-      );
 
-    if (options?.limit === 0) return;
+    let totalCount = 0;
+    if (index.type === "hash") {
+      const ids = allOptions.flatMap((options) => {
+        if (
+          options.gte?.[0] !== options.lte?.[0] ||
+          options.gt !== undefined ||
+          options.lt !== undefined
+        ) {
+          throw new Error(
+            "Hash index must have only gte and lte bound and be same",
+          );
+        }
 
-    const normalizedBounds = normalizeTupleBounds(
-      options || {},
-      index.columns.length,
-    );
+        if (options?.gte?.length !== 1) {
+          throw new Error("Hash index must have exactly one column");
+        }
 
-    const results = index.tree.list({
-      ...normalizedBounds,
-      limit: options?.limit ?? undefined,
-    });
+        return options.gte[0] as string;
+      });
 
-    for (const result of results) {
-      yield result.value;
-    }
-  }
+      for (const id of ids) {
+        if (!index.records.has(id)) {
+          continue;
+        }
 
-  *equalScan(
-    table: string,
-    indexName: string,
-    ids: string[],
-  ): Generator<unknown> {
-    const tblData = this.data.get(table);
-    if (!tblData) {
-      throw new Error(`Table ${table} not found`);
-    }
+        yield index.records.get(id);
+        totalCount++;
 
-    const index = tblData.indexes[indexName];
-    if (!index)
-      throw new Error("Index not found: " + indexName + " for table: " + table);
-    if (index.type !== "equal") throw new Error("Equal index required");
-
-    for (const id of ids) {
-      if (!index.records.has(id)) {
-        continue;
+        if (
+          selectOptions.limit !== undefined &&
+          totalCount >= selectOptions.limit
+        ) {
+          return;
+        }
       }
+    } else if (index.type === "btree") {
+      for (const options of allOptions) {
+        const normalizedBounds = normalizeTupleBounds(
+          options || {},
+          index.columns.length,
+        );
 
-      yield index.records.get(id);
+        const results = index.tree.list({
+          ...normalizedBounds,
+          limit:
+            selectOptions?.limit !== undefined
+              ? selectOptions.limit - totalCount
+              : undefined,
+        });
+
+        for (const result of results) {
+          yield result.value;
+          totalCount++;
+
+          if (
+            selectOptions.limit !== undefined &&
+            totalCount >= selectOptions.limit
+          ) {
+            return;
+          }
+        }
+      }
+    } else {
+      throw new UnreachableError(index);
     }
   }
+
+  // *equalScan(
+  //   table: string,
+  //   indexName: string,
+  //   ids: string[],
+  // ): Generator<unknown> {
+  //   const tblData = this.data.get(table);
+  //   if (!tblData) {
+  //     throw new Error(`Table ${table} not found`);
+  //   }
+  //
+  //   const index = tblData.indexes[indexName];
+  //   if (!index)
+  //     throw new Error("Index not found: " + indexName + " for table: " + table);
+  //   if (index.type !== "equal") throw new Error("Equal index required");
+  //
+  //   for (const id of ids) {
+  //     if (!index.records.has(id)) {
+  //       continue;
+  //     }
+  //
+  //     yield index.records.get(id);
+  //   }
+  // }
 }

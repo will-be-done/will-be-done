@@ -1,7 +1,7 @@
-import { DB, table } from "./hyperdb/db";
-import { InmemDriver } from "./hyperdb/drivers/InmemDriver";
-import { selectEqual, selectRange, selector } from "./hyperdb/selector";
+import { insert } from "./hyperdb/action";
+import { selectRange, selector } from "./hyperdb/selector";
 import { SubscribableDB } from "./hyperdb/subscribable-db";
+import { table } from "./hyperdb/table";
 
 export type Project = {
   type: "project";
@@ -9,9 +9,9 @@ export type Project = {
   title: string;
   orderToken: string;
 };
-export const projectsTable = table<Project>("projects", {
-  ids: { col: "id", type: "equal" },
-  ordered: { cols: ["orderToken"], type: "range" },
+export const projectsTable = table<Project>("projects").withIndexes({
+  ids: { cols: ["id"], type: "hash" },
+  ordered: { cols: ["orderToken"], type: "btree" },
 });
 
 export const getAllProjects = selector(function* () {
@@ -21,20 +21,24 @@ export const getAllProjects = selector(function* () {
 });
 
 export const getFirst10ProjectsIds = selector(function* () {
-  const tasks = yield* selectRange(projectsTable, "ordered", { limit: 10 });
+  const tasks = yield* selectRange(projectsTable, "ordered", [{}], {
+    limit: 10,
+  });
 
   return tasks.map((p) => p.id);
 });
 
 export const getById = selector(function* (id: string) {
-  const tasks = yield* selectEqual(projectsTable, "ids", [id]);
+  const tasks = yield* selectRange(projectsTable, "ids", [
+    { lte: [{ id }], gte: [{ id }] },
+  ]);
 
   return tasks[0];
 });
 
-export const insertMillion = (db: SubscribableDB) => {
+export function* insertMillion() {
   const projects: Project[] = [];
-  for (let i = 0; i < 10000; i++) {
+  for (let i = 0; i < 100000; i++) {
     const id = Math.random().toString(36).slice(2);
     projects.push({
       id: id,
@@ -44,8 +48,10 @@ export const insertMillion = (db: SubscribableDB) => {
     });
   }
 
-  db.insert(projectsTable, projects);
-};
+  yield* insert(projectsTable, projects);
+
+  console.log("new", yield* getFirst10ProjectsIds());
+}
 
 export const create = (db: SubscribableDB, project: Project) => {
   db.insert(projectsTable, [project]);

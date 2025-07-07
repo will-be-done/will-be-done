@@ -3,17 +3,17 @@ import type { Database } from "sql.js";
 import type {
   DBDriver,
   Row,
-  ScanOptions,
-  TableDefinition,
+  SelectOptions,
   Tuple,
-  Value,
+  TupleScanOptions,
 } from "../db.ts";
 import initSqlJs from "sql.js";
-import { chunk } from "es-toolkit";
+import { chunk, cloneDeep } from "es-toolkit";
+import type { TableDefinition } from "../table.ts";
 
 export class SqlDriver implements DBDriver {
   private db: Database;
-  private tableDefinitions = new Map<string, TableDefinition<any>>();
+  private tableDefinitions = new Map<string, TableDefinition>();
 
   constructor(db: Database) {
     this.db = db;
@@ -62,56 +62,57 @@ export class SqlDriver implements DBDriver {
     }
   }
 
-  *equalScan(
-    table: string,
-    indexName: string,
-    values: Value[],
-  ): Generator<unknown> {
-    const tableDef = this.tableDefinitions.get(table);
-    if (!tableDef) {
-      throw new Error(`Table ${table} not found`);
-    }
-
-    const indexDef = tableDef.indexes[indexName];
-    if (!indexDef) throw new Error(`Index ${indexName} not found`);
-
-    if (indexDef.type !== "equal")
-      throw new Error("equal scan only supports equal indexes");
-    if (indexDef.col !== "id")
-      throw new Error("equal scan only supports id column");
-
-    const allIds = chunk(values, 32000);
-    for (const values of allIds) {
-      const placeholders = values.map(() => "?").join(", ");
-      const sql = `SELECT data FROM ${table} WHERE id IN (${placeholders})`;
-
-      const q = this.db.prepare(sql);
-      try {
-        q.bind(values as string[]);
-
-        while (q.step()) {
-          const res = q.get();
-
-          const record = JSON.parse(res[0] as string) as unknown;
-          yield record;
-        }
-      } catch (error) {
-        throw new Error(`Hash id sacn failed for index ${table}: ${error}`);
-      } finally {
-        q.free();
-      }
-    }
-  }
+  // *equalScan(
+  //   table: string,
+  //   indexName: string,
+  //   values: Value[],
+  // ): Generator<unknown> {
+  //   const tableDef = this.tableDefinitions.get(table);
+  //   if (!tableDef) {
+  //     throw new Error(`Table ${table} not found`);
+  //   }
+  //
+  //   const indexDef = tableDef.indexes[indexName];
+  //   if (!indexDef) throw new Error(`Index ${indexName} not found`);
+  //
+  //   if (indexDef.type !== "equal")
+  //     throw new Error("equal scan only supports equal indexes");
+  //   if (indexDef.col !== "id")
+  //     throw new Error("equal scan only supports id column");
+  //
+  //   const allIds = chunk(values, 32000);
+  //   for (const values of allIds) {
+  //     const placeholders = values.map(() => "?").join(", ");
+  //     const sql = `SELECT data FROM ${table} WHERE id IN (${placeholders})`;
+  //
+  //     const q = this.db.prepare(sql);
+  //     try {
+  //       q.bind(values as string[]);
+  //
+  //       while (q.step()) {
+  //         const res = q.get();
+  //
+  //         const record = JSON.parse(res[0] as string) as unknown;
+  //         yield record;
+  //       }
+  //     } catch (error) {
+  //       throw new Error(`Hash id sacn failed for index ${table}: ${error}`);
+  //     } finally {
+  //       q.free();
+  //     }
+  //   }
+  // }
 
   *intervalScan(
     table: string,
     indexName: string,
-    options: ScanOptions,
+    options: TupleScanOptions[],
+    selectOptions: SelectOptions,
   ): Generator<unknown> {
     const { where, params } = this.buildWhereClause(indexName, table, options);
     const orderClause = this.buildOrderClause(indexName, table);
     const limitClause =
-      options.limit !== undefined ? `LIMIT ${options.limit}` : "";
+      selectOptions.limit !== undefined ? `LIMIT ${selectOptions.limit}` : "";
 
     const sql = `
       SELECT data FROM ${table}
@@ -141,7 +142,7 @@ export class SqlDriver implements DBDriver {
   private buildWhereClause(
     indexName: string,
     tableName: string,
-    options: ScanOptions,
+    allOptions: TupleScanOptions[],
   ): { where: string; params: any[] } {
     const tableDef = this.tableDefinitions.get(tableName);
     if (!tableDef) {
@@ -151,46 +152,52 @@ export class SqlDriver implements DBDriver {
     const indexDef = tableDef.indexes[indexName];
     if (!indexDef) throw new Error(`Index ${indexName} not found`);
 
-    const indexColumns =
-      indexDef.type === "range" ? indexDef.cols : [indexDef.col];
+    const indexColumns = indexDef.cols;
 
-    const conditions: string[] = [];
+    const conditions: string[][] = [];
     const params: any[] = [];
 
-    // Handle tuple comparisons using row value constructors (supported in SQLite)
-    const buildTupleComparison = (operator: string, values: Tuple) => {
-      const columnPaths = indexColumns
-        .slice(0, values.length)
-        .map((col) => `json_extract(data, '$.${String(col)}')`);
+    for (const options of allOptions) {
+      const currentCond: string[] = [];
+      // Handle tuple comparisons using row value constructors (supported in SQLite)
+      const buildTupleComparison = (operator: string, values: Tuple) => {
+        const columnPaths = indexColumns
+          .slice(0, values.length)
+          .map((col) => `json_extract(data, '$.${String(col)}')`);
 
-      if (values.length === 1) {
-        // Simple case: single column
-        conditions.push(`${columnPaths[0]} ${operator} ?`);
-        params.push(values[0]);
-      } else {
-        // Use row value constructor for tuple comparison
-        const columnList = columnPaths.join(", ");
-        const valueList = values.map(() => "?").join(", ");
-        conditions.push(`(${columnList}) ${operator} (${valueList})`);
-        params.push(...values);
+        if (values.length === 1) {
+          // Simple case: single column
+          currentCond.push(`${columnPaths[0]} ${operator} ?`);
+          params.push(values[0]);
+        } else {
+          // Use row value constructor for tuple comparison
+          const columnList = columnPaths.join(", ");
+          const valueList = values.map(() => "?").join(", ");
+          currentCond.push(`(${columnList}) ${operator} (${valueList})`);
+          params.push(...values);
+        }
+      };
+
+      if (options.gt) {
+        buildTupleComparison(">", options.gt);
       }
-    };
+      if (options.gte) {
+        buildTupleComparison(">=", options.gte);
+      }
+      if (options.lt) {
+        buildTupleComparison("<", options.lt);
+      }
+      if (options.lte) {
+        buildTupleComparison("<=", options.lte);
+      }
 
-    if (options.gt) {
-      buildTupleComparison(">", options.gt);
-    }
-    if (options.gte) {
-      buildTupleComparison(">=", options.gte);
-    }
-    if (options.lt) {
-      buildTupleComparison("<", options.lt);
-    }
-    if (options.lte) {
-      buildTupleComparison("<=", options.lte);
+      conditions.push(currentCond);
     }
 
     const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      params.length > 0
+        ? `WHERE ${conditions.map((cond) => `(${cond.join(" AND ")})`).join(" OR ")}`
+        : "";
     return { where: whereClause, params };
   }
 
@@ -209,8 +216,7 @@ export class SqlDriver implements DBDriver {
       return "";
     }
 
-    const indexColumns =
-      indexDef.type === "range" ? indexDef.cols : [indexDef.col];
+    const indexColumns = indexDef.cols;
 
     const orderColumns = indexColumns
       .map((col) => {
@@ -223,10 +229,11 @@ export class SqlDriver implements DBDriver {
   }
 
   loadTables(tableDefinitions: TableDefinition<any>[]): void {
+    tableDefinitions = cloneDeep(tableDefinitions);
     for (const tableDef of tableDefinitions) {
-      this.createTable(tableDef.name);
+      this.createTable(tableDef.tableName);
       this.createIndexes(tableDef);
-      this.tableDefinitions.set(tableDef.name, tableDef);
+      this.tableDefinitions.set(tableDef.tableName, tableDef);
     }
   }
 
@@ -244,15 +251,19 @@ export class SqlDriver implements DBDriver {
 
   private createIndexes(tableDef: TableDefinition<any>): void {
     for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
-      const cols = indexDef.type === "range" ? indexDef.cols : [indexDef.col];
+      const cols = [...indexDef.cols];
+
+      if (cols[cols.length - 1] !== "id") {
+        cols.push("id");
+      }
 
       // Create a composite index using JSON path expressions
       const columnPaths = cols
         .map((col) => `json_extract(data, '$.${String(col)}') ASC`)
         .join(", ");
       const createIndexSQL = `
-          CREATE INDEX IF NOT EXISTS idx_${tableDef.name}_${indexName} 
-          ON ${tableDef.name}(${columnPaths})
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_${tableDef.tableName}_${indexName} 
+          ON ${tableDef.tableName}(${columnPaths})
         `;
       console.log(createIndexSQL);
       this.db.exec(createIndexSQL);

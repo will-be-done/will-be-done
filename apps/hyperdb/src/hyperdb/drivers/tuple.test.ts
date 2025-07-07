@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from "vitest";
+import { MAX, MIN } from "../db.ts";
 import {
   compareTuple,
   compareValue,
   encodingTypeOf,
-  UnreachableError,
   isRowInRange,
-} from "./InmemDriver.ts";
-import { MAX, MIN, type TableDefinition } from "../db.ts";
+} from "./tuple.ts";
+import { UnreachableError } from "../utils.ts";
+import { table } from "../table.ts";
 
 describe("Value and Tuple Comparison Edge Cases", () => {
   describe("encodingTypeOf", () => {
@@ -74,12 +75,6 @@ describe("Value and Tuple Comparison Edge Cases", () => {
       expect(compareValue(null, "a")).toBe(-1);
       expect(compareValue("a", null)).toBe(1);
     });
-
-    it("should throw for virtual values", () => {
-      expect(() => compareValue(MIN, MAX)).toThrow(
-        "Cannot save virtual values into tuple",
-      );
-    });
   });
 
   describe("compareTuple", () => {
@@ -118,14 +113,6 @@ describe("Value and Tuple Comparison Edge Cases", () => {
       expect(compareValue("hello", MIN)).toBe(1);
       expect(compareValue("hello", MAX)).toBe(-1);
 
-      // Virtual values throw when both are virtual
-      expect(() => compareValue(MIN, MAX)).toThrow(
-        "Cannot save virtual values into tuple",
-      );
-      expect(() => compareValue(MAX, MIN)).toThrow(
-        "Cannot save virtual values into tuple",
-      );
-
       // But MIN/MAX vs regular values work for bounds
       expect(compareTuple([1, 0], [1, null])).toBe(1); // 0 > null in encoding order
       expect(compareTuple([null, 1], [1, null])).toBe(-1); // null < 1 in encoding order
@@ -134,20 +121,11 @@ describe("Value and Tuple Comparison Edge Cases", () => {
 });
 
 describe("isRowInRange", () => {
-  const mockTable: TableDefinition<any> = {
-    name: "test_table",
-    indexes: {
-      primary: {
-        cols: ["id"],
-      },
-      name_age: {
-        cols: ["name", "age"],
-      },
-      score: {
-        cols: ["score"],
-      },
-    },
-  };
+  const mockTable = table<any>("test_table").withIndexes({
+    primary: { cols: ["id"], type: "hash" },
+    name_age: { cols: ["name", "age"], type: "btree" },
+    score: { cols: ["score"], type: "btree" },
+  });
 
   const sampleRow = {
     id: "1",

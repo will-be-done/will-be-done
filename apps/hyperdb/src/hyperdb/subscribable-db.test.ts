@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SubscribableDB, type Op } from "./subscribable-db";
-import { DB, table } from "./db";
-import { InmemDriver } from "./drivers/InmemDriver";
+import { DB } from "./db";
+import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
+import { table } from "./table";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
@@ -12,13 +13,13 @@ type Task = {
   orderToken: string;
 };
 
-const tasksTable = table<Task>("tasks", {
-  ids: { cols: ["id"] },
-  projectIdState: { cols: ["projectId", "state"] },
+const tasksTable = table<Task>("tasks").withIndexes({
+  ids: { cols: ["id"], type: "hash" },
+  projectIdState: { cols: ["projectId", "state"], type: "btree" },
 });
 
 describe("SubscribableDB", () => {
-  for (const driver of [new InmemDriver()]) {
+  for (const driver of [new BptreeInmemDriver()]) {
     describe(`with ${driver.constructor.name}`, () => {
       it("should subscribe to operations and receive correct notifications", () => {
         const db = new DB(driver, [tasksTable]);
@@ -217,19 +218,14 @@ describe("SubscribableDB", () => {
 
         subscribableDB.insert(tasksTable, tasks);
 
-        // Test hashScan
-        const hashResults = Array.from(
-          subscribableDB.hashScan(tasksTable, "id", ["task-1"]),
-        );
-        expect(hashResults).toHaveLength(1);
-        expect(hashResults[0]).toEqual(tasks[0]);
-
         // Test intervalScan
         const intervalResults = Array.from(
-          subscribableDB.intervalScan(tasksTable, "ids", {
-            gte: ["task-1"],
-            lte: ["task-1"],
-          }),
+          subscribableDB.intervalScan(tasksTable, "ids", [
+            {
+              gte: ["task-1"],
+              lte: ["task-1"],
+            },
+          ]),
         );
         expect(intervalResults).toHaveLength(1);
         expect(intervalResults[0]).toEqual(tasks[0]);
@@ -428,7 +424,7 @@ describe("SubscribableDB", () => {
 
         // Verify final state by scanning
         const finalTasks = Array.from(
-          subscribableDB.intervalScan(tasksTable, "ids"),
+          subscribableDB.intervalScan(tasksTable, "projectIdState", [{}]),
         );
         expect(finalTasks).toHaveLength(2);
         expect(finalTasks.find((t) => t.id === "task-1")).toEqual(updatedTask);

@@ -1,58 +1,108 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-  type ExtractSchema,
-  type ScanOptions,
-  type TableDefinition,
-} from "./db";
 import { SubscribableDB, type Op } from "./subscribable-db";
-import { isRowInRange } from "./drivers/InmemDriver";
+import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
+import type { Row, ScanValue, SelectOptions, TupleScanOptions } from "./db";
+import { isRowInRange } from "./drivers/tuple";
 
+export type PartialScanOptions<T extends Row = Row> = {
+  lte?: Partial<T>[];
+  gte?: Partial<T>[];
+  lt?: Partial<T>[];
+  gt?: Partial<T>[];
+  // limit?: number;
+};
+
+const selectRangeType = "selectRange";
 type SelectRangeCmd = {
-  type: "selectRange";
+  type: typeof selectRangeType;
   table: TableDefinition<any>;
   index: string;
-  options?: ScanOptions;
+  scanOptions: TupleScanOptions[];
+  selectOptions?: SelectOptions;
 };
 
-type SelectEqualCmd = {
-  type: "selectEqual";
-  table: TableDefinition<any>;
-  indexName: string;
-  values: string[];
-};
+// type SelectEqualCmd = {
+//   type: "selectEqual";
+//   table: TableDefinition<any>;
+//   indexName: string;
+//   values: string[];
+// };
 
-const isSelectRangeCmd = (cmd: any): cmd is SelectRangeCmd =>
-  cmd.type === "selectRange";
-const isSelectCmd = (cmd: any): cmd is SelectEqualCmd =>
-  cmd.type === "selectEqual";
+export const isSelectRangeCmd = (cmd: any): cmd is SelectRangeCmd =>
+  cmd.type === selectRangeType;
+// const isSelectCmd = (cmd: any): cmd is SelectEqualCmd =>
+//   cmd.type === "selectEqual";
 
-export function* selectRange<TTable extends TableDefinition<any>>(
+export function* selectRange<
+  TTable extends TableDefinition<any, any>,
+  K extends keyof ExtractIndexes<TTable>,
+>(
   table: TTable,
-  indexName: keyof TTable["indexes"],
-  options?: ScanOptions,
+  indexName: K,
+  scanOptions?: PartialScanOptions<ExtractSchema<TTable>>[],
+  selectOptions?: SelectOptions,
 ): Generator<unknown, ExtractSchema<TTable>[], unknown> {
+  if (scanOptions && scanOptions.length === 0) {
+    throw new Error(
+      "scan options must be provided. To make full scan prove [{}]",
+    );
+  }
+
+  const indexDef = table.indexes[indexName];
+  if (!indexDef)
+    throw new Error(
+      `Index not found: ${indexName as string} for table: ${table.tableName}`,
+    );
+
+  const mapPartialTuples = (tuples: Partial<Row>[] | undefined) => {
+    if (!tuples) return undefined;
+
+    return tuples.map((value, i) => {
+      const entries = Object.entries(value);
+      if (entries.length !== 1) {
+        throw new Error("index must have exactly one column");
+      }
+      const [colName, colValue] = entries[0];
+      if (colName !== indexDef.cols[i]) {
+        throw new Error(
+          `index column ${colName} does not match table column ${indexDef.cols[i]}`,
+        );
+      }
+
+      return colValue as ScanValue;
+    });
+  };
+
+  const tuplesScanOptions = (scanOptions || [{}]).map((opt) => ({
+    lte: mapPartialTuples(opt.lte),
+    gte: mapPartialTuples(opt.gte),
+    lt: mapPartialTuples(opt.lt),
+    gt: mapPartialTuples(opt.gt),
+  }));
+
   return (yield {
     type: "selectRange",
     table: table,
     index: indexName as string,
-    options,
+    scanOptions: tuplesScanOptions,
+    selectOptions: selectOptions,
   } satisfies SelectRangeCmd) as ExtractSchema<TTable>[];
 }
 
-export function* selectEqual<TTable extends TableDefinition<any>>(
-  table: TTable,
-  indexName: keyof TTable["indexes"],
-  vals: string[],
-) {
-  return (yield {
-    type: "selectEqual",
-    table: table,
-    indexName: indexName as string,
-    values: vals,
-  } satisfies SelectEqualCmd) as ExtractSchema<TTable>[];
-}
+// export function* selectEqual<TTable extends TableDefinition<any>>(
+//   table: TTable,
+//   indexName: keyof TTable["indexes"],
+//   vals: string[],
+// ) {
+//   return (yield {
+//     type: "selectEqual",
+//     table: table,
+//     indexName: indexName as string,
+//     values: vals,
+//   } satisfies SelectEqualCmd) as ExtractSchema<TTable>[];
+// }
 
-type SelectorFn<TReturn, TParams extends any[]> = (
+export type SelectorFn<TReturn, TParams extends any[]> = (
   ...args: TParams
 ) => Generator<unknown, TReturn, unknown>;
 
@@ -65,67 +115,33 @@ export function selector<TReturn, TParams extends any[]>(
 // TODO: maybe range tree instead?
 const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
   for (const cmd of cmds) {
-    for (const op of ops) {
-      if (op.type === "insert") {
-        if (isRowInRange(op.newValue, cmd.table, cmd.index, cmd.options)) {
-          return true;
-        }
-      }
-
-      if (op.type === "update") {
-        if (isRowInRange(op.oldValue, cmd.table, cmd.index, cmd.options)) {
-          return true;
+    for (const scanOptions of cmd.scanOptions) {
+      for (const op of ops) {
+        if (op.type === "insert") {
+          if (isRowInRange(op.newValue, cmd.table, cmd.index, scanOptions)) {
+            return true;
+          }
         }
 
-        if (isRowInRange(op.newValue, cmd.table, cmd.index, cmd.options)) {
-          return true;
-        }
-      }
+        if (op.type === "update") {
+          if (isRowInRange(op.oldValue, cmd.table, cmd.index, scanOptions)) {
+            return true;
+          }
 
-      if (op.type === "delete") {
-        if (isRowInRange(op.oldValue, cmd.table, cmd.index, cmd.options)) {
-          return true;
+          if (isRowInRange(op.newValue, cmd.table, cmd.index, scanOptions)) {
+            return true;
+          }
+        }
+
+        if (op.type === "delete") {
+          if (isRowInRange(op.oldValue, cmd.table, cmd.index, scanOptions)) {
+            return true;
+          }
         }
       }
     }
   }
 
-  return false;
-};
-
-const isNeedToRerunEqual = (cmds: SelectEqualCmd[], ops: Op[]): boolean => {
-  for (const cmd of cmds) {
-    const indexDef = cmd.table.indexes[cmd.indexName];
-    if (!indexDef)
-      throw new Error(
-        "Index not found: " + cmd.indexName + " for table: " + cmd.table.name,
-      );
-    if (indexDef.type !== "equal") {
-      throw new Error(
-        "Equal index required, got: " +
-          indexDef.type +
-          " for table: " +
-          cmd.table.name,
-      );
-    }
-
-    // TODO: maybe new Set() instead of includes?
-    for (const op of ops) {
-      if (op.type === "insert") {
-        if (cmd.values.includes(op.newValue[indexDef.col as string] as string))
-          return true;
-      } else if (op.type === "update") {
-        if (
-          cmd.values.includes(op.newValue[indexDef.col as string] as string) ||
-          cmd.values.includes(op.oldValue[indexDef.col as string] as string)
-        )
-          return true;
-      } else if (op.type === "delete") {
-        if (cmd.values.includes(op.oldValue[indexDef.col as string] as string))
-          return true;
-      }
-    }
-  }
   return false;
 };
 
@@ -140,7 +156,6 @@ export function initSelector<TReturn>(
 } {
   let currentResult: TReturn | undefined;
   const selectRangeCmds: SelectRangeCmd[] = [];
-  const selectEqualCmds: SelectEqualCmd[] = [];
 
   const runSelector = () => {
     const currentGen = gen();
@@ -152,18 +167,10 @@ export function initSelector<TReturn>(
       if (isSelectRangeCmd(result.value)) {
         selectRangeCmds.push(result.value);
 
-        const { table, index, options } = result.value;
+        const { table, index, scanOptions, selectOptions } = result.value;
 
         result = currentGen.next(
-          Array.from(db.intervalScan(table, index, options)),
-        );
-      } else if (isSelectCmd(result.value)) {
-        selectEqualCmds.push(result.value);
-
-        const { table, indexName, values } = result.value;
-
-        result = currentGen.next(
-          Array.from(db.hashScan(table, indexName, values)),
+          Array.from(db.intervalScan(table, index, scanOptions, selectOptions)),
         );
       } else {
         result = currentGen.next();
@@ -205,10 +212,7 @@ export function initSelector<TReturn>(
       const dbUnsubscribes: (() => void)[] = [];
 
       const unsubscribe = db.subscribe((ops) => {
-        if (
-          !isNeedToRerunRange(selectRangeCmds, ops) &&
-          !isNeedToRerunEqual(selectEqualCmds, ops)
-        ) {
+        if (!isNeedToRerunRange(selectRangeCmds, ops)) {
           return;
         }
 
