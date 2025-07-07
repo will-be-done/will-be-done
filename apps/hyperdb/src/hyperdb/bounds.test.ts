@@ -655,4 +655,147 @@ describe("bounds", () => {
       },
     ]);
   });
+
+  it("handles eq and lt/gt", () => {
+    expect(() =>
+      convertWhereToBound(col, [
+        {
+          eq: [],
+          gte: [
+            {
+              col: "title",
+              val: 1,
+            },
+          ],
+          gt: [],
+          lte: [
+            {
+              col: "title",
+              val: 100,
+            },
+          ],
+          lt: [],
+        },
+      ]),
+    ).toThrow();
+
+    expect(() =>
+      convertWhereToBound(col, [
+        {
+          eq: [],
+          gte: [],
+          gt: [
+            {
+              col: "id",
+              val: 1,
+            },
+            {
+              col: "title",
+              val: "hello",
+            },
+          ],
+          lte: [],
+          lt: [
+            {
+              col: "id",
+              val: 100,
+            },
+          ],
+        },
+      ]),
+    ).toThrow();
+
+    expect(
+      convertWhereToBound(col, [
+        {
+          eq: [],
+          gte: [
+            {
+              col: "id",
+              val: 1,
+            },
+          ],
+          gt: [],
+          lt: [
+            {
+              col: "title",
+              val: "hello",
+            },
+          ],
+          lte: [
+            {
+              col: "id",
+              val: 1,
+            },
+          ],
+        },
+      ]),
+    ).toEqual([
+      {
+        gte: [1, MIN, MIN],
+        lt: [1, "hello", MIN],
+      },
+    ]);
+
+    expect(
+      convertWhereToBound(col, [
+        {
+          eq: [],
+          gte: [
+            {
+              col: "id",
+              val: 1,
+            },
+          ],
+          gt: [],
+          lt: [],
+          lte: [
+            {
+              col: "title",
+              val: "hello",
+            },
+            {
+              col: "id",
+              val: 1,
+            },
+          ],
+        },
+      ]),
+    ).toEqual([
+      {
+        gte: [1, MIN, MIN],
+        lte: [1, "hello", MAX],
+      },
+    ]);
+
+    expect(() =>
+      convertWhereToBound(col, [
+        {
+          eq: [],
+          gte: [
+            {
+              col: "id",
+              val: 1,
+            },
+          ],
+          gt: [],
+          lt: [],
+          lte: [
+            {
+              col: "title",
+              val: "hello",
+            },
+            {
+              col: "id",
+              val: 1,
+            },
+            {
+              col: "author",
+              val: "kek",
+            },
+          ],
+        },
+      ]),
+    ).toThrow();
+  });
 });
