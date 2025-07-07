@@ -82,10 +82,14 @@ export function dispatch<TReturn>(
 
   while (!result.done) {
     if (isSelectRangeCmd(result.value)) {
-      const { table, index, scanOptions, selectOptions } = result.value;
+      const { table, index, selectQuery } = result.value;
 
       result = action.next(
-        Array.from(db.intervalScan(table, index, scanOptions, selectOptions)),
+        Array.from(
+          db.intervalScan(table, index, selectQuery.where, {
+            limit: selectQuery.limit,
+          }),
+        ),
       );
     } else if (isInsertActionCmd(result.value)) {
       result = action.next(db.insert(result.value.table, result.value.values));

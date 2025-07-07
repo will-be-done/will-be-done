@@ -1,8 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SubscribableDB, type Op } from "./subscribable-db";
-import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
-import type { Row, SelectOptions, WhereClause } from "./db";
+import type { ExtractSchema, TableDefinition } from "./table";
+import type { Row, TupleScanOptions } from "./db";
 import { isRowInRange } from "./drivers/tuple";
+import type { SelectQuery } from "./query";
+import { convertWhereToBound } from "./bounds";
 
 export type PartialScanOptions<T extends Row = Row> = {
   lte?: Partial<T>[];
@@ -17,8 +19,8 @@ type SelectRangeCmd = {
   type: typeof selectRangeType;
   table: TableDefinition<any>;
   index: string;
-  scanOptions: WhereClause[];
-  selectOptions?: SelectOptions;
+  selectQuery: SelectQuery;
+  bounds: TupleScanOptions[];
 };
 
 // type SelectEqualCmd = {
@@ -33,66 +35,24 @@ export const isSelectRangeCmd = (cmd: any): cmd is SelectRangeCmd =>
 // const isSelectCmd = (cmd: any): cmd is SelectEqualCmd =>
 //   cmd.type === "selectEqual";
 
-export function* selectRange<
-  TTable extends TableDefinition<any, any>,
-  K extends keyof ExtractIndexes<TTable>,
->(
-  table: TTable,
-  indexName: K,
-  scanOptions?: PartialScanOptions<ExtractSchema<TTable>>[],
-  selectOptions?: SelectOptions,
-): Generator<unknown, ExtractSchema<TTable>[], unknown> {
-  if (scanOptions && scanOptions.length === 0) {
-    throw new Error(
-      "scan options must be provided. To make full scan prove [{}]",
-    );
-  }
-
+export function* runQuery<QType extends SelectQuery>(
+  query: QType,
+): Generator<unknown, ExtractSchema<QType["from"]>[], unknown> {
+  const table = query.from;
+  const indexName = query.index;
   const indexDef = table.indexes[indexName];
   if (!indexDef)
     throw new Error(
       `Index not found: ${indexName as string} for table: ${table.tableName}`,
     );
 
-
-  const whereClausesOptions = (scanOptions || [{}]).map((opt) => {
-    const clause: WhereClause = {};
-    
-    if (opt.lte) {
-      clause.lte = opt.lte.map((partial) => {
-        const [col, val] = Object.entries(partial)[0];
-        return { col, val: val as any };
-      });
-    }
-    if (opt.gte) {
-      clause.gte = opt.gte.map((partial) => {
-        const [col, val] = Object.entries(partial)[0];
-        return { col, val: val as any };
-      });
-    }
-    if (opt.lt) {
-      clause.lt = opt.lt.map((partial) => {
-        const [col, val] = Object.entries(partial)[0];
-        return { col, val: val as any };
-      });
-    }
-    if (opt.gt) {
-      clause.gt = opt.gt.map((partial) => {
-        const [col, val] = Object.entries(partial)[0];
-        return { col, val: val as any };
-      });
-    }
-    
-    return clause;
-  });
-
   return (yield {
     type: "selectRange",
     table: table,
     index: indexName as string,
-    scanOptions: whereClausesOptions,
-    selectOptions: selectOptions,
-  } satisfies SelectRangeCmd) as ExtractSchema<TTable>[];
+    selectQuery: query,
+    bounds: convertWhereToBound(indexDef, query.where),
+  } satisfies SelectRangeCmd) as ExtractSchema<QType["from"]>[];
 }
 
 // export function* selectEqual<TTable extends TableDefinition<any>>(
@@ -121,26 +81,26 @@ export function selector<TReturn, TParams extends any[]>(
 // TODO: maybe range tree instead?
 const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
   for (const cmd of cmds) {
-    for (const whereClause of cmd.scanOptions) {
+    for (const bound of cmd.bounds) {
       for (const op of ops) {
         if (op.type === "insert") {
-          if (isRowInRange(op.newValue, cmd.table, cmd.index, whereClause)) {
+          if (isRowInRange(op.newValue, cmd.table, cmd.index, bound)) {
             return true;
           }
         }
 
         if (op.type === "update") {
-          if (isRowInRange(op.oldValue, cmd.table, cmd.index, whereClause)) {
+          if (isRowInRange(op.oldValue, cmd.table, cmd.index, bound)) {
             return true;
           }
 
-          if (isRowInRange(op.newValue, cmd.table, cmd.index, whereClause)) {
+          if (isRowInRange(op.newValue, cmd.table, cmd.index, bound)) {
             return true;
           }
         }
 
         if (op.type === "delete") {
-          if (isRowInRange(op.oldValue, cmd.table, cmd.index, whereClause)) {
+          if (isRowInRange(op.oldValue, cmd.table, cmd.index, bound)) {
             return true;
           }
         }
@@ -173,10 +133,14 @@ export function initSelector<TReturn>(
       if (isSelectRangeCmd(result.value)) {
         selectRangeCmds.push(result.value);
 
-        const { table, index, scanOptions, selectOptions } = result.value;
+        const { table, index, selectQuery } = result.value;
 
         result = currentGen.next(
-          Array.from(db.intervalScan(table, index, scanOptions, selectOptions)),
+          Array.from(
+            db.intervalScan(table, index, selectQuery.where, {
+              limit: selectQuery.limit,
+            }),
+          ),
         );
       } else {
         result = currentGen.next();

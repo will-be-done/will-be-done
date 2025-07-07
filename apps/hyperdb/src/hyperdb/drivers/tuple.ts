@@ -106,7 +106,6 @@ export function compareTuple(a: Tuple, b: Tuple) {
 
   for (let i = 0; i < len; i++) {
     const dir = compareValue(a[i], b[i]);
-    console.log("dir", a[i], ">", b[i], compareValue(a[i], b[i]));
     if (dir === 0) {
       continue;
     }

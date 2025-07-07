@@ -196,12 +196,36 @@ export class BptreeInmemDriver implements DBDriver {
       const ids = new Set<string>();
 
       for (const clause of clauses) {
+        if (
+          (clause.lte !== undefined && clause.lte.length > 0) ||
+          (clause.gte !== undefined && clause.gte.length > 0) ||
+          (clause.gt !== undefined && clause.gt.length > 0) ||
+          (clause.lt !== undefined && clause.lt.length > 0)
+        ) {
+          throw new Error(
+            "Hash index doesn't support range conditions for column '" +
+              index.column +
+              "'",
+          );
+        }
+
         if (clause.eq) {
-          for (const { col, val } of clause.eq) {
-            if (col === index.column) {
-              ids.add(val as string);
-            }
+          if (clause.eq.length > 1) {
+            throw new Error(
+              "Hash index doesn't support multiple equality conditions for column '" +
+                index.column +
+                "'",
+            );
           }
+          if (clause.eq.length === 0) {
+            throw new Error(
+              "Hash index doesn't support empty equality conditions for column '" +
+                index.column +
+                "'",
+            );
+          }
+
+          ids.add(clause.eq[0].val as string);
         }
       }
 

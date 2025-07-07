@@ -1,9 +1,10 @@
-import { describe, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { DB } from "./db";
-import { selectRange, selector, initSelector } from "./selector";
+import { runQuery, selector, initSelector } from "./selector";
 import { SubscribableDB } from "./subscribable-db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
+import { selectFrom } from "./query";
 
 type Task = {
   type: "task";
@@ -23,12 +24,11 @@ const driver = new BptreeInmemDriver();
 export const db = new SubscribableDB(new DB(driver, [tasksTable]));
 
 const allTasks = selector(function* () {
-  const tasks = yield* selectRange(tasksTable, "projectIdState", [
-    {
-      gte: [{ projectId: "1" }],
-      lte: [{ projectId: "1" }],
-    },
-  ]);
+  const tasks = yield* runQuery(
+    selectFrom(tasksTable, "projectIdState").where((q) =>
+      q.eq("projectId", "1"),
+    ),
+  );
 
   return tasks;
 });
@@ -40,12 +40,9 @@ const allDoneTasks = selector(function* (state: Task["state"]) {
 });
 
 const specificTask = selector(function* (id: string) {
-  const tasks = yield* selectRange(tasksTable, "id", [
-    {
-      lte: [{ id }],
-      gte: [{ id }],
-    },
-  ]);
+  const tasks = yield* runQuery(
+    selectFrom(tasksTable, "id").where((q) => q.eq("id", id)),
+  );
   return tasks[0];
 });
 
@@ -53,8 +50,10 @@ describe("selector", () => {
   test("works with range", () => {
     const selector = initSelector(db, () => allDoneTasks("done"));
 
+    const results = [selector.getSnapshot()?.[0]?.id];
     selector.subscribe(() => {
       console.log("new tasks!", selector.getSnapshot());
+      results.push(selector.getSnapshot()?.[0]?.id);
     });
 
     db.insert(tasksTable, [
@@ -80,6 +79,8 @@ describe("selector", () => {
     ]);
 
     db.delete(tasksTable, ["task-1"]);
+
+    expect(results).toEqual([undefined, "task-1", undefined]);
   });
 
   test("works with equal", () => {

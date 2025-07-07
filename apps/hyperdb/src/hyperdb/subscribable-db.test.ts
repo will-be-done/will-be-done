@@ -3,6 +3,7 @@ import { SubscribableDB, type Op } from "./subscribable-db";
 import { DB } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
+import { SqlDriver } from "./drivers/SqlDriver";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
@@ -18,8 +19,8 @@ const tasksTable = table<Task>("tasks").withIndexes({
   projectIdState: { cols: ["projectId", "state"], type: "btree" },
 });
 
-describe("SubscribableDB", () => {
-  for (const driver of [new BptreeInmemDriver()]) {
+describe("SubscribableDB", async () => {
+  for (const driver of [new BptreeInmemDriver(), await SqlDriver.init()]) {
     describe(`with ${driver.constructor.name}`, () => {
       it("should subscribe to operations and receive correct notifications", () => {
         const db = new DB(driver, [tasksTable]);
@@ -222,8 +223,7 @@ describe("SubscribableDB", () => {
         const intervalResults = Array.from(
           subscribableDB.intervalScan(tasksTable, "ids", [
             {
-              gte: ["task-1"],
-              lte: ["task-1"],
+              eq: [{ col: "id", val: "task-1" }],
             },
           ]),
         );

@@ -11,7 +11,13 @@ export const convertWhereToBound = (
   const result = where.map((clause) => {
     const { eq, gte, gt, lte, lt } = clause;
 
-    if (Object.keys(clause).length === 0) {
+    if (
+      (eq === undefined || eq?.length === 0) &&
+      (gte === undefined || gte?.length === 0) &&
+      (gt === undefined || gt?.length === 0) &&
+      (lte === undefined || lte?.length === 0) &&
+      (lt === undefined || lt?.length === 0)
+    ) {
       return {};
     }
 

@@ -25,9 +25,13 @@ export type ExtractColumnValue<
   TCol extends keyof ExtractSchema<TTable>,
 > = ExtractSchema<TTable>[TCol];
 
-type SelectQuery = {
-  from: TableDefinition;
-  index: string;
+export type SelectQuery<
+  TTable extends TableDefinition = TableDefinition,
+  K extends keyof ExtractIndexes<TTable> = keyof ExtractIndexes<TTable>,
+> = {
+  limit?: number;
+  from: TTable;
+  index: K;
   where: WhereClause[];
 };
 
@@ -103,36 +107,40 @@ class QueryBuilder<TTable, TIndexName extends keyof ExtractIndexes<TTable>> {
 }
 
 class SelectQueryBuilder<
-  TTable,
+  TTable extends TableDefinition,
   TIndexName extends keyof ExtractIndexes<TTable>,
 > {
   private table: TTable;
   private index: TIndexName;
+  private limit?: number;
 
-  constructor(table: TTable, index: TIndexName) {
+  constructor(table: TTable, index: TIndexName, limit?: number) {
     this.table = table;
     this.index = index;
+    this.limit = limit;
   }
 
   where(
     callback: (
       q: QueryBuilder<TTable, TIndexName>,
     ) => QueryBuilder<TTable, TIndexName> | QueryBuilder<TTable, TIndexName>[],
-  ): SelectQuery {
+  ): SelectQuery<TTable, TIndexName> {
     const queryBuilder = new QueryBuilder<TTable, TIndexName>();
     const result = callback(queryBuilder);
 
     if (Array.isArray(result)) {
       return {
-        from: this.table as TableDefinition,
-        index: this.index as string,
+        from: this.table as TTable,
+        index: this.index,
         where: result.map((builder) => builder.getConditions()),
+        limit: this.limit,
       };
     } else {
       return {
-        from: this.table as TableDefinition,
-        index: this.index as string,
+        from: this.table as TTable,
+        index: this.index,
         where: [result.getConditions()],
+        limit: this.limit,
       };
     }
   }
@@ -144,8 +152,9 @@ export const selectFrom = <
 >(
   table: TTable,
   index: TIndexName,
+  limit?: number,
 ): SelectQueryBuilder<TTable, TIndexName> => {
-  return new SelectQueryBuilder(table, index);
+  return new SelectQueryBuilder(table, index, limit);
 };
 
 export const or = <TTable, TIndexName extends keyof ExtractIndexes<TTable>>(

@@ -201,8 +201,7 @@ export class DB implements HyperDB {
     }
 
     // Just for validation
-    const bounds = convertWhereToBound(indexConfig, clauses);
-    console.log("bounds", bounds);
+    convertWhereToBound(indexConfig, clauses);
 
     for (const data of this.driver.intervalScan(
       table.tableName,

@@ -3,7 +3,8 @@ import { table } from "./table";
 import { DB } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { action, deleteRows, dispatch, insert, update } from "./action";
-import { selectRange } from "./selector";
+import { runQuery } from "./selector";
+import { selectFrom } from "./query";
 
 type Task = {
   type: "task";
@@ -44,30 +45,21 @@ const insertAction = action(function* () {
 
   yield* insert(tasksTables, [task]);
 
-  const tasks = yield* selectRange(tasksTables, "title", [
-    {
-      gte: [{ title: "Task 1" }],
-      lte: [{ title: "Task 1" }],
-    },
-  ]);
+  const tasks = yield* runQuery(
+    selectFrom(tasksTables, "title").where((q) => q.eq("title", "Task 1")),
+  );
 
   yield* updateAction();
 
-  const tasks2 = yield* selectRange(tasksTables, "title", [
-    {
-      gte: [{ title: "Task 1" }],
-      lte: [{ title: "Task 1" }],
-    },
-  ]);
+  const tasks2 = yield* runQuery(
+    selectFrom(tasksTables, "title").where((q) => q.eq("title", "Task 1")),
+  );
 
   yield* deleteRows(tasksTables, ["task-1"]);
 
-  const tasks3 = yield* selectRange(tasksTables, "title", [
-    {
-      gte: [{ title: "Task 1" }],
-      lte: [{ title: "Task 1" }],
-    },
-  ]);
+  const tasks3 = yield* runQuery(
+    selectFrom(tasksTables, "title").where((q) => q.eq("title", "Task 1")),
+  );
 
   return [tasks, tasks2, tasks3];
 });
