@@ -3,7 +3,8 @@ TODO next:
 3. DONE Remove limit from scan opts
 4. DONE Actions
 5. DONE Make columns type checks in tuples
-6. Make DB interface so DB and SubscribableDB will match
+6. DONE Make DB interface so DB and SubscribableDB will match
+7. Add query syntax
 7. Add tx support
 6. Fix hash for inmem to allow storing duplicates
 
