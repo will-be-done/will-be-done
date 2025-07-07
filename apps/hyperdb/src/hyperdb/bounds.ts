@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { TupleScanOptions } from "./db";
+import type { TupleScanOptions, Value } from "./db";
 import { MIN, MAX } from "./db";
 import type { WhereClause } from "./query";
 import type { IndexConfig } from "./table";
@@ -24,11 +24,11 @@ export const convertWhereToBound = (
     
     // Group conditions by column
     const conditionsByCol = new Map<string, {
-      eq?: string;
-      gte?: string;
-      gt?: string;
-      lte?: string;
-      lt?: string;
+      eq?: Value;
+      gte?: Value;
+      gt?: Value;
+      lte?: Value;
+      lt?: Value;
     }>();
     
     for (const condition of eq) {
@@ -112,7 +112,7 @@ export const convertWhereToBound = (
       const conditions = conditionsByCol.get(col)!;
       
       if (conditions.eq !== undefined) {
-        prefixValues.push(parseValue(conditions.eq));
+        prefixValues.push(conditions.eq);
       } else {
         rangeColumnIndex = i;
         break;
@@ -147,7 +147,7 @@ export const convertWhereToBound = (
       }
       
       if (conditions.gte !== undefined) {
-        const gteValues = [...prefixValues, parseValue(conditions.gte)];
+        const gteValues = [...prefixValues, conditions.gte];
         while (gteValues.length < indexCols.length) {
           gteValues.push(MIN);
         }
@@ -164,7 +164,7 @@ export const convertWhereToBound = (
       }
       
       if (conditions.gt !== undefined) {
-        const gtValues = [...prefixValues, parseValue(conditions.gt)];
+        const gtValues = [...prefixValues, conditions.gt];
         while (gtValues.length < indexCols.length) {
           gtValues.push(MAX);
         }
@@ -181,7 +181,7 @@ export const convertWhereToBound = (
       }
       
       if (conditions.lte !== undefined) {
-        const lteValues = [...prefixValues, parseValue(conditions.lte)];
+        const lteValues = [...prefixValues, conditions.lte];
         while (lteValues.length < indexCols.length) {
           lteValues.push(MAX);
         }
@@ -189,7 +189,7 @@ export const convertWhereToBound = (
       }
       
       if (conditions.lt !== undefined) {
-        const ltValues = [...prefixValues, parseValue(conditions.lt)];
+        const ltValues = [...prefixValues, conditions.lt];
         while (ltValues.length < indexCols.length) {
           ltValues.push(MIN);
         }
@@ -200,13 +200,3 @@ export const convertWhereToBound = (
     return result;
   });
 };
-
-function parseValue(val: string): any {
-  // Try to parse as number first
-  const num = Number(val);
-  if (!isNaN(num)) {
-    return num;
-  }
-  // Return as string
-  return val;
-}

@@ -1,11 +1,12 @@
 import type { TableDefinition, ExtractSchema, ExtractIndexes } from "./table";
+import type { Value } from "./db";
 
 export type WhereClause = {
-  lt: { col: string; val: string }[];
-  lte: { col: string; val: string }[];
-  gt: { col: string; val: string }[];
-  gte: { col: string; val: string }[];
-  eq: { col: string; val: string }[];
+  lt: { col: string; val: Value }[];
+  lte: { col: string; val: Value }[];
+  gt: { col: string; val: Value }[];
+  gte: { col: string; val: Value }[];
+  eq: { col: string; val: Value }[];
 };
 
 // Extract column names from an index

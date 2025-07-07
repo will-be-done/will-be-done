@@ -24,7 +24,7 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
           ],
           gte: [],
@@ -72,7 +72,7 @@ describe("bounds", () => {
           lt: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
           ],
         },
@@ -113,7 +113,7 @@ describe("bounds", () => {
           gt: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           lte: [],
@@ -136,7 +136,7 @@ describe("bounds", () => {
           gte: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           gt: [],
@@ -162,7 +162,7 @@ describe("bounds", () => {
           lte: [
             {
               col: "id",
-              val: "10",
+              val: 10,
             },
           ],
           lt: [],
@@ -183,7 +183,7 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
             {
               col: "title",
@@ -212,7 +212,7 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
           ],
           gte: [
@@ -250,7 +250,7 @@ describe("bounds", () => {
           gte: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           gt: [],
@@ -272,7 +272,7 @@ describe("bounds", () => {
           gte: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           gt: [],
@@ -322,14 +322,14 @@ describe("bounds", () => {
           gte: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           gt: [],
           lte: [
             {
               col: "id",
-              val: "15",
+              val: 15,
             },
           ],
           lt: [],
@@ -350,14 +350,14 @@ describe("bounds", () => {
           gt: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           lte: [],
           lt: [
             {
               col: "id",
-              val: "15",
+              val: 15,
             },
           ],
         },
@@ -380,14 +380,14 @@ describe("bounds", () => {
           gt: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           lte: [],
           lt: [
             {
               col: "id",
-              val: "15",
+              val: 15,
             },
           ],
         },
@@ -470,7 +470,7 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
           ],
           gte: [],
@@ -482,7 +482,7 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "2",
+              val: 2,
             },
           ],
           gte: [],
@@ -547,7 +547,7 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
           ],
           gte: [],
@@ -575,7 +575,7 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
             {
               col: "title",
@@ -609,13 +609,13 @@ describe("bounds", () => {
           eq: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
           ],
           gte: [
             {
               col: "id",
-              val: "5",
+              val: 5,
             },
           ],
           gt: [],
@@ -635,14 +635,14 @@ describe("bounds", () => {
           gte: [
             {
               col: "id",
-              val: "1",
+              val: 1,
             },
           ],
           gt: [],
           lte: [
             {
               col: "id",
-              val: "100",
+              val: 100,
             },
           ],
           lt: [],
