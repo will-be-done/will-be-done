@@ -84,7 +84,8 @@ describe("bounds", () => {
       },
     ]);
 
-    expect(
+    // This should error - can't use title without id
+    expect(() =>
       convertWhereToBound(col, [
         {
           eq: [],
@@ -99,12 +100,7 @@ describe("bounds", () => {
           ],
         },
       ]),
-    ).toEqual([
-      {
-        // FIXED: title is second column - but without id condition, this should error
-        lt: [MAX, "wow", MAX],
-      },
-    ]);
+    ).toThrow();
   });
 
   // NEW: Test gt conditions
