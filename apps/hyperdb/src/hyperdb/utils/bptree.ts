@@ -242,10 +242,12 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       const comp = this.compareKey(start, end);
       if (comp > 0) {
         console.warn("Invalid bounds.", args);
+        throw new Error("Invalid bounds.");
         return results;
       }
       if (comp === 0 && (startOpen || endOpen)) {
         console.warn("Invalid bounds.", args);
+        throw new Error("Invalid bounds.");
         return results;
       }
     }

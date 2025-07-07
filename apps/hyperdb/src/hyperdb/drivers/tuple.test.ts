@@ -32,6 +32,17 @@ describe("Value and Tuple Comparison Edge Cases", () => {
 
   describe("compareValue", () => {
     it("should compare same types correctly", () => {
+      expect(compareValue(MIN, MAX)).toBe(-1);
+      expect(compareValue(MAX, MIN)).toBe(1);
+      expect(compareValue(MAX, MAX)).toBe(0);
+      expect(compareValue(MIN, MIN)).toBe(0);
+
+      expect(compareValue(MIN, "a")).toBe(-1);
+      expect(compareValue("a", MIN)).toBe(1);
+
+      expect(compareValue("a", MAX)).toBe(-1);
+      expect(compareValue(MAX, "a")).toBe(1);
+
       expect(compareValue(1, 2)).toBe(-1);
       expect(compareValue(2, 1)).toBe(1);
       expect(compareValue(1, 1)).toBe(0);
@@ -78,6 +89,11 @@ describe("Value and Tuple Comparison Edge Cases", () => {
   });
 
   describe("compareTuple", () => {
+    it("should compare tuples of different lengths", () => {
+      expect(compareTuple([2, MIN, MIN], [2, "c", MAX])).toBe(-1);
+      expect(compareTuple([2, "c", MAX], [2, MIN, MIN])).toBe(1);
+    });
+
     it("should compare tuples of same length", () => {
       expect(compareTuple([1, 2], [1, 3])).toBe(-1);
       expect(compareTuple([1, 3], [1, 2])).toBe(1);

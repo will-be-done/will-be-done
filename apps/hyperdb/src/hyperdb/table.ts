@@ -8,7 +8,7 @@ export type Values<T> = T[keyof T];
 export type IndexType = "hash" | "btree";
 
 // Column specification for indexes
-export type ColumnSpec<T> = Keys<T> | Keys<T>[];
+export type ColumnSpec<T> = Keys<T>[];
 
 // Index configuration
 export interface IndexConfig<T> {

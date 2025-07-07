@@ -1,4 +1,13 @@
+import { convertWhereToBound } from "./bounds";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
+
+export type WhereClause = {
+  lt?: { col: string; val: Value }[];
+  lte?: { col: string; val: Value }[];
+  gt?: { col: string; val: Value }[];
+  gte?: { col: string; val: Value }[];
+  eq?: { col: string; val: Value }[];
+};
 
 export interface HyperDB {
   intervalScan<
@@ -7,7 +16,7 @@ export interface HyperDB {
   >(
     table: TTable,
     indexName: K,
-    options: TupleScanOptions[],
+    clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<ExtractSchema<TTable>>;
   insert<TTable extends TableDefinition>(
@@ -124,7 +133,7 @@ export interface DBDriver {
   intervalScan(
     table: string,
     indexName: string,
-    scanOptions: TupleScanOptions[],
+    clauses: WhereClause[],
     selectOptions: SelectOptions,
   ): Generator<unknown> | Generator<Promise<unknown>>;
   // equalScan(table: string, column: string, values: Value[]): Generator<unknown>;
@@ -174,20 +183,31 @@ export class DB implements HyperDB {
   >(
     table: TTable,
     indexName: K,
-    options: TupleScanOptions[],
+    clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<ExtractSchema<TTable>> {
-    if (options.length === 0) {
-      throw new Error("scan options must be provided");
+    if (clauses.length === 0) {
+      throw new Error("scan clauses must be provided");
     }
     if (selectOptions && selectOptions.limit === 0) {
       return;
     }
 
+    const indexConfig = table.indexes[indexName as string];
+    if (!indexConfig) {
+      throw new Error(
+        `Index not found: ${indexName as string} for table: ${table.tableName}`,
+      );
+    }
+
+    // Just for validation
+    const bounds = convertWhereToBound(indexConfig, clauses);
+    console.log("bounds", bounds);
+
     for (const data of this.driver.intervalScan(
       table.tableName,
       indexName as string,
-      options,
+      clauses,
       selectOptions || {},
     )) {
       if (data instanceof Promise) {

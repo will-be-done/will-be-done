@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SubscribableDB, type Op } from "./subscribable-db";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
-import type { Row, ScanValue, SelectOptions, TupleScanOptions } from "./db";
+import type { Row, SelectOptions, WhereClause } from "./db";
 import { isRowInRange } from "./drivers/tuple";
 
 export type PartialScanOptions<T extends Row = Row> = {
@@ -17,7 +17,7 @@ type SelectRangeCmd = {
   type: typeof selectRangeType;
   table: TableDefinition<any>;
   index: string;
-  scanOptions: TupleScanOptions[];
+  scanOptions: WhereClause[];
   selectOptions?: SelectOptions;
 };
 
@@ -54,37 +54,43 @@ export function* selectRange<
       `Index not found: ${indexName as string} for table: ${table.tableName}`,
     );
 
-  const mapPartialTuples = (tuples: Partial<Row>[] | undefined) => {
-    if (!tuples) return undefined;
 
-    return tuples.map((value, i) => {
-      const entries = Object.entries(value);
-      if (entries.length !== 1) {
-        throw new Error("index must have exactly one column");
-      }
-      const [colName, colValue] = entries[0];
-      if (colName !== indexDef.cols[i]) {
-        throw new Error(
-          `index column ${colName} does not match table column ${indexDef.cols[i]}`,
-        );
-      }
-
-      return colValue as ScanValue;
-    });
-  };
-
-  const tuplesScanOptions = (scanOptions || [{}]).map((opt) => ({
-    lte: mapPartialTuples(opt.lte),
-    gte: mapPartialTuples(opt.gte),
-    lt: mapPartialTuples(opt.lt),
-    gt: mapPartialTuples(opt.gt),
-  }));
+  const whereClausesOptions = (scanOptions || [{}]).map((opt) => {
+    const clause: WhereClause = {};
+    
+    if (opt.lte) {
+      clause.lte = opt.lte.map((partial) => {
+        const [col, val] = Object.entries(partial)[0];
+        return { col, val: val as any };
+      });
+    }
+    if (opt.gte) {
+      clause.gte = opt.gte.map((partial) => {
+        const [col, val] = Object.entries(partial)[0];
+        return { col, val: val as any };
+      });
+    }
+    if (opt.lt) {
+      clause.lt = opt.lt.map((partial) => {
+        const [col, val] = Object.entries(partial)[0];
+        return { col, val: val as any };
+      });
+    }
+    if (opt.gt) {
+      clause.gt = opt.gt.map((partial) => {
+        const [col, val] = Object.entries(partial)[0];
+        return { col, val: val as any };
+      });
+    }
+    
+    return clause;
+  });
 
   return (yield {
     type: "selectRange",
     table: table,
     index: indexName as string,
-    scanOptions: tuplesScanOptions,
+    scanOptions: whereClausesOptions,
     selectOptions: selectOptions,
   } satisfies SelectRangeCmd) as ExtractSchema<TTable>[];
 }
@@ -115,26 +121,26 @@ export function selector<TReturn, TParams extends any[]>(
 // TODO: maybe range tree instead?
 const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
   for (const cmd of cmds) {
-    for (const scanOptions of cmd.scanOptions) {
+    for (const whereClause of cmd.scanOptions) {
       for (const op of ops) {
         if (op.type === "insert") {
-          if (isRowInRange(op.newValue, cmd.table, cmd.index, scanOptions)) {
+          if (isRowInRange(op.newValue, cmd.table, cmd.index, whereClause)) {
             return true;
           }
         }
 
         if (op.type === "update") {
-          if (isRowInRange(op.oldValue, cmd.table, cmd.index, scanOptions)) {
+          if (isRowInRange(op.oldValue, cmd.table, cmd.index, whereClause)) {
             return true;
           }
 
-          if (isRowInRange(op.newValue, cmd.table, cmd.index, scanOptions)) {
+          if (isRowInRange(op.newValue, cmd.table, cmd.index, whereClause)) {
             return true;
           }
         }
 
         if (op.type === "delete") {
-          if (isRowInRange(op.oldValue, cmd.table, cmd.index, scanOptions)) {
+          if (isRowInRange(op.oldValue, cmd.table, cmd.index, whereClause)) {
             return true;
           }
         }

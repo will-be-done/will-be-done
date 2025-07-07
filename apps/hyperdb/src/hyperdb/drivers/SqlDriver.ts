@@ -4,8 +4,8 @@ import type {
   DBDriver,
   Row,
   SelectOptions,
-  Tuple,
-  TupleScanOptions,
+  WhereClause,
+  Value,
 } from "../db.ts";
 import initSqlJs from "sql.js";
 import { chunk, cloneDeep } from "es-toolkit";
@@ -106,10 +106,10 @@ export class SqlDriver implements DBDriver {
   *intervalScan(
     table: string,
     indexName: string,
-    options: TupleScanOptions[],
+    clauses: WhereClause[],
     selectOptions: SelectOptions,
   ): Generator<unknown> {
-    const { where, params } = this.buildWhereClause(indexName, table, options);
+    const { where, params } = this.buildWhereClause(indexName, table, clauses);
     const orderClause = this.buildOrderClause(indexName, table);
     const limitClause =
       selectOptions.limit !== undefined ? `LIMIT ${selectOptions.limit}` : "";
@@ -142,7 +142,7 @@ export class SqlDriver implements DBDriver {
   private buildWhereClause(
     indexName: string,
     tableName: string,
-    allOptions: TupleScanOptions[],
+    clauses: WhereClause[],
   ): { where: string; params: any[] } {
     const tableDef = this.tableDefinitions.get(tableName);
     if (!tableDef) {
@@ -152,51 +152,45 @@ export class SqlDriver implements DBDriver {
     const indexDef = tableDef.indexes[indexName];
     if (!indexDef) throw new Error(`Index ${indexName} not found`);
 
-    const indexColumns = indexDef.cols;
-
-    const conditions: string[][] = [];
+    const conditions: string[] = [];
     const params: any[] = [];
 
-    for (const options of allOptions) {
+    for (const clause of clauses) {
       const currentCond: string[] = [];
-      // Handle tuple comparisons using row value constructors (supported in SQLite)
-      const buildTupleComparison = (operator: string, values: Tuple) => {
-        const columnPaths = indexColumns
-          .slice(0, values.length)
-          .map((col) => `json_extract(data, '$.${String(col)}')`);
-
-        if (values.length === 1) {
-          // Simple case: single column
-          currentCond.push(`${columnPaths[0]} ${operator} ?`);
-          params.push(values[0]);
-        } else {
-          // Use row value constructor for tuple comparison
-          const columnList = columnPaths.join(", ");
-          const valueList = values.map(() => "?").join(", ");
-          currentCond.push(`(${columnList}) ${operator} (${valueList})`);
-          params.push(...values);
+      
+      // Handle individual column conditions
+      const buildColumnComparison = (operator: string, columnConditions: { col: string; val: Value }[]) => {
+        for (const { col, val } of columnConditions) {
+          const columnPath = `json_extract(data, '$.${String(col)}')`;
+          currentCond.push(`${columnPath} ${operator} ?`);
+          params.push(val);
         }
       };
 
-      if (options.gt) {
-        buildTupleComparison(">", options.gt);
+      if (clause.gt) {
+        buildColumnComparison(">", clause.gt);
       }
-      if (options.gte) {
-        buildTupleComparison(">=", options.gte);
+      if (clause.gte) {
+        buildColumnComparison(">=", clause.gte);
       }
-      if (options.lt) {
-        buildTupleComparison("<", options.lt);
+      if (clause.lt) {
+        buildColumnComparison("<", clause.lt);
       }
-      if (options.lte) {
-        buildTupleComparison("<=", options.lte);
+      if (clause.lte) {
+        buildColumnComparison("<=", clause.lte);
+      }
+      if (clause.eq) {
+        buildColumnComparison("=", clause.eq);
       }
 
-      conditions.push(currentCond);
+      if (currentCond.length > 0) {
+        conditions.push(`(${currentCond.join(" AND ")})`);
+      }
     }
 
     const whereClause =
-      params.length > 0
-        ? `WHERE ${conditions.map((cond) => `(${cond.join(" AND ")})`).join(" OR ")}`
+      conditions.length > 0
+        ? `WHERE ${conditions.join(" OR ")}`
         : "";
     return { where: whereClause, params };
   }

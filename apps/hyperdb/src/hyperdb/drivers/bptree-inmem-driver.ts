@@ -4,12 +4,13 @@ import type {
   Row,
   ScanValue,
   SelectOptions,
-  TupleScanOptions,
+  WhereClause,
 } from "../db";
 import type { IndexDefinitions, TableDefinition } from "../table";
 import { UnreachableError } from "../utils";
 import { InMemoryBinaryPlusTree } from "../utils/bptree";
-import { compareTuple, normalizeTupleBounds } from "./tuple";
+import { compareTuple } from "./tuple";
+import { convertWhereToBound } from "../bounds";
 
 type RangeIndex = {
   type: "btree";
@@ -175,7 +176,7 @@ export class BptreeInmemDriver implements DBDriver {
   *intervalScan(
     tableName: string,
     indexName: string,
-    allOptions: TupleScanOptions[],
+    clauses: WhereClause[],
     selectOptions: SelectOptions,
   ): Generator<unknown> {
     const tableData = this.data.get(tableName);
@@ -191,23 +192,18 @@ export class BptreeInmemDriver implements DBDriver {
 
     let totalCount = 0;
     if (index.type === "hash") {
-      const ids = allOptions.flatMap((options) => {
-        if (
-          options.gte?.[0] !== options.lte?.[0] ||
-          options.gt !== undefined ||
-          options.lt !== undefined
-        ) {
-          throw new Error(
-            "Hash index must have only gte and lte bound and be same",
-          );
-        }
+      // For hash indexes, we only support exact equality matches
+      const ids = new Set<string>();
 
-        if (options?.gte?.length !== 1) {
-          throw new Error("Hash index must have exactly one column");
+      for (const clause of clauses) {
+        if (clause.eq) {
+          for (const { col, val } of clause.eq) {
+            if (col === index.column) {
+              ids.add(val as string);
+            }
+          }
         }
-
-        return options.gte[0] as string;
-      });
+      }
 
       for (const id of ids) {
         if (!index.records.has(id)) {
@@ -225,14 +221,17 @@ export class BptreeInmemDriver implements DBDriver {
         }
       }
     } else if (index.type === "btree") {
-      for (const options of allOptions) {
-        const normalizedBounds = normalizeTupleBounds(
-          options || {},
-          index.columns.length,
-        );
+      // Convert WhereClause to btree bounds using the bounds utility
+      const indexConfig = {
+        type: "btree" as const,
+        cols: index.columns,
+      };
 
+      const tupleBounds = convertWhereToBound(indexConfig, clauses);
+
+      for (const bounds of tupleBounds) {
         const results = index.tree.list({
-          ...normalizedBounds,
+          ...bounds,
           limit:
             selectOptions?.limit !== undefined
               ? selectOptions.limit - totalCount

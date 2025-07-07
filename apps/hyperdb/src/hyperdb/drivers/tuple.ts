@@ -66,9 +66,12 @@ export function compareValue(a: ScanValue, b: ScanValue): number {
 
   if (b == MIN) {
     return 1;
-  }
-  if (b == MAX) {
+  } else if (b == MAX) {
     return -1;
+  } else if (a == MIN) {
+    return -1;
+  } else if (a == MAX) {
+    return 1;
   }
 
   return compare(encodingRank.indexOf(at), encodingRank.indexOf(bt));
@@ -103,6 +106,7 @@ export function compareTuple(a: Tuple, b: Tuple) {
 
   for (let i = 0; i < len; i++) {
     const dir = compareValue(a[i], b[i]);
+    console.log("dir", a[i], ">", b[i], compareValue(a[i], b[i]));
     if (dir === 0) {
       continue;
     }

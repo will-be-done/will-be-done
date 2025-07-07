@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { DB, HyperDB, Row, SelectOptions, TupleScanOptions } from "./db";
+import type { DB, HyperDB, Row, SelectOptions, WhereClause } from "./db";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
 
 export type InsertOp = {
@@ -45,17 +45,17 @@ export class SubscribableDB implements HyperDB {
   >(
     table: TTable,
     indexName: K,
-    options: TupleScanOptions[],
+    clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<ExtractSchema<TTable>> {
-    if (options && options.length === 0) {
-      throw new Error("scan options must be provided");
+    if (clauses && clauses.length === 0) {
+      throw new Error("scan clauses must be provided");
     }
 
     for (const data of this.db.intervalScan(
       table,
       indexName,
-      options,
+      clauses,
       selectOptions,
     )) {
       yield data;
@@ -90,7 +90,7 @@ export class SubscribableDB implements HyperDB {
     for (const oldRecord of this.db.intervalScan(
       table,
       table.idIndexName,
-      records.map((r) => ({ gte: [r.id], lte: [r.id] })),
+      records.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
     )) {
       previousRecords.set(oldRecord.id, oldRecord);
     }
@@ -124,7 +124,7 @@ export class SubscribableDB implements HyperDB {
     for (const oldRecord of this.db.intervalScan(
       table,
       table.idIndexName,
-      ids.map((id) => ({ gte: [id], lte: [id] })),
+      ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
     )) {
       opsToNotify.push({ type: "delete", table, oldValue: oldRecord });
     }

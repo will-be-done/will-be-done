@@ -1,21 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { TupleScanOptions, Value } from "./db";
 import { MIN, MAX } from "./db";
-import type { WhereClause } from "./query";
+import type { WhereClause } from "./db";
 import type { IndexConfig } from "./table";
 
 export const convertWhereToBound = (
   index: IndexConfig<any>,
   where: WhereClause[],
 ): TupleScanOptions[] => {
-  return where.map((clause) => {
+  const result = where.map((clause) => {
     const { eq, gte, gt, lte, lt } = clause;
+
+    if (Object.keys(clause).length === 0) {
+      return {};
+    }
 
     // Ensure cols is an array
     const indexCols = Array.isArray(index.cols) ? index.cols : [index.cols];
 
     // Check if columns exist in index
-    const allConditions = [...eq, ...gte, ...gt, ...lte, ...lt];
+    const allConditions = [
+      ...(eq || []),
+      ...(gte || []),
+      ...(gt || []),
+      ...(lte || []),
+      ...(lt || []),
+    ];
     for (const condition of allConditions) {
       if (!indexCols.map(String).includes(condition.col)) {
         throw new Error(`Column '${condition.col}' not found in index`);
@@ -34,7 +44,7 @@ export const convertWhereToBound = (
       }
     >();
 
-    for (const condition of eq) {
+    for (const condition of eq || []) {
       const colConditions = conditionsByCol.get(condition.col) || {};
       if (colConditions.eq !== undefined) {
         throw new Error(
@@ -45,25 +55,25 @@ export const convertWhereToBound = (
       conditionsByCol.set(condition.col, colConditions);
     }
 
-    for (const condition of gte) {
+    for (const condition of gte || []) {
       const colConditions = conditionsByCol.get(condition.col) || {};
       colConditions.gte = condition.val;
       conditionsByCol.set(condition.col, colConditions);
     }
 
-    for (const condition of gt) {
+    for (const condition of gt || []) {
       const colConditions = conditionsByCol.get(condition.col) || {};
       colConditions.gt = condition.val;
       conditionsByCol.set(condition.col, colConditions);
     }
 
-    for (const condition of lte) {
+    for (const condition of lte || []) {
       const colConditions = conditionsByCol.get(condition.col) || {};
       colConditions.lte = condition.val;
       conditionsByCol.set(condition.col, colConditions);
     }
 
-    for (const condition of lt) {
+    for (const condition of lt || []) {
       const colConditions = conditionsByCol.get(condition.col) || {};
       colConditions.lt = condition.val;
       conditionsByCol.set(condition.col, colConditions);
@@ -235,4 +245,9 @@ export const convertWhereToBound = (
 
     return result;
   });
+
+  return result;
+  // return result.map((bounds) =>
+  //   normalizeTupleBounds(bounds, index.cols.length),
+  // );
 };
