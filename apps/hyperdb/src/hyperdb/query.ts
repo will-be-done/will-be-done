@@ -112,37 +112,98 @@ class SelectQueryBuilder<
 > {
   private table: TTable;
   private index: TIndexName;
-  private limit?: number;
+  private limitValue?: number;
 
-  constructor(table: TTable, index: TIndexName, limit?: number) {
+  constructor(table: TTable, index: TIndexName, limitValue?: number) {
     this.table = table;
     this.index = index;
-    this.limit = limit;
+    this.limitValue = limitValue;
   }
 
   where(
     callback: (
       q: QueryBuilder<TTable, TIndexName>,
     ) => QueryBuilder<TTable, TIndexName> | QueryBuilder<TTable, TIndexName>[],
-  ): SelectQuery<TTable, TIndexName> {
+  ): SelectQueryBuilderWithWhere<TTable, TIndexName> {
     const queryBuilder = new QueryBuilder<TTable, TIndexName>();
     const result = callback(queryBuilder);
 
     if (Array.isArray(result)) {
-      return {
-        from: this.table as TTable,
-        index: this.index,
-        where: result.map((builder) => builder.getConditions()),
-        limit: this.limit,
-      };
+      return new SelectQueryBuilderWithWhere(
+        this.table,
+        this.index,
+        result.map((builder) => builder.getConditions()),
+        this.limitValue,
+      );
     } else {
-      return {
-        from: this.table as TTable,
-        index: this.index,
-        where: [result.getConditions()],
-        limit: this.limit,
-      };
+      return new SelectQueryBuilderWithWhere(
+        this.table,
+        this.index,
+        [result.getConditions()],
+        this.limitValue,
+      );
     }
+  }
+
+  limit(limit: number): SelectQueryBuilder<TTable, TIndexName> {
+    return new SelectQueryBuilder(this.table, this.index, limit);
+  }
+
+  toQuery(): SelectQuery<TTable, TIndexName> {
+    return {
+      from: this.table,
+      index: this.index,
+      where: [
+        {
+          lt: [],
+          lte: [],
+          gt: [],
+          gte: [],
+          eq: [],
+        },
+      ],
+      limit: this.limitValue,
+    };
+  }
+}
+
+class SelectQueryBuilderWithWhere<
+  TTable extends TableDefinition,
+  TIndexName extends keyof ExtractIndexes<TTable>,
+> {
+  private table: TTable;
+  private index: TIndexName;
+  private whereConditions: WhereClause[];
+  private limitValue?: number;
+
+  constructor(
+    table: TTable,
+    index: TIndexName,
+    whereConditions: WhereClause[],
+    limitValue?: number,
+  ) {
+    this.table = table;
+    this.index = index;
+    this.whereConditions = whereConditions;
+    this.limitValue = limitValue;
+  }
+
+  limit(limit: number): SelectQueryBuilderWithWhere<TTable, TIndexName> {
+    return new SelectQueryBuilderWithWhere(
+      this.table,
+      this.index,
+      this.whereConditions,
+      limit,
+    );
+  }
+
+  toQuery(): SelectQuery<TTable, TIndexName> {
+    return {
+      from: this.table,
+      index: this.index,
+      where: this.whereConditions,
+      limit: this.limitValue,
+    };
   }
 }
 
@@ -152,9 +213,8 @@ export const selectFrom = <
 >(
   table: TTable,
   index: TIndexName,
-  limit?: number,
 ): SelectQueryBuilder<TTable, TIndexName> => {
-  return new SelectQueryBuilder(table, index, limit);
+  return new SelectQueryBuilder(table, index);
 };
 
 export const or = <TTable, TIndexName extends keyof ExtractIndexes<TTable>>(

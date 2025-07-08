@@ -4,15 +4,15 @@ TODO next:
 4. DONE Actions
 5. DONE Make columns type checks in tuples
 6. DONE Make DB interface so DB and SubscribableDB will match
-7. Add query syntax
+7. DONE Add query syntax
 7. Add tx support
 6. Fix hash for inmem to allow storing duplicates
 
 
 MUST:
 1. Action creator
-2. Indexes not typing
-8. for bptree use normal yeild, without array return
+2. DONE Indexes not typing
+8. DONE for bptree use normal yeild, without array return
 2. Add ability ot select just one field
 1. Interval sorting and merging
 
@@ -24,8 +24,8 @@ MUST:
 6. tx support
 7. undo/redo
 8. DONE hash indexes on any field
-8. for sqlite - id is always final column. And index should be uniq
-9. Use index definition like this:
+8. DONE for sqlite - id is always final column. And index should be uniq
+9. DONE Use index definition like this:
 
 cols: [],
 type: "btree" | "hash"

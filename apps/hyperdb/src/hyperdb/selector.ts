@@ -14,6 +14,7 @@ export type PartialScanOptions<T extends Row = Row> = {
   // limit?: number;
 };
 
+const noopType = "noop";
 const selectRangeType = "selectRange";
 type SelectRangeCmd = {
   type: typeof selectRangeType;
@@ -22,6 +23,7 @@ type SelectRangeCmd = {
   selectQuery: SelectQuery;
   bounds: TupleScanOptions[];
 };
+type NoopCmd = { type: typeof noopType };
 
 // type SelectEqualCmd = {
 //   type: "selectEqual";
@@ -32,12 +34,14 @@ type SelectRangeCmd = {
 
 export const isSelectRangeCmd = (cmd: any): cmd is SelectRangeCmd =>
   cmd.type === selectRangeType;
+export const isNoopCmd = (cmd: any): cmd is NoopCmd => cmd.type === noopType;
 // const isSelectCmd = (cmd: any): cmd is SelectEqualCmd =>
 //   cmd.type === "selectEqual";
 
-export function* runQuery<QType extends SelectQuery>(
-  query: QType,
-): Generator<unknown, ExtractSchema<QType["from"]>[], unknown> {
+export function* runQuery<QType extends SelectQuery>(toQuery: {
+  toQuery(): QType;
+}): Generator<unknown, ExtractSchema<QType["from"]>[], unknown> {
+  const query = toQuery.toQuery();
   const table = query.from;
   const indexName = query.index;
   const indexDef = table.indexes[indexName];
@@ -68,14 +72,35 @@ export function* runQuery<QType extends SelectQuery>(
 //   } satisfies SelectEqualCmd) as ExtractSchema<TTable>[];
 // }
 
-export type SelectorFn<TReturn, TParams extends any[]> = (
+export type SelectorGeneratorFn<TReturn, TParams extends any[]> = (
   ...args: TParams
 ) => Generator<unknown, TReturn, unknown>;
+export type SelectorFn<TReturn, TParams extends any[]> = (
+  ...args: TParams
+) => TReturn;
+
+const GeneratorFunction = function* () {
+  yield undefined;
+}.constructor;
+
+const isGenerator = (fn: unknown): fn is Generator<unknown, unknown, unknown> =>
+  fn instanceof GeneratorFunction;
 
 export function selector<TReturn, TParams extends any[]>(
-  fn: SelectorFn<TReturn, TParams>,
-): SelectorFn<TReturn, TParams> {
-  return fn;
+  fn: SelectorGeneratorFn<TReturn, TParams> | SelectorFn<TReturn, TParams>,
+): SelectorGeneratorFn<TReturn, TParams> {
+  return (...args: TParams) => {
+    const res = fn(...args);
+    if (isGenerator(fn)) {
+      return res as Generator<unknown, TReturn, unknown>;
+    } else {
+      return (function* () {
+        yield { type: noopType };
+
+        return res;
+      })() as Generator<unknown, TReturn, unknown>;
+    }
+  };
 }
 
 // TODO: maybe range tree instead?
@@ -142,6 +167,8 @@ export function initSelector<TReturn>(
             }),
           ),
         );
+      } else if (isNoopCmd(result.value)) {
+        result = currentGen.next();
       } else {
         result = currentGen.next();
       }

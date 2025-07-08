@@ -25,7 +25,9 @@ export const getAllProjects = selector(function* () {
 
 export const getFirst10ProjectsIds = selector(function* () {
   const tasks = yield* runQuery(
-    selectFrom(projectsTable, "ordered", 10).where((q) => q),
+    selectFrom(projectsTable, "ordered")
+      .where((q) => q)
+      .limit(10),
   );
 
   return tasks.map((p) => p.id);
@@ -41,7 +43,7 @@ export const getById = selector(function* (id: string) {
 
 export function* insertMillion() {
   const projects: Project[] = [];
-  for (let i = 0; i < 1000000; i++) {
+  for (let i = 0; i < 100000; i++) {
     const id = Math.random().toString(36).slice(2);
     projects.push({
       id: id,

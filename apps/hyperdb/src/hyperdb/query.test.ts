@@ -18,10 +18,66 @@ const tasksTable = table<Task>("tasks").withIndexes({
 });
 
 describe("query", () => {
+  it("works with limt", () => {
+    const result1 = selectFrom(tasksTable, "projectIdState")
+      .where((q) =>
+        or(q.eq("projectId", "1").lte("state", "done"), q.eq("projectId", "2")),
+      )
+      .limit(10)
+      .toQuery();
+
+    const result2 = selectFrom(tasksTable, "projectIdState")
+      .limit(10)
+      .where((q) =>
+        or(q.eq("projectId", "1").lte("state", "done"), q.eq("projectId", "2")),
+      )
+      .toQuery();
+
+    for (const result of [result1, result2]) {
+      expect(result).toEqual({
+        from: tasksTable,
+        index: "projectIdState",
+        limit: 10,
+        where: [
+          {
+            eq: [
+              {
+                col: "projectId",
+                val: "1",
+              },
+            ],
+            gte: [],
+            gt: [],
+            lte: [
+              {
+                col: "state",
+                val: "done",
+              },
+            ],
+            lt: [],
+          },
+          {
+            eq: [
+              {
+                col: "projectId",
+                val: "2",
+              },
+            ],
+            gte: [],
+            gt: [],
+            lte: [],
+            lt: [],
+          },
+        ],
+      });
+    }
+  });
   it("works", () => {
-    const result = selectFrom(tasksTable, "projectIdState").where((q) =>
-      or(q.eq("projectId", "1").lte("state", "done"), q.eq("projectId", "2")),
-    );
+    const result = selectFrom(tasksTable, "projectIdState")
+      .where((q) =>
+        or(q.eq("projectId", "1").lte("state", "done"), q.eq("projectId", "2")),
+      )
+      .toQuery();
 
     expect(result).toEqual({
       from: tasksTable,
@@ -60,27 +116,46 @@ describe("query", () => {
     });
   });
 
+  it("works without calling where", () => {
+    const result = selectFrom(tasksTable, "projectIdState").toQuery();
+
+    expect(result).toEqual({
+      from: tasksTable,
+      index: "projectIdState",
+      where: [{
+        eq: [],
+        gte: [],
+        gt: [],
+        lte: [],
+        lt: [],
+      }],
+      limit: undefined,
+    });
+  });
+
   it("validates correct types for index columns", () => {
     // Test that the extracted column types are correct
-    assertType<ExtractIndexColumns<typeof tasksTable, "projectIdState">>("projectId");
-    assertType<ExtractIndexColumns<typeof tasksTable, "projectIdState">>("state");
-    
+    assertType<ExtractIndexColumns<typeof tasksTable, "projectIdState">>(
+      "projectId",
+    );
+    assertType<ExtractIndexColumns<typeof tasksTable, "projectIdState">>(
+      "state",
+    );
+
     // Test that the hash index only has the id column
     assertType<ExtractIndexColumns<typeof tasksTable, "id">>("id");
-    
+
     // Test valid queries that should compile without errors
     const query1 = selectFrom(tasksTable, "projectIdState").where((q) =>
       q.eq("projectId", "test"),
     );
-    
+
     const query2 = selectFrom(tasksTable, "projectIdState").where((q) =>
       q.lte("state", "done"),
     );
-    
-    const query3 = selectFrom(tasksTable, "id").where((q) =>
-      q.eq("id", "123"),
-    );
-    
+
+    const query3 = selectFrom(tasksTable, "id").where((q) => q.eq("id", "123"));
+
     expect(query1).toBeDefined();
     expect(query2).toBeDefined();
     expect(query3).toBeDefined();

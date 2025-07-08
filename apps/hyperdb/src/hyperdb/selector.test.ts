@@ -33,8 +33,14 @@ const allTasks = selector(function* () {
   return tasks;
 });
 
+const justSelector = selector(function () {
+  return "just selector";
+});
+
 const allDoneTasks = selector(function* (state: Task["state"]) {
   const tasks = yield* allTasks();
+
+  console.log("justSelector", yield* justSelector());
 
   return tasks.filter((task) => task.state === state);
 });
