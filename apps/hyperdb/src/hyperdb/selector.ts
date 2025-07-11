@@ -55,7 +55,7 @@ export function* runQuery<QType extends SelectQuery>(toQuery: {
     table: table,
     index: indexName as string,
     selectQuery: query,
-    bounds: convertWhereToBound(indexDef, query.where),
+    bounds: convertWhereToBound(indexDef.cols as string[], query.where),
   } satisfies SelectRangeCmd) as ExtractSchema<QType["from"]>[];
 }
 

@@ -245,9 +245,33 @@ class HashIndexTx implements IndexTx {
 
   commit(): void {
     this.isCommitted = true;
+
+    // Apply all insertions to the original index
+    for (const [, rows] of this.sets) {
+      const records = Array.from(rows.values());
+      this.originalIndex.insert(records);
+    }
+
+    // Apply all deletions to the original index
+    for (const [colValue, rowIds] of this.deletes) {
+      const records: Row[] = [];
+      for (const rowId of rowIds) {
+        // Find the record in the original index to get full row data
+        const originalRows = this.originalIndex.records.get(colValue);
+        if (originalRows) {
+          const record = originalRows.get(rowId);
+          if (record) {
+            records.push(record);
+          }
+        }
+      }
+      if (records.length > 0) {
+        this.originalIndex.delete(records);
+      }
+    }
   }
 
-  scan(
+  *scan(
     tupleBounds: TupleScanOptions[],
     selectOptions: { limit?: number },
   ): Generator<Row> {
@@ -268,27 +292,94 @@ class HashIndexTx implements IndexTx {
       }
     }
 
-    // TODO: finish
+    const seenRowIds = new Set<RowId>();
+    let totalCount = 0;
 
-    // 1. scan from the index
-    // 2. scan from current hash on top
-    // 3. delete all records that marked as deleted
+    // 1. Yield records from transaction sets first
+    for (const value of boundValues) {
+      const sets = this.sets.get(value);
+      if (!sets) continue;
 
-    // return this.originalIndex.scan(tupleBounds, selectOptions);
+      for (const [rowId, row] of sets) {
+        if (deletedRowIds.has(rowId)) continue;
+
+        seenRowIds.add(rowId);
+        yield row;
+        totalCount++;
+
+        if (
+          selectOptions?.limit !== undefined &&
+          totalCount >= selectOptions.limit
+        ) {
+          return;
+        }
+      }
+    }
+
+    // 2. Yield records from original index, excluding already seen and deleted
+    for (const row of this.originalIndex.scan(tupleBounds, selectOptions)) {
+      if (deletedRowIds.has(row.id) || seenRowIds.has(row.id)) continue;
+
+      yield row;
+      totalCount++;
+
+      if (
+        selectOptions?.limit !== undefined &&
+        totalCount >= selectOptions.limit
+      ) {
+        return;
+      }
+    }
   }
 
   insert(values: Row[]): void {
     if (this.isCommitted) throw new Error("Can't insert after commit");
 
-    // TODO: implement
-    // this.originalIndex.insert(values);
+    for (const record of values) {
+      const colValue = record[this.originalIndex.indexDef.column] as string;
+      const rows = this.sets.get(colValue);
+
+      if (!rows) {
+        const m = new Map();
+        m.set(record.id, record);
+        this.sets.set(colValue, m);
+      } else {
+        rows.set(record.id, record);
+      }
+    }
+
+    // Remove from deletes if previously deleted
+    for (const record of values) {
+      const colValue = record[this.originalIndex.indexDef.column] as string;
+      const deletes = this.deletes.get(colValue);
+      if (deletes) {
+        deletes.delete(record.id);
+      }
+    }
   }
 
   delete(values: Row[]): void {
     if (this.isCommitted) throw new Error("Can't delete after commit");
 
-    // TODO: implement
-    // this.originalIndex.delete(values);
+    for (const record of values) {
+      const colValue = record[this.originalIndex.indexDef.column] as string;
+
+      // Remove from sets if it was added in this transaction
+      const sets = this.sets.get(colValue);
+      if (sets) {
+        sets.delete(record.id);
+      }
+
+      // Add to deletes
+      const deletes = this.deletes.get(colValue);
+      if (!deletes) {
+        const s = new Set<string>();
+        s.add(record.id);
+        this.deletes.set(colValue, s);
+      } else {
+        deletes.add(record.id);
+      }
+    }
   }
 }
 

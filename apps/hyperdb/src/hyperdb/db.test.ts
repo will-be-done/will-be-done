@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from "vitest";
-import { DB } from "./db.ts";
+import { DB, type HyperDB, type HyperDBTx } from "./db.ts";
 // import { SqlDriver } from "./drivers/SqlDriver.ts";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver.ts";
 import { table } from "./table.ts";
@@ -433,58 +433,47 @@ describe("Database Transactions", async () => {
 
         const tx = db.beginTx();
 
-        tx.insert(tasksTable, [
-          {
-            id: "task-1",
-            title: "Task 1",
-            state: "done",
-            projectId: "1",
-            orderToken: "b",
-            type: "task",
-            lastToggledAt: 0,
-          },
-          {
-            id: "task-2",
-            title: "Task 2",
-            state: "todo",
-            projectId: "1",
-            orderToken: "b",
-            type: "task",
-            lastToggledAt: 1,
-          },
-        ]);
+        const makeScan = (idxName: "id" | "ids", d: HyperDBTx | HyperDB) =>
+          Array.from(
+            d.intervalScan(tasksTable, idxName, [
+              {
+                eq: [{ col: "id", val: "task-1" }],
+              },
+            ]),
+          );
 
-        const btreeTxData = Array.from(
-          tx.intervalScan(tasksTable, "ids", [
-            {
-              eq: [{ col: "id", val: "task-1" }],
-            },
-          ]),
-        );
-        const hashTxData = Array.from(
-          tx.intervalScan(tasksTable, "id", [
-            {
-              eq: [{ col: "id", val: "task-1" }],
-            },
-          ]),
-        );
+        const task1: Task = {
+          id: "task-1",
+          title: "Task 1",
+          state: "done",
+          projectId: "1",
+          orderToken: "b",
+          type: "task",
+          lastToggledAt: 0,
+        };
+        const task2: Task = {
+          id: "task-2",
+          title: "Task 2",
+          state: "todo",
+          projectId: "1",
+          orderToken: "b",
+          type: "task",
+          lastToggledAt: 1,
+        };
+        tx.insert(tasksTable, [task1, task2]);
 
-        const btreeData = Array.from(
-          db.intervalScan(tasksTable, "ids", [
-            {
-              eq: [{ col: "id", val: "task-1" }],
-            },
-          ]),
-        );
-        const hashData = Array.from(
-          db.intervalScan(tasksTable, "id", [
-            {
-              eq: [{ col: "id", val: "task-1" }],
-            },
-          ]),
-        );
+        const btreeTxData = makeScan("ids", tx);
+        const hashTxData = makeScan("id", tx);
+        expect(btreeTxData.length).toBe(1);
+        expect(btreeTxData).toEqual(hashTxData);
 
-        console.log(btreeTxData, hashTxData, btreeData, hashData);
+        tx.update(tasksTable, [{ ...task1, title: "Task 11" }]);
+
+        const btreeData = makeScan("ids", db);
+        const hashData = makeScan("id", db);
+
+        expect(btreeData.length).toBe(0);
+        expect(hashData.length).toBe(0);
       });
     });
   }
