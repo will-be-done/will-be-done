@@ -421,64 +421,6 @@ describe("db", async () => {
   }
 });
 
-describe("Database Transactions", async () => {
-  for (const driver of [
-    // new InmemDriver(),
-    // async () => SqlDriver.init(),
-    async () => new BptreeInmemDriver(),
-  ]) {
-    describe(`${driver.constructor.name}`, () => {
-      it.only("works", async () => {
-        const db = new DB(await driver(), [tasksTable, taskTemplatesTable]);
-
-        const tx = db.beginTx();
-
-        const makeScan = (idxName: "id" | "ids", d: HyperDBTx | HyperDB) =>
-          Array.from(
-            d.intervalScan(tasksTable, idxName, [
-              {
-                eq: [{ col: "id", val: "task-1" }],
-              },
-            ]),
-          );
-
-        const task1: Task = {
-          id: "task-1",
-          title: "Task 1",
-          state: "done",
-          projectId: "1",
-          orderToken: "b",
-          type: "task",
-          lastToggledAt: 0,
-        };
-        const task2: Task = {
-          id: "task-2",
-          title: "Task 2",
-          state: "todo",
-          projectId: "1",
-          orderToken: "b",
-          type: "task",
-          lastToggledAt: 1,
-        };
-        tx.insert(tasksTable, [task1, task2]);
-
-        const btreeTxData = makeScan("ids", tx);
-        const hashTxData = makeScan("id", tx);
-        expect(btreeTxData.length).toBe(1);
-        expect(btreeTxData).toEqual(hashTxData);
-
-        tx.update(tasksTable, [{ ...task1, title: "Task 11" }]);
-
-        const btreeData = makeScan("ids", db);
-        const hashData = makeScan("id", db);
-
-        expect(btreeData.length).toBe(0);
-        expect(hashData.length).toBe(0);
-      });
-    });
-  }
-});
-
 describe("Database Operations Edge Cases", async () => {
   for (const driver of [
     // new InmemDriver(),

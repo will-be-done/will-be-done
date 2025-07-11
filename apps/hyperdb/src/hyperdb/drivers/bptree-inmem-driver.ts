@@ -244,6 +244,8 @@ class HashIndexTx implements IndexTx {
   }
 
   commit(): void {
+    if (this.isCommitted) throw new Error("Can't commit after commit");
+
     this.isCommitted = true;
 
     // Apply all insertions to the original index
@@ -410,6 +412,8 @@ class BtreeIndexTx implements IndexTx {
   }
 
   *scan(tupleBounds: TupleScanOptions[], selectOptions: { limit: number }) {
+    if (this.isCommitted) throw new Error("Can't scan after commit");
+
     const results: Row[][] = [];
     for (const bounds of tupleBounds) {
       const sets = this.sets.list(bounds);
@@ -481,6 +485,8 @@ class BtreeIndexTx implements IndexTx {
   }
 
   commit(): void {
+    if (this.isCommitted) throw new Error("Can't scan after commit");
+
     this.isCommitted = true;
 
     for (const row of this.sets.list()) {
@@ -567,6 +573,8 @@ export class BptreeInmemDriverTx implements DBDriverTX {
   }
 
   commit(): void {
+    this.throwIfDone();
+
     this.committed = true;
     for (const [, table] of this.tblDatas) {
       for (const index of table.indexes.values()) {
@@ -576,9 +584,8 @@ export class BptreeInmemDriverTx implements DBDriverTX {
   }
 
   rollback(): void {
+    this.throwIfDone();
     this.rollbacked = true;
-
-    // do nothing
   }
 
   intervalScan(
