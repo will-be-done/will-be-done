@@ -2,10 +2,9 @@
 import type { TupleScanOptions, Value } from "./db";
 import { MIN, MAX } from "./db";
 import type { WhereClause } from "./db";
-import type { IndexConfig } from "./table";
 
 export const convertWhereToBound = (
-  index: IndexConfig<any>,
+  indexCols: string[],
   where: WhereClause[],
 ): TupleScanOptions[] => {
   const result = where.map((clause) => {
@@ -20,9 +19,6 @@ export const convertWhereToBound = (
     ) {
       return {};
     }
-
-    // Ensure cols is an array
-    const indexCols = Array.isArray(index.cols) ? index.cols : [index.cols];
 
     // Check if columns exist in index
     const allConditions = [

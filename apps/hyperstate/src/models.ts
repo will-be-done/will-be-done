@@ -42,8 +42,8 @@ export type RootState = {
   };
 };
 const appAction = createActionCreator<RootState>();
-const appSelector = createQuerySelectorCreator<RootState>();
-const appSelector2 = createSelectorCreator<RootState>();
+const appSelector3 = createQuerySelectorCreator<RootState>();
+const appSelector = createSelectorCreator<RootState>();
 // const appSelector = <TResult>(
 //   selectionLogic: SelectionLogic<RootState, TResult>,
 // ) => {
@@ -180,23 +180,11 @@ export interface OrderableItem {
 // })();
 
 export const allProjectsSlice = createSlice({
-  // getSortedProjectIdsRaw: (state: RootState): string[] => {
-  //   const allIdsAndTokens = Object.values(state.projects.byIds).map((p) => ({
-  //     id: p.id,
-  //     orderToken: p.orderToken,
-  //   }));
-  //
-  //   return allIdsAndTokens
-  //     .sort(fractionalCompare)
-  //     .map((p) => p.id)
-  //     .slice(0, 100);
-  // },
-  byIds: appSelector2((state) => state.project.byIds),
-  allIdsAndTokens: appSelector2(
+  byIds: appSelector((state) => state.project.byIds),
+  allIdsAndTokens: appSelector(
     (state): { id: string; orderToken: string }[] => {
       const byIds = allProjectsSlice.byIds(state);
 
-      console.log("getting all ids and tokens");
       return Object.values(byIds).map((p) => ({
         id: p.id,
         orderToken: p.orderToken,
@@ -204,29 +192,23 @@ export const allProjectsSlice = createSlice({
     },
     deepEqual,
   ),
-  getSortedProjectIds: appSelector2((state): string[] => {
+  getSortedProjectIds: appSelector((state): string[] => {
     const allIdsAndTokens = allProjectsSlice.allIdsAndTokens(state);
-    // console.log({ allIdsAndTokens: allIdsAndTokens() });
-    // const byIds = query(projectsListSelectors.all);
-    // const allIdsAndTokens = byIds.map((p) => ({
-    //   id: p.id,
-    //   orderToken: p.orderToken,
-    // }));
 
-    console.log("SORTING!");
     return [...allIdsAndTokens]
       .sort(fractionalCompare)
       .map((p) => p.id)
       .slice(0, 10);
   }, shallowEqual),
-  getLastChildId: appSelector((query): string | undefined => {
+
+  getLastChildId: appSelector3((query): string | undefined => {
     const sortedProjects = query(allProjectsSlice.getSortedProjectIds);
 
     if (sortedProjects.length === 0) return undefined;
 
     return sortedProjects[sortedProjects.length - 1];
   }),
-  getFirstChildId: appSelector((query): string | undefined => {
+  getFirstChildId: appSelector3((query): string | undefined => {
     const sortedProjects = query(allProjectsSlice.getSortedProjectIds);
 
     return sortedProjects[0];
@@ -234,10 +216,11 @@ export const allProjectsSlice = createSlice({
 });
 
 export const projectsSlice = createSlice({
-  getById: appSelector((query, id: string) => {
+  getById: appSelector3((query, id: string) => {
     const res = query((state) => state.project.byIds[id]);
     return res;
   }),
+
   canDrop(
     _project: string,
     target: { id: string; type: string },
@@ -247,9 +230,18 @@ export const projectsSlice = createSlice({
     return true;
   },
 
+  update: appAction((state, project: Project): Project => {
+    const projInState = projectsSlice.getById(state, project.id);
+    if (!projInState) throw new Error("Project not found");
+
+    Object.assign(projInState, project);
+
+    return projInState;
+  }),
+
   insertMillion: appAction((state) => {
     const byIds = state.project.byIds;
-    for (let i = 0; i < 1000000; i++) {
+    for (let i = 0; i < 10000000; i++) {
       const id = Math.random().toString(36).slice(2);
       byIds[id] = {
         id,
@@ -271,15 +263,6 @@ export const projectsSlice = createSlice({
       return project;
     }),
   ),
-  update: appAction((state, project: Project): Project => {
-    const projInState = projectsSlice.getById(state, project.id);
-    if (!projInState) throw new Error("Project not found");
-
-    update(state, project.id, { ...project, title: "New title 123" });
-    // Object.assign(projInState, project);
-
-    return projInState;
-  }),
   createWithTask: appAction((state, project: Project, task: Task) => {
     const byIds = state.project.byIds;
     byIds[project.id] = project;

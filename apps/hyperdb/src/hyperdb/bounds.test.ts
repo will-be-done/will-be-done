@@ -3,12 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { convertWhereToBound } from "./bounds";
 import { MAX, MIN } from "./db";
-import type { IndexConfig } from "./table";
 
-const col: IndexConfig<any> = {
-  type: "btree",
-  cols: ["id", "title", "author"],
-};
+const cols = ["id", "title", "author"];
 
 // when last col gte = uses MIN to fill remaining gaps if no other further columns present
 // when last col gt = use MAX to fill remaining gaps if no other further columns present
@@ -19,7 +15,7 @@ describe("bounds", () => {
   // FIXED: Your original equality tests have wrong bounds
   it("works with eq", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -41,9 +37,64 @@ describe("bounds", () => {
       },
     ]);
 
+    expect(
+      convertWhereToBound(
+        ["id"],
+        [
+          {
+            eq: [
+              {
+                col: "id",
+                val: 1,
+              },
+            ],
+            gte: [],
+            gt: [],
+            lte: [],
+            lt: [],
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        gte: [1],
+        lte: [1],
+      },
+    ]);
+
+    expect(
+      convertWhereToBound(
+        ["id"],
+        [
+          {
+            eq: [],
+            gte: [
+              {
+                col: "id",
+                val: 1,
+              },
+            ],
+            gt: [],
+            lte: [
+              {
+                col: "id",
+                val: 1,
+              },
+            ],
+            lt: [],
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        gte: [1],
+        lte: [1],
+      },
+    ]);
+
     // This should error - can't use title without id
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -63,7 +114,7 @@ describe("bounds", () => {
   // FIXED: Your lt tests have issues
   it("works with lt", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -86,7 +137,7 @@ describe("bounds", () => {
 
     // This should error - can't use title without id
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -106,7 +157,7 @@ describe("bounds", () => {
   // NEW: Test gt conditions
   it("works with gt", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -130,7 +181,7 @@ describe("bounds", () => {
   // NEW: Test gte conditions
   it("works with gte", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -154,7 +205,7 @@ describe("bounds", () => {
   // NEW: Test lte conditions
   it("works with lte", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -178,7 +229,7 @@ describe("bounds", () => {
   // NEW: Test prefix matching - equality conditions allow using next column
   it("works with equality prefix matching", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -207,7 +258,7 @@ describe("bounds", () => {
   // NEW: Test mixed conditions with proper prefix usage
   it("works with mixed eq and range conditions", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -244,7 +295,7 @@ describe("bounds", () => {
     // Once id has a range condition, author conditions should be ignored
     // This should work - only use the id condition
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -266,7 +317,7 @@ describe("bounds", () => {
 
     // But this should error - can't skip title and go to author
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -291,7 +342,7 @@ describe("bounds", () => {
   // // NEW: Test impossible conditions
   // it("throws error for impossible conditions", () => {
   //   expect(() =>
-  //     convertWhereToBound(col, [
+  //     convertWhereToBound(cols, [
   //       {
   //         eq: [],
   //         gte: [
@@ -316,7 +367,7 @@ describe("bounds", () => {
   // NEW: Test same column with compatible range conditions
   it("handles same column with compatible ranges", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -343,7 +394,7 @@ describe("bounds", () => {
     ]);
 
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -373,7 +424,7 @@ describe("bounds", () => {
   // NEW: Test gt and lt on same column
   it("handles gt and lt on same column", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -404,7 +455,7 @@ describe("bounds", () => {
   it("throws error for non-prefix column conditions", () => {
     // title condition without id condition should error
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -422,7 +473,7 @@ describe("bounds", () => {
 
     // author condition without id/title conditions should error
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -440,7 +491,7 @@ describe("bounds", () => {
 
     // Mixed conditions that break prefix rule should error
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -465,7 +516,7 @@ describe("bounds", () => {
   // NEW: Test multiple WHERE clauses (OR conditions)
   it("handles multiple WHERE clauses", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -506,7 +557,7 @@ describe("bounds", () => {
   // NEW: Test column not in index
   it("throws error for columns not in index", () => {
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -526,7 +577,7 @@ describe("bounds", () => {
   // NEW: Test empty conditions
   // it("throws error for empty conditions", () => {
   //   expect(() =>
-  //     convertWhereToBound(col, [
+  //     convertWhereToBound(cols, [
   //       {
   //         eq: [],
   //         gte: [],
@@ -542,7 +593,7 @@ describe("bounds", () => {
   it("allows conditions on subsequent columns after equality", () => {
     // id = 1 AND title < "wow" should work
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -570,7 +621,7 @@ describe("bounds", () => {
 
     // id = 1 AND title = "book" AND author >= "A" should work
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -604,7 +655,7 @@ describe("bounds", () => {
   // NEW: Test conflicting conditions on same column
   it("throws error for conflicting equality conditions", () => {
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [
             {
@@ -629,7 +680,7 @@ describe("bounds", () => {
   // NEW: Test range that spans multiple tuples
   it("handles wide range conditions", () => {
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -658,7 +709,7 @@ describe("bounds", () => {
 
   it("handles eq and lt/gt", () => {
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -680,7 +731,7 @@ describe("bounds", () => {
     ).toThrow();
 
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [],
@@ -706,7 +757,7 @@ describe("bounds", () => {
     ).toThrow();
 
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -738,7 +789,7 @@ describe("bounds", () => {
     ]);
 
     expect(
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [
@@ -769,7 +820,7 @@ describe("bounds", () => {
     ]);
 
     expect(() =>
-      convertWhereToBound(col, [
+      convertWhereToBound(cols, [
         {
           eq: [],
           gte: [

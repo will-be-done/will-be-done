@@ -6,6 +6,7 @@ import type {
   SelectOptions,
   WhereClause,
   Value,
+  DBDriverTX,
 } from "../db.ts";
 import initSqlJs from "sql.js";
 import { chunk, cloneDeep } from "es-toolkit";
@@ -19,13 +20,17 @@ export class SqlDriver implements DBDriver {
     this.db = db;
   }
 
+  beginTx(): DBDriverTX {
+    throw new Error("Method not implemented.");
+  }
+
   insert(tableName: string, values: Record<string, unknown>[]): void {
     if (values.length === 0) return;
 
     const allValues = chunk(values, 12000);
     for (const values of allValues) {
       const valuesQ = values.map(() => "(?, ?)").join(", ");
-      const insertSQL = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+      const insertSQL = `INSERT INTO ${tableName} (id, data) VALUES ${valuesQ}`;
 
       this.db.exec(
         insertSQL,
@@ -61,47 +66,6 @@ export class SqlDriver implements DBDriver {
       this.db.exec(deleteSQL, values);
     }
   }
-
-  // *equalScan(
-  //   table: string,
-  //   indexName: string,
-  //   values: Value[],
-  // ): Generator<unknown> {
-  //   const tableDef = this.tableDefinitions.get(table);
-  //   if (!tableDef) {
-  //     throw new Error(`Table ${table} not found`);
-  //   }
-  //
-  //   const indexDef = tableDef.indexes[indexName];
-  //   if (!indexDef) throw new Error(`Index ${indexName} not found`);
-  //
-  //   if (indexDef.type !== "equal")
-  //     throw new Error("equal scan only supports equal indexes");
-  //   if (indexDef.col !== "id")
-  //     throw new Error("equal scan only supports id column");
-  //
-  //   const allIds = chunk(values, 32000);
-  //   for (const values of allIds) {
-  //     const placeholders = values.map(() => "?").join(", ");
-  //     const sql = `SELECT data FROM ${table} WHERE id IN (${placeholders})`;
-  //
-  //     const q = this.db.prepare(sql);
-  //     try {
-  //       q.bind(values as string[]);
-  //
-  //       while (q.step()) {
-  //         const res = q.get();
-  //
-  //         const record = JSON.parse(res[0] as string) as unknown;
-  //         yield record;
-  //       }
-  //     } catch (error) {
-  //       throw new Error(`Hash id sacn failed for index ${table}: ${error}`);
-  //     } finally {
-  //       q.free();
-  //     }
-  //   }
-  // }
 
   *intervalScan(
     table: string,
@@ -157,9 +121,12 @@ export class SqlDriver implements DBDriver {
 
     for (const clause of clauses) {
       const currentCond: string[] = [];
-      
+
       // Handle individual column conditions
-      const buildColumnComparison = (operator: string, columnConditions: { col: string; val: Value }[]) => {
+      const buildColumnComparison = (
+        operator: string,
+        columnConditions: { col: string; val: Value }[],
+      ) => {
         for (const { col, val } of columnConditions) {
           const columnPath = `json_extract(data, '$.${String(col)}')`;
           currentCond.push(`${columnPath} ${operator} ?`);
@@ -189,9 +156,7 @@ export class SqlDriver implements DBDriver {
     }
 
     const whereClause =
-      conditions.length > 0
-        ? `WHERE ${conditions.join(" OR ")}`
-        : "";
+      conditions.length > 0 ? `WHERE ${conditions.join(" OR ")}` : "";
     return { where: whereClause, params };
   }
 

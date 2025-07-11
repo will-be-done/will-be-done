@@ -38,6 +38,7 @@ type TaskTemplate = {
 const tasksTable = table<Task>("tasks").withIndexes({
   id: { cols: ["id"], type: "hash" },
   ids: { cols: ["id"], type: "btree" },
+  byTitle: { cols: ["title"], type: "hash" },
   projectIdState: {
     cols: ["projectId", "state", "lastToggledAt"],
     type: "btree",
@@ -131,8 +132,74 @@ describe("db", async () => {
     // new InmemDriver(),
     new BptreeInmemDriver(),
   ]) {
-    // TODO: return back
-    it.skip(
+    it("works with hash " + driver.constructor.name, () => {
+      const db = new DB(driver, [tasksTable]);
+
+      const justTask: Task = {
+        id: "task-1",
+        title: "Task 1",
+        state: "done",
+        projectId: "1",
+        orderToken: "b",
+        type: "task",
+        lastToggledAt: 0,
+      };
+
+      const justTask2: Task = {
+        id: "task-2",
+        title: "Task 1",
+        state: "done",
+        projectId: "1",
+        orderToken: "b",
+        type: "task",
+        lastToggledAt: 0,
+      };
+
+      db.insert(tasksTable, [justTask, justTask2]);
+      expect(
+        Array.from(
+          db.intervalScan(tasksTable, "byTitle", [
+            {
+              lte: [{ col: "title", val: "Task 1" }],
+              gte: [{ col: "title", val: "Task 1" }],
+            },
+          ]),
+        ),
+      ).toEqual([justTask, justTask2]);
+
+      db.update(tasksTable, [{ ...justTask2, title: "Task 2" }]);
+
+      expect(
+        Array.from(
+          db.intervalScan(tasksTable, "byTitle", [
+            {
+              lte: [{ col: "title", val: "Task 1" }],
+              gte: [{ col: "title", val: "Task 1" }],
+            },
+          ]),
+        ),
+      ).toEqual([justTask]);
+
+      db.delete(tasksTable, ["task-1"]);
+      expect(
+        Array.from(
+          db.intervalScan(tasksTable, "byTitle", [
+            {
+              lte: [{ col: "title", val: "Task 1" }],
+              gte: [{ col: "title", val: "Task 1" }],
+            },
+          ]),
+        ),
+      ).toEqual([]);
+    });
+  }
+
+  for (const driver of [
+    await SqlDriver.init(),
+    // new InmemDriver(),
+    new BptreeInmemDriver(),
+  ]) {
+    it(
       "doesn't insert duplicate id records - " + driver.constructor.name,
       () => {
         const justTask: Task = {
@@ -350,6 +417,75 @@ describe("db", async () => {
         "template-1",
         "template-2",
       ]);
+    });
+  }
+});
+
+describe("Database Transactions", async () => {
+  for (const driver of [
+    // new InmemDriver(),
+    // async () => SqlDriver.init(),
+    async () => new BptreeInmemDriver(),
+  ]) {
+    describe(`${driver.constructor.name}`, () => {
+      it.only("works", async () => {
+        const db = new DB(await driver(), [tasksTable, taskTemplatesTable]);
+
+        const tx = db.beginTx();
+
+        tx.insert(tasksTable, [
+          {
+            id: "task-1",
+            title: "Task 1",
+            state: "done",
+            projectId: "1",
+            orderToken: "b",
+            type: "task",
+            lastToggledAt: 0,
+          },
+          {
+            id: "task-2",
+            title: "Task 2",
+            state: "todo",
+            projectId: "1",
+            orderToken: "b",
+            type: "task",
+            lastToggledAt: 1,
+          },
+        ]);
+
+        const btreeTxData = Array.from(
+          tx.intervalScan(tasksTable, "ids", [
+            {
+              eq: [{ col: "id", val: "task-1" }],
+            },
+          ]),
+        );
+        const hashTxData = Array.from(
+          tx.intervalScan(tasksTable, "id", [
+            {
+              eq: [{ col: "id", val: "task-1" }],
+            },
+          ]),
+        );
+
+        const btreeData = Array.from(
+          db.intervalScan(tasksTable, "ids", [
+            {
+              eq: [{ col: "id", val: "task-1" }],
+            },
+          ]),
+        );
+        const hashData = Array.from(
+          db.intervalScan(tasksTable, "id", [
+            {
+              eq: [{ col: "id", val: "task-1" }],
+            },
+          ]),
+        );
+
+        console.log(btreeTxData, hashTxData, btreeData, hashData);
+      });
     });
   }
 });

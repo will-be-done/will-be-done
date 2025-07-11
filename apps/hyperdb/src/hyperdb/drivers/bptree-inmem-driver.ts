@@ -1,52 +1,596 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   DBDriver,
+  DBDriverTX,
   Row,
   ScanValue,
   SelectOptions,
+  TupleScanOptions,
   WhereClause,
 } from "../db";
 import type { IndexDefinitions, TableDefinition } from "../table";
-import { UnreachableError } from "../utils";
 import { InMemoryBinaryPlusTree } from "../utils/bptree";
 import { compareTuple } from "./tuple";
 import { convertWhereToBound } from "../bounds";
+import { orderedArray } from "../utils/ordered-array";
 
-type RangeIndex = {
-  type: "btree";
+type TableData = {
+  tableDef: TableDefinition;
+  indexes: Map<string, Index>;
+  idIndex: HashIndex;
+};
+
+type TxTableData = {
+  tableDef: TableDefinition;
+  indexes: Map<string, IndexTx>;
+  idIndex: HashIndexTx;
+};
+
+type BtreeIndexDef = {
   name: string;
-  tree: InMemoryBinaryPlusTree<ScanValue[], Row>;
   columns: string[];
 };
 
-type EqualIndex = {
-  type: "hash";
+type HashIndexDef = {
   name: string;
   column: string;
-  records: Map<string, Row>;
 };
-
-type Index = RangeIndex | EqualIndex;
 
 const makeIndexKey = (row: Row, indexColumns: string[]): ScanValue[] => {
   return indexColumns.map((col) => row[col] as ScanValue);
 };
 
-export class BptreeInmemDriver implements DBDriver {
-  data = new Map<
-    string,
-    {
-      indexes: Record<string, Index>;
-      idIndexName: string;
+function performScan(
+  tableData: TableData | TxTableData,
+  indexName: string,
+  clauses: WhereClause[],
+  selectOptions: SelectOptions,
+) {
+  const index = tableData.indexes.get(indexName as string);
+
+  if (!index)
+    throw new Error(
+      "Index not found: " +
+        indexName +
+        " for table: " +
+        tableData.tableDef.tableName,
+    );
+
+  const tupleBounds = convertWhereToBound(index.cols(), clauses);
+
+  return index.scan(tupleBounds, selectOptions);
+}
+
+function performDelete(tblData: TableData | TxTableData, ids: string[]) {
+  for (const id of ids) {
+    const [record] = Array.from(
+      tblData.idIndex.scan([{ lte: [id], gte: [id] }], {}),
+    );
+    if (record === undefined || record == null) continue;
+
+    for (const index of tblData.indexes.values()) {
+      index.delete([record]);
     }
-  >();
+  }
+}
+
+function performInsert(tblData: TableData | TxTableData, values: Row[]) {
+  for (const index of tblData.indexes.values()) {
+    index.insert(values);
+  }
+}
+
+function performUpdate(tblData: TableData | TxTableData, records: Row[]) {
+  performDelete(
+    tblData,
+    records.map((r) => r.id),
+  );
+  performInsert(tblData, records);
+}
+
+interface BaseIndex {
+  type: "btree" | "hash";
+  scan(
+    tupleBounds: TupleScanOptions[],
+    selectOptions: SelectOptions,
+  ): Generator<Row>;
+  cols(): string[];
+
+  insert(values: Row[]): void;
+  delete(values: Row[]): void;
+}
+
+interface IndexTx extends BaseIndex {
+  commit(): void;
+}
+
+interface Index extends BaseIndex {
+  tx(): IndexTx;
+}
+
+const getColumnValuesFromBounds = (
+  indexDef: HashIndexDef,
+  tupleBounds: TupleScanOptions[],
+) => {
+  const idxValues = new Set<string>();
+
+  for (const bound of tupleBounds) {
+    if (
+      (bound.gt !== undefined && bound.gt.length > 0) ||
+      (bound.lt !== undefined && bound.lt.length > 0)
+    ) {
+      throw new Error(
+        "Hash index doesn't support range conditions for column '" +
+          indexDef.column +
+          "'",
+      );
+    }
+
+    console.log("bound", bound, bound.lte?.[0] !== bound.gte?.[0]);
+    if (
+      (bound.lte && bound.lte.length !== 1) ||
+      (bound.gte && bound.gte.length !== 1) ||
+      !bound.lte ||
+      !bound.gte
+    ) {
+      throw new Error(
+        "Hash index should have exactly one equality condition for column '" +
+          indexDef.column +
+          "'",
+      );
+    }
+
+    if (bound.lte?.[0] !== bound.gte?.[0]) {
+      throw new Error(
+        "Hash index should have the same equality condition for column '" +
+          indexDef.column +
+          "'",
+      );
+    }
+
+    idxValues.add(bound.lte?.[0] as string);
+  }
+
+  return idxValues;
+};
+
+class HashIndex implements Index {
+  type = "hash" as const;
+  indexDef: HashIndexDef;
+  records: Map<string, Map<string, Row>> = new Map();
+
+  constructor(indexDef: HashIndexDef) {
+    this.indexDef = indexDef;
+  }
+
+  cols(): string[] {
+    return [this.indexDef.column];
+  }
+
+  *scan(
+    tupleBounds: TupleScanOptions[],
+    selectOptions: { limit?: number },
+  ): Generator<Row> {
+    const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
+
+    let totalCount = 0;
+    for (const idxValue of idxValues) {
+      const rows = this.records.get(idxValue);
+
+      if (!rows) continue;
+
+      for (const [, row] of rows) {
+        yield row;
+
+        totalCount++;
+
+        if (
+          selectOptions?.limit !== undefined &&
+          totalCount >= selectOptions.limit
+        ) {
+          return;
+        }
+      }
+    }
+  }
+
+  insert(values: Row[]): void {
+    for (const record of values) {
+      const colValue = record[this.indexDef.column] as string;
+      const rows = this.records.get(colValue);
+
+      if (!rows) {
+        const m = new Map();
+        m.set(record.id, record);
+        this.records.set(colValue, m);
+      } else {
+        rows.set(record.id, record);
+      }
+    }
+  }
+
+  delete(values: Row[]): void {
+    for (const record of values) {
+      const col = record[this.indexDef.column] as string;
+      const rows = this.records.get(col);
+
+      if (!rows) continue;
+
+      rows.delete(record.id);
+    }
+  }
+
+  tx(): IndexTx {
+    return new HashIndexTx(this);
+  }
+}
+
+type RowId = string;
+type ColumnValue = string;
+class HashIndexTx implements IndexTx {
+  type = "hash" as const;
+  originalIndex: HashIndex;
+  isCommitted = false;
+
+  sets: Map<ColumnValue, Map<RowId, Row>> = new Map();
+  deletes: Map<ColumnValue, Set<RowId>> = new Map();
+
+  constructor(index: HashIndex) {
+    this.originalIndex = index;
+  }
+
+  cols(): string[] {
+    return [this.originalIndex.indexDef.column];
+  }
+
+  commit(): void {
+    this.isCommitted = true;
+  }
+
+  scan(
+    tupleBounds: TupleScanOptions[],
+    selectOptions: { limit?: number },
+  ): Generator<Row> {
+    if (this.isCommitted) throw new Error("Can't scan after commit");
+
+    const boundValues = getColumnValuesFromBounds(
+      this.originalIndex.indexDef,
+      tupleBounds,
+    );
+
+    const deletedRowIds = new Set<RowId>();
+    for (const value of boundValues) {
+      const deletes = this.deletes.get(value);
+      if (!deletes) continue;
+
+      for (const rowId of deletes) {
+        deletedRowIds.add(rowId);
+      }
+    }
+
+    // TODO: finish
+
+    // 1. scan from the index
+    // 2. scan from current hash on top
+    // 3. delete all records that marked as deleted
+
+    // return this.originalIndex.scan(tupleBounds, selectOptions);
+  }
+
+  insert(values: Row[]): void {
+    if (this.isCommitted) throw new Error("Can't insert after commit");
+
+    // TODO: implement
+    // this.originalIndex.insert(values);
+  }
+
+  delete(values: Row[]): void {
+    if (this.isCommitted) throw new Error("Can't delete after commit");
+
+    // TODO: implement
+    // this.originalIndex.delete(values);
+  }
+}
+
+class BtreeIndexTx implements IndexTx {
+  index: BtreeIndex;
+  sets: InMemoryBinaryPlusTree<ScanValue[], Row>;
+  deletes: InMemoryBinaryPlusTree<ScanValue[], Row>;
+  isCommitted = false;
+  type = "btree" as const;
+  orderedArray: ReturnType<typeof orderedArray<Row, ScanValue[]>>;
+
+  constructor(index: BtreeIndex) {
+    this.orderedArray = orderedArray(
+      (it: Row) => makeIndexKey(it, index.indexDef.columns),
+      compareTuple,
+    );
+    this.index = index;
+    this.sets = new InMemoryBinaryPlusTree<ScanValue[], Row>(
+      100,
+      200,
+      compareTuple,
+    );
+    this.deletes = new InMemoryBinaryPlusTree<ScanValue[], Row>(
+      100,
+      200,
+      compareTuple,
+    );
+  }
+
+  *scan(tupleBounds: TupleScanOptions[], selectOptions: { limit: number }) {
+    const results: Row[][] = [];
+    for (const bounds of tupleBounds) {
+      const sets = this.sets.list(bounds);
+      const deletes = this.deletes.list(bounds);
+
+      const limit =
+        selectOptions?.limit !== undefined
+          ? selectOptions.limit + deletes.length
+          : undefined;
+
+      const result = Array.from(
+        this.index.scan([bounds], limit !== undefined ? { limit } : {}),
+      );
+
+      for (const item of sets) {
+        this.orderedArray.insert(result, item.value);
+      }
+
+      for (const { key } of deletes) {
+        this.orderedArray.remove(result, key);
+      }
+
+      results.push(result);
+    }
+
+    let totalCount = 0;
+    for (const rows of results) {
+      for (const row of rows) {
+        yield row;
+
+        totalCount++;
+
+        if (
+          selectOptions?.limit !== undefined &&
+          totalCount >= selectOptions.limit
+        ) {
+          return;
+        }
+      }
+    }
+  }
+
+  insert(values: Row[]): void {
+    if (this.isCommitted) throw new Error("Can't insert after commit");
+
+    for (const record of values) {
+      this.sets.set(makeIndexKey(record, this.index.indexDef.columns), record);
+    }
+
+    for (const record of values) {
+      this.deletes.delete(makeIndexKey(record, this.index.indexDef.columns));
+    }
+  }
+
+  delete(values: Row[]): void {
+    if (this.isCommitted) throw new Error("Can't delete after commit");
+
+    for (const row of values) {
+      this.sets.delete(makeIndexKey(row, this.index.indexDef.columns));
+    }
+
+    for (const row of values) {
+      this.deletes.set(makeIndexKey(row, this.index.indexDef.columns), row);
+    }
+  }
+
+  cols(): string[] {
+    return this.index.indexDef.columns;
+  }
+
+  commit(): void {
+    this.isCommitted = true;
+
+    for (const row of this.sets.list()) {
+      this.index.btree.set(row.key, row.value);
+    }
+    for (const row of this.deletes.list()) {
+      this.index.btree.delete(row.key);
+    }
+  }
+}
+
+class BtreeIndex implements Index {
+  indexDef: BtreeIndexDef;
+  btree: InMemoryBinaryPlusTree<ScanValue[], Row>;
+  type = "btree" as const;
+
+  constructor(indexConfig: BtreeIndexDef) {
+    this.btree = new InMemoryBinaryPlusTree<ScanValue[], Row>(
+      100,
+      200,
+      compareTuple,
+    );
+    this.indexDef = indexConfig;
+  }
+
+  *scan(tupleBounds: TupleScanOptions[], selectOptions: { limit?: number }) {
+    let totalCount = 0;
+
+    for (const bounds of tupleBounds) {
+      const results = this.btree.list({
+        ...bounds,
+        limit:
+          selectOptions?.limit !== undefined
+            ? selectOptions.limit - totalCount
+            : undefined,
+      });
+
+      for (const result of results) {
+        yield result.value;
+        totalCount++;
+
+        if (
+          selectOptions?.limit !== undefined &&
+          totalCount >= selectOptions.limit
+        ) {
+          return;
+        }
+      }
+    }
+  }
+
+  insert(values: Row[]): void {
+    for (const record of values) {
+      this.btree.set(makeIndexKey(record, this.indexDef.columns), record);
+    }
+  }
+
+  delete(values: Row[]): void {
+    for (const row of values) {
+      this.btree.delete(makeIndexKey(row, this.indexDef.columns));
+    }
+  }
+
+  cols(): string[] {
+    return this.indexDef.columns;
+  }
+
+  tx(): BtreeIndexTx {
+    return new BtreeIndexTx(this);
+  }
+}
+
+type TableName = string;
+
+export class BptreeInmemDriverTx implements DBDriverTX {
+  tblDatas: Map<TableName, TxTableData> = new Map();
+  original: BptreeInmemDriver;
+
+  committed = false;
+  rollbacked = false;
+
+  constructor(driver: BptreeInmemDriver) {
+    this.original = driver;
+  }
+
+  commit(): void {
+    this.committed = true;
+    for (const [, table] of this.tblDatas) {
+      for (const index of table.indexes.values()) {
+        index.commit();
+      }
+    }
+  }
+
+  rollback(): void {
+    this.rollbacked = true;
+
+    // do nothing
+  }
+
+  intervalScan(
+    table: string,
+    indexName: string,
+    clauses: WhereClause[],
+    selectOptions: SelectOptions,
+  ): Generator<unknown> | Generator<Promise<unknown>> {
+    this.throwIfDone();
+
+    return performScan(
+      this.getOrCreateTableData(table),
+      indexName,
+      clauses,
+      selectOptions,
+    );
+  }
+
+  insert(tableName: string, values: Row[]): void {
+    this.throwIfDone();
+
+    const tableData = this.getOrCreateTableData(tableName);
+
+    performInsert(tableData, values);
+  }
+
+  update(tableName: string, values: Row[]): void {
+    this.throwIfDone();
+
+    const tableData = this.getOrCreateTableData(tableName);
+
+    performUpdate(tableData, values);
+  }
+
+  delete(tableName: string, values: string[]): void {
+    this.throwIfDone();
+
+    performDelete(this.getOrCreateTableData(tableName), values);
+  }
+
+  throwIfDone() {
+    if (this.committed) {
+      throw new Error("Cannot modify a committed tx");
+    }
+
+    if (this.rollbacked) {
+      throw new Error("Cannot modify a rollbacked tx");
+    }
+  }
+
+  private getOrCreateTableData(tableName: string): TxTableData {
+    const tblData = this.tblDatas.get(tableName);
+    if (tblData) {
+      return tblData;
+    }
+
+    const noTxTableData = this.original.tblDatas.get(tableName);
+    if (!noTxTableData) {
+      throw new Error(`Table ${tableName} not found`);
+    }
+
+    const indexes = new Map<string, IndexTx>();
+
+    let idTxIndex: HashIndexTx | undefined;
+    for (const [name, index] of noTxTableData.indexes) {
+      const txIndex = index.tx();
+
+      if (index === noTxTableData.idIndex) {
+        idTxIndex = txIndex as HashIndexTx;
+      }
+
+      indexes.set(name, txIndex);
+    }
+
+    if (!idTxIndex) {
+      throw new Error("Table must have one equal id index");
+    }
+
+    const data: TxTableData = {
+      tableDef: noTxTableData.tableDef,
+      idIndex: idTxIndex,
+      indexes: indexes,
+    };
+
+    this.tblDatas.set(tableName, data);
+
+    return data;
+  }
+}
+
+export class BptreeInmemDriver implements DBDriver {
+  tblDatas: Map<TableName, TableData> = new Map();
 
   constructor() {}
+
+  beginTx(): DBDriverTX {
+    return new BptreeInmemDriverTx(this);
+  }
 
   loadTables(tables: TableDefinition<any, IndexDefinitions<any>>[]): void {
     for (const tableDef of tables) {
       // this.tableDefinitions.set(tableDef.name, tableDef);
-      const indexes: Record<string, Index> = {};
+      const indexes: Map<string, Index> = new Map();
 
       for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
         if (indexDef.type === "btree") {
@@ -55,251 +599,88 @@ export class BptreeInmemDriver implements DBDriver {
             cols.push("id");
           }
 
-          indexes[indexName] = {
-            type: "btree",
-            name: indexName,
-            tree: new InMemoryBinaryPlusTree<ScanValue[], Row>(
-              100,
-              200,
-              compareTuple,
-            ),
-            columns: cols,
-          };
+          indexes.set(
+            indexName,
+            new BtreeIndex({
+              name: indexName,
+              columns: cols,
+            }),
+          );
         } else if (indexDef.type === "hash") {
           if (indexDef.cols.length !== 1) {
             throw new Error("Hash index must have exactly one column");
           }
 
-          indexes[indexName] = {
-            type: "hash",
-            name: indexName,
-            column: indexDef.cols[0] as string,
-            records: new Map(),
-          };
+          indexes.set(
+            indexName,
+            new HashIndex({
+              name: indexName,
+              column: indexDef.cols[0] as string,
+            }),
+          );
         } else {
           throw new Error("Invalid index type" + indexDef.type);
         }
       }
-      const idIndex = Object.values(indexes).find(
-        (index): index is EqualIndex =>
-          index.type === "hash" && index.column === "id",
-      );
 
-      if (!idIndex) {
-        throw new Error("Table must have one equal id index");
+      let idIndex: HashIndex | undefined;
+      for (const index of indexes.values()) {
+        if (index instanceof HashIndex && index.indexDef.column === "id") {
+          idIndex = index;
+          break;
+        }
       }
 
-      this.data.set(tableDef.tableName, {
+      if (!idIndex) {
+        throw new Error("Table must have one hash id index");
+      }
+
+      this.tblDatas.set(tableDef.tableName, {
+        idIndex: idIndex,
         indexes: indexes,
-        idIndexName: idIndex.name,
+        tableDef: tableDef,
       });
     }
   }
 
   update(tableName: string, values: Row[]): void {
-    const tblData = this.data.get(tableName);
+    const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    // TODO: improve it. No need to delete if index key is not changed. Here is a draft:
-    // const toDeleteAndInsert: Row[] = [];
-    //
-    // for (const record of values) {
-    //   const existing = tblData.records.get(record.id);
-    //   if (!existing) {
-    //     toDeleteAndInsert.push(record);
-    //     continue;
-    //   }
-    //   const oldIndexKey = makeIndexKey(existing, tblData.indexes["id"].columns);
-    //   const newIndexKey = makeIndexKey(record, tblData.indexes["id"].columns);
-    //
-    //   if (compareTuple(oldIndexKey, newIndexKey) === 0) {
-    //     tblData.records.set(record.id, record);
-    //   } else {
-    //     toDeleteAndInsert.push(record);
-    //   }
-    // }
-
-    this.delete(
-      tableName,
-      values.map((v) => v.id),
-    );
-    this.insert(tableName, values);
+    performUpdate(tblData, values);
   }
 
   insert(tableName: string, values: Row[]): void {
-    const tblData = this.data.get(tableName);
+    const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    for (const index of Object.values(tblData.indexes)) {
-      if (index.type === "btree") {
-        for (const record of values) {
-          index.tree.set(makeIndexKey(record, index.columns), record);
-        }
-      } else if (index.type === "hash") {
-        for (const record of values) {
-          index.records.set(record.id, record);
-        }
-      } else {
-        throw new UnreachableError(index);
-      }
-    }
+    performInsert(tblData, values);
   }
 
-  delete(tableName: string, values: string[]): void {
-    const tblData = this.data.get(tableName);
+  delete(tableName: string, ids: string[]): void {
+    const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    for (const id of values) {
-      const index = tblData.indexes[tblData.idIndexName];
-      if (!index) throw new Error("Index not found");
-      if (index.type !== "hash") throw new Error("ID index is not equal type");
-
-      const record = index.records.get(id);
-      if (!record) continue;
-
-      for (const index of Object.values(tblData.indexes)) {
-        if (index.type === "btree") {
-          index.tree.delete(makeIndexKey(record, index.columns));
-        } else if (index.type === "hash") {
-          index.records.delete(id);
-        }
-      }
-    }
+    performDelete(tblData, ids);
   }
 
-  *intervalScan(
+  intervalScan(
     tableName: string,
     indexName: string,
     clauses: WhereClause[],
     selectOptions: SelectOptions,
-  ): Generator<unknown> {
-    const tableData = this.data.get(tableName);
+  ): Generator<Row> {
+    const tableData = this.tblDatas.get(tableName);
     if (!tableData) {
       throw new Error(`Table ${tableName} not found`);
     }
-    const index = tableData.indexes[indexName as string];
 
-    if (!index)
-      throw new Error(
-        "Index not found: " + indexName + " for table: " + tableName,
-      );
-
-    let totalCount = 0;
-    if (index.type === "hash") {
-      // For hash indexes, we only support exact equality matches
-      const ids = new Set<string>();
-
-      for (const clause of clauses) {
-        if (
-          (clause.lte !== undefined && clause.lte.length > 0) ||
-          (clause.gte !== undefined && clause.gte.length > 0) ||
-          (clause.gt !== undefined && clause.gt.length > 0) ||
-          (clause.lt !== undefined && clause.lt.length > 0)
-        ) {
-          throw new Error(
-            "Hash index doesn't support range conditions for column '" +
-              index.column +
-              "'",
-          );
-        }
-
-        if (clause.eq) {
-          if (clause.eq.length > 1) {
-            throw new Error(
-              "Hash index doesn't support multiple equality conditions for column '" +
-                index.column +
-                "'",
-            );
-          }
-          if (clause.eq.length === 0) {
-            throw new Error(
-              "Hash index doesn't support empty equality conditions for column '" +
-                index.column +
-                "'",
-            );
-          }
-
-          ids.add(clause.eq[0].val as string);
-        }
-      }
-
-      for (const id of ids) {
-        if (!index.records.has(id)) {
-          continue;
-        }
-
-        yield index.records.get(id);
-        totalCount++;
-
-        if (
-          selectOptions.limit !== undefined &&
-          totalCount >= selectOptions.limit
-        ) {
-          return;
-        }
-      }
-    } else if (index.type === "btree") {
-      // Convert WhereClause to btree bounds using the bounds utility
-      const indexConfig = {
-        type: "btree" as const,
-        cols: index.columns,
-      };
-
-      const tupleBounds = convertWhereToBound(indexConfig, clauses);
-
-      for (const bounds of tupleBounds) {
-        const results = index.tree.list({
-          ...bounds,
-          limit:
-            selectOptions?.limit !== undefined
-              ? selectOptions.limit - totalCount
-              : undefined,
-        });
-
-        for (const result of results) {
-          yield result.value;
-          totalCount++;
-
-          if (
-            selectOptions.limit !== undefined &&
-            totalCount >= selectOptions.limit
-          ) {
-            return;
-          }
-        }
-      }
-    } else {
-      throw new UnreachableError(index);
-    }
+    return performScan(tableData, indexName, clauses, selectOptions);
   }
-
-  // *equalScan(
-  //   table: string,
-  //   indexName: string,
-  //   ids: string[],
-  // ): Generator<unknown> {
-  //   const tblData = this.data.get(table);
-  //   if (!tblData) {
-  //     throw new Error(`Table ${table} not found`);
-  //   }
-  //
-  //   const index = tblData.indexes[indexName];
-  //   if (!index)
-  //     throw new Error("Index not found: " + indexName + " for table: " + table);
-  //   if (index.type !== "equal") throw new Error("Equal index required");
-  //
-  //   for (const id of ids) {
-  //     if (!index.records.has(id)) {
-  //       continue;
-  //     }
-  //
-  //     yield index.records.get(id);
-  //   }
-  // }
 }
