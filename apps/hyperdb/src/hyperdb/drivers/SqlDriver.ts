@@ -27,6 +27,8 @@ export class SqlDriver implements DBDriver {
   insert(tableName: string, values: Record<string, unknown>[]): void {
     if (values.length === 0) return;
 
+    this.db.exec("BEGIN TRANSACTION");
+
     const allValues = chunk(values, 12000);
     for (const values of allValues) {
       const valuesQ = values.map(() => "(?, ?)").join(", ");
@@ -39,10 +41,14 @@ export class SqlDriver implements DBDriver {
       );
       console.log(insertSQL);
     }
+
+    this.db.exec("COMMIT");
   }
 
   update(tableName: string, values: Row[]): void {
     if (values.length === 0) return;
+
+    this.db.exec("BEGIN TRANSACTION");
 
     const allValues = chunk(values, 12000);
     for (const values of allValues) {
@@ -54,10 +60,14 @@ export class SqlDriver implements DBDriver {
         values.flatMap((v) => [v.id, JSON.stringify(v)]),
       );
     }
+
+    this.db.exec("COMMIT");
   }
 
   delete(tableName: string, values: string[]): void {
     if (values.length === 0) return;
+
+    this.db.exec("BEGIN TRANSACTION");
 
     const allValues = chunk(values, 12000);
     for (const values of allValues) {
@@ -65,6 +75,8 @@ export class SqlDriver implements DBDriver {
       const deleteSQL = `DELETE FROM ${tableName} WHERE id IN (${placeholders})`;
       this.db.exec(deleteSQL, values);
     }
+
+    this.db.exec("COMMIT");
   }
 
   *intervalScan(
@@ -190,6 +202,14 @@ export class SqlDriver implements DBDriver {
   loadTables(tableDefinitions: TableDefinition<any>[]): void {
     tableDefinitions = cloneDeep(tableDefinitions);
     for (const tableDef of tableDefinitions) {
+      for (const [, indexDef] of Object.entries(tableDef.indexes)) {
+        const cols = indexDef.cols;
+
+        if (cols[cols.length - 1] !== "id") {
+          cols.push("id");
+        }
+      }
+
       this.createTable(tableDef.tableName);
       this.createIndexes(tableDef);
       this.tableDefinitions.set(tableDef.tableName, tableDef);
@@ -210,11 +230,7 @@ export class SqlDriver implements DBDriver {
 
   private createIndexes(tableDef: TableDefinition<any>): void {
     for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
-      const cols = [...indexDef.cols];
-
-      if (cols[cols.length - 1] !== "id") {
-        cols.push("id");
-      }
+      const cols = indexDef.cols;
 
       // Create a composite index using JSON path expressions
       const columnPaths = cols

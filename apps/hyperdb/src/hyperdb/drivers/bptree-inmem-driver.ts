@@ -126,7 +126,6 @@ const getColumnValuesFromBounds = (
       );
     }
 
-    console.log("bound", bound, bound.lte?.[0] !== bound.gte?.[0]);
     if (
       (bound.lte && bound.lte.length !== 1) ||
       (bound.gte && bound.gte.length !== 1) ||
@@ -416,7 +415,7 @@ class BtreeIndexTx implements IndexTx {
 
     const results: Row[][] = [];
     for (const bounds of tupleBounds) {
-      const sets = this.sets.list(bounds);
+      const sets = this.sets.list({ ...bounds, limit: selectOptions.limit });
       const deletes = this.deletes.list(bounds);
 
       const limit =

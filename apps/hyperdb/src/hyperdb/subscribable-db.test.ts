@@ -20,10 +20,13 @@ const tasksTable = table<Task>("tasks").withIndexes({
 });
 
 describe("SubscribableDB", async () => {
-  for (const driver of [new BptreeInmemDriver(), await SqlDriver.init()]) {
-    describe(`with ${driver.constructor.name}`, () => {
-      it("should subscribe to operations and receive correct notifications", () => {
-        const db = new DB(driver, [tasksTable]);
+  for (const [driver, driverName] of [
+    [async () => new BptreeInmemDriver(), "BptreeInmemDriver"],
+    [async () => SqlDriver.init(), "SqlDriver"],
+  ] as const) {
+    describe(`with ${driverName}`, () => {
+      it("should subscribe to operations and receive correct notifications", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const operations: Op[] = [];
@@ -97,8 +100,8 @@ describe("SubscribableDB", async () => {
         unsubscribe();
       });
 
-      it("should handle multiple subscribers correctly", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should handle multiple subscribers correctly", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const operations1: Op[] = [];
@@ -129,8 +132,8 @@ describe("SubscribableDB", async () => {
         unsubscribe2();
       });
 
-      it("should properly unsubscribe and not receive further notifications", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should properly unsubscribe and not receive further notifications", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const operations: Op[] = [];
@@ -164,8 +167,8 @@ describe("SubscribableDB", async () => {
         expect(operations).toHaveLength(1);
       });
 
-      it("should handle update operations with non-existent records", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should handle update operations with non-existent records", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const nonExistentTask: Task = {
@@ -181,8 +184,8 @@ describe("SubscribableDB", async () => {
         }).toThrow("Failed to update record, no previous record found");
       });
 
-      it("should handle delete operations with non-existent records", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should handle delete operations with non-existent records", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const operations: Op[] = [];
@@ -196,8 +199,8 @@ describe("SubscribableDB", async () => {
         expect(operations).toHaveLength(0);
       });
 
-      it("should delegate scan operations correctly", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should delegate scan operations correctly", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const tasks: Task[] = [
@@ -231,8 +234,8 @@ describe("SubscribableDB", async () => {
         expect(intervalResults[0]).toEqual(tasks[0]);
       });
 
-      it("should handle batch operations correctly", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should handle batch operations correctly", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const operations: Op[] = [];
@@ -311,8 +314,8 @@ describe("SubscribableDB", async () => {
         }
       });
 
-      it("should handle operations with empty arrays", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should handle operations with empty arrays", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const operations: Op[] = [];
@@ -333,8 +336,8 @@ describe("SubscribableDB", async () => {
         expect(operations).toHaveLength(0);
       });
 
-      it("should handle complex workflow with mixed operations", () => {
-        const db = new DB(driver, [tasksTable]);
+      it("should handle complex workflow with mixed operations", async () => {
+        const db = new DB(await driver(), [tasksTable]);
         const subscribableDB = new SubscribableDB(db);
 
         const operations: Op[] = [];

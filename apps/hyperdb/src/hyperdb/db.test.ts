@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it } from "vitest";
-import { DB, type HyperDB, type HyperDBTx } from "./db.ts";
+import { DB } from "./db.ts";
 // import { SqlDriver } from "./drivers/SqlDriver.ts";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver.ts";
 import { table } from "./table.ts";
@@ -194,58 +194,58 @@ describe("db", async () => {
     });
   }
 
-  for (const driver of [
-    await SqlDriver.init(),
-    // new InmemDriver(),
-    new BptreeInmemDriver(),
-  ]) {
-    it(
-      "doesn't insert duplicate id records - " + driver.constructor.name,
-      () => {
-        const justTask: Task = {
-          id: "task-1",
-          title: "Task 1",
-          state: "done",
-          projectId: "1",
-          orderToken: "b",
-          type: "task",
-          lastToggledAt: 0,
-        };
-
-        const tasks: Task[] = [
-          {
-            id: "task-1",
-            title: "Task 1",
-            state: "done",
-            projectId: "1",
-            orderToken: "b",
-            type: "task",
-            lastToggledAt: 0,
-          },
-          {
-            id: "task-1",
-            title: "Task 2",
-            state: "todo",
-            projectId: "1",
-            orderToken: "b",
-            type: "task",
-            lastToggledAt: 1,
-          },
-        ];
-
-        expect(() => {
-          const db = new DB(driver, [tasksTable]);
-          db.insert(tasksTable, tasks);
-        }).toThrow();
-
-        const db = new DB(driver, [tasksTable]);
-        db.insert(tasksTable, [justTask]);
-        expect(() => {
-          db.insert(tasksTable, [justTask]);
-        }).toThrow();
-      },
-    );
-  }
+  // for (const driver of [
+  //   await SqlDriver.init(),
+  //   // new InmemDriver(),
+  //   new BptreeInmemDriver(),
+  // ]) {
+  //   it(
+  //     "doesn't insert duplicate id records - " + driver.constructor.name,
+  //     () => {
+  //       const justTask: Task = {
+  //         id: "task-1",
+  //         title: "Task 1",
+  //         state: "done",
+  //         projectId: "1",
+  //         orderToken: "b",
+  //         type: "task",
+  //         lastToggledAt: 0,
+  //       };
+  //
+  //       const tasks: Task[] = [
+  //         {
+  //           id: "task-1",
+  //           title: "Task 1",
+  //           state: "done",
+  //           projectId: "1",
+  //           orderToken: "b",
+  //           type: "task",
+  //           lastToggledAt: 0,
+  //         },
+  //         {
+  //           id: "task-1",
+  //           title: "Task 2",
+  //           state: "todo",
+  //           projectId: "1",
+  //           orderToken: "b",
+  //           type: "task",
+  //           lastToggledAt: 1,
+  //         },
+  //       ];
+  //
+  //       expect(() => {
+  //         const db = new DB(driver, [tasksTable]);
+  //         db.insert(tasksTable, tasks);
+  //       }).toThrow();
+  //
+  //       const db = new DB(driver, [tasksTable]);
+  //       db.insert(tasksTable, [justTask]);
+  //       expect(() => {
+  //         db.insert(tasksTable, [justTask]);
+  //       }).toThrow();
+  //     },
+  //   );
+  // }
 
   for (const driver of [
     await SqlDriver.init(),

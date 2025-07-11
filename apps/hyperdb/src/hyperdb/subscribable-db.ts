@@ -1,5 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { DB, HyperDB, Row, SelectOptions, WhereClause } from "./db";
+import type {
+  DB,
+  HyperDB,
+  HyperDBTx,
+  Row,
+  SelectOptions,
+  WhereClause,
+} from "./db";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
 
 export type InsertOp = {
@@ -23,12 +30,118 @@ export type DeleteOp = {
 
 export type Op = InsertOp | UpdateOp | DeleteOp;
 
+export class SubscribableDBTx implements HyperDBTx {
+  operations: Op[] = [];
+
+  private subDb: SubscribableDB;
+  private txDb: HyperDBTx;
+
+  committed = false;
+  rollbacked = false;
+
+  constructor(subDb: SubscribableDB, txDb: HyperDBTx) {
+    this.subDb = subDb;
+    this.txDb = txDb;
+  }
+
+  rollback(): void {
+    this.throwIfDone();
+    this.rollbacked = true;
+  }
+
+  intervalScan<
+    TTable extends TableDefinition,
+    K extends keyof ExtractIndexes<TTable>,
+  >(
+    table: TTable,
+    indexName: K,
+    clauses: WhereClause[],
+    selectOptions?: SelectOptions,
+  ): Generator<ExtractSchema<TTable>> {
+    this.throwIfDone();
+
+    return this.txDb.intervalScan(table, indexName, clauses, selectOptions);
+  }
+
+  insert<TTable extends TableDefinition<any>>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
+  ) {
+    this.throwIfDone();
+    if (records.length === 0) return;
+
+    this.txDb.insert(table, records);
+
+    for (const record of records) {
+      this.operations.push({
+        type: "insert",
+        table,
+        newValue: record,
+      });
+    }
+  }
+
+  update<TTable extends TableDefinition<any>>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
+  ) {
+    this.throwIfDone();
+    if (records.length === 0) return;
+
+    this.txDb.update(table, records);
+
+    for (const record of records) {
+      this.operations.push({
+        type: "update",
+        table,
+        oldValue: records[0],
+        newValue: record,
+      });
+    }
+  }
+
+  delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
+    this.throwIfDone();
+    if (ids.length === 0) return;
+
+    this.txDb.delete(table, ids);
+
+    for (const oldRecord of this.txDb.intervalScan(
+      table,
+      table.idIndexName,
+      ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
+    )) {
+      this.operations.push({ type: "delete", table, oldValue: oldRecord });
+    }
+  }
+
+  commit(): void {
+    this.throwIfDone();
+    this.txDb.commit();
+    this.subDb.subscribers.forEach((s) => s(this.operations));
+  }
+
+  throwIfDone() {
+    if (this.committed) {
+      throw new Error("Cannot modify a committed tx");
+    }
+
+    if (this.rollbacked) {
+      throw new Error("Cannot modify a rollbacked tx");
+    }
+  }
+}
+
 export class SubscribableDB implements HyperDB {
-  private subscribers: ((op: Op[]) => void)[] = [];
-  private db: DB;
+  subscribers: ((op: Op[]) => void)[] = [];
+  db: DB;
 
   constructor(db: DB) {
     this.db = db;
+  }
+
+  beginTx(): HyperDBTx {
+    return new SubscribableDBTx(this, this.db.beginTx());
   }
 
   subscribe(cb: (op: Op[]) => void): () => void {
@@ -133,27 +246,4 @@ export class SubscribableDB implements HyperDB {
 
     this.subscribers.forEach((s) => s(opsToNotify));
   }
-
-  // *hashScan<TTable extends TableDefinition<any>>(
-  //   table: TTable,
-  //   indexName: string,
-  //   ids: string[],
-  // ): Generator<ExtractSchema<TTable>> {
-  //   for (const data of this.db.hashScan(table, indexName, ids)) {
-  //     yield data;
-  //   }
-  // }
-  // async *asyncScan<TTable extends TableDefinition<any>>(
-  //   table: TTable,
-  //   indexName: keyof TTable["indexes"],
-  //   options?: ScanOptions,
-  // ): AsyncGenerator<ExtractSchema<TTable>> {
-  //   for await (const data of this.db.asyncIntervalScan(
-  //     table,
-  //     indexName,
-  //     options,
-  //   )) {
-  //     yield data;
-  //   }
-  // }
 }

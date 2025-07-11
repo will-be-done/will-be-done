@@ -801,7 +801,6 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
     const result = this.searchLeafValues(values, item.key);
 
     if (result.found !== undefined) {
-      // throw new Error("Btree should be unique");
       // Replace existing
       const oldItem = values[result.found];
       values[result.found] = item;

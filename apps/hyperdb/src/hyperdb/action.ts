@@ -80,27 +80,31 @@ export function dispatch<TReturn>(
 ): TReturn {
   let result = action.next();
 
+  const tx = db.beginTx();
+
   while (!result.done) {
     if (isSelectRangeCmd(result.value)) {
       const { table, index, selectQuery } = result.value;
 
       result = action.next(
         Array.from(
-          db.intervalScan(table, index, selectQuery.where, {
+          tx.intervalScan(table, index, selectQuery.where, {
             limit: selectQuery.limit,
           }),
         ),
       );
     } else if (isInsertActionCmd(result.value)) {
-      result = action.next(db.insert(result.value.table, result.value.values));
+      result = action.next(tx.insert(result.value.table, result.value.values));
     } else if (isUpdateActionCmd(result.value)) {
-      result = action.next(db.update(result.value.table, result.value.values));
+      result = action.next(tx.update(result.value.table, result.value.values));
     } else if (isDeleteActionCmd(result.value)) {
-      result = action.next(db.delete(result.value.table, result.value.values));
+      result = action.next(tx.delete(result.value.table, result.value.values));
     } else {
       result = action.next();
     }
   }
+
+  tx.commit();
 
   return result.value as TReturn;
 }

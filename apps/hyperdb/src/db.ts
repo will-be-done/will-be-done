@@ -43,7 +43,7 @@ export const getById = selector(function* (id: string) {
 
 export function* insertMillion() {
   const projects: Project[] = [];
-  for (let i = 0; i < 100000; i++) {
+  for (let i = 0; i < 1000000; i++) {
     const id = Math.random().toString(36).slice(2);
     projects.push({
       id: id,
