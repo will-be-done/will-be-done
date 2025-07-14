@@ -1,8 +1,10 @@
 {
-  "name": "hyperdb",
+  "name": "@will-be-done/hyperdb",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "src/hyperdb/index.ts",
+  "module": "src/hyperdb/index.ts",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

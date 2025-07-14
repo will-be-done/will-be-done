@@ -250,6 +250,9 @@ importers:
       '@will-be-done/api':
         specifier: workspace:*
         version: link:../api
+      '@will-be-done/hyperdb':
+        specifier: workspace:*
+        version: link:../hyperdb
       '@will-be-done/hyperstate':
         specifier: workspace:*
         version: link:../hyperstate

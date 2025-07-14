@@ -1,7 +1,7 @@
 import type { TableDefinition, ExtractSchema, ExtractIndexes } from "./table";
 import type { Value } from "./db";
 
-export type WhereClause = {
+type QueryWhereClause = {
   lt: { col: string; val: Value }[];
   lte: { col: string; val: Value }[];
   gt: { col: string; val: Value }[];
@@ -32,11 +32,11 @@ export type SelectQuery<
   limit?: number;
   from: TTable;
   index: K;
-  where: WhereClause[];
+  where: QueryWhereClause[];
 };
 
 class QueryBuilder<TTable, TIndexName extends keyof ExtractIndexes<TTable>> {
-  private conditions: WhereClause = {
+  private conditions: QueryWhereClause = {
     lt: [],
     lte: [],
     gt: [],
@@ -101,7 +101,7 @@ class QueryBuilder<TTable, TIndexName extends keyof ExtractIndexes<TTable>> {
     return builder;
   }
 
-  getConditions(): WhereClause {
+  getConditions(): QueryWhereClause {
     return { ...this.conditions };
   }
 }
@@ -173,13 +173,13 @@ class SelectQueryBuilderWithWhere<
 > {
   private table: TTable;
   private index: TIndexName;
-  private whereConditions: WhereClause[];
+  private whereConditions: QueryWhereClause[];
   private limitValue?: number;
 
   constructor(
     table: TTable,
     index: TIndexName,
-    whereConditions: WhereClause[],
+    whereConditions: QueryWhereClause[],
     limitValue?: number,
   ) {
     this.table = table;
