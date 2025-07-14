@@ -1,9 +1,11 @@
 import { isObjectType } from "@/store/z.utils";
 import {
+  action,
   deleteRows,
   insert,
   runQuery,
   selectFrom,
+  selector,
   table,
   update,
 } from "@will-be-done/hyperdb";
@@ -92,7 +94,7 @@ export const taskTemplatesTable = table<TaskTemplate>(
   byId: { cols: ["id"], type: "hash" },
 });
 
-type SelectorReturn<T> = Generator<unknown, T, unknown>;
+type GenReturn<T> = Generator<unknown, T, unknown>;
 
 export const projectItemsSlice = {
   deleteById: function* (id: string) {},
@@ -100,25 +102,27 @@ export const projectItemsSlice = {
 
 export const projectionsSlice = {
   // selectors
-  byId: function* (id: string): SelectorReturn<TaskProjection | undefined> {
+  byId: selector(function* (id: string): GenReturn<TaskProjection | undefined> {
     const projections = yield* runQuery(
       selectFrom(taskProjectionsTable, "byId").where((q) => q.eq("id", id)),
     );
 
     return projections[0];
-  },
-  byIdOrDefault: function* (id: string): SelectorReturn<TaskProjection> {
+  }),
+  byIdOrDefault: selector(function* (id: string): GenReturn<TaskProjection> {
     return (yield* projectionsSlice.byId(id)) || defaultTaskProjection;
-  },
+  }),
   canDrop(taskProjectionId: string, dropId: string) {
     // TODO: add
   },
-  siblings: function* (
+  siblings: selector(function* (
     taskProjectionId: string,
-  ): SelectorReturn<[TaskProjection | undefined, TaskProjection | undefined]> {
+  ): GenReturn<[TaskProjection | undefined, TaskProjection | undefined]> {
     // TODO: add
-  },
-  projectionIdsByTaskId: function* (taskId: string): SelectorReturn<string[]> {
+  }),
+  projectionIdsByTaskId: selector(function* (
+    taskId: string,
+  ): GenReturn<string[]> {
     const projections = yield* runQuery(
       selectFrom(taskProjectionsTable, "byTaskId").where((q) =>
         q.eq("taskId", taskId),
@@ -126,10 +130,12 @@ export const projectionsSlice = {
     );
 
     return projections.map((p) => p.id);
-  },
+  }),
 
   // actions
-  deleteProjectionsOfTask: function* (taskIds: string[]) {
+  deleteProjectionsOfTask: action(function* (
+    taskIds: string[],
+  ): GenReturn<void> {
     const projectionIds: string[] = [];
 
     for (const taskId of taskIds) {
@@ -138,14 +144,14 @@ export const projectionsSlice = {
     }
 
     yield* deleteRows(taskProjectionsTable, projectionIds);
-  },
+  }),
 };
 
 export const tasksSlice = {
-  canDrop: function* (taskId: string, dropId: string) {
+  canDrop: selector(function* (taskId: string, dropId: string) {
     // TODO: add
-  },
-  byId: function* (id: string): SelectorReturn<Task | undefined> {
+  }),
+  byId: selector(function* (id: string): GenReturn<Task | undefined> {
     const tasks = yield* runQuery(
       selectFrom(tasksTable, "byId")
         .where((q) => q.eq("id", id))
@@ -153,11 +159,11 @@ export const tasksSlice = {
     );
 
     return tasks[0];
-  },
-  byIdOrDefault: function* (id: string): SelectorReturn<Task> {
+  }),
+  byIdOrDefault: selector(function* (id: string): GenReturn<Task> {
     return (yield* tasksSlice.byId(id)) || defaultTask;
-  },
-  taskIdsOfTemplateId: function* (id: string): SelectorReturn<string[]> {
+  }),
+  taskIdsOfTemplateId: selector(function* (id: string): GenReturn<string[]> {
     const tasks = yield* runQuery(
       selectFrom(tasksTable, "byTemplateId").where((q) =>
         q.eq("templateId", id),
@@ -165,23 +171,23 @@ export const tasksSlice = {
     );
 
     return tasks.map((t) => t.id);
-  },
+  }),
 
   // actions
-  delete: function* (ids: string[]) {
+  delete: action(function* (ids: string[]): GenReturn<void> {
     yield* deleteRows(tasksTable, ids);
     yield* projectionsSlice.deleteProjectionsOfTask(ids);
-  },
-  update: function* (id: string, task: Partial<Task>) {
+  }),
+  update: action(function* (id: string, task: Partial<Task>): GenReturn<void> {
     const taskInState = yield* tasksSlice.byId(id);
     if (!taskInState) throw new Error("Task not found");
     Object.assign(taskInState, task);
 
     yield* update(tasksTable, [taskInState]);
-  },
-  createTask: function* (
+  }),
+  createTask: action(function* (
     task: Partial<Task> & { projectId: string; orderToken: string },
-  ) {
+  ): GenReturn<Task> {
     const id = task.id || uuidv7();
     const newTask: Task = {
       type: taskType,
@@ -197,15 +203,15 @@ export const tasksSlice = {
     yield* update(tasksTable, [newTask]);
 
     return newTask;
-  },
-  handleDrop: function* (
+  }),
+  handleDrop: action(function* (
     taskId: string,
     dropId: string,
     edge: "top" | "bottom",
   ) {
     // TODO: add
-  },
-  toggleState: function* (taskId: string) {
+  }),
+  toggleState: action(function* (taskId: string): GenReturn<void> {
     const task = yield* tasksSlice.byId(taskId);
     if (!task) throw new Error("Task not found");
 
@@ -216,8 +222,8 @@ export const tasksSlice = {
         lastToggledAt: Date.now(),
       },
     ]);
-  },
-  createFromTemplate: function* (taskTemplate: TaskTemplate) {
+  }),
+  createFromTemplate: action(function* (taskTemplate: TaskTemplate) {
     yield* projectItemsSlice.deleteById(taskTemplate.id);
 
     const newId = uuidv7();
@@ -235,8 +241,8 @@ export const tasksSlice = {
     yield* insert(tasksTable, [newTask]);
 
     return newTask;
-  },
-  deleteByIds: function* (ids: string[]) {
+  }),
+  deleteByIds: action(function* (ids: string[]) {
     yield* deleteRows(tasksTable, ids);
-  },
+  }),
 };
