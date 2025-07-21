@@ -6,28 +6,38 @@ import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { StoreProvider } from "@will-be-done/hyperstate";
 import "@/store/z.hot.ts";
+import { initDbStore } from "@/store2/slices/store";
+import { DBProvider } from "@will-be-done/hyperdb";
 
 export const Route = createRootRoute({
   component: RouteComponent,
-  loader: () => initStore(),
+  loader: async () => {
+    return {
+      oldStore: await initStore(),
+      newStore: await initDbStore(),
+    };
+  },
 });
 
 function RouteComponent() {
-  const store = Route.useLoaderData();
+  const oldStore = Route.useLoaderData().oldStore;
+  const newStore = Route.useLoaderData().newStore;
 
   return (
     <>
-      <StoreProvider value={store}>
-        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <KeyPressedCtxProvider>
-            <GlobalListener />
+      <DBProvider value={newStore}>
+        <StoreProvider value={oldStore}>
+          <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+            <KeyPressedCtxProvider>
+              <GlobalListener />
 
-            <Outlet />
+              <Outlet />
 
-            <TanStackRouterDevtools />
-          </KeyPressedCtxProvider>
-        </ThemeProvider>
-      </StoreProvider>
+              <TanStackRouterDevtools />
+            </KeyPressedCtxProvider>
+          </ThemeProvider>
+        </StoreProvider>
+      </DBProvider>
     </>
   );
 }

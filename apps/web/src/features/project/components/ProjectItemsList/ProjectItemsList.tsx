@@ -4,7 +4,6 @@ import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/features/focus/components/ParentListProvider.tsx";
-import { generateKeyBetween } from "fractional-indexing-jittered";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import {
   EmojiPicker,
@@ -17,7 +16,7 @@ import {
   PopoverTrigger,
 } from "../../../../components/ui/popover.tsx";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { cn } from "@/lib/utils.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
@@ -25,6 +24,8 @@ import { padStart } from "es-toolkit/compat";
 import { tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
+import { useSyncSelector } from "@will-be-done/hyperdb";
+import { projectItemsSlice2 } from "@/store2/slices/store.ts";
 
 const AddTaskButton = ({
   project,
@@ -166,13 +167,15 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 export const ProjectItemsList = ({ project }: { project: Project }) => {
   const store = useAppStore();
   const id = useAppSelector(focusSlice.getFocusedModelId);
-  const idsToAlwaysInclude = id ? [id] : [];
+  const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
 
-  const doneChildrenIds = useAppSelector((state) =>
-    projectItemsSlice.doneChildrenIds(state, project.id, idsToAlwaysInclude),
+  const doneChildrenIds = useSyncSelector(
+    () => projectItemsSlice2.doneChildrenIds(project.id, idsToAlwaysInclude),
+    [project.id, idsToAlwaysInclude],
   );
-  const notDoneChildrenIds = useAppSelector((state) =>
-    projectItemsSlice.childrenIds(state, project.id, idsToAlwaysInclude),
+  const notDoneChildrenIds = useSyncSelector(
+    () => projectItemsSlice2.childrenIds(project.id, idsToAlwaysInclude),
+    [project.id, idsToAlwaysInclude],
   );
 
   const onAddNewTask = useCallback(() => {

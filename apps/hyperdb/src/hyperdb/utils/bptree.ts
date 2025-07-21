@@ -25,6 +25,21 @@ type NodeCursor<K, V> = {
   indexPath: number[];
 };
 
+function newLeafNode<K, V>(
+  values: { key: K; value: V }[],
+  id = randomId(),
+): LeafNode<K, V> {
+  if (values.length === 0) throw new Error("Empty leaf node");
+
+  console.log("newLeafNode", id, values);
+
+  return {
+    leaf: true,
+    id,
+    values,
+  };
+}
+
 export class InMemoryBinaryPlusTree<K = any, V = any> {
   nodes = new Map<string, BranchNode<K> | LeafNode<K, V>>();
   minSize: number;
@@ -441,11 +456,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
 
     // Intitalize root node.
     if (nodePath.length === 0) {
-      this.nodes.set("root", {
-        leaf: true,
-        id: "root",
-        values: [{ key, value }],
-      });
+      this.nodes.set("root", newLeafNode([{ key, value }], "root"));
       return;
     }
 
@@ -465,21 +476,12 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       if (node.leaf) {
         // NOTE: this mutates the array!
         const rightValues = node.values.splice(splitIndex);
-        const rightNode: LeafNode<K, V> = {
-          id: randomId(),
-          leaf: true,
-          values: rightValues,
-        };
+        const rightNode: LeafNode<K, V> = newLeafNode(rightValues);
         this.nodes.set(rightNode.id, rightNode);
         const rightMinKey = rightNode.values[0].key;
 
         if (node.id === "root") {
-          const leftNode: LeafNode<K, V> = {
-            id: randomId(),
-            leaf: true,
-            // NOTE: this array was mutated above.
-            values: node.values,
-          };
+          const leftNode: LeafNode<K, V> = newLeafNode(node.values);
           this.nodes.set(leftNode.id, leftNode);
           const rootNode: BranchNode<K> = {
             id: "root",
@@ -562,6 +564,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
 
       if (node.leaf) {
         const exists = this.leafValues.remove(node.values, key);
+        console.log("delete", node, exists);
         if (!exists) return; // No changes to the tree!
         break;
       }
@@ -608,6 +611,8 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       if (parentIndex === undefined) throw new Error("Broken.");
 
       const size = node.leaf ? node.values.length : node.children.length;
+      console.log("minkey", node, node.leaf);
+      // TODO: doesn't handle when leaf has values.length === 0
       const minKey = node.leaf ? node.values[0].key : node.children[0].minKey;
 
       // No need to merge but we might need to update the minKey in the parent

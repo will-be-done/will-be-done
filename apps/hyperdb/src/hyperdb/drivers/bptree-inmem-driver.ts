@@ -75,12 +75,20 @@ function performDelete(tblData: TableData | TxTableData, ids: string[]) {
 }
 
 function performInsert(tblData: TableData | TxTableData, values: Row[]) {
+  for (const value of values) {
+    Object.freeze(value);
+  }
+
   for (const index of tblData.indexes.values()) {
     index.insert(values);
   }
 }
 
 function performUpdate(tblData: TableData | TxTableData, records: Row[]) {
+  for (const value of records) {
+    Object.freeze(value);
+  }
+
   performDelete(
     tblData,
     records.map((r) => r.id),
@@ -399,13 +407,13 @@ class BtreeIndexTx implements IndexTx {
     );
     this.index = index;
     this.sets = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      100,
-      200,
+      10,
+      20,
       compareTuple,
     );
     this.deletes = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      100,
-      200,
+      10,
+      20,
       compareTuple,
     );
   }
@@ -504,8 +512,8 @@ class BtreeIndex implements Index {
 
   constructor(indexConfig: BtreeIndexDef) {
     this.btree = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      100,
-      200,
+      10,
+      20,
       compareTuple,
     );
     this.indexDef = indexConfig;
