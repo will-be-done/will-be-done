@@ -43,6 +43,14 @@ import { RotateCw, CircleDashed } from "lucide-react";
 import { isTaskTemplate } from "@/store/slices/taskTemplatesSlice.ts";
 import { cn } from "@/lib/utils";
 import { startOfDay } from "date-fns";
+import {
+  appSlice2,
+  projectionsSlice2,
+  projectItemsSlice2,
+  projectsSlice2,
+} from "@/store2/slices/store";
+import { useSelector } from "@will-be-done/hyperstate";
+import { useSyncSelector } from "@will-be-done/hyperdb";
 
 type State =
   | { type: "idle" }
@@ -112,17 +120,17 @@ export const TaskComp = ({
   newTaskParams?: Partial<Task>;
   displayLastProjectionTime?: boolean;
 }) => {
-  const projectItem = useAppSelector((state) =>
-    projectItemsSlice.getItemById(state, taskId),
+  const projectItem = useSyncSelector(() =>
+    projectItemsSlice2.getItemById(taskId),
   );
-  const taskBox = useAppSelector((state) =>
-    appSlice.taskBoxByIdOrDefault(state, taskBoxId),
+  const taskBox = useSyncSelector(() =>
+    appSlice2.taskBoxByIdOrDefault(taskBoxId),
   );
-  const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectItem.projectId),
+  const project = useSyncSelector(() =>
+    projectsSlice2.byIdOrDefault(projectItem.projectId),
   );
-  const lastProjectionTime = useAppSelector(
-    (state) => projectionsSlice.lastProjectionOfTask(state, taskId)?.createdAt,
+  const lastProjectionTime = useSyncSelector(
+    () => projectionsSlice2.lastProjectionOfTask(taskId)?.createdAt,
   );
   const shouldHighlightProjectionTime =
     lastProjectionTime && startOfDay(new Date()).getTime() > lastProjectionTime;

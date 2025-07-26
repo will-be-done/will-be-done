@@ -20,11 +20,9 @@ import { useCallback, useMemo, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { cn } from "@/lib/utils.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import { padStart } from "es-toolkit/compat";
-import { tasksSlice } from "@/store/slices/tasksSlice.ts";
 import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
-import { useSyncSelector } from "@will-be-done/hyperdb";
+import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import { projectItemsSlice2 } from "@/store2/slices/store.ts";
 
 const AddTaskButton = ({
@@ -166,6 +164,7 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 
 export const ProjectItemsList = ({ project }: { project: Project }) => {
   const store = useAppStore();
+  const dispatch = useDispatch();
   const id = useAppSelector(focusSlice.getFocusedModelId);
   const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
 
@@ -179,10 +178,12 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
   );
 
   const onAddNewTask = useCallback(() => {
-    const newTask = projectItemsSlice.createTask(store, project.id, "prepend");
+    const newTask = dispatch(
+      projectItemsSlice2.createTask(project.id, "prepend"),
+    );
 
     focusSlice.editByKey(store, buildFocusKey(newTask.id, newTask.type));
-  }, [project.id, store]);
+  }, [dispatch, project.id, store]);
 
   const lastTaskI =
     notDoneChildrenIds.length == 0 ? 0 : notDoneChildrenIds.length - 1;

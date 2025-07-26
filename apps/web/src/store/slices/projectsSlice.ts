@@ -94,6 +94,20 @@ export const projectsSlice = createSlice(
 
       return project;
     }),
+    canDrop(state: RootState, projectId: string, dropTargetId: string) {
+      const target = appSlice.byId(state, dropTargetId);
+
+      if (isProject(target) && target.isInbox) {
+        return false;
+      }
+
+      return (
+        isProject(target) ||
+        isTask(target) ||
+        isTaskTemplate(target) ||
+        isTaskProjection(target)
+      );
+    },
 
     // -- actions
 

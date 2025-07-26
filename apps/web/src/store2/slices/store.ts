@@ -1,4 +1,3 @@
-import { OrderableItem, timeCompare } from "@/store/order";
 import { getDbCtx } from "@/store/sync/db";
 import { Q } from "@/store/sync/schema";
 import { isObjectType } from "@/store/z.utils";
@@ -8,7 +7,6 @@ import {
   BptreeInmemDriver,
   DB,
   deleteRows,
-  initSelector,
   insert,
   or,
   runQuery,
@@ -21,6 +19,32 @@ import {
 import AwaitLock from "await-lock";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
+import { RRule } from "rrule";
+import { generateKeyPositionedBetween } from "@/store/order";
+import { assertUnreachable } from "@/utils/assert";
+import uuidByString from "uuid-by-string";
+
+// TODO: remain to check:
+// 1. DONE projections slice
+// 2. DONE project item slice
+// 3. DONE project slice
+// 4. DONE task box slice
+// 5. DONE task slice
+// 6. DONE task template slice
+//
+// also need to fix all misused updates
+
+// Utility types and functions
+export type OrderableItem = {
+  orderToken: string;
+};
+
+export function timeCompare(
+  a: { lastToggledAt: number },
+  b: { lastToggledAt: number },
+): number {
+  return b.lastToggledAt - a.lastToggledAt;
+}
 
 function* generateOrderTokenPositioned(
   parentId: string,
@@ -72,7 +96,7 @@ export const isTask = isObjectType<Task>(taskType);
 export const defaultTask: Task = {
   type: taskType,
   id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
-  title: "default task",
+  title: "default task kek",
   state: "todo",
   projectId: "",
   orderToken: "",
@@ -114,8 +138,12 @@ const taskProjectionsTable = table<TaskProjection>(
   "task_projections",
 ).withIndexes({
   byId: { cols: ["id"], type: "hash" },
-  byTaskId: { cols: ["taskId"], type: "btree" },
+  byTaskIdCreatedAt: { cols: ["taskId", "createdAt"], type: "btree" },
   byDailyListId: { cols: ["dailyListId"], type: "hash" },
+  byDailyListIdTokenOrdered: {
+    cols: ["dailyListId", "orderToken"],
+    type: "btree",
+  },
 });
 
 export const taskTemplateType = "template";
@@ -165,6 +193,7 @@ export const defaultProject: Project = {
 };
 const projectsTable = table<Project>("projects").withIndexes({
   byId: { cols: ["id"], type: "hash" },
+  byOrderToken: { cols: ["orderToken"], type: "btree" },
   byIsInbox: { cols: ["isInbox"], type: "hash" },
 });
 
@@ -202,11 +231,6 @@ function generateTaskId(taskTemplateId: string, date: Date): string {
   return taskTemplateId + "_" + date.getTime();
 }
 
-function toUTC(now: Date): Date {
-  const timezoneOffset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - timezoneOffset);
-}
-
 function templateToTask(tmpl: TaskTemplate, date: Date): Task {
   return {
     type: taskType,
@@ -214,7 +238,7 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     title: tmpl.title,
     state: "todo",
     projectId: tmpl.projectId,
-    orderToken: "a0",
+    orderToken: tmpl.orderToken,
     lastToggledAt: date.getTime(),
     horizon: tmpl.horizon,
     createdAt: date.getTime(),
@@ -223,7 +247,7 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
   };
 }
 
-export const projectsSlice = {
+export const projectsSlice2 = {
   // selectors
   byId: selector(function* (id: string): GenReturn<Project | undefined> {
     const projects = yield* runQuery(
@@ -234,13 +258,41 @@ export const projectsSlice = {
     return projects[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<Project> {
-    return (yield* projectsSlice.byId(id)) || defaultProject;
+    return (yield* projectsSlice2.byId(id)) || defaultProject;
+  }),
+  canDrop: selector(function* (
+    projectId: string,
+    dropItemId: string,
+  ): GenReturn<boolean> {
+    const project = yield* projectsSlice2.byId(projectId);
+    if (!project) return false;
+
+    const dropItem = yield* appSlice2.byId(dropItemId);
+    if (!dropItem) return false;
+
+    // Projects can accept tasks, templates, projections, and other projects
+    return (
+      isProject(dropItem) ||
+      isTask(dropItem) ||
+      isTaskTemplate(dropItem) ||
+      isTaskProjection(dropItem)
+    );
   }),
 
   // actions
   create: action(function* (
-    project: Partial<Project> & { orderToken: string },
+    project: Partial<Project>,
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
   ): GenReturn<Project> {
+    const orderToken = yield* generateOrderTokenPositioned(
+      "all-projects-list",
+      allProjectsSlice2,
+      position,
+    );
+
     const id = project.id || uuidv7();
     const newProject: Project = {
       type: projectType,
@@ -249,28 +301,103 @@ export const projectsSlice = {
       icon: "",
       isInbox: false,
       createdAt: Date.now(),
+      orderToken: orderToken,
       ...project,
     };
 
-    yield* update(projectsTable, [newProject]);
+    yield* insert(projectsTable, [newProject]);
     return newProject;
   }),
   update: action(function* (
     id: string,
     project: Partial<Project>,
   ): GenReturn<void> {
-    const projectInState = yield* projectsSlice.byId(id);
+    const projectInState = yield* projectsSlice2.byId(id);
     if (!projectInState) throw new Error("Project not found");
-    Object.assign(projectInState, project);
 
-    yield* update(projectsTable, [projectInState]);
+    yield* update(projectsTable, [{ ...projectInState, ...project }]);
   }),
   delete: action(function* (id: string): GenReturn<void> {
     yield* deleteRows(projectsTable, [id]);
   }),
+  handleDrop: action(function* (
+    projectId: string,
+    dropItemId: string,
+    edge: "top" | "bottom",
+  ): GenReturn<void> {
+    const canDrop = yield* projectsSlice2.canDrop(projectId, dropItemId);
+    if (!canDrop) return;
+
+    const project = yield* projectsSlice2.byId(projectId);
+    if (!project) throw new Error("Project not found");
+
+    const dropItem = yield* appSlice2.byId(dropItemId);
+    if (!dropItem) throw new Error("Target not found");
+
+    if (isProject(dropItem)) {
+      // Reorder projects - would need proper fractional indexing
+      const [up, down] = yield* allProjectsSlice2.siblings(project.id);
+
+      let orderToken: string;
+      if (edge === "top") {
+        orderToken = generateJitteredKeyBetween(
+          up?.orderToken || null,
+          project.orderToken,
+        );
+      } else {
+        orderToken = generateJitteredKeyBetween(
+          project.orderToken,
+          down?.orderToken || null,
+        );
+      }
+
+      yield* projectsSlice2.update(dropItem.id, { orderToken });
+    } else if (isTask(dropItem) || isTaskTemplate(dropItem)) {
+      // Move task/template to this project
+      if (isTask(dropItem)) {
+        yield* tasksSlice2.update(dropItem.id, { projectId: project.id });
+      } else {
+        yield* taskTemplatesSlice2.update(dropItem.id, {
+          projectId: project.id,
+        });
+      }
+    } else if (isTaskProjection(dropItem)) {
+      // Move the underlying task to this project
+      const task = yield* tasksSlice2.byId(dropItem.taskId);
+      if (task) {
+        yield* tasksSlice2.update(task.id, { projectId: project.id });
+      }
+    } else {
+      shouldNeverHappen("unknown drop item type", dropItem);
+    }
+  }),
 };
 
-export const taskTemplatesSlice = {
+// RRule utility functions
+
+function toUTC(date: Date): Date {
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - timezoneOffset);
+}
+
+function startOfDay(date: Date): Date {
+  const newDate = new Date(date);
+  newDate.setHours(0, 0, 0, 0);
+  return newDate;
+}
+
+const defaultRule = "FREQ=DAILY;INTERVAL=1";
+
+function createRuleFromString(ruleString: string): RRule {
+  try {
+    return RRule.fromString(ruleString.trim());
+  } catch (error) {
+    // Fallback to daily rule if parsing fails
+    return RRule.fromString(defaultRule);
+  }
+}
+
+export const taskTemplatesSlice2 = {
   // selectors
   byId: selector(function* (id: string): GenReturn<TaskTemplate | undefined> {
     const templates = yield* runQuery(
@@ -281,39 +408,43 @@ export const taskTemplatesSlice = {
     return templates[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<TaskTemplate> {
-    return (yield* taskTemplatesSlice.byId(id)) || defaultTaskTemplate;
+    return (yield* taskTemplatesSlice2.byId(id)) || defaultTaskTemplate;
   }),
   all: selector(function* (): GenReturn<TaskTemplate[]> {
-    const templates = yield* runQuery(selectFrom(taskTemplatesTable, "byId"));
+    const templates = yield* runQuery(
+      selectFrom(taskTemplatesTable, "byProjectIdOrderToken"),
+    );
     return templates;
   }),
   ids: selector(function* (): GenReturn<string[]> {
-    const templates = yield* taskTemplatesSlice.all();
+    const templates = yield* taskTemplatesSlice2.all();
     return templates.map((t) => t.id);
   }),
-  // Note: RRule functionality requires external dependency - simplified implementation
-  rule: selector(function* (id: string): GenReturn<any> {
-    const template = yield* taskTemplatesSlice.byIdOrDefault(id);
-    // This would need RRule.fromString(template.repeatRule.trim()) in real implementation
-    return { toText: () => template.repeatRule, between: () => [] };
+  rule: selector(function* (id: string): GenReturn<RRule> {
+    const template = yield* taskTemplatesSlice2.byIdOrDefault(id);
+    return createRuleFromString(template.repeatRule || defaultRule);
   }),
   ruleText: selector(function* (id: string): GenReturn<string> {
-    const rule = yield* taskTemplatesSlice.rule(id);
+    const rule = yield* taskTemplatesSlice2.rule(id);
     return rule.toText();
   }),
   newTasksInRange: selector(function* (
     fromDate: Date,
     toDate: Date,
   ): GenReturn<Task[]> {
-    // Simplified implementation - would need RRule logic for real implementation
-    const templates = yield* taskTemplatesSlice.all();
+    const templates = yield* taskTemplatesSlice2.all();
     const newTasks: Task[] = [];
 
     for (const template of templates) {
-      const taskId = generateTaskId(template.id, new Date());
-      const existingTask = yield* tasksSlice.byId(taskId);
-      if (!existingTask) {
-        newTasks.push(templateToTask(template, new Date()));
+      const rule = yield* taskTemplatesSlice2.rule(template.id);
+
+      const dates = rule.between(fromDate, toDate);
+      for (const date of dates) {
+        const taskId = generateTaskId(template.id, date);
+        const existingTask = yield* tasksSlice2.byId(taskId);
+        if (!existingTask) {
+          newTasks.push(templateToTask(template, date));
+        }
       }
     }
 
@@ -323,27 +454,34 @@ export const taskTemplatesSlice = {
     templateId: string,
     toDate: Date,
   ): GenReturn<Task[]> {
-    const template = yield* taskTemplatesSlice.byId(templateId);
+    const template = yield* taskTemplatesSlice2.byId(templateId);
     if (!template) return [];
 
-    // Simplified implementation - would need RRule logic for real implementation
-    const taskId = generateTaskId(template.id, toDate);
-    const existingTask = yield* tasksSlice.byId(taskId);
+    const rule = yield* taskTemplatesSlice2.rule(templateId);
+    const newTasks: Task[] = [];
 
-    if (!existingTask) {
-      return [templateToTask(template, toDate)];
+    const dates = rule.between(
+      toUTC(new Date(template.lastGeneratedAt)),
+      toUTC(toDate),
+    );
+    for (const date of dates) {
+      const taskId = generateTaskId(template.id, date);
+      const existingTask = yield* tasksSlice2.byId(taskId);
+      if (!existingTask) {
+        newTasks.push(templateToTask(template, date));
+      }
     }
 
-    return [];
+    return newTasks;
   }),
   newTasksToGenForTemplates: selector(function* (
     toDate: Date,
   ): GenReturn<Task[]> {
-    const templateIds = yield* taskTemplatesSlice.ids();
+    const templateIds = yield* taskTemplatesSlice2.ids();
     const newTasks: Task[] = [];
 
     for (const templateId of templateIds) {
-      const tasks = yield* taskTemplatesSlice.newTasksToGenForTemplate(
+      const tasks = yield* taskTemplatesSlice2.newTasksToGenForTemplate(
         templateId,
         toDate,
       );
@@ -363,30 +501,29 @@ export const taskTemplatesSlice = {
       id,
       title: "New template",
       horizon: "week",
-      repeatRule: "",
+      repeatRule: defaultRule,
       createdAt: Date.now(),
       lastGeneratedAt: Date.now(),
       ...template,
     };
 
-    yield* update(taskTemplatesTable, [newTemplate]);
+    yield* insert(taskTemplatesTable, [newTemplate]);
     return newTemplate;
   }),
   update: action(function* (
     id: string,
     template: Partial<TaskTemplate>,
   ): GenReturn<TaskTemplate> {
-    const templateInState = yield* taskTemplatesSlice.byId(id);
+    const templateInState = yield* taskTemplatesSlice2.byId(id);
     if (!templateInState) throw new Error("Template not found");
-    Object.assign(templateInState, template);
 
-    yield* update(taskTemplatesTable, [templateInState]);
+    yield* update(taskTemplatesTable, [{ ...templateInState, ...template }]);
     return templateInState;
   }),
   delete: action(function* (id: string): GenReturn<void> {
-    const taskIds = yield* tasksSlice.taskIdsOfTemplateId(id);
+    const taskIds = yield* tasksSlice2.taskIdsOfTemplateId(id);
     for (const tId of taskIds) {
-      yield* tasksSlice.update(tId, {
+      yield* tasksSlice2.update(tId, {
         templateId: undefined,
         templateDate: undefined,
       });
@@ -407,29 +544,36 @@ export const taskTemplatesSlice = {
       projectId: task.projectId,
       orderToken: task.orderToken,
       createdAt: task.createdAt,
-      repeatRule: "",
+      repeatRule: defaultRule,
       horizon: task.horizon,
-      lastGeneratedAt: Date.now() - 1,
+      lastGeneratedAt: startOfDay(new Date(task.createdAt)).getTime() - 1,
       ...data,
     };
 
-    yield* update(taskTemplatesTable, [template]);
+    yield* insert(taskTemplatesTable, [template]);
+
+    // Generate initial tasks and projections for this template
+    yield* taskTemplatesSlice2.genTaskAndProjectionsForTemplate(
+      template.id,
+      new Date(),
+    );
+
     return template;
   }),
   genTaskAndProjectionsForTemplate: action(function* (
     templateId: string,
     tillDate: Date,
   ): GenReturn<void> {
-    const newTasks = yield* taskTemplatesSlice.newTasksToGenForTemplate(
+    const newTasks = yield* taskTemplatesSlice2.newTasksToGenForTemplate(
       templateId,
       tillDate,
     );
-    yield* taskTemplatesSlice.genTasks(newTasks);
+    yield* taskTemplatesSlice2.genTasks(newTasks);
   }),
   genTasksAndProjections: action(function* (tillDate: Date): GenReturn<void> {
     const newTasks =
-      yield* taskTemplatesSlice.newTasksToGenForTemplates(tillDate);
-    yield* taskTemplatesSlice.genTasks(newTasks);
+      yield* taskTemplatesSlice2.newTasksToGenForTemplates(tillDate);
+    yield* taskTemplatesSlice2.genTasks(newTasks);
   }),
   genTasks: action(function* (newTasks: Task[]): GenReturn<Task[]> {
     const generatedTasks: Task[] = [];
@@ -437,6 +581,7 @@ export const taskTemplatesSlice = {
     for (const taskData of newTasks) {
       const task = yield* projectItemsSlice2.createTask(
         taskData.projectId,
+        "append",
         taskData,
       );
       generatedTasks.push(task);
@@ -447,28 +592,38 @@ export const taskTemplatesSlice = {
           .split("T")[0];
         if (!date) return shouldNeverHappen("date was not set");
 
-        const dailyList = yield* dailyListsSlice.createIfNotPresent(date);
+        const dailyList = yield* dailyListsSlice2.createIfNotPresent(date);
 
-        // Would create projection here with dailyListsSlice.createProjection
-        // but that method isn't implemented yet
+        // Create projection for the task in the daily list
+        yield* dailyListsSlice2.createProjection(
+          dailyList.id,
+          task.id,
+          "prepend",
+        );
 
-        yield* taskTemplatesSlice.update(taskData.templateId, {
+        yield* taskTemplatesSlice2.update(taskData.templateId, {
           lastGeneratedAt: Date.now(),
         });
+      } else {
+        shouldNeverHappen("taskData empty", taskData);
       }
     }
 
     return generatedTasks;
   }),
   cleanAll: action(function* (): GenReturn<void> {
-    const templates = yield* taskTemplatesSlice.all();
+    const templates = yield* taskTemplatesSlice2.all();
     for (const template of templates) {
       yield* deleteRows(taskTemplatesTable, [template.id]);
     }
   }),
 };
 
-export const dailyListsSlice = {
+function getDMY(date: Date): string {
+  return date.toISOString().split("T")[0]!;
+}
+
+export const dailyListsSlice2 = {
   // selectors
   byId: selector(function* (id: string): GenReturn<DailyList | undefined> {
     const dailyLists = yield* runQuery(
@@ -479,7 +634,7 @@ export const dailyListsSlice = {
     return dailyLists[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<DailyList> {
-    return (yield* dailyListsSlice.byId(id)) || defaultDailyList;
+    return (yield* dailyListsSlice2.byId(id)) || defaultDailyList;
   }),
   byDate: selector(function* (date: string): GenReturn<DailyList | undefined> {
     const dailyLists = yield* runQuery(
@@ -494,14 +649,14 @@ export const dailyListsSlice = {
     includeOnlyProjectIds: string[] = [],
   ): GenReturn<string[]> {
     const projections = yield* runQuery(
-      selectFrom(taskProjectionsTable, "byDailyListId").where((q) =>
+      selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
         q.eq("dailyListId", dailyListId),
       ),
     );
 
     const todoProjections: TaskProjection[] = [];
     for (const proj of projections) {
-      const task = yield* tasksSlice.byId(proj.taskId);
+      const task = yield* tasksSlice2.byId(proj.taskId);
       if (
         task?.state === "todo" &&
         (includeOnlyProjectIds.length === 0 ||
@@ -511,15 +666,112 @@ export const dailyListsSlice = {
       }
     }
 
-    return todoProjections
-      .sort((a, b) => a.orderToken.localeCompare(b.orderToken))
+    return todoProjections.map((proj) => proj.id);
+  }),
+  doneChildrenIds: selector(function* (
+    dailyListId: string,
+    includeOnlyProjectIds: string[] = [],
+  ): GenReturn<string[]> {
+    const projections = yield* runQuery(
+      selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
+        q.eq("dailyListId", dailyListId),
+      ),
+    );
+
+    const doneProjections: { id: string; lastToggledAt: number }[] = [];
+    for (const proj of projections) {
+      const task = yield* tasksSlice2.byId(proj.taskId);
+      if (
+        task?.state === "done" &&
+        (includeOnlyProjectIds.length === 0 ||
+          includeOnlyProjectIds.includes(task.projectId))
+      ) {
+        doneProjections.push({
+          id: proj.id,
+          lastToggledAt: task.lastToggledAt,
+        });
+      }
+    }
+
+    return doneProjections
+      .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
       .map((proj) => proj.id);
+  }),
+  taskIds: selector(function* (dailyListId: string): GenReturn<string[]> {
+    const childrenIds = yield* dailyListsSlice2.childrenIds(dailyListId);
+
+    return (yield* projectionsSlice2.byIds(childrenIds)).map((p) => p.taskId);
+  }),
+  allTaskIds: selector(function* (
+    dailyListIds: string[],
+  ): GenReturn<Set<string>> {
+    const allTaskIds = new Set<string>();
+
+    for (const dailyListId of dailyListIds) {
+      const taskIds = yield* dailyListsSlice2.taskIds(dailyListId);
+      taskIds.forEach((id) => allTaskIds.add(id));
+    }
+
+    return allTaskIds;
+  }),
+  notDoneTaskIdsExceptDailies: selector(function* (
+    projectId: string,
+    exceptDailyListIds: string[],
+    taskHorizons: Task["horizon"][],
+    alwaysIncludeTaskIds: string[] = [],
+  ): GenReturn<string[]> {
+    const exceptTaskIds =
+      yield* dailyListsSlice2.allTaskIds(exceptDailyListIds);
+
+    // Get all tasks from the project that match the horizons
+    const notDoneTaskIds = yield* projectItemsSlice2.notDoneTaskIds(
+      projectId,
+      taskHorizons,
+      alwaysIncludeTaskIds,
+    );
+
+    return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));
+  }),
+  // TODO: use hash index
+  dateIdsMap: selector(function* (): GenReturn<Record<string, string>> {
+    const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byId"));
+    return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id]));
+  }),
+  idByDate: selector(function* (date: Date): GenReturn<string | undefined> {
+    const dateIdsMap = yield* dailyListsSlice2.dateIdsMap();
+    const dmy = getDMY(date);
+    return dateIdsMap[dmy];
+  }),
+  idsByDates: selector(function* (dates: Date[]): GenReturn<string[]> {
+    const dateIdsMap = yield* dailyListsSlice2.dateIdsMap();
+    return dates
+      .map((date) => {
+        const dmy = getDMY(date);
+        return dateIdsMap[dmy];
+      })
+      .filter((id) => id !== undefined);
+  }),
+  firstChild: selector(function* (
+    dailyListId: string,
+  ): GenReturn<TaskProjection | undefined> {
+    const childrenIds = yield* dailyListsSlice2.childrenIds(dailyListId);
+    const firstChildId = childrenIds[0];
+    return firstChildId
+      ? yield* projectionsSlice2.byId(firstChildId)
+      : undefined;
+  }),
+  lastChild: selector(function* (
+    dailyListId: string,
+  ): GenReturn<TaskProjection | undefined> {
+    const childrenIds = yield* dailyListsSlice2.childrenIds(dailyListId);
+    const lastChildId = childrenIds[childrenIds.length - 1];
+    return lastChildId ? yield* projectionsSlice2.byId(lastChildId) : undefined;
   }),
   canDrop: selector(function* (
     dailyListId: string,
     dropId: string,
   ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(dropId);
+    const model = yield* appSlice2.byId(dropId);
     if (!model) return false;
 
     if (!isTaskProjection(model) && !isTask(model)) {
@@ -531,39 +783,47 @@ export const dailyListsSlice = {
     }
 
     if (isTaskProjection(model)) {
-      const task = yield* tasksSlice.byId(model.taskId);
+      const task = yield* tasksSlice2.byId(model.taskId);
       if (!task) return false;
       if (task.state === "done") {
         return true;
       }
     }
 
-    const childrenIds = yield* dailyListsSlice.childrenIds(dailyListId);
+    const childrenIds = yield* dailyListsSlice2.childrenIds(dailyListId);
     return childrenIds.length === 0;
   }),
 
   // actions
-  create: action(function* (dailyList: {
-    date: string;
-    id?: string;
-  }): GenReturn<DailyList> {
-    const id = dailyList.id || uuidv7();
+  create: action(function* (dailyList: { date: string }): GenReturn<DailyList> {
+    const id = uuidByString(dailyList.date);
     const newDailyList: DailyList = {
       type: dailyListType,
       id,
       date: dailyList.date,
     };
 
-    yield* update(dailyListsTable, [newDailyList]);
+    yield* insert(dailyListsTable, [newDailyList]);
     return newDailyList;
   }),
   createIfNotPresent: action(function* (date: string): GenReturn<DailyList> {
-    const existing = yield* dailyListsSlice.byDate(date);
+    const existing = yield* dailyListsSlice2.byDate(date);
     if (existing) {
       return existing;
     }
 
-    return yield* dailyListsSlice.create({ date });
+    return yield* dailyListsSlice2.create({ date });
+  }),
+  createManyIfNotPresent: action(function* (
+    dates: Date[],
+  ): GenReturn<DailyList[]> {
+    const results: DailyList[] = [];
+    for (const date of dates) {
+      const dmy = getDMY(date);
+      const dailyList = yield* dailyListsSlice2.createIfNotPresent(dmy);
+      results.push(dailyList);
+    }
+    return results;
   }),
   delete: action(function* (id: string): GenReturn<void> {
     yield* deleteRows(dailyListsTable, [id]);
@@ -571,62 +831,78 @@ export const dailyListsSlice = {
   createProjection: action(function* (
     dailyListId: string,
     taskId: string,
-    orderToken: string,
+    listPosition:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
   ): GenReturn<TaskProjection> {
-    const id = uuidv7();
-    const newProjection: TaskProjection = {
-      type: projectionType,
-      id,
-      taskId,
+    const orderToken = yield* generateOrderTokenPositioned(
       dailyListId,
-      orderToken,
-      createdAt: Date.now(),
-    };
+      dailyListsSlice2,
+      listPosition,
+    );
 
-    yield* update(taskProjectionsTable, [newProjection]);
-    return newProjection;
+    return yield* projectionsSlice2.create({
+      taskId: taskId,
+      dailyListId: dailyListId,
+      orderToken: orderToken,
+    });
   }),
   createProjectionWithTask: action(function* (
     dailyListId: string,
     projectId: string,
-    orderToken: string,
+    listPosition:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
+    projectPosition:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
   ): GenReturn<TaskProjection> {
-    const task = yield* projectItemsSlice2.createTask(projectId, {
-      orderToken,
-      title: "New task",
-    });
+    const task = yield* projectItemsSlice2.createTask(
+      projectId,
+      projectPosition,
+    );
 
-    return yield* dailyListsSlice.createProjection(
+    return yield* dailyListsSlice2.createProjection(
       dailyListId,
       task.id,
-      orderToken,
+      listPosition,
     );
   }),
   handleDrop: action(function* (
     dailyListId: string,
     dropId: string,
-    edge: "top" | "bottom",
+    _edge: "top" | "bottom",
   ): GenReturn<void> {
-    const firstChild = yield* dailyListsSlice.childrenIds(dailyListId);
-    const orderToken = firstChild.length > 0 ? "a0" : "a1"; // Simplified ordering
+    const firstChild = yield* dailyListsSlice2.firstChild(dailyListId);
+    const between: [string | null, string | null] = [
+      null,
+      firstChild?.orderToken || null,
+    ];
 
-    const dailyList = yield* dailyListsSlice.byId(dailyListId);
+    const orderToken = generateJitteredKeyBetween(
+      between[0] || null,
+      between[1] || null,
+    );
+
+    const dailyList = yield* dailyListsSlice2.byId(dailyListId);
     if (!dailyList) return;
 
-    const drop = yield* appSlice.byId(dropId);
+    const drop = yield* appSlice2.byId(dropId);
     if (!drop) return;
 
     if (isTaskProjection(drop)) {
-      yield* projectionsSlice.update(drop.id, {
+      yield* projectionsSlice2.update(drop.id, {
         orderToken,
         dailyListId: dailyList.id,
       });
     } else if (isTask(drop)) {
-      yield* dailyListsSlice.createProjection(
-        dailyList.id,
-        drop.id,
-        orderToken,
-      );
+      yield* dailyListsSlice2.createProjection(dailyList.id, drop.id, [
+        undefined,
+        firstChild,
+      ]);
     }
   }),
 };
@@ -637,6 +913,7 @@ export const projectItemsSlice2 = {
     projectId: string,
     alwaysIncludeChildIds: string[] = [],
   ): GenReturn<string[]> {
+    // TODO: maybe use merge sort?
     const tasks = yield* runQuery(
       selectFrom(tasksTable, "byProjectIdOrderStates").where((q) =>
         q.eq("projectId", projectId).eq("state", "todo"),
@@ -649,9 +926,35 @@ export const projectItemsSlice2 = {
       ),
     );
 
-    // TODO: add alwaysIncludeChildIds support
+    // Filter for alwaysIncludeChildIds
+    const additionalTasks =
+      alwaysIncludeChildIds.length > 0
+        ? yield* runQuery(
+            selectFrom(tasksTable, "byId").where((q) =>
+              alwaysIncludeChildIds.map((id) => q.eq("id", id)),
+            ),
+          )
+        : [];
 
-    return [...tasks, ...templates]
+    const additionalTemplates =
+      alwaysIncludeChildIds.length > 0
+        ? yield* runQuery(
+            selectFrom(taskTemplatesTable, "byId").where((q) =>
+              alwaysIncludeChildIds.map((id) => q.eq("id", id)),
+            ),
+          )
+        : [];
+
+    const allItems = [
+      ...tasks,
+      ...templates,
+      ...additionalTasks.filter((t) => !tasks.some((task) => task.id === t.id)),
+      ...additionalTemplates.filter(
+        (t) => !templates.some((template) => template.id === t.id),
+      ),
+    ];
+
+    return allItems
       .sort((a, b) => a.orderToken.localeCompare(b.orderToken))
       .map((item) => item.id);
   }),
@@ -665,26 +968,71 @@ export const projectItemsSlice2 = {
       ),
     );
 
-    const alwaysIncludeTasks = (yield* runQuery(
-      selectFrom(tasksTable, "byId").where((q) =>
-        alwaysIncludeTaskIds.map((id) => q.eq("id", id)),
-      ),
-    )).filter((t) => t.state === "done");
+    const alwaysIncludeTasks =
+      alwaysIncludeTaskIds.length > 0
+        ? (yield* runQuery(
+            selectFrom(tasksTable, "byId").where((q) =>
+              or(...alwaysIncludeTaskIds.map((id) => q.eq("id", id))),
+            ),
+          )).filter((t) => t.state === "done")
+        : [];
 
     const sortedDoneTasks = [...tasks, ...alwaysIncludeTasks].sort(timeCompare);
 
     return sortedDoneTasks.map((p) => p.id);
   }),
-  getItemById: selector(function* (
-    id: string,
-  ): GenReturn<Task | TaskTemplate | undefined> {
-    const task = yield* tasksSlice.byId(id);
+  tasksIds: selector(function* (projectId: string): GenReturn<string[]> {
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byProjectIdOrderStates").where((q) =>
+        q.eq("projectId", projectId).eq("state", "todo"),
+      ),
+    );
+    return tasks.map((t) => t.id);
+  }),
+  tasks: selector(function* (projectId: string): GenReturn<Task[]> {
+    return yield* runQuery(
+      selectFrom(tasksTable, "byProjectIdOrderStates").where((q) =>
+        q.eq("projectId", projectId).eq("state", "todo"),
+      ),
+    );
+  }),
+  notDoneTaskIds: selector(function* (
+    projectId: string,
+    taskHorizons: Task["horizon"][],
+    alwaysIncludeTaskIds: string[] = [],
+  ): GenReturn<string[]> {
+    const tasks = yield* projectItemsSlice2.tasks(projectId);
+    const filteredTaskIds: string[] = [];
+
+    for (const task of tasks) {
+      if (!task || task.state === "done") continue;
+
+      if (
+        taskHorizons.includes(task.horizon) ||
+        alwaysIncludeTaskIds.includes(task.id)
+      ) {
+        filteredTaskIds.push(task.id);
+      }
+    }
+
+    return filteredTaskIds;
+  }),
+  withoutTasksByIds: selector(function* (
+    projectId: string,
+    excludeIds: string[],
+  ): GenReturn<string[]> {
+    const childrenIds = yield* projectItemsSlice2.childrenIds(projectId);
+    const excludeSet = new Set(excludeIds);
+    return childrenIds.filter((id) => !excludeSet.has(id));
+  }),
+  getItemById: selector(function* (id: string): GenReturn<Task | TaskTemplate> {
+    const task = yield* tasksSlice2.byId(id);
     if (task) return task;
 
-    const template = yield* taskTemplatesSlice.byId(id);
+    const template = yield* taskTemplatesSlice2.byId(id);
     if (template) return template;
 
-    return undefined;
+    return defaultTask;
   }),
   siblings: selector(function* (
     itemId: string,
@@ -735,7 +1083,7 @@ export const projectItemsSlice2 = {
 
   // actions
   deleteById: action(function* (id: string): GenReturn<void> {
-    yield* tasksSlice.delete([id]);
+    yield* tasksSlice2.delete([id]);
     yield* deleteRows(taskTemplatesTable, [id]);
   }),
   createTask: action(function* (
@@ -744,9 +1092,9 @@ export const projectItemsSlice2 = {
       | [OrderableItem | undefined, OrderableItem | undefined]
       | "append"
       | "prepend",
-    taskAttrs: Partial<Task> & { orderToken: string },
+    taskAttrs?: Partial<Task>,
   ): GenReturn<Task> {
-    const project = yield* projectsSlice.byId(projectId);
+    const project = yield* projectsSlice2.byId(projectId);
     if (!project) throw new Error("Project not found");
 
     const orderToken = yield* generateOrderTokenPositioned(
@@ -755,7 +1103,7 @@ export const projectItemsSlice2 = {
       position,
     );
 
-    return yield* tasksSlice.createTask({
+    return yield* tasksSlice2.createTask({
       ...taskAttrs,
       orderToken: orderToken,
       projectId: projectId,
@@ -769,28 +1117,19 @@ export const projectItemsSlice2 = {
     const projectItem = yield* projectItemsSlice2.getItemById(itemId);
     if (!projectItem) throw new Error("Item not found");
 
-    const [before, after] = yield* projectItemsSlice2.siblings(itemId);
-
-    let orderToken: string;
-    if (position === "before") {
-      orderToken = before
-        ? `${before.orderToken}5` // Simplified - should use proper fractional indexing
-        : `${projectItem.orderToken}0`;
-    } else {
-      orderToken = after
-        ? `${projectItem.orderToken}5` // Simplified - should use proper fractional indexing
-        : `${projectItem.orderToken}z`;
-    }
-
-    return yield* tasksSlice.createTask({
+    return yield* tasksSlice2.createTask({
       projectId: projectItem.projectId,
-      orderToken,
+      orderToken: generateKeyPositionedBetween(
+        projectItem,
+        yield* projectItemsSlice2.siblings(itemId),
+        position,
+      ),
       ...taskParams,
     });
   }),
 };
 
-export const projectionsSlice = {
+export const projectionsSlice2 = {
   // selectors
   byId: selector(function* (id: string): GenReturn<TaskProjection | undefined> {
     const projections = yield* runQuery(
@@ -799,20 +1138,29 @@ export const projectionsSlice = {
 
     return projections[0];
   }),
+  byIds: selector(function* (ids: string[]): GenReturn<TaskProjection[]> {
+    const projections = yield* runQuery(
+      selectFrom(taskProjectionsTable, "byId").where((q) =>
+        ids.map((id) => q.eq("id", id)),
+      ),
+    );
+
+    return projections;
+  }),
   byIdOrDefault: selector(function* (id: string): GenReturn<TaskProjection> {
-    return (yield* projectionsSlice.byId(id)) || defaultTaskProjection;
+    return (yield* projectionsSlice2.byId(id)) || defaultTaskProjection;
   }),
   canDrop: selector(function* (
     taskProjectionId: string,
     dropId: string,
   ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(dropId);
+    const model = yield* appSlice2.byId(dropId);
     if (!model) return false;
 
-    const projection = yield* projectionsSlice.byId(taskProjectionId);
+    const projection = yield* projectionsSlice2.byId(taskProjectionId);
     if (!projection) return false;
 
-    const projectionTask = yield* tasksSlice.byId(projection.taskId);
+    const projectionTask = yield* tasksSlice2.byId(projection.taskId);
     if (!projectionTask) return false;
 
     if (projectionTask.state === "done") {
@@ -820,7 +1168,7 @@ export const projectionsSlice = {
     }
 
     if (isTaskProjection(model)) {
-      const modelTask = yield* tasksSlice.byId(model.taskId);
+      const modelTask = yield* tasksSlice2.byId(model.taskId);
       if (!modelTask) return false;
 
       if (modelTask.state === "done") {
@@ -833,18 +1181,15 @@ export const projectionsSlice = {
   siblings: selector(function* (
     taskProjectionId: string,
   ): GenReturn<[TaskProjection | undefined, TaskProjection | undefined]> {
-    const item = yield* projectionsSlice.byId(taskProjectionId);
+    const item = yield* projectionsSlice2.byId(taskProjectionId);
     if (!item) return [undefined, undefined];
 
-    const projections = yield* runQuery(
-      selectFrom(taskProjectionsTable, "byDailyListId").where((q) =>
+    const sortedProjections = yield* runQuery(
+      selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
         q.eq("dailyListId", item.dailyListId),
       ),
     );
 
-    const sortedProjections = projections.sort((a, b) =>
-      a.orderToken.localeCompare(b.orderToken),
-    );
     const index = sortedProjections.findIndex((p) => p.id === taskProjectionId);
 
     const before = index > 0 ? sortedProjections[index - 1] : undefined;
@@ -855,26 +1200,49 @@ export const projectionsSlice = {
 
     return [before, after];
   }),
-  projectionIdsByTaskId: selector(function* (
+  sortedProjectionIdsByTaskId: selector(function* (
     taskId: string,
   ): GenReturn<string[]> {
     const projections = yield* runQuery(
-      selectFrom(taskProjectionsTable, "byTaskId").where((q) =>
+      selectFrom(taskProjectionsTable, "byTaskIdCreatedAt").where((q) =>
         q.eq("taskId", taskId),
       ),
     );
 
     return projections.map((p) => p.id);
   }),
+  sortedProjectionsOfTask: selector(function* (
+    taskId: string,
+  ): GenReturn<TaskProjection[]> {
+    const projections = yield* runQuery(
+      selectFrom(taskProjectionsTable, "byTaskIdCreatedAt").where((q) =>
+        q.eq("taskId", taskId),
+      ),
+    );
+
+    return projections;
+  }),
+  lastProjectionOfTask: selector(function* (
+    taskId: string,
+  ): GenReturn<TaskProjection | undefined> {
+    const projections =
+      yield* projectionsSlice2.sortedProjectionsOfTask(taskId);
+
+    if (projections.length === 0) return undefined;
+    return projections[projections.length - 1];
+  }),
 
   // actions
+  delete: action(function* (id: string): GenReturn<void> {
+    yield* deleteRows(taskProjectionsTable, [id]);
+  }),
   deleteProjectionsOfTask: action(function* (
     taskIds: string[],
   ): GenReturn<void> {
     const projectionIds: string[] = [];
 
     for (const taskId of taskIds) {
-      const ids = yield* projectionsSlice.projectionIdsByTaskId(taskId);
+      const ids = yield* projectionsSlice2.sortedProjectionIdsByTaskId(taskId);
       projectionIds.push(...ids);
     }
 
@@ -895,59 +1263,99 @@ export const projectionsSlice = {
       ...projection,
     };
 
-    yield* update(taskProjectionsTable, [newProjection]);
+    yield* insert(taskProjectionsTable, [newProjection]);
     return newProjection;
   }),
   update: action(function* (
     id: string,
     projection: Partial<TaskProjection>,
   ): GenReturn<void> {
-    const projInState = yield* projectionsSlice.byId(id);
+    const projInState = yield* projectionsSlice2.byId(id);
     if (!projInState) throw new Error("Projection not found");
-    Object.assign(projInState, projection);
 
-    yield* update(taskProjectionsTable, [projInState]);
+    yield* update(taskProjectionsTable, [{ ...projInState, ...projection }]);
+  }),
+  createSibling: action(function* (
+    taskProjectionId: string,
+    position: "before" | "after",
+    taskParams?: Partial<Task>,
+  ): GenReturn<TaskProjection> {
+    const taskProjection = yield* projectionsSlice2.byId(taskProjectionId);
+
+    if (!taskProjection) throw new Error("TaskProjection not found");
+
+    const newTask = yield* projectItemsSlice2.createSibling(
+      taskProjection.taskId,
+      position,
+      taskParams,
+    );
+
+    return yield* projectionsSlice2.create({
+      taskId: newTask.id,
+      dailyListId: taskProjection.dailyListId,
+      orderToken: generateKeyPositionedBetween(
+        taskProjection,
+        yield* projectionsSlice2.siblings(taskProjectionId),
+        position,
+      ),
+    });
   }),
   handleDrop: action(function* (
     taskProjectionId: string,
     dropId: string,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const canDrop = yield* projectionsSlice.canDrop(taskProjectionId, dropId);
+    const canDrop = yield* projectionsSlice2.canDrop(taskProjectionId, dropId);
     if (!canDrop) return;
 
-    const taskProjection = yield* projectionsSlice.byId(taskProjectionId);
+    const taskProjection = yield* projectionsSlice2.byId(taskProjectionId);
     if (!taskProjection) return;
 
-    const dropItem = yield* appSlice.byId(dropId);
+    const dropItem = yield* appSlice2.byId(dropId);
     if (!dropItem) return;
 
-    const orderToken = taskProjection.orderToken; // Simplified - should use proper fractional indexing
+    const [up, down] = yield* projectionsSlice2.siblings(taskProjectionId);
+
+    let between: [string | undefined, string | undefined] = [
+      taskProjection.orderToken,
+      down?.orderToken,
+    ];
+
+    if (edge == "top") {
+      between = [up?.orderToken, taskProjection.orderToken];
+    }
+
+    const orderToken = generateJitteredKeyBetween(
+      between[0] || null,
+      between[1] || null,
+    );
 
     if (isTaskProjection(dropItem)) {
-      yield* projectionsSlice.update(dropItem.id, {
+      yield* projectionsSlice2.update(dropItem.id, {
         orderToken,
         dailyListId: taskProjection.dailyListId,
       });
     } else if (isTask(dropItem)) {
-      yield* projectionsSlice.create({
+      yield* projectionsSlice2.create({
         taskId: dropItem.id,
         dailyListId: taskProjection.dailyListId,
         orderToken,
       });
+    } else {
+      shouldNeverHappen("unknown drop item type", dropItem);
     }
   }),
 };
 
-export const tasksSlice = {
+export const tasksSlice2 = {
   canDrop: selector(function* (
     taskId: string,
     dropId: string,
   ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(dropId);
+    const model = yield* appSlice2.byId(dropId);
     if (!model) return false;
 
-    const task = yield* tasksSlice.byId(taskId);
+    const task = yield* tasksSlice2.byId(taskId);
     if (!task) return false;
 
     if (task.state === "done") {
@@ -970,7 +1378,7 @@ export const tasksSlice = {
     return tasks[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<Task> {
-    return (yield* tasksSlice.byId(id)) || defaultTask;
+    return (yield* tasksSlice2.byId(id)) || defaultTask;
   }),
   taskIdsOfTemplateId: selector(function* (id: string): GenReturn<string[]> {
     const tasks = yield* runQuery(
@@ -991,14 +1399,13 @@ export const tasksSlice = {
   // actions
   delete: action(function* (ids: string[]): GenReturn<void> {
     yield* deleteRows(tasksTable, ids);
-    yield* projectionsSlice.deleteProjectionsOfTask(ids);
+    yield* projectionsSlice2.deleteProjectionsOfTask(ids);
   }),
   update: action(function* (id: string, task: Partial<Task>): GenReturn<void> {
-    const taskInState = yield* tasksSlice.byId(id);
+    const taskInState = yield* tasksSlice2.byId(id);
     if (!taskInState) throw new Error("Task not found");
-    Object.assign(taskInState, task);
 
-    yield* update(tasksTable, [taskInState]);
+    yield* update(tasksTable, [{ ...taskInState, ...task }]);
   }),
   createTask: action(function* (
     task: Partial<Task> & { projectId: string; orderToken: string },
@@ -1015,7 +1422,7 @@ export const tasksSlice = {
       ...task,
     };
 
-    yield* update(tasksTable, [newTask]);
+    yield* insert(tasksTable, [newTask]);
 
     return newTask;
   }),
@@ -1024,35 +1431,56 @@ export const tasksSlice = {
     dropId: string,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const canDrop = yield* tasksSlice.canDrop(taskId, dropId);
-    if (!canDrop) return;
+    if (!(yield* tasksSlice2.canDrop(taskId, dropId))) return;
 
-    const task = yield* tasksSlice.byId(taskId);
-    if (!task) return;
+    const task = yield* tasksSlice2.byId(taskId);
+    if (!task) return shouldNeverHappen("task not found");
 
-    const dropItem = yield* appSlice.byId(dropId);
-    if (!dropItem) return;
+    const dropItem = yield* appSlice2.byId(dropId);
+    if (!dropItem) return shouldNeverHappen("drop item not found");
 
-    // For simplified implementation, just update the task's project and order
+    const [up, down] = yield* projectItemsSlice2.siblings(taskId);
+
+    let between: [string | undefined, string | undefined] = [
+      task.orderToken,
+      down?.orderToken,
+    ];
+
+    if (edge == "top") {
+      between = [up?.orderToken, task.orderToken];
+    }
+
+    const orderToken = generateJitteredKeyBetween(
+      between[0] || null,
+      between[1] || null,
+    );
+
     if (isTask(dropItem)) {
-      yield* tasksSlice.update(dropItem.id, {
+      yield* tasksSlice2.update(dropItem.id, {
         projectId: task.projectId,
-        orderToken: task.orderToken, // Simplified - should use proper fractional indexing
+        orderToken: orderToken,
+      });
+    } else if (isTaskTemplate(dropItem)) {
+      yield* taskTemplatesSlice2.update(dropItem.id, {
+        projectId: task.projectId,
+        orderToken: orderToken,
       });
     } else if (isTaskProjection(dropItem)) {
-      const taskOfDrop = yield* tasksSlice.byId(dropItem.taskId);
-      if (!taskOfDrop) return;
+      const taskOfDrop = yield* tasksSlice2.byId(dropItem.taskId);
+      if (!taskOfDrop) return shouldNeverHappen("task not found", dropItem);
 
-      yield* tasksSlice.update(taskOfDrop.id, {
+      yield* tasksSlice2.update(taskOfDrop.id, {
+        orderToken: orderToken,
         projectId: task.projectId,
-        orderToken: task.orderToken, // Simplified - should use proper fractional indexing
       });
 
-      yield* projectionsSlice.deleteProjectionsOfTask([dropItem.id]);
+      yield* projectionsSlice2.delete(dropItem.id);
+    } else {
+      shouldNeverHappen("unknown drop item type", dropItem);
     }
   }),
   toggleState: action(function* (taskId: string): GenReturn<void> {
-    const task = yield* tasksSlice.byId(taskId);
+    const task = yield* tasksSlice2.byId(taskId);
     if (!task) throw new Error("Task not found");
 
     yield* update(tasksTable, [
@@ -1086,7 +1514,7 @@ export const tasksSlice = {
     yield* deleteRows(tasksTable, ids);
   }),
   deleteById: action(function* (id: string): GenReturn<void> {
-    yield* tasksSlice.delete([id]);
+    yield* tasksSlice2.delete([id]);
   }),
 };
 
@@ -1097,25 +1525,258 @@ export type AnyModel =
   | Project
   | DailyList;
 
-export const appSlice = {
+export const allProjectsSlice2 = {
+  all: selector(function* (): GenReturn<Project[]> {
+    const projects = yield* runQuery(selectFrom(projectsTable, "byOrderToken"));
+    return projects;
+  }),
+  allSorted: selector(function* (): GenReturn<Project[]> {
+    const projects = yield* runQuery(selectFrom(projectsTable, "byOrderToken"));
+    return projects;
+  }),
+  childrenIds: selector(function* (): GenReturn<string[]> {
+    return (yield* allProjectsSlice2.allSorted()).map((p) => p.id);
+  }),
+  childrenIdsWithoutInbox: selector(function* (): GenReturn<string[]> {
+    const projects = yield* allProjectsSlice2.allSorted();
+    return projects.filter((p) => !p.isInbox).map((p) => p.id);
+  }),
+  firstChild: selector(function* (): GenReturn<Project | undefined> {
+    const childrenIds = yield* allProjectsSlice2.childrenIds();
+    const firstChildId = childrenIds[0];
+    return firstChildId ? yield* projectsSlice2.byId(firstChildId) : undefined;
+  }),
+  lastChild: selector(function* (): GenReturn<Project | undefined> {
+    const childrenIds = yield* allProjectsSlice2.childrenIds();
+    const lastChildId = childrenIds[childrenIds.length - 1];
+    return lastChildId ? yield* projectsSlice2.byId(lastChildId) : undefined;
+  }),
+  inbox: selector(function* (): GenReturn<Project | undefined> {
+    const projects = yield* runQuery(
+      selectFrom(projectsTable, "byIsInbox")
+        .where((q) => q.eq("isInbox", true))
+        .limit(1),
+    );
+    return projects[0];
+  }),
+  siblings: selector(function* (
+    projectId: string,
+  ): GenReturn<[Project | undefined, Project | undefined]> {
+    const childrenIds = yield* allProjectsSlice2.childrenIds();
+    const index = childrenIds.findIndex((id) => id === projectId);
+
+    if (index === -1) return [undefined, undefined];
+
+    const beforeId = index > 0 ? childrenIds[index - 1] : undefined;
+    const afterId =
+      index < childrenIds.length - 1 ? childrenIds[index + 1] : undefined;
+
+    const before = beforeId ? yield* projectsSlice2.byId(beforeId) : undefined;
+    const after = afterId ? yield* projectsSlice2.byId(afterId) : undefined;
+
+    return [before, after];
+  }),
+  dropdownProjectsList: selector(function* (): GenReturn<
+    { value: string; label: string }[]
+  > {
+    const projects = yield* allProjectsSlice2.allSorted();
+    return projects.map((p) => {
+      return { value: p.id, label: p.title };
+    });
+  }),
+};
+
+// // Focus management types and utilities
+// export type FocusKey = string & { __brand: never };
+//
+// export const buildFocusKey = (
+//   id: string,
+//   type: string,
+//   component?: string,
+// ): FocusKey => {
+//   if (id.includes("^^")) {
+//     throw new Error("id cannot contain ^^");
+//   }
+//   if (type.includes("^^")) {
+//     throw new Error("type cannot contain ^^");
+//   }
+//   if (component && component.includes("^^")) {
+//     throw new Error("component cannot contain ^^");
+//   }
+//
+//   return `${type}^^${id}${component ? `^^${component}` : ""}` as FocusKey;
+// };
+//
+// export const parseColumnKey = (
+//   key: FocusKey,
+// ): { type: string; id: string; component?: string } => {
+//   const [type, id, component] = key.split("^^");
+//
+//   if (!type || !id) return shouldNeverHappen("key is not valid", { key });
+//
+//   return { type, id, component };
+// };
+//
+// export type FocusState = {
+//   focusItemKey: FocusKey | undefined;
+//   editItemKey: FocusKey | undefined;
+//   isFocusDisabled: boolean;
+// };
+//
+// export const initialFocusState: FocusState = {
+//   focusItemKey: undefined,
+//   editItemKey: undefined,
+//   isFocusDisabled: false,
+// };
+
+// // Simple focus slice - the focusManager from the original is maintained separately
+// export const focusSlice2 = {
+//   // selectors
+//   getFocusKey: selector(function* (): GenReturn<FocusKey | undefined> {
+//     // This would need to be stored in a separate state management system
+//     // For now, return undefined as a placeholder
+//     return undefined;
+//   }),
+//   getFocusedModelId: selector(function* (): GenReturn<string | undefined> {
+//     const key = yield* focusSlice2.getFocusKey();
+//     if (!key) return undefined;
+//     return parseColumnKey(key).id;
+//   }),
+//   getEditKey: selector(function* (): GenReturn<FocusKey | undefined> {
+//     // This would need to be stored in a separate state management system
+//     // For now, return undefined as a placeholder
+//     return undefined;
+//   }),
+//   isFocusDisabled: selector(function* (): GenReturn<boolean> {
+//     // This would need to be stored in a separate state management system
+//     return false;
+//   }),
+//   isFocused: selector(function* (key: FocusKey): GenReturn<boolean> {
+//     const focusKey = yield* focusSlice2.getFocusKey();
+//     const isDisabled = yield* focusSlice2.isFocusDisabled();
+//     return !isDisabled && focusKey === key;
+//   }),
+//   isEditing: selector(function* (key: FocusKey): GenReturn<boolean> {
+//     const editKey = yield* focusSlice2.getEditKey();
+//     const isDisabled = yield* focusSlice2.isFocusDisabled();
+//     return !isDisabled && editKey === key;
+//   }),
+//   isSomethingEditing: selector(function* (): GenReturn<boolean> {
+//     const editKey = yield* focusSlice2.getEditKey();
+//     const isDisabled = yield* focusSlice2.isFocusDisabled();
+//     return !isDisabled && !!editKey;
+//   }),
+//   isSomethingFocused: selector(function* (): GenReturn<boolean> {
+//     const focusKey = yield* focusSlice2.getFocusKey();
+//     const isDisabled = yield* focusSlice2.isFocusDisabled();
+//     return !isDisabled && !!focusKey;
+//   }),
+//
+//   // actions (these would need to be implemented with a separate state system)
+//   disableFocus: action(function* (): GenReturn<void> {
+//     // Placeholder - would need external state management
+//   }),
+//   enableFocus: action(function* (): GenReturn<void> {
+//     // Placeholder - would need external state management
+//   }),
+//   focusByKey: action(function* (
+//     key: FocusKey,
+//     skipElFocus = false,
+//   ): GenReturn<void> {
+//     // Placeholder - would need external state management
+//     // Would handle DOM focus and scrolling
+//   }),
+//   editByKey: action(function* (key: FocusKey): GenReturn<void> {
+//     // Placeholder - would need external state management
+//   }),
+//   resetFocus: action(function* (): GenReturn<void> {
+//     // Placeholder - would need external state management
+//   }),
+//   resetEdit: action(function* (): GenReturn<void> {
+//     // Placeholder - would need external state management
+//   }),
+// };
+
+export const dropSlice2 = {
+  // selectors
+  canDrop: selector(function* (
+    id: string,
+    targetId: string,
+  ): GenReturn<boolean> {
+    const model = yield* appSlice2.byId(id);
+    if (!model) return false;
+
+    // Dispatch to appropriate slice based on model type
+    switch (model.type) {
+      case taskType:
+        return yield* tasksSlice2.canDrop(id, targetId);
+      case projectionType:
+        return yield* projectionsSlice2.canDrop(id, targetId);
+      case dailyListType:
+        return yield* dailyListsSlice2.canDrop(id, targetId);
+      case projectType:
+        return yield* projectsSlice2.canDrop(id, targetId);
+      default:
+        return false;
+    }
+  }),
+
+  // actions
+  handleDrop: action(function* (
+    id: string,
+    dropId: string,
+    edge: "top" | "bottom",
+  ): GenReturn<void> {
+    const model = yield* appSlice2.byId(id);
+    if (!model) return;
+
+    // Dispatch to appropriate slice based on model type
+    switch (model.type) {
+      case taskType:
+        yield* tasksSlice2.handleDrop(id, dropId, edge);
+        break;
+      case projectionType:
+        yield* projectionsSlice2.handleDrop(id, dropId, edge);
+        break;
+      case dailyListType:
+        yield* dailyListsSlice2.handleDrop(id, dropId, edge);
+        break;
+      case projectType:
+        yield* projectsSlice2.handleDrop(id, dropId, edge);
+        break;
+      default:
+        shouldNeverHappen("Unknown drop type: " + model.type);
+    }
+  }),
+};
+
+export const appSlice2 = {
   // selectors
   byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
-    let item: AnyModel | undefined = yield* tasksSlice.byId(id);
+    let item: AnyModel | undefined = yield* tasksSlice2.byId(id);
     if (item) return item;
 
-    item = yield* projectionsSlice.byId(id);
+    item = yield* projectionsSlice2.byId(id);
     if (item) return item;
 
-    item = yield* taskTemplatesSlice.byId(id);
+    item = yield* taskTemplatesSlice2.byId(id);
     if (item) return item;
 
-    item = yield* projectsSlice.byId(id);
+    item = yield* projectsSlice2.byId(id);
     if (item) return item;
 
-    item = yield* dailyListsSlice.byId(id);
+    item = yield* dailyListsSlice2.byId(id);
     if (item) return item;
 
     return undefined;
+  }),
+  byIdOrDefault: selector(function* (id: string): GenReturn<AnyModel> {
+    const entity = yield* appSlice2.byId(id);
+    if (!entity) {
+      return defaultTask;
+    }
+
+    return entity;
   }),
   taskOfModel: selector(function* (
     model: AnyModel,
@@ -1123,18 +1784,64 @@ export const appSlice = {
     if (isTask(model)) {
       return model;
     } else if (isTaskProjection(model)) {
-      return yield* tasksSlice.byId(model.taskId);
+      return yield* tasksSlice2.byId(model.taskId);
     }
     return undefined;
+  }),
+  taskBoxById: selector(function* (
+    id: string,
+  ): GenReturn<Task | TaskTemplate | TaskProjection | undefined> {
+    const slices = [tasksSlice2, projectionsSlice2, taskTemplatesSlice2];
+    for (const slice of slices) {
+      const res = yield* slice.byId(id);
+
+      if (res) {
+        return res;
+      }
+    }
+
+    return undefined;
+  }),
+  taskBoxByIdOrDefault: selector(function* (
+    id: string,
+  ): GenReturn<Task | TaskTemplate | TaskProjection> {
+    const entity = yield* appSlice2.taskBoxById(id);
+    if (!entity) {
+      return defaultTask;
+    }
+
+    return entity;
   }),
 
   // actions
   delete: action(function* (id: string): GenReturn<void> {
-    yield* tasksSlice.delete([id]);
-    yield* projectionsSlice.deleteProjectionsOfTask([id]);
+    // TODO: use slice.delete
+    // for (const slice of Object.values(slices)) {
+    //   slice.delete(id);
+    // }
+    yield* tasksSlice2.delete([id]);
+    yield* projectionsSlice2.deleteProjectionsOfTask([id]);
     yield* deleteRows(taskTemplatesTable, [id]);
     yield* deleteRows(projectsTable, [id]);
     yield* deleteRows(dailyListsTable, [id]);
+  }),
+
+  createTaskBoxSibling: action(function* (
+    taskBox: Task | TaskProjection | TaskTemplate,
+    position: "before" | "after",
+    taskParams?: Partial<Task>,
+  ) {
+    if (isTask(taskBox) || isTaskTemplate(taskBox)) {
+      return yield* projectItemsSlice2.createSibling(
+        taskBox.id,
+        position,
+        taskParams,
+      );
+    } else if (isTaskProjection(taskBox)) {
+      return yield* projectionsSlice2.createSibling(taskBox.id, position);
+    } else {
+      assertUnreachable(taskBox);
+    }
   }),
 };
 
@@ -1177,4 +1884,12 @@ export const initDbStore = async (): Promise<SubscribableDB> => {
   } finally {
     lock.release();
   }
+};
+
+export const slices = {
+  [projectType]: projectsSlice2,
+  [taskType]: tasksSlice2,
+  [taskTemplateType]: taskTemplatesSlice2,
+  [projectionType]: projectionsSlice2,
+  [dailyListType]: dailyListsSlice2,
 };
