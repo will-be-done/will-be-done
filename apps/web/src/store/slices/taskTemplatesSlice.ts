@@ -170,9 +170,7 @@ export const taskTemplatesSlice = createSlice(
         for (const t of taskTemplatesSlice.all(state)) {
           const rule = taskTemplatesSlice.rule(state, t.id);
 
-          rule.between(fromDate, toDate).forEach(() => {
-            const time = new Date();
-
+          rule.between(fromDate, toDate).forEach((time) => {
             const id = generateTaskId(t.id, time);
             if (!tasksSlice.byId(state, id)) {
               newTasks.push(templateToTask(t, time));
