@@ -1,38 +1,36 @@
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import { appSlice } from "@/store/slices/appSlice";
 import {
   buildFocusKey,
   focusSlice,
   parseColumnKey,
 } from "@/store/slices/focusSlice.ts";
-import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
-import { isTask, Task, tasksSlice, taskType } from "@/store/slices/tasksSlice";
-import {
-  isTaskTemplate,
-  TaskTemplate,
-  taskTemplatesSlice,
-  taskTemplateType,
-} from "@/store/slices/taskTemplatesSlice";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "../ui/dialog";
 import { useState } from "react";
 import { RepeatConfigModal } from "./RepeatConfigModal";
+import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
+  appSlice2,
+  isTask,
   isTaskProjection,
+  isTaskTemplate,
+  Task,
   TaskProjection,
-} from "@/store/slices/projectionsSlice";
+  tasksSlice2,
+  TaskTemplate,
+  taskTemplatesSlice2,
+} from "@/store2/slices/store";
 
 // TODO: rename to ModelDetails
 export const Details = () => {
   const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
   const { id } = currentFocusKey ? parseColumnKey(currentFocusKey) : {};
-  const item = useAppSelector((state) => appSlice.byId(state, id || ""));
+  const item = useSyncSelector(() => appSlice2.byId(id || ""), [id]);
+
+  const task = useSyncSelector(
+    () => tasksSlice2.byId(item?.id || ""),
+    [item?.id],
+  );
+
+  console.log("Details", item, id, task);
 
   if (isTask(item)) {
     return <TaskDetails task={item} showMakeTemplate={true} />;
@@ -51,9 +49,9 @@ export const TaskProjectionDetails = ({
   taskProjection: TaskProjection;
 }) => {
   const store = useAppStore();
-  const task = tasksSlice.byIdOrDefault(
-    store.getState(),
-    taskProjection.taskId,
+  const task = useSyncSelector(
+    () => tasksSlice2.byIdOrDefault(taskProjection.taskId),
+    [taskProjection.taskId],
   );
 
   return <TaskDetails task={task} showMakeTemplate={false} />;
@@ -68,6 +66,7 @@ export const TaskDetails = ({
 }) => {
   const lastToggledAt = new Date(task.lastToggledAt);
   const createdAt = new Date(task.createdAt);
+  const dispatch = useDispatch();
   const store = useAppStore();
 
   const [isRRuleModalOpen, setRRuleModalOpen] = useState(false);
@@ -101,10 +100,11 @@ export const TaskDetails = ({
           onOk={(data, rule) => {
             setRRuleModalOpen(false);
 
-            const template = taskTemplatesSlice.createFromTask(store, task, {
-              repeatRule: rule.toString(),
-            });
-            console.log(rule.toString());
+            const template = dispatch(
+              taskTemplatesSlice2.createFromTask(task, {
+                repeatRule: rule.toString(),
+              }),
+            );
 
             if (parsedFocusKey) {
               focusSlice.focusByKey(
@@ -134,9 +134,11 @@ export const TaskTemplateDetails = ({
   const parsedFocusKey = currentFocusKey
     ? parseColumnKey(currentFocusKey)
     : undefined;
+  const dispatch = useDispatch();
 
-  const ruleText = useAppSelector((state) =>
-    taskTemplatesSlice.ruleText(state, taskTemplate.id),
+  const ruleText = useSyncSelector(
+    () => taskTemplatesSlice2.ruleText(taskTemplate.id),
+    [taskTemplate.id],
   );
 
   return (
@@ -149,7 +151,7 @@ export const TaskTemplateDetails = ({
       <button
         type="button"
         onClick={() => {
-          const task = tasksSlice.createFromTemplate(store, taskTemplate);
+          const task = dispatch(tasksSlice2.createFromTemplate(taskTemplate));
 
           // TODO: force react to rerender
 

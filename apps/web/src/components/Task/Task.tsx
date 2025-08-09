@@ -30,27 +30,28 @@ import {
 } from "@/store/slices/focusSlice.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
-import { appSlice } from "@/store/slices/appSlice.ts";
-import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
-import { projectsSlice } from "@/store/slices/projectsSlice.ts";
-import { dropSlice } from "@/store/slices/dropSlice.ts";
-import {
-  isTaskProjection,
-  projectionsSlice,
-} from "@/store/slices/projectionsSlice.ts";
-import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
 import { RotateCw, CircleDashed } from "lucide-react";
-import { isTaskTemplate } from "@/store/slices/taskTemplatesSlice.ts";
 import { cn } from "@/lib/utils";
 import { startOfDay } from "date-fns";
 import {
   appSlice2,
+  dropSlice2,
+  isTask,
+  isTaskProjection,
+  isTaskTemplate,
   projectionsSlice2,
   projectItemsSlice2,
   projectsSlice2,
+  Task,
+  tasksSlice2,
 } from "@/store2/slices/store";
 import { useSelector } from "@will-be-done/hyperstate";
-import { useSyncSelector } from "@will-be-done/hyperdb";
+import {
+  select,
+  useDB,
+  useDispatch,
+  useSyncSelector,
+} from "@will-be-done/hyperdb";
 
 type State =
   | { type: "idle" }
@@ -120,17 +121,26 @@ export const TaskComp = ({
   newTaskParams?: Partial<Task>;
   displayLastProjectionTime?: boolean;
 }) => {
-  const projectItem = useSyncSelector(() =>
-    projectItemsSlice2.getItemById(taskId),
+  const dispatch = useDispatch();
+  const projectItem = useSyncSelector(
+    () => projectItemsSlice2.getItemById(taskId),
+    [taskId],
   );
-  const taskBox = useSyncSelector(() =>
-    appSlice2.taskBoxByIdOrDefault(taskBoxId),
+  const db = useDB();
+  const taskBox = useSyncSelector(
+    () => appSlice2.taskBoxByIdOrDefault(taskBoxId),
+    [taskBoxId],
   );
-  const project = useSyncSelector(() =>
-    projectsSlice2.byIdOrDefault(projectItem.projectId),
+  console.log("taskBox", taskBox);
+  const project = useSyncSelector(
+    () => projectsSlice2.byIdOrDefault(projectItem.projectId),
+    [projectItem.projectId],
   );
   const lastProjectionTime = useSyncSelector(
-    () => projectionsSlice2.lastProjectionOfTask(taskId)?.createdAt,
+    function* () {
+      return (yield* projectionsSlice2.lastProjectionOfTask(taskId))?.createdAt;
+    },
+    [taskId],
   );
   const shouldHighlightProjectionTime =
     lastProjectionTime && startOfDay(new Date()).getTime() > lastProjectionTime;
@@ -173,26 +183,24 @@ export const TaskComp = ({
   const handleTick = useCallback(() => {
     if (!isTask(projectItem)) return;
 
-    const [[up, upModel], [down, downModel]] = focusManager.getModelSiblings(
-      store.getState(),
-      focusableItem.key,
+    const [[up, upModel], [down, downModel]] = select(db, () =>
+      focusManager.getModelSiblings(focusableItem.key),
     );
 
     const taskState = projectItem.state;
-    tasksSlice.toggleState(store, taskId);
+    dispatch(tasksSlice2.toggleState(taskId));
 
     if (!isFocused) return;
 
-    const upTask = upModel && appSlice.taskOfModel(store.getState(), upModel);
-    const downTask =
-      downModel && appSlice.taskOfModel(store.getState(), downModel);
+    const upTask = upModel && dispatch(appSlice2.taskOfModel(upModel));
+    const downTask = downModel && dispatch(appSlice2.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
       focusSlice.focusByKey(store, down.key);
     } else if (upTask && upTask.state === taskState) {
       focusSlice.focusByKey(store, up.key);
     }
-  }, [focusableItem.key, isFocused, projectItem, store, taskId]);
+  }, [db, dispatch, focusableItem.key, isFocused, projectItem, store, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
@@ -234,27 +242,35 @@ export const TaskComp = ({
     if (e.code === "Digit1" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "week",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "week",
+        }),
+      );
     } else if (e.code === "Digit2" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "month",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "month",
+        }),
+      );
     } else if (e.code === "Digit3" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "year",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "year",
+        }),
+      );
     } else if (e.code === "Digit4" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "someday",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "someday",
+        }),
+      );
     } else if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
@@ -275,12 +291,12 @@ export const TaskComp = ({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dropSlice.handleDrop(store, id, taskBox.id, "top");
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, "top"));
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dropSlice.handleDrop(store, id, taskBox.id, "top");
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, "top"));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -293,7 +309,7 @@ export const TaskComp = ({
         const id = getId(up.key);
         if (!id) return;
 
-        const model = appSlice.byId(store.getState(), id);
+        const model = dispatch(appSlice2.byId(id));
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
@@ -313,14 +329,14 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dropSlice.handleDrop(store, id, taskBox.id, edge);
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, edge));
 
         scroll();
       } else if (isMoveDown && down) {
         const id = getId(down.key);
         if (!id) return;
 
-        const model = appSlice.byId(store.getState(), id);
+        const model = dispatch(appSlice2.byId(id));
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
@@ -340,7 +356,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dropSlice.handleDrop(store, id, taskBox.id, edge);
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, edge));
 
         scroll();
       }
@@ -353,7 +369,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       const [up, down] = focusManager.getSiblings(focusableItem.key);
-      appSlice.delete(store, taskBox.id);
+      dispatch(appSlice2.delete(taskBox.id));
 
       if (down) {
         focusSlice.focusByKey(store, down.key);
@@ -373,11 +389,12 @@ export const TaskComp = ({
 
       unstable_batchedUpdates(() => {
         // TODO: maybe pass as prop to Task component
-        const newBox = appSlice.createTaskBoxSibling(
-          store,
-          taskBox,
-          isAddAfter ? "after" : "before",
-          newTaskParams,
+        const newBox = dispatch(
+          appSlice2.createTaskBoxSibling(
+            taskBox,
+            isAddAfter ? "after" : "before",
+            newTaskParams,
+          ),
         );
         focusSlice.editByKey(store, buildFocusKey(newBox.id, newBox.type));
       });
@@ -402,9 +419,11 @@ export const TaskComp = ({
 
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
-    tasksSlice.update(store, taskId, {
-      projectId,
-    });
+    dispatch(
+      tasksSlice2.update(taskId, {
+        projectId,
+      }),
+    );
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
@@ -453,7 +472,7 @@ export const TaskComp = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return dropSlice.canDrop(store.getState(), taskBox.id, data.modelId);
+          return dispatch(dropSlice2.canDrop(taskBox.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -493,7 +512,7 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [isEditing, store, taskBox.id, taskBox.type]);
+  }, [dispatch, isEditing, store, taskBox.id, taskBox.type]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -523,17 +542,29 @@ export const TaskComp = ({
 
   useEffect(() => {
     if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
-      tasksSlice.update(store, taskId, {
-        title: editingTitle,
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          title: editingTitle,
+        }),
+      );
     }
-  }, [editingTitle, isEditing, prevIsEditing, store, taskId, taskTitle]);
+  }, [
+    dispatch,
+    editingTitle,
+    isEditing,
+    prevIsEditing,
+    store,
+    taskId,
+    taskTitle,
+  ]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
-      tasksSlice.update(store, taskId, {
-        title: editingTitle,
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          title: editingTitle,
+        }),
+      );
     }
   });
 
@@ -594,7 +625,7 @@ export const TaskComp = ({
             {isTaskTemplate(projectItem) && (
               <CircleDashed className="h-3 w-3 text-gray-400" />
             )}
-            {isTask(projectItem) && projectItem.templateData && (
+            {isTask(projectItem) && projectItem.templateId && (
               <RotateCw className="h-3 w-3 text-gray-400" />
             )}
           </div>
@@ -635,7 +666,9 @@ export const TaskComp = ({
                     </div>
                   </>
                 )}
-                <div className="text-gray-200 min-h-6">{projectItem.title}</div>
+                <div className="text-gray-200 min-h-6">
+                  {projectItem.title}-{projectItem.orderToken}
+                </div>
               </>
             )}
           </div>

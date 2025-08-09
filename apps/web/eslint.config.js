@@ -33,6 +33,12 @@ export default tseslint.config(
       "@typescript-eslint/no-misused-promises": "error",
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": [
+        "warn",
+        {
+          additionalHooks: "(useSyncSelector)",
+        },
+      ],
       "react-hooks/react-compiler": "warn",
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [

@@ -81,7 +81,7 @@ RRULE:FREQ=DAILY;BYHOUR=10
 const defaultTemplate: TaskTemplate = {
   id: "default-template-id", // todo generate
   title: "default template",
-  projectId: inboxId,
+  projectId: "01965eb2-7d13-727f-9f50-3d565d0ce2ef",
   orderToken: "a",
   horizon: "someday",
   repeatRule: defaultRule,

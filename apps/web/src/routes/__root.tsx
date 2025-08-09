@@ -6,7 +6,7 @@ import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { StoreProvider } from "@will-be-done/hyperstate";
 import "@/store/z.hot.ts";
-import { initDbStore } from "@/store2/slices/store";
+import { initDbStore } from "@/store2/slices/load";
 import { DBProvider } from "@will-be-done/hyperdb";
 
 export const Route = createRootRoute({

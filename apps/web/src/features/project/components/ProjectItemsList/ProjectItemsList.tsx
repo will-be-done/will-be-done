@@ -188,6 +188,8 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
   const lastTaskI =
     notDoneChildrenIds.length == 0 ? 0 : notDoneChildrenIds.length - 1;
 
+  console.log({ doneChildrenIds, notDoneChildrenIds });
+
   return (
     <ColumnListProvider
       focusKey={buildFocusKey(project.id, project.type, "ProjectItemsList")}

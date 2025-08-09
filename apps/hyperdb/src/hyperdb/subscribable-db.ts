@@ -161,13 +161,6 @@ export class SubscribableDB implements HyperDB {
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<ExtractSchema<TTable>> {
-    console.log(
-      "subscribableDB.intervalScan",
-      table,
-      indexName,
-      clauses,
-      selectOptions,
-    );
     if (clauses && clauses.length === 0) {
       return;
     }

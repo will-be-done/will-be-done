@@ -108,6 +108,8 @@ const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
   for (const cmd of cmds) {
     for (const bound of cmd.bounds) {
       for (const op of ops) {
+        if (op.table !== cmd.table) continue;
+
         if (op.type === "insert") {
           if (isRowInRange(op.newValue, cmd.table, cmd.index, bound)) {
             return true;
@@ -227,4 +229,12 @@ export function initSelector<TReturn>(
     },
     getSnapshot: () => currentResult!,
   };
+}
+
+export function select<TReturn>(
+  db: SubscribableDB,
+  gen: () => Generator<unknown, TReturn, unknown>,
+): TReturn {
+  const selector = initSelector(db, gen);
+  return selector.getSnapshot();
 }

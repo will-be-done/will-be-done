@@ -10,7 +10,7 @@ import { dispatch } from "../hyperdb";
 
 export function useSyncSelector<TReturn>(
   gen: () => Generator<unknown, TReturn, unknown>,
-  deps?: DependencyList,
+  deps: DependencyList,
 ): TReturn {
   const db = useDB();
   const selector = useMemo(() => {

@@ -441,6 +441,28 @@ describe("Database Operations Edge Cases", async () => {
         expect(results).toEqual([]);
       });
 
+      it.only("works correctly with string order", () => {
+        type TestRecord = { id: string; projectId: string; token: string };
+        const testTable = table<TestRecord>("test2").withIndexes({
+          id: { cols: ["id"], type: "hash" },
+          byToken: { cols: ["projectId", "token"], type: "btree" },
+        });
+
+        const db = new DB(driver, [testTable]);
+
+        const records: TestRecord[] = [
+          { id: "1", projectId: "123", token: "a064m" },
+          { id: "2", projectId: "123", token: "a3HqIV" },
+          { id: "3", projectId: "123", token: "Zs2SG" },
+        ];
+
+        db.insert(testTable, records);
+
+        const results = Array.from(db.intervalScan(testTable, "byToken", [{}]));
+
+        console.log(results);
+      });
+
       it("should handle various scan bound combinations", () => {
         type TestRecord = { id: string; a: number; b: string };
         const testTable = table<TestRecord>("test2").withIndexes({

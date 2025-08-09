@@ -1,8 +1,10 @@
 import { shouldNeverHappen } from "@/utils.ts";
 import { createSlice, withoutUndoAction } from "@will-be-done/hyperstate";
-import { appSlice } from "@/store/slices/appSlice.ts";
 import { appAction, appQuerySelector } from "@/store/z.selectorAction.ts";
-import { AnyModel, RootState } from "@/store/store.ts";
+import type { AnyModel } from "@/store2/slices/store.ts";
+import type { RootState } from "@/store/store.ts";
+import { selector } from "@will-be-done/hyperdb";
+import { appSlice2 } from "@/store2/slices/store.ts";
 
 export type FocusKey = string & { __brand: never };
 
@@ -179,6 +181,7 @@ export const focusSlice = createSlice(
   },
   "focusSlice",
 );
+type GenReturn<T> = Generator<unknown, T, unknown>;
 
 export const focusManager = (() => {
   // Don't need reactivity for this cause it will literally kill the performance
@@ -280,32 +283,33 @@ export const focusManager = (() => {
       ];
     },
 
-    getModelSiblings(
-      state: RootState,
+    getModelSiblings: selector(function* (
       key: FocusKey,
-    ): [
-      [FocusItem, AnyModel] | [undefined, undefined],
-      [FocusItem, AnyModel] | [undefined, undefined],
-    ] {
+    ): GenReturn<
+      [
+        [FocusItem, AnyModel] | [undefined, undefined],
+        [FocusItem, AnyModel] | [undefined, undefined],
+      ]
+    > {
       const [up, down] = manager.getSiblings(key);
 
       let upModel: AnyModel | undefined = undefined;
       if (up) {
         const { id } = parseColumnKey(up.key);
-        upModel = appSlice.byId(state, id);
+        upModel = yield* appSlice2.byId(id);
       }
 
       let downModel: AnyModel | undefined = undefined;
       if (down) {
         const { id } = parseColumnKey(down.key);
-        downModel = appSlice.byId(state, id);
+        downModel = yield* appSlice2.byId(id);
       }
 
       return [
         up && upModel ? [up, upModel] : [undefined, undefined],
         down && downModel ? [down, downModel] : [undefined, undefined],
       ];
-    },
+    }),
 
     getColumnSiblings: (
       key: FocusKey,

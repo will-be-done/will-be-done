@@ -1,22 +1,15 @@
-import { getDbCtx } from "@/store/sync/db";
-import { Q } from "@/store/sync/schema";
 import { isObjectType } from "@/store/z.utils";
 import { shouldNeverHappen } from "@/utils";
 import {
   action,
-  BptreeInmemDriver,
-  DB,
   deleteRows,
   insert,
-  or,
   runQuery,
   selectFrom,
   selector,
-  SubscribableDB,
   table,
   update,
 } from "@will-be-done/hyperdb";
-import AwaitLock from "await-lock";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
@@ -65,6 +58,16 @@ function* generateOrderTokenPositioned(
   }
 
   if (position === "prepend") {
+    // const firstChild = yield* current.firstChild(parentId);
+    // console.log(
+    //   "prepend",
+    //   yield* current.firstChild(parentId),
+    //   generateJitteredKeyBetween(
+    //     null,
+    //     (yield* current.firstChild(parentId))?.orderToken || null,
+    //   ),
+    // );
+
     return generateJitteredKeyBetween(
       null,
       (yield* current.firstChild(parentId))?.orderToken || null,
@@ -89,8 +92,8 @@ export type Task = {
   lastToggledAt: number;
   horizon: "week" | "month" | "year" | "someday";
   createdAt: number;
-  templateId?: string;
-  templateDate?: number;
+  templateId: string | null;
+  templateDate: number | null;
 };
 export const isTask = isObjectType<Task>(taskType);
 export const defaultTask: Task = {
@@ -103,6 +106,8 @@ export const defaultTask: Task = {
   lastToggledAt: 0,
   createdAt: 0,
   horizon: "someday",
+  templateId: null,
+  templateDate: null,
 };
 const tasksTable = table<Task>("tasks").withIndexes({
   byId: { cols: ["id"], type: "hash" },
@@ -927,35 +932,44 @@ export const projectItemsSlice2 = {
     );
 
     // Filter for alwaysIncludeChildIds
-    const additionalTasks =
-      alwaysIncludeChildIds.length > 0
-        ? yield* runQuery(
-            selectFrom(tasksTable, "byId").where((q) =>
-              alwaysIncludeChildIds.map((id) => q.eq("id", id)),
-            ),
-          )
-        : [];
-
-    const additionalTemplates =
-      alwaysIncludeChildIds.length > 0
-        ? yield* runQuery(
-            selectFrom(taskTemplatesTable, "byId").where((q) =>
-              alwaysIncludeChildIds.map((id) => q.eq("id", id)),
-            ),
-          )
-        : [];
+    // const additionalTasks =
+    //   alwaysIncludeChildIds.length > 0
+    //     ? yield* runQuery(
+    //         selectFrom(tasksTable, "byId").where((q) =>
+    //           alwaysIncludeChildIds.map((id) => q.eq("id", id)),
+    //         ),
+    //       )
+    //     : [];
+    //
+    // const additionalTemplates =
+    //   alwaysIncludeChildIds.length > 0
+    //     ? yield* runQuery(
+    //         selectFrom(taskTemplatesTable, "byId").where((q) =>
+    //           alwaysIncludeChildIds.map((id) => q.eq("id", id)),
+    //         ),
+    //       )
+    //     : [];
 
     const allItems = [
       ...tasks,
       ...templates,
-      ...additionalTasks.filter((t) => !tasks.some((task) => task.id === t.id)),
-      ...additionalTemplates.filter(
-        (t) => !templates.some((template) => template.id === t.id),
-      ),
+      // ...additionalTasks.filter((t) => !tasks.some((task) => task.id === t.id)),
+      // ...additionalTemplates.filter(
+      //   (t) => !templates.some((template) => template.id === t.id),
+      // ),
     ];
 
     return allItems
-      .sort((a, b) => a.orderToken.localeCompare(b.orderToken))
+      .sort((a, b) => {
+        if (a.orderToken > b.orderToken) {
+          return 1;
+        }
+        if (a.orderToken < b.orderToken) {
+          return -1;
+        }
+
+        return 0;
+      })
       .map((item) => item.id);
   }),
   doneChildrenIds: selector(function* (
@@ -968,14 +982,16 @@ export const projectItemsSlice2 = {
       ),
     );
 
-    const alwaysIncludeTasks =
-      alwaysIncludeTaskIds.length > 0
-        ? (yield* runQuery(
-            selectFrom(tasksTable, "byId").where((q) =>
-              or(...alwaysIncludeTaskIds.map((id) => q.eq("id", id))),
-            ),
-          )).filter((t) => t.state === "done")
-        : [];
+    // const alwaysIncludeTasks =
+    //   alwaysIncludeTaskIds.length > 0
+    //     ? (yield* runQuery(
+    //         selectFrom(tasksTable, "byId").where((q) =>
+    //           or(...alwaysIncludeTaskIds.map((id) => q.eq("id", id))),
+    //         ),
+    //       )).filter((t) => t.state === "done")
+    //     : [];
+
+    const alwaysIncludeTasks: Task[] = [];
 
     const sortedDoneTasks = [...tasks, ...alwaysIncludeTasks].sort(timeCompare);
 
@@ -1008,8 +1024,8 @@ export const projectItemsSlice2 = {
       if (!task || task.state === "done") continue;
 
       if (
-        taskHorizons.includes(task.horizon) ||
-        alwaysIncludeTaskIds.includes(task.id)
+        taskHorizons.includes(task.horizon)
+        // alwaysIncludeTaskIds.includes(task.id)
       ) {
         filteredTaskIds.push(task.id);
       }
@@ -1374,6 +1390,7 @@ export const tasksSlice2 = {
         .where((q) => q.eq("id", id))
         .limit(1),
     );
+    console.log("tasksSlice2.byId", id, tasks);
 
     return tasks[0];
   }),
@@ -1419,8 +1436,12 @@ export const tasksSlice2 = {
       lastToggledAt: Date.now(),
       createdAt: Date.now(),
       horizon: "week",
+      templateId: null,
+      templateDate: null,
       ...task,
     };
+
+    console.log("inserting", newTask);
 
     yield* insert(tasksTable, [newTask]);
 
@@ -1505,6 +1526,8 @@ export const tasksSlice2 = {
       lastToggledAt: Date.now(),
       horizon: taskTemplate.horizon,
       createdAt: taskTemplate.createdAt,
+      templateId: taskTemplate.id,
+      templateDate: taskTemplate.lastGeneratedAt,
     };
     yield* insert(tasksTable, [newTask]);
 
@@ -1753,20 +1776,10 @@ export const dropSlice2 = {
 export const appSlice2 = {
   // selectors
   byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
-    let item: AnyModel | undefined = yield* tasksSlice2.byId(id);
-    if (item) return item;
-
-    item = yield* projectionsSlice2.byId(id);
-    if (item) return item;
-
-    item = yield* taskTemplatesSlice2.byId(id);
-    if (item) return item;
-
-    item = yield* projectsSlice2.byId(id);
-    if (item) return item;
-
-    item = yield* dailyListsSlice2.byId(id);
-    if (item) return item;
+    for (const slice of Object.values(slices)) {
+      const item = yield* slice.byId(id);
+      if (item) return item;
+    }
 
     return undefined;
   }),
@@ -1845,46 +1858,13 @@ export const appSlice2 = {
   }),
 };
 
-const tables = [
-  tasksTable,
-  taskProjectionsTable,
-  taskTemplatesTable,
-  projectsTable,
-  dailyListsTable,
-];
-
-const lock = new AwaitLock();
-let initedDb: SubscribableDB | null = null;
-export const initDbStore = async (): Promise<SubscribableDB> => {
-  await lock.acquireAsync();
-  try {
-    if (initedDb) {
-      return initedDb;
-    }
-
-    const db = new SubscribableDB(new DB(new BptreeInmemDriver(), tables));
-
-    const dbCtx = await getDbCtx();
-    for (const table of tables) {
-      const rows = await dbCtx.db.runQuery(
-        Q.selectFrom(table.tableName as "projects")
-          .selectAll()
-          .where("isDeleted", "=", 0),
-      );
-
-      const result = rows.map((row) =>
-        JSON.parse(row.data as unknown as string),
-      );
-      db.insert(table, result);
-    }
-
-    initedDb = db;
-
-    return db;
-  } finally {
-    lock.release();
-  }
-};
+export const tables = [
+  { table: tasksTable, modelType: taskType },
+  { table: taskProjectionsTable, modelType: projectionType },
+  { table: taskTemplatesTable, modelType: taskTemplateType },
+  { table: projectsTable, modelType: projectType },
+  { table: dailyListsTable, modelType: dailyListType },
+] as const;
 
 export const slices = {
   [projectType]: projectsSlice2,

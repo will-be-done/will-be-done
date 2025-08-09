@@ -91,7 +91,6 @@ function* performScan(
   clauses: WhereClause[],
   selectOptions?: SelectOptions,
 ) {
-  console.log("performScan", table, indexName, clauses, selectOptions);
   if (clauses.length === 0) {
     throw new Error("scan clauses must be provided");
   }
