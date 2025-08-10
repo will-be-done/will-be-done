@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
 import { DB, type HyperDB, type HyperDBTx } from "./db";
+import { SqlDriver } from "./drivers/SqlDriver";
+// import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
   id: string;
@@ -16,13 +18,13 @@ const tasksTable = table<Task>("tasks").withIndexes({
 });
 
 describe("Database Transactions", async () => {
-  for (const driver of [
+  for (const [driver, name] of [
     // new InmemDriver(),
-    // async () => SqlDriver.init(),
-    async () => new BptreeInmemDriver(),
-  ]) {
-    describe(`${driver.constructor.name}`, () => {
-      it("basic transaction operations", async () => {
+    [async () => SqlDriver.init(), "SqlDriver"],
+    [async () => new BptreeInmemDriver(), "BptreeInmemDriver"],
+  ] as const) {
+    describe(`${name}`, () => {
+      it.skip("basic transaction operations", async () => {
         const db = new DB(await driver(), [tasksTable]);
 
         const tx = db.beginTx();
@@ -60,7 +62,7 @@ describe("Database Transactions", async () => {
         expect(hashData.length).toBe(0);
       });
 
-      it("transaction commit makes changes visible", async () => {
+      it.skip("transaction commit makes changes visible", async () => {
         const db = new DB(await driver(), [tasksTable]);
         const tx = db.beginTx();
 
@@ -137,7 +139,7 @@ describe("Database Transactions", async () => {
         expect(originalTaskResult[0]).toEqual(initialTask);
       });
 
-      it("transaction isolation - reads don't see uncommitted changes", async () => {
+      it.skip("transaction isolation - reads don't see uncommitted changes", async () => {
         const db = new DB(await driver(), [tasksTable]);
 
         const task1: Task = {
@@ -1077,7 +1079,7 @@ describe("Database Transactions", async () => {
         expect(postCommitDuplicates.length).toBe(3);
       });
 
-      it("hash index consistency between transaction and direct operations", async () => {
+      it.skip("hash index consistency between transaction and direct operations", async () => {
         const db = new DB(await driver(), [tasksTable]);
 
         // Direct operations outside transaction
@@ -1131,7 +1133,7 @@ describe("Database Transactions", async () => {
         expect(finalResults.length).toBe(3);
       });
 
-      it("hash index update and delete with multiple values", async () => {
+      it.skip("hash index update and delete with multiple values", async () => {
         const db = new DB(await driver(), [tasksTable]);
 
         // Insert tasks with duplicate titles

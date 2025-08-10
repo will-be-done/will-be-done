@@ -594,28 +594,33 @@ type TableName = string;
 export class BptreeInmemDriverTx implements DBDriverTX {
   tblDatas: Map<TableName, TxTableData> = new Map();
   original: BptreeInmemDriver;
+  onFinish: () => void;
 
   committed = false;
   rollbacked = false;
 
-  constructor(driver: BptreeInmemDriver) {
+  constructor(driver: BptreeInmemDriver, onFinish: () => void) {
     this.original = driver;
+    this.onFinish = onFinish;
   }
 
   commit(): void {
     this.throwIfDone();
 
-    this.committed = true;
     for (const [, table] of this.tblDatas) {
       for (const index of table.indexes.values()) {
         index.commit();
       }
     }
+
+    this.committed = true;
+    this.onFinish();
   }
 
   rollback(): void {
     this.throwIfDone();
     this.rollbacked = true;
+    this.onFinish();
   }
 
   intervalScan(
@@ -711,11 +716,17 @@ export class BptreeInmemDriverTx implements DBDriverTX {
 
 export class BptreeInmemDriver implements DBDriver {
   tblDatas: Map<TableName, TableData> = new Map();
+  private isInTransaction = false;
 
   constructor() {}
 
   beginTx(): DBDriverTX {
-    return new BptreeInmemDriverTx(this);
+    if (this.isInTransaction) {
+      throw new Error("can't run while transaction is in progress");
+    }
+    this.isInTransaction = true;
+
+    return new BptreeInmemDriverTx(this, () => (this.isInTransaction = false));
   }
 
   loadTables(tables: TableDefinition<any, IndexDefinitions<any>>[]): void {
@@ -775,6 +786,10 @@ export class BptreeInmemDriver implements DBDriver {
   }
 
   update(tableName: string, values: Row[]): void {
+    if (this.isInTransaction) {
+      throw new Error("can't run while transaction is in progress");
+    }
+
     const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
@@ -784,6 +799,10 @@ export class BptreeInmemDriver implements DBDriver {
   }
 
   insert(tableName: string, values: Row[]): void {
+    if (this.isInTransaction) {
+      throw new Error("can't run while transaction is in progress");
+    }
+
     const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
@@ -793,6 +812,10 @@ export class BptreeInmemDriver implements DBDriver {
   }
 
   delete(tableName: string, ids: string[]): void {
+    if (this.isInTransaction) {
+      throw new Error("can't run while transaction is in progress");
+    }
+
     const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
       throw new Error(`Table ${tableName} not found`);
@@ -807,6 +830,10 @@ export class BptreeInmemDriver implements DBDriver {
     clauses: WhereClause[],
     selectOptions: SelectOptions,
   ): Generator<Row> {
+    if (this.isInTransaction) {
+      throw new Error("can't run while transaction is in progress");
+    }
+
     const tableData = this.tblDatas.get(tableName);
     if (!tableData) {
       throw new Error(`Table ${tableName} not found`);
