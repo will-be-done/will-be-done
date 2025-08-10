@@ -9,11 +9,14 @@ import { useAppSelector } from "@/hooks/stateHooks.ts";
 import { TaskComp } from "@/components/Task/Task";
 import { useFilterStore } from "./filterStore";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { dailyListsSlice } from "@/store/slices/dailyListsSlice.ts";
-import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
-import { projectsSlice } from "@/store/slices/projectsSlice.ts";
-
-import { Task } from "@/store/slices/tasksSlice.ts";
+import { useSyncSelector } from "@will-be-done/hyperdb";
+import {
+  allProjectsSlice2,
+  dailyListsSlice2,
+  projectsSlice2,
+  Task,
+} from "@/store2/slices/store";
+import { useMemo } from "react";
 
 function ProjectSuggestions({
   projectId,
@@ -34,20 +37,22 @@ function ProjectSuggestions({
 
   const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
-  const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectId),
+  const project = useSyncSelector(
+    () => projectsSlice2.byIdOrDefault(projectId),
+    [projectId],
   );
 
   const id = useAppSelector(focusSlice.getFocusedModelId);
-  const idsToAlwaysInclude = id ? [id] : [];
-  const taskIds = useAppSelector((state) =>
-    dailyListsSlice.notDoneTaskIdsExceptDailies(
-      state,
-      projectId,
-      exceptDailyListIds,
-      taskHorizons,
-      idsToAlwaysInclude,
-    ),
+  const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
+  const taskIds = useSyncSelector(
+    () =>
+      dailyListsSlice2.notDoneTaskIdsExceptDailies(
+        projectId,
+        exceptDailyListIds,
+        taskHorizons,
+        idsToAlwaysInclude,
+      ),
+    [exceptDailyListIds, idsToAlwaysInclude, projectId, taskHorizons],
   );
 
   const preferredHorizon = useFilterStore((state) =>
@@ -96,8 +101,9 @@ function ProjectSuggestions({
 }
 
 const TaskSuggestionsBody = () => {
-  const selectedProjectIds = useAppSelector((state) =>
-    allProjectsSlice.childrenIds(state),
+  const selectedProjectIds = useSyncSelector(
+    () => allProjectsSlice2.childrenIds(),
+    [],
   );
 
   // TODO: feilter by selectedProjectIds

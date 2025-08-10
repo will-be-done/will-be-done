@@ -31,7 +31,7 @@ function newLeafNode<K, V>(
 ): LeafNode<K, V> {
   if (values.length === 0) throw new Error("Empty leaf node");
 
-  console.log("newLeafNode", id, values);
+  // console.log("newLeafNode", id, values);
 
   return {
     leaf: true,
@@ -564,7 +564,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
 
       if (node.leaf) {
         const exists = this.leafValues.remove(node.values, key);
-        console.log("delete", node, exists);
+        // console.log("delete", node, exists);
         if (!exists) return; // No changes to the tree!
         break;
       }
@@ -611,7 +611,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       if (parentIndex === undefined) throw new Error("Broken.");
 
       const size = node.leaf ? node.values.length : node.children.length;
-      console.log("minkey", node, node.leaf);
+      // console.log("minkey", node, node.leaf);
       // TODO: doesn't handle when leaf has values.length === 0
       const minKey = node.leaf ? node.values[0].key : node.children[0].minKey;
 

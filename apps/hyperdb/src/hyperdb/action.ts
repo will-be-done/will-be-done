@@ -82,7 +82,7 @@ export function dispatch<TReturn>(
 
   const tx = db.beginTx();
 
-  console.log("action", action, db);
+  // console.log("action", action, db);
   while (!result.done) {
     if (isSelectRangeCmd(result.value)) {
       const { table, index, selectQuery } = result.value;

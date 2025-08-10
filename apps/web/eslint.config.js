@@ -28,11 +28,11 @@ export default tseslint.config(
     rules: {
       ...reactX.configs.recommended.rules,
       ...reactDom.configs.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
       "@typescript-eslint/await-thenable": "error",
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
       "react-hooks/exhaustive-deps": [
         "warn",
         {
@@ -40,7 +40,6 @@ export default tseslint.config(
         },
       ],
       "react-hooks/react-compiler": "warn",
-      ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },

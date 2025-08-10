@@ -441,7 +441,7 @@ describe("Database Operations Edge Cases", async () => {
         expect(results).toEqual([]);
       });
 
-      it.only("works correctly with string order", () => {
+      it("works correctly with string order", () => {
         type TestRecord = { id: string; projectId: string; token: string };
         const testTable = table<TestRecord>("test2").withIndexes({
           id: { cols: ["id"], type: "hash" },

@@ -48,7 +48,6 @@ export const TaskProjectionDetails = ({
 }: {
   taskProjection: TaskProjection;
 }) => {
-  const store = useAppStore();
   const task = useSyncSelector(
     () => tasksSlice2.byIdOrDefault(taskProjection.taskId),
     [taskProjection.taskId],

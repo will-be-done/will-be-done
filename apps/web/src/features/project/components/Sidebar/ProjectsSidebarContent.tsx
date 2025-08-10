@@ -27,9 +27,18 @@ import {
   focusSlice,
 } from "@/store/slices/focusSlice.ts";
 import { Link } from "@tanstack/react-router";
-import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
-import { projectsSlice } from "@/store/slices/projectsSlice.ts";
-import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
+import {
+  useDB,
+  useDispatch,
+  useSelect,
+  useSyncSelector,
+} from "@will-be-done/hyperdb";
+import {
+  allProjectsSlice2,
+  projectItemsSlice2,
+  projectsSlice2,
+} from "@/store2/slices/store";
+import { useSelector } from "@will-be-done/hyperstate";
 
 type State =
   | { type: "idle" }
@@ -77,8 +86,9 @@ const ProjectItem = function ProjectItemComp({
 }) {
   console.log("orderNumber", projectId, orderNumber);
 
-  const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectId),
+  const project = useSyncSelector(
+    () => projectsSlice2.byIdOrDefault(projectId),
+    [projectId],
   );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectItem"),
@@ -108,6 +118,8 @@ const ProjectItem = function ProjectItemComp({
     }
   });
 
+  const dispatch = useDispatch();
+
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (!isFocused) return;
     const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
@@ -126,7 +138,7 @@ const ProjectItem = function ProjectItemComp({
       e.preventDefault();
 
       const [up, down] = focusManager.getSiblings(focusItem.key);
-      projectsSlice.delete(store, project.id);
+      dispatch(projectsSlice2.delete(project.id));
 
       if (down) {
         focusSlice.focusByKey(store, down.key);
@@ -152,6 +164,7 @@ const ProjectItem = function ProjectItemComp({
     }
   });
 
+  const select = useSelect();
   useEffect(() => {
     const element = ref.current;
     invariant(element);
@@ -194,11 +207,7 @@ const ProjectItem = function ProjectItemComp({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return projectsSlice.canDrop(
-            store.getState(),
-            project.id,
-            data.modelId,
-          );
+          return select(projectsSlice2.canDrop(project.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -243,7 +252,7 @@ const ProjectItem = function ProjectItemComp({
         },
       }),
     );
-  }, [project.id, project.type, store]);
+  }, [project.id, project.type, select, store]);
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
@@ -324,10 +333,13 @@ const ProjectItem = function ProjectItemComp({
 };
 
 const InboxItem = function IboxItemComp() {
-  const inboxProject = useAppSelector(allProjectsSlice.inbox);
-  const childrenCount = useAppSelector((state) => {
-    return projectItemsSlice.childrenIds(state, inboxProject.id).length;
-  });
+  const inboxProject = useSyncSelector(() => allProjectsSlice2.inbox(), []);
+  const childrenCount = useSyncSelector(
+    function* () {
+      return (yield* projectItemsSlice2.childrenIds(inboxProject.id)).length;
+    },
+    [inboxProject.id],
+  );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(inboxProject.id, inboxProject.type),
     "*******",
@@ -339,6 +351,7 @@ const InboxItem = function IboxItemComp() {
 
   const [closestEdge, setClosestEdge] = useState<"whole" | null>(null);
   const ref = useRef<HTMLAnchorElement>(null);
+  const select = useSelect();
 
   useEffect(() => {
     const element = ref.current;
@@ -354,11 +367,7 @@ const InboxItem = function IboxItemComp() {
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return projectsSlice.canDrop(
-            store.getState(),
-            inboxProject.id,
-            data.modelId,
-          );
+          return select(projectsSlice2.canDrop(inboxProject.id, data.modelId));
         },
 
         getData: ({ input, element }) => {
@@ -388,7 +397,7 @@ const InboxItem = function IboxItemComp() {
         },
       }),
     );
-  }, [inboxProject.id, inboxProject.type, store]);
+  }, [inboxProject.id, inboxProject.type, select, store]);
 
   return (
     <Link
@@ -465,8 +474,9 @@ const InboxItem = function IboxItemComp() {
 // };
 
 export const ProjectsSidebarContent = () => {
-  const projectIdsWithoutInbox = useAppSelector(
-    allProjectsSlice.childrenIdsWithoutInbox,
+  const projectIdsWithoutInbox = useSyncSelector(
+    () => allProjectsSlice2.childrenIdsWithoutInbox(),
+    [],
   );
   const store = useAppStore();
 
@@ -481,8 +491,9 @@ export const ProjectsSidebarContent = () => {
     );
   };
 
+  const dispatch = useDispatch();
   const createProject = () => {
-    projectsSlice.create(store, {}, "prepend");
+    dispatch(projectsSlice2.create({}, "prepend"));
   };
 
   const handleDownloadBackup = () => {

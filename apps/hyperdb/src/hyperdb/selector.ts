@@ -118,10 +118,24 @@ const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
 
         if (op.type === "update") {
           if (isRowInRange(op.oldValue, cmd.table, cmd.index, bound)) {
+            // console.log(
+            //   "need to rerun",
+            //   op.oldValue,
+            //   op.newValue,
+            //   cmd.table,
+            //   cmd.index,
+            // );
             return true;
           }
 
           if (isRowInRange(op.newValue, cmd.table, cmd.index, bound)) {
+            // console.log(
+            //   "need to rerun",
+            //   op.oldValue,
+            //   op.newValue,
+            //   cmd.table,
+            //   cmd.index,
+            // );
             return true;
           }
         }
@@ -138,11 +152,45 @@ const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
   return false;
 };
 
+function runSelector<TReturn>(
+  db: SubscribableDB,
+  gen: () => Generator<unknown, TReturn, unknown>,
+  selectRangeCmds: SelectRangeCmd[],
+): TReturn {
+  const currentGen = gen();
+  let result = currentGen.next();
+
+  selectRangeCmds.splice(0, selectRangeCmds.length);
+
+  while (!result.done) {
+    if (isSelectRangeCmd(result.value)) {
+      selectRangeCmds.push(result.value);
+
+      const { table, index, selectQuery } = result.value;
+
+      result = currentGen.next(
+        Array.from(
+          db.intervalScan(table, index, selectQuery.where, {
+            limit: selectQuery.limit,
+          }),
+        ),
+      );
+    } else if (isNoopCmd(result.value)) {
+      result = currentGen.next();
+    } else {
+      result = currentGen.next();
+    }
+  }
+
+  return result.value as TReturn;
+}
+
 // TODO: issues:
 // 1. May miss new ops while running first while getting db(but not for sync dbs)
 export function initSelector<TReturn>(
   db: SubscribableDB,
   gen: () => Generator<unknown, TReturn, unknown>,
+  debugKey?: string,
 ): {
   subscribe: (callback: () => void) => () => void;
   getSnapshot: () => TReturn;
@@ -150,61 +198,7 @@ export function initSelector<TReturn>(
   let currentResult: TReturn | undefined;
   const selectRangeCmds: SelectRangeCmd[] = [];
 
-  const runSelector = () => {
-    const currentGen = gen();
-    let result = currentGen.next();
-
-    selectRangeCmds.splice(0, selectRangeCmds.length);
-
-    while (!result.done) {
-      if (isSelectRangeCmd(result.value)) {
-        selectRangeCmds.push(result.value);
-
-        const { table, index, selectQuery } = result.value;
-
-        result = currentGen.next(
-          Array.from(
-            db.intervalScan(table, index, selectQuery.where, {
-              limit: selectQuery.limit,
-            }),
-          ),
-        );
-      } else if (isNoopCmd(result.value)) {
-        result = currentGen.next();
-      } else {
-        result = currentGen.next();
-      }
-    }
-
-    currentResult = result.value;
-    // for (const subscriber of subscribers) {
-    //   subscriber();
-    // }
-
-    // let wasRerun = false;
-    // const dbs = uniq(selectCmds.map((cmd) => cmd.db));
-    // for (const db of dbs) {
-    //   const unsubscribe = db.subscribe((ops) => {
-    //     if (wasRerun) {
-    //       return; // already rerun
-    //     }
-    //
-    //     if (!isNeedToRerun(selectCmds, db, ops)) {
-    //       return;
-    //     }
-    //
-    //     try {
-    //       runSelector();
-    //     } finally {
-    //       wasRerun = true;
-    //     }
-    //   });
-    //
-    //   dbUnsubscribes.push(unsubscribe);
-    // }
-  };
-
-  runSelector();
+  currentResult = runSelector(db, gen, selectRangeCmds);
 
   return {
     subscribe: (callback: () => void) => {
@@ -212,11 +206,17 @@ export function initSelector<TReturn>(
 
       const unsubscribe = db.subscribe((ops) => {
         if (!isNeedToRerunRange(selectRangeCmds, ops)) {
+          if (debugKey) {
+            console.log("selector no need to rerun", debugKey, ops);
+          }
           return;
         }
 
-        runSelector();
+        currentResult = runSelector(db, gen, selectRangeCmds);
         callback();
+
+        if (!debugKey) return;
+        console.log("selector callback", debugKey);
       });
 
       dbUnsubscribes.push(unsubscribe);
@@ -233,8 +233,7 @@ export function initSelector<TReturn>(
 
 export function select<TReturn>(
   db: SubscribableDB,
-  gen: () => Generator<unknown, TReturn, unknown>,
+  gen: Generator<unknown, TReturn, unknown>,
 ): TReturn {
-  const selector = initSelector(db, gen);
-  return selector.getSnapshot();
+  return runSelector(db, () => gen, []);
 }

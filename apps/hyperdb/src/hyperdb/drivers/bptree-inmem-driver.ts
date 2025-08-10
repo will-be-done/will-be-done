@@ -139,11 +139,18 @@ const getColumnValuesFromBounds = (
       (bound.gte && bound.gte.length !== 1) ||
       !bound.lte ||
       !bound.gte
+      // !(
+      //   bound.lte === undefined &&
+      //   bound.gte === undefined &&
+      //   bound.lt === undefined &&
+      //   bound.gt === undefined
+      // )
     ) {
       throw new Error(
         "Hash index should have exactly one equality condition for column '" +
           indexDef.column +
-          "'",
+          "': " +
+          JSON.stringify(bound),
       );
     }
 
@@ -178,6 +185,22 @@ class HashIndex implements Index {
     tupleBounds: TupleScanOptions[],
     selectOptions: { limit?: number },
   ): Generator<Row> {
+    if (
+      tupleBounds.length === 1 &&
+      tupleBounds[0].lte === undefined &&
+      tupleBounds[0].gte === undefined &&
+      tupleBounds[0].lt === undefined &&
+      tupleBounds[0].gt === undefined
+    ) {
+      for (const row of this.records.values()) {
+        for (const val of row.values()) {
+          yield val;
+        }
+      }
+
+      return;
+    }
+
     const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
 
     let totalCount = 0;
@@ -614,6 +637,7 @@ export class BptreeInmemDriverTx implements DBDriverTX {
   insert(tableName: string, values: Row[]): void {
     this.throwIfDone();
 
+    console.log("insert", tableName, values);
     const tableData = this.getOrCreateTableData(tableName);
 
     performInsert(tableData, values);
@@ -624,12 +648,14 @@ export class BptreeInmemDriverTx implements DBDriverTX {
 
     const tableData = this.getOrCreateTableData(tableName);
 
+    console.log("update", tableName, values);
     performUpdate(tableData, values);
   }
 
   delete(tableName: string, values: string[]): void {
     this.throwIfDone();
 
+    console.log("delete", tableName, values);
     performDelete(this.getOrCreateTableData(tableName), values);
   }
 

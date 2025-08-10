@@ -50,6 +50,7 @@ import {
   select,
   useDB,
   useDispatch,
+  useSelect,
   useSyncSelector,
 } from "@will-be-done/hyperdb";
 
@@ -126,12 +127,10 @@ export const TaskComp = ({
     () => projectItemsSlice2.getItemById(taskId),
     [taskId],
   );
-  const db = useDB();
   const taskBox = useSyncSelector(
     () => appSlice2.taskBoxByIdOrDefault(taskBoxId),
     [taskBoxId],
   );
-  console.log("taskBox", taskBox);
   const project = useSyncSelector(
     () => projectsSlice2.byIdOrDefault(projectItem.projectId),
     [projectItem.projectId],
@@ -179,11 +178,12 @@ export const TaskComp = ({
   const isEditing = useAppSelector((state) =>
     focusSlice.isEditing(state, focusableItem.key),
   );
+  const select = useSelect();
 
   const handleTick = useCallback(() => {
     if (!isTask(projectItem)) return;
 
-    const [[up, upModel], [down, downModel]] = select(db, () =>
+    const [[up, upModel], [down, downModel]] = select(
       focusManager.getModelSiblings(focusableItem.key),
     );
 
@@ -192,15 +192,23 @@ export const TaskComp = ({
 
     if (!isFocused) return;
 
-    const upTask = upModel && dispatch(appSlice2.taskOfModel(upModel));
-    const downTask = downModel && dispatch(appSlice2.taskOfModel(downModel));
+    const upTask = upModel && select(appSlice2.taskOfModel(upModel));
+    const downTask = downModel && select(appSlice2.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
       focusSlice.focusByKey(store, down.key);
     } else if (upTask && upTask.state === taskState) {
       focusSlice.focusByKey(store, up.key);
     }
-  }, [db, dispatch, focusableItem.key, isFocused, projectItem, store, taskId]);
+  }, [
+    dispatch,
+    focusableItem.key,
+    isFocused,
+    projectItem,
+    select,
+    store,
+    taskId,
+  ]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
@@ -472,7 +480,7 @@ export const TaskComp = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return dispatch(dropSlice2.canDrop(taskBox.id, data.modelId));
+          return select(dropSlice2.canDrop(taskBox.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -512,7 +520,7 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [dispatch, isEditing, store, taskBox.id, taskBox.type]);
+  }, [dispatch, isEditing, select, store, taskBox.id, taskBox.type]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;

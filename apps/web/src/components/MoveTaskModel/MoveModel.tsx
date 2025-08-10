@@ -7,7 +7,7 @@ import {
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useUnmount } from "../../utils";
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
+import { useAppStore } from "@/hooks/stateHooks.ts";
 import { focusSlice } from "@/store/slices/focusSlice.ts";
 import { useSyncSelector } from "@will-be-done/hyperdb";
 import { allProjectsSlice2 } from "@/store2/slices/store";

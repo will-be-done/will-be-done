@@ -14,17 +14,21 @@ import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/i
 import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { appSlice } from "@/store/slices/appSlice.ts";
-import { dropSlice } from "@/store/slices/dropSlice.ts";
-import { projectType } from "@/store/slices/projectsSlice.ts";
-
-import { taskType } from "@/store/slices/tasksSlice.ts";
-import { projectionType } from "@/store/slices/projectionsSlice.ts";
-import { dailyListType } from "@/store/slices/dailyListsSlice.ts";
+import {
+  appSlice2,
+  dailyListType,
+  dropSlice2,
+  projectionType,
+  projectType,
+  taskType,
+} from "@/store2/slices/store";
+import { useDispatch, useSelect } from "@will-be-done/hyperdb";
 
 export function GlobalListener() {
   const store = useAppStore();
-  const undoManager = getUndoManager(store);
+  // const undoManager = getUndoManager(store);
+  const dispatch = useDispatch();
+  const select = useSelect();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -54,7 +58,8 @@ export function GlobalListener() {
         e.code === "KeyU"
       ) {
         e.preventDefault();
-        undoManager.undo();
+        // TODO: return undo support
+        // undoManager.undo();
         return;
       }
 
@@ -64,7 +69,7 @@ export function GlobalListener() {
         (e.code === "KeyR" && e.ctrlKey)
       ) {
         e.preventDefault();
-        undoManager.redo();
+        // TODO: return undo support
         return;
       }
 
@@ -77,7 +82,7 @@ export function GlobalListener() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [store, undoManager]);
+  }, [store]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -218,7 +223,7 @@ export function GlobalListener() {
             if (!isModelDNDData(t.data)) {
               return [] as const;
             }
-            const entity = appSlice.byId(store.getState(), t.data.modelId);
+            const entity = select(appSlice2.byId(t.data.modelId));
             if (!entity) return [] as const;
             return [[t, entity] as const];
           });
@@ -258,16 +263,17 @@ export function GlobalListener() {
             return;
           }
 
-          dropSlice.handleDrop(
-            store,
-            targetItemInfo[1].id,
-            dropModelId,
-            closestEdgeOfTarget || "top",
+          dispatch(
+            dropSlice2.handleDrop(
+              targetItemInfo[1].id,
+              dropModelId,
+              closestEdgeOfTarget || "top",
+            ),
           );
         },
       }),
     );
-  }, [store]);
+  }, [dispatch, select]);
 
   return <></>;
 }

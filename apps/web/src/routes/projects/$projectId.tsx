@@ -5,6 +5,8 @@ import { ProjectsSidebarContent } from "@/features/project/components/Sidebar/Pr
 import { ProjectItemsList } from "@/features/project/components/ProjectItemsList/ProjectItemsList";
 import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
 import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
+import { useDB, useSyncSelector } from "@will-be-done/hyperdb";
+import { allProjectsSlice2, projectsSlice2 } from "@/store2/slices/store";
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: RouteComponent,
@@ -13,13 +15,18 @@ export const Route = createFileRoute("/projects/$projectId")({
 function RouteComponent() {
   const { projectId } = Route.useParams();
 
-  const project = useAppSelector((state) => {
-    if (projectId == "inbox") {
-      return allProjectsSlice.inbox(state);
-    }
+  const db = useDB();
 
-    return projectsSlice.byId(state, projectId);
-  });
+  const project = useSyncSelector(
+    function* () {
+      if (projectId == "inbox") {
+        return yield* allProjectsSlice2.inbox();
+      }
+
+      return yield* projectsSlice2.byId(projectId);
+    },
+    [projectId],
+  );
 
   if (!project) {
     return <div>Project not found</div>;

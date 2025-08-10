@@ -88,13 +88,31 @@ export class SubscribableDBTx implements HyperDBTx {
     this.throwIfDone();
     if (records.length === 0) return;
 
+    const previousRecords = new Map<string, Row>();
+
+    for (const oldRecord of this.txDb.intervalScan(
+      table,
+      table.idIndexName,
+      records.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
+    )) {
+      previousRecords.set(oldRecord.id, oldRecord);
+    }
+
+    for (const record of records) {
+      if (!previousRecords.has(record.id)) {
+        throw new Error(
+          `Failed to update record, no previous record found for ${table.tableName}=${record.id}`,
+        );
+      }
+    }
+
     this.txDb.update(table, records);
 
     for (const record of records) {
       this.operations.push({
         type: "update",
         table,
-        oldValue: records[0],
+        oldValue: previousRecords.get(record.id)!,
         newValue: record,
       });
     }

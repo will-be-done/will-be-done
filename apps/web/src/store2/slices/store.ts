@@ -624,7 +624,8 @@ export const taskTemplatesSlice2 = {
   }),
 };
 
-function getDMY(date: Date): string {
+export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
+export function getDMY(date: Date): string {
   return date.toISOString().split("T")[0]!;
 }
 
@@ -1382,7 +1383,7 @@ export const tasksSlice2 = {
       return false;
     }
 
-    return isTaskProjection(model) || isTask(model);
+    return isTaskProjection(model) || isTask(model) || isTaskTemplate(model);
   }),
   byId: selector(function* (id: string): GenReturn<Task | undefined> {
     const tasks = yield* runQuery(
@@ -1390,7 +1391,6 @@ export const tasksSlice2 = {
         .where((q) => q.eq("id", id))
         .limit(1),
     );
-    console.log("tasksSlice2.byId", id, tasks);
 
     return tasks[0];
   }),
@@ -1440,8 +1440,6 @@ export const tasksSlice2 = {
       templateDate: null,
       ...task,
     };
-
-    console.log("inserting", newTask);
 
     yield* insert(tasksTable, [newTask]);
 
@@ -1574,13 +1572,13 @@ export const allProjectsSlice2 = {
     const lastChildId = childrenIds[childrenIds.length - 1];
     return lastChildId ? yield* projectsSlice2.byId(lastChildId) : undefined;
   }),
-  inbox: selector(function* (): GenReturn<Project | undefined> {
+  inbox: selector(function* (): GenReturn<Project> {
     const projects = yield* runQuery(
       selectFrom(projectsTable, "byIsInbox")
         .where((q) => q.eq("isInbox", true))
         .limit(1),
     );
-    return projects[0];
+    return projects[0] || defaultProject;
   }),
   siblings: selector(function* (
     projectId: string,

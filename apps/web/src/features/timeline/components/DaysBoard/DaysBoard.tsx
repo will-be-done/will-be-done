@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useMemo } from "react";
 import { addDays, format, getDay, startOfDay, subDays } from "date-fns";
-import { DropTaskIndicator, TaskComp } from "../../../../components/Task/Task";
+import { TaskComp } from "../../../../components/Task/Task";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DndModelData, isModelDNDData } from "@/features/dnd/models";
@@ -10,27 +10,23 @@ import invariant from "tiny-invariant";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
-import {
-  ColumnListProvider,
-  ParentListItemProvider,
-} from "@/features/focus/components/ParentListProvider.tsx";
+import { ColumnListProvider } from "@/features/focus/components/ParentListProvider.tsx";
 import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
+import { useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
-import { Layout } from "../../../../components/Layout/Layout";
-import { TaskSuggestions } from "../TaskSuggestions/TaskSuggestions";
-import {
-  DailyList,
-  dailyListsSlice,
-  getDMY,
-} from "@/store/slices/dailyListsSlice.ts";
-import { projectionsSlice } from "@/store/slices/projectionsSlice.ts";
-import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
-import { inboxId, projectsSlice } from "@/store/slices/projectsSlice.ts";
-import { dropSlice } from "@/store/slices/dropSlice.ts";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import {
+  allProjectsSlice2,
+  DailyList,
+  dailyListsSlice2,
+  dropSlice2,
+  getDMY,
+  inboxId,
+  projectionsSlice2,
+} from "@/store2/slices/store";
 
 // All days of the week
 const allWeekdays: string[] = [
@@ -112,8 +108,9 @@ const TaskProjection = ({
   projectionId: string;
   orderNumber: string;
 }) => {
-  const projection = useAppSelector((state) =>
-    projectionsSlice.byIdOrDefault(state, projectionId),
+  const projection = useSyncSelector(
+    () => projectionsSlice2.byIdOrDefault(projectionId),
+    [projectionId],
   );
 
   return (
@@ -141,10 +138,12 @@ const ColumnView = ({
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
-  const dailyList = useAppSelector((state) =>
-    dailyListsSlice.byIdOrDefault(state, dailyListId),
+  const dailyList = useSyncSelector(
+    () => dailyListsSlice2.byIdOrDefault(dailyListId),
+    [dailyListId],
   );
   const store = useAppStore();
+  const select = useSelect();
 
   useEffect(() => {
     invariant(columnRef.current);
@@ -160,7 +159,7 @@ const ColumnView = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return dropSlice.canDrop(store.getState(), dailyListId, data.modelId);
+          return select(dropSlice2.canDrop(dailyListId, data.modelId));
         },
         getIsSticky: () => true,
         onDragEnter: () => setDndState(isTaskOver),
@@ -173,17 +172,19 @@ const ColumnView = ({
         canScroll: ({ source }) => isModelDNDData(source.data),
       }),
     );
-  }, [dailyList.id, dailyList.type, dailyListId, store]);
+  }, [dailyList.id, dailyList.type, dailyListId, select, store]);
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,
   );
 
-  const projectionIds = useAppSelector((state) =>
-    dailyListsSlice.childrenIds(state, dailyListId, selectedProjectIds),
+  const projectionIds = useSyncSelector(
+    () => dailyListsSlice2.childrenIds(dailyListId, selectedProjectIds),
+    [dailyListId, selectedProjectIds],
   );
-  const doneProjectionIds = useAppSelector((state) =>
-    dailyListsSlice.doneChildrenIds(state, dailyListId, selectedProjectIds),
+  const doneProjectionIds = useSyncSelector(
+    () => dailyListsSlice2.doneChildrenIds(dailyListId, selectedProjectIds),
+    [dailyListId, selectedProjectIds],
   );
 
   const isToday = useMemo(() => {
@@ -267,7 +268,10 @@ const BoardView = ({
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
   const store = useAppStore();
-  const projectsList = useAppSelector(allProjectsSlice.dropdownProjectsList);
+  const projectsList = useSyncSelector(
+    () => allProjectsSlice2.dropdownProjectsList(),
+    [],
+  );
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,
@@ -276,6 +280,7 @@ const BoardView = ({
     (state) => state.setSelectedProjectIds,
   );
 
+  const dispatch = useDispatch();
   // const handleProjectIdsChange = useCallback(
   //   (ids: string[]) => {
   //     void navigate({
@@ -297,12 +302,13 @@ const BoardView = ({
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      const projection = dailyListsSlice.createProjectionWithTask(
-        store,
-        dailyList.id,
-        inboxId,
-        "prepend",
-        "prepend",
+      const projection = dispatch(
+        dailyListsSlice2.createProjectionWithTask(
+          dailyList.id,
+          inboxId,
+          "prepend",
+          "prepend",
+        ),
       );
 
       focusSlice.editByKey(
@@ -310,7 +316,7 @@ const BoardView = ({
         buildFocusKey(projection.id, projection.type),
       );
     },
-    [store],
+    [dispatch, store],
   );
 
   return (
@@ -459,14 +465,16 @@ export const Board = ({ selectedDate }: { selectedDate: Date }) => {
     [startingDate, daysToShow],
   );
 
-  const dailyListsIds = useAppSelector((state) =>
-    dailyListsSlice.idsByDates(state, weekDays),
+  const dailyListsIds = useSyncSelector(
+    () => dailyListsSlice2.idsByDates(weekDays),
+    [weekDays],
   );
   const store = useAppStore();
+  const dispatch = useDispatch();
 
   useEffect(() => {
-    dailyListsSlice.createManyIfNotPresent(store, weekDays);
-  }, [store, weekDays]);
+    dispatch(dailyListsSlice2.createManyIfNotPresent(weekDays));
+  }, [dispatch, store, weekDays]);
 
   const setExceptDailyListIds = useSuggestionsStore(
     (state) => state.setExceptDailyListIds,
