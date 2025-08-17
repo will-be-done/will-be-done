@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
-import { DB, type HyperDB, type HyperDBTx } from "./db";
+import { DB, SyncDB, SyncDBTx, type HyperDB, type HyperDBTx } from "./db";
 import { SqlDriver } from "./drivers/SqlDriver";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
@@ -24,19 +24,18 @@ describe("Database Transactions", async () => {
     [async () => new BptreeInmemDriver(), "BptreeInmemDriver"],
   ] as const) {
     describe(`${name}`, () => {
-      it.skip("basic transaction operations", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+      it("basic transaction operations", async () => {
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tx = db.beginTx();
 
-        const makeScan = (idxName: "byId" | "byIds", d: HyperDBTx | HyperDB) =>
-          Array.from(
-            d.intervalScan(tasksTable, idxName, [
-              {
-                eq: [{ col: "id", val: "task-1" }],
-              },
-            ]),
-          );
+        const makeScan = (idxName: "byId" | "byIds", d: SyncDBTx | SyncDB) =>
+          d.intervalScan(tasksTable, idxName, [
+            {
+              eq: [{ col: "id", val: "task-1" }],
+            },
+          ]);
 
         const task1: Task = {
           id: "task-1",
@@ -54,6 +53,7 @@ describe("Database Transactions", async () => {
         expect(btreeTxData).toEqual(hashTxData);
 
         tx.update(tasksTable, [{ ...task1, title: "Task 11" }]);
+        tx.rollback();
 
         const btreeData = makeScan("byIds", db);
         const hashData = makeScan("byId", db);
@@ -63,7 +63,8 @@ describe("Database Transactions", async () => {
       });
 
       it.skip("transaction commit makes changes visible", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
         const tx = db.beginTx();
 
         const task: Task = {
@@ -94,7 +95,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction rollback discards changes", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert initial data
         const initialTask: Task = {
@@ -122,25 +124,22 @@ describe("Database Transactions", async () => {
         tx.rollback();
 
         // New task should not exist
-        const newTaskResult = Array.from(
-          db.intervalScan(tasksTable, "byId", [
-            { eq: [{ col: "id", val: "task-rollback" }] },
-          ]),
-        );
+        const newTaskResult = db.intervalScan(tasksTable, "byId", [
+          { eq: [{ col: "id", val: "task-rollback" }] },
+        ]);
         expect(newTaskResult.length).toBe(0);
 
         // Original task should be unchanged
-        const originalTaskResult = Array.from(
-          db.intervalScan(tasksTable, "byId", [
-            { eq: [{ col: "id", val: "task-initial" }] },
-          ]),
-        );
+        const originalTaskResult = db.intervalScan(tasksTable, "byId", [
+          { eq: [{ col: "id", val: "task-initial" }] },
+        ]);
         expect(originalTaskResult.length).toBe(1);
         expect(originalTaskResult[0]).toEqual(initialTask);
       });
 
       it.skip("transaction isolation - reads don't see uncommitted changes", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const task1: Task = {
           id: "task-isolation-1",
@@ -180,7 +179,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction with multiple operations", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert initial data
         const task1: Task = { id: "task-1", title: "Task 1" };
@@ -245,7 +245,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction with btree range queries", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tx = db.beginTx();
 
@@ -294,7 +295,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction error handling - double commit throws", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
         const tx = db.beginTx();
 
         const task: Task = { id: "task-error", title: "Error Test" };
@@ -307,7 +309,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction error handling - double rollback throws", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
         const tx = db.beginTx();
 
         const task: Task = { id: "task-error", title: "Error Test" };
@@ -320,7 +323,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction error handling - operations after commit throw", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
         const tx = db.beginTx();
 
         const task: Task = { id: "task-error", title: "Error Test" };
@@ -334,7 +338,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction error handling - operations after rollback throw", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
         const tx = db.beginTx();
 
         const task: Task = { id: "task-error", title: "Error Test" };
@@ -348,7 +353,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction empty operations", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
         const tx = db.beginTx();
 
         // Empty operations should not throw
@@ -363,7 +369,8 @@ describe("Database Transactions", async () => {
       });
 
       it("hash index equality queries in transactions", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tasks: Task[] = [
           { id: "task-1", title: "Same Title" },
@@ -409,7 +416,8 @@ describe("Database Transactions", async () => {
       });
 
       it("btree index range queries in transactions", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tasks: Task[] = [
           { id: "task-1", title: "Apple" },
@@ -457,7 +465,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction updates visible through both hash and btree indexes", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert initial data
         const task: Task = { id: "task-update", title: "Original" };
@@ -519,7 +528,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction deletes remove from both hash and btree indexes", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert initial data
         const tasks: Task[] = [
@@ -579,7 +589,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction with mixed operations on different indexes", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Initial data
         const initialTasks: Task[] = [
@@ -643,7 +654,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction rollback preserves original index state", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Initial data
         const initialTasks: Task[] = [
@@ -697,7 +709,8 @@ describe("Database Transactions", async () => {
       });
 
       it("transaction with limit on different index types", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tasks: Task[] = [
           { id: "task-1", title: "Same" },
@@ -751,7 +764,8 @@ describe("Database Transactions", async () => {
       });
 
       it("complex query patterns - multiple where clauses", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tasks: Task[] = [
           { id: "task-1", title: "Alpha" },
@@ -780,7 +794,8 @@ describe("Database Transactions", async () => {
       });
 
       it("edge case - empty results", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tx = db.beginTx();
 
@@ -806,7 +821,8 @@ describe("Database Transactions", async () => {
       });
 
       it("edge case - duplicate inserts and updates", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tx = db.beginTx();
 
@@ -841,7 +857,8 @@ describe("Database Transactions", async () => {
       });
 
       it("edge case - update then delete in transaction", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert initial data
         const task: Task = { id: "task-ud", title: "Original" };
@@ -873,7 +890,8 @@ describe("Database Transactions", async () => {
       });
 
       it("edge case - insert then delete in transaction", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tx = db.beginTx();
 
@@ -903,7 +921,8 @@ describe("Database Transactions", async () => {
       });
 
       it("edge case - delete nonexistent record", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tx = db.beginTx();
 
@@ -928,7 +947,8 @@ describe("Database Transactions", async () => {
       });
 
       it("edge case - boundary values in btree queries", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tasks: Task[] = [
           { id: "task-1", title: "" }, // Empty string
@@ -969,7 +989,8 @@ describe("Database Transactions", async () => {
       });
 
       it("performance test - large transaction with mixed operations", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         const tx = db.beginTx();
 
@@ -1031,7 +1052,8 @@ describe("Database Transactions", async () => {
       });
 
       it("hash index with multiple records having same value", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert multiple tasks with same title (hash index value)
         const tasks: Task[] = [
@@ -1080,7 +1102,8 @@ describe("Database Transactions", async () => {
       });
 
       it.skip("hash index consistency between transaction and direct operations", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Direct operations outside transaction
         const directTasks: Task[] = [
@@ -1134,7 +1157,8 @@ describe("Database Transactions", async () => {
       });
 
       it.skip("hash index update and delete with multiple values", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert tasks with duplicate titles
         const tasks: Task[] = [
@@ -1193,7 +1217,8 @@ describe("Database Transactions", async () => {
       });
 
       it("hash index rollback with multiple values", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert initial data with duplicates
         const initialTasks: Task[] = [
@@ -1248,7 +1273,8 @@ describe("Database Transactions", async () => {
       });
 
       it("hash index with limit and multiple values", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Insert many tasks with same title
         const tasks: Task[] = [];
@@ -1311,7 +1337,8 @@ describe("Database Transactions", async () => {
       });
 
       it("hash index mixed operations preserving value groups", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new SyncDB(new DB(await driver()));
+        db.loadTables([tasksTable]);
 
         // Initial data with multiple value groups
         const initialTasks: Task[] = [

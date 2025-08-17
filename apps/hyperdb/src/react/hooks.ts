@@ -6,7 +6,7 @@ import {
 } from "react";
 import { initSelector, select } from "../hyperdb/selector";
 import { useDB } from "./context";
-import { dispatch } from "../hyperdb";
+import { syncDispatch } from "../hyperdb";
 
 export function useSyncSelector<TReturn>(
   gen: () => Generator<unknown, TReturn, unknown>,
@@ -27,7 +27,7 @@ export function useDispatch() {
 
   return useCallback(
     <TReturn>(action: Generator<unknown, TReturn, unknown>): TReturn => {
-      return dispatch(db, action);
+      return syncDispatch(db, action);
     },
     [db],
   );

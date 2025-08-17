@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { table } from "./table";
-import { DB } from "./db";
+import { DB, execSync } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
-import { action, deleteRows, dispatch, insert, update } from "./action";
+import { action, deleteRows, syncDispatch, insert, update } from "./action";
 import { runQuery } from "./selector";
 import { selectFrom } from "./query";
 
@@ -67,9 +67,10 @@ const insertAction = action(function* () {
 describe("action", () => {
   it("should dispatch actions", () => {
     const driver = new BptreeInmemDriver();
-    const db = new DB(driver, [tasksTables]);
+    const db = new DB(driver);
+    execSync(db.loadTables([tasksTables]));
 
-    expect(dispatch(db, insertAction())).toEqual([
+    expect(syncDispatch(db, insertAction())).toEqual([
       [
         {
           type: "task",

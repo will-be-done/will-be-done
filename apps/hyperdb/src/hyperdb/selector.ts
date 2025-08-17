@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SubscribableDB, type Op } from "./subscribable-db";
 import type { ExtractSchema, TableDefinition } from "./table";
-import type { Row, TupleScanOptions } from "./db";
+import { execSync, type Row, type TupleScanOptions } from "./db";
 import { isRowInRange } from "./drivers/tuple";
 import type { SelectQuery } from "./query";
 import { convertWhereToBound } from "./bounds";
@@ -169,7 +169,7 @@ function runSelector<TReturn>(
       const { table, index, selectQuery } = result.value;
 
       result = currentGen.next(
-        Array.from(
+        execSync(
           db.intervalScan(table, index, selectQuery.where, {
             limit: selectQuery.limit,
           }),

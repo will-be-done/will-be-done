@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SubscribableDB, type Op } from "./subscribable-db";
-import { DB } from "./db";
+import { DB, SyncDB } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
 import { SqlDriver } from "./drivers/SqlDriver";
@@ -26,13 +26,16 @@ describe("SubscribableDB", async () => {
   ] as const) {
     describe(`with ${driverName}`, () => {
       it("should subscribe to operations and receive correct notifications", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
 
         const operations: Op[] = [];
         const unsubscribe = subscribableDB.subscribe((op) => {
           operations.push(...op);
         });
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const tasks: Task[] = [
           {
@@ -52,7 +55,7 @@ describe("SubscribableDB", async () => {
         ];
 
         // Test insert operations
-        subscribableDB.insert(tasksTable, tasks);
+        syncDB.insert(tasksTable, tasks);
 
         expect(operations).toHaveLength(2);
         expect(operations[0]).toEqual({
@@ -77,7 +80,7 @@ describe("SubscribableDB", async () => {
           },
         ];
 
-        subscribableDB.update(tasksTable, updatedTasks);
+        syncDB.update(tasksTable, updatedTasks);
 
         expect(operations).toHaveLength(3);
         expect(operations[2]).toEqual({
@@ -88,7 +91,7 @@ describe("SubscribableDB", async () => {
         });
 
         // Test delete operations
-        subscribableDB.delete(tasksTable, ["task-2"]);
+        syncDB.delete(tasksTable, ["task-2"]);
 
         expect(operations).toHaveLength(4);
         expect(operations[3]).toEqual({
@@ -101,8 +104,11 @@ describe("SubscribableDB", async () => {
       });
 
       it("should handle multiple subscribers correctly", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const operations1: Op[] = [];
         const operations2: Op[] = [];
@@ -122,7 +128,7 @@ describe("SubscribableDB", async () => {
           orderToken: "a",
         };
 
-        subscribableDB.insert(tasksTable, [task]);
+        syncDB.insert(tasksTable, [task]);
 
         expect(operations1).toHaveLength(1);
         expect(operations2).toHaveLength(1);
@@ -133,8 +139,10 @@ describe("SubscribableDB", async () => {
       });
 
       it("should properly unsubscribe and not receive further notifications", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const operations: Op[] = [];
         const unsubscribe = subscribableDB.subscribe((op) => {
@@ -149,12 +157,12 @@ describe("SubscribableDB", async () => {
           orderToken: "a",
         };
 
-        subscribableDB.insert(tasksTable, [task]);
+        syncDB.insert(tasksTable, [task]);
         expect(operations).toHaveLength(1);
 
         unsubscribe();
 
-        subscribableDB.insert(tasksTable, [
+        syncDB.insert(tasksTable, [
           {
             id: "task-2",
             title: "Task 2",
@@ -163,13 +171,15 @@ describe("SubscribableDB", async () => {
             orderToken: "b",
           },
         ]);
-
         expect(operations).toHaveLength(1);
       });
 
       it("should handle update operations with non-existent records", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const nonExistentTask: Task = {
           id: "non-existent",
@@ -180,13 +190,16 @@ describe("SubscribableDB", async () => {
         };
 
         expect(() => {
-          subscribableDB.update(tasksTable, [nonExistentTask]);
+          syncDB.update(tasksTable, [nonExistentTask]);
         }).toThrow("Failed to update record, no previous record found");
       });
 
       it("should handle delete operations with non-existent records", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
@@ -194,14 +207,17 @@ describe("SubscribableDB", async () => {
         });
 
         // Delete non-existent record should not throw or notify
-        subscribableDB.delete(tasksTable, ["non-existent"]);
+        syncDB.delete(tasksTable, ["non-existent"]);
 
         expect(operations).toHaveLength(0);
       });
 
       it("should delegate scan operations correctly", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const tasks: Task[] = [
           {
@@ -220,23 +236,25 @@ describe("SubscribableDB", async () => {
           },
         ];
 
-        subscribableDB.insert(tasksTable, tasks);
+        syncDB.insert(tasksTable, tasks);
 
         // Test intervalScan
-        const intervalResults = Array.from(
-          subscribableDB.intervalScan(tasksTable, "ids", [
-            {
-              eq: [{ col: "id", val: "task-1" }],
-            },
-          ]),
-        );
+        const intervalResults = syncDB.intervalScan(tasksTable, "ids", [
+          {
+            eq: [{ col: "id", val: "task-1" }],
+          },
+        ]);
+
         expect(intervalResults).toHaveLength(1);
         expect(intervalResults[0]).toEqual(tasks[0]);
       });
 
       it("should handle batch operations correctly", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
@@ -268,7 +286,7 @@ describe("SubscribableDB", async () => {
         ];
 
         // Batch insert
-        subscribableDB.insert(tasksTable, tasks);
+        syncDB.insert(tasksTable, tasks);
 
         expect(operations).toHaveLength(3);
         operations.forEach((op, index) => {
@@ -284,7 +302,7 @@ describe("SubscribableDB", async () => {
           title: `Updated ${task.title}`,
         }));
 
-        subscribableDB.update(tasksTable, updatedTasks);
+        syncDB.update(tasksTable, updatedTasks);
 
         expect(operations).toHaveLength(6);
         for (let i = 3; i < 6; i++) {
@@ -297,7 +315,7 @@ describe("SubscribableDB", async () => {
         }
 
         // Batch delete
-        subscribableDB.delete(tasksTable, ["task-1", "task-3"]);
+        syncDB.delete(tasksTable, ["task-1", "task-3"]);
 
         expect(operations).toHaveLength(8);
         const op6 = operations[6];
@@ -315,8 +333,11 @@ describe("SubscribableDB", async () => {
       });
 
       it("should handle operations with empty arrays", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
@@ -324,21 +345,24 @@ describe("SubscribableDB", async () => {
         });
 
         // Empty insert
-        subscribableDB.insert(tasksTable, []);
+        syncDB.insert(tasksTable, []);
         expect(operations).toHaveLength(0);
 
         // Empty update
-        subscribableDB.update(tasksTable, []);
+        syncDB.update(tasksTable, []);
         expect(operations).toHaveLength(0);
 
         // Empty delete
-        subscribableDB.delete(tasksTable, []);
+        syncDB.delete(tasksTable, []);
         expect(operations).toHaveLength(0);
       });
 
       it("should handle complex workflow with mixed operations", async () => {
-        const db = new DB(await driver(), [tasksTable]);
+        const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
 
         const operations: Op[] = [];
         subscribableDB.subscribe((op) => {
@@ -363,7 +387,7 @@ describe("SubscribableDB", async () => {
           },
         ];
 
-        subscribableDB.insert(tasksTable, initialTasks);
+        syncDB.insert(tasksTable, initialTasks);
 
         // Step 2: Update one task
         const updatedTask: Task = {
@@ -372,7 +396,7 @@ describe("SubscribableDB", async () => {
           title: "Completed Task 1",
         };
 
-        subscribableDB.update(tasksTable, [updatedTask]);
+        syncDB.update(tasksTable, [updatedTask]);
 
         // Step 3: Insert another task
         const newTask: Task = {
@@ -383,10 +407,10 @@ describe("SubscribableDB", async () => {
           orderToken: "c",
         };
 
-        subscribableDB.insert(tasksTable, [newTask]);
+        syncDB.insert(tasksTable, [newTask]);
 
         // Step 4: Delete a task
-        subscribableDB.delete(tasksTable, ["task-2"]);
+        syncDB.delete(tasksTable, ["task-2"]);
 
         // Verify all operations were captured correctly
         expect(operations).toHaveLength(5);
@@ -426,9 +450,10 @@ describe("SubscribableDB", async () => {
         });
 
         // Verify final state by scanning
-        const finalTasks = Array.from(
-          subscribableDB.intervalScan(tasksTable, "projectIdState", [{}]),
-        );
+        const finalTasks = syncDB.intervalScan(tasksTable, "projectIdState", [
+          {},
+        ]);
+
         expect(finalTasks).toHaveLength(2);
         expect(finalTasks.find((t) => t.id === "task-1")).toEqual(updatedTask);
         expect(finalTasks.find((t) => t.id === "task-3")).toEqual(newTask);

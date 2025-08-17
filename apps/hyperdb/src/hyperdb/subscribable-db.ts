@@ -1,12 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type {
-  DB,
-  HyperDB,
-  HyperDBTx,
-  Row,
-  SelectOptions,
-  WhereClause,
-} from "./db";
+import type { HyperDB, HyperDBTx, Row, SelectOptions, WhereClause } from "./db";
+import type { DBCmd } from "./generators";
+// import { collectAll } from "./generators";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
 
 export type InsertOp = {
@@ -44,12 +39,12 @@ export class SubscribableDBTx implements HyperDBTx {
     this.txDb = txDb;
   }
 
-  rollback(): void {
+  *rollback(): Generator<DBCmd, void> {
     this.throwIfDone();
     this.rollbacked = true;
   }
 
-  intervalScan<
+  *intervalScan<
     TTable extends TableDefinition,
     K extends keyof ExtractIndexes<TTable>,
   >(
@@ -57,20 +52,25 @@ export class SubscribableDBTx implements HyperDBTx {
     indexName: K,
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
-  ): Generator<ExtractSchema<TTable>> {
+  ): Generator<DBCmd, ExtractSchema<TTable>[]> {
     this.throwIfDone();
 
-    return this.txDb.intervalScan(table, indexName, clauses, selectOptions);
+    return yield* this.txDb.intervalScan(
+      table,
+      indexName,
+      clauses,
+      selectOptions,
+    );
   }
 
-  insert<TTable extends TableDefinition<any>>(
+  *insert<TTable extends TableDefinition<any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ) {
+  ): Generator<DBCmd, void> {
     this.throwIfDone();
     if (records.length === 0) return;
 
-    this.txDb.insert(table, records);
+    yield* this.txDb.insert(table, records);
 
     for (const record of records) {
       this.operations.push({
@@ -81,16 +81,16 @@ export class SubscribableDBTx implements HyperDBTx {
     }
   }
 
-  update<TTable extends TableDefinition<any>>(
+  *update<TTable extends TableDefinition<any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ) {
+  ): Generator<DBCmd, void> {
     this.throwIfDone();
     if (records.length === 0) return;
 
     const previousRecords = new Map<string, Row>();
 
-    for (const oldRecord of this.txDb.intervalScan(
+    for (const oldRecord of yield* this.txDb.intervalScan(
       table,
       table.idIndexName,
       records.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
@@ -106,7 +106,7 @@ export class SubscribableDBTx implements HyperDBTx {
       }
     }
 
-    this.txDb.update(table, records);
+    yield* this.txDb.update(table, records);
 
     for (const record of records) {
       this.operations.push({
@@ -118,13 +118,13 @@ export class SubscribableDBTx implements HyperDBTx {
     }
   }
 
-  delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
+  *delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
     this.throwIfDone();
     if (ids.length === 0) return;
 
-    this.txDb.delete(table, ids);
+    yield* this.txDb.delete(table, ids);
 
-    for (const oldRecord of this.txDb.intervalScan(
+    for (const oldRecord of yield* this.txDb.intervalScan(
       table,
       table.idIndexName,
       ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
@@ -133,9 +133,9 @@ export class SubscribableDBTx implements HyperDBTx {
     }
   }
 
-  commit(): void {
+  *commit(): Generator<DBCmd, void> {
     this.throwIfDone();
-    this.txDb.commit();
+    yield* this.txDb.commit();
     this.subDb.subscribers.forEach((s) => s(this.operations));
   }
 
@@ -152,14 +152,18 @@ export class SubscribableDBTx implements HyperDBTx {
 
 export class SubscribableDB implements HyperDB {
   subscribers: ((op: Op[]) => void)[] = [];
-  db: DB;
+  db: HyperDB;
 
-  constructor(db: DB) {
+  constructor(db: HyperDB) {
     this.db = db;
   }
 
-  beginTx(): HyperDBTx {
-    return new SubscribableDBTx(this, this.db.beginTx());
+  loadTables(tables: TableDefinition<any>[]): Generator<DBCmd, void> {
+    return this.db.loadTables(tables);
+  }
+
+  *beginTx(): Generator<DBCmd, HyperDBTx> {
+    return new SubscribableDBTx(this, yield* this.db.beginTx());
   }
 
   subscribe(cb: (op: Op[]) => void): () => void {
@@ -178,28 +182,26 @@ export class SubscribableDB implements HyperDB {
     indexName: K,
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
-  ): Generator<ExtractSchema<TTable>> {
+  ): Generator<DBCmd, ExtractSchema<TTable>[]> {
     if (clauses && clauses.length === 0) {
-      return;
+      return [];
     }
 
-    for (const data of this.db.intervalScan(
+    return yield* this.db.intervalScan(
       table,
       indexName,
       clauses,
       selectOptions,
-    )) {
-      yield data;
-    }
+    );
   }
 
-  insert<TTable extends TableDefinition<any>>(
+  *insert<TTable extends TableDefinition<any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ) {
     if (records.length === 0) return;
 
-    this.db.insert(table, records);
+    yield* this.db.insert(table, records);
     const ops = records.map(
       (record): Op => ({
         type: "insert",
@@ -210,7 +212,7 @@ export class SubscribableDB implements HyperDB {
     this.subscribers.forEach((s) => s(ops));
   }
 
-  update<TTable extends TableDefinition<any>>(
+  *update<TTable extends TableDefinition<any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ) {
@@ -218,7 +220,7 @@ export class SubscribableDB implements HyperDB {
 
     const previousRecords = new Map<string, Row>();
 
-    for (const oldRecord of this.db.intervalScan(
+    for (const oldRecord of yield* this.db.intervalScan(
       table,
       table.idIndexName,
       records.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
@@ -234,7 +236,7 @@ export class SubscribableDB implements HyperDB {
       }
     }
 
-    this.db.update(table, records);
+    yield* this.db.update(table, records);
 
     const ops = records.map(
       (record): Op => ({
@@ -248,11 +250,11 @@ export class SubscribableDB implements HyperDB {
     this.subscribers.forEach((s) => s(ops));
   }
 
-  delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
+  *delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
     if (ids.length === 0) return;
 
     const opsToNotify: DeleteOp[] = [];
-    for (const oldRecord of this.db.intervalScan(
+    for (const oldRecord of yield* this.db.intervalScan(
       table,
       table.idIndexName,
       ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
@@ -260,7 +262,7 @@ export class SubscribableDB implements HyperDB {
       opsToNotify.push({ type: "delete", table, oldValue: oldRecord });
     }
 
-    this.db.delete(table, ids);
+    yield* this.db.delete(table, ids);
 
     this.subscribers.forEach((s) => s(opsToNotify));
   }

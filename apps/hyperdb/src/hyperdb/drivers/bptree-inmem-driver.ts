@@ -13,6 +13,7 @@ import { InMemoryBinaryPlusTree } from "../utils/bptree";
 import { compareTuple } from "./tuple";
 import { convertWhereToBound } from "../bounds";
 import { orderedArray } from "../utils/ordered-array";
+import type { DBCmd } from "../generators";
 
 type TableData = {
   tableDef: TableDefinition;
@@ -98,10 +99,7 @@ function performUpdate(tblData: TableData | TxTableData, records: Row[]) {
 
 interface BaseIndex {
   type: "btree" | "hash";
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Generator<Row>;
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[];
   cols(): string[];
 
   insert(values: Row[]): void;
@@ -139,12 +137,10 @@ const getColumnValuesFromBounds = (
       (bound.gte && bound.gte.length !== 1) ||
       !bound.lte ||
       !bound.gte
-      // !(
-      //   bound.lte === undefined &&
+      // (bound.lte === undefined &&
       //   bound.gte === undefined &&
       //   bound.lt === undefined &&
-      //   bound.gt === undefined
-      // )
+      //   bound.gt === undefined)
     ) {
       throw new Error(
         "Hash index should have exactly one equality condition for column '" +
@@ -181,47 +177,32 @@ class HashIndex implements Index {
     return [this.indexDef.column];
   }
 
-  *scan(
+  scan(
     tupleBounds: TupleScanOptions[],
     selectOptions: { limit?: number },
-  ): Generator<Row> {
-    if (
-      tupleBounds.length === 1 &&
-      tupleBounds[0].lte === undefined &&
-      tupleBounds[0].gte === undefined &&
-      tupleBounds[0].lt === undefined &&
-      tupleBounds[0].gt === undefined
-    ) {
-      for (const row of this.records.values()) {
-        for (const val of row.values()) {
-          yield val;
-        }
-      }
-
-      return;
-    }
-
+  ): Row[] {
     const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
 
-    let totalCount = 0;
+    const results: Row[] = [];
+
     for (const idxValue of idxValues) {
       const rows = this.records.get(idxValue);
 
       if (!rows) continue;
 
-      for (const [, row] of rows) {
-        yield row;
+      results.push(...rows.values());
 
-        totalCount++;
+      if (
+        selectOptions.limit !== undefined &&
+        results.length >= selectOptions.limit
+      ) {
+        results.splice(selectOptions.limit);
 
-        if (
-          selectOptions?.limit !== undefined &&
-          totalCount >= selectOptions.limit
-        ) {
-          return;
-        }
+        return results;
       }
     }
+
+    return results;
   }
 
   insert(values: Row[]): void {
@@ -303,10 +284,10 @@ class HashIndexTx implements IndexTx {
     }
   }
 
-  *scan(
+  scan(
     tupleBounds: TupleScanOptions[],
     selectOptions: { limit?: number },
-  ): Generator<Row> {
+  ): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const boundValues = getColumnValuesFromBounds(
@@ -327,6 +308,8 @@ class HashIndexTx implements IndexTx {
     const seenRowIds = new Set<RowId>();
     let totalCount = 0;
 
+    const results: Row[] = [];
+
     // 1. Yield records from transaction sets first
     for (const value of boundValues) {
       const sets = this.sets.get(value);
@@ -335,15 +318,18 @@ class HashIndexTx implements IndexTx {
       for (const [rowId, row] of sets) {
         if (deletedRowIds.has(rowId)) continue;
 
+        // TODO: could be done in bulk
         seenRowIds.add(rowId);
-        yield row;
+        results.push(row);
         totalCount++;
 
         if (
           selectOptions?.limit !== undefined &&
           totalCount >= selectOptions.limit
         ) {
-          return;
+          results.splice(selectOptions.limit);
+
+          return results;
         }
       }
     }
@@ -352,16 +338,21 @@ class HashIndexTx implements IndexTx {
     for (const row of this.originalIndex.scan(tupleBounds, selectOptions)) {
       if (deletedRowIds.has(row.id) || seenRowIds.has(row.id)) continue;
 
-      yield row;
+      // TODO: could be done in bulk
+      results.push(row);
       totalCount++;
 
       if (
         selectOptions?.limit !== undefined &&
         totalCount >= selectOptions.limit
       ) {
-        return;
+        results.splice(selectOptions.limit);
+
+        return results;
       }
     }
+
+    return results;
   }
 
   insert(values: Row[]): void {
@@ -441,7 +432,10 @@ class BtreeIndexTx implements IndexTx {
     );
   }
 
-  *scan(tupleBounds: TupleScanOptions[], selectOptions: { limit: number }) {
+  scan(
+    tupleBounds: TupleScanOptions[],
+    selectOptions: { limit: number },
+  ): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const results: Row[][] = [];
@@ -469,10 +463,13 @@ class BtreeIndexTx implements IndexTx {
       results.push(result);
     }
 
+    const res: Row[] = [];
+
     let totalCount = 0;
     for (const rows of results) {
       for (const row of rows) {
-        yield row;
+        // TODO: could be done in bulk
+        res.push(row);
 
         totalCount++;
 
@@ -480,10 +477,13 @@ class BtreeIndexTx implements IndexTx {
           selectOptions?.limit !== undefined &&
           totalCount >= selectOptions.limit
         ) {
-          return;
+          res.splice(selectOptions.limit);
+          return res;
         }
       }
     }
+
+    return res;
   }
 
   insert(values: Row[]): void {
@@ -542,9 +542,13 @@ class BtreeIndex implements Index {
     this.indexDef = indexConfig;
   }
 
-  *scan(tupleBounds: TupleScanOptions[], selectOptions: { limit?: number }) {
+  scan(
+    tupleBounds: TupleScanOptions[],
+    selectOptions: { limit?: number },
+  ): Row[] {
     let totalCount = 0;
 
+    const toReturn: Row[] = [];
     for (const bounds of tupleBounds) {
       const results = this.btree.list({
         ...bounds,
@@ -555,17 +559,21 @@ class BtreeIndex implements Index {
       });
 
       for (const result of results) {
-        yield result.value;
+        // TODO: could be done in bulk
+        toReturn.push(result.value);
         totalCount++;
 
         if (
           selectOptions?.limit !== undefined &&
           totalCount >= selectOptions.limit
         ) {
-          return;
+          toReturn.splice(selectOptions.limit);
+          return toReturn;
         }
       }
     }
+
+    return toReturn;
   }
 
   insert(values: Row[]): void {
@@ -604,7 +612,7 @@ export class BptreeInmemDriverTx implements DBDriverTX {
     this.onFinish = onFinish;
   }
 
-  commit(): void {
+  *commit(): Generator<DBCmd, void> {
     this.throwIfDone();
 
     for (const [, table] of this.tblDatas) {
@@ -617,18 +625,18 @@ export class BptreeInmemDriverTx implements DBDriverTX {
     this.onFinish();
   }
 
-  rollback(): void {
+  *rollback(): Generator<DBCmd, void> {
     this.throwIfDone();
     this.rollbacked = true;
     this.onFinish();
   }
 
-  intervalScan(
+  *intervalScan(
     table: string,
     indexName: string,
     clauses: WhereClause[],
     selectOptions: SelectOptions,
-  ): Generator<unknown> | Generator<Promise<unknown>> {
+  ): Generator<DBCmd, unknown[]> {
     this.throwIfDone();
 
     return performScan(
@@ -639,7 +647,7 @@ export class BptreeInmemDriverTx implements DBDriverTX {
     );
   }
 
-  insert(tableName: string, values: Row[]): void {
+  *insert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     this.throwIfDone();
 
     console.log("insert", tableName, values);
@@ -648,7 +656,7 @@ export class BptreeInmemDriverTx implements DBDriverTX {
     performInsert(tableData, values);
   }
 
-  update(tableName: string, values: Row[]): void {
+  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
     this.throwIfDone();
 
     const tableData = this.getOrCreateTableData(tableName);
@@ -657,7 +665,7 @@ export class BptreeInmemDriverTx implements DBDriverTX {
     performUpdate(tableData, values);
   }
 
-  delete(tableName: string, values: string[]): void {
+  *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
     this.throwIfDone();
 
     console.log("delete", tableName, values);
@@ -720,7 +728,7 @@ export class BptreeInmemDriver implements DBDriver {
 
   constructor() {}
 
-  beginTx(): DBDriverTX {
+  *beginTx(): Generator<DBCmd, DBDriverTX> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -729,7 +737,9 @@ export class BptreeInmemDriver implements DBDriver {
     return new BptreeInmemDriverTx(this, () => (this.isInTransaction = false));
   }
 
-  loadTables(tables: TableDefinition<any, IndexDefinitions<any>>[]): void {
+  *loadTables(
+    tables: TableDefinition<any, IndexDefinitions<any>>[],
+  ): Generator<DBCmd, void> {
     for (const tableDef of tables) {
       // this.tableDefinitions.set(tableDef.name, tableDef);
       const indexes: Map<string, Index> = new Map();
@@ -785,7 +795,7 @@ export class BptreeInmemDriver implements DBDriver {
     }
   }
 
-  update(tableName: string, values: Row[]): void {
+  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -798,7 +808,7 @@ export class BptreeInmemDriver implements DBDriver {
     performUpdate(tblData, values);
   }
 
-  insert(tableName: string, values: Row[]): void {
+  *insert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -811,7 +821,7 @@ export class BptreeInmemDriver implements DBDriver {
     performInsert(tblData, values);
   }
 
-  delete(tableName: string, ids: string[]): void {
+  *delete(tableName: string, ids: string[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -824,12 +834,12 @@ export class BptreeInmemDriver implements DBDriver {
     performDelete(tblData, ids);
   }
 
-  intervalScan(
+  *intervalScan(
     tableName: string,
     indexName: string,
     clauses: WhereClause[],
     selectOptions: SelectOptions,
-  ): Generator<Row> {
+  ): Generator<DBCmd, Row[]> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }

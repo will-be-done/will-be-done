@@ -1,79 +1,104 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { Database } from "sql.js";
 import type {
   DBDriver,
   Row,
   SelectOptions,
   WhereClause,
-  Value,
   DBDriverTX,
 } from "../db.ts";
 import initSqlJs from "sql.js";
-import { chunk, cloneDeep } from "es-toolkit";
+import { cloneDeep } from "es-toolkit";
 import type { TableDefinition } from "../table.ts";
+import type { DBCmd } from "../generators.ts";
+import {
+  buildWhereClause,
+  buildOrderClause,
+  buildSelectSQL,
+  buildInsertSQL,
+  buildDeleteSQL,
+  createTableSQL,
+  createIndexSQL,
+  chunkArray,
+  CHUNK_SIZE,
+  type SqlValue,
+  type BindParams,
+} from "./SqliteCommon.ts";
+
+interface QueryExecResult {
+  columns: string[];
+  values: SqlValue[][];
+}
+
+interface SQLStatement {
+  bind(values?: BindParams): boolean;
+  get(params?: BindParams): SqlValue[];
+  step(): boolean;
+  free(): void;
+}
+interface SQLiteDB {
+  exec(sql: string, params?: BindParams): QueryExecResult[];
+  prepare(sql: string): SQLStatement;
+}
 
 function performInsertOperation(
-  db: Database,
+  db: SQLiteDB,
   tableName: string,
   values: Record<string, unknown>[],
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunk(values, 12000);
-  for (const values of allValues) {
-    const valuesQ = values.map(() => "(?, ?)").join(", ");
-    const insertSQL = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+  const allValues = chunkArray(values, CHUNK_SIZE);
+  for (const chunk of allValues) {
+    const insertSQL = buildInsertSQL(tableName, chunk.length);
 
     db.exec(
       insertSQL,
       // @ts-expect-error it's ok
-      values.flatMap((v) => [v.id, JSON.stringify(v)]),
+      chunk.flatMap((v) => [v.id, JSON.stringify(v)]),
     );
   }
 }
 
 function performUpdateOperation(
-  db: Database,
+  db: SQLiteDB,
   tableName: string,
   values: Row[],
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunk(values, 12000);
-  for (const values of allValues) {
-    const valuesQ = values.map(() => "(?, ?)").join(", ");
-    const updateSQL = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+  const allValues = chunkArray(values, CHUNK_SIZE);
+  for (const chunk of allValues) {
+    const updateSQL = buildInsertSQL(tableName, chunk.length);
 
     db.exec(
       updateSQL,
-      values.flatMap((v) => [v.id, JSON.stringify(v)]),
+      chunk.flatMap((v) => [v.id, JSON.stringify(v)]),
     );
   }
 }
 
 function performDeleteOperation(
-  db: Database,
+  db: SQLiteDB,
   tableName: string,
   values: string[],
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunk(values, 12000);
-  for (const values of allValues) {
-    const placeholders = values.map(() => "?").join(", ");
-    const deleteSQL = `DELETE FROM ${tableName} WHERE id IN (${placeholders})`;
-    db.exec(deleteSQL, values);
+  const allValues = chunkArray(values, CHUNK_SIZE);
+  for (const chunk of allValues) {
+    const deleteSQL = buildDeleteSQL(tableName, chunk.length);
+    db.exec(deleteSQL, chunk);
   }
 }
 
-function* performScanOperation(
-  db: Database,
+function performScanOperation(
+  db: SQLiteDB,
   tableDefinitions: Map<string, TableDefinition>,
   table: string,
   indexName: string,
   clauses: WhereClause[],
   selectOptions: SelectOptions,
-): Generator<unknown> {
+): unknown[] {
   const { where, params } = buildWhereClause(
     indexName,
     table,
@@ -81,126 +106,38 @@ function* performScanOperation(
     tableDefinitions,
   );
   const orderClause = buildOrderClause(indexName, table, tableDefinitions);
-  const limitClause =
-    selectOptions.limit !== undefined ? `LIMIT ${selectOptions.limit}` : "";
-
-  const sql = `
-    SELECT data FROM ${table}
-    ${where}
-    ${orderClause}
-    ${limitClause}
-  `.trim();
+  const sql = buildSelectSQL(table, where, orderClause, selectOptions);
 
   const q = db.prepare(sql);
+
+  const result: unknown[] = [];
   try {
     q.bind(params);
 
     while (q.step()) {
       const res = q.get();
       const record = JSON.parse(res[0] as string) as unknown;
-      yield record;
+      result.push(record);
     }
   } catch (error) {
     throw new Error(`Scan failed for index ${indexName}: ${error}`);
   } finally {
     q.free();
   }
+
+  return result;
 }
 
-function buildWhereClause(
-  indexName: string,
-  tableName: string,
-  clauses: WhereClause[],
-  tableDefinitions: Map<string, TableDefinition>,
-): { where: string; params: any[] } {
-  const tableDef = tableDefinitions.get(tableName);
-  if (!tableDef) {
-    throw new Error(`Table ${tableName} not found`);
-  }
-
-  const indexDef = tableDef.indexes[indexName];
-  if (!indexDef) throw new Error(`Index ${indexName} not found`);
-
-  const conditions: string[] = [];
-  const params: any[] = [];
-
-  for (const clause of clauses) {
-    const currentCond: string[] = [];
-
-    const buildColumnComparison = (
-      operator: string,
-      columnConditions: { col: string; val: Value }[],
-    ) => {
-      for (const { col, val } of columnConditions) {
-        const columnPath = `json_extract(data, '$.${String(col)}')`;
-        currentCond.push(`${columnPath} ${operator} ?`);
-        params.push(val);
-      }
-    };
-
-    if (clause.gt) {
-      buildColumnComparison(">", clause.gt);
-    }
-    if (clause.gte) {
-      buildColumnComparison(">=", clause.gte);
-    }
-    if (clause.lt) {
-      buildColumnComparison("<", clause.lt);
-    }
-    if (clause.lte) {
-      buildColumnComparison("<=", clause.lte);
-    }
-    if (clause.eq) {
-      buildColumnComparison("=", clause.eq);
-    }
-
-    if (currentCond.length > 0) {
-      conditions.push(`(${currentCond.join(" AND ")})`);
-    }
-  }
-
-  const whereClause =
-    conditions.length > 0 ? `WHERE ${conditions.join(" OR ")}` : "";
-  return { where: whereClause, params };
-}
-
-function buildOrderClause(
-  indexName: string,
-  tableName: string,
-  tableDefinitions: Map<string, TableDefinition>,
-  reverse: boolean = false,
-): string {
-  const tableDef = tableDefinitions.get(tableName);
-  if (!tableDef) {
-    return "";
-  }
-
-  const indexDef = tableDef.indexes[indexName];
-  if (!indexDef) {
-    return "";
-  }
-
-  const indexColumns = indexDef.cols;
-
-  const orderColumns = indexColumns
-    .map((col) => {
-      const jsonPath = `json_extract(data, '$.${String(col)}')`;
-      return `${jsonPath} ${reverse ? "DESC" : "ASC"}`;
-    })
-    .join(", ");
-
-  return `ORDER BY ${orderColumns}`;
-}
 
 class SqlDriverTx implements DBDriverTX {
-  private db: Database;
+  private db: SQLiteDB;
   private tableDefinitions: Map<string, TableDefinition>;
   private committed = false;
   private rolledback = false;
   private onFinish: () => void;
 
   constructor(
-    db: Database,
+    db: SQLiteDB,
     tableDefinitions: Map<string, TableDefinition>,
     onFinish: () => void,
   ) {
@@ -210,7 +147,7 @@ class SqlDriverTx implements DBDriverTX {
     this.onFinish = onFinish;
   }
 
-  commit(): void {
+  *commit(): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
@@ -219,7 +156,7 @@ class SqlDriverTx implements DBDriverTX {
     this.onFinish();
   }
 
-  rollback(): void {
+  *rollback(): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
@@ -228,21 +165,24 @@ class SqlDriverTx implements DBDriverTX {
     this.onFinish();
   }
 
-  insert(tableName: string, values: Record<string, unknown>[]): void {
+  *insert(
+    tableName: string,
+    values: Record<string, unknown>[],
+  ): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
     performInsertOperation(this.db, tableName, values);
   }
 
-  update(tableName: string, values: Row[]): void {
+  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
     performUpdateOperation(this.db, tableName, values);
   }
 
-  delete(tableName: string, values: string[]): void {
+  *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
@@ -254,11 +194,12 @@ class SqlDriverTx implements DBDriverTX {
     indexName: string,
     clauses: WhereClause[],
     selectOptions: SelectOptions,
-  ): Generator<unknown> {
+  ): Generator<DBCmd, unknown[]> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
-    yield* performScanOperation(
+
+    return performScanOperation(
       this.db,
       this.tableDefinitions,
       table,
@@ -270,15 +211,15 @@ class SqlDriverTx implements DBDriverTX {
 }
 
 export class SqlDriver implements DBDriver {
-  private db: Database;
+  private db: SQLiteDB;
   private tableDefinitions = new Map<string, TableDefinition>();
   private isInTransaction = false;
 
-  constructor(db: Database) {
+  constructor(db: SQLiteDB) {
     this.db = db;
   }
 
-  beginTx(): DBDriverTX {
+  *beginTx(): Generator<DBCmd, DBDriverTX> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -291,7 +232,10 @@ export class SqlDriver implements DBDriver {
     );
   }
 
-  insert(tableName: string, values: Record<string, unknown>[]): void {
+  *insert(
+    tableName: string,
+    values: Record<string, unknown>[],
+  ): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -302,7 +246,7 @@ export class SqlDriver implements DBDriver {
     this.db.exec("COMMIT");
   }
 
-  update(tableName: string, values: Row[]): void {
+  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -313,7 +257,7 @@ export class SqlDriver implements DBDriver {
     this.db.exec("COMMIT");
   }
 
-  delete(tableName: string, values: string[]): void {
+  *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -329,12 +273,12 @@ export class SqlDriver implements DBDriver {
     indexName: string,
     clauses: WhereClause[],
     selectOptions: SelectOptions,
-  ): Generator<unknown> {
+  ): Generator<DBCmd, unknown[]> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
 
-    yield* performScanOperation(
+    return performScanOperation(
       this.db,
       this.tableDefinitions,
       table,
@@ -344,7 +288,9 @@ export class SqlDriver implements DBDriver {
     );
   }
 
-  loadTables(tableDefinitions: TableDefinition<any>[]): void {
+  *loadTables(
+    tableDefinitions: TableDefinition<any>[],
+  ): Generator<DBCmd, void> {
     this.db.exec("BEGIN TRANSACTION");
     tableDefinitions = cloneDeep(tableDefinitions);
     for (const tableDef of tableDefinitions) {
@@ -365,35 +311,25 @@ export class SqlDriver implements DBDriver {
 
   private createTable(tableName: string): void {
     // Create main table
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS ${tableName} (
-        id TEXT PRIMARY KEY,
-        data TEXT NOT NULL
-      )
-    `;
-    console.log(createTableSQL);
-    this.db.exec(createTableSQL);
+    const sql = createTableSQL(tableName);
+    console.log(sql);
+    this.db.exec(sql);
   }
 
   private createIndexes(tableDef: TableDefinition<any>): void {
     for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
       const cols = indexDef.cols;
 
-      // Create a composite index using JSON path expressions
-      const columnPaths = cols
-        .map((col) => `json_extract(data, '$.${String(col)}') ASC`)
-        .join(", ");
-
       // Only make the id index unique, all others should be non-unique
       const isIdIndex = cols.length === 1 && cols[0] === "id";
-      const uniqueKeyword = isIdIndex ? "UNIQUE" : "";
-
-      const createIndexSQL = `
-          CREATE ${uniqueKeyword} INDEX IF NOT EXISTS idx_${tableDef.tableName}_${indexName} 
-          ON ${tableDef.tableName}(${columnPaths})
-        `;
-      console.log(createIndexSQL);
-      this.db.exec(createIndexSQL);
+      const sql = createIndexSQL(
+        tableDef.tableName,
+        indexName,
+        cols,
+        isIdIndex,
+      );
+      console.log(sql);
+      this.db.exec(sql);
     }
   }
 

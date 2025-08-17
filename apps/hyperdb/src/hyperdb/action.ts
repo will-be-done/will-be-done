@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { HyperDB, Row } from "./db";
+import { execSync, type HyperDB, type Row } from "./db";
 import { isSelectRangeCmd } from "./selector";
 import { type ExtractSchema, type TableDefinition } from "./table";
 
@@ -74,38 +74,43 @@ export function* deleteRows<TTable extends TableDefinition<any, any>>(
   } satisfies DeleteActionCmd;
 }
 
-export function dispatch<TReturn>(
+export function syncDispatch<TReturn>(
   db: HyperDB,
   action: Generator<unknown, TReturn, unknown>,
 ): TReturn {
   let result = action.next();
 
-  const tx = db.beginTx();
+  const tx = execSync(db.beginTx());
 
-  // console.log("action", action, db);
   while (!result.done) {
     if (isSelectRangeCmd(result.value)) {
       const { table, index, selectQuery } = result.value;
 
       result = action.next(
-        Array.from(
+        execSync(
           tx.intervalScan(table, index, selectQuery.where, {
             limit: selectQuery.limit,
           }),
         ),
       );
     } else if (isInsertActionCmd(result.value)) {
-      result = action.next(tx.insert(result.value.table, result.value.values));
+      result = action.next(
+        execSync(tx.insert(result.value.table, result.value.values)),
+      );
     } else if (isUpdateActionCmd(result.value)) {
-      result = action.next(tx.update(result.value.table, result.value.values));
+      result = action.next(
+        execSync(tx.update(result.value.table, result.value.values)),
+      );
     } else if (isDeleteActionCmd(result.value)) {
-      result = action.next(tx.delete(result.value.table, result.value.values));
+      result = action.next(
+        execSync(tx.delete(result.value.table, result.value.values)),
+      );
     } else {
       result = action.next();
     }
   }
 
-  tx.commit();
+  execSync(tx.commit());
 
   return result.value as TReturn;
 }

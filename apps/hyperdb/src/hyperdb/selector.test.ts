@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DB } from "./db";
+import { DB, execSync } from "./db";
 import { runQuery, selector, initSelector } from "./selector";
 import { SubscribableDB } from "./subscribable-db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
@@ -21,7 +21,8 @@ const tasksTable = table<Task>("tasks").withIndexes({
 });
 
 const driver = new BptreeInmemDriver();
-export const db = new SubscribableDB(new DB(driver, [tasksTable]));
+const db = new SubscribableDB(new DB(driver));
+execSync(db.loadTables([tasksTable]));
 
 const allTasks = selector(function* () {
   const tasks = yield* runQuery(
@@ -62,29 +63,33 @@ describe("selector", () => {
       results.push(selector.getSnapshot()?.[0]?.id);
     });
 
-    db.insert(tasksTable, [
-      {
-        id: "task-1",
-        title: "inserted",
-        state: "done",
-        projectId: "1",
-        orderToken: "d",
-        type: "task",
-      },
-    ]);
+    execSync(
+      db.insert(tasksTable, [
+        {
+          id: "task-1",
+          title: "inserted",
+          state: "done",
+          projectId: "1",
+          orderToken: "d",
+          type: "task",
+        },
+      ]),
+    );
 
-    db.update(tasksTable, [
-      {
-        id: "task-1",
-        title: "updated",
-        state: "todo",
-        projectId: "2",
-        orderToken: "d",
-        type: "task",
-      },
-    ]);
+    execSync(
+      db.update(tasksTable, [
+        {
+          id: "task-1",
+          title: "updated",
+          state: "todo",
+          projectId: "2",
+          orderToken: "d",
+          type: "task",
+        },
+      ]),
+    );
 
-    db.delete(tasksTable, ["task-1"]);
+    execSync(db.delete(tasksTable, ["task-1"]));
 
     expect(results).toEqual([undefined, "task-1", undefined]);
   });
@@ -97,29 +102,33 @@ describe("selector", () => {
       console.log("new state!", selector.getSnapshot());
     });
 
-    db.insert(tasksTable, [
-      {
-        id: "task-1",
-        title: "inserted",
-        state: "done",
-        projectId: "1",
-        orderToken: "d",
-        type: "task",
-      },
-    ]);
+    execSync(
+      db.insert(tasksTable, [
+        {
+          id: "task-1",
+          title: "inserted",
+          state: "done",
+          projectId: "1",
+          orderToken: "d",
+          type: "task",
+        },
+      ]),
+    );
 
-    db.update(tasksTable, [
-      {
-        id: "task-1",
-        title: "updated",
-        state: "todo",
-        projectId: "2",
-        orderToken: "d",
-        type: "task",
-      },
-    ]);
+    execSync(
+      db.update(tasksTable, [
+        {
+          id: "task-1",
+          title: "updated",
+          state: "todo",
+          projectId: "2",
+          orderToken: "d",
+          type: "task",
+        },
+      ]),
+    );
 
-    db.delete(tasksTable, ["task-1"]);
+    execSync(db.delete(tasksTable, ["task-1"]));
   });
 
   test("selector subscription with projectId btree index", () => {
@@ -134,9 +143,8 @@ describe("selector", () => {
       projectIdOrder: { cols: ["projectId", "orderToken"], type: "btree" },
     });
 
-    const testDb = new SubscribableDB(
-      new DB(new BptreeInmemDriver(), [itemsTable]),
-    );
+    const testDb = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(testDb.loadTables([itemsTable]));
 
     const project1Selector = selector(function* () {
       const items = yield* runQuery(
@@ -170,25 +178,29 @@ describe("selector", () => {
       project2Results.push(selector2.getSnapshot());
     });
 
-    const tx = testDb.beginTx();
+    const tx = execSync(testDb.beginTx());
 
-    tx.insert(itemsTable, [
-      { id: "item1", orderToken: "a", projectId: "project1" },
-      { id: "item2", orderToken: "b", projectId: "project1" },
-    ]);
+    execSync(
+      tx.insert(itemsTable, [
+        { id: "item1", orderToken: "a", projectId: "project1" },
+        { id: "item2", orderToken: "b", projectId: "project1" },
+      ]),
+    );
 
-    tx.commit();
+    execSync(tx.commit());
 
     expect(project1Results).toHaveLength(2);
     expect(project2Results).toHaveLength(1);
     expect(project1Results[1]).toHaveLength(2);
     expect(project2Results[0]).toHaveLength(0);
 
-    const tx2 = testDb.beginTx();
-    tx2.update(itemsTable, [
-      { id: "item1", orderToken: "c", projectId: "project2" },
-    ]);
-    tx2.commit();
+    const tx2 = execSync(testDb.beginTx());
+    execSync(
+      tx2.update(itemsTable, [
+        { id: "item1", orderToken: "c", projectId: "project2" },
+      ]),
+    );
+    execSync(tx2.commit());
 
     expect(project1Results).toHaveLength(3);
     expect(project2Results).toHaveLength(2);

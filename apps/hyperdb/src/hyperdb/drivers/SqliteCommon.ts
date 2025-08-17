@@ -1,0 +1,155 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { WhereClause, Value, SelectOptions } from "../db.ts";
+import type { TableDefinition } from "../table.ts";
+
+export type SqlValue = number | string | Uint8Array | null;
+export type BindParams = SqlValue[] | null;
+
+export const CHUNK_SIZE = 12000;
+
+export function chunkArray<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
+export function buildWhereClause(
+  indexName: string,
+  tableName: string,
+  clauses: WhereClause[],
+  tableDefinitions: Map<string, TableDefinition>,
+): { where: string; params: any[] } {
+  const tableDef = tableDefinitions.get(tableName);
+  if (!tableDef) {
+    throw new Error(`Table ${tableName} not found`);
+  }
+
+  const indexDef = tableDef.indexes[indexName];
+  if (!indexDef) throw new Error(`Index ${indexName} not found`);
+
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  for (const clause of clauses) {
+    const currentCond: string[] = [];
+
+    const buildColumnComparison = (
+      operator: string,
+      columnConditions: { col: string; val: Value }[],
+    ) => {
+      for (const { col, val } of columnConditions) {
+        const columnPath = `json_extract(data, '$.${String(col)}')`;
+        currentCond.push(`${columnPath} ${operator} ?`);
+        params.push(val);
+      }
+    };
+
+    if (clause.gt) {
+      buildColumnComparison(">", clause.gt);
+    }
+    if (clause.gte) {
+      buildColumnComparison(">=", clause.gte);
+    }
+    if (clause.lt) {
+      buildColumnComparison("<", clause.lt);
+    }
+    if (clause.lte) {
+      buildColumnComparison("<=", clause.lte);
+    }
+    if (clause.eq) {
+      buildColumnComparison("=", clause.eq);
+    }
+
+    if (currentCond.length > 0) {
+      conditions.push(`(${currentCond.join(" AND ")})`);
+    }
+  }
+
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" OR ")}` : "";
+  return { where: whereClause, params };
+}
+
+export function buildOrderClause(
+  indexName: string,
+  tableName: string,
+  tableDefinitions: Map<string, TableDefinition>,
+  reverse: boolean = false,
+): string {
+  const tableDef = tableDefinitions.get(tableName);
+  if (!tableDef) {
+    return "";
+  }
+
+  const indexDef = tableDef.indexes[indexName];
+  if (!indexDef) {
+    return "";
+  }
+
+  const indexColumns = indexDef.cols;
+
+  const orderColumns = indexColumns
+    .map((col) => {
+      const jsonPath = `json_extract(data, '$.${String(col)}')`;
+      return `${jsonPath} ${reverse ? "DESC" : "ASC"}`;
+    })
+    .join(", ");
+
+  return `ORDER BY ${orderColumns}`;
+}
+
+export function buildInsertSQL(tableName: string, valueCount: number): string {
+  const valuesQ = Array(valueCount).fill("(?, ?)").join(", ");
+  return `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+}
+
+export function buildDeleteSQL(tableName: string, idCount: number): string {
+  const placeholders = Array(idCount).fill("?").join(", ");
+  return `DELETE FROM ${tableName} WHERE id IN (${placeholders})`;
+}
+
+export function buildSelectSQL(
+  tableName: string,
+  whereClause: string,
+  orderClause: string,
+  selectOptions: SelectOptions,
+): string {
+  const limitClause =
+    selectOptions.limit !== undefined ? `LIMIT ${selectOptions.limit}` : "";
+
+  return `
+    SELECT data FROM ${tableName}
+    ${whereClause}
+    ${orderClause}
+    ${limitClause}
+  `.trim();
+}
+
+export function createTableSQL(tableName: string): string {
+  return `
+    CREATE TABLE IF NOT EXISTS ${tableName} (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL
+    )
+  `;
+}
+
+export function createIndexSQL(
+  tableName: string,
+  indexName: string,
+  cols: readonly (string | number | symbol)[],
+  isIdIndex: boolean,
+): string {
+  const columnPaths = cols
+    .map((col) => `json_extract(data, '$.${String(col)}') ASC`)
+    .join(", ");
+
+  const uniqueKeyword = isIdIndex ? "UNIQUE" : "";
+
+  return `
+    CREATE ${uniqueKeyword} INDEX IF NOT EXISTS idx_${tableName}_${indexName} 
+    ON ${tableName}(${columnPaths})
+  `;
+}

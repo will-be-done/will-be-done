@@ -1,4 +1,5 @@
 import { convertWhereToBound } from "./bounds";
+import { isNoopCmd, isUnwrapCmd, type DBCmd } from "./generators";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
 
 export type WhereClause = {
@@ -18,25 +19,30 @@ export interface BaseDBOperations {
     indexName: K,
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
-  ): Generator<ExtractSchema<TTable>>;
+  ): Generator<DBCmd, ExtractSchema<TTable>[]>;
   insert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ): void;
+  ): Generator<DBCmd, void>;
   update<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ): void;
-  delete<TTable extends TableDefinition>(table: TTable, ids: string[]): void;
+  ): Generator<DBCmd, void>;
+  delete<TTable extends TableDefinition>(
+    table: TTable,
+    ids: string[],
+  ): Generator<DBCmd, void>;
 }
 
 export interface HyperDBTx extends BaseDBOperations {
-  commit(): void;
-  rollback(): void;
+  commit(): Generator<DBCmd, void>;
+  rollback(): Generator<DBCmd, void>;
 }
 
 export interface HyperDB extends BaseDBOperations {
-  beginTx(): HyperDBTx;
+  beginTx(): Generator<DBCmd, HyperDBTx>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  loadTables(tables: TableDefinition<any, any>[]): Generator<DBCmd, void>;
 }
 
 export type Value = string | number | boolean | null;
@@ -68,20 +74,20 @@ type BaseDBDriverOperations = {
     indexName: string,
     clauses: WhereClause[],
     selectOptions: SelectOptions,
-  ): Generator<unknown> | Generator<Promise<unknown>>;
-  insert(tableName: string, values: Row[]): void;
-  update(tableName: string, values: Row[]): void;
-  delete(tableName: string, values: string[]): void;
+  ): Generator<DBCmd, unknown[]>;
+  insert(tableName: string, values: Row[]): Generator<DBCmd>;
+  update(tableName: string, values: Row[]): Generator<DBCmd>;
+  delete(tableName: string, values: string[]): Generator<DBCmd>;
 };
 
 export interface DBDriver extends BaseDBDriverOperations {
-  loadTables(table: TableDefinition<any, any>[]): void;
-  beginTx(): DBDriverTX;
+  loadTables(table: TableDefinition<any, any>[]): Generator<DBCmd>;
+  beginTx(): Generator<DBCmd, DBDriverTX>;
 }
 
 export interface DBDriverTX extends BaseDBDriverOperations {
-  commit(): void;
-  rollback(): void;
+  commit(): Generator<DBCmd>;
+  rollback(): Generator<DBCmd>;
 }
 
 function* performScan(
@@ -95,7 +101,7 @@ function* performScan(
     throw new Error("scan clauses must be provided");
   }
   if (selectOptions && selectOptions.limit === 0) {
-    return;
+    return [];
   }
 
   const indexConfig = table.indexes[indexName as string];
@@ -108,43 +114,37 @@ function* performScan(
   // Just for validation
   convertWhereToBound(indexConfig.cols as string[], clauses);
 
-  for (const data of driver.intervalScan(
+  return yield* driver.intervalScan(
     table.tableName,
     indexName as string,
     clauses,
     selectOptions || {},
-  )) {
-    if (data instanceof Promise) {
-      throw new Error("async scan not supported");
-    }
-
-    yield data as Row;
-  }
+  );
 }
 
-function performInsert(
+function* performInsert(
   driver: BaseDBDriverOperations,
   table: TableDefinition,
   records: Row[],
 ) {
   if (records.length === 0) return;
-  driver.insert(table.tableName, records);
+  yield* driver.insert(table.tableName, records);
 }
 
-function performUpdate(
+function* performUpdate(
   driver: BaseDBDriverOperations,
   table: TableDefinition,
   records: Row[],
 ) {
-  driver.update(table.tableName, records);
+  yield* driver.update(table.tableName, records);
 }
 
-function performDelete(
+function* performDelete(
   driver: BaseDBDriverOperations,
   table: TableDefinition,
   ids: string[],
 ) {
-  driver.delete(table.tableName, ids);
+  yield* driver.delete(table.tableName, ids);
 }
 
 export class DBTx implements HyperDBTx {
@@ -157,14 +157,14 @@ export class DBTx implements HyperDBTx {
     this.driver = driverTx;
   }
 
-  commit(): void {
+  *commit(): Generator<DBCmd> {
     this.isFinished = true;
-    this.driver.commit();
+    yield* this.driver.commit();
   }
 
-  rollback(): void {
+  *rollback(): Generator<DBCmd> {
     this.isFinished = true;
-    this.driver.rollback();
+    yield* this.driver.rollback();
   }
 
   *intervalScan<
@@ -175,61 +175,65 @@ export class DBTx implements HyperDBTx {
     indexName: K,
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
-  ): Generator<ExtractSchema<TTable>> {
-    for (const data of performScan(
+  ): Generator<DBCmd, ExtractSchema<TTable>[]> {
+    return yield* performScan(
       this.driver,
       table,
       indexName as string,
       clauses,
       selectOptions,
-    )) {
-      yield data as ExtractSchema<TTable>;
-    }
+    ) as Generator<DBCmd, ExtractSchema<TTable>[]>;
   }
 
-  insert<TTable extends TableDefinition>(
+  *insert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ): void {
+  ): Generator<DBCmd> {
     if (this.isFinished) {
       throw new Error("Transaction is finished");
     }
 
-    performInsert(this.driver, table, records);
+    yield* performInsert(this.driver, table, records);
   }
 
-  update<TTable extends TableDefinition>(
+  *update<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ): void {
+  ): Generator<DBCmd> {
     if (this.isFinished) {
       throw new Error("Transaction is finished");
     }
 
-    performUpdate(this.driver, table, records);
+    yield* performUpdate(this.driver, table, records);
   }
 
-  delete<TTable extends TableDefinition>(table: TTable, ids: string[]): void {
+  *delete<TTable extends TableDefinition>(
+    table: TTable,
+    ids: string[],
+  ): Generator<DBCmd> {
     if (this.isFinished) {
       throw new Error("Transaction is finished");
     }
 
-    performDelete(this.driver, table, ids);
+    yield* performDelete(this.driver, table, ids);
   }
 }
 
 export class DB implements HyperDB {
   driver: DBDriver;
-  tables: TableDefinition<any, any>[];
+  tables!: TableDefinition<any, any>[];
 
-  constructor(driver: DBDriver, tables: TableDefinition<any, any>[]) {
-    driver.loadTables(tables);
+  constructor(driver: DBDriver) {
     this.driver = driver;
-    this.tables = tables;
   }
 
-  beginTx(): DBTx {
-    const tx = this.driver.beginTx();
+  *loadTables(tables: TableDefinition<any, any>[]): Generator<DBCmd, void> {
+    this.tables = tables;
+    yield* this.driver.loadTables(tables);
+  }
+
+  *beginTx(): Generator<DBCmd, DBTx> {
+    const tx = yield* this.driver.beginTx();
     return new DBTx(this, tx);
   }
 
@@ -241,37 +245,162 @@ export class DB implements HyperDB {
     indexName: K,
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
-  ): Generator<ExtractSchema<TTable>> {
-    for (const data of performScan(
+  ): Generator<DBCmd, ExtractSchema<TTable>[]> {
+    return yield* performScan(
       this.driver,
       table,
       indexName as string,
       clauses,
       selectOptions,
-    )) {
-      yield data as ExtractSchema<TTable>;
+    ) as Generator<DBCmd, ExtractSchema<TTable>[]>;
+  }
+
+  *insert<TTable extends TableDefinition<any, any>>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
+  ) {
+    yield* performInsert(this.driver, table, records);
+  }
+
+  *update<TTable extends TableDefinition<any, any>>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
+  ) {
+    yield* performUpdate(this.driver, table, records);
+  }
+
+  *delete<TTable extends TableDefinition<any, any>>(
+    table: TTable,
+    ids: string[],
+  ) {
+    yield* performDelete(this.driver, table, ids);
+  }
+}
+
+export function execSync<T>(cmd: Generator<DBCmd, T>): T {
+  let result = cmd.next();
+
+  while (!result.done) {
+    if (isUnwrapCmd(result.value)) {
+      throw new Error("Cannot execute async commands");
+    } else if (isNoopCmd(result.value)) {
+      result = cmd.next();
     }
+  }
+
+  return result.value as T;
+}
+
+export async function execAsync<T>(cmd: Generator<DBCmd, T>): Promise<T> {
+  let result = cmd.next();
+
+  while (!result.done) {
+    if (isUnwrapCmd(result.value)) {
+      result = cmd.next(await result.value.data);
+    } else if (isNoopCmd(result.value)) {
+      result = cmd.next();
+    }
+  }
+
+  return result.value as T;
+}
+
+export class SyncDBTx {
+  private dbTx: HyperDBTx;
+  constructor(dbTx: HyperDBTx) {
+    this.dbTx = dbTx;
+  }
+
+  intervalScan<
+    TTable extends TableDefinition,
+    K extends keyof ExtractIndexes<TTable>,
+  >(
+    table: TTable,
+    indexName: K,
+    clauses: WhereClause[],
+    selectOptions?: SelectOptions,
+  ): ExtractSchema<TTable>[] {
+    return execSync(
+      this.dbTx.intervalScan(table, indexName, clauses, selectOptions),
+    );
+  }
+
+  insert<TTable extends TableDefinition>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
+  ): void {
+    return execSync(this.dbTx.insert(table, records));
+  }
+
+  update<TTable extends TableDefinition>(
+    table: TTable,
+    records: ExtractSchema<TTable>[],
+  ): void {
+    return execSync(this.dbTx.update(table, records));
+  }
+
+  delete<TTable extends TableDefinition>(table: TTable, ids: string[]): void {
+    return execSync(this.dbTx.delete(table, ids));
+  }
+
+  commit(): void {
+    return execSync(this.dbTx.commit());
+  }
+
+  rollback(): void {
+    return execSync(this.dbTx.rollback());
+  }
+}
+
+export class SyncDB {
+  private db: HyperDB;
+
+  constructor(db: HyperDB) {
+    this.db = db;
+  }
+
+  loadTables(tables: TableDefinition<any, any>[]): void {
+    return execSync(this.db.loadTables(tables));
+  }
+
+  beginTx(): SyncDBTx {
+    const tx = execSync(this.db.beginTx());
+    return new SyncDBTx(tx);
+  }
+
+  intervalScan<
+    TTable extends TableDefinition,
+    K extends keyof ExtractIndexes<TTable>,
+  >(
+    table: TTable,
+    indexName: K,
+    clauses: WhereClause[],
+    selectOptions?: SelectOptions,
+  ): ExtractSchema<TTable>[] {
+    return execSync(
+      this.db.intervalScan(table, indexName, clauses, selectOptions),
+    );
   }
 
   insert<TTable extends TableDefinition<any, any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ) {
-    performInsert(this.driver, table, records);
+  ): void {
+    return execSync(this.db.insert(table, records));
   }
 
   update<TTable extends TableDefinition<any, any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ) {
-    performUpdate(this.driver, table, records);
+  ): void {
+    return execSync(this.db.update(table, records));
   }
 
   delete<TTable extends TableDefinition<any, any>>(
     table: TTable,
     ids: string[],
-  ) {
-    performDelete(this.driver, table, ids);
+  ): void {
+    return execSync(this.db.delete(table, ids));
   }
 }
 
