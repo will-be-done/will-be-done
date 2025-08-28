@@ -1,6 +1,12 @@
 import { getDbCtx } from "@/store/sync/db";
 import { Q } from "@/store/sync/schema";
-import { BptreeInmemDriver, DB, SubscribableDB } from "@will-be-done/hyperdb";
+import {
+  BptreeInmemDriver,
+  DB,
+  execSync,
+  SubscribableDB,
+  SyncDB,
+} from "@will-be-done/hyperdb";
 import AwaitLock from "await-lock";
 import { tables } from "./store";
 
@@ -13,12 +19,9 @@ export const initDbStore = async (): Promise<SubscribableDB> => {
       return initedDb;
     }
 
-    const db = new SubscribableDB(
-      new DB(
-        new BptreeInmemDriver(),
-        tables.map((t) => t.table),
-      ),
-    );
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+
+    execSync(db.loadTables(tables.map((t) => t.table)));
 
     const dbCtx = await getDbCtx();
     for (const table of tables) {
@@ -32,7 +35,8 @@ export const initDbStore = async (): Promise<SubscribableDB> => {
         ...JSON.parse(row.data as unknown as string),
         type: table.modelType,
       }));
-      db.insert(table.table, result);
+
+      execSync(db.insert(table.table, result));
     }
 
     initedDb = db;

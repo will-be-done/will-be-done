@@ -650,7 +650,7 @@ export class BptreeInmemDriverTx implements DBDriverTX {
   *insert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     this.throwIfDone();
 
-    console.log("insert", tableName, values);
+    // console.log("insert", tableName, values);
     const tableData = this.getOrCreateTableData(tableName);
 
     performInsert(tableData, values);
@@ -661,14 +661,14 @@ export class BptreeInmemDriverTx implements DBDriverTX {
 
     const tableData = this.getOrCreateTableData(tableName);
 
-    console.log("update", tableName, values);
+    // console.log("update", tableName, values);
     performUpdate(tableData, values);
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
     this.throwIfDone();
 
-    console.log("delete", tableName, values);
+    // console.log("delete", tableName, values);
     performDelete(this.getOrCreateTableData(tableName), values);
   }
 

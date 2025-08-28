@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { execSync, type HyperDB, type Row } from "./db";
+import { execAsync, execSync, type HyperDB, type Row } from "./db";
 import { isSelectRangeCmd } from "./selector";
 import { type ExtractSchema, type TableDefinition } from "./table";
 
@@ -82,35 +82,92 @@ export function syncDispatch<TReturn>(
 
   const tx = execSync(db.beginTx());
 
-  while (!result.done) {
-    if (isSelectRangeCmd(result.value)) {
-      const { table, index, selectQuery } = result.value;
+  let isCommitted = false;
+  try {
+    while (!result.done) {
+      if (isSelectRangeCmd(result.value)) {
+        const { table, index, selectQuery } = result.value;
 
-      result = action.next(
-        execSync(
-          tx.intervalScan(table, index, selectQuery.where, {
-            limit: selectQuery.limit,
-          }),
-        ),
-      );
-    } else if (isInsertActionCmd(result.value)) {
-      result = action.next(
-        execSync(tx.insert(result.value.table, result.value.values)),
-      );
-    } else if (isUpdateActionCmd(result.value)) {
-      result = action.next(
-        execSync(tx.update(result.value.table, result.value.values)),
-      );
-    } else if (isDeleteActionCmd(result.value)) {
-      result = action.next(
-        execSync(tx.delete(result.value.table, result.value.values)),
-      );
-    } else {
-      result = action.next();
+        result = action.next(
+          execSync(
+            tx.intervalScan(table, index, selectQuery.where, {
+              limit: selectQuery.limit,
+            }),
+          ),
+        );
+      } else if (isInsertActionCmd(result.value)) {
+        result = action.next(
+          execSync(tx.insert(result.value.table, result.value.values)),
+        );
+      } else if (isUpdateActionCmd(result.value)) {
+        result = action.next(
+          execSync(tx.update(result.value.table, result.value.values)),
+        );
+      } else if (isDeleteActionCmd(result.value)) {
+        result = action.next(
+          execSync(tx.delete(result.value.table, result.value.values)),
+        );
+      } else {
+        result = action.next();
+      }
+    }
+
+    execSync(tx.commit());
+    isCommitted = true;
+  } finally {
+    if (!isCommitted) {
+      execSync(tx.rollback());
     }
   }
 
-  execSync(tx.commit());
+  return result.value as TReturn;
+}
+
+export async function asyncDispatch<TReturn>(
+  db: HyperDB,
+  action: Generator<unknown, TReturn, unknown>,
+): Promise<TReturn> {
+  let result = action.next();
+
+  const tx = await execAsync(db.beginTx());
+
+  let isCommitted = false;
+  try {
+    while (!result.done) {
+      if (isSelectRangeCmd(result.value)) {
+        const { table, index, selectQuery } = result.value;
+
+        result = action.next(
+          await execAsync(
+            tx.intervalScan(table, index, selectQuery.where, {
+              limit: selectQuery.limit,
+            }),
+          ),
+        );
+      } else if (isInsertActionCmd(result.value)) {
+        result = action.next(
+          await execAsync(tx.insert(result.value.table, result.value.values)),
+        );
+      } else if (isUpdateActionCmd(result.value)) {
+        result = action.next(
+          await execAsync(tx.update(result.value.table, result.value.values)),
+        );
+      } else if (isDeleteActionCmd(result.value)) {
+        result = action.next(
+          await execAsync(tx.delete(result.value.table, result.value.values)),
+        );
+      } else {
+        result = action.next();
+      }
+    }
+
+    await execAsync(tx.commit());
+    isCommitted = true;
+  } finally {
+    if (!isCommitted) {
+      await execAsync(tx.rollback());
+    }
+  }
 
   return result.value as TReturn;
 }

@@ -26,6 +26,9 @@ export type DeleteOp = {
 export type Op = InsertOp | UpdateOp | DeleteOp;
 
 export class SubscribableDBTx implements HyperDBTx {
+  // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, update, delete batches.
+  // That will make async db tx apply very fast. Right now we need to wait each op of tx to finish
+  // before applying next one. Cause otherwise if we will do in unordered way, we could get update before insert, for example.
   operations: Op[] = [];
 
   private subDb: SubscribableDB;
@@ -33,15 +36,20 @@ export class SubscribableDBTx implements HyperDBTx {
 
   committed = false;
   rollbacked = false;
+  txCounter = 1;
 
   constructor(subDb: SubscribableDB, txDb: HyperDBTx) {
     this.subDb = subDb;
     this.txDb = txDb;
   }
 
-  *rollback(): Generator<DBCmd, void> {
-    this.throwIfDone();
-    this.rollbacked = true;
+  *loadTables(): Generator<DBCmd, void> {
+    throw new Error("Not supported");
+  }
+
+  *beginTx(): Generator<DBCmd, HyperDBTx> {
+    this.txCounter++;
+    return this;
   }
 
   *intervalScan<
@@ -71,6 +79,10 @@ export class SubscribableDBTx implements HyperDBTx {
     if (records.length === 0) return;
 
     yield* this.txDb.insert(table, records);
+
+    for (const cb of this.subDb.afterInsertSubscribers) {
+      yield* cb();
+    }
 
     for (const record of records) {
       this.operations.push({
@@ -122,8 +134,6 @@ export class SubscribableDBTx implements HyperDBTx {
     this.throwIfDone();
     if (ids.length === 0) return;
 
-    yield* this.txDb.delete(table, ids);
-
     for (const oldRecord of yield* this.txDb.intervalScan(
       table,
       table.idIndexName,
@@ -131,11 +141,23 @@ export class SubscribableDBTx implements HyperDBTx {
     )) {
       this.operations.push({ type: "delete", table, oldValue: oldRecord });
     }
+
+    yield* this.txDb.delete(table, ids);
+  }
+
+  *rollback(): Generator<DBCmd, void> {
+    this.throwIfDone();
+    yield* this.txDb.rollback();
+    this.rollbacked = true;
   }
 
   *commit(): Generator<DBCmd, void> {
+    this.txCounter--;
+    if (this.txCounter !== 0) return;
+
     this.throwIfDone();
     yield* this.txDb.commit();
+    this.committed = true;
     this.subDb.subscribers.forEach((s) => s(this.operations));
   }
 
@@ -154,6 +176,8 @@ export class SubscribableDB implements HyperDB {
   subscribers: ((op: Op[]) => void)[] = [];
   db: HyperDB;
 
+  afterInsertSubscribers: (() => Generator<DBCmd, void>)[] = [];
+
   constructor(db: HyperDB) {
     this.db = db;
   }
@@ -164,6 +188,17 @@ export class SubscribableDB implements HyperDB {
 
   *beginTx(): Generator<DBCmd, HyperDBTx> {
     return new SubscribableDBTx(this, yield* this.db.beginTx());
+  }
+
+  // TODO: add support for update and delete
+  afterInsert(cb: () => Generator<DBCmd, void>): () => void {
+    this.afterInsertSubscribers.push(cb);
+
+    return () => {
+      this.afterInsertSubscribers = this.afterInsertSubscribers.filter(
+        (s) => s !== cb,
+      );
+    };
   }
 
   subscribe(cb: (op: Op[]) => void): () => void {
@@ -201,6 +236,8 @@ export class SubscribableDB implements HyperDB {
   ) {
     if (records.length === 0) return;
 
+    const tx = yield* this.db.beginTx();
+
     yield* this.db.insert(table, records);
     const ops = records.map(
       (record): Op => ({
@@ -209,6 +246,13 @@ export class SubscribableDB implements HyperDB {
         newValue: record,
       }),
     );
+
+    for (const cb of this.afterInsertSubscribers) {
+      yield* cb();
+    }
+
+    yield* tx.commit();
+
     this.subscribers.forEach((s) => s(ops));
   }
 

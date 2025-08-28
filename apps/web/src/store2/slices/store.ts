@@ -110,6 +110,7 @@ export const defaultTask: Task = {
   templateDate: null,
 };
 const tasksTable = table<Task>("tasks").withIndexes({
+  byIds: { cols: ["id"], type: "btree" },
   byId: { cols: ["id"], type: "hash" },
   byProjectIdOrderStates: {
     cols: ["projectId", "state", "orderToken"],
@@ -143,6 +144,7 @@ const taskProjectionsTable = table<TaskProjection>(
   "task_projections",
 ).withIndexes({
   byId: { cols: ["id"], type: "hash" },
+  byIds: { cols: ["id"], type: "btree" },
   byTaskIdCreatedAt: { cols: ["taskId", "createdAt"], type: "btree" },
   byDailyListId: { cols: ["dailyListId"], type: "hash" },
   byDailyListIdTokenOrdered: {
@@ -168,6 +170,7 @@ export const taskTemplatesTable = table<TaskTemplate>(
   "task_templates",
 ).withIndexes({
   byId: { cols: ["id"], type: "hash" },
+  byIds: { cols: ["id"], type: "btree" },
   byProjectIdOrderToken: {
     cols: ["projectId", "orderToken"],
     type: "btree",
@@ -198,6 +201,7 @@ export const defaultProject: Project = {
 };
 const projectsTable = table<Project>("projects").withIndexes({
   byId: { cols: ["id"], type: "hash" },
+  byIds: { cols: ["id"], type: "btree" },
   byOrderToken: { cols: ["orderToken"], type: "btree" },
   byIsInbox: { cols: ["isInbox"], type: "hash" },
 });
@@ -216,6 +220,7 @@ export const defaultDailyList: DailyList = {
 };
 const dailyListsTable = table<DailyList>("daily_lists").withIndexes({
   byId: { cols: ["id"], type: "hash" },
+  byIds: { cols: ["id"], type: "btree" },
   byDate: { cols: ["date"], type: "hash" },
 });
 
@@ -285,6 +290,24 @@ export const projectsSlice2 = {
   }),
 
   // actions
+  createInboxIfNotExists: action(function* (): GenReturn<Project> {
+    const inbox = yield* projectsSlice2.byId(inboxId);
+    if (inbox) {
+      return inbox;
+    }
+
+    return yield* projectsSlice2.create(
+      {
+        id: inboxId,
+        title: "Inbox",
+        icon: "",
+        isInbox: true,
+        orderToken: generateJitteredKeyBetween(null, null),
+        createdAt: new Date().getTime(),
+      },
+      [undefined, undefined],
+    );
+  }),
   create: action(function* (
     project: Partial<Project>,
     position:
@@ -740,7 +763,7 @@ export const dailyListsSlice2 = {
   }),
   // TODO: use hash index
   dateIdsMap: selector(function* (): GenReturn<Record<string, string>> {
-    const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byId"));
+    const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byIds"));
     return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id]));
   }),
   idByDate: selector(function* (date: Date): GenReturn<string | undefined> {

@@ -23,6 +23,7 @@ import {
   type SqlValue,
   type BindParams,
 } from "./SqliteCommon.ts";
+import wasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
 interface QueryExecResult {
   columns: string[];
@@ -127,7 +128,6 @@ function performScanOperation(
 
   return result;
 }
-
 
 class SqlDriverTx implements DBDriverTX {
   private db: SQLiteDB;
@@ -336,7 +336,9 @@ export class SqlDriver implements DBDriver {
   static async init() {
     try {
       // Try to use sql.js directly (works in Node.js with proper setup)
-      const SQL = await initSqlJs();
+      const SQL = await initSqlJs({
+        locateFile: () => wasmUrl,
+      });
 
       return new SqlDriver(new SQL.Database());
     } catch (error) {

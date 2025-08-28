@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { SubscribableDB, type Op } from "./subscribable-db";
 import type { ExtractSchema, TableDefinition } from "./table";
-import { execSync, type Row, type TupleScanOptions } from "./db";
+import {
+  execAsync,
+  execSync,
+  type HyperDB,
+  type Row,
+  type TupleScanOptions,
+} from "./db";
 import { isRowInRange } from "./drivers/tuple";
 import type { SelectQuery } from "./query";
 import { convertWhereToBound } from "./bounds";
@@ -22,6 +28,7 @@ type SelectRangeCmd = {
   index: string;
   selectQuery: SelectQuery;
   bounds: TupleScanOptions[];
+  originalError: Error;
 };
 type NoopCmd = { type: typeof noopType };
 
@@ -50,12 +57,15 @@ export function* runQuery<QType extends SelectQuery>(toQuery: {
       `Index not found: ${indexName as string} for table: ${table.tableName}`,
     );
 
+  const originalError = new Error();
+
   return (yield {
     type: "selectRange",
     table: table,
     index: indexName as string,
     selectQuery: query,
     bounds: convertWhereToBound(indexDef.cols as string[], query.where),
+    originalError,
   } satisfies SelectRangeCmd) as ExtractSchema<QType["from"]>[];
 }
 
@@ -153,7 +163,7 @@ const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
 };
 
 function runSelector<TReturn>(
-  db: SubscribableDB,
+  db: HyperDB,
   gen: () => Generator<unknown, TReturn, unknown>,
   selectRangeCmds: SelectRangeCmd[],
 ): TReturn {
@@ -165,16 +175,61 @@ function runSelector<TReturn>(
   while (!result.done) {
     if (isSelectRangeCmd(result.value)) {
       selectRangeCmds.push(result.value);
+      const val = result.value;
 
-      const { table, index, selectQuery } = result.value;
+      const { table, index, selectQuery, originalError } = val;
 
-      result = currentGen.next(
-        execSync(
-          db.intervalScan(table, index, selectQuery.where, {
-            limit: selectQuery.limit,
-          }),
-        ),
-      );
+      try {
+        result = currentGen.next(
+          execSync(
+            db.intervalScan(table, index, selectQuery.where, {
+              limit: selectQuery.limit,
+            }),
+          ),
+        );
+      } catch (error) {
+        console.error("orginal stack", originalError);
+        throw error;
+      }
+    } else if (isNoopCmd(result.value)) {
+      result = currentGen.next();
+    } else {
+      result = currentGen.next();
+    }
+  }
+
+  return result.value as TReturn;
+}
+
+export async function runSelectorAsync<TReturn>(
+  db: HyperDB,
+  gen: () => Generator<unknown, TReturn, unknown>,
+  selectRangeCmds: SelectRangeCmd[] = [],
+): Promise<TReturn> {
+  const currentGen = gen();
+  let result = currentGen.next();
+
+  selectRangeCmds.splice(0, selectRangeCmds.length);
+
+  while (!result.done) {
+    if (isSelectRangeCmd(result.value)) {
+      selectRangeCmds.push(result.value);
+      const val = result.value;
+
+      const { table, index, selectQuery, originalError } = val;
+
+      try {
+        result = currentGen.next(
+          await execAsync(
+            db.intervalScan(table, index, selectQuery.where, {
+              limit: selectQuery.limit,
+            }),
+          ),
+        );
+      } catch (error) {
+        console.error("orginal stack", originalError);
+        throw error;
+      }
     } else if (isNoopCmd(result.value)) {
       result = currentGen.next();
     } else {

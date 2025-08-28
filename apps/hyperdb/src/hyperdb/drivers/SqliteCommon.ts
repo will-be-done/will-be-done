@@ -102,12 +102,24 @@ export function buildOrderClause(
 
 export function buildInsertSQL(tableName: string, valueCount: number): string {
   const valuesQ = Array(valueCount).fill("(?, ?)").join(", ");
-  return `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`;
+  const sql = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`
+    .trim()
+    .replace(/\n+/g, " ");
+
+  console.log("%c" + sql, "color: #bada55");
+
+  return sql;
 }
 
 export function buildDeleteSQL(tableName: string, idCount: number): string {
   const placeholders = Array(idCount).fill("?").join(", ");
-  return `DELETE FROM ${tableName} WHERE id IN (${placeholders})`;
+  const sql = `DELETE FROM ${tableName} WHERE id IN (${placeholders})`
+    .trim()
+    .replace(/\n+/g, " ");
+
+  console.log("%c" + sql, "color: #bada55");
+
+  return sql;
 }
 
 export function buildSelectSQL(
@@ -119,21 +131,32 @@ export function buildSelectSQL(
   const limitClause =
     selectOptions.limit !== undefined ? `LIMIT ${selectOptions.limit}` : "";
 
-  return `
+  const sql = `
     SELECT data FROM ${tableName}
     ${whereClause}
     ${orderClause}
     ${limitClause}
-  `.trim();
+  `
+    .trim()
+    .replace(/\n+/g, " ");
+
+  console.log("%c" + sql, "color: #bada55");
+
+  return sql;
 }
 
 export function createTableSQL(tableName: string): string {
-  return `
+  const sql = `
     CREATE TABLE IF NOT EXISTS ${tableName} (
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL
     )
-  `;
+  `
+    .trim()
+    .replace(/\n+/g, " ");
+  console.log("%c" + sql, "color: #bada55");
+
+  return sql;
 }
 
 export function createIndexSQL(
@@ -148,8 +171,15 @@ export function createIndexSQL(
 
   const uniqueKeyword = isIdIndex ? "UNIQUE" : "";
 
-  return `
+  const sql = `
     CREATE ${uniqueKeyword} INDEX IF NOT EXISTS idx_${tableName}_${indexName} 
     ON ${tableName}(${columnPaths})
-  `;
+  `
+    .trim()
+    .replace(/\n+/g, " ");
+
+  console.log("%c" + sql, "color: #bada55");
+
+  return sql;
 }
+

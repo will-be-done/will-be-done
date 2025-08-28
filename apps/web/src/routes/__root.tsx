@@ -8,13 +8,14 @@ import { StoreProvider } from "@will-be-done/hyperstate";
 import "@/store/z.hot.ts";
 import { initDbStore } from "@/store2/slices/load";
 import { DBProvider } from "@will-be-done/hyperdb";
+import { initDbStore2 } from "@/store2/slices/load2";
 
 export const Route = createRootRoute({
   component: RouteComponent,
   loader: async () => {
     return {
       oldStore: await initStore(),
-      newStore: await initDbStore(),
+      newStore: await initDbStore2(),
     };
   },
 });

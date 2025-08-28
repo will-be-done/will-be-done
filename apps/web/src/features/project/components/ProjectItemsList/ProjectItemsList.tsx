@@ -23,7 +23,7 @@ import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { projectItemsSlice2 } from "@/store2/slices/store.ts";
+import { projectItemsSlice2, projectsSlice2 } from "@/store2/slices/store.ts";
 
 const AddTaskButton = ({
   project,
@@ -107,6 +107,7 @@ const ProjectTitle = ({ project }: { project: Project }) => {
   };
 
   const store = useAppStore();
+  const dispatch = useDispatch();
 
   return (
     <h2 className="text-xl font-bold text-gray-100 cursor-pointer">
@@ -120,9 +121,11 @@ const ProjectTitle = ({ project }: { project: Project }) => {
           <EmojiPicker
             className="h-[326px] rounded-lg border shadow-md"
             onEmojiSelect={({ emoji }) => {
-              projectsSlice.update(store, project.id, {
-                icon: emoji,
-              });
+              dispatch(
+                projectsSlice2.update(project.id, {
+                  icon: emoji,
+                }),
+              );
             }}
           >
             <EmojiPickerSearch />
@@ -141,9 +144,11 @@ const ProjectTitle = ({ project }: { project: Project }) => {
           className={cn({ hidden: !isEditing })}
           value={project.title}
           onChange={(e) => {
-            projectsSlice.update(store, project.id, {
-              title: e.target.value,
-            });
+            dispatch(
+              projectsSlice2.update(project.id, {
+                title: e.target.value,
+              }),
+            );
           }}
           onKeyDown={handleInputKeyDown}
         />
@@ -207,7 +212,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
                   "Are you sure you want to delete this project?",
                 );
                 if (shouldDelete) {
-                  projectsSlice.delete(store, project.id);
+                  dispatch(projectsSlice2.delete(project.id));
                 }
               }}
             >

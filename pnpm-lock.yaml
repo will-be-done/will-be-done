@@ -59,6 +59,9 @@ importers:
       '@types/sql.js':
         specifier: ^1.4.9
         version: 1.4.9
+      await-lock:
+        specifier: ^3.0.0
+        version: 3.0.0
       es:
         specifier: ^0.8.0
         version: 0.8.0

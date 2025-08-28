@@ -30,8 +30,6 @@ export const Details = () => {
     [item?.id],
   );
 
-  console.log("Details", item, id, task);
-
   if (isTask(item)) {
     return <TaskDetails task={item} showMakeTemplate={true} />;
   } else if (isTaskTemplate(item)) {

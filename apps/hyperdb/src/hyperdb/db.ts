@@ -10,7 +10,7 @@ export type WhereClause = {
   eq?: { col: string; val: Value }[];
 };
 
-export interface BaseDBOperations {
+export interface HyperDB {
   intervalScan<
     TTable extends TableDefinition,
     K extends keyof ExtractIndexes<TTable>,
@@ -32,17 +32,15 @@ export interface BaseDBOperations {
     table: TTable,
     ids: string[],
   ): Generator<DBCmd, void>;
-}
 
-export interface HyperDBTx extends BaseDBOperations {
-  commit(): Generator<DBCmd, void>;
-  rollback(): Generator<DBCmd, void>;
-}
-
-export interface HyperDB extends BaseDBOperations {
   beginTx(): Generator<DBCmd, HyperDBTx>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   loadTables(tables: TableDefinition<any, any>[]): Generator<DBCmd, void>;
+}
+
+export interface HyperDBTx extends HyperDB {
+  commit(): Generator<DBCmd, void>;
+  rollback(): Generator<DBCmd, void>;
 }
 
 export type Value = string | number | boolean | null;
@@ -151,13 +149,26 @@ export class DBTx implements HyperDBTx {
   driver: DBDriverTX;
   originalDB: DB;
   isFinished = false;
+  txCounter = 1;
 
   constructor(originalDB: DB, driverTx: DBDriverTX) {
     this.originalDB = originalDB;
     this.driver = driverTx;
   }
 
+  *loadTables(): Generator<DBCmd, void> {
+    throw new Error("Not supported");
+  }
+
+  *beginTx(): Generator<DBCmd, HyperDBTx> {
+    this.txCounter++;
+    return this;
+  }
+
   *commit(): Generator<DBCmd> {
+    this.txCounter--;
+    if (this.txCounter !== 0) return;
+
     this.isFinished = true;
     yield* this.driver.commit();
   }

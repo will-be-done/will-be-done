@@ -1,5 +1,4 @@
-import { strict as assert } from "assert";
-import { describe, it } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   insertAfter,
   insertBefore,
@@ -25,15 +24,15 @@ describe("ordered array", () => {
 
     // Find key: 2
     let result = search(array, 2);
-    assert.equal(result.found, 2);
+    expect(result.found).toBe(2);
 
     // Find key: 2.5
     result = search(array, 2.5);
-    assert.equal(result.closest, 3);
+    expect(result.closest).toBe(3);
 
     // Insert into the array.
     insert(array, { key: 2.5, value: 2.5 });
-    assert.deepEqual(array, [
+    expect(array).toEqual([
       { key: 0, value: 0 },
       { key: 1, value: 1 },
       { key: 2, value: 2 },
@@ -44,7 +43,7 @@ describe("ordered array", () => {
 
     // Remove from the array.
     remove(array, 3);
-    assert.deepEqual(array, [
+    expect(array).toEqual([
       { key: 0, value: 0 },
       { key: 1, value: 1 },
       { key: 2, value: 2 },
@@ -57,7 +56,7 @@ describe("ordered array", () => {
       if (item) return { ...item, value: item.value * 2 };
       else throw new Error("Broken.");
     });
-    assert.deepEqual(array, [
+    expect(array).toEqual([
       { key: 0, value: 0 },
       { key: 1, value: 2 },
       { key: 2, value: 2 },
@@ -70,7 +69,7 @@ describe("ordered array", () => {
       if (item) throw new Error("Broken.");
       else return { key: 1.5, value: 3 };
     });
-    assert.deepEqual(array, [
+    expect(array).toEqual([
       { key: 0, value: 0 },
       { key: 1, value: 2 },
       { key: 1.5, value: 3 },
@@ -84,7 +83,7 @@ describe("ordered array", () => {
       if (item) throw new Error("Broken.");
       else return { key: 0.5, value: 1 };
     });
-    assert.deepEqual(array, [
+    expect(array).toEqual([
       { key: 0, value: 0 },
       { key: 0.5, value: 1 },
       { key: 1, value: 2 },
@@ -100,7 +99,7 @@ describe("ordered array", () => {
       if (item) return { ...item, value: item.value * 2 };
       else throw new Error("Broken.");
     });
-    assert.deepEqual(array, [
+    expect(array).toEqual([
       { key: 0, value: 0 },
       { key: 0.5, value: 2 },
       { key: 1, value: 2 },
@@ -113,7 +112,7 @@ describe("ordered array", () => {
     update(array, 0.25, (item) => {
       if (item) throw new Error("Broken.");
     });
-    assert.deepEqual(array, [
+    expect(array).toEqual([
       { key: 0, value: 0 },
       { key: 0.5, value: 2 },
       { key: 1, value: 2 },
@@ -136,23 +135,20 @@ describe("ordered array", () => {
       a.push({ key: n, value: n });
       a.sort((a, b) => a.key - b.key);
       insert(b, { key: n, value: n });
-      assert.deepEqual(a, b);
+      expect(a).toEqual(b);
 
       // For every other value currently in the array.
       for (let j = 0; j < i; j++) {
         const m = numbers[j];
         // search
-        assert.equal(
+        expect(search(a, m).found).toBe(
           a.findIndex((x) => x.key === m),
-          search(a, m).found,
         );
-        assert.equal(
+        expect(search(a, m - 0.1).closest).toBe(
           a.findIndex((x) => x.key === m) + 1,
-          search(a, m - 0.1).closest,
         );
-        assert.equal(
+        expect(search(a, m + 0.1).closest).toBe(
           a.findIndex((x) => x.key === m),
-          search(a, m + 0.1).closest,
         );
 
         // upsert - update
@@ -162,12 +158,12 @@ describe("ordered array", () => {
           if (x) return { ...x, value: x.value * 2 };
           else throw new Error("Broken.");
         });
-        assert.deepEqual(aa, bb);
+        expect(aa).toEqual(bb);
 
         // remove
         aa = aa.filter((x) => x.key !== m);
         remove(bb, m);
-        assert.deepEqual(aa, bb);
+        expect(aa).toEqual(bb);
 
         // upsert - insert
         aa.push({ key: m, value: m * 3 });
@@ -176,7 +172,7 @@ describe("ordered array", () => {
           if (x) throw new Error("Broken.");
           else return { key: m, value: m * 3 };
         });
-        assert.deepEqual(aa, bb);
+        expect(aa).toEqual(bb);
       }
     }
   });
@@ -200,7 +196,7 @@ describe("ordered array", () => {
       log.splice(result.found! + 1, 0, { key: 3, value: 2 });
     }
 
-    assert.deepEqual(log, [
+    expect(log).toEqual([
       { key: 1, value: 1 },
       { key: 2, value: 1 },
       { key: 2, value: 2 },
@@ -220,7 +216,7 @@ describe("ordered array", () => {
     insertAfter(log, { key: 2, value: 3 }, ({ key }) => key);
     insertAfter(log, { key: 3, value: 2 }, ({ key }) => key);
 
-    assert.deepEqual(log, [
+    expect(log).toEqual([
       { key: 1, value: 1 },
       { key: 2, value: 1 },
       { key: 2, value: 2 },
@@ -249,7 +245,7 @@ describe("ordered array", () => {
       log.splice(result.found!, 0, { key: 3, value: 2 });
     }
 
-    assert.deepEqual(log, [
+    expect(log).toEqual([
       { key: 1, value: 1 },
       { key: 2, value: 3 },
       { key: 2, value: 2 },
@@ -269,7 +265,7 @@ describe("ordered array", () => {
     insertBefore(log, { key: 2, value: 3 }, ({ key }) => key);
     insertBefore(log, { key: 3, value: 2 }, ({ key }) => key);
 
-    assert.deepEqual(log, [
+    expect(log).toEqual([
       { key: 1, value: 1 },
       { key: 2, value: 3 },
       { key: 2, value: 2 },

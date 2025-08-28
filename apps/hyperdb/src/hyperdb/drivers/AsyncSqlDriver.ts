@@ -21,6 +21,7 @@ import {
   chunkArray,
   CHUNK_SIZE,
 } from "./SqliteCommon.ts";
+import AwaitLock from "await-lock";
 
 interface SQLitePrepareOptions {
   /**
@@ -181,6 +182,7 @@ class AsyncSqlDriverTx implements DBDriverTX {
   private committed = false;
   private rolledback = false;
   private onFinish: () => void;
+  private queryLock = new AwaitLock();
 
   constructor(
     sqlite3: AsyncSQLiteDB,
@@ -199,6 +201,7 @@ class AsyncSqlDriverTx implements DBDriverTX {
       throw new Error("Transaction already finished");
     }
 
+    console.log("%cCOMMIT", "color: #bada55");
     yield* unwrapCb(async () => {
       for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
         await this.sqlite3.step(stmt);
@@ -214,6 +217,7 @@ class AsyncSqlDriverTx implements DBDriverTX {
       throw new Error("Transaction already finished");
     }
 
+    console.log("%cROLLBACK", "color: #bada55");
     yield* unwrapCb(async () => {
       for await (const stmt of this.sqlite3.statements(this.db, "ROLLBACK")) {
         await this.sqlite3.step(stmt);
@@ -228,39 +232,63 @@ class AsyncSqlDriverTx implements DBDriverTX {
     tableName: string,
     values: Record<string, unknown>[],
   ): Generator<DBCmd, void> {
-    if (this.committed || this.rolledback) {
-      throw new Error("Transaction already finished");
+    yield* unwrapCb(async () => {
+      await this.queryLock.acquireAsync();
+    });
+
+    try {
+      if (this.committed || this.rolledback) {
+        throw new Error("Transaction already finished");
+      }
+      yield* performAsyncInsertOperation(
+        this.sqlite3,
+        this.db,
+        tableName,
+        values,
+      );
+    } finally {
+      this.queryLock.release();
     }
-    yield* performAsyncInsertOperation(
-      this.sqlite3,
-      this.db,
-      tableName,
-      values,
-    );
   }
 
   *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
-    if (this.committed || this.rolledback) {
-      throw new Error("Transaction already finished");
+    yield* unwrapCb(async () => {
+      await this.queryLock.acquireAsync();
+    });
+
+    try {
+      if (this.committed || this.rolledback) {
+        throw new Error("Transaction already finished");
+      }
+      yield* performAsyncUpdateOperation(
+        this.sqlite3,
+        this.db,
+        tableName,
+        values,
+      );
+    } finally {
+      this.queryLock.release();
     }
-    yield* performAsyncUpdateOperation(
-      this.sqlite3,
-      this.db,
-      tableName,
-      values,
-    );
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
-    if (this.committed || this.rolledback) {
-      throw new Error("Transaction already finished");
+    yield* unwrapCb(async () => {
+      await this.queryLock.acquireAsync();
+    });
+
+    try {
+      if (this.committed || this.rolledback) {
+        throw new Error("Transaction already finished");
+      }
+      yield* performAsyncDeleteOperation(
+        this.sqlite3,
+        this.db,
+        tableName,
+        values,
+      );
+    } finally {
+      this.queryLock.release();
     }
-    yield* performAsyncDeleteOperation(
-      this.sqlite3,
-      this.db,
-      tableName,
-      values,
-    );
   }
 
   *intervalScan(
@@ -269,19 +297,27 @@ class AsyncSqlDriverTx implements DBDriverTX {
     clauses: WhereClause[],
     selectOptions: SelectOptions,
   ): Generator<DBCmd, unknown[]> {
-    if (this.committed || this.rolledback) {
-      throw new Error("Transaction already finished");
-    }
+    yield* unwrapCb(async () => {
+      await this.queryLock.acquireAsync();
+    });
 
-    return yield* performAsyncScanOperation(
-      this.sqlite3,
-      this.db,
-      this.tableDefinitions,
-      table,
-      indexName,
-      clauses,
-      selectOptions,
-    );
+    try {
+      if (this.committed || this.rolledback) {
+        throw new Error("Transaction already finished");
+      }
+
+      return yield* performAsyncScanOperation(
+        this.sqlite3,
+        this.db,
+        this.tableDefinitions,
+        table,
+        indexName,
+        clauses,
+        selectOptions,
+      );
+    } finally {
+      this.queryLock.release();
+    }
   }
 }
 
@@ -289,7 +325,7 @@ export class AsyncSqlDriver implements DBDriver {
   private sqlite3: AsyncSQLiteDB;
   private db: number;
   private tableDefinitions = new Map<string, TableDefinition>();
-  private isInTransaction = false;
+  private txAndQueryLock = new AwaitLock();
 
   constructor(sqlite3: AsyncSQLiteDB, db: number) {
     this.sqlite3 = sqlite3;
@@ -297,10 +333,11 @@ export class AsyncSqlDriver implements DBDriver {
   }
 
   *beginTx(): Generator<DBCmd, DBDriverTX> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
+    yield* unwrapCb(async () => {
+      await this.txAndQueryLock.acquireAsync();
+    });
 
+    console.log("%cBEGIN TRANSACTION", "color: #bada55");
     yield* unwrapCb(async () => {
       for await (const stmt of this.sqlite3.statements(
         this.db,
@@ -310,12 +347,13 @@ export class AsyncSqlDriver implements DBDriver {
       }
     });
 
-    this.isInTransaction = true;
     return new AsyncSqlDriverTx(
       this.sqlite3,
       this.db,
       this.tableDefinitions,
-      () => (this.isInTransaction = false),
+      () => {
+        this.txAndQueryLock.release();
+      },
     );
   }
 
@@ -323,90 +361,111 @@ export class AsyncSqlDriver implements DBDriver {
     tableName: string,
     values: Record<string, unknown>[],
   ): Generator<DBCmd, void> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
-    if (values.length === 0) return;
-
     yield* unwrapCb(async () => {
-      for await (const stmt of this.sqlite3.statements(
+      await this.txAndQueryLock.acquireAsync();
+    });
+
+    try {
+      if (values.length === 0) return;
+
+      console.log("%cBEGIN TRANSACTION", "color: #bada55");
+      yield* unwrapCb(async () => {
+        for await (const stmt of this.sqlite3.statements(
+          this.db,
+          "BEGIN TRANSACTION",
+        )) {
+          await this.sqlite3.step(stmt);
+        }
+      });
+
+      yield* performAsyncInsertOperation(
+        this.sqlite3,
         this.db,
-        "BEGIN TRANSACTION",
-      )) {
-        await this.sqlite3.step(stmt);
-      }
-    });
+        tableName,
+        values,
+      );
 
-    yield* performAsyncInsertOperation(
-      this.sqlite3,
-      this.db,
-      tableName,
-      values,
-    );
-
-    yield* unwrapCb(async () => {
-      for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-        await this.sqlite3.step(stmt);
-      }
-    });
+      console.log("%cCOMMIT", "color: #bada55");
+      yield* unwrapCb(async () => {
+        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
+          await this.sqlite3.step(stmt);
+        }
+      });
+    } finally {
+      this.txAndQueryLock.release();
+    }
   }
 
   *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
-    if (values.length === 0) return;
-
     yield* unwrapCb(async () => {
-      for await (const stmt of this.sqlite3.statements(
+      await this.txAndQueryLock.acquireAsync();
+    });
+
+    try {
+      if (values.length === 0) return;
+
+      console.log("%cBEGIN TRANSACTION", "color: #bada55");
+      yield* unwrapCb(async () => {
+        for await (const stmt of this.sqlite3.statements(
+          this.db,
+          "BEGIN TRANSACTION",
+        )) {
+          await this.sqlite3.step(stmt);
+        }
+      });
+
+      yield* performAsyncUpdateOperation(
+        this.sqlite3,
         this.db,
-        "BEGIN TRANSACTION",
-      )) {
-        await this.sqlite3.step(stmt);
-      }
-    });
+        tableName,
+        values,
+      );
 
-    yield* performAsyncUpdateOperation(
-      this.sqlite3,
-      this.db,
-      tableName,
-      values,
-    );
-
-    yield* unwrapCb(async () => {
-      for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-        await this.sqlite3.step(stmt);
-      }
-    });
+      console.log("%cCOMMIT", "color: #bada55");
+      yield* unwrapCb(async () => {
+        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
+          await this.sqlite3.step(stmt);
+        }
+      });
+    } finally {
+      this.txAndQueryLock.release();
+    }
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
-    if (values.length === 0) return;
-
     yield* unwrapCb(async () => {
-      for await (const stmt of this.sqlite3.statements(
+      await this.txAndQueryLock.acquireAsync();
+    });
+
+    try {
+      if (values.length === 0) return;
+
+      console.log("%cBEGIN TRANSACTION", "color: #bada55");
+      yield* unwrapCb(async () => {
+        for await (const stmt of this.sqlite3.statements(
+          this.db,
+          "BEGIN TRANSACTION",
+        )) {
+          await this.sqlite3.step(stmt);
+        }
+      });
+
+      yield* performAsyncDeleteOperation(
+        this.sqlite3,
         this.db,
-        "BEGIN TRANSACTION",
-      )) {
-        await this.sqlite3.step(stmt);
-      }
-    });
+        tableName,
+        values,
+      );
 
-    yield* performAsyncDeleteOperation(
-      this.sqlite3,
-      this.db,
-      tableName,
-      values,
-    );
-
-    yield* unwrapCb(async () => {
-      for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-        await this.sqlite3.step(stmt);
-      }
-    });
+      console.log("%cCOMMIT", "color: #bada55");
+      yield* unwrapCb(async () => {
+        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
+          await this.sqlite3.step(stmt);
+        }
+      });
+    } finally {
+      this.txAndQueryLock.release();
+    }
   }
 
   *intervalScan(
@@ -415,51 +474,65 @@ export class AsyncSqlDriver implements DBDriver {
     clauses: WhereClause[],
     selectOptions: SelectOptions,
   ): Generator<DBCmd, unknown[]> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
+    yield* unwrapCb(async () => {
+      await this.txAndQueryLock.acquireAsync();
+    });
 
-    return yield* performAsyncScanOperation(
-      this.sqlite3,
-      this.db,
-      this.tableDefinitions,
-      table,
-      indexName,
-      clauses,
-      selectOptions,
-    );
+    try {
+      return yield* performAsyncScanOperation(
+        this.sqlite3,
+        this.db,
+        this.tableDefinitions,
+        table,
+        indexName,
+        clauses,
+        selectOptions,
+      );
+    } finally {
+      this.txAndQueryLock.release();
+    }
   }
 
   *loadTables(
     tableDefinitions: TableDefinition<any>[],
   ): Generator<DBCmd, void> {
     yield* unwrapCb(async () => {
-      for await (const stmt of this.sqlite3.statements(
-        this.db,
-        "BEGIN TRANSACTION",
-      )) {
-        await this.sqlite3.step(stmt);
-      }
+      await this.txAndQueryLock.acquireAsync();
+    });
 
-      tableDefinitions = cloneDeep(tableDefinitions);
-      for (const tableDef of tableDefinitions) {
-        for (const [, indexDef] of Object.entries(tableDef.indexes)) {
-          const cols = indexDef.cols;
-
-          if (cols[cols.length - 1] !== "id") {
-            cols.push("id");
-          }
+    try {
+      yield* unwrapCb(async () => {
+        console.log("%cBEGIN TRANSACTION", "color: #bada55");
+        for await (const stmt of this.sqlite3.statements(
+          this.db,
+          "BEGIN TRANSACTION",
+        )) {
+          await this.sqlite3.step(stmt);
         }
 
-        await this.createTable(tableDef.tableName);
-        await this.createIndexes(tableDef);
-        this.tableDefinitions.set(tableDef.tableName, tableDef);
-      }
+        tableDefinitions = cloneDeep(tableDefinitions);
+        for (const tableDef of tableDefinitions) {
+          for (const [, indexDef] of Object.entries(tableDef.indexes)) {
+            const cols = indexDef.cols;
 
-      for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-        await this.sqlite3.step(stmt);
-      }
-    });
+            if (cols[cols.length - 1] !== "id") {
+              cols.push("id");
+            }
+          }
+
+          await this.createTable(tableDef.tableName);
+          await this.createIndexes(tableDef);
+          this.tableDefinitions.set(tableDef.tableName, tableDef);
+        }
+
+        console.log("%cCOMMIT", "color: #bada55");
+        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
+          await this.sqlite3.step(stmt);
+        }
+      });
+    } finally {
+      this.txAndQueryLock.release();
+    }
   }
 
   private async createTable(tableName: string): Promise<void> {
@@ -483,8 +556,6 @@ export class AsyncSqlDriver implements DBDriver {
         cols,
         isIdIndex,
       );
-
-      console.log(sql);
 
       for await (const stmt of this.sqlite3.statements(this.db, sql)) {
         await this.sqlite3.step(stmt);
