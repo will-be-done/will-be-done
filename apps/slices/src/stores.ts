@@ -1,4 +1,4 @@
-import { isObjectType } from "@/store/z.utils";
+import { isObjectType } from "./utils";
 import { shouldNeverHappen } from "@/utils";
 import {
   action,
@@ -13,8 +13,8 @@ import {
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
-import { generateKeyPositionedBetween } from "@/store/order";
-import { assertUnreachable } from "@/utils/assert";
+import { generateKeyPositionedBetween } from "./utils";
+import { assertUnreachable } from "./utils";
 import uuidByString from "uuid-by-string";
 
 // TODO: remain to check:

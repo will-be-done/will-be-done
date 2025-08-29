@@ -44,15 +44,8 @@ import {
   projectsSlice2,
   Task,
   tasksSlice2,
-} from "@/store2/slices/store";
-import { useSelector } from "@will-be-done/hyperstate";
-import {
-  select,
-  useDB,
-  useDispatch,
-  useSelect,
-  useSyncSelector,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/slices";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 
 type State =
   | { type: "idle" }

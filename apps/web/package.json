@@ -35,6 +35,7 @@
     "@trpc/client": "^11.1.0",
     "@will-be-done/api": "workspace:*",
     "@will-be-done/hyperstate": "workspace:*",
+    "@will-be-done/slices": "workspace:*",
     "@will-be-done/hyperdb": "workspace:*",
     "await-lock": "^3.0.0",
     "broadcast-channel": "^7.1.0",

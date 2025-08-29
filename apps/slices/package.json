@@ -1,0 +1,23 @@
+{
+  "name": "@will-be-done/slices",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "dependencies": {
+    "@will-be-done/hyperdb": "workspace:*",
+    "es-toolkit": "^1.35.0",
+    "fractional-indexing-jittered": "^1.0.0",
+    "rrule": "^2.8.1",
+    "uuid-by-string": "^4.0.0",
+    "uuidv7": "^1.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
+    "globals": "^16.0.0",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.26.1"
+  }
+}

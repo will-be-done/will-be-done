@@ -37,7 +37,7 @@ import {
   allProjectsSlice2,
   projectItemsSlice2,
   projectsSlice2,
-} from "@/store2/slices/store";
+} from "@will-be-done/slices";
 import { useSelector } from "@will-be-done/hyperstate";
 
 type State =

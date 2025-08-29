@@ -17,7 +17,7 @@ import {
   tasksSlice2,
   TaskTemplate,
   taskTemplatesSlice2,
-} from "@/store2/slices/store";
+} from "@will-be-done/slices";
 
 // TODO: rename to ModelDetails
 export const Details = () => {

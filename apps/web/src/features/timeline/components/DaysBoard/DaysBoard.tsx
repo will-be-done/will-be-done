@@ -26,7 +26,7 @@ import {
   getDMY,
   inboxId,
   projectionsSlice2,
-} from "@/store2/slices/store";
+} from "@will-be-done/slices";
 
 // All days of the week
 const allWeekdays: string[] = [

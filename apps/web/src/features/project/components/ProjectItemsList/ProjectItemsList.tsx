@@ -23,7 +23,7 @@ import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { projectItemsSlice2, projectsSlice2 } from "@/store2/slices/store.ts";
+import { projectItemsSlice2, projectsSlice2 } from "@will-be-done/slices";
 
 const AddTaskButton = ({
   project,

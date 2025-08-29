@@ -15,7 +15,7 @@ import {
   dailyListsSlice2,
   projectsSlice2,
   Task,
-} from "@/store2/slices/store";
+} from "@will-be-done/slices";
 import { useMemo } from "react";
 
 function ProjectSuggestions({

@@ -6,7 +6,7 @@ import { ProjectItemsList } from "@/features/project/components/ProjectItemsList
 import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
 import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { useDB, useSyncSelector } from "@will-be-done/hyperdb";
-import { allProjectsSlice2, projectsSlice2 } from "@/store2/slices/store";
+import { allProjectsSlice2, projectsSlice2 } from "@will-be-done/slices";
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: RouteComponent,

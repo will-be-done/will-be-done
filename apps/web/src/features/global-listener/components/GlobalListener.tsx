@@ -21,7 +21,7 @@ import {
   projectionType,
   projectType,
   taskType,
-} from "@/store2/slices/store";
+} from "@will-be-done/slices";
 import { useDispatch, useSelect } from "@will-be-done/hyperdb";
 
 export function GlobalListener() {
