@@ -25,19 +25,21 @@ import {
 } from "./SqliteCommon.ts";
 import wasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
-interface QueryExecResult {
-  columns: string[];
-  values: SqlValue[][];
-}
+// interface QueryExecResult {
+//   columns: string[];
+//   values: SqlValue[][];
+// }
 
 interface SQLStatement {
-  bind(values?: BindParams): boolean;
-  get(params?: BindParams): SqlValue[];
-  step(): boolean;
-  free(): void;
+  values(values: SqlValue[]): SqlValue[][];
+  // all(params?: BindParams): QueryExecResult[];
+  // bind(values?: BindParams): boolean;
+  // get(params?: BindParams): SqlValue[];
+  // step(): boolean;
+  finalize(): void;
 }
 interface SQLiteDB {
-  exec(sql: string, params?: BindParams): QueryExecResult[];
+  exec(sql: string, params?: BindParams): void;
   prepare(sql: string): SQLStatement;
 }
 
@@ -113,17 +115,22 @@ function performScanOperation(
 
   const result: unknown[] = [];
   try {
-    q.bind(params);
+    const values = q.values(params);
 
-    while (q.step()) {
-      const res = q.get();
-      const record = JSON.parse(res[0] as string) as unknown;
+    for (const row of values) {
+      const record = JSON.parse(row[0] as string) as unknown;
       result.push(record);
     }
+
+    // while (q.step()) {
+    //   const res = q.get();
+    //   const record = JSON.parse(res[0] as string) as unknown;
+    //   result.push(record);
+    // }
   } catch (error) {
     throw new Error(`Scan failed for index ${indexName}: ${error}`);
   } finally {
-    q.free();
+    q.finalize();
   }
 
   return result;
@@ -340,7 +347,32 @@ export class SqlDriver implements DBDriver {
         locateFile: () => wasmUrl,
       });
 
-      return new SqlDriver(new SQL.Database());
+      const sqldb = new SQL.Database();
+
+      return new SqlDriver({
+        exec(sql: string, params: SqlValue[]): void {
+          sqldb.exec(sql, params);
+        },
+        prepare(sql: string): SQLStatement {
+          const prepared = sqldb.prepare(sql);
+
+          return {
+            values(values: SqlValue[]): SqlValue[][] {
+              prepared.bind(values);
+
+              const result: SqlValue[][] = [];
+              while (prepared.step()) {
+                result.push(prepared.get());
+              }
+
+              return result;
+            },
+            finalize(): void {
+              prepared.free();
+            },
+          };
+        },
+      });
     } catch (error) {
       console.error(error);
       throw new Error(

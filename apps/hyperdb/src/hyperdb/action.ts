@@ -1,11 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { execAsync, execSync, type HyperDB, type Row } from "./db";
+import { execAsync, execSync, type HyperDB, type Row, type Trait } from "./db";
 import { isSelectRangeCmd } from "./selector";
 import { type ExtractSchema, type TableDefinition } from "./table";
 
+const withTraitsType = "withTraits";
+const withoutTraitsType = "withoutTraits";
 const insertType = "insert";
 const updateType = "update";
 const deleteType = "delete";
+
+export type WithTraitsCmd = {
+  type: typeof withTraitsType;
+  traits: Trait[];
+};
+
+export type WithoutTraitsCmd = {
+  type: typeof withoutTraitsType;
+  traits: Trait[];
+};
 
 export type InsertActionCmd = {
   type: typeof insertType;
@@ -50,6 +62,20 @@ export function* insert<TTable extends TableDefinition<any, any>>(
     table,
     values,
   } satisfies InsertActionCmd;
+}
+
+export function* withTraits(...traits: Trait[]): Generator<unknown> {
+  yield {
+    type: withTraitsType,
+    traits,
+  } satisfies WithTraitsCmd;
+}
+
+export function* withoutTraits(...traits: Trait[]): Generator<unknown> {
+  yield {
+    type: withoutTraitsType,
+    traits,
+  } satisfies WithoutTraitsCmd;
 }
 
 export function* update<TTable extends TableDefinition<any, any>>(
@@ -114,6 +140,9 @@ export function syncDispatch<TReturn>(
 
     execSync(tx.commit());
     isCommitted = true;
+  } catch (e) {
+    console.error(e);
+    throw e;
   } finally {
     if (!isCommitted) {
       execSync(tx.rollback());

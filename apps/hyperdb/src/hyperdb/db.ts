@@ -1,6 +1,7 @@
 import { convertWhereToBound } from "./bounds";
 import { isNoopCmd, isUnwrapCmd, type DBCmd } from "./generators";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
+import { refVar, type RefVar } from "./utils";
 
 export type WhereClause = {
   lt?: { col: string; val: Value }[];
@@ -9,6 +10,8 @@ export type WhereClause = {
   gte?: { col: string; val: Value }[];
   eq?: { col: string; val: Value }[];
 };
+
+export type Trait = { type: string };
 
 export interface HyperDB {
   intervalScan<
@@ -32,6 +35,9 @@ export interface HyperDB {
     table: TTable,
     ids: string[],
   ): Generator<DBCmd, void>;
+  withTraits(...trait: Trait[]): HyperDB;
+  // withoutTraits(...trait: Trait[]): HyperDB;
+  getTraits(): Trait[];
 
   beginTx(): Generator<DBCmd, HyperDBTx>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -148,33 +154,58 @@ function* performDelete(
 export class DBTx implements HyperDBTx {
   driver: DBDriverTX;
   originalDB: DB;
-  isFinished = false;
-  txCounter = 1;
+  traits: Trait[] = [];
+  txCounter: RefVar<number>;
+  isFinished: RefVar<boolean>;
 
-  constructor(originalDB: DB, driverTx: DBDriverTX) {
+  constructor(
+    originalDB: DB,
+    driverTx: DBDriverTX,
+    txCounter: RefVar<number> = refVar(1),
+    isFinished: RefVar<boolean> = refVar(false),
+    currentTraits: Trait[] = [],
+  ) {
     this.originalDB = originalDB;
     this.driver = driverTx;
+    this.txCounter = txCounter;
+    this.isFinished = isFinished;
+    this.traits = currentTraits;
   }
 
   *loadTables(): Generator<DBCmd, void> {
     throw new Error("Not supported");
   }
 
+  withTraits(...traits: Trait[]): HyperDBTx {
+    return new DBTx(
+      this.originalDB,
+      this.driver,
+      this.txCounter,
+      this.isFinished,
+      [...this.traits, ...traits],
+    );
+  }
+
+  getTraits(): Trait[] {
+    return [...this.traits, ...this.originalDB.getTraits()];
+  }
+
   *beginTx(): Generator<DBCmd, HyperDBTx> {
-    this.txCounter++;
+    this.txCounter.val++;
+
     return this;
   }
 
   *commit(): Generator<DBCmd> {
-    this.txCounter--;
-    if (this.txCounter !== 0) return;
+    this.txCounter.val--;
+    if (this.txCounter.val !== 0) return;
 
-    this.isFinished = true;
+    this.isFinished.val = true;
     yield* this.driver.commit();
   }
 
   *rollback(): Generator<DBCmd> {
-    this.isFinished = true;
+    this.isFinished.val = true;
     yield* this.driver.rollback();
   }
 
@@ -200,7 +231,7 @@ export class DBTx implements HyperDBTx {
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd> {
-    if (this.isFinished) {
+    if (this.isFinished.val) {
       throw new Error("Transaction is finished");
     }
 
@@ -211,7 +242,7 @@ export class DBTx implements HyperDBTx {
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd> {
-    if (this.isFinished) {
+    if (this.isFinished.val) {
       throw new Error("Transaction is finished");
     }
 
@@ -222,7 +253,7 @@ export class DBTx implements HyperDBTx {
     table: TTable,
     ids: string[],
   ): Generator<DBCmd> {
-    if (this.isFinished) {
+    if (this.isFinished.val) {
       throw new Error("Transaction is finished");
     }
 
@@ -232,10 +263,25 @@ export class DBTx implements HyperDBTx {
 
 export class DB implements HyperDB {
   driver: DBDriver;
-  tables!: TableDefinition<any, any>[];
+  tables: TableDefinition<any, any>[] = [];
+  traits: Trait[] = [];
 
-  constructor(driver: DBDriver) {
+  constructor(
+    driver: DBDriver,
+    tables: TableDefinition<any, any>[] = [],
+    traits: Trait[] = [],
+  ) {
+    this.tables = tables;
+    this.traits = traits;
     this.driver = driver;
+  }
+
+  withTraits(...traits: Trait[]): HyperDB {
+    return new DB(this.driver, this.tables, [...this.traits, ...traits]);
+  }
+
+  getTraits(): Trait[] {
+    return this.traits;
   }
 
   *loadTables(tables: TableDefinition<any, any>[]): Generator<DBCmd, void> {

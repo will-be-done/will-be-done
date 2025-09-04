@@ -162,7 +162,7 @@ const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
   return false;
 };
 
-function runSelector<TReturn>(
+export function runSelector<TReturn>(
   db: HyperDB,
   gen: () => Generator<unknown, TReturn, unknown>,
   selectRangeCmds: SelectRangeCmd[],

@@ -1797,7 +1797,7 @@ export const dropSlice2 = {
 export const appSlice2 = {
   // selectors
   byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
-    for (const slice of Object.values(slices)) {
+    for (const slice of Object.values(appSlices)) {
       const item = yield* slice.byId(id);
       if (item) return item;
     }
@@ -1879,7 +1879,7 @@ export const appSlice2 = {
   }),
 };
 
-export const tables = [
+export const appSyncableTables = [
   { table: tasksTable, modelType: taskType },
   { table: taskProjectionsTable, modelType: projectionType },
   { table: taskTemplatesTable, modelType: taskTemplateType },
@@ -1887,7 +1887,22 @@ export const tables = [
   { table: dailyListsTable, modelType: dailyListType },
 ] as const;
 
-export const slices = {
+export type AppSyncableModel =
+  | Task
+  | TaskProjection
+  | TaskTemplate
+  | Project
+  | DailyList;
+
+export const syncableTablesMap = {
+  [tasksTable.tableName]: tasksTable,
+  [taskProjectionsTable.tableName]: taskProjectionsTable,
+  [taskTemplatesTable.tableName]: taskTemplatesTable,
+  [projectsTable.tableName]: projectsTable,
+  [dailyListsTable.tableName]: dailyListsTable,
+};
+
+export const appSlices = {
   [projectType]: projectsSlice2,
   [taskType]: tasksSlice2,
   [taskTemplateType]: taskTemplatesSlice2,

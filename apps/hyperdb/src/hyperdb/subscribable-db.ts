@@ -1,8 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { HyperDB, HyperDBTx, Row, SelectOptions, WhereClause } from "./db";
+import type {
+  HyperDB,
+  HyperDBTx,
+  Row,
+  SelectOptions,
+  Trait,
+  WhereClause,
+} from "./db";
 import type { DBCmd } from "./generators";
 // import { collectAll } from "./generators";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
+import { refVar, type RefVar } from "./utils";
 
 export type InsertOp = {
   type: "insert";
@@ -25,30 +33,68 @@ export type DeleteOp = {
 
 export type Op = InsertOp | UpdateOp | DeleteOp;
 
+type AfterInsertSub = (
+  db: HyperDB,
+  table: TableDefinition,
+  traits: Trait[],
+  ops: InsertOp[],
+) => Generator<DBCmd, void>;
+
 export class SubscribableDBTx implements HyperDBTx {
   // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, update, delete batches.
   // That will make async db tx apply very fast. Right now we need to wait each op of tx to finish
   // before applying next one. Cause otherwise if we will do in unordered way, we could get update before insert, for example.
-  operations: Op[] = [];
+  operations: Op[];
 
   private subDb: SubscribableDB;
   private txDb: HyperDBTx;
 
-  committed = false;
-  rollbacked = false;
-  txCounter = 1;
+  private committed: RefVar<boolean>;
+  private rollbacked: RefVar<boolean>;
+  private txCounter: RefVar<number>;
+  private traits: Trait[];
 
-  constructor(subDb: SubscribableDB, txDb: HyperDBTx) {
+  constructor(
+    subDb: SubscribableDB,
+    txDb: HyperDBTx,
+    ops: Op[] = [],
+    committed: RefVar<boolean> = refVar(false),
+    rollbacked: RefVar<boolean> = refVar(false),
+    txCounter: RefVar<number> = refVar(1),
+    traits: Trait[] = [],
+  ) {
     this.subDb = subDb;
     this.txDb = txDb;
+    this.operations = ops;
+    this.committed = committed;
+    this.rollbacked = rollbacked;
+    this.txCounter = txCounter;
+    this.traits = traits;
+  }
+
+  getTraits(): Trait[] {
+    return [...this.traits, ...this.subDb.getTraits()];
   }
 
   *loadTables(): Generator<DBCmd, void> {
     throw new Error("Not supported");
   }
 
+  withTraits(...traits: Trait[]): HyperDBTx {
+    return new SubscribableDBTx(
+      this.subDb,
+      this.txDb,
+      this.operations,
+      this.committed,
+      this.rollbacked,
+      this.txCounter,
+      [...this.traits, ...traits],
+    );
+  }
+
   *beginTx(): Generator<DBCmd, HyperDBTx> {
-    this.txCounter++;
+    this.txCounter.val++;
+
     return this;
   }
 
@@ -80,16 +126,18 @@ export class SubscribableDBTx implements HyperDBTx {
 
     yield* this.txDb.insert(table, records);
 
-    for (const cb of this.subDb.afterInsertSubscribers) {
-      yield* cb();
-    }
+    const insertOps = records.map(
+      (r) =>
+        ({
+          type: "insert",
+          table,
+          newValue: r,
+        }) satisfies InsertOp,
+    );
+    this.operations.push(...insertOps);
 
-    for (const record of records) {
-      this.operations.push({
-        type: "insert",
-        table,
-        newValue: record,
-      });
+    for (const cb of this.subDb.afterInsertSubscribers) {
+      yield* cb(this, table, this.getTraits(), insertOps);
     }
   }
 
@@ -148,38 +196,47 @@ export class SubscribableDBTx implements HyperDBTx {
   *rollback(): Generator<DBCmd, void> {
     this.throwIfDone();
     yield* this.txDb.rollback();
-    this.rollbacked = true;
+    this.rollbacked.val = true;
   }
 
   *commit(): Generator<DBCmd, void> {
-    this.txCounter--;
-    if (this.txCounter !== 0) return;
+    this.txCounter.val--;
+    if (this.txCounter.val !== 0) return;
 
     this.throwIfDone();
     yield* this.txDb.commit();
-    this.committed = true;
-    this.subDb.subscribers.forEach((s) => s(this.operations));
+    this.committed.val = true;
+    this.subDb.subscribers.forEach((s) => s(this.operations, this.getTraits()));
   }
 
   throwIfDone() {
-    if (this.committed) {
+    if (this.committed.val) {
       throw new Error("Cannot modify a committed tx");
     }
 
-    if (this.rollbacked) {
+    if (this.rollbacked.val) {
       throw new Error("Cannot modify a rollbacked tx");
     }
   }
 }
 
 export class SubscribableDB implements HyperDB {
-  subscribers: ((op: Op[]) => void)[] = [];
+  subscribers: ((op: Op[], traits: Trait[]) => void)[] = [];
   db: HyperDB;
 
-  afterInsertSubscribers: (() => Generator<DBCmd, void>)[] = [];
+  afterInsertSubscribers: AfterInsertSub[] = [];
+  traits: Trait[] = [];
 
-  constructor(db: HyperDB) {
+  constructor(
+    db: HyperDB,
+    subscribers: ((op: Op[], traits: Trait[]) => void)[] = [],
+    afterInsertSubscribers: AfterInsertSub[] = [],
+    traits: Trait[] = [],
+  ) {
     this.db = db;
+    this.subscribers = subscribers;
+    this.afterInsertSubscribers = afterInsertSubscribers;
+    this.traits = traits;
   }
 
   loadTables(tables: TableDefinition<any>[]): Generator<DBCmd, void> {
@@ -187,11 +244,29 @@ export class SubscribableDB implements HyperDB {
   }
 
   *beginTx(): Generator<DBCmd, HyperDBTx> {
-    return new SubscribableDBTx(this, yield* this.db.beginTx());
+    return new SubscribableDBTx(
+      this,
+      yield* this.db.beginTx(),
+      // this.subscribers,
+      // this.afterInsertSubscribers,
+      // this.traits,
+    );
   }
 
-  // TODO: add support for update and delete
-  afterInsert(cb: () => Generator<DBCmd, void>): () => void {
+  withTraits(...traits: Trait[]): HyperDB {
+    return new SubscribableDB(
+      this.db,
+      this.subscribers,
+      this.afterInsertSubscribers,
+      [...this.traits, ...traits],
+    );
+  }
+
+  getTraits(): Trait[] {
+    return [...this.traits, ...this.db.getTraits()];
+  }
+
+  afterInsert(cb: AfterInsertSub): () => void {
     this.afterInsertSubscribers.push(cb);
 
     return () => {
@@ -201,7 +276,7 @@ export class SubscribableDB implements HyperDB {
     };
   }
 
-  subscribe(cb: (op: Op[]) => void): () => void {
+  subscribe(cb: (op: Op[], traits: Trait[]) => void): () => void {
     this.subscribers.push(cb);
 
     return () => {
@@ -233,27 +308,27 @@ export class SubscribableDB implements HyperDB {
   *insert<TTable extends TableDefinition<any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
-  ) {
+  ): Generator<DBCmd, void> {
     if (records.length === 0) return;
 
     const tx = yield* this.db.beginTx();
 
-    yield* this.db.insert(table, records);
-    const ops = records.map(
-      (record): Op => ({
-        type: "insert",
-        table,
-        newValue: record,
-      }),
-    );
-
-    for (const cb of this.afterInsertSubscribers) {
-      yield* cb();
-    }
+    yield* tx.insert(table, records);
+    // const ops = records.map(
+    //   (record): InsertOp => ({
+    //     type: "insert",
+    //     table,
+    //     newValue: record,
+    //   }),
+    // );
+    //
+    // for (const cb of this.afterInsertSubscribers) {
+    //   yield* cb(this, table, this.getTraits(), ops);
+    // }
 
     yield* tx.commit();
 
-    this.subscribers.forEach((s) => s(ops));
+    // this.subscribers.forEach((s) => s(ops, this.getTraits()));
   }
 
   *update<TTable extends TableDefinition<any>>(
@@ -291,7 +366,7 @@ export class SubscribableDB implements HyperDB {
       }),
     );
 
-    this.subscribers.forEach((s) => s(ops));
+    this.subscribers.forEach((s) => s(ops, this.getTraits()));
   }
 
   *delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
@@ -308,6 +383,6 @@ export class SubscribableDB implements HyperDB {
 
     yield* this.db.delete(table, ids);
 
-    this.subscribers.forEach((s) => s(opsToNotify));
+    this.subscribers.forEach((s) => s(opsToNotify, this.getTraits()));
   }
 }
