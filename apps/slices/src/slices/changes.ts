@@ -1,5 +1,6 @@
 import {
   action,
+  deleteRows,
   insert,
   Row,
   runQuery,
@@ -13,7 +14,7 @@ import { isEqual } from "es-toolkit";
 import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
-import { syncableTablesMap } from "../stores";
+import { AppSyncableModel, syncableTablesMap } from "../stores";
 
 export type Change = {
   id: string;
@@ -211,6 +212,149 @@ export const changesSlice = {
       },
     ]);
   }),
+
+  mergeChanges: action(function* (
+    input: ChangesetArrayType,
+    nextClock: () => string,
+    clientId: string,
+  ) {
+    const allChanges: Change[] = [];
+
+    for (const changeset of input) {
+      const toDeleteRows: string[] = [];
+      const toUpdateRows: AppSyncableModel[] = [];
+      const toInsertRows: AppSyncableModel[] = [];
+
+      const table = syncableTablesMap[changeset.tableName];
+      if (!table) {
+        throw new Error("Unknown table: " + changeset.tableName);
+      }
+
+      const currentChanges = yield* runQuery(
+        selectFrom(changesTable, "byId").where((q) =>
+          changeset.data.map((c) => q.eq("id", c.change.id)),
+        ),
+      );
+      const currentChangesMap = new Map(currentChanges.map((c) => [c.id, c]));
+
+      const currentRows = yield* runQuery(
+        selectFrom(table, "byId").where((q) =>
+          changeset.data.map((c) => q.eq("id", c.change.id)),
+        ),
+      );
+      const currentRowsMap = new Map(currentRows.map((r) => [r.id, r]));
+
+      for (const {
+        change: incomingChange,
+        row: incomingRow,
+      } of changeset.data) {
+        const currentChanges = currentChangesMap.get(incomingChange.id);
+        const currentRow = currentRowsMap.get(incomingChange.id);
+
+        const { mergedChanges, mergedRow } = mergeChanges(
+          currentChanges?.changes ?? {},
+          incomingChange.changes,
+          currentRow ?? { id: incomingChange.id },
+          incomingRow ?? { id: incomingChange.id },
+        );
+
+        // Delete always wins, no conflict resolution needed actually
+        if (incomingChange.deletedAt != null) {
+          if (currentRow) {
+            toDeleteRows.push(currentRow.id);
+          }
+        } else if (currentRow) {
+          toUpdateRows.push(mergedRow as AppSyncableModel);
+        } else {
+          toInsertRows.push(mergedRow as AppSyncableModel);
+        }
+
+        const currentClock = nextClock();
+        const lastDeletedAt = (function () {
+          if (currentChanges && currentChanges.deletedAt) {
+            return currentChanges.deletedAt;
+          }
+
+          if (incomingChange.deletedAt != null) {
+            return currentClock;
+          }
+
+          return null;
+        })();
+
+        allChanges.push({
+          id: incomingChange.id,
+          tableName: table.tableName,
+          createdAt: currentChanges?.createdAt ?? currentClock,
+          updatedAt: currentClock,
+          deletedAt: lastDeletedAt,
+          clientId: clientId,
+          changes: mergedChanges,
+        });
+      }
+
+      yield* insert(table, toInsertRows);
+      yield* update(table, toUpdateRows);
+      yield* deleteRows(table, toDeleteRows);
+    }
+
+    console.log("changes to persist after merge", allChanges);
+
+    yield* insert(changesTable, allChanges);
+  }),
+};
+
+const mergeChanges = (
+  aChange: Record<string, string>,
+  bChange: Record<string, string>,
+  aRow: Row,
+  bRow: Row,
+): { mergedChanges: Record<string, string>; mergedRow: Row } => {
+  const mergedChanges: Record<string, string> = {};
+  // Start with aRow as the base. Unchanged fields will be preserved.
+  const mergedRow: Record<string, string | number | boolean | null> = {
+    ...aRow,
+  };
+
+  // Get all unique keys from both change objects
+  const allKeys = new Set([...Object.keys(aChange), ...Object.keys(bChange)]);
+
+  for (const key of allKeys) {
+    const changeTimestampA = aChange[key];
+    const changeTimestampB = bChange[key];
+
+    let winningTimestamp: string;
+    let winningValue: string | number | boolean | null;
+
+    if (changeTimestampA !== undefined && changeTimestampB !== undefined) {
+      // --- Conflict: The key was changed in both branches ---
+      // Compare the timestamps to find the winner.
+      if (changeTimestampA > changeTimestampB) {
+        // A is the winner
+        winningTimestamp = changeTimestampA;
+        winningValue = aRow[key]!;
+      } else {
+        // B is the winner (or they are equal, B wins the tie)
+        winningTimestamp = changeTimestampB;
+        winningValue = bRow[key]!;
+      }
+    } else if (changeTimestampA !== undefined) {
+      // --- Key was only changed in A ---
+      winningTimestamp = changeTimestampA;
+      winningValue = aRow[key]!;
+    } else {
+      // --- Key was only changed in B ---
+      // We can assert changeTimestampB is not undefined here.
+      winningTimestamp = changeTimestampB!;
+      winningValue = bRow[key]!;
+    }
+
+    // Update the merged results with the winning data
+    mergedChanges[key] = winningTimestamp;
+    mergedRow[key] = winningValue;
+  }
+
+  return { mergedChanges, mergedRow: mergedRow as Row };
 };
 
 const row = z.intersection(

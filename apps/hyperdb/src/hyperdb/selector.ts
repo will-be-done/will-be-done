@@ -287,7 +287,7 @@ export function initSelector<TReturn>(
 }
 
 export function select<TReturn>(
-  db: SubscribableDB,
+  db: HyperDB,
   gen: Generator<unknown, TReturn, unknown>,
 ): TReturn {
   return runSelector(db, () => gen, []);

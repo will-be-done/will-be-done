@@ -40,6 +40,20 @@ type AfterInsertSub = (
   ops: InsertOp[],
 ) => Generator<DBCmd, void>;
 
+type AfterUpdateSub = (
+  db: HyperDB,
+  table: TableDefinition,
+  traits: Trait[],
+  ops: UpdateOp[],
+) => Generator<DBCmd, void>;
+
+type AfterDeleteSub = (
+  db: HyperDB,
+  table: TableDefinition,
+  traits: Trait[],
+  ops: DeleteOp[],
+) => Generator<DBCmd, void>;
+
 export class SubscribableDBTx implements HyperDBTx {
   // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, update, delete batches.
   // That will make async db tx apply very fast. Right now we need to wait each op of tx to finish
@@ -168,29 +182,44 @@ export class SubscribableDBTx implements HyperDBTx {
 
     yield* this.txDb.update(table, records);
 
-    for (const record of records) {
-      this.operations.push({
-        type: "update",
-        table,
-        oldValue: previousRecords.get(record.id)!,
-        newValue: record,
-      });
+    const updateOps = records.map(
+      (record) =>
+        ({
+          type: "update",
+          table,
+          oldValue: previousRecords.get(record.id)!,
+          newValue: record,
+        }) satisfies UpdateOp,
+    );
+    this.operations.push(...updateOps);
+
+    for (const cb of this.subDb.afterUpdateSubscribers) {
+      yield* cb(this, table, this.getTraits(), updateOps);
     }
   }
 
-  *delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
+  *delete<TTable extends TableDefinition<any>>(
+    table: TTable,
+    ids: string[],
+  ): Generator<DBCmd, void> {
     this.throwIfDone();
     if (ids.length === 0) return;
 
+    const deleteOps: DeleteOp[] = [];
     for (const oldRecord of yield* this.txDb.intervalScan(
       table,
       table.idIndexName,
       ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
     )) {
-      this.operations.push({ type: "delete", table, oldValue: oldRecord });
+      deleteOps.push({ type: "delete", table, oldValue: oldRecord });
     }
+    this.operations.push(...deleteOps);
 
     yield* this.txDb.delete(table, ids);
+
+    for (const cb of this.subDb.afterDeleteSubscribers) {
+      yield* cb(this, table, this.getTraits(), deleteOps);
+    }
   }
 
   *rollback(): Generator<DBCmd, void> {
@@ -225,17 +254,23 @@ export class SubscribableDB implements HyperDB {
   db: HyperDB;
 
   afterInsertSubscribers: AfterInsertSub[] = [];
+  afterUpdateSubscribers: AfterUpdateSub[] = [];
+  afterDeleteSubscribers: AfterDeleteSub[] = [];
   traits: Trait[] = [];
 
   constructor(
     db: HyperDB,
     subscribers: ((op: Op[], traits: Trait[]) => void)[] = [],
     afterInsertSubscribers: AfterInsertSub[] = [],
+    afterUpdateSubscribers: AfterUpdateSub[] = [],
+    afterDeleteSubscribers: AfterDeleteSub[] = [],
     traits: Trait[] = [],
   ) {
     this.db = db;
     this.subscribers = subscribers;
     this.afterInsertSubscribers = afterInsertSubscribers;
+    this.afterUpdateSubscribers = afterUpdateSubscribers;
+    this.afterDeleteSubscribers = afterDeleteSubscribers;
     this.traits = traits;
   }
 
@@ -258,6 +293,8 @@ export class SubscribableDB implements HyperDB {
       this.db,
       this.subscribers,
       this.afterInsertSubscribers,
+      this.afterUpdateSubscribers,
+      this.afterDeleteSubscribers,
       [...this.traits, ...traits],
     );
   }
@@ -271,6 +308,26 @@ export class SubscribableDB implements HyperDB {
 
     return () => {
       this.afterInsertSubscribers = this.afterInsertSubscribers.filter(
+        (s) => s !== cb,
+      );
+    };
+  }
+
+  afterUpdate(cb: AfterUpdateSub): () => void {
+    this.afterUpdateSubscribers.push(cb);
+
+    return () => {
+      this.afterUpdateSubscribers = this.afterUpdateSubscribers.filter(
+        (s) => s !== cb,
+      );
+    };
+  }
+
+  afterDelete(cb: AfterDeleteSub): () => void {
+    this.afterDeleteSubscribers.push(cb);
+
+    return () => {
+      this.afterDeleteSubscribers = this.afterDeleteSubscribers.filter(
         (s) => s !== cb,
       );
     };
@@ -337,52 +394,18 @@ export class SubscribableDB implements HyperDB {
   ) {
     if (records.length === 0) return;
 
-    const previousRecords = new Map<string, Row>();
+    const tx = yield* this.db.beginTx();
 
-    for (const oldRecord of yield* this.db.intervalScan(
-      table,
-      table.idIndexName,
-      records.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
-    )) {
-      previousRecords.set(oldRecord.id, oldRecord);
-    }
-
-    for (const record of records) {
-      if (!previousRecords.has(record.id)) {
-        throw new Error(
-          `Failed to update record, no previous record found for ${table.tableName}=${record.id}`,
-        );
-      }
-    }
-
-    yield* this.db.update(table, records);
-
-    const ops = records.map(
-      (record): Op => ({
-        type: "update",
-        table,
-        oldValue: previousRecords.get(record.id)!,
-        newValue: record,
-      }),
-    );
-
-    this.subscribers.forEach((s) => s(ops, this.getTraits()));
+    yield* tx.update(table, records);
+    yield* tx.commit();
   }
 
   *delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
     if (ids.length === 0) return;
 
-    const opsToNotify: DeleteOp[] = [];
-    for (const oldRecord of yield* this.db.intervalScan(
-      table,
-      table.idIndexName,
-      ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
-    )) {
-      opsToNotify.push({ type: "delete", table, oldValue: oldRecord });
-    }
+    const tx = yield* this.db.beginTx();
 
-    yield* this.db.delete(table, ids);
-
-    this.subscribers.forEach((s) => s(opsToNotify, this.getTraits()));
+    yield* tx.delete(table, ids);
+    yield* tx.commit();
   }
 }

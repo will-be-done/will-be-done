@@ -212,6 +212,9 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     const syncSubDb = new SubscribableDB(syncDB);
     syncSubDb.afterInsert(function* (db, table, traits, ops) {
       if (table === changesTable) return;
+      if (traits.some((t) => t.type === "skip-sync")) {
+        return;
+      }
 
       for (const op of ops) {
         syncDispatch(
@@ -227,9 +230,50 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
 
       yield* noop();
     });
+    syncSubDb.afterUpdate(function* (db, table, traits, ops) {
+      if (table === changesTable) return;
+      if (traits.some((t) => t.type === "skip-sync")) {
+        return;
+      }
+
+      for (const op of ops) {
+        syncDispatch(
+          db,
+          changesSlice.insertChangeFromUpdate(
+            op.table,
+            op.oldValue,
+            op.newValue,
+            getClientId(),
+            nextClock,
+          ),
+        );
+      }
+
+      yield* noop();
+    });
+    syncSubDb.afterDelete(function* (db, table, traits, ops) {
+      if (table === changesTable) return;
+      if (traits.some((t) => t.type === "skip-sync")) {
+        return;
+      }
+
+      for (const op of ops) {
+        syncDispatch(
+          db,
+          changesSlice.insertChangeFromDelete(
+            op.table,
+            op.oldValue,
+            getClientId(),
+            nextClock,
+          ),
+        );
+      }
+
+      yield* noop();
+    });
     // TODO:
-    // 1. add support afterUpdate and afterDelete
-    // 2. merge backend receiving changesets with in-memory db
+    // 1. DONE add support afterUpdate and afterDelete
+    // 2. DONE merge backend receiving changesets with in-memory db
 
     const clientId = getClientId();
     const nextClock = initClock(clientId);
@@ -306,12 +350,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     new Syncer(asyncDB, getClientId(), nextClock, (e) => {
       syncDispatch(
         syncSubDb.withTraits({ type: "skip-sync" }),
-        (function* () {
-          for (const ch of e.changes) {
-            yield* deleteRows(ch.table, ch.toDeleteRows);
-            yield* insert(ch.table, ch.toInsertRows);
-          }
-        })(),
+        changesSlice.mergeChanges(e.changeset, nextClock, getClientId()),
       );
     }).startLoop();
 
@@ -324,11 +363,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
 };
 
 type ChangePersistedEvent = {
-  changes: {
-    table: (typeof syncableTablesMap)[string];
-    toDeleteRows: string[];
-    toInsertRows: AppSyncableModel[];
-  }[];
+  changeset: ChangesetArrayType;
 };
 
 class Syncer {
@@ -410,8 +445,6 @@ class Syncer {
 
     console.log("new changes from server", serverChanges);
 
-    const changes: ChangePersistedEvent["changes"] = [];
-
     const that = this;
     await asyncDispatch(
       this.persistentDB,
@@ -468,12 +501,6 @@ class Syncer {
 
           yield* insert(table, toInsertRows);
           yield* deleteRows(table, toDeleteRows);
-
-          changes.push({
-            table: table,
-            toDeleteRows,
-            toInsertRows,
-          });
         }
 
         yield* insert(changesTable, allChanges);
@@ -487,9 +514,7 @@ class Syncer {
     );
 
     try {
-      this.afterChangesPersisted({
-        changes,
-      });
+      this.afterChangesPersisted({ changeset: serverChanges.changesets });
     } catch (e) {
       console.error(e);
     }

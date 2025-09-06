@@ -14,6 +14,8 @@ import {
   update,
   runSelector,
   type Row,
+  select,
+  SubscribableDB,
 } from "@will-be-done/hyperdb";
 import * as dotenv from "dotenv";
 import {
@@ -25,6 +27,7 @@ import {
   type Change,
   type AppSyncableModel,
   changesSlice,
+  projectItemsSlice2,
 } from "@will-be-done/slices";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
@@ -34,6 +37,7 @@ import {
   fastifyTRPCPlugin,
   type FastifyTRPCPluginOptions,
 } from "@trpc/server/adapters/fastify";
+import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 dotenv.config();
 
@@ -82,12 +86,74 @@ const sqliteDriver = new SqlDriver({
   },
 });
 
-const hyperDB = new DB(sqliteDriver);
+const hyperDB = new SubscribableDB(new DB(sqliteDriver));
+
+hyperDB.afterInsert(function* (db, table, traits, ops) {
+  if (table === changesTable) return;
+  if (traits.some((t) => t.type === "skip-sync")) {
+    return;
+  }
+
+  for (const op of ops) {
+    syncDispatch(
+      db,
+      changesSlice.insertChangeFromInsert(
+        op.table,
+        op.newValue,
+        clientId,
+        nextClock,
+      ),
+    );
+  }
+
+  yield* noop();
+});
+hyperDB.afterUpdate(function* (db, table, traits, ops) {
+  if (table === changesTable) return;
+  if (traits.some((t) => t.type === "skip-sync")) {
+    return;
+  }
+
+  for (const op of ops) {
+    syncDispatch(
+      db,
+      changesSlice.insertChangeFromUpdate(
+        op.table,
+        op.oldValue,
+        op.newValue,
+        clientId,
+        nextClock,
+      ),
+    );
+  }
+
+  yield* noop();
+});
+hyperDB.afterDelete(function* (db, table, traits, ops) {
+  if (table === changesTable) return;
+  if (traits.some((t) => t.type === "skip-sync")) {
+    return;
+  }
+
+  for (const op of ops) {
+    syncDispatch(
+      db,
+      changesSlice.insertChangeFromDelete(
+        op.table,
+        op.oldValue,
+        clientId,
+        nextClock,
+      ),
+    );
+  }
+
+  yield* noop();
+});
 
 execSync(
   hyperDB.loadTables([...appSyncableTables.map((t) => t.table), changesTable]),
 );
-syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
+const inbox = syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
 
 // TODO: next
 // 1. Wite client changes to DB
@@ -103,14 +169,9 @@ const appRouter = router({
   getChangesAfter: publicProcedure
     .input(z.object({ lastServerUpdatedAt: z.string() }))
     .query(async (opts) => {
-      return runSelector(
+      return select(
         hyperDB,
-        function* () {
-          return yield* changesSlice.getChangesetAfter(
-            opts.input.lastServerUpdatedAt,
-          );
-        },
-        [],
+        changesSlice.getChangesetAfter(opts.input.lastServerUpdatedAt),
       );
     }),
   handleChanges: publicProcedure
@@ -118,219 +179,21 @@ const appRouter = router({
     .mutation(async (opts) => {
       const { input } = opts;
 
-      // [{
-      //   tableName: "task_projections",
-      //   data: [
-      //     {
-      //       row: {
-      //         type: "projection",
-      //         id: "0198f6d0-3eb1-7839-ba4d-0f679aedd3d5",
-      //         createdAt: 1756487499441,
-      //         taskId: "0198f6d0-3eb1-7839-ba4d-0f66d84eb36f",
-      //         dailyListId: "88d6e0fb-9d79-5b2d-9d48-1a09111a4aef",
-      //         orderToken: "Zv4DZ",
-      //       },
-      //       change: {
-      //         id: "0198f6d0-3eb1-7839-ba4d-0f679aedd3d5",
-      //         tableName: "task_projections",
-      //         deletedAt: null,
-      //         clientId: "VW55_xqa2KdHtr9nlHTVR",
-      //         changes: {
-      //           type: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //           id: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //           createdAt: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //           taskId: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //           dailyListId: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //           orderToken: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //         },
-      //         createdAt: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //         lastChangedAt: "1756487499469-0001-VW55_xqa2KdHtr9nlHTVR",
-      //       },
-      //     }, {
-      //       row: {
-      //         type: "projection",
-      //         id: "0198f6d0-32c0-7975-9e52-abf118b39bde",
-      //         createdAt: 1756487496384,
-      //         taskId: "0198f6d0-32c0-7975-9e52-abf0f524c444",
-      //         dailyListId: "15f3e910-cb01-5c4f-a429-9b6cb40047e6",
-      //         orderToken: "a06y0",
-      //       },
-      //       change: {
-      //         id: "0198f6d0-32c0-7975-9e52-abf118b39bde",
-      //         tableName: "task_projections",
-      //         deletedAt: null,
-      //         clientId: "VW55_xqa2KdHtr9nlHTVR",
-      //         changes: {
-      //           type: "1756487496427-0000-VW55_xqa2KdHtr9nlHTVR",
-      //           id: "1756487496427-0000-VW55_xqa2KdHtr9nlHTVR",
-      //           createdAt: "1756487496427-0000-VW55_xqa2KdHtr9nlHTVR",
-      //           taskId: "1756487496427-0000-VW55_xqa2KdHtr9nlHTVR",
-      //           dailyListId: "1756488280116-0000-VW55_xqa2KdHtr9nlHTVR",
-      //           orderToken: "1756488280116-0000-VW55_xqa2KdHtr9nlHTVR",
-      //         },
-      //         createdAt: "1756487496427-0000-VW55_xqa2KdHtr9nlHTVR",
-      //         lastChangedAt: "1756488280116-0000-VW55_xqa2KdHtr9nlHTVR",
-      //       },
-      //     }
-      //   ],
-      // }]
-
-      try {
-        syncDispatch(
-          hyperDB,
-          (function* () {
-            const allChanges: Change[] = [];
-
-            for (const changeset of input) {
-              const toDeleteRows: string[] = [];
-              const toUpdateRows: AppSyncableModel[] = [];
-              const toInsertRows: AppSyncableModel[] = [];
-
-              const table = syncableTablesMap[changeset.tableName];
-              if (!table) {
-                throw new Error("Unknown table: " + changeset.tableName);
-              }
-
-              const serverChanges = yield* runQuery(
-                selectFrom(changesTable, "byId").where((q) =>
-                  changeset.data.map((c) => q.eq("id", c.change.id)),
-                ),
-              );
-              const serverChangesMap = new Map(
-                serverChanges.map((c) => [c.id, c]),
-              );
-
-              const serverRows = yield* runQuery(
-                selectFrom(table, "byId").where((q) =>
-                  changeset.data.map((c) => q.eq("id", c.change.id)),
-                ),
-              );
-              const serverRowsMap = new Map(serverRows.map((r) => [r.id, r]));
-
-              for (const {
-                change: clientChange,
-                row: clientRow,
-              } of changeset.data) {
-                const serverChange = serverChangesMap.get(clientChange.id);
-                const serverRow = serverRowsMap.get(clientChange.id);
-
-                const { mergedChanges, mergedRow } = mergeChanges(
-                  serverChange?.changes ?? {},
-                  clientChange.changes,
-                  serverRow ?? { id: clientChange.id },
-                  clientRow ?? { id: clientChange.id },
-                );
-
-                // Delete always wins, no conflict resolution needed actually
-                if (clientChange.deletedAt != null) {
-                  if (serverRow) {
-                    toDeleteRows.push(serverRow.id);
-                  }
-                } else if (serverRow) {
-                  toUpdateRows.push(mergedRow as AppSyncableModel);
-                } else {
-                  toInsertRows.push(mergedRow as AppSyncableModel);
-                }
-
-                const currentClock = nextClock();
-                const lastDeletedAt = (function () {
-                  if (serverChange && serverChange.deletedAt) {
-                    return serverChange.deletedAt;
-                  }
-
-                  if (clientChange.deletedAt != null) {
-                    return currentClock;
-                  }
-
-                  return null;
-                })();
-
-                allChanges.push({
-                  id: clientChange.id,
-                  tableName: table.tableName,
-                  createdAt: serverChange?.createdAt ?? currentClock,
-                  updatedAt: currentClock,
-                  deletedAt: lastDeletedAt,
-                  clientId: clientId,
-                  changes: mergedChanges,
-                });
-              }
-
-              yield* insert(table, toInsertRows);
-              yield* update(table, toUpdateRows);
-              yield* deleteRows(table, toDeleteRows);
-            }
-
-            yield* insert(changesTable, allChanges);
-
-            // TODO: next:
-            // 1. Grab changes from server to client and just directly apply them
-          })(),
-        );
-      } catch (e) {
-        console.error(e);
-
-        throw e;
-      }
-
-      // console.log("handleChanges", input);
-
-      return {};
+      syncDispatch(
+        hyperDB.withTraits({ type: "skip-sync" }),
+        changesSlice.mergeChanges(input, nextClock, clientId),
+      );
     }),
 });
 
-const mergeChanges = (
-  aChange: Record<string, string>,
-  bChange: Record<string, string>,
-  aRow: Row,
-  bRow: Row,
-): { mergedChanges: Record<string, string>; mergedRow: Row } => {
-  const mergedChanges: Record<string, string> = {};
-  // Start with aRow as the base. Unchanged fields will be preserved.
-  const mergedRow: Record<string, string | number | boolean | null> = {
-    ...aRow,
-  };
-
-  // Get all unique keys from both change objects
-  const allKeys = new Set([...Object.keys(aChange), ...Object.keys(bChange)]);
-
-  for (const key of allKeys) {
-    const changeTimestampA = aChange[key];
-    const changeTimestampB = bChange[key];
-
-    let winningTimestamp: string;
-    let winningValue: string | number | boolean | null;
-
-    if (changeTimestampA !== undefined && changeTimestampB !== undefined) {
-      // --- Conflict: The key was changed in both branches ---
-      // Compare the timestamps to find the winner.
-      if (changeTimestampA > changeTimestampB) {
-        // A is the winner
-        winningTimestamp = changeTimestampA;
-        winningValue = aRow[key]!;
-      } else {
-        // B is the winner (or they are equal, B wins the tie)
-        winningTimestamp = changeTimestampB;
-        winningValue = bRow[key]!;
-      }
-    } else if (changeTimestampA !== undefined) {
-      // --- Key was only changed in A ---
-      winningTimestamp = changeTimestampA;
-      winningValue = aRow[key]!;
-    } else {
-      // --- Key was only changed in B ---
-      // We can assert changeTimestampB is not undefined here.
-      winningTimestamp = changeTimestampB!;
-      winningValue = bRow[key]!;
-    }
-
-    // Update the merged results with the winning data
-    mergedChanges[key] = winningTimestamp;
-    mergedRow[key] = winningValue;
-  }
-
-  return { mergedChanges, mergedRow: mergedRow as Row };
-};
+// setInterval(() => {
+//   syncDispatch(
+//     hyperDB,
+//     projectItemsSlice2.createTask(inbox.id, "append", {
+//       title: "test" + Math.random().toString(36).slice(2),
+//     }),
+//   );
+// }, 1000);
 
 const server = fastify({ logger: true });
 

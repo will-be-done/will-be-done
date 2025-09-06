@@ -23,6 +23,7 @@ export interface HyperDB {
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<DBCmd, ExtractSchema<TTable>[]>;
+  // TODO: not allow insert if record already exists
   insert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
