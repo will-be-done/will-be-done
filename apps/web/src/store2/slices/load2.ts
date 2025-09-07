@@ -46,6 +46,7 @@ import {
 } from "broadcast-channel";
 import { groupBy, maxBy } from "es-toolkit";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
+import { focusTable } from "./focusSlice";
 
 const initClock = (clientId: string) => {
   let now = Date.now();
@@ -207,12 +208,13 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
       syncDB.loadTables([
         ...appSyncableTables.map((t) => t.table),
         changesTable,
+        focusTable,
       ]),
     );
 
     const syncSubDb = new SubscribableDB(syncDB);
     syncSubDb.afterInsert(function* (db, table, traits, ops) {
-      if (table === changesTable) return;
+      if (table === changesTable || table === focusTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
@@ -233,6 +235,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     });
     syncSubDb.afterUpdate(function* (db, table, traits, ops) {
       if (table === changesTable) return;
+      if (table === changesTable || table === focusTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
@@ -254,6 +257,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     });
     syncSubDb.afterDelete(function* (db, table, traits, ops) {
       if (table === changesTable) return;
+      if (table === changesTable || table === focusTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
@@ -291,7 +295,9 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     syncSubDb.subscribe((ops, traits) => {
       console.log("ops", ops);
 
-      ops = ops.filter((op) => op.table !== changesTable);
+      ops = ops.filter(
+        (op) => op.table !== changesTable && op.table !== focusTable,
+      );
       if (ops.length === 0) return;
 
       if (traits.some((t) => t.type === "skip-sync")) {

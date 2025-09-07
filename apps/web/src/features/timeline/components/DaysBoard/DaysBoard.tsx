@@ -11,7 +11,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import { ColumnListProvider } from "@/features/focus/components/ParentListProvider.tsx";
-import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
+import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import { useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
@@ -311,12 +311,11 @@ const BoardView = ({
         ),
       );
 
-      focusSlice.editByKey(
-        store,
-        buildFocusKey(projection.id, projection.type),
+      dispatch(
+        focusSlice2.editByKey(buildFocusKey(projection.id, projection.type)),
       );
     },
-    [dispatch, store],
+    [dispatch],
   );
 
   return (

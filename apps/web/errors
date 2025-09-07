@@ -1,0 +1,110 @@
+
+> @will-be-done/web@0.0.0 ts /Users/quolpr/projects/quolpr/will-be-done/apps/web
+> tsc -b
+
+../hyperdb/src/hyperdb/drivers/tuple.ts(108,30): error TS2345: Argument of type 'ScanValue | undefined' is not assignable to parameter of type 'ScanValue'.
+  Type 'undefined' is not assignable to type 'ScanValue'.
+../hyperdb/src/hyperdb/drivers/tuple.ts(134,5): error TS18048: 'indexDef' is possibly 'undefined'.
+../hyperdb/src/hyperdb/drivers/tuple.ts(137,20): error TS18048: 'indexDef' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(92,11): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(94,49): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(94,54): error TS2339: Property 'children' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'children' does not exist on type 'LeafNode<K, V>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(102,23): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(102,28): error TS2339: Property 'children' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'children' does not exist on type 'LeafNode<K, V>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(117,12): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(131,11): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(133,23): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(133,28): error TS2339: Property 'children' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'children' does not exist on type 'LeafNode<K, V>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(152,25): error TS18048: 'parentIndex' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(162,41): error TS2538: Type 'undefined' cannot be used as an index type.
+../hyperdb/src/hyperdb/utils/bptree.ts(182,11): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(183,26): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(183,31): error TS2339: Property 'children' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'children' does not exist on type 'LeafNode<K, V>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(184,23): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(184,28): error TS2339: Property 'children' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'children' does not exist on type 'LeafNode<K, V>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(201,25): error TS18048: 'parentIndex' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(211,41): error TS2538: Type 'undefined' cannot be used as an index type.
+../hyperdb/src/hyperdb/utils/bptree.ts(305,25): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(340,27): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(390,23): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(426,25): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(481,29): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(520,27): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(565,11): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(566,47): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(566,52): error TS2339: Property 'values' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'values' does not exist on type 'BranchNode<K>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(573,49): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(573,54): error TS2339: Property 'children' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'children' does not exist on type 'LeafNode<K, V>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(576,23): error TS18048: 'node' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(576,28): error TS2339: Property 'children' does not exist on type 'BranchNode<K> | LeafNode<K, V>'.
+  Property 'children' does not exist on type 'LeafNode<K, V>'.
+../hyperdb/src/hyperdb/utils/bptree.ts(598,27): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(616,34): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(616,55): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(622,13): error TS18048: 'parentItem' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(624,35): error TS18048: 'parentItem' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(626,9): error TS18048: 'parentItem' is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(634,27): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(648,17): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(649,34): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(650,15): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(652,33): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(653,13): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(666,28): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(667,44): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(668,11): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(675,24): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(689,11): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(689,49): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(710,25): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(725,15): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(726,32): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(727,13): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(729,31): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(730,11): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(743,26): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(744,42): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(745,9): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(752,22): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(766,9): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(766,47): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/bptree.ts(792,35): error TS2532: Object is possibly 'undefined'.
+../hyperdb/src/hyperdb/utils/ordered-array.ts(45,35): error TS2345: Argument of type 'T | undefined' is not assignable to parameter of type 'T'.
+  'T' could be instantiated with an arbitrary type which could be unrelated to 'T | undefined'.
+../hyperdb/src/hyperdb/utils/ordered-array.ts(71,27): error TS2345: Argument of type 'T | undefined' is not assignable to parameter of type 'T'.
+  'T' could be instantiated with an arbitrary type which could be unrelated to 'T | undefined'.
+../hyperdb/src/hyperdb/utils/ordered-array.ts(92,27): error TS2345: Argument of type 'T | undefined' is not assignable to parameter of type 'T'.
+  'T' could be instantiated with an arbitrary type which could be unrelated to 'T | undefined'.
+src/components/Details/Details.tsx(6,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/components/Details/RepeatConfigModal.tsx(13,28): error TS2307: Cannot find module '@/store/slices/focusSlice' or its corresponding type declarations.
+src/components/Layout/Sidebar.tsx(3,31): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/components/MoveTaskModel/MoveModel.tsx(11,28): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/components/Task/Task.tsx(30,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/components/Task/Task.tsx(179,11): error TS2488: Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
+src/features/focus/components/ParentListProvider.tsx(7,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/features/focus/hooks/useLists.ts(5,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/features/global-listener/components/GlobalListener.tsx(10,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(2,43): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(23,40): error TS2307: Cannot find module '@/store/slices/projectsSlice.ts' or its corresponding type declarations.
+src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(24,35): error TS2307: Cannot find module '@/store/slices/projectItemsSlice.ts' or its corresponding type declarations.
+src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(177,58): error TS2345: Argument of type '{}[]' is not assignable to parameter of type 'string[]'.
+  Type '{}' is not assignable to type 'string'.
+src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(181,54): error TS2345: Argument of type '{}[]' is not assignable to parameter of type 'string[]'.
+  Type '{}' is not assignable to type 'string'.
+src/features/project/components/Sidebar/ProjectsSidebarContent.tsx(1,41): error TS2307: Cannot find module '@/store/backup' or its corresponding type declarations.
+src/features/project/components/Sidebar/ProjectsSidebarContent.tsx(28,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/features/project/components/Sidebar/ProjectsSidebarContent.tsx(144,38): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string[]'.
+src/features/timeline/components/DaysBoard/DaysBoard.tsx(14,43): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/features/timeline/components/TaskSuggestions/filterStore.ts(4,22): error TS2307: Cannot find module '@/store/slices/tasksSlice.ts' or its corresponding type declarations.
+src/features/timeline/components/TaskSuggestions/TaskSuggestions.tsx(5,43): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
+src/features/timeline/components/TaskSuggestions/TaskSuggestions.tsx(53,9): error TS2345: Argument of type '{}[]' is not assignable to parameter of type 'string[]'.
+  Type '{}' is not assignable to type 'string'.
+src/hooks/stateHooks.ts(3,27): error TS2307: Cannot find module '@/store/store.ts' or its corresponding type declarations.
+ ELIFECYCLE  Command failed with exit code 2.

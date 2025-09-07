@@ -2,10 +2,9 @@ import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/features/focus/components/ParentListProvider.tsx";
-import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
+import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import { useSuggestionsStore } from "./suggestionsStore";
 import { useShallow } from "zustand/react/shallow";
-import { useAppSelector } from "@/hooks/stateHooks.ts";
 import { TaskComp } from "@/components/Task/Task";
 import { useFilterStore } from "./filterStore";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -42,7 +41,7 @@ function ProjectSuggestions({
     [projectId],
   );
 
-  const id = useAppSelector(focusSlice.getFocusedModelId);
+  const id = useSyncSelector(() => focusSlice2.getFocusedModelId(), []);
   const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
   const taskIds = useSyncSelector(
     () =>

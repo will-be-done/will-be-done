@@ -1,5 +1,5 @@
 import { TaskComp } from "../../../../components/Task/Task.tsx";
-import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
+import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import {
   ColumnListProvider,
   ParentListItemProvider,
@@ -20,10 +20,18 @@ import { useCallback, useMemo, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { cn } from "@/lib/utils.ts";
 import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
 import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { projectItemsSlice2, projectsSlice2 } from "@will-be-done/slices";
+import {
+  select,
+  useDB,
+  useDispatch,
+  useSyncSelector,
+} from "@will-be-done/hyperdb";
+import {
+  Project,
+  projectItemsSlice2,
+  projectsSlice2,
+} from "@will-be-done/slices";
 
 const AddTaskButton = ({
   project,
@@ -57,11 +65,13 @@ const ProjectTitle = ({ project }: { project: Project }) => {
     "00",
   );
 
-  const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusableItem.key),
+  const isFocused = useSyncSelector(
+    () => focusSlice2.isFocused(focusableItem.key),
+    [focusableItem.key],
   );
-  const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusableItem.key),
+  const isEditing = useSyncSelector(
+    () => focusSlice2.isEditing(focusableItem.key),
+    [focusableItem.key],
   );
 
   // useGlobalListener("mousedown", (e: MouseEvent) => {
@@ -78,9 +88,11 @@ const ProjectTitle = ({ project }: { project: Project }) => {
   //   }
   // });
 
+  const db = useDB();
+  const dispatch = useDispatch();
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+    const isSomethingEditing = select(db, focusSlice2.isSomethingEditing());
+    const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
     if (isSomethingEditing) return;
     if (!isFocused) return;
     if (isFocusDisabled || e.defaultPrevented) return;
@@ -94,7 +106,7 @@ const ProjectTitle = ({ project }: { project: Project }) => {
     if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      focusSlice.editByKey(store, focusableItem.key);
+      dispatch(focusSlice2.editByKey(focusableItem.key));
     }
   });
 
@@ -102,12 +114,9 @@ const ProjectTitle = ({ project }: { project: Project }) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
 
-      focusSlice.resetEdit(store);
+      dispatch(focusSlice2.resetEdit());
     }
   };
-
-  const store = useAppStore();
-  const dispatch = useDispatch();
 
   return (
     <h2 className="text-xl font-bold text-gray-100 cursor-pointer">
@@ -154,7 +163,7 @@ const ProjectTitle = ({ project }: { project: Project }) => {
         />
         <span
           onDoubleClick={(e) => {
-            focusSlice.editByKey(store, focusableItem.key);
+            dispatch(focusSlice2.editByKey(focusableItem.key));
           }}
           className={cn("select-none", {
             hidden: isEditing,
@@ -170,7 +179,7 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 export const ProjectItemsList = ({ project }: { project: Project }) => {
   const store = useAppStore();
   const dispatch = useDispatch();
-  const id = useAppSelector(focusSlice.getFocusedModelId);
+  const id = useSyncSelector(() => focusSlice2.getFocusedModelId(), []);
   const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
 
   const doneChildrenIds = useSyncSelector(
@@ -187,8 +196,8 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
       projectItemsSlice2.createTask(project.id, "prepend"),
     );
 
-    focusSlice.editByKey(store, buildFocusKey(newTask.id, newTask.type));
-  }, [dispatch, project.id, store]);
+    dispatch(focusSlice2.editByKey(buildFocusKey(newTask.id, newTask.type)));
+  }, [dispatch, project.id]);
 
   const lastTaskI =
     notDoneChildrenIds.length == 0 ? 0 : notDoneChildrenIds.length - 1;
@@ -212,7 +221,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
                   "Are you sure you want to delete this project?",
                 );
                 if (shouldDelete) {
-                  dispatch(projectsSlice2.delete(project.id));
+                  dispatch(projectsSlice2.delete([project.id]));
                 }
               }}
             >
