@@ -667,9 +667,6 @@ export const TaskComp = ({
                     </div>
                   </>
                 )}
-                <div className="text-gray-200 min-h-6">
-                  {projectItem.title}-{projectItem.orderToken}
-                </div>
               </>
             )}
           </div>

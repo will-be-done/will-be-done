@@ -34,6 +34,7 @@ import {
   syncableTablesMap,
   ChangesetArrayType,
   AppSyncableModel,
+  taskTemplatesSlice2,
 } from "@will-be-done/slices";
 import * as SQLite from "wa-sqlite";
 import { createTRPCClient, httpBatchLink, TRPCClient } from "@trpc/client";
@@ -366,6 +367,16 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
         changesSlice.mergeChanges(data.changeset, nextClock, getClientId()),
       );
     };
+
+    void (async () => {
+      while (true) {
+        syncDispatch(
+          syncSubDb,
+          taskTemplatesSlice2.genTasksAndProjections(new Date()),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+      }
+    })();
 
     initedDb = syncSubDb;
 
