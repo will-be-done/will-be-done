@@ -29,6 +29,45 @@ export function buildWhereClause(
   const indexDef = tableDef.indexes[indexName];
   if (!indexDef) throw new Error(`Index ${indexName} not found`);
 
+  // Check if all clauses are equality-only (each clause only has eq, no other operators)
+  const allEqualityOnly = clauses.every(
+    (clause) => clause.eq && clause.eq.length > 0,
+  );
+
+  if (allEqualityOnly && clauses.length > 0) {
+    // Debug logging
+
+    // Optimize for IN clause when all conditions are equality
+    const columnValueMap = new Map<string, Value[]>();
+
+    for (const clause of clauses) {
+      if (clause.eq) {
+        for (const { col, val } of clause.eq) {
+          const colKey = String(col);
+          if (!columnValueMap.has(colKey)) {
+            columnValueMap.set(colKey, []);
+          }
+          columnValueMap.get(colKey)!.push(val);
+        }
+      }
+    }
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    for (const [col, values] of columnValueMap) {
+      const columnPath = `json_extract(data, '$.${col}')`;
+      const placeholders = values.map(() => "?").join(", ");
+      conditions.push(`${columnPath} IN (${placeholders})`);
+      params.push(...values);
+    }
+
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    return { where: whereClause, params };
+  }
+
+  // Fallback to original logic for mixed conditions
   const conditions: string[] = [];
   const params: any[] = [];
 
@@ -182,4 +221,3 @@ export function createIndexSQL(
 
   return sql;
 }
-

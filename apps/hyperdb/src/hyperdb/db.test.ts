@@ -127,6 +127,50 @@ describe("db", async () => {
     // new InmemDriver(),
     new BptreeInmemDriver(),
   ]) {
+    it("select multiple rows " + driver.constructor.name, () => {
+      const db = new SyncDB(new DB(driver));
+      db.loadTables([tasksTable]);
+
+      const tasks: Task[] = [
+        {
+          id: "task-1",
+          title: "Task 1",
+          state: "done",
+          projectId: "1",
+          orderToken: "b",
+          type: "task",
+          lastToggledAt: 0,
+        },
+        {
+          id: "task-2",
+          title: "Task 2",
+          state: "todo",
+          projectId: "1",
+          orderToken: "b",
+          type: "task",
+          lastToggledAt: 1,
+        },
+      ];
+      db.insert(tasksTable, tasks);
+
+      expect(
+        db.intervalScan(tasksTable, "ids", [
+          {
+            eq: [{ col: "id", val: "task-1" }],
+          },
+          {
+            eq: [{ col: "id", val: "task-2" }],
+          },
+        ]),
+      ).toEqual([tasks[0], tasks[1]]);
+    });
+  }
+
+  for (const driver of [
+    await SqlDriver.init(),
+    // new InmemDriver(),
+    new BptreeInmemDriver(),
+  ]) {
     it("works with hash " + driver.constructor.name, () => {
       const db = new SyncDB(new DB(driver));
       db.loadTables([tasksTable]);

@@ -8,6 +8,8 @@ import {
   projectType,
   Task,
   TaskProjection,
+  TaskTemplate,
+  taskTemplateType,
   taskType,
 } from "./stores";
 import uuidByString from "uuid-by-string";
@@ -47,11 +49,23 @@ interface DailyListProjectionBackup {
   createdAt: number;
 }
 
+interface TaskTemplateBackup {
+  id: string;
+  title: string;
+  projectId: string;
+  orderToken: string;
+  horizon: "week" | "month" | "year" | "someday";
+  repeatRule: string;
+  createdAt: number;
+  lastGeneratedAt: number;
+}
+
 export interface Backup {
   tasks: TaskBackup[];
   projects: ProjectBackup[];
   dailyLists: DailyListBackup[];
   dailyListProjections: DailyListProjectionBackup[];
+  taskTemplates: TaskTemplateBackup[];
 }
 
 export const getNewModels = (backup: Backup): AppSyncableModel[] => {
@@ -112,6 +126,31 @@ export const getNewModels = (backup: Backup): AppSyncableModel[] => {
     };
 
     models.push(dailyList);
+  }
+
+  // Create task templates
+  for (const templateBackup of backup.taskTemplates || []) {
+    const project = backup.projects.find((p) => p.id === templateBackup.projectId);
+    if (!project) {
+      console.warn(
+        `Project ${templateBackup.projectId} not found for template ${templateBackup.id}`,
+      );
+      continue;
+    }
+
+    const template: TaskTemplate = {
+      type: taskTemplateType,
+      id: templateBackup.id,
+      title: templateBackup.title,
+      projectId: templateBackup.projectId,
+      orderToken: templateBackup.orderToken,
+      horizon: templateBackup.horizon,
+      repeatRule: templateBackup.repeatRule,
+      createdAt: templateBackup.createdAt,
+      lastGeneratedAt: templateBackup.lastGeneratedAt,
+    };
+
+    models.push(template);
   }
 
   // Finally create daily list projections

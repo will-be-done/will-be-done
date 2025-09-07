@@ -1552,7 +1552,7 @@ export const tasksSlice2 = {
         projectId: task.projectId,
       });
 
-      yield* projectionsSlice2.delete(dropItem.id);
+      yield* projectionsSlice2.delete([dropItem.id]);
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
     }
@@ -1831,11 +1831,75 @@ export const dropSlice2 = {
 };
 
 export const appSlice2 = {
-  // getBackup: selector(function* (): GenReturn<Backup> {
-  //   for (const slice of Object.values(appSlices)) {
-  //     const models = yield* slice.all();
-  //   }
-  // }),
+  getBackup: selector(function* (): GenReturn<Backup> {
+    const tasks: Task[] = yield* tasksSlice2.all();
+    const projects: Project[] = yield* allProjectsSlice2.all();
+    const taskTemplates: TaskTemplate[] = yield* taskTemplatesSlice2.all();
+    const dailyLists: DailyList[] = [];
+    const dailyListProjections: TaskProjection[] = [];
+
+    // Get all daily lists
+    const allDailyListIds = yield* dailyListsSlice2.allIds();
+    for (const id of allDailyListIds) {
+      const dailyList = yield* dailyListsSlice2.byId(id);
+      if (dailyList) {
+        dailyLists.push(dailyList);
+      }
+    }
+
+    // Get all projections
+    const allProjectionIds = yield* projectionsSlice2.allIds();
+    for (const id of allProjectionIds) {
+      const projection = yield* projectionsSlice2.byId(id);
+      if (projection) {
+        dailyListProjections.push(projection);
+      }
+    }
+
+    return {
+      tasks: tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        state: task.state,
+        projectId: task.projectId,
+        orderToken: task.orderToken,
+        lastToggledAt: task.lastToggledAt,
+        createdAt: task.createdAt,
+        horizon: task.horizon,
+        templateId: task.templateId,
+        templateDate: task.templateDate,
+      })),
+      projects: projects.map((project) => ({
+        id: project.id,
+        title: project.title,
+        icon: project.icon,
+        isInbox: project.isInbox,
+        orderToken: project.orderToken,
+        createdAt: project.createdAt,
+      })),
+      dailyLists: dailyLists.map((dailyList) => ({
+        id: dailyList.id,
+        date: dailyList.date,
+      })),
+      dailyListProjections: dailyListProjections.map((projection) => ({
+        id: projection.id,
+        taskId: projection.taskId,
+        orderToken: projection.orderToken,
+        listId: projection.dailyListId,
+        createdAt: projection.createdAt,
+      })),
+      taskTemplates: taskTemplates.map((template) => ({
+        id: template.id,
+        title: template.title,
+        projectId: template.projectId,
+        orderToken: template.orderToken,
+        horizon: template.horizon,
+        repeatRule: template.repeatRule,
+        createdAt: template.createdAt,
+        lastGeneratedAt: template.lastGeneratedAt,
+      })),
+    };
+  }),
   loadBackup: selector(function* (backup: Backup): GenReturn<void> {
     for (const table of Object.values(syncableTablesMap)) {
       const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
