@@ -195,7 +195,10 @@ const appRouter = router({
 //   );
 // }, 1000);
 
-const server = fastify({ logger: true });
+const server = fastify({
+  logger: true,
+  bodyLimit: 100485760,
+});
 
 server.register(staticPlugin, {
   root: path.join(__dirname, "..", "public"),

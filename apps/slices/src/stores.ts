@@ -16,6 +16,7 @@ import { RRule } from "rrule";
 import { generateKeyPositionedBetween } from "./utils";
 import { assertUnreachable } from "./utils";
 import uuidByString from "uuid-by-string";
+import { Backup, getNewModels } from "./backup";
 
 // TODO: remain to check:
 // 1. DONE projections slice
@@ -258,6 +259,13 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
 }
 
 export const projectsSlice2 = {
+  allIds: selector(function* (): GenReturn<string[]> {
+    const projects = yield* runQuery(
+      selectFrom(projectsTable, "byOrderToken").where((q) => q),
+    );
+
+    return projects.map((p) => p.id);
+  }),
   // selectors
   byId: selector(function* (id: string): GenReturn<Project | undefined> {
     const projects = yield* runQuery(
@@ -345,8 +353,8 @@ export const projectsSlice2 = {
 
     yield* update(projectsTable, [{ ...projectInState, ...project }]);
   }),
-  delete: action(function* (id: string): GenReturn<void> {
-    yield* deleteRows(projectsTable, [id]);
+  delete: action(function* (ids: string[]): GenReturn<void> {
+    yield* deleteRows(projectsTable, ids);
   }),
   handleDrop: action(function* (
     projectId: string,
@@ -427,6 +435,13 @@ function createRuleFromString(ruleString: string): RRule {
 
 export const taskTemplatesSlice2 = {
   // selectors
+  allIds: selector(function* (): GenReturn<string[]> {
+    const templates = yield* runQuery(
+      selectFrom(taskTemplatesTable, "byIds").where((q) => q),
+    );
+
+    return templates.map((p) => p.id);
+  }),
   byId: selector(function* (id: string): GenReturn<TaskTemplate | undefined> {
     const templates = yield* runQuery(
       selectFrom(taskTemplatesTable, "byId")
@@ -548,15 +563,15 @@ export const taskTemplatesSlice2 = {
     yield* update(taskTemplatesTable, [{ ...templateInState, ...template }]);
     return templateInState;
   }),
-  delete: action(function* (id: string): GenReturn<void> {
-    const taskIds = yield* tasksSlice2.taskIdsOfTemplateId(id);
+  delete: action(function* (ids: string[]): GenReturn<void> {
+    const taskIds = yield* tasksSlice2.taskIdsOfTemplateId(ids);
     for (const tId of taskIds) {
       yield* tasksSlice2.update(tId, {
         templateId: undefined,
         templateDate: undefined,
       });
     }
-    yield* deleteRows(taskTemplatesTable, [id]);
+    yield* deleteRows(taskTemplatesTable, ids);
   }),
   createFromTask: action(function* (
     task: Task,
@@ -654,6 +669,13 @@ export function getDMY(date: Date): string {
 
 export const dailyListsSlice2 = {
   // selectors
+  allIds: selector(function* (): GenReturn<string[]> {
+    const dailyLists = yield* runQuery(
+      selectFrom(dailyListsTable, "byIds").where((q) => q),
+    );
+
+    return dailyLists.map((p) => p.id);
+  }),
   byId: selector(function* (id: string): GenReturn<DailyList | undefined> {
     const dailyLists = yield* runQuery(
       selectFrom(dailyListsTable, "byId")
@@ -854,8 +876,8 @@ export const dailyListsSlice2 = {
     }
     return results;
   }),
-  delete: action(function* (id: string): GenReturn<void> {
-    yield* deleteRows(dailyListsTable, [id]);
+  delete: action(function* (ids: string[]): GenReturn<void> {
+    yield* deleteRows(dailyListsTable, ids);
   }),
   createProjection: action(function* (
     dailyListId: string,
@@ -1171,6 +1193,13 @@ export const projectItemsSlice2 = {
 
 export const projectionsSlice2 = {
   // selectors
+  allIds: selector(function* (): GenReturn<string[]> {
+    const projections = yield* runQuery(
+      selectFrom(taskProjectionsTable, "byIds").where((q) => q),
+    );
+
+    return projections.map((p) => p.id);
+  }),
   byId: selector(function* (id: string): GenReturn<TaskProjection | undefined> {
     const projections = yield* runQuery(
       selectFrom(taskProjectionsTable, "byId").where((q) => q.eq("id", id)),
@@ -1273,8 +1302,8 @@ export const projectionsSlice2 = {
   }),
 
   // actions
-  delete: action(function* (id: string): GenReturn<void> {
-    yield* deleteRows(taskProjectionsTable, [id]);
+  delete: action(function* (ids: string[]): GenReturn<void> {
+    yield* deleteRows(taskProjectionsTable, ids);
   }),
   deleteProjectionsOfTask: action(function* (
     taskIds: string[],
@@ -1388,6 +1417,13 @@ export const projectionsSlice2 = {
 };
 
 export const tasksSlice2 = {
+  allIds: selector(function* (): GenReturn<string[]> {
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byIds").where((q) => q),
+    );
+
+    return tasks.map((p) => p.id);
+  }),
   canDrop: selector(function* (
     taskId: string,
     dropId: string,
@@ -1420,10 +1456,10 @@ export const tasksSlice2 = {
   byIdOrDefault: selector(function* (id: string): GenReturn<Task> {
     return (yield* tasksSlice2.byId(id)) || defaultTask;
   }),
-  taskIdsOfTemplateId: selector(function* (id: string): GenReturn<string[]> {
+  taskIdsOfTemplateId: selector(function* (ids: string[]): GenReturn<string[]> {
     const tasks = yield* runQuery(
       selectFrom(tasksTable, "byTemplateId").where((q) =>
-        q.eq("templateId", id),
+        ids.map((id) => q.eq("templateId", id)),
       ),
     );
 
@@ -1795,6 +1831,26 @@ export const dropSlice2 = {
 };
 
 export const appSlice2 = {
+  // getBackup: selector(function* (): GenReturn<Backup> {
+  //   for (const slice of Object.values(appSlices)) {
+  //     const models = yield* slice.all();
+  //   }
+  // }),
+  loadBackup: selector(function* (backup: Backup): GenReturn<void> {
+    for (const table of Object.values(syncableTablesMap)) {
+      const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
+        (r) => r.id,
+      );
+
+      yield* deleteRows(table, allIds);
+    }
+
+    const models = getNewModels(backup);
+
+    for (const model of models) {
+      yield* insert(appTypeTables[model.type], [model]);
+    }
+  }),
   // selectors
   byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
     for (const slice of Object.values(appSlices)) {
@@ -1908,4 +1964,12 @@ export const appSlices = {
   [taskTemplateType]: taskTemplatesSlice2,
   [projectionType]: projectionsSlice2,
   [dailyListType]: dailyListsSlice2,
+};
+
+export const appTypeTables = {
+  [projectType]: projectsTable,
+  [taskType]: tasksTable,
+  [taskTemplateType]: taskTemplatesTable,
+  [projectionType]: taskProjectionsTable,
+  [dailyListType]: dailyListsTable,
 };

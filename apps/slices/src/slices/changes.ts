@@ -204,7 +204,7 @@ export const changesSlice = {
       changes: {},
     };
 
-    yield* update(changesTable, [
+    yield* insert(changesTable, [
       {
         ...change,
         deletedAt,
@@ -271,6 +271,11 @@ export const changesSlice = {
 
         const currentClock = nextClock();
         const lastDeletedAt = (function () {
+          // TODO: maybe compare time too instead of reussrection?
+          if (incomingChange.deletedAt == null) {
+            return null; // resurrection!
+          }
+
           if (currentChanges && currentChanges.deletedAt) {
             return currentChanges.deletedAt;
           }

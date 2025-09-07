@@ -345,14 +345,27 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
       })();
     });
 
-    syncDispatch(syncSubDb, projectsSlice2.createInboxIfNotExists());
-
     new Syncer(asyncDB, getClientId(), nextClock, (e) => {
       syncDispatch(
         syncSubDb.withTraits({ type: "skip-sync" }),
         changesSlice.mergeChanges(e.changeset, nextClock, getClientId()),
       );
+
+      void bc.postMessage(e);
     }).startLoop();
+
+    syncDispatch(syncSubDb, projectsSlice2.createInboxIfNotExists());
+
+    const bc = new BroadcastChannel(`changes-${getClientId()}3`);
+
+    bc.onmessage = async (ev) => {
+      const data = ev as ChangePersistedEvent;
+
+      syncDispatch(
+        syncSubDb.withTraits({ type: "skip-sync" }),
+        changesSlice.mergeChanges(data.changeset, nextClock, getClientId()),
+      );
+    };
 
     initedDb = syncSubDb;
 

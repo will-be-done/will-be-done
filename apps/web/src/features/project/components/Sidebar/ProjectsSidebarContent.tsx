@@ -1,4 +1,4 @@
-import { getBackups, loadBackups, Backup } from "@/store/backup";
+import { getBackups, loadBackups } from "@/store/backup";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -28,6 +28,7 @@ import {
 } from "@/store/slices/focusSlice.ts";
 import { Link } from "@tanstack/react-router";
 import {
+  execSync,
   useDB,
   useDispatch,
   useSelect,
@@ -35,10 +36,12 @@ import {
 } from "@will-be-done/hyperdb";
 import {
   allProjectsSlice2,
+  appSlice2,
   projectItemsSlice2,
   projectsSlice2,
 } from "@will-be-done/slices";
 import { useSelector } from "@will-be-done/hyperstate";
+import { Backup } from "@will-be-done/slices";
 
 type State =
   | { type: "idle" }
@@ -533,7 +536,8 @@ export const ProjectsSidebarContent = () => {
           if (!isValidBackup(parsedBackup)) {
             throw new Error("Invalid backup format");
           }
-          loadBackups(store, parsedBackup);
+
+          dispatch(appSlice2.loadBackup(parsedBackup));
           // TODO: clean db
           // rootStore.dailyListRegistry.dropDuplicatedDailyLists();
         } catch (error) {
