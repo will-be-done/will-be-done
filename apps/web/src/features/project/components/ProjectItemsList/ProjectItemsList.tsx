@@ -19,8 +19,6 @@ import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { useCallback, useMemo, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { cn } from "@/lib/utils.ts";
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
 import {
   select,
   useDB,
@@ -177,7 +175,6 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 };
 
 export const ProjectItemsList = ({ project }: { project: Project }) => {
-  const store = useAppStore();
   const dispatch = useDispatch();
   const id = useSyncSelector(() => focusSlice2.getFocusedModelId(), []);
   const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);

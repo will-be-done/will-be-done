@@ -82,29 +82,4 @@
   'T' could be instantiated with an arbitrary type which could be unrelated to 'T | undefined'.
 ../hyperdb/src/hyperdb/utils/ordered-array.ts(92,27): error TS2345: Argument of type 'T | undefined' is not assignable to parameter of type 'T'.
   'T' could be instantiated with an arbitrary type which could be unrelated to 'T | undefined'.
-src/components/Details/Details.tsx(6,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/components/Details/RepeatConfigModal.tsx(13,28): error TS2307: Cannot find module '@/store/slices/focusSlice' or its corresponding type declarations.
-src/components/Layout/Sidebar.tsx(3,31): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/components/MoveTaskModel/MoveModel.tsx(11,28): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/components/Task/Task.tsx(30,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/components/Task/Task.tsx(179,11): error TS2488: Type 'unknown' must have a '[Symbol.iterator]()' method that returns an iterator.
-src/features/focus/components/ParentListProvider.tsx(7,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/features/focus/hooks/useLists.ts(5,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/features/global-listener/components/GlobalListener.tsx(10,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(2,43): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(23,40): error TS2307: Cannot find module '@/store/slices/projectsSlice.ts' or its corresponding type declarations.
-src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(24,35): error TS2307: Cannot find module '@/store/slices/projectItemsSlice.ts' or its corresponding type declarations.
-src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(177,58): error TS2345: Argument of type '{}[]' is not assignable to parameter of type 'string[]'.
-  Type '{}' is not assignable to type 'string'.
-src/features/project/components/ProjectItemsList/ProjectItemsList.tsx(181,54): error TS2345: Argument of type '{}[]' is not assignable to parameter of type 'string[]'.
-  Type '{}' is not assignable to type 'string'.
-src/features/project/components/Sidebar/ProjectsSidebarContent.tsx(1,41): error TS2307: Cannot find module '@/store/backup' or its corresponding type declarations.
-src/features/project/components/Sidebar/ProjectsSidebarContent.tsx(28,8): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/features/project/components/Sidebar/ProjectsSidebarContent.tsx(144,38): error TS2345: Argument of type 'string' is not assignable to parameter of type 'string[]'.
-src/features/timeline/components/DaysBoard/DaysBoard.tsx(14,43): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/features/timeline/components/TaskSuggestions/filterStore.ts(4,22): error TS2307: Cannot find module '@/store/slices/tasksSlice.ts' or its corresponding type declarations.
-src/features/timeline/components/TaskSuggestions/TaskSuggestions.tsx(5,43): error TS2307: Cannot find module '@/store/slices/focusSlice.ts' or its corresponding type declarations.
-src/features/timeline/components/TaskSuggestions/TaskSuggestions.tsx(53,9): error TS2345: Argument of type '{}[]' is not assignable to parameter of type 'string[]'.
-  Type '{}' is not assignable to type 'string'.
-src/hooks/stateHooks.ts(3,27): error TS2307: Cannot find module '@/store/store.ts' or its corresponding type declarations.
  ELIFECYCLE  Command failed with exit code 2.

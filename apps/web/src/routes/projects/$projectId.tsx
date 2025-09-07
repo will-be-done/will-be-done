@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAppSelector } from "@/hooks/stateHooks.ts";
 import { Layout } from "@/components/Layout/Layout";
 import { ProjectsSidebarContent } from "@/features/project/components/Sidebar/ProjectsSidebarContent";
 import { ProjectItemsList } from "@/features/project/components/ProjectItemsList/ProjectItemsList";

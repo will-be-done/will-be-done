@@ -1,9 +1,3 @@
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import {
-  buildFocusKey,
-  focusSlice,
-  parseColumnKey,
-} from "@/store/slices/focusSlice.ts";
 import { useState } from "react";
 import { RepeatConfigModal } from "./RepeatConfigModal";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
@@ -18,10 +12,15 @@ import {
   TaskTemplate,
   taskTemplatesSlice2,
 } from "@will-be-done/slices";
+import {
+  buildFocusKey,
+  focusSlice2,
+  parseColumnKey,
+} from "@/store2/slices/focusSlice";
 
 // TODO: rename to ModelDetails
 export const Details = () => {
-  const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
+  const currentFocusKey = useSyncSelector(() => focusSlice2.getFocusKey(), []);
   const { id } = currentFocusKey ? parseColumnKey(currentFocusKey) : {};
   const item = useSyncSelector(() => appSlice2.byId(id || ""), [id]);
 
@@ -64,11 +63,10 @@ export const TaskDetails = ({
   const lastToggledAt = new Date(task.lastToggledAt);
   const createdAt = new Date(task.createdAt);
   const dispatch = useDispatch();
-  const store = useAppStore();
 
   const [isRRuleModalOpen, setRRuleModalOpen] = useState(false);
 
-  const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
+  const currentFocusKey = useSyncSelector(() => focusSlice2.getFocusKey(), []);
   const parsedFocusKey = currentFocusKey
     ? parseColumnKey(currentFocusKey)
     : undefined;
@@ -104,14 +102,15 @@ export const TaskDetails = ({
             );
 
             if (parsedFocusKey) {
-              focusSlice.focusByKey(
-                store,
-                buildFocusKey(
-                  template.id,
-                  template.type,
-                  parsedFocusKey.component,
+              dispatch(
+                focusSlice2.focusByKey(
+                  buildFocusKey(
+                    template.id,
+                    template.type,
+                    parsedFocusKey.component,
+                  ),
+                  true,
                 ),
-                true,
               );
             }
           }}
@@ -126,8 +125,7 @@ export const TaskTemplateDetails = ({
 }: {
   taskTemplate: TaskTemplate;
 }) => {
-  const store = useAppStore();
-  const currentFocusKey = useAppSelector((state) => state.focus.focusItemKey);
+  const currentFocusKey = useSyncSelector(() => focusSlice2.getFocusKey(), []);
   const parsedFocusKey = currentFocusKey
     ? parseColumnKey(currentFocusKey)
     : undefined;
@@ -154,10 +152,11 @@ export const TaskTemplateDetails = ({
 
           if (parsedFocusKey) {
             // setTimeout(() => {
-            focusSlice.focusByKey(
-              store,
-              buildFocusKey(task.id, task.type, parsedFocusKey.component),
-              true,
+            dispatch(
+              focusSlice2.focusByKey(
+                buildFocusKey(task.id, task.type, parsedFocusKey.component),
+                true,
+              ),
             );
             // }, 0);
           }

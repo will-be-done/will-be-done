@@ -1,16 +1,10 @@
-import {
-  FocusKey,
-  focusSlice,
-  focusManager,
-} from "@/store/slices/focusSlice.ts";
 import { createContext, use, useEffect, useMemo } from "react";
-import { useAppStore } from "../../../hooks/stateHooks.ts";
 import { padStart } from "es-toolkit/compat";
+import { FocusKey, focusManager } from "@/store2/slices/focusSlice.ts";
 
 export const ParentListContext = createContext<FocusKey | undefined>(undefined);
 
 const useRegisterFocusColumn = (key: FocusKey, priority: string) => {
-  const store = useAppStore();
   const paddedPriority = padStart(priority, 7, "0");
 
   const item = useMemo(() => {
@@ -23,7 +17,7 @@ const useRegisterFocusColumn = (key: FocusKey, priority: string) => {
     return () => {
       focusManager.unregister(item.key);
     };
-  }, [item, store]);
+  }, [item]);
 
   return item;
 };
@@ -32,7 +26,6 @@ export const useRegisterFocusItem = (itemKey: FocusKey, priority: string) => {
   const paddedPriority = padStart(priority, 7, "0");
 
   const parentListKey = use(ParentListContext);
-  const store = useAppStore();
 
   const item = useMemo(() => {
     if (!parentListKey) {
@@ -47,7 +40,7 @@ export const useRegisterFocusItem = (itemKey: FocusKey, priority: string) => {
     return () => {
       focusManager.unregister(item.key);
     };
-  }, [item, store]);
+  }, [item]);
 
   return item;
 };

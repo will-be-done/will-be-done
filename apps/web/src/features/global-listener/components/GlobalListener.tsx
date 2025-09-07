@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { getUndoManager } from "@will-be-done/hyperstate";
-import { useAppStore } from "@/hooks/stateHooks.ts";
-import {
-  FocusKey,
-  focusManager,
-  focusSlice,
-} from "@/store/slices/focusSlice.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { isModelDNDData } from "@/features/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
@@ -22,21 +15,22 @@ import {
   projectType,
   taskType,
 } from "@will-be-done/slices";
-import { useDispatch, useSelect } from "@will-be-done/hyperdb";
+import { select, useDB, useDispatch, useSelect } from "@will-be-done/hyperdb";
+import {
+  FocusKey,
+  focusManager,
+  focusSlice2,
+} from "@/store2/slices/focusSlice";
 
 export function GlobalListener() {
-  const store = useAppStore();
-  // const undoManager = getUndoManager(store);
   const dispatch = useDispatch();
-  const select = useSelect();
+  const db = useDB();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isSomethingFocused = focusSlice.isSomethingFocused(
-        store.getState(),
-      );
+      const isSomethingFocused = select(db, focusSlice2.isSomethingFocused());
 
-      const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+      const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
 
       if (isFocusDisabled || e.defaultPrevented) return;
 
@@ -74,7 +68,7 @@ export function GlobalListener() {
       }
 
       if (e.code === "Escape" && !isSomethingFocused) {
-        focusSlice.resetFocus(store);
+        dispatch(focusSlice2.resetFocus());
 
         return;
       }
@@ -82,11 +76,11 @@ export function GlobalListener() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [store]);
+  }, [db, dispatch]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+      const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
 
       if (isFocusDisabled || e.defaultPrevented) return;
 
@@ -138,7 +132,7 @@ export function GlobalListener() {
       const isRight =
         e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
 
-      const focusItemKey = focusSlice.getFocusKey(store.getState());
+      const focusItemKey = select(db, focusSlice2.getFocusKey());
       const focusedItem = focusItemKey && focusManager.getItem(focusItemKey);
       if (focusedItem && (isUp || isDown)) {
         e.preventDefault();
@@ -148,11 +142,11 @@ export function GlobalListener() {
         if (isUp) {
           if (!up) return;
 
-          focusSlice.focusByKey(store, up.key);
+          dispatch(focusSlice2.focusByKey(up.key));
         } else if (isDown) {
           if (!down) return;
 
-          focusSlice.focusByKey(store, down.key);
+          dispatch(focusSlice2.focusByKey(down.key));
         }
       } else if (focusedItem && (isLeft || isRight)) {
         e.preventDefault();
@@ -164,11 +158,11 @@ export function GlobalListener() {
         if (isLeft) {
           if (!left) return;
 
-          focusSlice.focusByKey(store, left.key);
+          dispatch(focusSlice2.focusByKey(left.key));
         } else if (isRight) {
           if (!right) return;
 
-          focusSlice.focusByKey(store, right.key);
+          dispatch(focusSlice2.focusByKey(right.key));
         }
       }
     };
@@ -183,7 +177,7 @@ export function GlobalListener() {
         const focusableKey = focusedElement.getAttribute("data-focusable-key");
 
         if (focusableKey) {
-          focusSlice.focusByKey(store, focusableKey as FocusKey, true);
+          dispatch(focusSlice2.focusByKey(focusableKey as FocusKey, true));
         }
       }
     };
@@ -194,7 +188,7 @@ export function GlobalListener() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [store]);
+  }, [db, dispatch]);
 
   useEffect(() => {
     return combine(
@@ -223,7 +217,7 @@ export function GlobalListener() {
             if (!isModelDNDData(t.data)) {
               return [] as const;
             }
-            const entity = select(appSlice2.byId(t.data.modelId));
+            const entity = select(db, appSlice2.byId(t.data.modelId));
             if (!entity) return [] as const;
             return [[t, entity] as const];
           });
@@ -273,7 +267,7 @@ export function GlobalListener() {
         },
       }),
     );
-  }, [dispatch, select]);
+  }, [db, dispatch]);
 
   return <></>;
 }

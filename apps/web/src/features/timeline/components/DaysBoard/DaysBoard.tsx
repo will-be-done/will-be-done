@@ -12,7 +12,6 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import { ColumnListProvider } from "@/features/focus/components/ParentListProvider.tsx";
 import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
-import { useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
 import { Link } from "@tanstack/react-router";
@@ -142,7 +141,6 @@ const ColumnView = ({
     () => dailyListsSlice2.byIdOrDefault(dailyListId),
     [dailyListId],
   );
-  const store = useAppStore();
   const select = useSelect();
 
   useEffect(() => {
@@ -172,7 +170,7 @@ const ColumnView = ({
         canScroll: ({ source }) => isModelDNDData(source.data),
       }),
     );
-  }, [dailyList.id, dailyList.type, dailyListId, select, store]);
+  }, [dailyList.id, dailyList.type, dailyListId, select]);
 
   const selectedProjectIds = useSelectedProjectIds(
     (state) => state.selectedProjectIds,
@@ -267,7 +265,6 @@ const BoardView = ({
 }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
-  const store = useAppStore();
   const projectsList = useSyncSelector(
     () => allProjectsSlice2.dropdownProjectsList(),
     [],
@@ -468,12 +465,11 @@ export const Board = ({ selectedDate }: { selectedDate: Date }) => {
     () => dailyListsSlice2.idsByDates(weekDays),
     [weekDays],
   );
-  const store = useAppStore();
   const dispatch = useDispatch();
 
   useEffect(() => {
     dispatch(dailyListsSlice2.createManyIfNotPresent(weekDays));
-  }, [dispatch, store, weekDays]);
+  }, [dispatch, weekDays]);
 
   const setExceptDailyListIds = useSuggestionsStore(
     (state) => state.setExceptDailyListIds,

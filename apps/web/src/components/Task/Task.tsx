@@ -21,14 +21,6 @@ import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
-import {
-  buildFocusKey,
-  FocusKey,
-  focusManager,
-  focusSlice,
-  parseColumnKey,
-} from "@/store/slices/focusSlice.ts";
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
 import clsx from "clsx";
 import { RotateCw, CircleDashed } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,6 +38,13 @@ import {
   tasksSlice2,
 } from "@will-be-done/slices";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import {
+  buildFocusKey,
+  FocusKey,
+  focusManager,
+  focusSlice2,
+  parseColumnKey,
+} from "@/store2/slices/focusSlice";
 
 type State =
   | { type: "idle" }
@@ -141,7 +140,6 @@ export const TaskComp = ({
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const store = useAppStore();
   const focusableItem = useRegisterFocusItem(
     buildFocusKey(taskBox.id, taskBox.type),
     orderNumber,
@@ -151,7 +149,7 @@ export const TaskComp = ({
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
 
-      focusSlice.resetEdit(store);
+      dispatch(focusSlice2.resetEdit());
 
       // if (e.key === "Enter") {
       //   task.setTitle(editingTitle);
@@ -165,11 +163,13 @@ export const TaskComp = ({
   };
   const [dragId, setDragId] = useState<string | undefined>(undefined);
 
-  const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusableItem.key),
+  const isFocused = useSyncSelector(
+    () => focusSlice2.isFocused(focusableItem.key),
+    [focusableItem.key],
   );
-  const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusableItem.key),
+  const isEditing = useSyncSelector(
+    () => focusSlice2.isEditing(focusableItem.key),
+    [focusableItem.key],
   );
   const select = useSelect();
 
@@ -189,23 +189,15 @@ export const TaskComp = ({
     const downTask = downModel && select(appSlice2.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
-      focusSlice.focusByKey(store, down.key);
+      dispatch(focusSlice2.focusByKey(down.key));
     } else if (upTask && upTask.state === taskState) {
-      focusSlice.focusByKey(store, up.key);
+      dispatch(focusSlice2.focusByKey(up.key));
     }
-  }, [
-    dispatch,
-    focusableItem.key,
-    isFocused,
-    projectItem,
-    select,
-    store,
-    taskId,
-  ]);
+  }, [dispatch, focusableItem.key, isFocused, projectItem, select, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+    const isSomethingEditing = select(focusSlice2.isSomethingEditing());
+    const isFocusDisabled = select(focusSlice2.isFocusDisabled());
 
     if (isSomethingEditing) return;
     if (!isFocused) return;
@@ -373,16 +365,16 @@ export const TaskComp = ({
       dispatch(appSlice2.delete(taskBox.id));
 
       if (down) {
-        focusSlice.focusByKey(store, down.key);
+        dispatch(focusSlice2.focusByKey(down.key));
       } else if (up) {
-        focusSlice.focusByKey(store, up.key);
+        dispatch(focusSlice2.focusByKey(up.key));
       } else {
-        focusSlice.resetFocus(store);
+        dispatch(focusSlice2.resetFocus());
       }
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      focusSlice.editByKey(store, focusableItem.key);
+      dispatch(focusSlice2.editByKey(focusableItem.key));
     } else if (isAddAfter || isAddBefore) {
       if (isTask(projectItem) && projectItem.state === "done") return;
 
@@ -397,7 +389,7 @@ export const TaskComp = ({
             newTaskParams,
           ),
         );
-        focusSlice.editByKey(store, buildFocusKey(newBox.id, newBox.type));
+        dispatch(focusSlice2.editByKey(buildFocusKey(newBox.id, newBox.type)));
       });
 
       return;
@@ -513,7 +505,7 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [dispatch, isEditing, select, store, taskBox.id, taskBox.type]);
+  }, [dispatch, isEditing, select, taskBox.id, taskBox.type]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -549,15 +541,7 @@ export const TaskComp = ({
         }),
       );
     }
-  }, [
-    dispatch,
-    editingTitle,
-    isEditing,
-    prevIsEditing,
-    store,
-    taskId,
-    taskTitle,
-  ]);
+  }, [dispatch, editingTitle, isEditing, prevIsEditing, taskId, taskTitle]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
@@ -614,9 +598,11 @@ export const TaskComp = ({
           // isSelfDragging && "h-12",
         )}
         style={{}}
-        onClick={() => focusSlice.focusByKey(store, focusableItem.key, true)}
-        onDoubleClick={(e) => {
-          focusSlice.editByKey(store, focusableItem.key);
+        onClick={() =>
+          dispatch(focusSlice2.focusByKey(focusableItem.key, true))
+        }
+        onDoubleClick={() => {
+          dispatch(focusSlice2.editByKey(focusableItem.key));
         }}
         ref={ref}
       >

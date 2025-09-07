@@ -9,9 +9,9 @@ import {
   DialogPanel,
   DialogTitle,
 } from "@headlessui/react";
-import { useAppStore } from "@/hooks/stateHooks";
-import { focusSlice } from "@/store/slices/focusSlice";
 import { useUnmount } from "@/utils";
+import { useDispatch } from "@will-be-done/hyperdb";
+import { focusSlice2 } from "@/store2/slices/focusSlice";
 
 const repeatTypes = ["Daily", "Weekly", "Monthly", "Yearly"] as const;
 type RepeatType = (typeof repeatTypes)[number];
@@ -130,13 +130,13 @@ export function RepeatConfigModal({
   onClose,
   onOk,
 }: RepeatConfigModalProps) {
-  const store = useAppStore();
+  const dispatch = useDispatch();
   useEffect(() => {
-    focusSlice.disableFocus(store);
-  }, [store]);
+    dispatch(focusSlice2.disableFocus());
+  }, [dispatch]);
 
   useUnmount(() => {
-    focusSlice.enableFocus(store);
+    dispatch(focusSlice2.enableFocus());
   });
 
   const form = useForm({
