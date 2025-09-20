@@ -3,7 +3,6 @@ import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
-import { analyzer } from "vite-bundle-analyzer";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -15,7 +14,6 @@ export default defineConfig({
       },
     }),
     tailwindcss(),
-    analyzer(),
   ],
   resolve: {
     alias: {

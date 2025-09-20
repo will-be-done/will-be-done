@@ -8,7 +8,8 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
 COPY apps/api/package.json ./apps/api/
-COPY apps/hyperstate/package.json ./apps/hyperstate/
+COPY apps/hyperdb/package.json ./apps/hyperdb/
+COPY apps/slices/package.json ./apps/slices/
 # Install dependencies using pnpm
 # --frozen-lockfile ensures dependencies are installed exactly as specified in the lockfile
 RUN pnpm install --frozen-lockfile
