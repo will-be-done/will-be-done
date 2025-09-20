@@ -69,6 +69,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@eslint/js": "^9.21.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.1.0",
