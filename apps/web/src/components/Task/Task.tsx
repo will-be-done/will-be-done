@@ -21,28 +21,30 @@ import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
+import clsx from "clsx";
+import { RotateCw, CircleDashed } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { startOfDay } from "date-fns";
+import {
+  appSlice2,
+  dropSlice2,
+  isTask,
+  isTaskProjection,
+  isTaskTemplate,
+  projectionsSlice2,
+  projectItemsSlice2,
+  projectsSlice2,
+  Task,
+  tasksSlice2,
+} from "@will-be-done/slices";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   buildFocusKey,
   FocusKey,
   focusManager,
-  focusSlice,
+  focusSlice2,
   parseColumnKey,
-} from "@/store/slices/focusSlice.ts";
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import clsx from "clsx";
-import { appSlice } from "@/store/slices/appSlice.ts";
-import { isTask, Task, tasksSlice } from "@/store/slices/tasksSlice.ts";
-import { projectsSlice } from "@/store/slices/projectsSlice.ts";
-import { dropSlice } from "@/store/slices/dropSlice.ts";
-import {
-  isTaskProjection,
-  projectionsSlice,
-} from "@/store/slices/projectionsSlice.ts";
-import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
-import { RotateCw, CircleDashed } from "lucide-react";
-import { isTaskTemplate } from "@/store/slices/taskTemplatesSlice.ts";
-import { cn } from "@/lib/utils";
-import { startOfDay } from "date-fns";
+} from "@/store2/slices/focusSlice";
 
 type State =
   | { type: "idle" }
@@ -112,17 +114,24 @@ export const TaskComp = ({
   newTaskParams?: Partial<Task>;
   displayLastProjectionTime?: boolean;
 }) => {
-  const projectItem = useAppSelector((state) =>
-    projectItemsSlice.getItemById(state, taskId),
+  const dispatch = useDispatch();
+  const projectItem = useSyncSelector(
+    () => projectItemsSlice2.getItemById(taskId),
+    [taskId],
   );
-  const taskBox = useAppSelector((state) =>
-    appSlice.taskBoxByIdOrDefault(state, taskBoxId),
+  const taskBox = useSyncSelector(
+    () => appSlice2.taskBoxByIdOrDefault(taskBoxId),
+    [taskBoxId],
   );
-  const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectItem.projectId),
+  const project = useSyncSelector(
+    () => projectsSlice2.byIdOrDefault(projectItem.projectId),
+    [projectItem.projectId],
   );
-  const lastProjectionTime = useAppSelector(
-    (state) => projectionsSlice.lastProjectionOfTask(state, taskId)?.createdAt,
+  const lastProjectionTime = useSyncSelector(
+    function* () {
+      return (yield* projectionsSlice2.lastProjectionOfTask(taskId))?.createdAt;
+    },
+    [taskId],
   );
   const shouldHighlightProjectionTime =
     lastProjectionTime && startOfDay(new Date()).getTime() > lastProjectionTime;
@@ -131,7 +140,6 @@ export const TaskComp = ({
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const store = useAppStore();
   const focusableItem = useRegisterFocusItem(
     buildFocusKey(taskBox.id, taskBox.type),
     orderNumber,
@@ -141,7 +149,7 @@ export const TaskComp = ({
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
 
-      focusSlice.resetEdit(store);
+      dispatch(focusSlice2.resetEdit());
 
       // if (e.key === "Enter") {
       //   task.setTitle(editingTitle);
@@ -155,40 +163,41 @@ export const TaskComp = ({
   };
   const [dragId, setDragId] = useState<string | undefined>(undefined);
 
-  const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusableItem.key),
+  const isFocused = useSyncSelector(
+    () => focusSlice2.isFocused(focusableItem.key),
+    [focusableItem.key],
   );
-  const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusableItem.key),
+  const isEditing = useSyncSelector(
+    () => focusSlice2.isEditing(focusableItem.key),
+    [focusableItem.key],
   );
+  const select = useSelect();
 
   const handleTick = useCallback(() => {
     if (!isTask(projectItem)) return;
 
-    const [[up, upModel], [down, downModel]] = focusManager.getModelSiblings(
-      store.getState(),
-      focusableItem.key,
+    const [[up, upModel], [down, downModel]] = select(
+      focusManager.getModelSiblings(focusableItem.key),
     );
 
     const taskState = projectItem.state;
-    tasksSlice.toggleState(store, taskId);
+    dispatch(tasksSlice2.toggleState(taskId));
 
     if (!isFocused) return;
 
-    const upTask = upModel && appSlice.taskOfModel(store.getState(), upModel);
-    const downTask =
-      downModel && appSlice.taskOfModel(store.getState(), downModel);
+    const upTask = upModel && select(appSlice2.taskOfModel(upModel));
+    const downTask = downModel && select(appSlice2.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
-      focusSlice.focusByKey(store, down.key);
+      dispatch(focusSlice2.focusByKey(down.key));
     } else if (upTask && upTask.state === taskState) {
-      focusSlice.focusByKey(store, up.key);
+      dispatch(focusSlice2.focusByKey(up.key));
     }
-  }, [focusableItem.key, isFocused, projectItem, store, taskId]);
+  }, [dispatch, focusableItem.key, isFocused, projectItem, select, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+    const isSomethingEditing = select(focusSlice2.isSomethingEditing());
+    const isFocusDisabled = select(focusSlice2.isFocusDisabled());
 
     if (isSomethingEditing) return;
     if (!isFocused) return;
@@ -226,27 +235,35 @@ export const TaskComp = ({
     if (e.code === "Digit1" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "week",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "week",
+        }),
+      );
     } else if (e.code === "Digit2" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "month",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "month",
+        }),
+      );
     } else if (e.code === "Digit3" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "year",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "year",
+        }),
+      );
     } else if (e.code === "Digit4" && noModifiers) {
       e.preventDefault();
 
-      tasksSlice.update(store, taskId, {
-        horizon: "someday",
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          horizon: "someday",
+        }),
+      );
     } else if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
@@ -267,12 +284,12 @@ export const TaskComp = ({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dropSlice.handleDrop(store, id, taskBox.id, "top");
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, "top"));
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dropSlice.handleDrop(store, id, taskBox.id, "top");
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, "top"));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -285,7 +302,7 @@ export const TaskComp = ({
         const id = getId(up.key);
         if (!id) return;
 
-        const model = appSlice.byId(store.getState(), id);
+        const model = dispatch(appSlice2.byId(id));
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
@@ -305,14 +322,14 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dropSlice.handleDrop(store, id, taskBox.id, edge);
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, edge));
 
         scroll();
       } else if (isMoveDown && down) {
         const id = getId(down.key);
         if (!id) return;
 
-        const model = appSlice.byId(store.getState(), id);
+        const model = dispatch(appSlice2.byId(id));
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
@@ -332,7 +349,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dropSlice.handleDrop(store, id, taskBox.id, edge);
+        dispatch(dropSlice2.handleDrop(id, taskBox.id, edge));
 
         scroll();
       }
@@ -344,20 +361,21 @@ export const TaskComp = ({
     ) {
       e.preventDefault();
 
+      console.log("delete", focusableItem.key);
       const [up, down] = focusManager.getSiblings(focusableItem.key);
-      appSlice.delete(store, taskBox.id);
+      dispatch(appSlice2.delete(taskBox.id));
 
       if (down) {
-        focusSlice.focusByKey(store, down.key);
+        dispatch(focusSlice2.focusByKey(down.key));
       } else if (up) {
-        focusSlice.focusByKey(store, up.key);
+        dispatch(focusSlice2.focusByKey(up.key));
       } else {
-        focusSlice.resetFocus(store);
+        dispatch(focusSlice2.resetFocus());
       }
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      focusSlice.editByKey(store, focusableItem.key);
+      dispatch(focusSlice2.editByKey(focusableItem.key));
     } else if (isAddAfter || isAddBefore) {
       if (isTask(projectItem) && projectItem.state === "done") return;
 
@@ -365,13 +383,14 @@ export const TaskComp = ({
 
       unstable_batchedUpdates(() => {
         // TODO: maybe pass as prop to Task component
-        const newBox = appSlice.createTaskBoxSibling(
-          store,
-          taskBox,
-          isAddAfter ? "after" : "before",
-          newTaskParams,
+        const newBox = dispatch(
+          appSlice2.createTaskBoxSibling(
+            taskBox,
+            isAddAfter ? "after" : "before",
+            newTaskParams,
+          ),
         );
-        focusSlice.editByKey(store, buildFocusKey(newBox.id, newBox.type));
+        dispatch(focusSlice2.editByKey(buildFocusKey(newBox.id, newBox.type)));
       });
 
       return;
@@ -394,9 +413,11 @@ export const TaskComp = ({
 
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
-    tasksSlice.update(store, taskId, {
-      projectId,
-    });
+    dispatch(
+      tasksSlice2.update(taskId, {
+        projectId,
+      }),
+    );
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
@@ -445,7 +466,7 @@ export const TaskComp = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return dropSlice.canDrop(store.getState(), taskBox.id, data.modelId);
+          return select(dropSlice2.canDrop(taskBox.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -485,7 +506,7 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [isEditing, store, taskBox.id, taskBox.type]);
+  }, [dispatch, isEditing, select, taskBox.id, taskBox.type]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -515,17 +536,21 @@ export const TaskComp = ({
 
   useEffect(() => {
     if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
-      tasksSlice.update(store, taskId, {
-        title: editingTitle,
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          title: editingTitle,
+        }),
+      );
     }
-  }, [editingTitle, isEditing, prevIsEditing, store, taskId, taskTitle]);
+  }, [dispatch, editingTitle, isEditing, prevIsEditing, taskId, taskTitle]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
-      tasksSlice.update(store, taskId, {
-        title: editingTitle,
-      });
+      dispatch(
+        tasksSlice2.update(taskId, {
+          title: editingTitle,
+        }),
+      );
     }
   });
 
@@ -574,9 +599,11 @@ export const TaskComp = ({
           // isSelfDragging && "h-12",
         )}
         style={{}}
-        onClick={() => focusSlice.focusByKey(store, focusableItem.key, true)}
-        onDoubleClick={(e) => {
-          focusSlice.editByKey(store, focusableItem.key);
+        onClick={() =>
+          dispatch(focusSlice2.focusByKey(focusableItem.key, true))
+        }
+        onDoubleClick={() => {
+          dispatch(focusSlice2.editByKey(focusableItem.key));
         }}
         ref={ref}
       >
@@ -586,7 +613,7 @@ export const TaskComp = ({
             {isTaskTemplate(projectItem) && (
               <CircleDashed className="h-3 w-3 text-gray-400" />
             )}
-            {isTask(projectItem) && projectItem.templateData && (
+            {isTask(projectItem) && projectItem.templateId && (
               <RotateCw className="h-3 w-3 text-gray-400" />
             )}
           </div>

@@ -1,4 +1,3 @@
-import { getBackups, loadBackups, Backup } from "@/store/backup";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -20,16 +19,27 @@ import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
+import { Link } from "@tanstack/react-router";
+import {
+  execSync,
+  select,
+  useDB,
+  useDispatch,
+  useSelect,
+  useSyncSelector,
+} from "@will-be-done/hyperdb";
+import {
+  allProjectsSlice2,
+  appSlice2,
+  projectItemsSlice2,
+  projectsSlice2,
+} from "@will-be-done/slices";
+import { Backup } from "@will-be-done/slices";
 import {
   buildFocusKey,
   focusManager,
-  focusSlice,
-} from "@/store/slices/focusSlice.ts";
-import { Link } from "@tanstack/react-router";
-import { allProjectsSlice } from "@/store/slices/allProjectsSlice.ts";
-import { projectsSlice } from "@/store/slices/projectsSlice.ts";
-import { projectItemsSlice } from "@/store/slices/projectItemsSlice";
+  focusSlice2,
+} from "@/store2/slices/focusSlice";
 
 type State =
   | { type: "idle" }
@@ -77,8 +87,10 @@ const ProjectItem = function ProjectItemComp({
 }) {
   console.log("orderNumber", projectId, orderNumber);
 
-  const project = useAppSelector((state) =>
-    projectsSlice.byIdOrDefault(state, projectId),
+  const db = useDB();
+  const project = useSyncSelector(
+    () => projectsSlice2.byIdOrDefault(projectId),
+    [projectId],
   );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(project.id, project.type, "ProjectItem"),
@@ -86,16 +98,16 @@ const ProjectItem = function ProjectItemComp({
   );
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
-  const store = useAppStore();
 
   const ref = useRef<HTMLAnchorElement>(null);
 
-  const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusItem.key),
+  const isFocused = useSyncSelector(
+    () => focusSlice2.isFocused(focusItem.key),
+    [focusItem.key],
   );
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+    const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
 
     if (
       isFocused &&
@@ -104,13 +116,15 @@ const ProjectItem = function ProjectItemComp({
       !isFocusDisabled &&
       !e.defaultPrevented
     ) {
-      focusSlice.resetFocus(store);
+      dispatch(focusSlice2.resetFocus());
     }
   });
 
+  const dispatch = useDispatch();
+
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (!isFocused) return;
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+    const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
 
     if (isFocusDisabled || e.defaultPrevented) return;
     const activeElement =
@@ -126,19 +140,20 @@ const ProjectItem = function ProjectItemComp({
       e.preventDefault();
 
       const [up, down] = focusManager.getSiblings(focusItem.key);
-      projectsSlice.delete(store, project.id);
+
+      dispatch(projectsSlice2.delete([project.id]));
 
       if (down) {
-        focusSlice.focusByKey(store, down.key);
+        dispatch(focusSlice2.focusByKey(down.key));
       } else if (up) {
-        focusSlice.focusByKey(store, up.key);
+        dispatch(focusSlice2.focusByKey(up.key));
       } else {
-        focusSlice.resetFocus(store);
+        dispatch(focusSlice2.resetFocus());
       }
     } else if (e.code === "KeyI" && noModifiers) {
       e.preventDefault();
 
-      focusSlice.editByKey(store, focusItem.key);
+      dispatch(focusSlice2.editByKey(focusItem.key));
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
@@ -194,11 +209,7 @@ const ProjectItem = function ProjectItemComp({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return projectsSlice.canDrop(
-            store.getState(),
-            project.id,
-            data.modelId,
-          );
+          return select(db, projectsSlice2.canDrop(project.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -243,17 +254,18 @@ const ProjectItem = function ProjectItemComp({
         },
       }),
     );
-  }, [project.id, project.type, store]);
+  }, [db, project.id, project.type]);
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
-      focusSlice.resetEdit(store);
+      dispatch(focusSlice2.resetEdit());
     }
   };
 
-  const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusItem.key),
+  const isEditing = useSyncSelector(
+    () => focusSlice2.isEditing(focusItem.key),
+    [focusItem.key],
   );
 
   return (
@@ -293,7 +305,7 @@ const ProjectItem = function ProjectItemComp({
         href={`/projects/${project.id}`}
         onClick={() => {
           console.log("focusItem click", focusItem);
-          focusSlice.focusByKey(store, focusItem.key, true);
+          dispatch(focusSlice2.focusByKey(focusItem.key, true));
         }}
       >
         <span className="text-base mr-2 flex-shrink-0">
@@ -324,21 +336,25 @@ const ProjectItem = function ProjectItemComp({
 };
 
 const InboxItem = function IboxItemComp() {
-  const inboxProject = useAppSelector(allProjectsSlice.inbox);
-  const childrenCount = useAppSelector((state) => {
-    return projectItemsSlice.childrenIds(state, inboxProject.id).length;
-  });
+  const inboxProject = useSyncSelector(() => allProjectsSlice2.inbox(), []);
+  const childrenCount = useSyncSelector(
+    function* () {
+      return (yield* projectItemsSlice2.childrenIds(inboxProject.id)).length;
+    },
+    [inboxProject.id],
+  );
   const focusItem = useRegisterFocusItem(
     buildFocusKey(inboxProject.id, inboxProject.type),
     "*******",
   );
-  const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusItem.key),
+  const isFocused = useSyncSelector(
+    () => focusSlice2.isFocused(focusItem.key),
+    [focusItem.key],
   );
-  const store = useAppStore();
 
   const [closestEdge, setClosestEdge] = useState<"whole" | null>(null);
   const ref = useRef<HTMLAnchorElement>(null);
+  const select = useSelect();
 
   useEffect(() => {
     const element = ref.current;
@@ -354,11 +370,7 @@ const InboxItem = function IboxItemComp() {
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return projectsSlice.canDrop(
-            store.getState(),
-            inboxProject.id,
-            data.modelId,
-          );
+          return select(projectsSlice2.canDrop(inboxProject.id, data.modelId));
         },
 
         getData: ({ input, element }) => {
@@ -388,7 +400,7 @@ const InboxItem = function IboxItemComp() {
         },
       }),
     );
-  }, [inboxProject.id, inboxProject.type, store]);
+  }, [inboxProject.id, inboxProject.type, select]);
 
   return (
     <Link
@@ -465,10 +477,10 @@ const InboxItem = function IboxItemComp() {
 // };
 
 export const ProjectsSidebarContent = () => {
-  const projectIdsWithoutInbox = useAppSelector(
-    allProjectsSlice.childrenIdsWithoutInbox,
+  const projectIdsWithoutInbox = useSyncSelector(
+    () => allProjectsSlice2.childrenIdsWithoutInbox(),
+    [],
   );
-  const store = useAppStore();
 
   const isValidBackup = (data: unknown): data is Backup => {
     if (!data || typeof data !== "object") return false;
@@ -481,12 +493,13 @@ export const ProjectsSidebarContent = () => {
     );
   };
 
+  const dispatch = useDispatch();
   const createProject = () => {
-    projectsSlice.create(store, {}, "prepend");
+    dispatch(projectsSlice2.create({}, "prepend"));
   };
 
   const handleDownloadBackup = () => {
-    const backup = getBackups(store.getState());
+    const backup = dispatch(appSlice2.getBackup());
     const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: "application/json",
     });
@@ -522,7 +535,8 @@ export const ProjectsSidebarContent = () => {
           if (!isValidBackup(parsedBackup)) {
             throw new Error("Invalid backup format");
           }
-          loadBackups(store, parsedBackup);
+
+          dispatch(appSlice2.loadBackup(parsedBackup));
           // TODO: clean db
           // rootStore.dailyListRegistry.dropDuplicatedDailyLists();
         } catch (error) {

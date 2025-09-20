@@ -1,10 +1,9 @@
 import { TaskComp } from "../../../../components/Task/Task.tsx";
-import { buildFocusKey, focusSlice } from "@/store/slices/focusSlice.ts";
+import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import {
   ColumnListProvider,
   ParentListItemProvider,
 } from "@/features/focus/components/ParentListProvider.tsx";
-import { generateKeyBetween } from "fractional-indexing-jittered";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import {
   EmojiPicker,
@@ -17,14 +16,20 @@ import {
   PopoverTrigger,
 } from "../../../../components/ui/popover.tsx";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { cn } from "@/lib/utils.ts";
-import { useAppSelector, useAppStore } from "@/hooks/stateHooks.ts";
-import { padStart } from "es-toolkit/compat";
-import { tasksSlice } from "@/store/slices/tasksSlice.ts";
-import { Project, projectsSlice } from "@/store/slices/projectsSlice.ts";
-import { projectItemsSlice } from "@/store/slices/projectItemsSlice.ts";
+import {
+  select,
+  useDB,
+  useDispatch,
+  useSyncSelector,
+} from "@will-be-done/hyperdb";
+import {
+  Project,
+  projectItemsSlice2,
+  projectsSlice2,
+} from "@will-be-done/slices";
 
 const AddTaskButton = ({
   project,
@@ -58,11 +63,13 @@ const ProjectTitle = ({ project }: { project: Project }) => {
     "00",
   );
 
-  const isFocused = useAppSelector((state) =>
-    focusSlice.isFocused(state, focusableItem.key),
+  const isFocused = useSyncSelector(
+    () => focusSlice2.isFocused(focusableItem.key),
+    [focusableItem.key],
   );
-  const isEditing = useAppSelector((state) =>
-    focusSlice.isEditing(state, focusableItem.key),
+  const isEditing = useSyncSelector(
+    () => focusSlice2.isEditing(focusableItem.key),
+    [focusableItem.key],
   );
 
   // useGlobalListener("mousedown", (e: MouseEvent) => {
@@ -79,9 +86,11 @@ const ProjectTitle = ({ project }: { project: Project }) => {
   //   }
   // });
 
+  const db = useDB();
+  const dispatch = useDispatch();
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    const isSomethingEditing = focusSlice.isSomethingEditing(store.getState());
-    const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+    const isSomethingEditing = select(db, focusSlice2.isSomethingEditing());
+    const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
     if (isSomethingEditing) return;
     if (!isFocused) return;
     if (isFocusDisabled || e.defaultPrevented) return;
@@ -95,7 +104,7 @@ const ProjectTitle = ({ project }: { project: Project }) => {
     if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      focusSlice.editByKey(store, focusableItem.key);
+      dispatch(focusSlice2.editByKey(focusableItem.key));
     }
   });
 
@@ -103,11 +112,9 @@ const ProjectTitle = ({ project }: { project: Project }) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
 
-      focusSlice.resetEdit(store);
+      dispatch(focusSlice2.resetEdit());
     }
   };
-
-  const store = useAppStore();
 
   return (
     <h2 className="text-xl font-bold text-gray-100 cursor-pointer">
@@ -121,9 +128,11 @@ const ProjectTitle = ({ project }: { project: Project }) => {
           <EmojiPicker
             className="h-[326px] rounded-lg border shadow-md"
             onEmojiSelect={({ emoji }) => {
-              projectsSlice.update(store, project.id, {
-                icon: emoji,
-              });
+              dispatch(
+                projectsSlice2.update(project.id, {
+                  icon: emoji,
+                }),
+              );
             }}
           >
             <EmojiPickerSearch />
@@ -142,15 +151,17 @@ const ProjectTitle = ({ project }: { project: Project }) => {
           className={cn({ hidden: !isEditing })}
           value={project.title}
           onChange={(e) => {
-            projectsSlice.update(store, project.id, {
-              title: e.target.value,
-            });
+            dispatch(
+              projectsSlice2.update(project.id, {
+                title: e.target.value,
+              }),
+            );
           }}
           onKeyDown={handleInputKeyDown}
         />
         <span
           onDoubleClick={(e) => {
-            focusSlice.editByKey(store, focusableItem.key);
+            dispatch(focusSlice2.editByKey(focusableItem.key));
           }}
           className={cn("select-none", {
             hidden: isEditing,
@@ -164,25 +175,31 @@ const ProjectTitle = ({ project }: { project: Project }) => {
 };
 
 export const ProjectItemsList = ({ project }: { project: Project }) => {
-  const store = useAppStore();
-  const id = useAppSelector(focusSlice.getFocusedModelId);
-  const idsToAlwaysInclude = id ? [id] : [];
+  const dispatch = useDispatch();
+  const id = useSyncSelector(() => focusSlice2.getFocusedModelId(), []);
+  const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
 
-  const doneChildrenIds = useAppSelector((state) =>
-    projectItemsSlice.doneChildrenIds(state, project.id, idsToAlwaysInclude),
+  const doneChildrenIds = useSyncSelector(
+    () => projectItemsSlice2.doneChildrenIds(project.id, idsToAlwaysInclude),
+    [project.id, idsToAlwaysInclude],
   );
-  const notDoneChildrenIds = useAppSelector((state) =>
-    projectItemsSlice.childrenIds(state, project.id, idsToAlwaysInclude),
+  const notDoneChildrenIds = useSyncSelector(
+    () => projectItemsSlice2.childrenIds(project.id, idsToAlwaysInclude),
+    [project.id, idsToAlwaysInclude],
   );
 
   const onAddNewTask = useCallback(() => {
-    const newTask = projectItemsSlice.createTask(store, project.id, "prepend");
+    const newTask = dispatch(
+      projectItemsSlice2.createTask(project.id, "prepend"),
+    );
 
-    focusSlice.editByKey(store, buildFocusKey(newTask.id, newTask.type));
-  }, [project.id, store]);
+    dispatch(focusSlice2.editByKey(buildFocusKey(newTask.id, newTask.type)));
+  }, [dispatch, project.id]);
 
   const lastTaskI =
     notDoneChildrenIds.length == 0 ? 0 : notDoneChildrenIds.length - 1;
+
+  console.log({ doneChildrenIds, notDoneChildrenIds });
 
   return (
     <ColumnListProvider
@@ -201,7 +218,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
                   "Are you sure you want to delete this project?",
                 );
                 if (shouldDelete) {
-                  projectsSlice.delete(store, project.id);
+                  dispatch(projectsSlice2.delete([project.id]));
                 }
               }}
             >

@@ -1,0 +1,45 @@
+import {
+  useCallback,
+  useMemo,
+  useSyncExternalStore,
+  type DependencyList,
+} from "react";
+import { initSelector, select } from "../hyperdb/selector";
+import { useDB } from "./context";
+import { syncDispatch } from "../hyperdb";
+
+export function useSyncSelector<TReturn>(
+  gen: () => Generator<unknown, TReturn, unknown>,
+  deps: DependencyList,
+  debugKey?: string,
+): TReturn {
+  const db = useDB();
+  const selector = useMemo(() => {
+    return initSelector(db, gen, debugKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, ...(deps || [])]);
+
+  return useSyncExternalStore(selector.subscribe, selector.getSnapshot);
+}
+
+export function useDispatch() {
+  const db = useDB();
+
+  return useCallback(
+    <TReturn>(action: Generator<unknown, TReturn, unknown>): TReturn => {
+      return syncDispatch(db, action);
+    },
+    [db],
+  );
+}
+
+export function useSelect() {
+  const db = useDB();
+
+  return useCallback(
+    <TReturn>(selector: Generator<unknown, TReturn, unknown>): TReturn => {
+      return select(db, selector);
+    },
+    [db],
+  );
+}

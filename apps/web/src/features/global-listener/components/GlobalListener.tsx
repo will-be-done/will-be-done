@@ -1,38 +1,36 @@
 import { useEffect, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { getUndoManager } from "@will-be-done/hyperstate";
-import { useAppStore } from "@/hooks/stateHooks.ts";
-import {
-  FocusKey,
-  focusManager,
-  focusSlice,
-} from "@/store/slices/focusSlice.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { isModelDNDData } from "@/features/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import { appSlice } from "@/store/slices/appSlice.ts";
-import { dropSlice } from "@/store/slices/dropSlice.ts";
-import { projectType } from "@/store/slices/projectsSlice.ts";
-
-import { taskType } from "@/store/slices/tasksSlice.ts";
-import { projectionType } from "@/store/slices/projectionsSlice.ts";
-import { dailyListType } from "@/store/slices/dailyListsSlice.ts";
+import {
+  appSlice2,
+  dailyListType,
+  dropSlice2,
+  projectionType,
+  projectType,
+  taskType,
+} from "@will-be-done/slices";
+import { select, useDB, useDispatch, useSelect } from "@will-be-done/hyperdb";
+import {
+  FocusKey,
+  focusManager,
+  focusSlice2,
+} from "@/store2/slices/focusSlice";
 
 export function GlobalListener() {
-  const store = useAppStore();
-  const undoManager = getUndoManager(store);
+  const dispatch = useDispatch();
+  const db = useDB();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isSomethingFocused = focusSlice.isSomethingFocused(
-        store.getState(),
-      );
+      const isSomethingFocused = select(db, focusSlice2.isSomethingFocused());
 
-      const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+      const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
 
       if (isFocusDisabled || e.defaultPrevented) return;
 
@@ -54,7 +52,8 @@ export function GlobalListener() {
         e.code === "KeyU"
       ) {
         e.preventDefault();
-        undoManager.undo();
+        // TODO: return undo support
+        // undoManager.undo();
         return;
       }
 
@@ -64,12 +63,12 @@ export function GlobalListener() {
         (e.code === "KeyR" && e.ctrlKey)
       ) {
         e.preventDefault();
-        undoManager.redo();
+        // TODO: return undo support
         return;
       }
 
       if (e.code === "Escape" && !isSomethingFocused) {
-        focusSlice.resetFocus(store);
+        dispatch(focusSlice2.resetFocus());
 
         return;
       }
@@ -77,11 +76,11 @@ export function GlobalListener() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [store, undoManager]);
+  }, [db, dispatch]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
+      const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
 
       if (isFocusDisabled || e.defaultPrevented) return;
 
@@ -133,7 +132,7 @@ export function GlobalListener() {
       const isRight =
         e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
 
-      const focusItemKey = focusSlice.getFocusKey(store.getState());
+      const focusItemKey = select(db, focusSlice2.getFocusKey());
       const focusedItem = focusItemKey && focusManager.getItem(focusItemKey);
       if (focusedItem && (isUp || isDown)) {
         e.preventDefault();
@@ -143,11 +142,11 @@ export function GlobalListener() {
         if (isUp) {
           if (!up) return;
 
-          focusSlice.focusByKey(store, up.key);
+          dispatch(focusSlice2.focusByKey(up.key));
         } else if (isDown) {
           if (!down) return;
 
-          focusSlice.focusByKey(store, down.key);
+          dispatch(focusSlice2.focusByKey(down.key));
         }
       } else if (focusedItem && (isLeft || isRight)) {
         e.preventDefault();
@@ -159,11 +158,11 @@ export function GlobalListener() {
         if (isLeft) {
           if (!left) return;
 
-          focusSlice.focusByKey(store, left.key);
+          dispatch(focusSlice2.focusByKey(left.key));
         } else if (isRight) {
           if (!right) return;
 
-          focusSlice.focusByKey(store, right.key);
+          dispatch(focusSlice2.focusByKey(right.key));
         }
       }
     };
@@ -178,7 +177,7 @@ export function GlobalListener() {
         const focusableKey = focusedElement.getAttribute("data-focusable-key");
 
         if (focusableKey) {
-          focusSlice.focusByKey(store, focusableKey as FocusKey, true);
+          dispatch(focusSlice2.focusByKey(focusableKey as FocusKey, true));
         }
       }
     };
@@ -189,7 +188,7 @@ export function GlobalListener() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [store]);
+  }, [db, dispatch]);
 
   useEffect(() => {
     return combine(
@@ -218,7 +217,7 @@ export function GlobalListener() {
             if (!isModelDNDData(t.data)) {
               return [] as const;
             }
-            const entity = appSlice.byId(store.getState(), t.data.modelId);
+            const entity = select(db, appSlice2.byId(t.data.modelId));
             if (!entity) return [] as const;
             return [[t, entity] as const];
           });
@@ -258,16 +257,17 @@ export function GlobalListener() {
             return;
           }
 
-          dropSlice.handleDrop(
-            store,
-            targetItemInfo[1].id,
-            dropModelId,
-            closestEdgeOfTarget || "top",
+          dispatch(
+            dropSlice2.handleDrop(
+              targetItemInfo[1].id,
+              dropModelId,
+              closestEdgeOfTarget || "top",
+            ),
           );
         },
       }),
     );
-  }, [store]);
+  }, [db, dispatch]);
 
   return <></>;
 }

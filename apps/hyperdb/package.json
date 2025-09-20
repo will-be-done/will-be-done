@@ -1,0 +1,43 @@
+{
+  "name": "@will-be-done/hyperdb",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/hyperdb/index.ts",
+  "module": "src/hyperdb/index.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "ts": "tsc -b",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "CI=true vitest --browser.headless"
+  },
+  "dependencies": {
+    "@types/sql.js": "^1.4.9",
+    "await-lock": "^3.0.0",
+    "es": "^0.8.0",
+    "es-toolkit": "^1.35.0",
+    "lexicodec": "^0.0.6",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "sql.js": "^1.13.0",
+    "wa-sqlite": "github:rhashimoto/wa-sqlite#idbbatchatomic-skip-writes"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "@vitest/browser": "^3.2.4",
+    "eslint": "^9.29.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.2.0",
+    "playwright": "^1.54.2",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.34.1",
+    "vite": "^7.1.1",
+    "vitest": "^3.2.4"
+  }
+}

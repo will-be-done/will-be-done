@@ -35,4 +35,4 @@ RUN bun install -g pnpm && pnpm install --prod --filter ./apps/api
 EXPOSE 3000
 
 # Start Bun server
-CMD ["bun", "run", "/app/apps/api/src/index.ts"]
+CMD ["bun", "run", "/app/apps/api/src/start.ts"]

@@ -1,23 +1,24 @@
-import { GlobalListener } from "@/features/global-listener/components/GlobalListener.tsx";
+import { GlobalListener } from "@/features/global-listener/components/GlobalListener";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { KeyPressedCtxProvider } from "@/features/global-listener/components/KeyPressedCtxProvider.tsx";
-import { initStore } from "@/store/store.ts";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { StoreProvider } from "@will-be-done/hyperstate";
-import "@/store/z.hot.ts";
+import { DBProvider } from "@will-be-done/hyperdb";
+import { initDbStore2 } from "@/store2/slices/load2";
 
 export const Route = createRootRoute({
   component: RouteComponent,
-  loader: () => initStore(),
+  loader: async () => {
+    return initDbStore2();
+  },
 });
 
 function RouteComponent() {
-  const store = Route.useLoaderData();
+  const newStore = Route.useLoaderData();
 
   return (
     <>
-      <StoreProvider value={store}>
+      <DBProvider value={newStore}>
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
           <KeyPressedCtxProvider>
             <GlobalListener />
@@ -27,7 +28,7 @@ function RouteComponent() {
             <TanStackRouterDevtools />
           </KeyPressedCtxProvider>
         </ThemeProvider>
-      </StoreProvider>
+      </DBProvider>
     </>
   );
 }
