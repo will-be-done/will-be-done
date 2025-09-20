@@ -32,7 +32,7 @@ COPY --from=builder /app/apps/web/dist /app/apps/api/public
 
 # Copy package files and install production dependencies for API
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
-RUN bun install -g pnpm && pnpm install --prod --filter ./apps/api
+RUN bun install -g pnpm && pnpm install --prod 
 
 # Expose port 8080
 EXPOSE 3000
