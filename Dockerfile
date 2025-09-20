@@ -24,6 +24,8 @@ FROM oven/bun:alpine AS runner
 WORKDIR /app
 
 # Copy the API files
+COPY --from=builder /app/apps/hyperdb /app/apps/hyperdb
+COPY --from=builder /app/apps/slices /app/apps/slices
 COPY --from=builder /app/apps/api /app/apps/api
 # Copy the built static files to the public directory
 COPY --from=builder /app/apps/web/dist /app/apps/api/public
