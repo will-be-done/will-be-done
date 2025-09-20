@@ -1,19 +1,11 @@
 import { z } from "zod";
 import { publicProcedure, router } from "./trpc";
-import { createHTTPServer } from "@trpc/server/adapters/standalone";
 import { Database } from "bun:sqlite";
 import {
   DB,
-  deleteRows,
   execSync,
-  insert,
-  runQuery,
-  selectFrom,
   SqlDriver,
   syncDispatch,
-  update,
-  runSelector,
-  type Row,
   select,
   SubscribableDB,
 } from "@will-be-done/hyperdb";
@@ -23,11 +15,7 @@ import {
   appSyncableTables,
   projectsSlice2,
   ChangesetArray,
-  syncableTablesMap,
-  type Change,
-  type AppSyncableModel,
   changesSlice,
-  projectItemsSlice2,
 } from "@will-be-done/slices";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
@@ -61,7 +49,10 @@ const initClock = (clientId: string) => {
 };
 const nextClock = initClock(clientId);
 
-const sqliteDB = new Database("./db.db", { strict: true });
+const sqliteDB = new Database(
+  path.join(__dirname, "..", "dbs", "main2.sqlite"),
+  { strict: true },
+);
 
 export type SqlValue = number | string | Uint8Array | null;
 const sqliteDriver = new SqlDriver({
@@ -153,17 +144,7 @@ hyperDB.afterDelete(function* (db, table, traits, ops) {
 execSync(
   hyperDB.loadTables([...appSyncableTables.map((t) => t.table), changesTable]),
 );
-const inbox = syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
-
-// TODO: next
-// 1. Wite client changes to DB
-// 2. Write conflict resolution on backend
-// 3. Write client change receiver
-//
-// Also need to write afterInsert/afterUpdate/afterDelete triggers to save backend data
-// to changes table atomically
-// Also very very curios how server conflict resoltuion will work!
-// we will able to delete duplicated projections, for example!!
+syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
 
 const appRouter = router({
   getChangesAfter: publicProcedure
@@ -186,15 +167,6 @@ const appRouter = router({
     }),
 });
 
-// setInterval(() => {
-//   syncDispatch(
-//     hyperDB,
-//     projectItemsSlice2.createTask(inbox.id, "append", {
-//       title: "test" + Math.random().toString(36).slice(2),
-//     }),
-//   );
-// }, 1000);
-
 const server = fastify({
   logger: true,
   bodyLimit: 100485760,
@@ -210,6 +182,53 @@ server.register(fastifyTRPCPlugin, {
   trpcOptions: {
     router: appRouter,
   } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
+});
+
+server.register(async (instance) => {
+  instance.addHook("preHandler", async (request, reply) => {
+    console.log("preHandler", request.headers);
+
+    const authHeader = request.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
+      reply.code(401).send({ error: "Unauthorized - Authentication required" });
+      return reply;
+    }
+  });
+});
+
+server.addHook("onRequest", async (request, reply) => {
+  if (process.env.NODE_ENV === "development") {
+    return;
+  }
+
+  const authHeader = request.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Basic ")) {
+    reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
+    return reply
+      .code(401)
+      .send({ error: "Unauthorized - Authentication required" });
+  }
+
+  const base64Credentials = authHeader.slice(6); // Remove "Basic "
+
+  const credentials = Buffer.from(base64Credentials, "base64").toString(
+    "utf-8",
+  );
+
+  const [username, password] = credentials.split(":");
+  if (
+    username === (process.env.AUTH_USERNAME || "") &&
+    password === (process.env.AUTH_PASSWORD || "")
+  ) {
+    console.log("Authentication successful");
+    return;
+  }
+
+  //   // If we get here, authentication failed
+  reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
+  reply.code(401).send({ error: "Authentication failed" });
 });
 
 // Register a not found handler that serves index.html for non-API routes

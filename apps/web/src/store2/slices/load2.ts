@@ -38,7 +38,7 @@ import {
 } from "@will-be-done/slices";
 import * as SQLite from "wa-sqlite";
 import { createTRPCClient, httpBatchLink, TRPCClient } from "@trpc/client";
-import { AppRouter } from "@will-be-done/api2";
+import { AppRouter } from "@will-be-done/api";
 import {
   BroadcastChannel,
   createLeaderElection,
