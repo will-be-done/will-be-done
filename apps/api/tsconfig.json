@@ -23,6 +23,10 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Allow missing modules for Docker builds
+    "skipDefaultLibCheck": true,
+    "types": []
   }
 }
