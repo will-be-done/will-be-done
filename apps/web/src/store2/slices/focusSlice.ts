@@ -174,31 +174,34 @@ export const focusSlice2 = {
 
     if (skipElFocus) return;
 
-    const elements = document.querySelectorAll<HTMLElement>(
-      '[data-focusable-key="' + key + '"]',
-    );
+    void new Promise<void>((resolve) => {
+      const elements = document.querySelectorAll<HTMLElement>(
+        '[data-focusable-key="' + key + '"]',
+      );
 
-    if (!elements.length) {
-      shouldNeverHappen("focusable element not found", { key });
-      return;
-    }
+      if (!elements.length) {
+        shouldNeverHappen("focusable element not found", { key });
+        return;
+      }
 
-    if (elements.length > 1) {
-      shouldNeverHappen("focusable element > 1", { key, elements });
-      return;
-    }
+      if (elements.length > 1) {
+        shouldNeverHappen("focusable element > 1", { key, elements });
+        return;
+      }
 
-    const el = elements[0];
-    console.log("focus", key, el);
+      const el = elements[0];
 
-    if (el) {
-      el.focus();
-      el.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "center",
-      });
-    }
+      if (el) {
+        el.focus();
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }
+
+      resolve();
+    });
   }),
 
   editByKey: action(function* (key: FocusKey): GenReturn<void> {

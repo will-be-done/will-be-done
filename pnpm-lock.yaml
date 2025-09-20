@@ -348,9 +348,6 @@ importers:
       '@will-be-done/hyperdb':
         specifier: workspace:*
         version: link:../hyperdb
-      '@will-be-done/hyperstate':
-        specifier: workspace:*
-        version: link:../hyperstate
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices

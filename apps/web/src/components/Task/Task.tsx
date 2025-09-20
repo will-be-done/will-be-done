@@ -361,6 +361,7 @@ export const TaskComp = ({
     ) {
       e.preventDefault();
 
+      console.log("delete", focusableItem.key);
       const [up, down] = focusManager.getSiblings(focusableItem.key);
       dispatch(appSlice2.delete(taskBox.id));
 

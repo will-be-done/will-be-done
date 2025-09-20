@@ -1974,7 +1974,7 @@ export const appSlice2 = {
     //   slice.delete(id);
     // }
     yield* tasksSlice2.delete([id]);
-    yield* projectionsSlice2.deleteProjectionsOfTask([id]);
+    yield* projectionsSlice2.delete([id]);
     yield* deleteRows(taskTemplatesTable, [id]);
     yield* deleteRows(projectsTable, [id]);
     yield* deleteRows(dailyListsTable, [id]);

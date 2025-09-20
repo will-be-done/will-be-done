@@ -34,7 +34,6 @@ import {
   projectItemsSlice2,
   projectsSlice2,
 } from "@will-be-done/slices";
-import { useSelector } from "@will-be-done/hyperstate";
 import { Backup } from "@will-be-done/slices";
 import {
   buildFocusKey,
