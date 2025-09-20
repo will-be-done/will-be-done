@@ -368,24 +368,10 @@ export class SubscribableDB implements HyperDB {
   ): Generator<DBCmd, void> {
     if (records.length === 0) return;
 
-    const tx = yield* this.db.beginTx();
+    const tx = yield* this.beginTx();
 
     yield* tx.insert(table, records);
-    // const ops = records.map(
-    //   (record): InsertOp => ({
-    //     type: "insert",
-    //     table,
-    //     newValue: record,
-    //   }),
-    // );
-    //
-    // for (const cb of this.afterInsertSubscribers) {
-    //   yield* cb(this, table, this.getTraits(), ops);
-    // }
-
     yield* tx.commit();
-
-    // this.subscribers.forEach((s) => s(ops, this.getTraits()));
   }
 
   *update<TTable extends TableDefinition<any>>(
@@ -394,7 +380,7 @@ export class SubscribableDB implements HyperDB {
   ) {
     if (records.length === 0) return;
 
-    const tx = yield* this.db.beginTx();
+    const tx = yield* this.beginTx();
 
     yield* tx.update(table, records);
     yield* tx.commit();
@@ -403,7 +389,7 @@ export class SubscribableDB implements HyperDB {
   *delete<TTable extends TableDefinition<any>>(table: TTable, ids: string[]) {
     if (ids.length === 0) return;
 
-    const tx = yield* this.db.beginTx();
+    const tx = yield* this.beginTx();
 
     yield* tx.delete(table, ids);
     yield* tx.commit();

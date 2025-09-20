@@ -198,6 +198,10 @@ export class DBTx implements HyperDBTx {
   }
 
   *commit(): Generator<DBCmd> {
+    if (this.isFinished.val) {
+      throw new Error("Transaction is finished");
+    }
+    
     this.txCounter.val--;
     if (this.txCounter.val !== 0) return;
 
@@ -206,6 +210,9 @@ export class DBTx implements HyperDBTx {
   }
 
   *rollback(): Generator<DBCmd> {
+    if (this.isFinished.val) {
+      throw new Error("Transaction is finished");
+    }
     this.isFinished.val = true;
     yield* this.driver.rollback();
   }
