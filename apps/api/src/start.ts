@@ -502,19 +502,27 @@ async function transcribeFile(filePath: string): Promise<string | null> {
       });
 
       whisper.stderr?.on("data", (data) => {
+        error += data.toString();
         console.log("whisper(stderr): ", data.toString());
       });
 
-      whisper.on("close", (code) => {
+      whisper.on("close", (code, signal) => {
+        console.log(`Whisper process closed with code: ${code}, signal: ${signal}`);
         if (code === 0) {
           // For whisper.cpp, the output is written to stdout
           resolve(output.trim() || null);
         } else {
-          reject(new Error(`Whisper failed with code ${code}: ${error}`));
+          const errorMsg = signal 
+            ? `Whisper killed by signal ${signal}: ${error}`
+            : `Whisper failed with code ${code}: ${error}`;
+          reject(new Error(errorMsg));
         }
       });
 
-      whisper.on("error", reject);
+      whisper.on("error", (err) => {
+        console.log("Whisper process error:", err);
+        reject(err);
+      });
     });
   });
 }
