@@ -1,5 +1,5 @@
 # Stage 1: Build the Vite application using pnpm
-FROM --platform=linux/amd64 node:20-alpine AS builder
+FROM node:20-alpine AS builder
 # Set the working directory
 WORKDIR /app
 # Install pnpm globally
@@ -20,7 +20,7 @@ COPY . .
 RUN pnpm --filter ./apps/web run build
 
 # Stage 2: Create Bun runtime image with Debian base
-FROM --platform=linux/amd64 oven/bun:debian AS runner
+FROM oven/bun:debian AS runner
 WORKDIR /app
 
 # Install whisper-cpp dependencies with Debian packages
@@ -34,24 +34,8 @@ RUN apt-get update && apt-get install -y \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
-# Build whisper.cpp step by step to debug issues
+# Clone whisper.cpp source code but don't build yet
 RUN git clone https://github.com/ggerganov/whisper.cpp.git
-RUN cd whisper.cpp && \
-    echo "System info:" && \
-    uname -a && \
-    gcc --version && \
-    cmake --version
-RUN cd whisper.cpp && \
-    echo "Configuring with basic cmake..." && \
-    cmake -B build
-RUN cd whisper.cpp && \
-    echo "Building whisper.cpp..." && \
-    cmake --build build -j $(nproc)
-RUN cd whisper.cpp && \
-    echo "Checking build results:" && \
-    ls -la build/bin/ && \
-    file build/bin/whisper-cli && \
-    ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
 
 ENV LD_LIBRARY_PATH="/app/whisper.cpp/build/ggml/src:/app/whisper.cpp/build/src:$LD_LIBRARY_PATH"
 

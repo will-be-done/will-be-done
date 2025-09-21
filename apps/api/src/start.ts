@@ -385,6 +385,49 @@ const createTaskIfNotExists = (memoId: string, content: string) => {
 };
 
 const lock = new AwaitLock();
+
+async function ensureWhisperBuilt(): Promise<void> {
+  await lock.acquireAsync();
+  try {
+    const whisperBinary = "/usr/local/bin/whisper-cli";
+    
+    if (fs.existsSync(whisperBinary)) {
+      console.log("Whisper binary already exists");
+      return;
+    }
+
+    console.log("Building whisper.cpp for this CPU architecture...");
+    
+    return new Promise((resolve, reject) => {
+    const buildScript = spawn("bash", [
+      "-c", 
+      `cd /app/whisper.cpp && cmake -B build && cmake --build build -j $(nproc) && ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli`
+    ]);
+
+    buildScript.stdout?.on("data", (data) => {
+      console.log("Build output:", data.toString());
+    });
+
+    buildScript.stderr?.on("data", (data) => {
+      console.log("Build info:", data.toString());
+    });
+
+    buildScript.on("close", (code) => {
+      if (code === 0 && fs.existsSync(whisperBinary)) {
+        console.log("Whisper.cpp built successfully");
+        resolve();
+      } else {
+        reject(new Error(`Whisper build failed with code ${code}`));
+      }
+    });
+
+    buildScript.on("error", reject);
+    });
+  } finally {
+    lock.release();
+  }
+}
+
 async function ensureModelExists(): Promise<void> {
   await lock.acquireAsync();
   try {
@@ -441,7 +484,8 @@ async function ensureModelExists(): Promise<void> {
 async function transcribeFile(filePath: string): Promise<string | null> {
   return new Promise(async (resolve, reject) => {
     try {
-      // Ensure model is downloaded
+      // Ensure whisper is built and model is downloaded
+      await ensureWhisperBuilt();
       await ensureModelExists();
 
       // Check if model actually exists
@@ -575,5 +619,8 @@ async function processTranscriptions() {
   }
 }
 
+// Initialize whisper build and model download at startup
+void ensureWhisperBuilt().then(() => {
+  void ensureModelExists();
+});
 processTranscriptions();
-void ensureModelExists();
