@@ -390,38 +390,38 @@ async function ensureWhisperBuilt(): Promise<void> {
   await lock.acquireAsync();
   try {
     const whisperBinary = "/usr/local/bin/whisper-cli";
-    
+
     if (fs.existsSync(whisperBinary)) {
       console.log("Whisper binary already exists");
       return;
     }
 
     console.log("Building whisper.cpp for this CPU architecture...");
-    
+
     return new Promise((resolve, reject) => {
-    const buildScript = spawn("bash", [
-      "-c", 
-      `cd /app/whisper.cpp && cmake -B build && cmake --build build -j $(nproc) && ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli`
-    ]);
+      const buildScript = spawn("bash", [
+        "-c",
+        `cd /app/whisper.cpp && cmake -B build && cmake --build build -j $(nproc) && ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli`,
+      ]);
 
-    buildScript.stdout?.on("data", (data) => {
-      console.log("Build output:", data.toString());
-    });
+      buildScript.stdout?.on("data", (data) => {
+        console.log("Build output:", data.toString());
+      });
 
-    buildScript.stderr?.on("data", (data) => {
-      console.log("Build info:", data.toString());
-    });
+      buildScript.stderr?.on("data", (data) => {
+        console.log("Build info:", data.toString());
+      });
 
-    buildScript.on("close", (code) => {
-      if (code === 0 && fs.existsSync(whisperBinary)) {
-        console.log("Whisper.cpp built successfully");
-        resolve();
-      } else {
-        reject(new Error(`Whisper build failed with code ${code}`));
-      }
-    });
+      buildScript.on("close", (code) => {
+        if (code === 0 && fs.existsSync(whisperBinary)) {
+          console.log("Whisper.cpp built successfully");
+          resolve();
+        } else {
+          reject(new Error(`Whisper build failed with code ${code}`));
+        }
+      });
 
-    buildScript.on("error", reject);
+      buildScript.on("error", reject);
     });
   } finally {
     lock.release();
@@ -445,8 +445,8 @@ async function ensureModelExists(): Promise<void> {
     return new Promise((resolve, reject) => {
       // Use whisper.cpp download script to download the model
       const downloadScript = spawn("bash", [
-        "-c", 
-        `mkdir -p ${modelsDir} && cd /app/whisper.cpp && bash ./models/download-ggml-model.sh large-v3 && cp models/ggml-large-v3.bin ${modelsDir}/`
+        "-c",
+        `mkdir -p ${modelsDir} && cd /app/whisper.cpp && bash ./models/download-ggml-model.sh large-v3 && cp models/ggml-large-v3.bin ${modelsDir}/`,
       ]);
 
       downloadScript.stdout?.on("data", (data) => {
@@ -533,7 +533,6 @@ async function transcribeFile(filePath: string): Promise<string | null> {
         "-l",
         "auto", // Auto-detect language
         "-nt", // No timestamps
-        "--no-gpu", // Force CPU usage
         "-otxt",
       ]);
 
@@ -551,12 +550,14 @@ async function transcribeFile(filePath: string): Promise<string | null> {
       });
 
       whisper.on("close", (code, signal) => {
-        console.log(`Whisper process closed with code: ${code}, signal: ${signal}`);
+        console.log(
+          `Whisper process closed with code: ${code}, signal: ${signal}`,
+        );
         if (code === 0) {
           // For whisper.cpp, the output is written to stdout
           resolve(output.trim() || null);
         } else {
-          const errorMsg = signal 
+          const errorMsg = signal
             ? `Whisper killed by signal ${signal}: ${error}`
             : `Whisper failed with code ${code}: ${error}`;
           reject(new Error(errorMsg));
