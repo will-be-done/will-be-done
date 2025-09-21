@@ -409,6 +409,7 @@ async function transcribeFile(filePath: string): Promise<string | null> {
         wavFile,
         "-l", "auto",  // Auto-detect language
         "-nt",         // No timestamps
+        "--no-gpu",    // Force CPU usage
         "-otxt",
       ]);
 
