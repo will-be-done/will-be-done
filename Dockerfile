@@ -19,21 +19,32 @@ COPY . .
 # Assumes your build script is named "build" in package.json
 RUN pnpm --filter ./apps/web run build
 
-# Stage 2: Create Bun runtime image
-FROM oven/bun:alpine AS runner
+# Stage 2: Create Bun runtime image with Debian base
+FROM oven/bun:debian AS runner
 WORKDIR /app
 
-# Install whisper-cpp (C++ implementation) for better compatibility  
-RUN apk add --no-cache ffmpeg curl make g++ git cmake bash
-# Build whisper.cpp from source with debug output
+# Install whisper-cpp dependencies with Debian packages
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    make \
+    g++ \
+    git \
+    cmake \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build whisper.cpp matching host environment (Debian-based)
 RUN git clone https://github.com/ggerganov/whisper.cpp.git && \
     cd whisper.cpp && \
-    echo "Available CMake options:" && \
-    cmake -LH . && \
-    echo "Building with disabled SIMD..." && \
-    cmake -B build -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF --debug-output && \
+    echo "Building whisper.cpp with conservative flags on Debian..." && \
+    export CFLAGS="-march=x86-64 -mtune=generic" && \
+    export CXXFLAGS="-march=x86-64 -mtune=generic" && \
+    cmake -B build && \
     cmake --build build --config Release -j $(nproc) && \
+    echo "Built binaries:" && \
     ls -la build/bin/ && \
+    ldd build/bin/whisper-cli && \
     ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
 
 ENV LD_LIBRARY_PATH="/app/whisper.cpp/build/ggml/src:/app/whisper.cpp/build/src:$LD_LIBRARY_PATH"
