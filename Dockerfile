@@ -19,22 +19,13 @@ COPY . .
 # Assumes your build script is named "build" in package.json
 RUN pnpm --filter ./apps/web run build
 
-# Stage 2: Create Bun runtime image with Debian base
-FROM oven/bun:debian AS runner
+# Stage 2: Create Bun runtime image
+FROM oven/bun:alpine AS runner
 WORKDIR /app
 
-# Install whisper-cpp dependencies with Debian packages
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    curl \
-    make \
-    g++ \
-    git \
-    cmake \
-    bash \
-    && rm -rf /var/lib/apt/lists/*
-
-# Clone whisper.cpp source code but don't build yet
+# Install whisper-cpp (C++ implementation) for better compatibility  
+RUN apk add --no-cache ffmpeg curl make g++ git cmake bash
+# Build whisper.cpp from source with debug output
 RUN git clone https://github.com/ggerganov/whisper.cpp.git
 
 ENV LD_LIBRARY_PATH="/app/whisper.cpp/build/ggml/src:/app/whisper.cpp/build/src:$LD_LIBRARY_PATH"
