@@ -28,7 +28,8 @@ RUN apk add --no-cache ffmpeg curl make g++ git cmake bash
 # Build whisper.cpp from source with conservative CPU flags (no model download during build)
 RUN git clone https://github.com/ggerganov/whisper.cpp.git && \
     cd whisper.cpp && \
-    make GGML_NO_AVX=1 GGML_NO_AVX2=1 GGML_NO_FMA=1 GGML_NO_F16C=1 && \
+    cmake -B build -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF && \
+    cmake --build build -j $(nproc) && \
     ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
 
 ENV LD_LIBRARY_PATH="/app/whisper.cpp/build/ggml/src:/app/whisper.cpp/build/src:$LD_LIBRARY_PATH"
