@@ -25,10 +25,23 @@ WORKDIR /app
 
 # Install whisper-cpp (C++ implementation) for better compatibility  
 RUN apk add --no-cache ffmpeg curl make g++ git cmake bash
-# Build whisper.cpp from source with conservative CPU flags (no model download during build)
+# Build whisper.cpp from source with maximum compatibility (no model download during build)
 RUN git clone https://github.com/ggerganov/whisper.cpp.git && \
     cd whisper.cpp && \
-    cmake -B build -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_FMA=OFF -DGGML_F16C=OFF && \
+    cmake -B build \
+        -DGGML_AVX=OFF \
+        -DGGML_AVX2=OFF \
+        -DGGML_FMA=OFF \
+        -DGGML_F16C=OFF \
+        -DGGML_AVX512=OFF \
+        -DGGML_AVX512_VBMI=OFF \
+        -DGGML_AVX512_VNNI=OFF \
+        -DGGML_AVX512_BF16=OFF \
+        -DGGML_AMX_TILE=OFF \
+        -DGGML_AMX_INT8=OFF \
+        -DGGML_AMX_BF16=OFF \
+        -DGGML_NATIVE=OFF \
+        -DCMAKE_CXX_FLAGS="-march=x86-64 -mtune=generic" && \
     cmake --build build -j $(nproc) && \
     ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
 
