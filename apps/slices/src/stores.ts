@@ -1148,6 +1148,26 @@ export const projectItemsSlice2 = {
     yield* tasksSlice2.delete([id]);
     yield* deleteRows(taskTemplatesTable, [id]);
   }),
+
+  createTaskIfNotExists: action(function* (
+    projectId: string,
+    taskId: string,
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
+    taskAttrs?: Partial<Task>,
+  ): GenReturn<Task> {
+    const task = yield* tasksSlice2.byId(taskId);
+    if (task) {
+      return task;
+    }
+
+    return yield* projectItemsSlice2.createTask(projectId, position, {
+      ...taskAttrs,
+      id: taskId,
+    });
+  }),
   createTask: action(function* (
     projectId: string,
     position:
