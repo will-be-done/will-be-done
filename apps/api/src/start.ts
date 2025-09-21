@@ -29,6 +29,7 @@ import {
 } from "@trpc/server/adapters/fastify";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { spawn } from "child_process";
+import AwaitLock from "await-lock";
 // import "./transcribe";
 
 dotenv.config();
@@ -366,6 +367,8 @@ void start();
 export type AppRouter = typeof appRouter;
 
 const memosDir = path.join(__dirname, "..", "dbs", "memos");
+const modelsDir = path.join(__dirname, "..", "dbs", "models");
+const modelPath = path.join(modelsDir, "ggml-large-v3.bin");
 
 const createTaskIfNotExists = (memoId: string, content: string) => {
   syncDispatch(
@@ -381,18 +384,94 @@ const createTaskIfNotExists = (memoId: string, content: string) => {
   );
 };
 
+const lock = new AwaitLock();
+async function ensureModelExists(): Promise<void> {
+  await lock.acquireAsync();
+  try {
+    // Check if we already have a model in our app directory
+    if (fs.existsSync(modelPath)) {
+      console.log("Model already exists at", modelPath);
+      return;
+    }
+
+    console.log("Downloading whisper model using whisper binary...");
+    if (!fs.existsSync(modelsDir)) {
+      fs.mkdirSync(modelsDir, { recursive: true });
+    }
+
+    return new Promise((resolve, reject) => {
+      // Use whisper.cpp download script to download the model
+      const downloadScript = spawn("bash", [
+        "-c", 
+        `mkdir -p ${modelsDir} && cd /app/whisper.cpp && bash ./models/download-ggml-model.sh large-v3 && cp models/ggml-large-v3.bin ${modelsDir}/`
+      ]);
+
+      downloadScript.stdout?.on("data", (data) => {
+        console.log("Download progress:", data.toString());
+      });
+
+      downloadScript.stderr?.on("data", (data) => {
+        console.log("Download info:", data.toString());
+      });
+
+      downloadScript.on("close", (code) => {
+        // Check if model was downloaded and moved
+        if (fs.existsSync(modelPath)) {
+          const stats = fs.statSync(modelPath);
+          if (stats.size > 100000000) {
+            // Check if file is larger than 100MB
+            console.log(`Model downloaded successfully: ${stats.size} bytes`);
+            resolve();
+          } else {
+            console.error("Downloaded model file too small");
+            reject(new Error("Model download failed - file too small"));
+          }
+        } else {
+          reject(new Error(`Model download failed with code ${code}`));
+        }
+      });
+
+      downloadScript.on("error", reject);
+    });
+  } finally {
+    lock.release();
+  }
+}
+
 async function transcribeFile(filePath: string): Promise<string | null> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Ensure model is downloaded
+      await ensureModelExists();
+
+      // Check if model actually exists
+      if (!fs.existsSync(modelPath)) {
+        reject(
+          new Error(
+            "Whisper model not available. Please manually download a model.",
+          ),
+        );
+        return;
+      }
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
     // First convert MP4 to WAV using ffmpeg
     const wavFile = filePath.replace(".mp4", ".wav");
-    
+
     const ffmpeg = spawn("ffmpeg", [
-      "-i", filePath,
-      "-ar", "16000",  // 16kHz sample rate (whisper standard)
-      "-ac", "1",      // mono audio
-      "-c:a", "pcm_s16le", // 16-bit PCM
-      "-y",            // overwrite output file
-      wavFile
+      "-i",
+      filePath,
+      "-ar",
+      "16000", // 16kHz sample rate (whisper standard)
+      "-ac",
+      "1", // mono audio
+      "-c:a",
+      "pcm_s16le", // 16-bit PCM
+      "-y", // overwrite output file
+      wavFile,
     ]);
 
     ffmpeg.on("close", (code) => {
@@ -402,14 +481,15 @@ async function transcribeFile(filePath: string): Promise<string | null> {
       }
 
       // Now transcribe the WAV file with whisper
-      const whisper = spawn("whisper", [
+      const whisper = spawn("whisper-cli", [
         "-m",
-        "/models/ggml-large-v3.bin",
+        modelPath,
         "-f",
         wavFile,
-        "-l", "auto",  // Auto-detect language
-        "-nt",         // No timestamps
-        "--no-gpu",    // Force CPU usage
+        "-l",
+        "auto", // Auto-detect language
+        "-nt", // No timestamps
+        "--no-gpu", // Force CPU usage
         "-otxt",
       ]);
 
@@ -488,3 +568,4 @@ async function processTranscriptions() {
 }
 
 processTranscriptions();
+void ensureModelExists();

@@ -25,17 +25,13 @@ WORKDIR /app
 
 # Install whisper-cpp (C++ implementation) for better compatibility  
 RUN apk add --no-cache ffmpeg curl make g++ git cmake bash
-# Build whisper.cpp from source and keep build directory for libraries
+# Build whisper.cpp from source (no model download during build)
 RUN git clone https://github.com/ggerganov/whisper.cpp.git && \
     cd whisper.cpp && \
     make && \
-    ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper
+    ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli
+
 ENV LD_LIBRARY_PATH="/app/whisper.cpp/build/ggml/src:/app/whisper.cpp/build/src:$LD_LIBRARY_PATH"
-# Download the large model using whisper.cpp's download script
-RUN mkdir -p /models && \
-    cd /app/whisper.cpp && \
-    bash ./models/download-ggml-model.sh large-v3 && \
-    cp models/ggml-large-v3.bin /models/
 
 # Copy the API files
 COPY --from=builder /app/apps/hyperdb /app/apps/hyperdb
