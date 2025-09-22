@@ -397,7 +397,7 @@ async function ensureWhisperBuilt(): Promise<void> {
 
     console.log("Building whisper.cpp for this CPU architecture...");
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const buildScript = spawn("bash", [
         "-c",
         `cd /app/whisper.cpp && cmake -B build && cmake --build build -j $(nproc) && ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli`,
@@ -442,7 +442,7 @@ async function ensureModelExists(): Promise<void> {
       fs.mkdirSync(modelsDir, { recursive: true });
     }
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       // Use whisper.cpp download script to download the model
       const downloadScript = spawn("bash", [
         "-c",
