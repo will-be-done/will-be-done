@@ -368,7 +368,7 @@ export type AppRouter = typeof appRouter;
 
 const memosDir = path.join(__dirname, "..", "dbs", "memos");
 const modelsDir = path.join(__dirname, "..", "dbs", "models");
-const modelPath = path.join(modelsDir, "ggml-large-v3.bin");
+const modelPath = path.join(modelsDir, "ggml-large-v3-turbo.bin");
 
 const createTaskIfNotExists = (memoId: string, content: string) => {
   syncDispatch(
@@ -446,7 +446,7 @@ async function ensureModelExists(): Promise<void> {
       // Use whisper.cpp download script to download the model
       const downloadScript = spawn("bash", [
         "-c",
-        `mkdir -p ${modelsDir} && cd /app/whisper.cpp && bash ./models/download-ggml-model.sh large-v3 && cp models/ggml-large-v3.bin ${modelsDir}/`,
+        `mkdir -p ${modelsDir} && cd /app/whisper.cpp && bash ./models/download-ggml-model.sh large-v3-turbo && cp models/ggml-large-v3-turbo.bin ${modelsDir}/`,
       ]);
 
       downloadScript.stdout?.on("data", (data) => {
@@ -533,7 +533,8 @@ async function transcribeFile(filePath: string): Promise<string | null> {
         "-l",
         "auto", // Auto-detect language
         "-nt", // No timestamps
-        "-t", "12", // Use 12 threads
+        "-t",
+        "10", // Use 12 threads
         "--no-gpu", // Force CPU usage
         "-otxt",
       ]);
