@@ -533,6 +533,8 @@ async function transcribeFile(filePath: string): Promise<string | null> {
         "-l",
         "auto", // Auto-detect language
         "-nt", // No timestamps
+        "-t", "12", // Use 12 threads
+        "--no-gpu", // Force CPU usage
         "-otxt",
       ]);
 
