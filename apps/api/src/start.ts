@@ -385,7 +385,6 @@ const createTaskIfNotExists = (memoId: string, content: string) => {
 };
 
 const lock = new AwaitLock();
-
 async function ensureWhisperBuilt(): Promise<void> {
   await lock.acquireAsync();
   try {
@@ -428,8 +427,9 @@ async function ensureWhisperBuilt(): Promise<void> {
   }
 }
 
+const lock2 = new AwaitLock();
 async function ensureModelExists(): Promise<void> {
-  await lock.acquireAsync();
+  await lock2.acquireAsync();
   try {
     // Check if we already have a model in our app directory
     if (fs.existsSync(modelPath)) {
@@ -477,7 +477,7 @@ async function ensureModelExists(): Promise<void> {
       downloadScript.on("error", reject);
     });
   } finally {
-    lock.release();
+    lock2.release();
   }
 }
 
