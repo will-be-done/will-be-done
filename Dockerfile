@@ -23,13 +23,6 @@ RUN pnpm --filter ./apps/web run build
 FROM oven/bun:alpine AS runner
 WORKDIR /app
 
-# Install whisper-cpp (C++ implementation) for better compatibility  
-RUN apk add --no-cache ffmpeg curl make g++ git cmake bash
-# Build whisper.cpp from source with debug output
-RUN git clone https://github.com/ggerganov/whisper.cpp.git
-
-ENV LD_LIBRARY_PATH="/app/whisper.cpp/build/ggml/src:/app/whisper.cpp/build/src:$LD_LIBRARY_PATH"
-
 # Copy the API files
 COPY --from=builder /app/apps/hyperdb /app/apps/hyperdb
 COPY --from=builder /app/apps/slices /app/apps/slices

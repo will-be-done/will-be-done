@@ -28,8 +28,6 @@ import {
   type FastifyTRPCPluginOptions,
 } from "@trpc/server/adapters/fastify";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
-import { spawn } from "child_process";
-import AwaitLock from "await-lock";
 // import "./transcribe";
 
 dotenv.config();
@@ -367,8 +365,6 @@ void start();
 export type AppRouter = typeof appRouter;
 
 const memosDir = path.join(__dirname, "..", "dbs", "memos");
-const modelsDir = path.join(__dirname, "..", "dbs", "models");
-const modelPath = path.join(modelsDir, "ggml-large-v3-turbo.bin");
 
 const createTaskIfNotExists = (memoId: string, content: string) => {
   syncDispatch(
@@ -384,195 +380,36 @@ const createTaskIfNotExists = (memoId: string, content: string) => {
   );
 };
 
-const lock = new AwaitLock();
-async function ensureWhisperBuilt(): Promise<void> {
-  await lock.acquireAsync();
-  try {
-    const whisperBinary = "/usr/local/bin/whisper-cli";
-
-    if (fs.existsSync(whisperBinary)) {
-      console.log("Whisper binary already exists");
-      return;
-    }
-
-    console.log("Building whisper.cpp for this CPU architecture...");
-
-    await new Promise<void>((resolve, reject) => {
-      const buildScript = spawn("bash", [
-        "-c",
-        `cd /app/whisper.cpp && cmake -B build && cmake --build build -j $(nproc) && ln -s /app/whisper.cpp/build/bin/whisper-cli /usr/local/bin/whisper-cli`,
-      ]);
-
-      buildScript.stdout?.on("data", (data) => {
-        console.log("Build output:", data.toString());
-      });
-
-      buildScript.stderr?.on("data", (data) => {
-        console.log("Build info:", data.toString());
-      });
-
-      buildScript.on("close", (code) => {
-        if (code === 0 && fs.existsSync(whisperBinary)) {
-          console.log("Whisper.cpp built successfully");
-          resolve();
-        } else {
-          reject(new Error(`Whisper build failed with code ${code}`));
-        }
-      });
-
-      buildScript.on("error", reject);
-    });
-  } finally {
-    lock.release();
-  }
-}
-
-const lock2 = new AwaitLock();
-async function ensureModelExists(): Promise<void> {
-  await lock2.acquireAsync();
-  try {
-    // Check if we already have a model in our app directory
-    if (fs.existsSync(modelPath)) {
-      console.log("Model already exists at", modelPath);
-      return;
-    }
-
-    console.log("Downloading whisper model using whisper binary...");
-    if (!fs.existsSync(modelsDir)) {
-      fs.mkdirSync(modelsDir, { recursive: true });
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      // Use whisper.cpp download script to download the model
-      const downloadScript = spawn("bash", [
-        "-c",
-        `mkdir -p ${modelsDir} && cd /app/whisper.cpp && bash ./models/download-ggml-model.sh large-v3-turbo && cp models/ggml-large-v3-turbo.bin ${modelsDir}/`,
-      ]);
-
-      downloadScript.stdout?.on("data", (data) => {
-        console.log("Download progress:", data.toString());
-      });
-
-      downloadScript.stderr?.on("data", (data) => {
-        console.log("Download info:", data.toString());
-      });
-
-      downloadScript.on("close", (code) => {
-        // Check if model was downloaded and moved
-        if (fs.existsSync(modelPath)) {
-          const stats = fs.statSync(modelPath);
-          if (stats.size > 100000000) {
-            // Check if file is larger than 100MB
-            console.log(`Model downloaded successfully: ${stats.size} bytes`);
-            resolve();
-          } else {
-            console.error("Downloaded model file too small");
-            reject(new Error("Model download failed - file too small"));
-          }
-        } else {
-          reject(new Error(`Model download failed with code ${code}`));
-        }
-      });
-
-      downloadScript.on("error", reject);
-    });
-  } finally {
-    lock2.release();
-  }
-}
-
 async function transcribeFile(filePath: string): Promise<string | null> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      // Ensure whisper is built and model is downloaded
-      await ensureWhisperBuilt();
-      await ensureModelExists();
+  try {
+    // Create form data for the HTTP request using Bun's built-in FormData
+    const formData = new FormData();
+    const file = Bun.file(filePath);
+    formData.append("audio", file);
 
-      // Check if model actually exists
-      if (!fs.existsSync(modelPath)) {
-        reject(
-          new Error(
-            "Whisper model not available. Please manually download a model.",
-          ),
-        );
-        return;
-      }
-    } catch (error) {
-      reject(error);
-      return;
+    console.log("sending file", filePath);
+    // Make HTTP request to transcription service
+    const response = await fetch("http://tosi-bosi.com:3284/transcribe", {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    console.log(" file sent", filePath);
+
+    if (!response.ok) {
+      throw new Error(
+        `Transcription service failed: ${response.status} ${response.statusText}`,
+      );
     }
 
-    // First convert MP4 to WAV using ffmpeg
-    const wavFile = filePath.replace(".mp4", ".wav");
-
-    const ffmpeg = spawn("ffmpeg", [
-      "-i",
-      filePath,
-      "-ar",
-      "16000", // 16kHz sample rate (whisper standard)
-      "-ac",
-      "1", // mono audio
-      "-c:a",
-      "pcm_s16le", // 16-bit PCM
-      "-y", // overwrite output file
-      wavFile,
-    ]);
-
-    ffmpeg.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(`FFmpeg failed with code ${code}`));
-        return;
-      }
-
-      // Now transcribe the WAV file with whisper
-      const whisper = spawn("whisper-cli", [
-        "-m",
-        modelPath,
-        "-f",
-        wavFile,
-        "-l",
-        "auto", // Auto-detect language
-        "-nt", // No timestamps
-        "-t",
-        "10", // Use 12 threads
-        "--no-gpu", // Force CPU usage
-        "-otxt",
-      ]);
-
-      let output = "";
-      let error = "";
-
-      whisper.stdout?.on("data", (data) => {
-        output += data.toString();
-        console.log("whisper(stdout): ", data.toString());
-      });
-
-      whisper.stderr?.on("data", (data) => {
-        error += data.toString();
-        console.log("whisper(stderr): ", data.toString());
-      });
-
-      whisper.on("close", (code, signal) => {
-        console.log(
-          `Whisper process closed with code: ${code}, signal: ${signal}`,
-        );
-        if (code === 0) {
-          // For whisper.cpp, the output is written to stdout
-          resolve(output.trim() || null);
-        } else {
-          const errorMsg = signal
-            ? `Whisper killed by signal ${signal}: ${error}`
-            : `Whisper failed with code ${code}: ${error}`;
-          reject(new Error(errorMsg));
-        }
-      });
-
-      whisper.on("error", (err) => {
-        console.log("Whisper process error:", err);
-        reject(err);
-      });
-    });
-  });
+    const result = (await response.json()) as { text: string };
+    return result.text?.trim() || null;
+  } catch (error) {
+    console.error("Transcription error:", error);
+    throw error;
+  }
 }
 
 async function processTranscriptions() {
@@ -614,6 +451,8 @@ async function processTranscriptions() {
             }
           }
         }
+      } else {
+        console.log("memos folder not found");
       }
     } catch (error) {
       console.error("Processing error:", error);
@@ -623,8 +462,4 @@ async function processTranscriptions() {
   }
 }
 
-// Initialize whisper build and model download at startup
-void ensureWhisperBuilt().then(() => {
-  void ensureModelExists();
-});
 processTranscriptions();
