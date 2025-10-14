@@ -5,6 +5,9 @@
   "type": "module",
   "main": "src/index.ts",
   "module": "src/index.ts",
+  "scripts": {
+    "ts": "tsc -b"
+  },
   "dependencies": {
     "@will-be-done/hyperdb": "workspace:*",
     "es-toolkit": "^1.35.0",

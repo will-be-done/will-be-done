@@ -5,6 +5,7 @@ import { DB, SyncDB } from "./db.ts";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver.ts";
 import { table } from "./table.ts";
 import { SqlDriver } from "./drivers/SqlDriver.ts";
+import { initSqlJsWasm } from "./drivers/initSqlJSWasm.ts";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
   item1: T,
@@ -54,7 +55,7 @@ const taskTemplatesTable = table<TaskTemplate>("taskTemplates").withIndexes({
 describe("db", async () => {
   for (const driver of [
     // new InmemDriver(),
-    await SqlDriver.init(),
+    await initSqlJsWasm(),
     new BptreeInmemDriver(),
   ]) {
     it("insert, delete, update - " + driver.constructor.name, () => {
@@ -123,7 +124,7 @@ describe("db", async () => {
   }
 
   for (const driver of [
-    await SqlDriver.init(),
+    await initSqlJsWasm(),
     // new InmemDriver(),
     new BptreeInmemDriver(),
   ]) {
@@ -167,7 +168,7 @@ describe("db", async () => {
   }
 
   for (const driver of [
-    await SqlDriver.init(),
+    await initSqlJsWasm(),
     // new InmemDriver(),
     new BptreeInmemDriver(),
   ]) {
@@ -282,7 +283,7 @@ describe("db", async () => {
   // }
 
   for (const driver of [
-    await SqlDriver.init(),
+    await initSqlJsWasm(),
     // new InmemDriver(),
     new BptreeInmemDriver(),
   ]) {
@@ -458,8 +459,8 @@ describe("db", async () => {
 
 describe("Database Operations Edge Cases", async () => {
   for (const driver of [
+    await initSqlJsWasm(),
     // new InmemDriver(),
-    await SqlDriver.init(),
     new BptreeInmemDriver(),
   ]) {
     describe(`${driver.constructor.name}`, () => {

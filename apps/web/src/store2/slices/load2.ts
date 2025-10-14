@@ -197,7 +197,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
 
     await execAsync(
       asyncDB.loadTables([
-        ...appSyncableTables.map((t) => t.table),
+        ...appSyncableTables().map((t) => t.table),
         changesTable,
         syncStateTable,
       ]),
@@ -206,7 +206,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     const syncDB = new DB(new BptreeInmemDriver());
     execSync(
       syncDB.loadTables([
-        ...appSyncableTables.map((t) => t.table),
+        ...appSyncableTables().map((t) => t.table),
         changesTable,
         focusTable,
       ]),
@@ -283,7 +283,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     const clientId = getClientId();
     const nextClock = initClock(clientId);
 
-    for (const table of appSyncableTables) {
+    for (const table of appSyncableTables()) {
       const res = await runSelectorAsync(asyncDB, function* () {
         return yield* runQuery(selectFrom(table.table, "byIds"));
       });
@@ -499,7 +499,7 @@ class Syncer {
           // const toUpdateRows: AppSyncableModel[] = [];
           const toInsertRows: AppSyncableModel[] = [];
 
-          const table = syncableTablesMap[changeset.tableName];
+          const table = syncableTablesMap()[changeset.tableName];
           if (!table) {
             throw new Error("Unknown table: " + changeset.tableName);
           }

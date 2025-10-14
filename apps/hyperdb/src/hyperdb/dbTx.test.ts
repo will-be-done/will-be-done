@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
 import { DB, SyncDB, SyncDBTx, type HyperDB, type HyperDBTx } from "./db";
-import { SqlDriver } from "./drivers/SqlDriver";
+import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
@@ -20,7 +20,7 @@ const tasksTable = table<Task>("tasks").withIndexes({
 describe("Database Transactions", async () => {
   for (const [driver, name] of [
     // new InmemDriver(),
-    [async () => SqlDriver.init(), "SqlDriver"],
+    [async () => await initSqlJsWasm(), "SqlDriver"],
     [async () => new BptreeInmemDriver(), "BptreeInmemDriver"],
   ] as const) {
     describe(`${name}`, () => {

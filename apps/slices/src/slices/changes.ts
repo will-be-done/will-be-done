@@ -14,7 +14,7 @@ import { isEqual } from "es-toolkit";
 import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
-import { AppSyncableModel, syncableTablesMap } from "../stores";
+import { AppSyncableModel, syncableTablesMap } from "./maps";
 
 export type Change = {
   id: string;
@@ -69,7 +69,7 @@ export const changesSlice = {
     const groupedChanges = groupBy(changesToSend, (c) => c.tableName);
 
     for (const [tableName, changes] of Object.entries(groupedChanges)) {
-      const table = syncableTablesMap[tableName];
+      const table = syncableTablesMap()[tableName];
       if (!table) {
         console.error("Unknown table, skipping sync for it", tableName);
         continue;
@@ -225,7 +225,7 @@ export const changesSlice = {
       const toUpdateRows: AppSyncableModel[] = [];
       const toInsertRows: AppSyncableModel[] = [];
 
-      const table = syncableTablesMap[changeset.tableName];
+      const table = syncableTablesMap()[changeset.tableName];
       if (!table) {
         throw new Error("Unknown table: " + changeset.tableName);
       }

@@ -6,7 +6,6 @@ import type {
   WhereClause,
   DBDriverTX,
 } from "../db.ts";
-import initSqlJs from "sql.js";
 import { cloneDeep } from "es-toolkit";
 import type { TableDefinition } from "../table.ts";
 import type { DBCmd } from "../generators.ts";
@@ -23,14 +22,8 @@ import {
   type SqlValue,
   type BindParams,
 } from "./SqliteCommon.ts";
-import wasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
-// interface QueryExecResult {
-//   columns: string[];
-//   values: SqlValue[][];
-// }
-
-interface SQLStatement {
+export interface SQLStatement {
   values(values: SqlValue[]): SqlValue[][];
   // all(params?: BindParams): QueryExecResult[];
   // bind(values?: BindParams): boolean;
@@ -337,47 +330,6 @@ export class SqlDriver implements DBDriver {
       );
       console.log(sql);
       this.db.exec(sql);
-    }
-  }
-
-  static async init() {
-    try {
-      // Try to use sql.js directly (works in Node.js with proper setup)
-      const SQL = await initSqlJs({
-        locateFile: () => wasmUrl,
-      });
-
-      const sqldb = new SQL.Database();
-
-      return new SqlDriver({
-        exec(sql: string, params: SqlValue[]): void {
-          sqldb.exec(sql, params);
-        },
-        prepare(sql: string): SQLStatement {
-          const prepared = sqldb.prepare(sql);
-
-          return {
-            values(values: SqlValue[]): SqlValue[][] {
-              prepared.bind(values);
-
-              const result: SqlValue[][] = [];
-              while (prepared.step()) {
-                result.push(prepared.get());
-              }
-
-              return result;
-            },
-            finalize(): void {
-              prepared.free();
-            },
-          };
-        },
-      });
-    } catch (error) {
-      console.error(error);
-      throw new Error(
-        "sql.js is required but not available. Use HyperDBSQLite.create() for proper async initialization.",
-      );
     }
   }
 }

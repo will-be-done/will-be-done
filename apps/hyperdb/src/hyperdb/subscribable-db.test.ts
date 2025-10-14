@@ -4,6 +4,7 @@ import { DB, SyncDB } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
 import { SqlDriver } from "./drivers/SqlDriver";
+import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
@@ -22,7 +23,7 @@ const tasksTable = table<Task>("tasks").withIndexes({
 describe("SubscribableDB", async () => {
   for (const [driver, driverName] of [
     [async () => new BptreeInmemDriver(), "BptreeInmemDriver"],
-    [async () => SqlDriver.init(), "SqlDriver"],
+    [async () => await initSqlJsWasm(), "SqlDriver"],
   ] as const) {
     describe(`with ${driverName}`, () => {
       it("should subscribe to operations and receive correct notifications", async () => {

@@ -11,7 +11,7 @@ import {
   TaskTemplate,
   taskTemplateType,
   taskType,
-} from "./stores";
+} from "./slices";
 import uuidByString from "uuid-by-string";
 
 interface TaskBackup {
@@ -130,7 +130,9 @@ export const getNewModels = (backup: Backup): AppSyncableModel[] => {
 
   // Create task templates
   for (const templateBackup of backup.taskTemplates || []) {
-    const project = backup.projects.find((p) => p.id === templateBackup.projectId);
+    const project = backup.projects.find(
+      (p) => p.id === templateBackup.projectId,
+    );
     if (!project) {
       console.warn(
         `Project ${templateBackup.projectId} not found for template ${templateBackup.id}`,

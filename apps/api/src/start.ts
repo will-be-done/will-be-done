@@ -149,7 +149,10 @@ hyperDB.afterDelete(function* (db, table, traits, ops) {
 });
 
 execSync(
-  hyperDB.loadTables([...appSyncableTables.map((t) => t.table), changesTable]),
+  hyperDB.loadTables([
+    ...appSyncableTables().map((t) => t.table),
+    changesTable,
+  ]),
 );
 const inbox = syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
 
@@ -431,11 +434,13 @@ async function processTranscriptions() {
               const transcript = fs.readFileSync(transcriptFile, "utf8").trim();
               console.log(`Skipping: ${file} - already transcribed. Content:`);
               createTaskIfNotExists(id, transcript);
-              
+
               // Remove .mp4 and transcript files after task creation
               fs.unlinkSync(filePath);
               fs.unlinkSync(transcriptFile);
-              console.log(`Removed files: ${file} and ${path.basename(transcriptFile)}`);
+              console.log(
+                `Removed files: ${file} and ${path.basename(transcriptFile)}`,
+              );
               continue;
             }
 
@@ -451,11 +456,13 @@ async function processTranscriptions() {
               console.log("==== CREATE TASK ====");
               console.log(`Transcript for ${file}:`);
               console.log(transcript);
-              
+
               // Remove .mp4 and transcript files after task creation
               fs.unlinkSync(filePath);
               fs.unlinkSync(transcriptFile);
-              console.log(`Removed files: ${file} and ${path.basename(transcriptFile)}`);
+              console.log(
+                `Removed files: ${file} and ${path.basename(transcriptFile)}`,
+              );
             } else {
               console.log(`Failed to transcribe: ${file}`);
             }

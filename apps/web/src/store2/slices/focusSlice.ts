@@ -174,7 +174,7 @@ export const focusSlice2 = {
 
     if (skipElFocus) return;
 
-    void new Promise<void>((resolve) => {
+    setTimeout(() => {
       const elements = document.querySelectorAll<HTMLElement>(
         '[data-focusable-key="' + key + '"]',
       );
@@ -199,9 +199,7 @@ export const focusSlice2 = {
           inline: "center",
         });
       }
-
-      resolve();
-    });
+    }, 0);
   }),
 
   editByKey: action(function* (key: FocusKey): GenReturn<void> {

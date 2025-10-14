@@ -1,0 +1,254 @@
+import { isObjectType } from "../utils";
+import { shouldNeverHappen } from "@/utils";
+import {
+  action,
+  deleteRows,
+  insert,
+  runQuery,
+  selectFrom,
+  selector,
+  table,
+  update,
+} from "@will-be-done/hyperdb";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
+import { uuidv7 } from "uuidv7";
+import type { GenReturn } from "./utils";
+import { appSlice2 } from "./app";
+import { projectItemsSlice2 } from "./projectItems";
+import { projectionsSlice2, isTaskProjection } from "./projections";
+import {
+  isTaskTemplate,
+  TaskTemplate,
+  taskTemplatesSlice2,
+} from "./taskTemplates";
+
+// Type definitions
+export const taskType = "task";
+type TaskState = "todo" | "done";
+
+export type Task = {
+  type: typeof taskType;
+  id: string;
+  title: string;
+  state: TaskState;
+  projectId: string;
+  orderToken: string;
+  lastToggledAt: number;
+  horizon: "week" | "month" | "year" | "someday";
+  createdAt: number;
+  templateId: string | null;
+  templateDate: number | null;
+};
+
+export const isTask = isObjectType<Task>(taskType);
+
+export const defaultTask: Task = {
+  type: taskType,
+  id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
+  title: "default task kek",
+  state: "todo",
+  projectId: "",
+  orderToken: "",
+  lastToggledAt: 0,
+  createdAt: 0,
+  horizon: "someday",
+  templateId: null,
+  templateDate: null,
+};
+
+// Table definition
+export const tasksTable = table<Task>("tasks").withIndexes({
+  byIds: { cols: ["id"], type: "btree" },
+  byId: { cols: ["id"], type: "hash" },
+  byProjectIdOrderStates: {
+    cols: ["projectId", "state", "orderToken"],
+    type: "btree",
+  },
+  byTemplateId: {
+    cols: ["templateId"],
+    type: "hash",
+  },
+});
+
+// Slice - imports are at the bottom to avoid circular dependency issues
+export const tasksSlice2 = {
+  allIds: selector(function* (): GenReturn<string[]> {
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byIds").where((q) => q),
+    );
+
+    return tasks.map((p) => p.id);
+  }),
+  canDrop: selector(function* (
+    taskId: string,
+    dropId: string,
+  ): GenReturn<boolean> {
+    const model = yield* appSlice2.byId(dropId);
+    if (!model) return false;
+
+    const task = yield* tasksSlice2.byId(taskId);
+    if (!task) return false;
+
+    if (task.state === "done") {
+      return false;
+    }
+
+    if (isTask(model) && model.state === "done") {
+      return false;
+    }
+
+    return isTaskProjection(model) || isTask(model) || isTaskTemplate(model);
+  }),
+  byId: selector(function* (id: string): GenReturn<Task | undefined> {
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byId")
+        .where((q) => q.eq("id", id))
+        .limit(1),
+    );
+
+    return tasks[0];
+  }),
+  byIdOrDefault: selector(function* (id: string): GenReturn<Task> {
+    return (yield* tasksSlice2.byId(id)) || defaultTask;
+  }),
+  taskIdsOfTemplateId: selector(function* (ids: string[]): GenReturn<string[]> {
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byTemplateId").where((q) =>
+        ids.map((id) => q.eq("templateId", id)),
+      ),
+    );
+
+    return tasks.map((t) => t.id);
+  }),
+  all: selector(function* (): GenReturn<Task[]> {
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byProjectIdOrderStates"),
+    );
+    return tasks;
+  }),
+
+  // actions
+  delete: action(function* (ids: string[]): GenReturn<void> {
+    yield* deleteRows(tasksTable, ids);
+    yield* projectionsSlice2.deleteProjectionsOfTask(ids);
+  }),
+  update: action(function* (id: string, task: Partial<Task>): GenReturn<void> {
+    const taskInState = yield* tasksSlice2.byId(id);
+    if (!taskInState) throw new Error("Task not found");
+
+    yield* update(tasksTable, [{ ...taskInState, ...task }]);
+  }),
+  createTask: action(function* (
+    task: Partial<Task> & { projectId: string; orderToken: string },
+  ): GenReturn<Task> {
+    const id = task.id || uuidv7();
+    const newTask: Task = {
+      type: taskType,
+      id,
+      title: "",
+      state: "todo",
+      lastToggledAt: Date.now(),
+      createdAt: Date.now(),
+      horizon: "week",
+      templateId: null,
+      templateDate: null,
+      ...task,
+    };
+
+    yield* insert(tasksTable, [newTask]);
+
+    return newTask;
+  }),
+  handleDrop: action(function* (
+    taskId: string,
+    dropId: string,
+    edge: "top" | "bottom",
+  ): GenReturn<void> {
+    if (!(yield* tasksSlice2.canDrop(taskId, dropId))) return;
+
+    const task = yield* tasksSlice2.byId(taskId);
+    if (!task) return shouldNeverHappen("task not found");
+
+    const dropItem = yield* appSlice2.byId(dropId);
+    if (!dropItem) return shouldNeverHappen("drop item not found");
+
+    const [up, down] = yield* projectItemsSlice2.siblings(taskId);
+
+    let between: [string | undefined, string | undefined] = [
+      task.orderToken,
+      down?.orderToken,
+    ];
+
+    if (edge == "top") {
+      between = [up?.orderToken, task.orderToken];
+    }
+
+    const orderToken = generateJitteredKeyBetween(
+      between[0] || null,
+      between[1] || null,
+    );
+
+    if (isTask(dropItem)) {
+      yield* tasksSlice2.update(dropItem.id, {
+        projectId: task.projectId,
+        orderToken: orderToken,
+      });
+    } else if (isTaskTemplate(dropItem)) {
+      yield* taskTemplatesSlice2.update(dropItem.id, {
+        projectId: task.projectId,
+        orderToken: orderToken,
+      });
+    } else if (isTaskProjection(dropItem)) {
+      const taskOfDrop = yield* tasksSlice2.byId(dropItem.taskId);
+      if (!taskOfDrop) return shouldNeverHappen("task not found", dropItem);
+
+      yield* tasksSlice2.update(taskOfDrop.id, {
+        orderToken: orderToken,
+        projectId: task.projectId,
+      });
+
+      yield* projectionsSlice2.delete([dropItem.id]);
+    } else {
+      shouldNeverHappen("unknown drop item type", dropItem);
+    }
+  }),
+  toggleState: action(function* (taskId: string): GenReturn<void> {
+    const task = yield* tasksSlice2.byId(taskId);
+    if (!task) throw new Error("Task not found");
+
+    yield* update(tasksTable, [
+      {
+        ...task,
+        state: task.state === "todo" ? "done" : "todo",
+        lastToggledAt: Date.now(),
+      },
+    ]);
+  }),
+  createFromTemplate: action(function* (taskTemplate: TaskTemplate) {
+    yield* projectItemsSlice2.deleteById(taskTemplate.id);
+
+    const newId = uuidv7();
+    const newTask: Task = {
+      id: newId,
+      title: taskTemplate.title,
+      state: "todo",
+      projectId: taskTemplate.projectId,
+      type: taskType,
+      orderToken: taskTemplate.orderToken,
+      lastToggledAt: Date.now(),
+      horizon: taskTemplate.horizon,
+      createdAt: taskTemplate.createdAt,
+      templateId: taskTemplate.id,
+      templateDate: taskTemplate.lastGeneratedAt,
+    };
+    yield* insert(tasksTable, [newTask]);
+
+    return newTask;
+  }),
+  deleteByIds: action(function* (ids: string[]) {
+    yield* deleteRows(tasksTable, ids);
+  }),
+  deleteById: action(function* (id: string): GenReturn<void> {
+    yield* tasksSlice2.delete([id]);
+  }),
+};
