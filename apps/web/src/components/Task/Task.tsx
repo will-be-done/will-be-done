@@ -45,6 +45,43 @@ import {
   focusSlice2,
   parseColumnKey,
 } from "@/store2/slices/focusSlice";
+import { Checkbox } from "@base-ui-components/react/checkbox";
+
+export function CheckboxComp({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <Checkbox.Root
+      defaultChecked
+      className="flex size-4 items-center justify-center rounded-sm bg-slate-200 border-gray-300 mt-0.5"
+      tabIndex={-1}
+      checked={checked}
+      onCheckedChange={onChange}
+    >
+      <Checkbox.Indicator className="flex text-slate-900 data-[unchecked]:hidden">
+        <CheckIcon className="size-2.5" />
+      </Checkbox.Indicator>
+    </Checkbox.Root>
+  );
+}
+
+function CheckIcon(props: React.ComponentProps<"svg">) {
+  return (
+    <svg
+      fill="currentcolor"
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      {...props}
+    >
+      <path d="M9.1603 1.12218C9.50684 1.34873 9.60427 1.81354 9.37792 2.16038L5.13603 8.66012C5.01614 8.8438 4.82192 8.96576 4.60451 8.99384C4.3871 9.02194 4.1683 8.95335 4.00574 8.80615L1.24664 6.30769C0.939709 6.02975 0.916013 5.55541 1.19372 5.24822C1.47142 4.94102 1.94536 4.91731 2.2523 5.19524L4.36085 7.10461L8.12299 1.33999C8.34934 0.993152 8.81376 0.895638 9.1603 1.12218Z" />
+    </svg>
+  );
+}
 
 type State =
   | { type: "idle" }
@@ -71,6 +108,7 @@ const TaskPrimitive = ({
           <input
             type="checkbox"
             className="h-4 w-4 bg-gray-700 border-gray-600 rounded"
+            tabIndex={-1}
           />
         </div>
         <div className="font-medium text-gray-200 h-6">{title}</div>
@@ -87,9 +125,9 @@ export const DropTaskIndicator = ({
   return (
     <div
       className={clsx(
-        "absolute left-0 right-0 bottom-0 w-full bg-blue-500 h-[2px]",
-        direction == "top" && "top-[-5px]",
-        direction == "bottom" && "bottom-[-5px]",
+        "absolute left-0 right-0 bottom-0 w-full bg-panel-selected h-[2px] rounded-lg",
+        direction == "top" && "top-[-9px]",
+        direction == "bottom" && "bottom-[-9px]",
       )}
     ></div>
   );
@@ -586,10 +624,15 @@ export const TaskComp = ({
         data-focusable-key={focusableItem.key}
         tabIndex={0}
         className={clsx(
-          `relative p-3 rounded-lg border  shadow-md  whitespace-break-spaces [overflow-wrap:anywhere]`,
-          isFocused
-            ? "border-blue-500 bg-gray-700"
-            : "border-gray-700 bg-gray-750",
+          `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-3 text-sm text-content shadow-lg`,
+          {
+            "bg-focused-panel focus-visible:outline-focused-panel-selected":
+              isFocused,
+            "bg-panel focus-visible:outline-focused-panel-selected": !isFocused,
+          },
+          // isFocused
+          //   ? "border-blue-500 bg-gray-700"
+          //   : "border-gray-700 bg-gray-750",
 
           // (dndState.type === "dragging" || dndState.type === "preview") &&
           //   !isSelfDragging &&
@@ -611,61 +654,63 @@ export const TaskComp = ({
         <>
           <div className="absolute top-2 right-2 flex gap-1">
             {isTaskTemplate(projectItem) && (
-              <CircleDashed className="h-3 w-3 text-gray-400" />
+              <CircleDashed className="h-3 w-3" />
             )}
             {isTask(projectItem) && projectItem.templateId && (
-              <RotateCw className="h-3 w-3 text-gray-400" />
+              <RotateCw className="h-3 w-3" />
             )}
           </div>
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-1.5 px-2 pt-2">
             {isEditing ? (
               <>
-                <div className="flex items-center justify-end">
-                  <input
-                    key={projectItem.id}
-                    type="checkbox"
-                    className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
-                    aria-label="Task completion status"
-                  />
-                </div>
+                {isTask(projectItem) && (
+                  <div className="flex items-center justify-end">
+                    <CheckboxComp
+                      checked={projectItem.state === "done"}
+                      onChange={handleTick}
+                    />
+                  </div>
+                )}
                 <TextareaAutosize
                   ref={handleRef}
                   value={editingTitle}
                   onChange={(e) => setEditingTitle(e.target.value)}
                   onKeyDown={(e) => handleInputKeyDown(e)}
-                  className="w-full bg-transparent text-gray-200 placeholder-gray-400 resize-none focus:outline-none "
+                  className="w-full bg-transparent resize-none focus:outline-none"
                   aria-label="Edit task title"
                 />
               </>
             ) : (
               <>
                 {isTask(projectItem) && (
-                  <>
-                    <div className="flex justify-end">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 bg-gray-700 border-gray-600 rounded mt-1"
-                        checked={projectItem.state === "done"}
-                        onChange={(e) => {
-                          handleTick();
-                        }}
-                        aria-label="Task completion status"
-                      />
-                    </div>
-                  </>
+                  <div className="flex justify-end">
+                    <CheckboxComp
+                      checked={projectItem.state === "done"}
+                      onChange={handleTick}
+                    />
+                  </div>
                 )}
-                <div className="text-gray-200 min-h-6">{projectItem.title}</div>
+                <div className="min-h-5">{projectItem.title}</div>
               </>
             )}
           </div>
-          <div className="flex justify-between  mt-3 text-gray-400 text-sm">
+          <div
+            className={cn(
+              "flex justify-between mt-3 text-sm  px-2 py-1 text-xs rounded-b-lg",
+              {
+                "bg-panel-tinted text-panel-selected": !isFocused,
+                "bg-focused-panel-tinted text-focused-panel-selected":
+                  isFocused,
+              },
+            )}
+          >
             <div>{projectItem.horizon}</div>
 
             {lastProjectionTime !== undefined &&
               lastProjectionTime !== 0 &&
               displayLastProjectionTime && (
                 <div
-                  className={cn("text-center text-gray-400", {
+                  className={cn("text-center", {
                     "text-amber-400": shouldHighlightProjectionTime,
                   })}
                 >
@@ -677,7 +722,7 @@ export const TaskComp = ({
                 </div>
               )}
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
-              <div className="text-right text-gray-400 ">
+              <div className="text-right">
                 {project.icon || "🟡"} {project.title}
               </div>
             )}

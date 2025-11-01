@@ -222,8 +222,9 @@ export const dailyListsSlice2 = {
       }
     }
 
-    const childrenIds = yield* dailyListsSlice2.childrenIds(dailyListId);
-    return childrenIds.length === 0;
+    return true;
+    // const childrenIds = yield* dailyListsSlice2.childrenIds(dailyListId);
+    // return childrenIds.length === 0;
   }),
 
   // actions
@@ -308,10 +309,10 @@ export const dailyListsSlice2 = {
     dropId: string,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
-    const firstChild = yield* dailyListsSlice2.firstChild(dailyListId);
+    const lastChild = yield* dailyListsSlice2.lastChild(dailyListId);
     const between: [string | null, string | null] = [
+      lastChild?.orderToken || null,
       null,
-      firstChild?.orderToken || null,
     ];
 
     const orderToken = generateJitteredKeyBetween(
@@ -333,7 +334,7 @@ export const dailyListsSlice2 = {
     } else if (isTask(drop)) {
       yield* dailyListsSlice2.createProjection(dailyList.id, drop.id, [
         undefined,
-        firstChild,
+        lastChild,
       ]);
     }
   }),
