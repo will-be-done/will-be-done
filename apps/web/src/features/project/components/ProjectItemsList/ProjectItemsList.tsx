@@ -212,6 +212,7 @@ export const ProjectItemsList = ({ project }: { project: Project }) => {
             <ProjectTitle project={project} />
 
             <button
+              type="button"
               className="ml-auto text-red-700"
               onClick={() => {
                 const shouldDelete = confirm(

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { useDaysPreferences } from "./DaysBoard2";
+import { useDaysPreferences } from "./hooks";
 
 export const NavPanel = ({
   previousDate,

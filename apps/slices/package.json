@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@will-be-done/hyperdb": "workspace:*",
+    "date-fns": "^4.1.0",
     "es-toolkit": "^1.35.0",
     "fractional-indexing-jittered": "^1.0.0",
     "rrule": "^2.8.1",

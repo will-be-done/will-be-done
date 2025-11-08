@@ -41,10 +41,10 @@ export const ResizableDivider = ({ onResize }: ResizableDividerProps) => {
 
   return (
     <div
-      className="h-[6px] flex items-center justify-center cursor-row-resize group"
+      className="h-[6px] flex items-center cursor-row-resize group translate-y-[-3px]"
       onMouseDown={handleMouseDown}
     >
-      <div className="h-[2px] w-full bg-transparent group-hover:bg-blue-500 transition-colors" />
+      <div className="h-[1px] w-full bg-panel-2 transition-colors" />
     </div>
   );
 };

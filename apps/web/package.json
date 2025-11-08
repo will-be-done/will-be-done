@@ -52,6 +52,7 @@
     "mutative": "^1.1.0",
     "nanoevents": "^9.1.0",
     "nanoid": "^5.1.5",
+    "radix-ui": "^1.4.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-scan": "^0.3.3",

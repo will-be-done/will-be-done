@@ -5,6 +5,7 @@ import {
   selectFrom,
   selector,
 } from "@will-be-done/hyperdb";
+import { startOfDay } from "date-fns";
 import type { GenReturn, OrderableItem } from "./utils";
 import {
   timeCompare,
@@ -26,6 +27,8 @@ import {
   defaultTaskTemplate,
 } from "./taskTemplates";
 import { projectsSlice2 } from "./projects";
+import { dailyListsSlice2 } from "./dailyLists";
+import { projectionsSlice2 } from "./projections";
 
 // Slice
 export const projectItemsSlice2 = {
@@ -149,6 +152,50 @@ export const projectItemsSlice2 = {
 
     return filteredTaskIds;
   }),
+
+  notDoneTaskCountExceptDailiesCount: selector(function* (
+    projectId: string,
+    exceptDailyListIds: string[],
+  ): GenReturn<number> {
+    return (yield* dailyListsSlice2.notDoneTaskIdsExceptDailies(
+      projectId,
+      exceptDailyListIds,
+      ["someday", "week", "month", "year"],
+      [],
+      // idsToAlwaysInclude,
+    )).length;
+  }),
+
+  overdueTaskCountExceptDailiesCount: selector(function* (
+    projectId: string,
+    exceptDailyListIds: string[],
+    currentDate: Date,
+  ): GenReturn<number> {
+    const notDoneTasks = yield* dailyListsSlice2.notDoneTaskIdsExceptDailies(
+      projectId,
+      exceptDailyListIds,
+      ["someday", "week", "month", "year"],
+      [],
+      // idsToAlwaysInclude,
+    );
+
+    let count = 0;
+    for (const taskId of notDoneTasks) {
+      const lastProjectionTime = (yield* projectionsSlice2.lastProjectionOfTask(
+        taskId,
+      ))?.createdAt;
+
+      if (
+        lastProjectionTime &&
+        startOfDay(currentDate).getTime() > lastProjectionTime
+      ) {
+        count++;
+      }
+    }
+
+    return count;
+  }),
+
   withoutTasksByIds: selector(function* (
     projectId: string,
     excludeIds: string[],

@@ -1,89 +1,23 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMemo } from "react";
-import {
-  addDays,
-  format,
-  getDay,
-  nextWednesday,
-  startOfDay,
-  subDays,
-} from "date-fns";
-// import { TaskComp } from "../../../../components/Task/Task";
-// import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-// import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-// import { DndModelData, isModelDNDData } from "@/features/dnd/models";
-import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import invariant from "tiny-invariant";
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-// import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
-// import { ColumnListProvider } from "@/features/focus/components/ParentListProvider.tsx";
-// import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
-// import clsx from "clsx";
+import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
-// import { Link } from "@tanstack/react-router";
-// import { MultiSelect } from "@/components/ui/multi-select";
-import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
-  allProjectsSlice2,
   DailyList,
   dailyListsSlice2,
-  dropSlice2,
-  getDMY,
   inboxId,
   projectionsSlice2,
 } from "@will-be-done/slices";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice";
 import { TaskComp } from "@/components/Task/Task";
-import { ColumnListProvider } from "@/features/focus/components/ParentListProvider";
-import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import { ResizableDivider } from "./ResizableDivider";
-import { prefetchDNS } from "react-dom";
 import { NavPanel } from "./NavPanel";
+import { useCurrentDMY, useDaysPreferences } from "./hooks";
+import { ProjectView } from "./ProvecjtView";
+import { TasksColumn, TasksColumnGrid } from "@/components/TasksGrid/TasksGrid";
 import { ScrollArea } from "@base-ui-components/react/scroll-area";
-
-type DaysPreferences = {
-  daysWindow: number;
-  daysShift: number;
-
-  setDaysWindow: (value: number) => void;
-  setDaysShift: (value: number) => void;
-};
-export const useDaysPreferences = create<DaysPreferences>()(
-  persist(
-    (set, get) => ({
-      daysWindow: 7,
-      daysShift: 0,
-      setDaysWindow: (value: number) => {
-        set({ daysWindow: value });
-      },
-      setDaysShift: (value: number) => {
-        set({ daysShift: value });
-      },
-    }),
-    {
-      name: "days-preferences",
-      storage: createJSONStorage(() => localStorage),
-    },
-  ),
-);
-
-const useCurrentDate = () => {
-  const [date, setDate] = useState(getDMY(new Date()));
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDate(getDMY(new Date()));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return date;
-};
 
 const TaskProjection = ({
   projectionId,
@@ -110,11 +44,6 @@ const TaskProjection = ({
   );
 };
 
-type DailyListDndState = { type: "idle" } | { type: "is-task-over" };
-
-const idle: DailyListDndState = { type: "idle" };
-const isTaskOver: DailyListDndState = { type: "is-task-over" };
-
 const ColumnView = ({
   dailyListId,
   onTaskAdd,
@@ -128,8 +57,7 @@ const ColumnView = ({
     () => dailyListsSlice2.byIdOrDefault(dailyListId),
     [dailyListId],
   );
-  const select = useSelect();
-  const currentDate = useCurrentDate();
+  const currentDate = useCurrentDMY();
   const isToday = useMemo(() => {
     return currentDate === dailyList.date;
   }, [currentDate, dailyList.date]);
@@ -144,127 +72,58 @@ const ColumnView = ({
     [dailyListId],
   );
 
-  const [dndState, setDndState] = useState<DailyListDndState>(idle);
-
-  const columnRef = useRef<HTMLDivElement>(null);
-  const scrollableRef = useRef<HTMLDivElement>(null);
-  const isOver = dndState.type == "is-task-over";
-
-  useEffect(() => {
-    invariant(columnRef.current);
-    invariant(scrollableRef.current);
-    return combine(
-      dropTargetForElements({
-        element: columnRef.current,
-        getData: (): DndModelData => ({
-          modelId: dailyList.id,
-          modelType: dailyList.type,
-        }),
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return select(dropSlice2.canDrop(dailyListId, data.modelId));
-        },
-        getIsSticky: () => true,
-        onDragEnter: () => setDndState(isTaskOver),
-        onDragLeave: () => setDndState(idle),
-        onDragStart: () => setDndState(isTaskOver),
-        onDrop: () => setDndState(idle),
-      }),
-      autoScrollForElements({
-        element: scrollableRef.current,
-        canScroll: ({ source }) => isModelDNDData(source.data),
-      }),
-    );
-  }, [dailyList.id, dailyList.type, dailyListId, select]);
-
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
   const isHidden =
     isHiddenClicked ||
     (projectionIds.length == 0 && doneProjectionIds.length == 0);
 
+  const handleHideClick = () => setIsHiddenClicked((v) => !v);
+
   return (
-    <ColumnListProvider
+    <TasksColumn
       focusKey={buildFocusKey(dailyList.id, dailyList.type, "ColumnView")}
-      priority={(orderNumber + 100).toString()}
-    >
-      <div
-        ref={columnRef}
-        className={cn("flex h-full p-1 flex-shrink-0 min-h-0", {
-          "min-w-[350px]": !isHidden,
-        })}
-      >
-        <button
-          type="button"
-          className=" pb-4"
-          style={{
-            writingMode: "vertical-rl",
-            textOrientation: "mixed",
-            transform: "rotate(180deg)",
-            // width: "48px",
-          }}
-          onClick={() => setIsHiddenClicked((v) => !v)}
-        >
-          <div
-            className={cn(
-              "flex gap-3 justify-end flex-shrink-0 border border-3 border-transparent box-border  p-1",
-              {
-                "border rounded-lg border-3 border-panel-selected":
-                  isOver && isHidden,
-              },
-            )}
-          >
-            <div className="inline-block text-xs text-subheader mr-4">
-              {format(dailyList.date, "dd MMM")}
-            </div>
-            <div
-              className={cn("uppercase text-content text-3xl font-bold ", {
-                "text-accent": isToday,
-              })}
-            >
-              {format(dailyList.date, "EEEE")}
-            </div>
+      orderNumber={orderNumber + 100}
+      isHidden={isHidden}
+      onHideClick={handleHideClick}
+      header={
+        <>
+          <div className="inline-block text-xs text-subheader mr-4">
+            {format(dailyList.date, "dd MMM")}
           </div>
-        </button>
-
-        <ScrollArea.Root
-          className={cn("w-full  min-h-0", {
-            hidden: isHidden,
-          })}
-        >
-          <ScrollArea.Viewport
-            className="h-full overscroll-contain rounded-md w-full pr-4"
-            ref={scrollableRef}
+          <div
+            className={cn("uppercase text-content text-3xl font-bold ", {
+              "text-accent": isToday,
+            })}
           >
-            <div className={cn("flex flex-col gap-4 w-full py-4")}>
-              {projectionIds.map((id, i) => {
-                return (
-                  <TaskProjection
-                    projectionId={id}
-                    key={id}
-                    orderNumber={i.toString()}
-                  />
-                );
-              })}
+            {format(dailyList.date, "EEEE")}
+          </div>
+        </>
+      }
+      columnModelId={dailyList.id}
+      columnModelType={dailyList.type}
+    >
+      <div className={cn("flex flex-col gap-4 w-full py-4")}>
+        {projectionIds.map((id, i) => {
+          return (
+            <TaskProjection
+              projectionId={id}
+              key={id}
+              orderNumber={i.toString()}
+            />
+          );
+        })}
 
-              {doneProjectionIds.map((id, i) => {
-                return (
-                  <TaskProjection
-                    projectionId={id}
-                    key={id}
-                    orderNumber={(projectionIds.length + i).toString()}
-                  />
-                );
-              })}
-            </div>
-          </ScrollArea.Viewport>
-          <ScrollArea.Scrollbar className="m-2 flex w-1 justify-center rounded bg-gray-200 opacity-0 transition-opacity delay-300 pointer-events-none data-[hovering]:opacity-100 data-[hovering]:delay-0 data-[hovering]:duration-75 data-[hovering]:pointer-events-auto data-[scrolling]:opacity-100 data-[scrolling]:delay-0 data-[scrolling]:duration-75 data-[scrolling]:pointer-events-auto">
-            <ScrollArea.Thumb className="w-full rounded bg-gray-500" />
-          </ScrollArea.Scrollbar>
-        </ScrollArea.Root>
+        {doneProjectionIds.map((id, i) => {
+          return (
+            <TaskProjection
+              projectionId={id}
+              key={id}
+              orderNumber={(projectionIds.length + i).toString()}
+            />
+          );
+        })}
       </div>
-    </ColumnListProvider>
+    </TasksColumn>
   );
 };
 
@@ -280,7 +139,6 @@ const BoardView = ({
   dailyListsIds: string[];
 }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
-  const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
   const dispatch = useDispatch();
 
   const handleAddTask = useCallback(
@@ -313,14 +171,13 @@ const BoardView = ({
   return (
     <>
       <div className="flex flex-col w-full">
-        <div className="flex-1 overflow-x-auto w-full relative">
-          <div
-            className="grid max-h-full h-full pt-8"
-            style={{
-              gridTemplateColumns: `repeat(${daysToShow}, fit-content(40px))`,
-              gridTemplateRows: `1fr`,
-            }}
-          >
+        <div
+          className="overflow-y-auto pt-6"
+          style={{ height: `${100 - height}%` }}
+        >
+          {/* <ScrollArea.Root style={{ height: `${100 - height}%` }}> */}
+          {/*   <ScrollArea.Viewport className="h-full overscroll-contain rounded-md w-full pr-4 pl-1"> */}
+          <TasksColumnGrid columnsCount={daysToShow}>
             {dailyListsIds.map((id, i) => (
               <ColumnView
                 dailyListId={id}
@@ -329,16 +186,25 @@ const BoardView = ({
                 key={id}
               />
             ))}
-          </div>
+          </TasksColumnGrid>
+          {/* </ScrollArea.Viewport> */}
+          {/* <ScrollArea.Scrollbar */}
+          {/*   className="m-2 flex  h-1 justify-center rounded bg-gray-200 opacity-0 transition-opacity delay-300 pointer-events-none data-[hovering]:opacity-100 data-[hovering]:delay-0 data-[hovering]:duration-75 data-[hovering]:pointer-events-auto data-[scrolling]:opacity-100 data-[scrolling]:delay-0 data-[scrolling]:duration-75 data-[scrolling]:pointer-events-auto" */}
+          {/*   orientation="horizontal" */}
+          {/* > */}
+          {/*   <ScrollArea.Thumb className="w-full rounded bg-gray-500" /> */}
+          {/* </ScrollArea.Scrollbar> */}
           <NavPanel
             previousDate={previousDate}
             nextDate={nextDate}
             selectedDate={selectedDate}
           />
+          {/* </ScrollArea.Root> */}
         </div>
-        <div className="bg-red-300 w-full" style={{ height: `${height}%` }}>
+        <div className="w-full relative" style={{ height: `${height}%` }}>
           <ResizableDivider onResize={handleRightResize} />
-          hello
+
+          <ProjectView exceptDailyListIds={dailyListsIds} />
         </div>
       </div>
     </>

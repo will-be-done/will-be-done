@@ -12,14 +12,18 @@
   --color-panel-tinted: var(--color-slate-800);
   --color-panel-selected: var(--color-slate-400);
 
+  --color-panel-2: var(--color-gray-800);
+
   --color-focused-panel: var(--color-purple-800);
   --color-focused-panel-selected: var(--color-purple-400);
   --color-focused-panel-tinted: var(--color-purple-900);
 
-  --color-primary: var(--color-slate-300);
+  --color-primary: var(--color-gray-300);
   --color-accent: var(--color-purple-500);
-  --color-content: var(--color-slate-200);
+  --color-content: var(--color-gray-200);
+  --color-content-tinted: var(--color-gray-500);
   --color-subheader: var(--color-slate-400);
+  --color-notice: var(--color-yellow-500);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/
