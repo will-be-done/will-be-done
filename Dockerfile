@@ -1,23 +1,24 @@
-# Stage 1: Build the Vite application using pnpm
-FROM node:20-alpine AS builder
+# Stage 1: Build the Vite application using Bun
+FROM oven/bun:alpine AS builder
 # Set the working directory
 WORKDIR /app
-# Install pnpm globally
-RUN npm install -g pnpm
-# Copy package.json and pnpm-lock.yaml
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Copy package.json files
+COPY package.json ./
 COPY apps/web/package.json ./apps/web/
 COPY apps/api/package.json ./apps/api/
 COPY apps/hyperdb/package.json ./apps/hyperdb/
 COPY apps/slices/package.json ./apps/slices/
-# Install dependencies using pnpm
-# --frozen-lockfile ensures dependencies are installed exactly as specified in the lockfile
-RUN pnpm install --frozen-lockfile
+# Copy lockfile if it exists
+COPY bun.lockb* ./
+# Install dependencies using Bun
+RUN bun install
 # Copy the rest of the application source code
 COPY . .
-# Build the application using pnpm
+# Build the application using Bun
 # Assumes your build script is named "build" in package.json
-RUN pnpm --filter ./apps/web run build
+WORKDIR /app/apps/web
+RUN bun run build
+WORKDIR /app
 
 # Stage 2: Create Bun runtime image
 FROM oven/bun:alpine AS runner
@@ -31,8 +32,9 @@ COPY --from=builder /app/apps/api /app/apps/api
 COPY --from=builder /app/apps/web/dist /app/apps/api/public
 
 # Copy package files and install production dependencies for API
-COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
-RUN bun install -g pnpm && pnpm install --prod 
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/bun.lockb* ./
+RUN bun install --production 
 
 # Expose port 8080
 EXPOSE 3000

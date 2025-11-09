@@ -3,10 +3,14 @@
   "version": "0.1.0",
   "author": "quolpr",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {},
   "scripts": {
-    "dev:client": "pnpm --filter ./apps/web run dev",
-    "dev:server": "pnpm --filter ./apps/api run dev"
+    "dev:client": "bun --cwd apps/web run dev",
+    "dev:server": "bun --cwd apps/api run dev"
   },
   "devDependencies": {}
 }

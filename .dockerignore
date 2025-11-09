@@ -8,12 +8,21 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 dbs
-node_modules
 apps/api/dbs
 
+# Dependencies
 node_modules
+**/node_modules
+.pnpm-store
+
+# Lock files (will be generated during build)
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# Build outputs
 dist
 dist-ssr
+**/dist
 *.local
 
 # Editor directories and files
