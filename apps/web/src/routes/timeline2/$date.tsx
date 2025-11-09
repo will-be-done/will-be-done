@@ -18,7 +18,6 @@ export const Route = createFileRoute("/timeline2/$date")({
 function RouteComponent() {
   const params = Route.useParams();
   const date = parse(params.date, "yyyy-MM-dd", new Date());
-  // const searchParams = Route.useSearch();
 
   return (
     <Layout2>

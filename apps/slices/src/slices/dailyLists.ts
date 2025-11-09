@@ -22,6 +22,7 @@ import {
   taskProjectionsTable,
 } from "./projections";
 import { projectItemsSlice2 } from "./projectItems";
+import { format } from "date-fns";
 
 // Type definitions
 export const dailyListType = "dailyList";

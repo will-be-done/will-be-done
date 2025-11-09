@@ -59,8 +59,8 @@ export const NavPanel = ({
             >
               <path
                 d="M0.5 0.499999L3 3L0.5 5.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </svg>
           </Link>

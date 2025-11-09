@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 
 // Utility types
@@ -49,7 +50,7 @@ export function* generateOrderTokenPositioned(
 export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
 
 export function getDMY(date: Date): string {
-  return date.toISOString().split("T")[0]!;
+  return format(date, "yyyy-MM-dd");
 }
 
 export function generateKeyPositionedBetween(
