@@ -79,6 +79,14 @@ const ColumnView = ({
 
   const handleHideClick = () => setIsHiddenClicked((v) => !v);
 
+  const handleAddClick = () => {
+    if (isHidden) {
+      setIsHiddenClicked(false);
+    }
+
+    onTaskAdd(dailyList);
+  };
+
   return (
     <TasksColumn
       focusKey={buildFocusKey(dailyList.id, dailyList.type, "ColumnView")}
@@ -101,6 +109,7 @@ const ColumnView = ({
       }
       columnModelId={dailyList.id}
       columnModelType={dailyList.type}
+      onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
         {projectionIds.map((id, i) => {

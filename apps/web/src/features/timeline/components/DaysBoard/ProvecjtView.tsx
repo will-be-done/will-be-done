@@ -349,10 +349,12 @@ const ProjectItem = function ProjectItemComp({
           {project.title}
         </div>
         <div className="ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0">
-          <div>{notDoneTasksCount}</div>
           {overdueTasksCount > 0 && (
-            <div className="text-notice">({overdueTasksCount})</div>
+            <>
+              <div className="text-notice">{overdueTasksCount}</div>|
+            </>
           )}
+          <div>{notDoneTasksCount}</div>
         </div>
       </button>
 

@@ -39,6 +39,16 @@ export const ProjectItemsList2 = ({
 
   const handleHideClick = () => setIsHiddenClicked((v) => !v);
 
+  const handleAddClick = () => {
+    if (isHidden) {
+      setIsHiddenClicked(false);
+    }
+
+    const task = dispatch(projectItemsSlice2.createTask(project.id, "prepend"));
+
+    dispatch(focusSlice2.editByKey(buildFocusKey(task.id, task.type)));
+  };
+
   return (
     <>
       <TasksColumnGrid columnsCount={1}>
@@ -57,6 +67,7 @@ export const ProjectItemsList2 = ({
           columnModelId={project.id}
           columnModelType={project.type}
           panelWidth={1000}
+          onAddClick={handleAddClick}
         >
           <div className="flex flex-col gap-4 w-full py-4">
             {todoTaskIds.map((id, i) => {

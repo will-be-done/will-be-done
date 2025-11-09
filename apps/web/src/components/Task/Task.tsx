@@ -57,12 +57,12 @@ export function CheckboxComp({
   return (
     <Checkbox.Root
       defaultChecked
-      className="flex size-4 items-center justify-center rounded-sm bg-slate-200 border-gray-300 mt-0.5"
+      className="flex size-4 items-center justify-center rounded-sm bg-input border-gray-300 mt-0.5"
       tabIndex={-1}
       checked={checked}
       onCheckedChange={onChange}
     >
-      <Checkbox.Indicator className="flex text-slate-900 data-[unchecked]:hidden">
+      <Checkbox.Indicator className="flex text-input-checked data-[unchecked]:hidden">
         <CheckIcon className="size-2.5" />
       </Checkbox.Indicator>
     </Checkbox.Root>

@@ -45,6 +45,7 @@ export const TasksColumn = ({
   columnModelType,
   children,
   panelWidth,
+  onAddClick,
 }: {
   focusKey: FocusKey;
   orderNumber: number;
@@ -55,6 +56,7 @@ export const TasksColumn = ({
   columnModelType: string;
   children: React.ReactNode;
   panelWidth?: number;
+  onAddClick?: () => void;
 }) => {
   const select = useSelect();
   const columnRef = useRef<HTMLDivElement>(null);
@@ -98,33 +100,55 @@ export const TasksColumn = ({
     >
       <div
         ref={columnRef}
-        className={cn("flex h-full p-1 flex-shrink-0 min-h-0 ")}
+        className={cn("flex h-full p-1 flex-shrink-0 min-h-0 group")}
         style={!isHidden ? { minWidth: `${panelWidth ?? 350}px` } : {}}
       >
-        <button
-          type="button"
-          className="group focus:outline-none "
+        <div
+          className="flex justify-end"
           style={{
             writingMode: "vertical-rl",
             textOrientation: "mixed",
             transform: "rotate(180deg)",
             // width: "48px",
           }}
-          onClick={onHideClick}
         >
-          <div
+          {onAddClick && (
+            <button
+              className="hidden group-hover:block cursor-pointer text-panel mb-6"
+              onClick={onAddClick}
+              type="button"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width={24}
+                height={24}
+                fill="none"
+              >
+                <path
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 12h14m-7-7v14"
+                />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
             className={cn(
-              "flex gap-3 justify-end flex-shrink-0  p-1 rounded-lg ",
+              "flex gap-3 justify-end flex-shrink-0  p-1 rounded-lg  group focus:outline-none ",
               " group-focus-visible:outline-2 group-focus-visible:outline-offset-1 group-focus-visible:outline-solid group-focus-visible:outline-panel-selected",
               {
                 "outline-2 outline-offset-1 outline-solid outline-panel-selected":
                   isOver && isHidden,
               },
             )}
+            onClick={onHideClick}
           >
             {header}
-          </div>
-        </button>
+          </button>
+        </div>
         <div
           className={cn("w-full min-h-0 overflow-y-auto", {
             hidden: isHidden,
