@@ -628,8 +628,11 @@ export const TaskComp = ({
           {
             "bg-focused-panel focus-visible:outline-focused-panel-selected":
               isFocused,
-            "bg-panel focus-visible:outline-focused-panel-selected": !isFocused,
           },
+          !isFocused && isTask(projectItem) && projectItem.state === "done"
+            ? "bg-done-panel focus-visible:outline-focused-panel-selected text-done-content"
+            : !isFocused &&
+                "bg-panel focus-visible:outline-focused-panel-selected",
           // isFocused
           //   ? "border-blue-500 bg-gray-700"
           //   : "border-gray-700 bg-gray-750",
@@ -690,7 +693,14 @@ export const TaskComp = ({
                     />
                   </div>
                 )}
-                <div className="min-h-5">{projectItem.title}</div>
+                <div
+                  className={cn("min-h-5", {
+                    "line-through":
+                      isTask(projectItem) && projectItem.state === "done",
+                  })}
+                >
+                  {projectItem.title}
+                </div>
               </>
             )}
           </div>
@@ -698,10 +708,13 @@ export const TaskComp = ({
             className={cn(
               "flex justify-between mt-3 text-sm  px-2 py-1 text-xs rounded-b-lg",
               {
-                "bg-panel-tinted text-panel-selected": !isFocused,
                 "bg-focused-panel-tinted text-focused-panel-selected":
                   isFocused,
               },
+
+              !isFocused && isTask(projectItem) && projectItem.state === "done"
+                ? "bg-done-panel-tinted text-done-selected"
+                : !isFocused && "bg-panel-tinted text-panel-selected",
             )}
           >
             <div>{projectItem.horizon}</div>

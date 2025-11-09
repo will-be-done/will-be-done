@@ -172,7 +172,7 @@ const BoardView = ({
     <>
       <div className="flex flex-col w-full">
         <div
-          className="overflow-y-auto pt-6"
+          className="overflow-y-auto pt-10"
           style={{ height: `${100 - height}%` }}
         >
           {/* <ScrollArea.Root style={{ height: `${100 - height}%` }}> */}

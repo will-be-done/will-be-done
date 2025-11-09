@@ -98,12 +98,12 @@ export const TasksColumn = ({
     >
       <div
         ref={columnRef}
-        className={cn("flex h-full p-1 flex-shrink-0 min-h-0")}
+        className={cn("flex h-full p-1 flex-shrink-0 min-h-0 ")}
         style={!isHidden ? { minWidth: `${panelWidth ?? 350}px` } : {}}
       >
         <button
           type="button"
-          className=" "
+          className="group focus:outline-none "
           style={{
             writingMode: "vertical-rl",
             textOrientation: "mixed",
@@ -114,7 +114,8 @@ export const TasksColumn = ({
         >
           <div
             className={cn(
-              "flex gap-3 justify-end flex-shrink-0  p-1 rounded-lg",
+              "flex gap-3 justify-end flex-shrink-0  p-1 rounded-lg ",
+              " group-focus-visible:outline-2 group-focus-visible:outline-offset-1 group-focus-visible:outline-solid group-focus-visible:outline-panel-selected",
               {
                 "outline-2 outline-offset-1 outline-solid outline-panel-selected":
                   isOver && isHidden,
@@ -129,8 +130,11 @@ export const TasksColumn = ({
             hidden: isHidden,
           })}
           ref={scrollableRef}
+          tabIndex={-1}
         >
-          <div className={cn("flex flex-col gap-4 w-full ")}>{children}</div>
+          <div className={cn("flex flex-col gap-4 w-full px-1")}>
+            {children}
+          </div>
         </div>
 
         {/* <ScrollArea.Root */}
