@@ -625,14 +625,18 @@ export const TaskComp = ({
         tabIndex={0}
         className={clsx(
           `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-3 text-sm text-content shadow-lg`,
-          {
-            "bg-focused-panel focus-visible:outline-focused-panel-selected":
-              isFocused,
-          },
-          !isFocused && isTask(projectItem) && projectItem.state === "done"
-            ? "bg-done-panel focus-visible:outline-focused-panel-selected text-done-content"
-            : !isFocused &&
-                "bg-panel focus-visible:outline-focused-panel-selected",
+          // {
+          //   is
+          //   "bg-focused-panel focus-visible:outline-focused-panel-selected":
+          //     isFocused,
+          // },
+          isFocused &&
+            (isTask(projectItem) && projectItem.state === "done"
+              ? "outline outline-3 outline-done-panel-selected"
+              : "outline outline-3 outline-panel-selected"),
+          isTask(projectItem) && projectItem.state === "done"
+            ? "bg-done-panel text-done-content"
+            : "bg-panel",
           // isFocused
           //   ? "border-blue-500 bg-gray-700"
           //   : "border-gray-700 bg-gray-750",
@@ -707,14 +711,14 @@ export const TaskComp = ({
           <div
             className={cn(
               "flex justify-between mt-3 text-sm  px-2 py-1 text-xs rounded-b-lg",
-              {
-                "bg-focused-panel-tinted text-focused-panel-selected":
-                  isFocused,
-              },
+              // {
+              //   "bg-focused-panel-tinted text-focused-panel-selected":
+              //     isFocused,
+              // },
 
-              !isFocused && isTask(projectItem) && projectItem.state === "done"
+              isTask(projectItem) && projectItem.state === "done"
                 ? "bg-done-panel-tinted text-done-selected"
-                : !isFocused && "bg-panel-tinted text-panel-selected",
+                : "bg-panel-tinted text-panel-selected",
             )}
           >
             <div>{projectItem.horizon}</div>

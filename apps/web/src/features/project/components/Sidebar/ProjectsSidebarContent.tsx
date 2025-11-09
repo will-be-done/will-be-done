@@ -85,7 +85,7 @@ const ProjectItem = function ProjectItemComp({
   projectId: string;
   orderNumber: string;
 }) {
-  console.log("orderNumber", projectId, orderNumber);
+  // console.log("orderNumber", projectId, orderNumber);
 
   const db = useDB();
   const project = useSyncSelector(

@@ -10,11 +10,11 @@
 
   --color-panel: var(--color-slate-700);
   --color-panel-tinted: var(--color-slate-800);
-  --color-panel-selected: var(--color-slate-400);
+  --color-panel-selected: var(--color-slate-500);
 
   --color-done-panel: var(--color-zinc-800);
   --color-done-panel-tinted: var(--color-zinc-900);
-  --color-done-panel-selected: var(--color-zinc-400);
+  --color-done-panel-selected: var(--color-zinc-500);
 
   --color-focused-panel: var(--color-purple-800);
   --color-focused-panel-selected: var(--color-purple-400);

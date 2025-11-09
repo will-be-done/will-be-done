@@ -95,7 +95,7 @@ const ProjectItem = function ProjectItemComp({
   isSelected: boolean;
   exceptDailyListIds: string[];
 }) {
-  console.log("orderNumber", projectId, orderNumber);
+  // console.log("orderNumber", projectId, orderNumber);
 
   const db = useDB();
   const project = useSyncSelector(
