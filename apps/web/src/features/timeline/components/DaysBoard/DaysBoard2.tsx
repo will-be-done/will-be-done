@@ -18,6 +18,8 @@ import { useCurrentDMY, useDaysPreferences } from "./hooks";
 import { ProjectView } from "./ProvecjtView";
 import { TasksColumn, TasksColumnGrid } from "@/components/TasksGrid/TasksGrid";
 import { ScrollArea } from "@base-ui-components/react/scroll-area";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { create } from "zustand";
 
 const TaskProjection = ({
   projectionId,
@@ -136,6 +138,33 @@ const ColumnView = ({
   );
 };
 
+type ProjectsViewSize = {
+  projectsViewHeight: number;
+  projectsViewHidden: boolean;
+
+  setProjectsViewHeight: (value: number) => void;
+  setProjectsViewHidden: (value: boolean) => void;
+};
+
+const useProjectsViewSize = create<ProjectsViewSize>()(
+  persist(
+    (set, get) => ({
+      projectsViewHeight: 20,
+      projectsViewHidden: false,
+      setProjectsViewHeight: (value: number) => {
+        set({ projectsViewHeight: value });
+      },
+      setProjectsViewHidden: (value: boolean) => {
+        set({ projectsViewHidden: value });
+      },
+    }),
+    {
+      name: "projects-view-size",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
+
 const BoardView = ({
   previousDate,
   nextDate,
@@ -168,13 +197,27 @@ const BoardView = ({
     [dispatch],
   );
 
-  const [height, setHeight] = useState(20);
+  const {
+    projectsViewHeight,
+    projectsViewHidden,
+    setProjectsViewHeight,
+    setProjectsViewHidden,
+  } = useProjectsViewSize();
+  // const [projectsViewHeight, setProjectsViewHeight] = useState(20);
+  // const [projectsViewHidden, setProjectsViewHidden] = useState(false);
 
-  const handleRightResize = (deltaX: number) => {
+  const handleProjectsResize = (deltaX: number) => {
     const containerHeight = window.innerHeight;
     const deltaPercentage = (deltaX / containerHeight) * 100;
-    const newHeight = Math.max(10, Math.min(60, height - deltaPercentage));
-    setHeight(newHeight);
+    const newHeight = Math.max(
+      10,
+      Math.min(80, projectsViewHeight - deltaPercentage),
+    );
+    setProjectsViewHeight(newHeight);
+  };
+
+  const handleHideClick = () => {
+    setProjectsViewHidden(!projectsViewHidden);
   };
 
   return (
@@ -182,7 +225,11 @@ const BoardView = ({
       <div className="flex flex-col w-full">
         <div
           className="overflow-y-auto pt-10"
-          style={{ height: `${100 - height}%` }}
+          style={{
+            height: projectsViewHidden
+              ? "100%"
+              : `${100 - projectsViewHeight}%`,
+          }}
         >
           {/* <ScrollArea.Root style={{ height: `${100 - height}%` }}> */}
           {/*   <ScrollArea.Viewport className="h-full overscroll-contain rounded-md w-full pr-4 pl-1"> */}
@@ -210,8 +257,17 @@ const BoardView = ({
           />
           {/* </ScrollArea.Root> */}
         </div>
-        <div className="w-full relative" style={{ height: `${height}%` }}>
-          <ResizableDivider onResize={handleRightResize} />
+        <div
+          className="w-full relative"
+          style={{
+            height: projectsViewHidden ? "0" : `${projectsViewHeight}%`,
+          }}
+        >
+          <ResizableDivider
+            onResize={handleProjectsResize}
+            onHideClick={handleHideClick}
+            isHidden={projectsViewHidden}
+          />
 
           <ProjectView exceptDailyListIds={dailyListsIds} />
         </div>
