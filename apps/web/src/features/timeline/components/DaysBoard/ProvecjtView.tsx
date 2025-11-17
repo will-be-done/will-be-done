@@ -298,6 +298,29 @@ const ProjectItem = function ProjectItemComp({
     [project.id, exceptDailyListIds, currentDate],
   );
 
+  const handleEditClick = () => {
+    const newTitle = prompt("Enter new project title", project.title);
+
+    if (newTitle == "" || newTitle == null) {
+      return;
+    }
+
+    dispatch(
+      projectsSlice2.update(project.id, {
+        title: newTitle,
+      }),
+    );
+  };
+
+  const handleDeleteClick = () => {
+    const shouldDelete = confirm(
+      "Are you sure you want to delete this project?",
+    );
+    if (shouldDelete) {
+      dispatch(projectsSlice2.delete([project.id]));
+    }
+  };
+
   return (
     <>
       {closestEdge == "top" && <DropProjectIndicator />}
@@ -321,34 +344,41 @@ const ProjectItem = function ProjectItemComp({
       {/* to="/projects/$projectId" */}
       {/* params={{ projectId: project.id }} */}
       {/* href={`/projects/${project.id}`} */}
-      <button
-        type="button"
+      <div
         data-focusable-key={focusItem.key}
-        ref={ref}
         key={project.id}
         className={cn(
-          "flex items-center rounded-md cursor-pointer px-2  text-content",
+          "flex items-center rounded-md px-2  text-content group",
           // isFocused ? "bg-gray-800" : "hover:bg-gray-800",
           closestEdge == "whole" &&
             "outline-2 outline-offset-1 outline-solid outline-panel-selected",
-          isSelected && "text-accent",
+          isSelected ? "text-accent" : "text-content",
           // {
           //   hidden: isEditing,
           // },
         )}
-        onClick={() => {
-          // console.log("focusItem click", focusItem);
-          dispatch(focusSlice2.focusByKey(focusItem.key, true));
-          onProjectClick(project.id);
-        }}
       >
         <div className="text-base mr-4 flex-shrink-0">
           {project.icon || "🟡"}
         </div>
-        <div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+        <button
+          type="button"
+          className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 cursor-pointer"
+          ref={ref}
+          onClick={() => {
+            // console.log("focusItem click", focusItem);
+            dispatch(focusSlice2.focusByKey(focusItem.key, true));
+            onProjectClick(project.id);
+          }}
+        >
           {project.title}
-        </div>
-        <div className="ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0">
+        </button>
+        <div
+          className={cn(
+            "ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
+            project.id !== inboxId && "group-hover:hidden",
+          )}
+        >
           {overdueTasksCount > 0 && (
             <>
               <div className="text-notice">{overdueTasksCount}</div>|
@@ -356,7 +386,59 @@ const ProjectItem = function ProjectItemComp({
           )}
           <div>{notDoneTasksCount}</div>
         </div>
-      </button>
+
+        {/* group-hover:flex hidden */}
+        <div
+          className={cn(
+            "ml-auto flex gap-2 text-content-tinted stroke-content hidden",
+            project.id !== inboxId && "group-hover:flex",
+          )}
+        >
+          <button
+            onClick={handleEditClick}
+            type="button"
+            className="cursor-pointer flex justify-center items-center"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              width="12"
+              height="13"
+              viewBox="0 0 12 13"
+            >
+              <path
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M11.136 3.357a1.527 1.527 0 1 0-2.16-2.16l-7.228 7.23c-.126.126-.22.28-.271.45L.76 11.235a.27.27 0 0 0 .338.337l2.358-.715c.17-.052.324-.144.45-.27l7.229-7.23Z"
+              />
+            </svg>
+          </button>
+
+          <button
+            onClick={handleDeleteClick}
+            type="button"
+            className="cursor-pointer flex justify-center items-center"
+          >
+            <svg
+              width="12"
+              height="13"
+              viewBox="0 0 12 13"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M9.41667 2.91667V10.5C9.41667 10.7873 9.30253 11.0629 9.09937 11.266C8.8962 11.4692 8.62065 11.5833 8.33333 11.5833H2.91667C2.62935 11.5833 2.3538 11.4692 2.15063 11.266C1.94747 11.0629 1.83333 10.7873 1.83333 10.5V2.91667M0.75 2.91667H10.5M3.45833 2.91667V1.83333C3.45833 1.54602 3.57247 1.27047 3.77563 1.0673C3.9788 0.864137 4.25435 0.75 4.54167 0.75H6.70833C6.99565 0.75 7.2712 0.864137 7.47437 1.0673C7.67753 1.27047 7.79167 1.54602 7.79167 1.83333V2.91667"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
 
       {closestEdge == "bottom" && <DropProjectIndicator />}
 
@@ -385,6 +467,7 @@ export const ProjectView = ({
   const [selectedProjectId, setSelectedProjectId] = useState(inboxId);
   // const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
+  const dispatch = useDispatch();
   const project = useSyncSelector(
     function* () {
       if (selectedProjectId == "inbox") {
@@ -414,6 +497,14 @@ export const ProjectView = ({
     [],
   );
 
+  const handleAddProjectClick = () => {
+    const title = prompt("Enter project title");
+
+    if (title) {
+      dispatch(projectsSlice2.create({ title }, "append"));
+    }
+  };
+
   if (!project) {
     return <div>Project not found</div>;
   }
@@ -433,7 +524,7 @@ export const ProjectView = ({
           <div className="flex justify-center text-subheader my-2">
             Projects
           </div>
-          <div className="h-full overflow-y-auto flex flex-col gap-2 px-3 py-2 text-sm">
+          <div className="h-full overflow-y-auto flex flex-col gap-2 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
             <ProjectItem
               exceptDailyListIds={exceptDailyListIds}
               projectId={inboxProject.id}
@@ -451,6 +542,15 @@ export const ProjectView = ({
                 isSelected={selectedProjectId === id}
               />
             ))}
+          </div>
+          <div className="flex text-center items-center justify-center py-1 text-subheader text-sm ">
+            <button
+              type="button"
+              onClick={handleAddProjectClick}
+              className="cursor-pointer"
+            >
+              Add Project
+            </button>
           </div>
         </div>
       </ColumnListProvider>
