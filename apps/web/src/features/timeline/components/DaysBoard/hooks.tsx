@@ -3,14 +3,6 @@ import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
-export type DaysPreferences = {
-  daysWindow: number;
-  daysShift: number;
-
-  setDaysWindow: (value: number) => void;
-  setDaysShift: (value: number) => void;
-};
-
 export const useCurrentDMY = () => {
   const [date, setDate] = useState(getDMY(new Date()));
 
@@ -53,6 +45,50 @@ export const useDaysPreferences = create<DaysPreferences>()(
     }),
     {
       name: "days-preferences",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
+
+export type DaysPreferences = {
+  daysWindow: number;
+  daysShift: number;
+
+  setDaysWindow: (value: number) => void;
+  setDaysShift: (value: number) => void;
+};
+
+export type HiddenDays = {
+  hiddenDays: Record<string, boolean>;
+  setHiddenDays: (value: Record<string, boolean>) => void;
+  toggleIsHidden: (dailyListId: string) => void;
+  setIsHidden: (dailyListId: string, value: boolean) => void;
+};
+
+export const useHiddenDays = create<HiddenDays>()(
+  persist(
+    (set, get) => ({
+      hiddenDays: {},
+      setHiddenDays: (value: Record<string, boolean>) => {
+        set({ hiddenDays: value });
+      },
+      setIsHidden: (dailyListId: string, value: boolean) => {
+        set((state) => {
+          const newHiddenDays = { ...state.hiddenDays };
+          newHiddenDays[dailyListId] = value;
+          return { hiddenDays: newHiddenDays };
+        });
+      },
+      toggleIsHidden: (dailyListId: string) => {
+        set((state) => {
+          const newHiddenDays = { ...state.hiddenDays };
+          newHiddenDays[dailyListId] = !state.hiddenDays[dailyListId];
+          return { hiddenDays: newHiddenDays };
+        });
+      },
+    }),
+    {
+      name: "hidden-days",
       storage: createJSONStorage(() => localStorage),
     },
   ),

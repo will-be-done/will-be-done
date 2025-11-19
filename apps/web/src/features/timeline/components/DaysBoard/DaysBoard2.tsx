@@ -14,7 +14,7 @@ import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice";
 import { TaskComp } from "@/components/Task/Task";
 import { ResizableDivider } from "./ResizableDivider";
 import { NavPanel } from "./NavPanel";
-import { useCurrentDMY, useDaysPreferences } from "./hooks";
+import { useCurrentDMY, useDaysPreferences, useHiddenDays } from "./hooks";
 import { ProjectView } from "./ProvecjtView";
 import { TasksColumn, TasksColumnGrid } from "@/components/TasksGrid/TasksGrid";
 import { ScrollArea } from "@base-ui-components/react/scroll-area";
@@ -74,16 +74,21 @@ const ColumnView = ({
     [dailyListId],
   );
 
-  const [isHiddenClicked, setIsHiddenClicked] = useState(false);
-  const isHidden =
-    isHiddenClicked ||
-    (projectionIds.length == 0 && doneProjectionIds.length == 0);
+  // const [isHiddenClicked, setIsHiddenClicked] = useState(false);
 
-  const handleHideClick = () => setIsHiddenClicked((v) => !v);
+  const isManuallyHidden = useHiddenDays(
+    (state) => state.hiddenDays[dailyListId],
+  );
+  const setIsHidden = useHiddenDays((state) => state.setIsHidden);
+  const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
+  const isHidden =
+    isManuallyHidden ||
+    (projectionIds.length == 0 && doneProjectionIds.length == 0);
+  const handleHideClick = () => toggleIsHidden(dailyListId);
 
   const handleAddClick = () => {
     if (isHidden) {
-      setIsHiddenClicked(false);
+      setIsHidden(dailyListId, false);
     }
 
     onTaskAdd(dailyList);
