@@ -101,7 +101,7 @@ export const TasksColumn = ({
       <div
         ref={columnRef}
         className={cn("flex h-full p-1 flex-shrink-0 min-h-0 group")}
-        style={!isHidden ? { minWidth: `${panelWidth ?? 350}px` } : {}}
+        style={!isHidden ? { minWidth: `${panelWidth ?? 400}px` } : {}}
       >
         <div
           className="flex justify-end"

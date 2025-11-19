@@ -33,6 +33,41 @@ import { projectionsSlice2 } from "./projections";
 // Slice
 export const projectItemsSlice2 = {
   // selectors
+  childrenIdsExceptDailies: selector(function* (
+    projectId: string,
+    exceptDailyListIds: string[],
+  ): GenReturn<string[]> {
+    const exceptTaskIds =
+      yield* dailyListsSlice2.allTaskIds(exceptDailyListIds);
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byProjectIdOrderStates").where((q) =>
+        q.eq("projectId", projectId).eq("state", "todo"),
+      ),
+    );
+
+    const finalTasks = tasks.filter((task) => !exceptTaskIds.has(task.id));
+
+    const templates = yield* runQuery(
+      selectFrom(taskTemplatesTable, "byProjectIdOrderToken").where((q) =>
+        q.eq("projectId", projectId),
+      ),
+    );
+
+    const allItems = [...finalTasks, ...templates];
+
+    return allItems
+      .sort((a, b) => {
+        if (a.orderToken > b.orderToken) {
+          return 1;
+        }
+        if (a.orderToken < b.orderToken) {
+          return -1;
+        }
+
+        return 0;
+      })
+      .map((item) => item.id);
+  }),
   childrenIds: selector(function* (
     projectId: string,
     alwaysIncludeChildIds: string[] = [],
@@ -115,6 +150,30 @@ export const projectItemsSlice2 = {
     const sortedDoneTasks = [...tasks, ...alwaysIncludeTasks].sort(timeCompare);
 
     return sortedDoneTasks.map((p) => p.id);
+  }),
+
+  doneChildrenIdsExceptDailies: selector(function* (
+    projectId: string,
+    exceptDailyListIds: string[],
+    // taskHorizons: Task["horizon"][],
+    // alwaysIncludeTaskIds: string[] = [],
+  ): GenReturn<string[]> {
+    const exceptTaskIds =
+      yield* dailyListsSlice2.allTaskIds(exceptDailyListIds);
+
+    const tasks = yield* runQuery(
+      selectFrom(tasksTable, "byProjectIdOrderStates").where((q) =>
+        q.eq("projectId", projectId).eq("state", "done"),
+      ),
+    );
+
+    const alwaysIncludeTasks: Task[] = [];
+
+    const sortedDoneTasks = [...tasks, ...alwaysIncludeTasks].sort(timeCompare);
+
+    return sortedDoneTasks
+      .map((p) => p.id)
+      .filter((id) => !exceptTaskIds.has(id));
   }),
   tasksIds: selector(function* (projectId: string): GenReturn<string[]> {
     const tasks = yield* runQuery(

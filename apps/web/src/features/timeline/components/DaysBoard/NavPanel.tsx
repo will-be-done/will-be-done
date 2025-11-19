@@ -17,7 +17,7 @@ export const NavPanel = ({
 
   return (
     <div className="top-0 fixed m-auto left-0 right-0 max-w-xl z-40  ">
-      <div className="bg-panel w-full mx-5 rounded-b-lg text-sm text-primary flex align-center content-center relative h-8 stroke-primary shadow-md ">
+      <div className="bg-panel w-full mx-5 rounded-b-lg text-xs text-primary flex align-center content-center relative h-6 stroke-primary shadow-md ">
         <div className="absolute left-1/2 -translate-x-1/2 underline decoration-dotted flex items-center justify-items-center h-full">
           <Link
             to="/timeline2/$date"

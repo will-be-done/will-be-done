@@ -479,17 +479,32 @@ export const ProjectView = ({
     [selectedProjectId],
   );
 
-  const taskIds = useSyncSelector(
+  const doneChildrenIds = useSyncSelector(
     () =>
-      dailyListsSlice2.notDoneTaskIdsExceptDailies(
+      projectItemsSlice2.doneChildrenIdsExceptDailies(
         project.id,
         exceptDailyListIds,
-        ["someday", "week", "month", "year"],
-        [],
-        // idsToAlwaysInclude,
       ),
-    [exceptDailyListIds, project.id],
+    [project.id, exceptDailyListIds],
   );
+  const notDoneChildrenIds = useSyncSelector(
+    () =>
+      projectItemsSlice2.childrenIdsExceptDailies(
+        project.id,
+        exceptDailyListIds,
+      ),
+    [project.id, exceptDailyListIds],
+  );
+
+  // const taskIds = useSyncSelector(
+  //   () =>
+  //     dailyListsSlice2.allTaskIdsExceptDailies(
+  //       project.id,
+  //       exceptDailyListIds,
+  //       // idsToAlwaysInclude,
+  //     ),
+  //   [exceptDailyListIds, project.id],
+  // );
 
   const inboxProject = useSyncSelector(() => allProjectsSlice2.inbox(), []);
   const projectIdsWithoutInbox = useSyncSelector(
@@ -513,8 +528,8 @@ export const ProjectView = ({
     <>
       <ProjectItemsList2
         project={project}
-        todoTaskIds={taskIds}
-        doneTaskIds={[]}
+        todoTaskIds={notDoneChildrenIds}
+        doneTaskIds={doneChildrenIds}
       />
       <ColumnListProvider
         focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
