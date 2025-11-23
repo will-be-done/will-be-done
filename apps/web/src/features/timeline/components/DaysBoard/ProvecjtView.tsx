@@ -44,6 +44,13 @@ import {
 } from "@/store2/slices/focusSlice";
 import { ColumnListProvider } from "@/features/focus/components/ParentListProvider";
 import { useCurrentDate, useCurrentDMY } from "./hooks";
+import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
+import {
+  EmojiPicker,
+  EmojiPickerContent,
+  EmojiPickerSearch,
+} from "@/components/ui/emoji-picker";
+import { Popover } from "@/components/ui/popover";
 
 const ProjectDragPreview = function TaskPrimitiveComponent({
   title,
@@ -358,9 +365,29 @@ const ProjectItem = function ProjectItemComp({
           // },
         )}
       >
-        <div className="text-base mr-4 flex-shrink-0">
-          {project.icon || "🟡"}
-        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <div className="text-base mr-4 flex-shrink-0 cursor-pointer">
+              {project.icon || "🟡"}
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="w-fit p-0">
+            <EmojiPicker
+              className="h-[326px] rounded-lg shadow-md"
+              onEmojiSelect={({ emoji }) => {
+                dispatch(
+                  projectsSlice2.update(project.id, {
+                    icon: emoji,
+                  }),
+                );
+              }}
+            >
+              <EmojiPickerSearch />
+              <EmojiPickerContent />
+            </EmojiPicker>
+          </PopoverContent>
+        </Popover>
+
         <button
           type="button"
           className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 cursor-pointer"

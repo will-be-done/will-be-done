@@ -158,9 +158,4 @@ function EmojiPickerFooter({
   );
 }
 
-export {
-  EmojiPicker,
-  EmojiPickerSearch,
-  EmojiPickerContent,
-  
-};
+export { EmojiPicker, EmojiPickerSearch, EmojiPickerContent };

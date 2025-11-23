@@ -32,6 +32,8 @@
   --color-content-tinted: var(--color-gray-500);
   --color-subheader: var(--color-slate-400);
   --color-notice: var(--color-yellow-500);
+
+  --color-popover: var(--color-slate-600);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/
