@@ -10,3 +10,4 @@ export * from "./tasks";
 export * from "./taskTemplates";
 export * from "./utils";
 export * from "./maps";
+export * from "./syncMap";

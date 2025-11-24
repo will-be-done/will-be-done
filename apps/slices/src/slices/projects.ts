@@ -19,6 +19,8 @@ import { allProjectsSlice2 } from "./allProjects";
 import { isTask, tasksSlice2 } from "./tasks";
 import { isTaskTemplate, taskTemplatesSlice2 } from "./taskTemplates";
 import { isTaskProjection } from "./projections";
+import { registerSyncableTable } from "./syncMap";
+import { registerModelSlice } from "./maps";
 
 // Type definitions
 export const projectType = "project";
@@ -51,6 +53,7 @@ export const projectsTable = table<Project>("projects").withIndexes({
   byOrderToken: { cols: ["orderToken"], type: "btree" },
   byIsInbox: { cols: ["isInbox"], type: "hash" },
 });
+registerSyncableTable(projectsTable, projectType);
 
 // Slice (will be populated after all slices are defined to avoid circular dependencies)
 export const projectsSlice2 = {
@@ -203,3 +206,4 @@ export const projectsSlice2 = {
     }
   }),
 };
+registerModelSlice(projectsSlice2, projectsTable, projectType);

@@ -16,6 +16,8 @@ import type { GenReturn } from "./utils";
 import { tasksSlice2, type Task } from "./tasks";
 import { projectItemsSlice2 } from "./projectItems";
 import { dailyListsSlice2 } from "./dailyLists";
+import { registerSyncableTable } from "./syncMap";
+import { registerModelSlice } from "./maps";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -57,6 +59,7 @@ export const taskTemplatesTable = table<TaskTemplate>(
     type: "btree",
   },
 });
+registerSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
 function generateTaskId(taskTemplateId: string, date: Date): string {
@@ -331,3 +334,4 @@ export const taskTemplatesSlice2 = {
     }
   }),
 };
+registerModelSlice(taskTemplatesSlice2, taskTemplatesTable, taskTemplateType);

@@ -1,67 +1,38 @@
-import { tasksSlice2, type Task, tasksTable, taskType } from "./tasks";
-import {
-  projectionsSlice2,
-  type TaskProjection,
-  taskProjectionsTable,
-  projectionType,
-} from "./projections";
-import {
-  taskTemplatesSlice2,
-  type TaskTemplate,
-  taskTemplatesTable,
-  taskTemplateType,
-} from "./taskTemplates";
-import {
-  dailyListsSlice2,
-  type DailyList,
-  dailyListsTable,
-  dailyListType,
-} from "./dailyLists";
-import {
-  projectsSlice2,
-  type Project,
-  projectsTable,
-  projectType,
-} from "./projects";
+import { type Task, tasksTable } from "./tasks";
+import { taskProjectionsTable, TaskProjection } from "./projections";
+import { TaskTemplate, taskTemplatesTable } from "./taskTemplates";
+import { DailyList, dailyListsTable } from "./dailyLists";
+import { Project, projectsTable } from "./projects";
+import { TaskGroup, taskGroupsTable } from "./taskGroups";
 
-// TODO: refactor on object getters. Or maybe registerSyncableTable()
-
-export const appSyncableTables = () =>
-  [
-    { table: tasksTable, modelType: taskType },
-    { table: taskProjectionsTable, modelType: projectionType },
-    { table: taskTemplatesTable, modelType: taskTemplateType },
-    { table: projectsTable, modelType: projectType },
-    { table: dailyListsTable, modelType: dailyListType },
-  ] as const;
-
-export type AppSyncableModel =
+export type AnyModel =
   | Task
   | TaskProjection
   | TaskTemplate
   | Project
-  | DailyList;
+  | DailyList
+  | TaskGroup;
 
-export const syncableTablesMap = () => ({
-  [tasksTable.tableName]: tasksTable,
-  [taskProjectionsTable.tableName]: taskProjectionsTable,
-  [taskTemplatesTable.tableName]: taskTemplatesTable,
-  [projectsTable.tableName]: projectsTable,
-  [dailyListsTable.tableName]: dailyListsTable,
-});
+export type AnyTable =
+  | typeof tasksTable
+  | typeof taskProjectionsTable
+  | typeof taskTemplatesTable
+  | typeof projectsTable
+  | typeof dailyListsTable
+  | typeof taskGroupsTable;
 
-export const appSlices = () => ({
-  [projectType]: projectsSlice2,
-  [taskType]: tasksSlice2,
-  [taskTemplateType]: taskTemplatesSlice2,
-  [projectionType]: projectionsSlice2,
-  [dailyListType]: dailyListsSlice2,
-});
+type ModelSlice<T> = {
+  byId: (id: string) => Generator<unknown, T | undefined, unknown>;
+};
 
-export const appTypeTables = () => ({
-  [projectType]: projectsTable,
-  [taskType]: tasksTable,
-  [taskTemplateType]: taskTemplatesTable,
-  [projectionType]: taskProjectionsTable,
-  [dailyListType]: dailyListsTable,
-});
+export const appTypeTablesMap: Record<string, AnyTable> = {};
+export const appTypeSlicesMap: Record<string, ModelSlice<AnyModel>> = {};
+
+export const registerModelSlice = (
+  slice: ModelSlice<AnyModel>,
+  table: AnyTable,
+  modelType: string,
+) => {
+  appTypeTablesMap[modelType] = table;
+  appTypeSlicesMap[modelType] = slice;
+};

@@ -12,11 +12,11 @@ import {
 import * as dotenv from "dotenv";
 import {
   changesTable,
-  appSyncableTables,
   projectsSlice2,
   ChangesetArray,
   changesSlice,
   projectItemsSlice2,
+  registeredSyncableTables,
 } from "@will-be-done/slices";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
@@ -148,12 +148,7 @@ hyperDB.afterDelete(function* (db, table, traits, ops) {
   yield* noop();
 });
 
-execSync(
-  hyperDB.loadTables([
-    ...appSyncableTables().map((t) => t.table),
-    changesTable,
-  ]),
-);
+execSync(hyperDB.loadTables([...registeredSyncableTables, changesTable]));
 const inbox = syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
 
 const appRouter = router({

@@ -29,12 +29,11 @@ import {
   changesSlice,
   changesTable,
   projectsSlice2,
-  appSyncableTables,
   Change,
-  syncableTablesMap,
   ChangesetArrayType,
-  AppSyncableModel,
   taskTemplatesSlice2,
+  registeredSyncableTables,
+  registeredSyncableTableNameMap,
 } from "@will-be-done/slices";
 import * as SQLite from "wa-sqlite";
 import { createTRPCClient, httpBatchLink, TRPCClient } from "@trpc/client";
@@ -197,7 +196,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
 
     await execAsync(
       asyncDB.loadTables([
-        ...appSyncableTables().map((t) => t.table),
+        ...registeredSyncableTables,
         changesTable,
         syncStateTable,
       ]),
@@ -206,7 +205,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     const syncDB = new DB(new BptreeInmemDriver());
     execSync(
       syncDB.loadTables([
-        ...appSyncableTables().map((t) => t.table),
+        ...registeredSyncableTables,
         changesTable,
         focusTable,
       ]),
@@ -283,13 +282,13 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
     const clientId = getClientId();
     const nextClock = initClock(clientId);
 
-    for (const table of appSyncableTables()) {
+    for (const table of registeredSyncableTables) {
       const res = await runSelectorAsync(asyncDB, function* () {
-        return yield* runQuery(selectFrom(table.table, "byIds"));
+        return yield* runQuery(selectFrom(table, "byIds"));
       });
 
       // no need to broadcast to sub db
-      execSync(syncDB.insert(table.table, res));
+      execSync(syncDB.insert(table, res));
     }
 
     syncSubDb.subscribe((ops, traits) => {
@@ -475,6 +474,7 @@ class Syncer {
 
     console.log("new changes from server", serverChanges);
 
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const that = this;
     await asyncDispatch(
       this.persistentDB,
@@ -497,9 +497,9 @@ class Syncer {
         for (const changeset of serverChanges.changesets) {
           const toDeleteRows: string[] = [];
           // const toUpdateRows: AppSyncableModel[] = [];
-          const toInsertRows: AppSyncableModel[] = [];
+          const toInsertRows: { id: string; [key: string]: unknown }[] = [];
 
-          const table = syncableTablesMap()[changeset.tableName];
+          const table = registeredSyncableTableNameMap[changeset.tableName];
           if (!table) {
             throw new Error("Unknown table: " + changeset.tableName);
           }
@@ -508,7 +508,7 @@ class Syncer {
             if (change.deletedAt != null) {
               toDeleteRows.push(change.id);
             } else if (row) {
-              toInsertRows.push(row as AppSyncableModel);
+              toInsertRows.push(row);
             }
 
             const currentClock = that.nextClock();
@@ -529,7 +529,8 @@ class Syncer {
             });
           }
 
-          yield* insert(table, toInsertRows);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          yield* insert(table, toInsertRows as any);
           yield* deleteRows(table, toDeleteRows);
         }
 

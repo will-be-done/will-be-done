@@ -23,6 +23,8 @@ import {
 } from "./projections";
 import { projectItemsSlice2 } from "./projectItems";
 import { format } from "date-fns";
+import { registerSyncableTable } from "./syncMap";
+import { registerModelSlice } from "./maps";
 
 // Type definitions
 export const dailyListType = "dailyList";
@@ -47,6 +49,7 @@ export const dailyListsTable = table<DailyList>("daily_lists").withIndexes({
   byIds: { cols: ["id"], type: "btree" },
   byDate: { cols: ["date"], type: "hash" },
 });
+registerSyncableTable(dailyListsTable, dailyListType);
 
 // Slice
 export const dailyListsSlice2 = {
@@ -340,3 +343,4 @@ export const dailyListsSlice2 = {
     }
   }),
 };
+registerModelSlice(dailyListsSlice2, dailyListsTable, dailyListType);

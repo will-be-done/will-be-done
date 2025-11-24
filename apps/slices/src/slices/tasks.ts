@@ -21,6 +21,8 @@ import {
   TaskTemplate,
   taskTemplatesSlice2,
 } from "./taskTemplates";
+import { registerSyncableTable } from "./syncMap";
+import { registerModelSlice } from "./maps";
 
 // Type definitions
 export const taskType = "task";
@@ -69,16 +71,10 @@ export const tasksTable = table<Task>("tasks").withIndexes({
     type: "hash",
   },
 });
+registerSyncableTable(tasksTable, taskType);
 
 // Slice - imports are at the bottom to avoid circular dependency issues
 export const tasksSlice2 = {
-  allIds: selector(function* (): GenReturn<string[]> {
-    const tasks = yield* runQuery(
-      selectFrom(tasksTable, "byIds").where((q) => q),
-    );
-
-    return tasks.map((p) => p.id);
-  }),
   canDrop: selector(function* (
     taskId: string,
     dropId: string,
@@ -252,3 +248,4 @@ export const tasksSlice2 = {
     yield* tasksSlice2.delete([id]);
   }),
 };
+registerModelSlice(tasksSlice2, tasksTable, taskType);

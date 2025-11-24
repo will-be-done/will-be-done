@@ -45,14 +45,8 @@ import { projectItemsSlice2 } from "./projectItems";
 import { isTask } from "./tasks";
 import { isTaskProjection } from "./projections";
 import { Backup, getNewModels } from "../backup";
-import { appSlices, appTypeTables, syncableTablesMap } from "./maps";
-
-export type AnyModel =
-  | Task
-  | TaskProjection
-  | TaskTemplate
-  | Project
-  | DailyList;
+import { AnyModel, appTypeSlicesMap, appTypeTablesMap } from "./maps";
+import { registeredSyncableTables } from "./syncMap";
 
 // Slice
 export const appSlice2 = {
@@ -126,7 +120,7 @@ export const appSlice2 = {
     };
   }),
   loadBackup: selector(function* (backup: Backup): GenReturn<void> {
-    for (const table of Object.values(syncableTablesMap())) {
+    for (const table of registeredSyncableTables) {
       const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
         (r) => r.id,
       );
@@ -137,12 +131,12 @@ export const appSlice2 = {
     const models = getNewModels(backup);
 
     for (const model of models) {
-      yield* insert(appTypeTables()[model.type], [model]);
+      yield* insert(appTypeTablesMap[model.type], [model]);
     }
   }),
   // selectors
   byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
-    for (const slice of Object.values(appSlices())) {
+    for (const slice of Object.values(appTypeSlicesMap)) {
       const item = yield* slice.byId(id);
       if (item) return item;
     }

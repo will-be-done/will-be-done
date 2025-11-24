@@ -17,6 +17,8 @@ import { generateKeyPositionedBetween } from "./utils";
 import { appSlice2 } from "./app";
 import { isTask, tasksSlice2, type Task } from "./tasks";
 import { projectItemsSlice2 } from "./projectItems";
+import { registerSyncableTable } from "./syncMap";
+import { registerModelSlice } from "./maps";
 
 // Type definitions
 export const projectionType = "projection";
@@ -54,6 +56,7 @@ export const taskProjectionsTable = table<TaskProjection>(
     type: "btree",
   },
 });
+registerSyncableTable(taskProjectionsTable, projectionType);
 
 // Slice
 export const projectionsSlice2 = {
@@ -280,3 +283,4 @@ export const projectionsSlice2 = {
     }
   }),
 };
+registerModelSlice(projectionsSlice2, taskProjectionsTable, projectionType);

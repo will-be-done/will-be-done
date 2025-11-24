@@ -1,5 +1,5 @@
 import {
-  AppSyncableModel,
+  AnyModel,
   DailyList,
   dailyListType,
   getDMY,
@@ -68,8 +68,8 @@ export interface Backup {
   taskTemplates: TaskTemplateBackup[];
 }
 
-export const getNewModels = (backup: Backup): AppSyncableModel[] => {
-  const models: AppSyncableModel[] = [];
+export const getNewModels = (backup: Backup): AnyModel[] => {
+  const models: AnyModel[] = [];
 
   // First, create all projects
   for (const projectBackup of backup.projects) {
