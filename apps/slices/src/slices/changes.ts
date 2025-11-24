@@ -28,16 +28,19 @@ export type Change = {
 };
 export const changesTable = table<Change>("changes").withIndexes({
   byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
+  byIdAndTableName: { cols: ["id", "tableName"], type: "btree" },
   byUpdatedAt: { cols: ["updatedAt"], type: "btree" },
 });
 
 type GenReturn<T> = Generator<unknown, T, unknown>;
 export const changesSlice = {
-  byId: selector(function* (id: string): GenReturn<Change | undefined> {
+  byIdAndName: selector(function* (
+    id: string,
+    tableName: string,
+  ): GenReturn<Change | undefined> {
     const changes = yield* runQuery(
-      selectFrom(changesTable, "byId")
-        .where((q) => q.eq("id", id))
+      selectFrom(changesTable, "byIdAndTableName")
+        .where((q) => q.eq("id", id).eq("tableName", tableName))
         .limit(1),
     );
 
@@ -156,7 +159,7 @@ export const changesSlice = {
 
     const updatedAt = nextClock();
     const change: Change =
-      (yield* changesSlice.byId(oldRow.id)) ||
+      (yield* changesSlice.byIdAndName(oldRow.id, tableDef.tableName)) ||
       ({
         id: oldRow.id,
         tableName: tableDef.tableName,
@@ -195,7 +198,10 @@ export const changesSlice = {
   ): GenReturn<void> {
     const deletedAt = nextClock();
 
-    const change = (yield* changesSlice.byId(row.id)) || {
+    const change = (yield* changesSlice.byIdAndName(
+      row.id,
+      tableDef.tableName,
+    )) || {
       id: row.id,
       tableName: tableDef.tableName,
       createdAt: deletedAt,
@@ -232,8 +238,10 @@ export const changesSlice = {
       }
 
       const currentChanges = yield* runQuery(
-        selectFrom(changesTable, "byId").where((q) =>
-          changeset.data.map((c) => q.eq("id", c.change.id)),
+        selectFrom(changesTable, "byIdAndTableName").where((q) =>
+          changeset.data.map((c) =>
+            q.eq("id", c.change.id).eq("tableName", c.change.tableName),
+          ),
         ),
       );
       const currentChangesMap = new Map(currentChanges.map((c) => [c.id, c]));
