@@ -150,6 +150,7 @@ hyperDB.afterDelete(function* (db, table, traits, ops) {
 
 execSync(hyperDB.loadTables([...registeredSyncableTables, changesTable]));
 const inbox = syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
+syncDispatch(hyperDB, projectsSlice2.migrateProjectsWithoutCategories());
 
 const appRouter = router({
   getChangesAfter: publicProcedure

@@ -23,7 +23,7 @@ import {
 } from "./taskTemplates";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { taskGroupsSlice2 } from "./taskGroups";
+import { projectCategoriesSlice2 } from "./projectCategories";
 
 // Type definitions
 export const taskType = "task";
@@ -35,7 +35,7 @@ export type Task = {
   title: string;
   state: TaskState;
   projectId: string;
-  taskGroupId: string;
+  projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
   horizon: "week" | "month" | "year" | "someday";
@@ -48,7 +48,7 @@ export const isTask = isObjectType<Task>(taskType);
 
 export const defaultTask: Task = {
   type: taskType,
-  taskGroupId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
+  projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
   id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
   title: "default task kek",
   state: "todo",
@@ -142,18 +142,18 @@ export const tasksSlice2 = {
   ): GenReturn<Task> {
     const id = task.id || uuidv7();
 
-    const taskGroupId =
-      task.taskGroupId ??
-      (yield* taskGroupsSlice2.firstChild(task.projectId))?.id;
+    const projectCategoryId =
+      task.projectCategoryId ??
+      (yield* projectCategoriesSlice2.firstChild(task.projectId))?.id;
 
-    if (!taskGroupId) throw new Error("TaskGroup of project not found");
+    if (!projectCategoryId) throw new Error("Category of project not found");
 
     const newTask: Task = {
       type: taskType,
       id,
       title: "",
       state: "todo",
-      taskGroupId: taskGroupId,
+      projectCategoryId: projectCategoryId,
       lastToggledAt: Date.now(),
       createdAt: Date.now(),
       horizon: "week",
@@ -240,7 +240,7 @@ export const tasksSlice2 = {
       title: taskTemplate.title,
       state: "todo",
       projectId: taskTemplate.projectId,
-      taskGroupId: taskTemplate.taskGroupId,
+      projectCategoryId: taskTemplate.projectCategoryId,
       type: taskType,
       orderToken: taskTemplate.orderToken,
       lastToggledAt: Date.now(),

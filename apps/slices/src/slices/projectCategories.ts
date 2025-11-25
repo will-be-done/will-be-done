@@ -16,10 +16,10 @@ import { registerModelSlice } from "./maps";
 import { registerSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
 
-export const taskGroupType = "taskGroup";
+export const projectCategoryType = "projectCategory";
 
-export type TaskGroup = {
-  type: typeof taskGroupType;
+export type ProjectCategory = {
+  type: typeof projectCategoryType;
   id: string;
   orderToken: string;
   title: string;
@@ -27,9 +27,9 @@ export type TaskGroup = {
   createdAt: number;
 };
 
-export const isTaskGroup = isObjectType<TaskGroup>(taskGroupType);
+export const isProjectCategory = isObjectType<ProjectCategory>(projectCategoryType);
 
-export const taskGroupsTable = table<TaskGroup>("task_groups").withIndexes({
+export const projectCategoriesTable = table<ProjectCategory>("project_categories").withIndexes({
   byIds: { cols: ["id"], type: "btree" },
   byId: { cols: ["id"], type: "hash" },
   byProjectIdOrderToken: {
@@ -37,10 +37,10 @@ export const taskGroupsTable = table<TaskGroup>("task_groups").withIndexes({
     type: "btree",
   },
 });
-registerSyncableTable(taskGroupsTable, taskGroupType);
+registerSyncableTable(projectCategoriesTable, projectCategoryType);
 
-export const defaultTaskGroup: TaskGroup = {
-  type: taskGroupType,
+export const defaultProjectCategory: ProjectCategory = {
+  type: projectCategoryType,
   id: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
   title: "",
   projectId: "",
@@ -48,29 +48,29 @@ export const defaultTaskGroup: TaskGroup = {
   createdAt: 0,
 };
 
-export const taskGroupsSlice2 = {
-  byId: selector(function* (id: string): GenReturn<TaskGroup | undefined> {
+export const projectCategoriesSlice2 = {
+  byId: selector(function* (id: string): GenReturn<ProjectCategory | undefined> {
     const tasks = yield* runQuery(
-      selectFrom(taskGroupsTable, "byId")
+      selectFrom(projectCategoriesTable, "byId")
         .where((q) => q.eq("id", id))
         .limit(1),
     );
 
     return tasks[0];
   }),
-  byIdOrDefault: selector(function* (id: string): GenReturn<TaskGroup> {
-    return (yield* taskGroupsSlice2.byId(id)) || defaultTaskGroup;
+  byIdOrDefault: selector(function* (id: string): GenReturn<ProjectCategory> {
+    return (yield* projectCategoriesSlice2.byId(id)) || defaultProjectCategory;
   }),
-  all: selector(function* (): GenReturn<TaskGroup[]> {
+  all: selector(function* (): GenReturn<ProjectCategory[]> {
     const tasks = yield* runQuery(
-      selectFrom(taskGroupsTable, "byProjectIdOrderToken"),
+      selectFrom(projectCategoriesTable, "byProjectIdOrderToken"),
     );
     return tasks;
   }),
 
-  byProjectId: selector(function* (projectId: string): GenReturn<TaskGroup[]> {
+  byProjectId: selector(function* (projectId: string): GenReturn<ProjectCategory[]> {
     const tasks = yield* runQuery(
-      selectFrom(taskGroupsTable, "byProjectIdOrderToken").where((q) =>
+      selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
         q.eq("projectId", projectId),
       ),
     );
@@ -79,35 +79,35 @@ export const taskGroupsSlice2 = {
 
   firstChild: selector(function* (
     projectId: string,
-  ): GenReturn<TaskGroup | undefined> {
-    return (yield* taskGroupsSlice2.byProjectId(projectId))[0];
+  ): GenReturn<ProjectCategory | undefined> {
+    return (yield* projectCategoriesSlice2.byProjectId(projectId))[0];
   }),
   lastChild: selector(function* (
     projectId: string,
-  ): GenReturn<TaskGroup | undefined> {
-    const result = yield* taskGroupsSlice2.byProjectId(projectId);
+  ): GenReturn<ProjectCategory | undefined> {
+    const result = yield* projectCategoriesSlice2.byProjectId(projectId);
     if (result.length === 0) return undefined;
 
     return result[result.length - 1];
   }),
 
   create: action(function* (
-    group: Partial<TaskGroup> & { projectId: string; title: string },
+    group: Partial<ProjectCategory> & { projectId: string; title: string },
     position:
       | [OrderableItem | undefined, OrderableItem | undefined]
       | "append"
       | "prepend",
-  ): GenReturn<TaskGroup> {
+  ): GenReturn<ProjectCategory> {
     const orderToken = yield* generateOrderTokenPositioned(
       group.projectId,
-      taskGroupsSlice2,
+      projectCategoriesSlice2,
       position,
     );
 
     const id = group.id || uuidv7();
 
-    const taskGroup: TaskGroup = {
-      type: taskGroupType,
+    const category: ProjectCategory = {
+      type: projectCategoryType,
       id,
       title: group.title,
       projectId: group.projectId,
@@ -115,9 +115,9 @@ export const taskGroupsSlice2 = {
       createdAt: Date.now(),
     };
 
-    yield* insert(taskGroupsTable, [taskGroup]);
+    yield* insert(projectCategoriesTable, [category]);
 
-    return taskGroup;
+    return category;
   }),
 };
-registerModelSlice(taskGroupsSlice2, taskGroupsTable, taskGroupType);
+registerModelSlice(projectCategoriesSlice2, projectCategoriesTable, projectCategoryType);

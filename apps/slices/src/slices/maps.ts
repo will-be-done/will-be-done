@@ -3,7 +3,7 @@ import { taskProjectionsTable, TaskProjection } from "./projections";
 import { TaskTemplate, taskTemplatesTable } from "./taskTemplates";
 import { DailyList, dailyListsTable } from "./dailyLists";
 import { Project, projectsTable } from "./projects";
-import { TaskGroup, taskGroupsTable } from "./taskGroups";
+import { ProjectCategory, projectCategoriesTable } from "./projectCategories";
 
 export type AnyModel =
   | Task
@@ -11,7 +11,7 @@ export type AnyModel =
   | TaskTemplate
   | Project
   | DailyList
-  | TaskGroup;
+  | ProjectCategory;
 
 export type AnyTable =
   | typeof tasksTable
@@ -19,7 +19,7 @@ export type AnyTable =
   | typeof taskTemplatesTable
   | typeof projectsTable
   | typeof dailyListsTable
-  | typeof taskGroupsTable;
+  | typeof projectCategoriesTable;
 
 type ModelSlice<T> = {
   byId: (id: string) => Generator<unknown, T | undefined, unknown>;

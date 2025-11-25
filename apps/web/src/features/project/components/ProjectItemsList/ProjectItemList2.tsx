@@ -6,7 +6,7 @@ import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   Project,
   projectItemsSlice2,
-  taskGroupsSlice2,
+  projectCategoriesSlice2,
 } from "@will-be-done/slices";
 import {
   TasksColumn,
@@ -54,7 +54,7 @@ export const ProjectItemsList2 = ({
   };
 
   const groups = useSyncSelector(
-    () => taskGroupsSlice2.byProjectId(project.id),
+    () => projectCategoriesSlice2.byProjectId(project.id),
     [project.id],
   );
 

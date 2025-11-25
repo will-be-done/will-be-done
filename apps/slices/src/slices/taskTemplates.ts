@@ -18,7 +18,7 @@ import { projectItemsSlice2 } from "./projectItems";
 import { dailyListsSlice2 } from "./dailyLists";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { taskGroupsSlice2 } from "./taskGroups";
+import { projectCategoriesSlice2 } from "./projectCategories";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -33,7 +33,7 @@ export type TaskTemplate = {
   repeatRule: string;
   createdAt: number;
   lastGeneratedAt: number;
-  taskGroupId: string;
+  projectCategoryId: string;
 };
 
 export const isTaskTemplate = isObjectType<TaskTemplate>(taskTemplateType);
@@ -48,7 +48,7 @@ export const defaultTaskTemplate: TaskTemplate = {
   repeatRule: "",
   createdAt: 0,
   lastGeneratedAt: 0,
-  taskGroupId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
+  projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
 };
 
 // Table definition
@@ -76,7 +76,7 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     title: tmpl.title,
     state: "todo",
     projectId: tmpl.projectId,
-    taskGroupId: tmpl.taskGroupId,
+    projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
     lastToggledAt: date.getTime(),
     horizon: tmpl.horizon,
@@ -219,10 +219,10 @@ export const taskTemplatesSlice2 = {
     },
   ): GenReturn<TaskTemplate> {
     const id = template.id || uuidv7();
-    const taskGroupId =
-      template.taskGroupId ??
-      (yield* taskGroupsSlice2.firstChild(template.projectId))?.id;
-    if (!taskGroupId) throw new Error("TaskGroup of project not found");
+    const projectCategoryId =
+      template.projectCategoryId ??
+      (yield* projectCategoriesSlice2.firstChild(template.projectId))?.id;
+    if (!projectCategoryId) throw new Error("Category of project not found");
 
     const newTemplate: TaskTemplate = {
       type: taskTemplateType,
@@ -232,7 +232,7 @@ export const taskTemplatesSlice2 = {
       repeatRule: defaultRule,
       createdAt: Date.now(),
       lastGeneratedAt: Date.now(),
-      taskGroupId: taskGroupId,
+      projectCategoryId: projectCategoryId,
       ...template,
     };
 
@@ -276,7 +276,7 @@ export const taskTemplatesSlice2 = {
       repeatRule: defaultRule,
       horizon: task.horizon,
       lastGeneratedAt: startOfDay(new Date(task.createdAt)).getTime() - 1,
-      taskGroupId: task.taskGroupId,
+      projectCategoryId: task.projectCategoryId,
       ...data,
     };
 

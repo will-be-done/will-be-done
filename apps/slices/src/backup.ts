@@ -7,8 +7,8 @@ import {
   projectionType,
   projectType,
   Task,
-  TaskGroup,
-  taskGroupType,
+  ProjectCategory,
+  projectCategoryType,
   TaskProjection,
   TaskTemplate,
   taskTemplateType,
@@ -16,7 +16,7 @@ import {
 } from "./slices";
 import uuidByString from "uuid-by-string";
 
-interface TaskGroupBackup {
+interface CategoryBackup {
   id: string;
   title: string;
   projectId: string;
@@ -29,7 +29,7 @@ interface TaskBackup {
   title: string;
   state: "todo" | "done";
   projectId: string;
-  taskGroupId: string;
+  projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
   createdAt: number;
@@ -69,7 +69,7 @@ interface TaskTemplateBackup {
   repeatRule: string;
   createdAt: number;
   lastGeneratedAt: number;
-  taskGroupId: string;
+  projectCategoryId: string;
 }
 
 export interface Backup {
@@ -78,7 +78,7 @@ export interface Backup {
   dailyLists: DailyListBackup[];
   dailyListProjections: DailyListProjectionBackup[];
   taskTemplates: TaskTemplateBackup[];
-  taskGroups: TaskGroupBackup[];
+  projectCategories: CategoryBackup[];
 }
 
 export const getNewModels = (backup: Backup): AnyModel[] => {
@@ -99,17 +99,17 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
     models.push(project);
   }
 
-  for (const groupBackup of backup.taskGroups) {
-    const taskGroup: TaskGroup = {
-      type: taskGroupType,
-      id: groupBackup.id,
-      title: groupBackup.title,
-      projectId: groupBackup.projectId,
-      createdAt: groupBackup.createdAt,
-      orderToken: groupBackup.orderToken,
+  for (const categoryBackup of backup.projectCategories) {
+    const category: ProjectCategory = {
+      type: projectCategoryType,
+      id: categoryBackup.id,
+      title: categoryBackup.title,
+      projectId: categoryBackup.projectId,
+      createdAt: categoryBackup.createdAt,
+      orderToken: categoryBackup.orderToken,
     };
 
-    models.push(taskGroup);
+    models.push(category);
   }
 
   // Then create all tasks
@@ -128,7 +128,7 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
       title: taskBackup.title,
       state: taskBackup.state,
       projectId: taskBackup.projectId,
-      taskGroupId: taskBackup.taskGroupId,
+      projectCategoryId: taskBackup.projectCategoryId,
       orderToken: taskBackup.orderToken,
       lastToggledAt: taskBackup.lastToggledAt,
       createdAt: taskBackup.createdAt,
@@ -177,7 +177,7 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
       repeatRule: templateBackup.repeatRule,
       createdAt: templateBackup.createdAt,
       lastGeneratedAt: templateBackup.lastGeneratedAt,
-      taskGroupId: templateBackup.taskGroupId,
+      projectCategoryId: templateBackup.projectCategoryId,
     };
 
     models.push(template);
