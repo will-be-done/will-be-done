@@ -1,8 +1,20 @@
-import { runQuery, selectFrom, selector, table } from "@will-be-done/hyperdb";
-import { GenReturn } from "./utils";
+import {
+  action,
+  insert,
+  runQuery,
+  selectFrom,
+  selector,
+  table,
+} from "@will-be-done/hyperdb";
+import {
+  generateOrderTokenPositioned,
+  GenReturn,
+  OrderableItem,
+} from "./utils";
 import { isObjectType } from "../utils";
 import { registerModelSlice } from "./maps";
 import { registerSyncableTable } from "./syncMap";
+import { uuidv7 } from "uuidv7";
 
 export const taskGroupType = "taskGroup";
 
@@ -12,6 +24,7 @@ export type TaskGroup = {
   orderToken: string;
   title: string;
   projectId: string;
+  createdAt: number;
 };
 
 export const isTaskGroup = isObjectType<TaskGroup>(taskGroupType);
@@ -32,6 +45,7 @@ export const defaultTaskGroup: TaskGroup = {
   title: "",
   projectId: "",
   orderToken: "",
+  createdAt: 0,
 };
 
 export const taskGroupsSlice2 = {
@@ -52,6 +66,58 @@ export const taskGroupsSlice2 = {
       selectFrom(taskGroupsTable, "byProjectIdOrderToken"),
     );
     return tasks;
+  }),
+
+  byProjectId: selector(function* (projectId: string): GenReturn<TaskGroup[]> {
+    const tasks = yield* runQuery(
+      selectFrom(taskGroupsTable, "byProjectIdOrderToken").where((q) =>
+        q.eq("projectId", projectId),
+      ),
+    );
+    return tasks;
+  }),
+
+  firstChild: selector(function* (
+    projectId: string,
+  ): GenReturn<TaskGroup | undefined> {
+    return (yield* taskGroupsSlice2.byProjectId(projectId))[0];
+  }),
+  lastChild: selector(function* (
+    projectId: string,
+  ): GenReturn<TaskGroup | undefined> {
+    const result = yield* taskGroupsSlice2.byProjectId(projectId);
+    if (result.length === 0) return undefined;
+
+    return result[result.length - 1];
+  }),
+
+  create: action(function* (
+    group: Partial<TaskGroup> & { projectId: string; title: string },
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
+  ): GenReturn<TaskGroup> {
+    const orderToken = yield* generateOrderTokenPositioned(
+      group.projectId,
+      taskGroupsSlice2,
+      position,
+    );
+
+    const id = group.id || uuidv7();
+
+    const taskGroup: TaskGroup = {
+      type: taskGroupType,
+      id,
+      title: group.title,
+      projectId: group.projectId,
+      orderToken: orderToken,
+      createdAt: Date.now(),
+    };
+
+    yield* insert(taskGroupsTable, [taskGroup]);
+
+    return taskGroup;
   }),
 };
 registerModelSlice(taskGroupsSlice2, taskGroupsTable, taskGroupType);

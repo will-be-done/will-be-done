@@ -11,3 +11,4 @@ export * from "./taskTemplates";
 export * from "./utils";
 export * from "./maps";
 export * from "./syncMap";
+export * from "./taskGroups";

@@ -16,11 +16,16 @@ import type { OrderableItem, GenReturn } from "./utils";
 import { inboxId, generateOrderTokenPositioned } from "./utils";
 import { appSlice2 } from "./app";
 import { allProjectsSlice2 } from "./allProjects";
-import { isTask, tasksSlice2 } from "./tasks";
-import { isTaskTemplate, taskTemplatesSlice2 } from "./taskTemplates";
+import { isTask, tasksSlice2, tasksTable } from "./tasks";
+import {
+  isTaskTemplate,
+  taskTemplatesSlice2,
+  taskTemplatesTable,
+} from "./taskTemplates";
 import { isTaskProjection } from "./projections";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
+import { TaskGroup, taskGroupsSlice2 } from "./taskGroups";
 
 // Type definitions
 export const projectType = "project";
@@ -140,6 +145,19 @@ export const projectsSlice2 = {
     };
 
     yield* insert(projectsTable, [newProject]);
+    yield* taskGroupsSlice2.create(
+      { projectId: newProject.id, title: "Week" },
+      "append",
+    );
+    yield* taskGroupsSlice2.create(
+      { projectId: newProject.id, title: "Month" },
+      "append",
+    );
+    yield* taskGroupsSlice2.create(
+      { projectId: newProject.id, title: "Ideas" },
+      "append",
+    );
+
     return newProject;
   }),
   update: action(function* (
@@ -204,6 +222,88 @@ export const projectsSlice2 = {
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
     }
+  }),
+  migrateProjectsWithoutTaskGroups: action(function* (): GenReturn<{
+    projectsMigrated: number;
+    tasksUpdated: number;
+    templatesUpdated: number;
+  }> {
+    let projectsMigrated = 0;
+    let tasksUpdated = 0;
+    let templatesUpdated = 0;
+
+    // Get all project IDs
+    const projectIds = yield* projectsSlice2.allIds();
+
+    // Process each project
+    for (const projectId of projectIds) {
+      // Check if project has task groups
+      const existingGroups = yield* taskGroupsSlice2.byProjectId(projectId);
+
+      if (existingGroups.length === 0) {
+        // Create three default task groups
+        const weekGroup = yield* taskGroupsSlice2.create(
+          { projectId, title: "Week" },
+          "append",
+        );
+        yield* taskGroupsSlice2.create(
+          { projectId, title: "Month" },
+          "append",
+        );
+        yield* taskGroupsSlice2.create(
+          { projectId, title: "Ideas" },
+          "append",
+        );
+
+        // Get all tasks for this project (both todo and done)
+        const allTasks = yield* runQuery(
+          selectFrom(tasksTable, "byProjectIdOrderStates").where((q) =>
+            q.eq("projectId", projectId),
+          ),
+        );
+
+        // Filter tasks with null taskGroupId
+        const unassignedTasks = allTasks.filter((t) => t.taskGroupId === null);
+
+        if (unassignedTasks.length > 0) {
+          // Update tasks with Week group ID
+          const updatedTasks = unassignedTasks.map((task) => ({
+            ...task,
+            taskGroupId: weekGroup.id,
+          }));
+
+          yield* update(tasksTable, updatedTasks);
+          tasksUpdated += updatedTasks.length;
+        }
+
+        // Get all task templates for this project
+        const allTemplates = yield* runQuery(
+          selectFrom(taskTemplatesTable, "byProjectIdOrderToken").where((q) =>
+            q.eq("projectId", projectId),
+          ),
+        );
+
+        // Filter templates with null taskGroupId
+        const unassignedTemplates = allTemplates.filter(
+          (t) => t.taskGroupId === null,
+        );
+
+        if (unassignedTemplates.length > 0) {
+          // Update templates with Week group ID
+          const updatedTemplates = unassignedTemplates.map((template) => ({
+            ...template,
+            taskGroupId: weekGroup.id,
+          }));
+
+          yield* update(taskTemplatesTable, updatedTemplates);
+          templatesUpdated += updatedTemplates.length;
+        }
+
+        projectsMigrated++;
+      }
+    }
+
+    return { projectsMigrated, tasksUpdated, templatesUpdated };
   }),
 };
 registerModelSlice(projectsSlice2, projectsTable, projectType);

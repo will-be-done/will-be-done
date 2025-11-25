@@ -47,6 +47,7 @@ import { isTaskProjection } from "./projections";
 import { Backup, getNewModels } from "../backup";
 import { AnyModel, appTypeSlicesMap, appTypeTablesMap } from "./maps";
 import { registeredSyncableTables } from "./syncMap";
+import { taskGroupsSlice2, taskGroupsTable } from "./taskGroups";
 
 // Slice
 export const appSlice2 = {
@@ -75,7 +76,16 @@ export const appSlice2 = {
       }
     }
 
+    const allTaskGroups = yield* taskGroupsSlice2.all();
+
     return {
+      taskGroups: allTaskGroups.map((group) => ({
+        id: group.id,
+        title: group.title,
+        projectId: group.projectId,
+        createdAt: group.createdAt,
+        orderToken: group.orderToken,
+      })),
       tasks: tasks.map((task) => ({
         id: task.id,
         title: task.title,
@@ -87,6 +97,7 @@ export const appSlice2 = {
         horizon: task.horizon,
         templateId: task.templateId,
         templateDate: task.templateDate,
+        taskGroupId: task.taskGroupId,
       })),
       projects: projects.map((project) => ({
         id: project.id,
@@ -116,6 +127,7 @@ export const appSlice2 = {
         repeatRule: template.repeatRule,
         createdAt: template.createdAt,
         lastGeneratedAt: template.lastGeneratedAt,
+        taskGroupId: template.taskGroupId,
       })),
     };
   }),
@@ -197,6 +209,7 @@ export const appSlice2 = {
     yield* deleteRows(taskTemplatesTable, [id]);
     yield* deleteRows(projectsTable, [id]);
     yield* deleteRows(dailyListsTable, [id]);
+    yield* deleteRows(taskGroupsTable, [id]);
   }),
 
   createTaskBoxSibling: action(function* (

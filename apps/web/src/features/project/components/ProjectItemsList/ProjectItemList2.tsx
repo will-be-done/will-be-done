@@ -3,7 +3,11 @@ import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import { ParentListItemProvider } from "@/features/focus/components/ParentListProvider.tsx";
 import { useCallback, useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { Project, projectItemsSlice2 } from "@will-be-done/slices";
+import {
+  Project,
+  projectItemsSlice2,
+  taskGroupsSlice2,
+} from "@will-be-done/slices";
 import {
   TasksColumn,
   TasksColumnGrid,
@@ -49,62 +53,69 @@ export const ProjectItemsList2 = ({
     dispatch(focusSlice2.editByKey(buildFocusKey(task.id, task.type)));
   };
 
+  const groups = useSyncSelector(
+    () => taskGroupsSlice2.byProjectId(project.id),
+    [project.id],
+  );
+
   return (
     <>
-      <TasksColumnGrid columnsCount={1}>
-        <TasksColumn
-          focusKey={buildFocusKey(project.id, project.type, "ProjectItemsList")}
-          orderNumber={500}
-          isHidden={isHidden}
-          onHideClick={handleHideClick}
-          header={
-            <>
-              <div className="uppercase text-content text-xl font-bold ">
-                {project.title}
-              </div>
-            </>
-          }
-          columnModelId={project.id}
-          columnModelType={project.type}
-          panelWidth={1000}
-          onAddClick={handleAddClick}
-        >
-          <div className="flex flex-col gap-4 w-full py-4">
-            {todoTaskIds.map((id, i) => {
-              return (
-                <TaskComp
-                  orderNumber={(i + 2).toString()}
-                  key={id}
-                  taskId={id}
-                  taskBoxId={id}
-                  displayedUnderProjectId={project.id}
-                  displayLastProjectionTime
-                />
-              );
-            })}
-            <ParentListItemProvider
-              focusKey={buildFocusKey(
-                project.id,
-                project.type,
-                "DoneProjectionsList",
-              )}
-              priority={(lastTaskI + 2).toString()}
-            >
-              {doneTaskIds.map((id, i) => {
+      <TasksColumnGrid columnsCount={groups.length}>
+        {groups.map((group, i) => (
+          <TasksColumn
+            key={group.id}
+            focusKey={buildFocusKey(group.id, group.type, "ProjectItemsList")}
+            orderNumber={500}
+            isHidden={isHidden}
+            onHideClick={handleHideClick}
+            header={
+              <>
+                <div className="uppercase text-content text-xl font-bold ">
+                  {group.title}
+                </div>
+              </>
+            }
+            columnModelId={project.id}
+            columnModelType={project.type}
+            onAddClick={handleAddClick}
+          >
+            <div className="flex flex-col gap-4 w-full py-4">
+              {todoTaskIds.map((id, i) => {
                 return (
                   <TaskComp
-                    displayLastProjectionTime
-                    orderNumber={i.toString()}
+                    orderNumber={(i + 2).toString()}
                     key={id}
                     taskId={id}
                     taskBoxId={id}
                     displayedUnderProjectId={project.id}
+                    displayLastProjectionTime
                   />
                 );
               })}
-            </ParentListItemProvider>
-          </div>
-        </TasksColumn>
+              <ParentListItemProvider
+                focusKey={buildFocusKey(
+                  project.id,
+                  project.type,
+                  "DoneProjectionsList",
+                )}
+                priority={(lastTaskI + 2).toString()}
+              >
+                {doneTaskIds.map((id, i) => {
+                  return (
+                    <TaskComp
+                      displayLastProjectionTime
+                      orderNumber={i.toString()}
+                      key={id}
+                      taskId={id}
+                      taskBoxId={id}
+                      displayedUnderProjectId={project.id}
+                    />
+                  );
+                })}
+              </ParentListItemProvider>
+            </div>
+          </TasksColumn>
+        ))}
       </TasksColumnGrid>
     </>
   );
