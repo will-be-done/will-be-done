@@ -13,11 +13,7 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as IndexImport } from './routes/index'
 import { Route as Timeline2IndexImport } from './routes/timeline2/index'
-import { Route as TimelineIndexImport } from './routes/timeline/index'
-import { Route as ProjectsIndexImport } from './routes/projects/index'
 import { Route as Timeline2DateImport } from './routes/timeline2/$date'
-import { Route as TimelineDateImport } from './routes/timeline/$date'
-import { Route as ProjectsProjectIdImport } from './routes/projects/$projectId'
 
 // Create/Update Routes
 
@@ -33,33 +29,9 @@ const Timeline2IndexRoute = Timeline2IndexImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const TimelineIndexRoute = TimelineIndexImport.update({
-  id: '/timeline/',
-  path: '/timeline/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const ProjectsIndexRoute = ProjectsIndexImport.update({
-  id: '/projects/',
-  path: '/projects/',
-  getParentRoute: () => rootRoute,
-} as any)
-
 const Timeline2DateRoute = Timeline2DateImport.update({
   id: '/timeline2/$date',
   path: '/timeline2/$date',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const TimelineDateRoute = TimelineDateImport.update({
-  id: '/timeline/$date',
-  path: '/timeline/$date',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const ProjectsProjectIdRoute = ProjectsProjectIdImport.update({
-  id: '/projects/$projectId',
-  path: '/projects/$projectId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -74,39 +46,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/projects/$projectId': {
-      id: '/projects/$projectId'
-      path: '/projects/$projectId'
-      fullPath: '/projects/$projectId'
-      preLoaderRoute: typeof ProjectsProjectIdImport
-      parentRoute: typeof rootRoute
-    }
-    '/timeline/$date': {
-      id: '/timeline/$date'
-      path: '/timeline/$date'
-      fullPath: '/timeline/$date'
-      preLoaderRoute: typeof TimelineDateImport
-      parentRoute: typeof rootRoute
-    }
     '/timeline2/$date': {
       id: '/timeline2/$date'
       path: '/timeline2/$date'
       fullPath: '/timeline2/$date'
       preLoaderRoute: typeof Timeline2DateImport
-      parentRoute: typeof rootRoute
-    }
-    '/projects/': {
-      id: '/projects/'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof ProjectsIndexImport
-      parentRoute: typeof rootRoute
-    }
-    '/timeline/': {
-      id: '/timeline/'
-      path: '/timeline'
-      fullPath: '/timeline'
-      preLoaderRoute: typeof TimelineIndexImport
       parentRoute: typeof rootRoute
     }
     '/timeline2/': {
@@ -123,83 +67,41 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/timeline/$date': typeof TimelineDateRoute
   '/timeline2/$date': typeof Timeline2DateRoute
-  '/projects': typeof ProjectsIndexRoute
-  '/timeline': typeof TimelineIndexRoute
   '/timeline2': typeof Timeline2IndexRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/timeline/$date': typeof TimelineDateRoute
   '/timeline2/$date': typeof Timeline2DateRoute
-  '/projects': typeof ProjectsIndexRoute
-  '/timeline': typeof TimelineIndexRoute
   '/timeline2': typeof Timeline2IndexRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/projects/$projectId': typeof ProjectsProjectIdRoute
-  '/timeline/$date': typeof TimelineDateRoute
   '/timeline2/$date': typeof Timeline2DateRoute
-  '/projects/': typeof ProjectsIndexRoute
-  '/timeline/': typeof TimelineIndexRoute
   '/timeline2/': typeof Timeline2IndexRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/projects/$projectId'
-    | '/timeline/$date'
-    | '/timeline2/$date'
-    | '/projects'
-    | '/timeline'
-    | '/timeline2'
+  fullPaths: '/' | '/timeline2/$date' | '/timeline2'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/projects/$projectId'
-    | '/timeline/$date'
-    | '/timeline2/$date'
-    | '/projects'
-    | '/timeline'
-    | '/timeline2'
-  id:
-    | '__root__'
-    | '/'
-    | '/projects/$projectId'
-    | '/timeline/$date'
-    | '/timeline2/$date'
-    | '/projects/'
-    | '/timeline/'
-    | '/timeline2/'
+  to: '/' | '/timeline2/$date' | '/timeline2'
+  id: '__root__' | '/' | '/timeline2/$date' | '/timeline2/'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
-  TimelineDateRoute: typeof TimelineDateRoute
   Timeline2DateRoute: typeof Timeline2DateRoute
-  ProjectsIndexRoute: typeof ProjectsIndexRoute
-  TimelineIndexRoute: typeof TimelineIndexRoute
   Timeline2IndexRoute: typeof Timeline2IndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ProjectsProjectIdRoute: ProjectsProjectIdRoute,
-  TimelineDateRoute: TimelineDateRoute,
   Timeline2DateRoute: Timeline2DateRoute,
-  ProjectsIndexRoute: ProjectsIndexRoute,
-  TimelineIndexRoute: TimelineIndexRoute,
   Timeline2IndexRoute: Timeline2IndexRoute,
 }
 
@@ -214,31 +116,15 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/projects/$projectId",
-        "/timeline/$date",
         "/timeline2/$date",
-        "/projects/",
-        "/timeline/",
         "/timeline2/"
       ]
     },
     "/": {
       "filePath": "index.tsx"
     },
-    "/projects/$projectId": {
-      "filePath": "projects/$projectId.tsx"
-    },
-    "/timeline/$date": {
-      "filePath": "timeline/$date.tsx"
-    },
     "/timeline2/$date": {
       "filePath": "timeline2/$date.tsx"
-    },
-    "/projects/": {
-      "filePath": "projects/index.tsx"
-    },
-    "/timeline/": {
-      "filePath": "timeline/index.tsx"
     },
     "/timeline2/": {
       "filePath": "timeline2/index.tsx"

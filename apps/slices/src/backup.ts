@@ -28,7 +28,7 @@ interface TaskBackup {
   id: string;
   title: string;
   state: "todo" | "done";
-  projectId: string;
+  // projectId: string;
   projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
@@ -63,7 +63,7 @@ interface DailyListProjectionBackup {
 interface TaskTemplateBackup {
   id: string;
   title: string;
-  projectId: string;
+  // projectId: string;
   orderToken: string;
   horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
@@ -114,10 +114,12 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
 
   // Then create all tasks
   for (const taskBackup of backup.tasks) {
-    const project = backup.projects.find((p) => p.id === taskBackup.projectId);
-    if (!project) {
+    const category = backup.projectCategories.find(
+      (p) => p.id === taskBackup.projectCategoryId,
+    );
+    if (!category) {
       console.warn(
-        `Project ${taskBackup.projectId} not found for task ${taskBackup.id}`,
+        `Project ${taskBackup.projectCategoryId} not found for template ${taskBackup.id}`,
       );
       continue;
     }
@@ -127,7 +129,7 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
       id: taskBackup.id,
       title: taskBackup.title,
       state: taskBackup.state,
-      projectId: taskBackup.projectId,
+      // projectId: taskBackup.projectId,
       projectCategoryId: taskBackup.projectCategoryId,
       orderToken: taskBackup.orderToken,
       lastToggledAt: taskBackup.lastToggledAt,
@@ -157,12 +159,12 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
 
   // Create task templates
   for (const templateBackup of backup.taskTemplates || []) {
-    const project = backup.projects.find(
-      (p) => p.id === templateBackup.projectId,
+    const category = backup.projectCategories.find(
+      (p) => p.id === templateBackup.projectCategoryId,
     );
-    if (!project) {
+    if (!category) {
       console.warn(
-        `Project ${templateBackup.projectId} not found for template ${templateBackup.id}`,
+        `Project ${templateBackup.projectCategoryId} not found for template ${templateBackup.id}`,
       );
       continue;
     }
@@ -171,13 +173,12 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
       type: taskTemplateType,
       id: templateBackup.id,
       title: templateBackup.title,
-      projectId: templateBackup.projectId,
       orderToken: templateBackup.orderToken,
       horizon: templateBackup.horizon,
       repeatRule: templateBackup.repeatRule,
       createdAt: templateBackup.createdAt,
       lastGeneratedAt: templateBackup.lastGeneratedAt,
-      projectCategoryId: templateBackup.projectCategoryId,
+      projectCategoryId: category.id,
     };
 
     models.push(template);

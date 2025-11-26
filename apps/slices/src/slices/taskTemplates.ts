@@ -14,11 +14,12 @@ import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
 import type { GenReturn } from "./utils";
 import { tasksSlice2, type Task } from "./tasks";
-import { projectItemsSlice2 } from "./projectItems";
+// import { projectItemsSlice2 } from "./projectItems";
 import { dailyListsSlice2 } from "./dailyLists";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectCategoriesSlice2 } from "./projectCategories";
+import { appSlice2 } from "./app";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -27,7 +28,7 @@ export type TaskTemplate = {
   type: typeof taskTemplateType;
   id: string;
   title: string;
-  projectId: string;
+  // projectId: string;
   orderToken: string;
   horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
@@ -42,13 +43,13 @@ export const defaultTaskTemplate: TaskTemplate = {
   type: taskTemplateType,
   id: "default-template-id",
   title: "default template",
-  projectId: "",
   orderToken: "",
   horizon: "someday",
   repeatRule: "",
   createdAt: 0,
   lastGeneratedAt: 0,
   projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
+  // projectId: "",
 };
 
 // Table definition
@@ -57,10 +58,14 @@ export const taskTemplatesTable = table<TaskTemplate>(
 ).withIndexes({
   byId: { cols: ["id"], type: "hash" },
   byIds: { cols: ["id"], type: "btree" },
-  byProjectIdOrderToken: {
-    cols: ["projectId", "orderToken"],
+  byCategoryIdOrderStates: {
+    cols: ["projectCategoryId", "orderToken"],
     type: "btree",
   },
+  // byProjectIdOrderToken: {
+  //   cols: ["projectId", "orderToken"],
+  //   type: "btree",
+  // },
 });
 registerSyncableTable(taskTemplatesTable, taskTemplateType);
 
@@ -75,7 +80,7 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     id: generateTaskId(tmpl.id, date),
     title: tmpl.title,
     state: "todo",
-    projectId: tmpl.projectId,
+    // projectId: tmpl.projectId,
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
     lastToggledAt: date.getTime(),
@@ -132,7 +137,7 @@ export const taskTemplatesSlice2 = {
   }),
   all: selector(function* (): GenReturn<TaskTemplate[]> {
     const templates = yield* runQuery(
-      selectFrom(taskTemplatesTable, "byProjectIdOrderToken"),
+      selectFrom(taskTemplatesTable, "byCategoryIdOrderStates"),
     );
     return templates;
   }),
@@ -263,14 +268,13 @@ export const taskTemplatesSlice2 = {
     task: Task,
     data: Partial<TaskTemplate>,
   ): GenReturn<TaskTemplate> {
-    yield* projectItemsSlice2.deleteById(task.id);
+    yield* appSlice2.delete(task);
 
     const newId = uuidv7();
     const template: TaskTemplate = {
       id: newId,
       type: taskTemplateType,
       title: task.title,
-      projectId: task.projectId,
       orderToken: task.orderToken,
       createdAt: task.createdAt,
       repeatRule: defaultRule,
@@ -282,65 +286,65 @@ export const taskTemplatesSlice2 = {
 
     yield* insert(taskTemplatesTable, [template]);
 
-    // Generate initial tasks and projections for this template
-    yield* taskTemplatesSlice2.genTaskAndProjectionsForTemplate(
-      template.id,
-      new Date(),
-    );
+    // // Generate initial tasks and projections for this template
+    // yield* taskTemplatesSlice2.genTaskAndProjectionsForTemplate(
+    //   template.id,
+    //   new Date(),
+    // );
 
     return template;
   }),
-  genTaskAndProjectionsForTemplate: action(function* (
-    templateId: string,
-    tillDate: Date,
-  ): GenReturn<void> {
-    const newTasks = yield* taskTemplatesSlice2.newTasksToGenForTemplate(
-      templateId,
-      tillDate,
-    );
-    yield* taskTemplatesSlice2.genTasks(newTasks);
-  }),
-  genTasksAndProjections: action(function* (tillDate: Date): GenReturn<void> {
-    const newTasks =
-      yield* taskTemplatesSlice2.newTasksToGenForTemplates(tillDate);
-    yield* taskTemplatesSlice2.genTasks(newTasks);
-  }),
-  genTasks: action(function* (newTasks: Task[]): GenReturn<Task[]> {
-    const generatedTasks: Task[] = [];
-
-    for (const taskData of newTasks) {
-      const task = yield* projectItemsSlice2.createTask(
-        taskData.projectId,
-        "append",
-        taskData,
-      );
-      generatedTasks.push(task);
-
-      if (taskData.templateId && taskData.templateDate) {
-        const date = new Date(taskData.templateDate)
-          .toISOString()
-          .split("T")[0];
-        if (!date) return shouldNeverHappen("date was not set");
-
-        const dailyList = yield* dailyListsSlice2.createIfNotPresent(date);
-
-        // Create projection for the task in the daily list
-        yield* dailyListsSlice2.createProjection(
-          dailyList.id,
-          task.id,
-          "prepend",
-        );
-
-        yield* taskTemplatesSlice2.update(taskData.templateId, {
-          lastGeneratedAt: Date.now(),
-        });
-      } else {
-        shouldNeverHappen("taskData empty", taskData);
-      }
-    }
-
-    return generatedTasks;
-  }),
+  // genTaskAndProjectionsForTemplate: action(function* (
+  //   templateId: string,
+  //   tillDate: Date,
+  // ): GenReturn<void> {
+  //   const newTasks = yield* taskTemplatesSlice2.newTasksToGenForTemplate(
+  //     templateId,
+  //     tillDate,
+  //   );
+  //   yield* taskTemplatesSlice2.genTasks(newTasks);
+  // }),
+  // genTasksAndProjections: action(function* (tillDate: Date): GenReturn<void> {
+  //   const newTasks =
+  //     yield* taskTemplatesSlice2.newTasksToGenForTemplates(tillDate);
+  //   yield* taskTemplatesSlice2.genTasks(newTasks);
+  // }),
+  // genTasks: action(function* (newTasks: Task[]): GenReturn<Task[]> {
+  //   const generatedTasks: Task[] = [];
+  //
+  //   for (const taskData of newTasks) {
+  //     const task = yield* projectItemsSlice2.createTask(
+  //       taskData.projectId,
+  //       "append",
+  //       taskData,
+  //     );
+  //     generatedTasks.push(task);
+  //
+  //     if (taskData.templateId && taskData.templateDate) {
+  //       const date = new Date(taskData.templateDate)
+  //         .toISOString()
+  //         .split("T")[0];
+  //       if (!date) return shouldNeverHappen("date was not set");
+  //
+  //       const dailyList = yield* dailyListsSlice2.createIfNotPresent(date);
+  //
+  //       // Create projection for the task in the daily list
+  //       yield* dailyListsSlice2.createProjection(
+  //         dailyList.id,
+  //         task.id,
+  //         "prepend",
+  //       );
+  //
+  //       yield* taskTemplatesSlice2.update(taskData.templateId, {
+  //         lastGeneratedAt: Date.now(),
+  //       });
+  //     } else {
+  //       shouldNeverHappen("taskData empty", taskData);
+  //     }
+  //   }
+  //
+  //   return generatedTasks;
+  // }),
   cleanAll: action(function* (): GenReturn<void> {
     const templates = yield* taskTemplatesSlice2.all();
     for (const template of templates) {

@@ -7,7 +7,6 @@ import {
   selectFrom,
   selector,
   table,
-  update,
 } from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import uuidByString from "uuid-by-string";
@@ -21,10 +20,9 @@ import {
   type TaskProjection,
   taskProjectionsTable,
 } from "./projections";
-import { projectItemsSlice2 } from "./projectItems";
-import { format } from "date-fns";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
+import { projectsSlice2 } from "./projects";
 
 // Type definitions
 export const dailyListType = "dailyList";
@@ -80,33 +78,17 @@ export const dailyListsSlice2 = {
     );
     return dailyLists[0];
   }),
-  childrenIds: selector(function* (
-    dailyListId: string,
-    includeOnlyProjectIds: string[] = [],
-  ): GenReturn<string[]> {
+  childrenIds: selector(function* (dailyListId: string): GenReturn<string[]> {
     const projections = yield* runQuery(
       selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
         q.eq("dailyListId", dailyListId),
       ),
     );
 
-    const todoProjections: TaskProjection[] = [];
-    for (const proj of projections) {
-      const task = yield* tasksSlice2.byId(proj.taskId);
-      if (
-        task?.state === "todo" &&
-        (includeOnlyProjectIds.length === 0 ||
-          includeOnlyProjectIds.includes(task.projectId))
-      ) {
-        todoProjections.push(proj);
-      }
-    }
-
-    return todoProjections.map((proj) => proj.id);
+    return projections.map((proj) => proj.id);
   }),
   doneChildrenIds: selector(function* (
     dailyListId: string,
-    includeOnlyProjectIds: string[] = [],
   ): GenReturn<string[]> {
     const projections = yield* runQuery(
       selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
@@ -117,11 +99,7 @@ export const dailyListsSlice2 = {
     const doneProjections: { id: string; lastToggledAt: number }[] = [];
     for (const proj of projections) {
       const task = yield* tasksSlice2.byId(proj.taskId);
-      if (
-        task?.state === "done" &&
-        (includeOnlyProjectIds.length === 0 ||
-          includeOnlyProjectIds.includes(task.projectId))
-      ) {
+      if (task?.state === "done") {
         doneProjections.push({
           id: proj.id,
           lastToggledAt: task.lastToggledAt,
@@ -150,33 +128,10 @@ export const dailyListsSlice2 = {
 
     return allTaskIds;
   }),
-  notDoneTaskIdsExceptDailies: selector(function* (
-    projectId: string,
-    exceptDailyListIds: string[],
-    taskHorizons: Task["horizon"][],
-    alwaysIncludeTaskIds: string[] = [],
-  ): GenReturn<string[]> {
-    const exceptTaskIds =
-      yield* dailyListsSlice2.allTaskIds(exceptDailyListIds);
-
-    // Get all tasks from the project that match the horizons
-    const notDoneTaskIds = yield* projectItemsSlice2.notDoneTaskIds(
-      projectId,
-      taskHorizons,
-      alwaysIncludeTaskIds,
-    );
-
-    return notDoneTaskIds.filter((id) => !exceptTaskIds.has(id));
-  }),
   // TODO: use hash index
   dateIdsMap: selector(function* (): GenReturn<Record<string, string>> {
     const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byIds"));
     return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id]));
-  }),
-  idByDate: selector(function* (date: Date): GenReturn<string | undefined> {
-    const dateIdsMap = yield* dailyListsSlice2.dateIdsMap();
-    const dmy = getDMY(date);
-    return dateIdsMap[dmy];
   }),
   idsByDates: selector(function* (dates: Date[]): GenReturn<string[]> {
     const dateIdsMap = yield* dailyListsSlice2.dateIdsMap();
@@ -292,15 +247,12 @@ export const dailyListsSlice2 = {
       | [OrderableItem | undefined, OrderableItem | undefined]
       | "append"
       | "prepend",
-    projectPosition:
+    categoryPosition:
       | [OrderableItem | undefined, OrderableItem | undefined]
       | "append"
       | "prepend",
   ): GenReturn<TaskProjection> {
-    const task = yield* projectItemsSlice2.createTask(
-      projectId,
-      projectPosition,
-    );
+    const task = yield* projectsSlice2.createTask(projectId, categoryPosition);
 
     return yield* dailyListsSlice2.createProjection(
       dailyListId,

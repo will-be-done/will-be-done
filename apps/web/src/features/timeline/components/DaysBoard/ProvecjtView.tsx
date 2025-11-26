@@ -33,7 +33,6 @@ import {
 import {
   allProjectsSlice2,
   appSlice2,
-  projectItemsSlice2,
   projectsSlice2,
 } from "@will-be-done/slices";
 import { Backup } from "@will-be-done/slices";
@@ -286,24 +285,28 @@ const ProjectItem = function ProjectItemComp({
   );
 
   const currentDate = useCurrentDate();
-  const notDoneTasksCount = useSyncSelector(
-    () =>
-      projectItemsSlice2.notDoneTaskCountExceptDailiesCount(
-        project.id,
-        exceptDailyListIds,
-      ),
-    [project.id, exceptDailyListIds],
-  );
 
-  const overdueTasksCount = useSyncSelector(
-    () =>
-      projectItemsSlice2.overdueTaskCountExceptDailiesCount(
-        project.id,
-        exceptDailyListIds,
-        currentDate,
-      ),
-    [project.id, exceptDailyListIds, currentDate],
-  );
+  // TODO: return back
+  const notDoneTasksCount = 0;
+  const overdueTasksCount = 0;
+  // const notDoneTasksCount = useSyncSelector(
+  //   () =>
+  //     projectItemsSlice2.notDoneTaskCountExceptDailiesCount(
+  //       project.id,
+  //       exceptDailyListIds,
+  //     ),
+  //   [project.id, exceptDailyListIds],
+  // );
+  //
+  // const overdueTasksCount = useSyncSelector(
+  //   () =>
+  //     projectItemsSlice2.overdueTaskCountExceptDailiesCount(
+  //       project.id,
+  //       exceptDailyListIds,
+  //       currentDate,
+  //     ),
+  //   [project.id, exceptDailyListIds, currentDate],
+  // );
 
   const handleEditClick = () => {
     const newTitle = prompt("Enter new project title", project.title);
@@ -506,23 +509,6 @@ export const ProjectView = ({
     [selectedProjectId],
   );
 
-  const doneChildrenIds = useSyncSelector(
-    () =>
-      projectItemsSlice2.doneChildrenIdsExceptDailies(
-        project.id,
-        exceptDailyListIds,
-      ),
-    [project.id, exceptDailyListIds],
-  );
-  const notDoneChildrenIds = useSyncSelector(
-    () =>
-      projectItemsSlice2.childrenIdsExceptDailies(
-        project.id,
-        exceptDailyListIds,
-      ),
-    [project.id, exceptDailyListIds],
-  );
-
   // const taskIds = useSyncSelector(
   //   () =>
   //     dailyListsSlice2.allTaskIdsExceptDailies(
@@ -551,13 +537,15 @@ export const ProjectView = ({
     return <div>Project not found</div>;
   }
 
+  {
+    /* todoTaskIds={notDoneChildrenIds} */
+  }
+  {
+    /* doneTaskIds={doneChildrenIds} */
+  }
   return (
     <>
-      <ProjectItemsList2
-        project={project}
-        todoTaskIds={notDoneChildrenIds}
-        doneTaskIds={doneChildrenIds}
-      />
+      <ProjectItemsList2 project={project} />
       <ColumnListProvider
         focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
         priority="0"

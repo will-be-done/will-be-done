@@ -12,11 +12,11 @@ import {
 import * as dotenv from "dotenv";
 import {
   changesTable,
-  projectsSlice2,
   ChangesetArray,
   changesSlice,
-  projectItemsSlice2,
+  // projectItemsSlice2,
   registeredSyncableTables,
+  projectsSlice2,
 } from "@will-be-done/slices";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
@@ -368,7 +368,7 @@ const memosDir = path.join(__dirname, "..", "dbs", "memos");
 const createTaskIfNotExists = (memoId: string, content: string) => {
   syncDispatch(
     hyperDB,
-    projectItemsSlice2.createTaskIfNotExists(
+    projectsSlice2.createTaskIfNotExists(
       inbox.id,
       memoId.toLowerCase(),
       "prepend",

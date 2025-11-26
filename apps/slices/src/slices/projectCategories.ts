@@ -1,5 +1,6 @@
 import {
   action,
+  deleteRows,
   insert,
   runQuery,
   selectFrom,
@@ -15,6 +16,9 @@ import { isObjectType } from "../utils";
 import { registerModelSlice } from "./maps";
 import { registerSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
+import { defaultProject, Project, projectsSlice2 } from "./projects";
+import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
+import { Task, tasksSlice2 } from "./tasks";
 
 export const projectCategoryType = "projectCategory";
 
@@ -27,9 +31,12 @@ export type ProjectCategory = {
   createdAt: number;
 };
 
-export const isProjectCategory = isObjectType<ProjectCategory>(projectCategoryType);
+export const isProjectCategory =
+  isObjectType<ProjectCategory>(projectCategoryType);
 
-export const projectCategoriesTable = table<ProjectCategory>("project_categories").withIndexes({
+export const projectCategoriesTable = table<ProjectCategory>(
+  "project_categories",
+).withIndexes({
   byIds: { cols: ["id"], type: "btree" },
   byId: { cols: ["id"], type: "hash" },
   byProjectIdOrderToken: {
@@ -49,7 +56,9 @@ export const defaultProjectCategory: ProjectCategory = {
 };
 
 export const projectCategoriesSlice2 = {
-  byId: selector(function* (id: string): GenReturn<ProjectCategory | undefined> {
+  byId: selector(function* (
+    id: string,
+  ): GenReturn<ProjectCategory | undefined> {
     const tasks = yield* runQuery(
       selectFrom(projectCategoriesTable, "byId")
         .where((q) => q.eq("id", id))
@@ -68,13 +77,32 @@ export const projectCategoriesSlice2 = {
     return tasks;
   }),
 
-  byProjectId: selector(function* (projectId: string): GenReturn<ProjectCategory[]> {
-    const tasks = yield* runQuery(
+  byProjectId: selector(function* (
+    projectId: string,
+  ): GenReturn<ProjectCategory[]> {
+    const categories = yield* runQuery(
       selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
         q.eq("projectId", projectId),
       ),
     );
-    return tasks;
+    return categories;
+  }),
+
+  projectOfCategory: selector(function* (
+    categoryId: string,
+  ): GenReturn<Project | undefined> {
+    const category = yield* projectCategoriesSlice2.byId(categoryId);
+    if (!category) return undefined;
+
+    return yield* projectsSlice2.byId(category.projectId);
+  }),
+  projectOfCategoryOrDefault: selector(function* (
+    categoryId: string,
+  ): GenReturn<Project> {
+    const category = yield* projectCategoriesSlice2.byId(categoryId);
+    if (!category) return defaultProject;
+
+    return yield* projectsSlice2.byIdOrDefault(category.projectId);
   }),
 
   firstChild: selector(function* (
@@ -91,7 +119,7 @@ export const projectCategoriesSlice2 = {
     return result[result.length - 1];
   }),
 
-  create: action(function* (
+  createCategory: action(function* (
     group: Partial<ProjectCategory> & { projectId: string; title: string },
     position:
       | [OrderableItem | undefined, OrderableItem | undefined]
@@ -119,5 +147,35 @@ export const projectCategoriesSlice2 = {
 
     return category;
   }),
+
+  createTask: action(function* (
+    categoryId: string,
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
+    taskAttrs?: Partial<Task>,
+  ): GenReturn<Task> {
+    const orderToken = yield* generateOrderTokenPositioned(
+      categoryId,
+      projectCategoryCardsSlice2,
+      position,
+    );
+
+    return yield* tasksSlice2.createTask({
+      ...taskAttrs,
+      orderToken: orderToken,
+      projectCategoryId: categoryId,
+    });
+  }),
+
+  delete: action(function* (ids: string[]): GenReturn<void> {
+    yield* deleteRows(projectCategoriesTable, ids);
+  }),
 };
-registerModelSlice(projectCategoriesSlice2, projectCategoriesTable, projectCategoryType);
+
+registerModelSlice(
+  projectCategoriesSlice2,
+  projectCategoriesTable,
+  projectCategoryType,
+);

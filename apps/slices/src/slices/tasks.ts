@@ -14,7 +14,6 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
 import { appSlice2 } from "./app";
-import { projectItemsSlice2 } from "./projectItems";
 import { projectionsSlice2, isTaskProjection } from "./projections";
 import {
   isTaskTemplate,
@@ -23,6 +22,7 @@ import {
 } from "./taskTemplates";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
+import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
 import { projectCategoriesSlice2 } from "./projectCategories";
 
 // Type definitions
@@ -34,7 +34,7 @@ export type Task = {
   id: string;
   title: string;
   state: TaskState;
-  projectId: string;
+  // projectId: string;
   projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
@@ -52,7 +52,7 @@ export const defaultTask: Task = {
   id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
   title: "default task kek",
   state: "todo",
-  projectId: "",
+  // projectId: "",
   orderToken: "",
   lastToggledAt: 0,
   createdAt: 0,
@@ -65,8 +65,12 @@ export const defaultTask: Task = {
 export const tasksTable = table<Task>("tasks").withIndexes({
   byIds: { cols: ["id"], type: "btree" },
   byId: { cols: ["id"], type: "hash" },
-  byProjectIdOrderStates: {
-    cols: ["projectId", "state", "orderToken"],
+  // byProjectIdOrderStates: {
+  //   cols: ["projectId", "state", "orderToken"],
+  //   type: "btree",
+  // },
+  byCategoryIdOrderStates: {
+    cols: ["projectCategoryId", "state", "orderToken"],
     type: "btree",
   },
   byTemplateId: {
@@ -121,7 +125,7 @@ export const tasksSlice2 = {
   }),
   all: selector(function* (): GenReturn<Task[]> {
     const tasks = yield* runQuery(
-      selectFrom(tasksTable, "byProjectIdOrderStates"),
+      selectFrom(tasksTable, "byCategoryIdOrderStates"),
     );
     return tasks;
   }),
@@ -138,22 +142,15 @@ export const tasksSlice2 = {
     yield* update(tasksTable, [{ ...taskInState, ...task }]);
   }),
   createTask: action(function* (
-    task: Partial<Task> & { projectId: string; orderToken: string },
+    task: Partial<Task> & { orderToken: string; projectCategoryId: string },
   ): GenReturn<Task> {
     const id = task.id || uuidv7();
-
-    const projectCategoryId =
-      task.projectCategoryId ??
-      (yield* projectCategoriesSlice2.firstChild(task.projectId))?.id;
-
-    if (!projectCategoryId) throw new Error("Category of project not found");
 
     const newTask: Task = {
       type: taskType,
       id,
       title: "",
       state: "todo",
-      projectCategoryId: projectCategoryId,
       lastToggledAt: Date.now(),
       createdAt: Date.now(),
       horizon: "week",
@@ -179,7 +176,7 @@ export const tasksSlice2 = {
     const dropItem = yield* appSlice2.byId(dropId);
     if (!dropItem) return shouldNeverHappen("drop item not found");
 
-    const [up, down] = yield* projectItemsSlice2.siblings(taskId);
+    const [up, down] = yield* projectCategoryCardsSlice2.siblings(taskId);
 
     let between: [string | undefined, string | undefined] = [
       task.orderToken,
@@ -197,12 +194,12 @@ export const tasksSlice2 = {
 
     if (isTask(dropItem)) {
       yield* tasksSlice2.update(dropItem.id, {
-        projectId: task.projectId,
+        projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
       });
     } else if (isTaskTemplate(dropItem)) {
       yield* taskTemplatesSlice2.update(dropItem.id, {
-        projectId: task.projectId,
+        projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
       });
     } else if (isTaskProjection(dropItem)) {
@@ -211,13 +208,30 @@ export const tasksSlice2 = {
 
       yield* tasksSlice2.update(taskOfDrop.id, {
         orderToken: orderToken,
-        projectId: task.projectId,
+        projectCategoryId: task.projectCategoryId,
       });
 
       yield* projectionsSlice2.delete([dropItem.id]);
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
     }
+  }),
+  moveToProject: action(function* (
+    taskId: string,
+    projectId: string,
+  ): GenReturn<void> {
+    const task = yield* tasksSlice2.byId(taskId);
+    if (!task) throw new Error("Task not found");
+
+    const firstCategory = yield* projectCategoriesSlice2.firstChild(projectId);
+    if (!firstCategory) throw new Error("No categories found");
+
+    yield* update(tasksTable, [
+      {
+        ...task,
+        projectCategoryId: firstCategory.id,
+      },
+    ]);
   }),
   toggleState: action(function* (taskId: string): GenReturn<void> {
     const task = yield* tasksSlice2.byId(taskId);
@@ -232,14 +246,13 @@ export const tasksSlice2 = {
     ]);
   }),
   createFromTemplate: action(function* (taskTemplate: TaskTemplate) {
-    yield* projectItemsSlice2.deleteById(taskTemplate.id);
+    yield* appSlice2.delete(taskTemplate);
 
     const newId = uuidv7();
     const newTask: Task = {
       id: newId,
       title: taskTemplate.title,
       state: "todo",
-      projectId: taskTemplate.projectId,
       projectCategoryId: taskTemplate.projectCategoryId,
       type: taskType,
       orderToken: taskTemplate.orderToken,

@@ -8,50 +8,23 @@ import {
 } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
 import { assertUnreachable } from "./utils";
-import {
-  tasksSlice2,
-  type Task,
-  tasksTable,
-  defaultTask,
-  taskType,
-} from "./tasks";
-import {
-  projectionsSlice2,
-  type TaskProjection,
-  taskProjectionsTable,
-  projectionType,
-} from "./projections";
+import { tasksSlice2, type Task, defaultTask } from "./tasks";
+import { projectionsSlice2, type TaskProjection } from "./projections";
 import {
   taskTemplatesSlice2,
   type TaskTemplate,
-  taskTemplatesTable,
-  taskTemplateType,
   isTaskTemplate,
 } from "./taskTemplates";
-import {
-  dailyListsSlice2,
-  type DailyList,
-  dailyListsTable,
-  dailyListType,
-} from "./dailyLists";
+import { dailyListsSlice2, type DailyList } from "./dailyLists";
 import { allProjectsSlice2 } from "./allProjects";
-import {
-  projectsSlice2,
-  type Project,
-  projectsTable,
-  projectType,
-} from "./projects";
-import { projectItemsSlice2 } from "./projectItems";
+import { type Project } from "./projects";
 import { isTask } from "./tasks";
 import { isTaskProjection } from "./projections";
 import { Backup, getNewModels } from "../backup";
 import { AnyModel, appTypeSlicesMap, appTypeTablesMap } from "./maps";
 import { registeredSyncableTables } from "./syncMap";
-import {
-  projectCategoriesSlice2,
-  projectCategoriesTable,
-  isProjectCategory,
-} from "./projectCategories";
+import { projectCategoriesSlice2 } from "./projectCategories";
+import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
 
 // Slice
 export const appSlice2 = {
@@ -94,7 +67,7 @@ export const appSlice2 = {
         id: task.id,
         title: task.title,
         state: task.state,
-        projectId: task.projectId,
+        // projectId: task.projectId,
         orderToken: task.orderToken,
         lastToggledAt: task.lastToggledAt,
         createdAt: task.createdAt,
@@ -125,7 +98,7 @@ export const appSlice2 = {
       taskTemplates: taskTemplates.map((template) => ({
         id: template.id,
         title: template.title,
-        projectId: template.projectId,
+        // projectId: template.projectId,
         orderToken: template.orderToken,
         horizon: template.horizon,
         repeatRule: template.repeatRule,
@@ -191,7 +164,7 @@ export const appSlice2 = {
 
     return undefined;
   }),
-  taskBoxByIdOrDefault: selector(function* (
+  cardWrapperIdOrDefault: selector(function* (
     id: string,
   ): GenReturn<Task | TaskTemplate | TaskProjection> {
     const entity = yield* appSlice2.taskBoxById(id);
@@ -203,26 +176,20 @@ export const appSlice2 = {
   }),
 
   // actions
-  delete: action(function* (id: string): GenReturn<void> {
-    // TODO: use slice.delete
-    // for (const slice of Object.values(slices)) {
-    //   slice.delete(id);
-    // }
-    yield* tasksSlice2.delete([id]);
-    yield* projectionsSlice2.delete([id]);
-    yield* deleteRows(taskTemplatesTable, [id]);
-    yield* deleteRows(projectsTable, [id]);
-    yield* deleteRows(dailyListsTable, [id]);
-    yield* deleteRows(projectCategoriesTable, [id]);
+  delete: action(function* (model: AnyModel): GenReturn<void> {
+    const slice = appTypeSlicesMap[model.type];
+    if (!slice) throw new Error("Unknown model type");
+
+    yield* slice.delete([model.id]);
   }),
 
-  createTaskBoxSibling: action(function* (
+  createSiblingCard: action(function* (
     taskBox: Task | TaskProjection | TaskTemplate,
     position: "before" | "after",
     taskParams?: Partial<Task>,
   ) {
     if (isTask(taskBox) || isTaskTemplate(taskBox)) {
-      return yield* projectItemsSlice2.createSibling(
+      return yield* projectCategoryCardsSlice2.createSiblingTask(
         taskBox.id,
         position,
         taskParams,

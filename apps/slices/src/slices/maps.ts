@@ -23,6 +23,7 @@ export type AnyTable =
 
 type ModelSlice<T> = {
   byId: (id: string) => Generator<unknown, T | undefined, unknown>;
+  delete: (ids: string[]) => Generator<unknown, void, unknown>;
 };
 
 export const appTypeTablesMap: Record<string, AnyTable> = {};

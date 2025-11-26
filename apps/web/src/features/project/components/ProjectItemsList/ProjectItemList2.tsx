@@ -5,116 +5,121 @@ import { useCallback, useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   Project,
-  projectItemsSlice2,
   projectCategoriesSlice2,
+  ProjectCategory,
 } from "@will-be-done/slices";
 import {
   TasksColumn,
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
+import { projectCategoryCardsSlice2 } from "@will-be-done/slices";
 
-export const ProjectItemsList2 = ({
+const ProjectTasksColumn = ({
   project,
-  todoTaskIds,
-  doneTaskIds,
+  category,
 }: {
   project: Project;
-  todoTaskIds: string[];
-  doneTaskIds: string[];
+  category: ProjectCategory;
 }) => {
   const dispatch = useDispatch();
-  const id = useSyncSelector(() => focusSlice2.getFocusedModelId(), []);
-  const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
 
-  // const doneChildrenIds = useSyncSelector(
-  //   () => projectItemsSlice2.doneChildrenIds(project.id, idsToAlwaysInclude),
-  //   [project.id, idsToAlwaysInclude],
-  // );
-  // const notDoneChildrenIds = useSyncSelector(
-  //   () => projectItemsSlice2.childrenIds(project.id, idsToAlwaysInclude),
-  //   [project.id, idsToAlwaysInclude],
-  // );
-
+  const todoTaskIds = useSyncSelector(
+    () => projectCategoryCardsSlice2.childrenIds(category.id),
+    [category.id],
+  );
+  const doneTaskIds = useSyncSelector(
+    () => projectCategoryCardsSlice2.doneChildrenIds(category.id),
+    [category.id],
+  );
   const lastTaskI = todoTaskIds.length == 0 ? 0 : todoTaskIds.length - 1;
 
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
   const isHidden =
     isHiddenClicked || (doneTaskIds.length == 0 && todoTaskIds.length == 0);
-
-  const handleHideClick = () => setIsHiddenClicked((v) => !v);
-
   const handleAddClick = () => {
     if (isHidden) {
       setIsHiddenClicked(false);
     }
 
-    const task = dispatch(projectItemsSlice2.createTask(project.id, "prepend"));
+    const task = dispatch(
+      projectCategoriesSlice2.createTask(category.id, "prepend"),
+    );
 
     dispatch(focusSlice2.editByKey(buildFocusKey(task.id, task.type)));
   };
+  const handleHideClick = () => setIsHiddenClicked((v) => !v);
 
-  const groups = useSyncSelector(
+  return (
+    <TasksColumn
+      focusKey={buildFocusKey(category.id, category.type, "ProjectItemsList")}
+      orderNumber={500}
+      isHidden={isHidden}
+      onHideClick={handleHideClick}
+      header={
+        <>
+          <div className="uppercase text-content text-xl font-bold ">
+            {category.title}
+          </div>
+        </>
+      }
+      columnModelId={project.id}
+      columnModelType={project.type}
+      onAddClick={handleAddClick}
+    >
+      <div className="flex flex-col gap-4 w-full py-4">
+        {todoTaskIds.map((id, i) => {
+          return (
+            <TaskComp
+              orderNumber={(i + 2).toString()}
+              key={id}
+              taskId={id}
+              taskBoxId={id}
+              displayedUnderProjectId={project.id}
+              displayLastProjectionTime
+            />
+          );
+        })}
+        <ParentListItemProvider
+          focusKey={buildFocusKey(
+            category.id,
+            category.type,
+            "DoneProjectionsList",
+          )}
+          priority={(lastTaskI + 2).toString()}
+        >
+          {doneTaskIds.map((id, i) => {
+            return (
+              <TaskComp
+                displayLastProjectionTime
+                orderNumber={i.toString()}
+                key={id}
+                taskId={id}
+                taskBoxId={id}
+                displayedUnderProjectId={project.id}
+              />
+            );
+          })}
+        </ParentListItemProvider>
+      </div>
+    </TasksColumn>
+  );
+};
+
+export const ProjectItemsList2 = ({ project }: { project: Project }) => {
+  const categories = useSyncSelector(
     () => projectCategoriesSlice2.byProjectId(project.id),
     [project.id],
   );
 
   return (
     <>
-      <TasksColumnGrid columnsCount={groups.length}>
-        {groups.map((group, i) => (
-          <TasksColumn
+      <TasksColumnGrid columnsCount={categories.length}>
+        {categories.map((group, i) => (
+          <ProjectTasksColumn
             key={group.id}
-            focusKey={buildFocusKey(group.id, group.type, "ProjectItemsList")}
-            orderNumber={500}
-            isHidden={isHidden}
-            onHideClick={handleHideClick}
-            header={
-              <>
-                <div className="uppercase text-content text-xl font-bold ">
-                  {group.title}
-                </div>
-              </>
-            }
-            columnModelId={project.id}
-            columnModelType={project.type}
-            onAddClick={handleAddClick}
-          >
-            <div className="flex flex-col gap-4 w-full py-4">
-              {todoTaskIds.map((id, i) => {
-                return (
-                  <TaskComp
-                    orderNumber={(i + 2).toString()}
-                    key={id}
-                    taskId={id}
-                    taskBoxId={id}
-                    displayedUnderProjectId={project.id}
-                    displayLastProjectionTime
-                  />
-                );
-              })}
-              <ParentListItemProvider
-                focusKey={buildFocusKey(
-                  project.id,
-                  project.type,
-                  "DoneProjectionsList",
-                )}
-                priority={(lastTaskI + 2).toString()}
-              >
-                {doneTaskIds.map((id, i) => {
-                  return (
-                    <TaskComp
-                      displayLastProjectionTime
-                      orderNumber={i.toString()}
-                      key={id}
-                      taskId={id}
-                      taskBoxId={id}
-                      displayedUnderProjectId={project.id}
-                    />
-                  );
-                })}
-              </ParentListItemProvider>
-            </div>
-          </TasksColumn>
+            category={group}
+            project={project}
+          />
         ))}
       </TasksColumnGrid>
     </>

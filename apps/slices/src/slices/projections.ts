@@ -16,9 +16,9 @@ import type { GenReturn } from "./utils";
 import { generateKeyPositionedBetween } from "./utils";
 import { appSlice2 } from "./app";
 import { isTask, tasksSlice2, type Task } from "./tasks";
-import { projectItemsSlice2 } from "./projectItems";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
+import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
 
 // Type definitions
 export const projectionType = "projection";
@@ -221,7 +221,7 @@ export const projectionsSlice2 = {
 
     if (!taskProjection) throw new Error("TaskProjection not found");
 
-    const newTask = yield* projectItemsSlice2.createSibling(
+    const newTask = yield* projectCategoryCardsSlice2.createSiblingTask(
       taskProjection.taskId,
       position,
       taskParams,

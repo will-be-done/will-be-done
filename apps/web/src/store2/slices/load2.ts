@@ -373,15 +373,15 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
       );
     };
 
-    void (async () => {
-      while (true) {
-        syncDispatch(
-          syncSubDb,
-          taskTemplatesSlice2.genTasksAndProjections(new Date()),
-        );
-        await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
-      }
-    })();
+    // void (async () => {
+    //   while (true) {
+    //     syncDispatch(
+    //       syncSubDb,
+    //       taskTemplatesSlice2.genTasksAndProjections(new Date()),
+    //     );
+    //     await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+    //   }
+    // })();
 
     initedDb = syncSubDb;
 

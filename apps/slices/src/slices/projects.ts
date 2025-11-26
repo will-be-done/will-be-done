@@ -16,7 +16,7 @@ import type { OrderableItem, GenReturn } from "./utils";
 import { inboxId, generateOrderTokenPositioned } from "./utils";
 import { appSlice2 } from "./app";
 import { allProjectsSlice2 } from "./allProjects";
-import { isTask, tasksSlice2, tasksTable } from "./tasks";
+import { isTask, Task, tasksSlice2, tasksTable } from "./tasks";
 import {
   isTaskTemplate,
   taskTemplatesSlice2,
@@ -26,6 +26,7 @@ import { isTaskProjection } from "./projections";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { ProjectCategory, projectCategoriesSlice2 } from "./projectCategories";
+import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
 
 // Type definitions
 export const projectType = "project";
@@ -145,15 +146,15 @@ export const projectsSlice2 = {
     };
 
     yield* insert(projectsTable, [newProject]);
-    yield* projectCategoriesSlice2.create(
+    yield* projectCategoriesSlice2.createCategory(
       { projectId: newProject.id, title: "Week" },
       "append",
     );
-    yield* projectCategoriesSlice2.create(
+    yield* projectCategoriesSlice2.createCategory(
       { projectId: newProject.id, title: "Month" },
       "append",
     );
-    yield* projectCategoriesSlice2.create(
+    yield* projectCategoriesSlice2.createCategory(
       { projectId: newProject.id, title: "Ideas" },
       "append",
     );
@@ -205,19 +206,27 @@ export const projectsSlice2 = {
 
       yield* projectsSlice2.update(dropItem.id, { orderToken });
     } else if (isTask(dropItem) || isTaskTemplate(dropItem)) {
+      const category = yield* projectCategoriesSlice2.firstChild(project.id);
+      if (!category) throw new Error("No categories found in project");
+
       // Move task/template to this project
       if (isTask(dropItem)) {
-        yield* tasksSlice2.update(dropItem.id, { projectId: project.id });
+        yield* tasksSlice2.update(dropItem.id, {
+          projectCategoryId: category.id,
+        });
       } else {
         yield* taskTemplatesSlice2.update(dropItem.id, {
-          projectId: project.id,
+          projectCategoryId: category.id,
         });
       }
     } else if (isTaskProjection(dropItem)) {
+      const category = yield* projectCategoriesSlice2.firstChild(project.id);
+      if (!category) throw new Error("No categories found in project");
+
       // Move the underlying task to this project
       const task = yield* tasksSlice2.byId(dropItem.taskId);
       if (task) {
-        yield* tasksSlice2.update(task.id, { projectId: project.id });
+        yield* tasksSlice2.update(task.id, { projectCategoryId: category.id });
       }
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
@@ -238,16 +247,23 @@ export const projectsSlice2 = {
     // Process each project
     for (const projectId of projectIds) {
       // Check if project has categories
-      const existingCategories = yield* projectCategoriesSlice2.byProjectId(projectId);
+      const existingCategories =
+        yield* projectCategoriesSlice2.byProjectId(projectId);
 
       if (existingCategories.length === 0) {
         // Create three default categories
-        const weekCategory = yield* projectCategoriesSlice2.create(
+        const weekCategory = yield* projectCategoriesSlice2.createCategory(
           { projectId, title: "Week" },
           "append",
         );
-        yield* projectCategoriesSlice2.create({ projectId, title: "Month" }, "append");
-        yield* projectCategoriesSlice2.create({ projectId, title: "Ideas" }, "append");
+        yield* projectCategoriesSlice2.createCategory(
+          { projectId, title: "Month" },
+          "append",
+        );
+        yield* projectCategoriesSlice2.createCategory(
+          { projectId, title: "Ideas" },
+          "append",
+        );
       }
 
       // Get all tasks for this project (both todo and done)
@@ -257,7 +273,8 @@ export const projectsSlice2 = {
         ),
       );
 
-      const firstCategory = yield* projectCategoriesSlice2.firstChild(projectId);
+      const firstCategory =
+        yield* projectCategoriesSlice2.firstChild(projectId);
       if (!firstCategory) throw new Error("No categories found");
 
       // Filter tasks with null projectCategoryId
@@ -282,7 +299,9 @@ export const projectsSlice2 = {
       );
 
       // Filter templates with null projectCategoryId
-      const unassignedTemplates = allTemplates.filter((t) => !t.projectCategoryId);
+      const unassignedTemplates = allTemplates.filter(
+        (t) => !t.projectCategoryId,
+      );
 
       if (unassignedTemplates.length > 0) {
         // Update templates with Week category ID
@@ -299,6 +318,53 @@ export const projectsSlice2 = {
     }
 
     return { projectsMigrated, tasksUpdated, templatesUpdated };
+  }),
+  createTask: action(function* (
+    projectId: string,
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
+    taskAttrs?: Partial<Task>,
+  ): GenReturn<Task> {
+    const project = yield* projectsSlice2.byId(projectId);
+    if (!project) throw new Error("Project not found");
+
+    let projectCategoryId = taskAttrs?.projectCategoryId;
+    if (!projectCategoryId) {
+      const firstCategory =
+        yield* projectCategoriesSlice2.firstChild(projectId);
+      if (!firstCategory) throw new Error("No categories found");
+      projectCategoryId = firstCategory.id;
+    }
+
+    return yield* projectCategoriesSlice2.createTask(
+      projectCategoryId,
+      position,
+      taskAttrs,
+    );
+  }),
+
+  createTaskIfNotExists: action(function* (
+    projectId: string,
+    taskId: string,
+    position:
+      | [OrderableItem | undefined, OrderableItem | undefined]
+      | "append"
+      | "prepend",
+    taskAttrs?: Partial<Task>,
+  ): GenReturn<Task> {
+    const task = yield* tasksSlice2.byId(taskId);
+    if (task) {
+      return task;
+    }
+
+    return yield* projectsSlice2.createTaskIfNotExists(
+      projectId,
+      taskId,
+      position,
+      taskAttrs,
+    );
   }),
 };
 registerModelSlice(projectsSlice2, projectsTable, projectType);

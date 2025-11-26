@@ -31,8 +31,8 @@ import {
   isTask,
   isTaskProjection,
   isTaskTemplate,
+  projectCategoriesSlice2,
   projectionsSlice2,
-  projectItemsSlice2,
   projectsSlice2,
   Task,
   tasksSlice2,
@@ -46,6 +46,7 @@ import {
   parseColumnKey,
 } from "@/store2/slices/focusSlice";
 import { Checkbox } from "@base-ui-components/react/checkbox";
+import { projectCategoryCardsSlice2 } from "@will-be-done/slices/src/slices/projectCategoryCards";
 
 export function CheckboxComp({
   checked,
@@ -153,17 +154,20 @@ export const TaskComp = ({
   displayLastProjectionTime?: boolean;
 }) => {
   const dispatch = useDispatch();
-  const projectItem = useSyncSelector(
-    () => projectItemsSlice2.getItemById(taskId),
+  const card = useSyncSelector(
+    () => projectCategoryCardsSlice2.byIdOrDefault(taskId),
     [taskId],
   );
-  const taskBox = useSyncSelector(
-    () => appSlice2.taskBoxByIdOrDefault(taskBoxId),
+  const cardWrapper = useSyncSelector(
+    () => appSlice2.cardWrapperIdOrDefault(taskBoxId),
     [taskBoxId],
   );
   const project = useSyncSelector(
-    () => projectsSlice2.byIdOrDefault(projectItem.projectId),
-    [projectItem.projectId],
+    () =>
+      projectCategoriesSlice2.projectOfCategoryOrDefault(
+        card.projectCategoryId,
+      ),
+    [card.projectCategoryId],
   );
   const lastProjectionTime = useSyncSelector(
     function* () {
@@ -174,12 +178,12 @@ export const TaskComp = ({
   const shouldHighlightProjectionTime =
     lastProjectionTime && startOfDay(new Date()).getTime() > lastProjectionTime;
 
-  const [editingTitle, setEditingTitle] = useState<string>(projectItem.title);
+  const [editingTitle, setEditingTitle] = useState<string>(card.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const focusableItem = useRegisterFocusItem(
-    buildFocusKey(taskBox.id, taskBox.type),
+    buildFocusKey(cardWrapper.id, cardWrapper.type),
     orderNumber,
   );
 
@@ -212,13 +216,13 @@ export const TaskComp = ({
   const select = useSelect();
 
   const handleTick = useCallback(() => {
-    if (!isTask(projectItem)) return;
+    if (!isTask(card)) return;
 
     const [[up, upModel], [down, downModel]] = select(
       focusManager.getModelSiblings(focusableItem.key),
     );
 
-    const taskState = projectItem.state;
+    const taskState = card.state;
     dispatch(tasksSlice2.toggleState(taskId));
 
     if (!isFocused) return;
@@ -231,7 +235,7 @@ export const TaskComp = ({
     } else if (upTask && upTask.state === taskState) {
       dispatch(focusSlice2.focusByKey(up.key));
     }
-  }, [dispatch, focusableItem.key, isFocused, projectItem, select, taskId]);
+  }, [dispatch, focusableItem.key, isFocused, card, select, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const isSomethingEditing = select(focusSlice2.isSomethingEditing());
@@ -322,17 +326,17 @@ export const TaskComp = ({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dispatch(dropSlice2.handleDrop(id, taskBox.id, "top"));
+        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, "top"));
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dispatch(dropSlice2.handleDrop(id, taskBox.id, "top"));
+        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, "top"));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
-      if (isTask(projectItem) && projectItem.state === "done") return;
+      if (isTask(card) && card.state === "done") return;
 
       const [up, down] = focusManager.getSiblings(focusableItem.key);
 
@@ -344,14 +348,14 @@ export const TaskComp = ({
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
-        if (isTask(model) && isTask(taskBox)) {
-          if (model.projectId === taskBox.projectId) {
+        if (isTask(model) && isTask(cardWrapper)) {
+          if (model.projectCategoryId === cardWrapper.projectCategoryId) {
             edge = "top";
           } else {
             edge = "bottom";
           }
-        } else if (isTaskProjection(model) && isTaskProjection(taskBox)) {
-          if (model.dailyListId === taskBox.dailyListId) {
+        } else if (isTaskProjection(model) && isTaskProjection(cardWrapper)) {
+          if (model.dailyListId === cardWrapper.dailyListId) {
             edge = "top";
           } else {
             edge = "bottom";
@@ -360,7 +364,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(dropSlice2.handleDrop(id, taskBox.id, edge));
+        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, edge));
 
         scroll();
       } else if (isMoveDown && down) {
@@ -371,14 +375,14 @@ export const TaskComp = ({
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
-        if (isTask(model) && isTask(taskBox)) {
-          if (model.projectId === taskBox.projectId) {
+        if (isTask(model) && isTask(cardWrapper)) {
+          if (model.projectCategoryId === cardWrapper.projectCategoryId) {
             edge = "bottom";
           } else {
             edge = "top";
           }
-        } else if (isTaskProjection(model) && isTaskProjection(taskBox)) {
-          if (model.dailyListId === taskBox.dailyListId) {
+        } else if (isTaskProjection(model) && isTaskProjection(cardWrapper)) {
+          if (model.dailyListId === cardWrapper.dailyListId) {
             edge = "bottom";
           } else {
             edge = "top";
@@ -387,7 +391,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(dropSlice2.handleDrop(id, taskBox.id, edge));
+        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, edge));
 
         scroll();
       }
@@ -401,7 +405,7 @@ export const TaskComp = ({
 
       console.log("delete", focusableItem.key);
       const [up, down] = focusManager.getSiblings(focusableItem.key);
-      dispatch(appSlice2.delete(taskBox.id));
+      dispatch(appSlice2.delete(cardWrapper));
 
       if (down) {
         dispatch(focusSlice2.focusByKey(down.key));
@@ -415,15 +419,15 @@ export const TaskComp = ({
 
       dispatch(focusSlice2.editByKey(focusableItem.key));
     } else if (isAddAfter || isAddBefore) {
-      if (isTask(projectItem) && projectItem.state === "done") return;
+      if (isTask(card) && card.state === "done") return;
 
       e.preventDefault();
 
       unstable_batchedUpdates(() => {
         // TODO: maybe pass as prop to Task component
         const newBox = dispatch(
-          appSlice2.createTaskBoxSibling(
-            taskBox,
+          appSlice2.createSiblingCard(
+            cardWrapper,
             isAddAfter ? "after" : "before",
             newTaskParams,
           ),
@@ -451,11 +455,7 @@ export const TaskComp = ({
 
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
-    dispatch(
-      tasksSlice2.update(taskId, {
-        projectId,
-      }),
-    );
+    dispatch(tasksSlice2.moveToProject(taskId, projectId));
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
@@ -470,8 +470,8 @@ export const TaskComp = ({
       draggable({
         element: element,
         getInitialData: (): DndModelData => ({
-          modelId: taskBox.id,
-          modelType: taskBox.type,
+          modelId: cardWrapper.id,
+          modelType: cardWrapper.type,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -504,13 +504,13 @@ export const TaskComp = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(dropSlice2.canDrop(taskBox.id, data.modelId));
+          return select(dropSlice2.canDrop(cardWrapper.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
           const data: DndModelData = {
-            modelId: taskBox.id,
-            modelType: taskBox.type,
+            modelId: cardWrapper.id,
+            modelType: cardWrapper.type,
           };
 
           return attachClosestEdge(data, {
@@ -544,7 +544,7 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [dispatch, isEditing, select, taskBox.id, taskBox.type]);
+  }, [dispatch, isEditing, select, cardWrapper.id, cardWrapper.type]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -567,7 +567,7 @@ export const TaskComp = ({
   // }, [isFocused]);
 
   const prevIsEditing = usePrevious(isEditing);
-  const taskTitle = projectItem.title;
+  const taskTitle = card.title;
   useEffect(() => {
     setEditingTitle(taskTitle);
   }, [taskTitle]);
@@ -631,10 +631,10 @@ export const TaskComp = ({
           //     isFocused,
           // },
           isFocused &&
-            (isTask(projectItem) && projectItem.state === "done"
+            (isTask(card) && card.state === "done"
               ? "outline outline-3 outline-done-panel-selected"
               : "outline outline-3 outline-panel-selected"),
-          isTask(projectItem) && projectItem.state === "done"
+          isTask(card) && card.state === "done"
             ? "bg-done-panel text-done-content"
             : "bg-panel",
           // isFocused
@@ -660,20 +660,18 @@ export const TaskComp = ({
         {/* {!isSelfDragging && ( */}
         <>
           <div className="absolute top-2 right-2 flex gap-1">
-            {isTaskTemplate(projectItem) && (
-              <CircleDashed className="h-3 w-3" />
-            )}
-            {isTask(projectItem) && projectItem.templateId && (
+            {isTaskTemplate(card) && <CircleDashed className="h-3 w-3" />}
+            {isTask(card) && card.templateId && (
               <RotateCw className="h-3 w-3" />
             )}
           </div>
           <div className="flex items-start gap-1.5 px-2 pt-2">
             {isEditing ? (
               <>
-                {isTask(projectItem) && (
+                {isTask(card) && (
                   <div className="flex items-center justify-end">
                     <CheckboxComp
-                      checked={projectItem.state === "done"}
+                      checked={card.state === "done"}
                       onChange={handleTick}
                     />
                   </div>
@@ -689,21 +687,20 @@ export const TaskComp = ({
               </>
             ) : (
               <>
-                {isTask(projectItem) && (
+                {isTask(card) && (
                   <div className="flex justify-end">
                     <CheckboxComp
-                      checked={projectItem.state === "done"}
+                      checked={card.state === "done"}
                       onChange={handleTick}
                     />
                   </div>
                 )}
                 <div
                   className={cn("min-h-5", {
-                    "line-through":
-                      isTask(projectItem) && projectItem.state === "done",
+                    "line-through": isTask(card) && card.state === "done",
                   })}
                 >
-                  {projectItem.title}
+                  {card.title}
                 </div>
               </>
             )}
@@ -716,12 +713,12 @@ export const TaskComp = ({
               //     isFocused,
               // },
 
-              isTask(projectItem) && projectItem.state === "done"
+              isTask(card) && card.state === "done"
                 ? "bg-done-panel-tinted text-done-selected"
                 : "bg-panel-tinted text-panel-selected",
             )}
           >
-            <div>{projectItem.horizon}</div>
+            <div>{card.horizon}</div>
 
             {lastProjectionTime !== undefined &&
               lastProjectionTime !== 0 &&
@@ -754,7 +751,7 @@ export const TaskComp = ({
       {dndState.type === "preview" &&
         ReactDOM.createPortal(
           <TaskPrimitive
-            title={projectItem.title}
+            title={card.title}
             style={{
               boxSizing: "border-box",
               width: dndState.rect.width,

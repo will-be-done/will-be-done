@@ -12,3 +12,4 @@ export * from "./utils";
 export * from "./maps";
 export * from "./syncMap";
 export * from "./projectCategories";
+export * from "./projectCategoryCards";
