@@ -1,128 +1,10 @@
-import {
-  action,
-  deleteRows,
-  insert,
-  runQuery,
-  selectFrom,
-  selector,
-} from "@will-be-done/hyperdb";
+import { action, selector } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
-import { assertUnreachable } from "./utils";
-import { tasksSlice2, type Task, defaultTask } from "./tasks";
-import { projectionsSlice2, type TaskProjection } from "./projections";
-import {
-  taskTemplatesSlice2,
-  type TaskTemplate,
-  isTaskTemplate,
-} from "./taskTemplates";
-import { dailyListsSlice2, type DailyList } from "./dailyLists";
-import { allProjectsSlice2 } from "./allProjects";
-import { type Project } from "./projects";
-import { isTask } from "./tasks";
-import { isTaskProjection } from "./projections";
-import { Backup, getNewModels } from "../backup";
-import { AnyModel, appTypeSlicesMap, appTypeTablesMap } from "./maps";
-import { registeredSyncableTables } from "./syncMap";
-import { projectCategoriesSlice2 } from "./projectCategories";
-import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
+import { defaultTask } from "./tasks";
+import { AnyModel, appTypeSlicesMap } from "./maps";
 
 // Slice
 export const appSlice2 = {
-  getBackup: selector(function* (): GenReturn<Backup> {
-    const tasks: Task[] = yield* tasksSlice2.all();
-    const projects: Project[] = yield* allProjectsSlice2.all();
-    const taskTemplates: TaskTemplate[] = yield* taskTemplatesSlice2.all();
-    const dailyLists: DailyList[] = [];
-    const dailyListProjections: TaskProjection[] = [];
-
-    // Get all daily lists
-    const allDailyListIds = yield* dailyListsSlice2.allIds();
-    for (const id of allDailyListIds) {
-      const dailyList = yield* dailyListsSlice2.byId(id);
-      if (dailyList) {
-        dailyLists.push(dailyList);
-      }
-    }
-
-    // Get all projections
-    const allProjectionIds = yield* projectionsSlice2.allIds();
-    for (const id of allProjectionIds) {
-      const projection = yield* projectionsSlice2.byId(id);
-      if (projection) {
-        dailyListProjections.push(projection);
-      }
-    }
-
-    const allCategories = yield* projectCategoriesSlice2.all();
-
-    return {
-      projectCategories: allCategories.map((group) => ({
-        id: group.id,
-        title: group.title,
-        projectId: group.projectId,
-        createdAt: group.createdAt,
-        orderToken: group.orderToken,
-      })),
-      tasks: tasks.map((task) => ({
-        id: task.id,
-        title: task.title,
-        state: task.state,
-        // projectId: task.projectId,
-        orderToken: task.orderToken,
-        lastToggledAt: task.lastToggledAt,
-        createdAt: task.createdAt,
-        horizon: task.horizon,
-        templateId: task.templateId,
-        templateDate: task.templateDate,
-        projectCategoryId: task.projectCategoryId,
-      })),
-      projects: projects.map((project) => ({
-        id: project.id,
-        title: project.title,
-        icon: project.icon,
-        isInbox: project.isInbox,
-        orderToken: project.orderToken,
-        createdAt: project.createdAt,
-      })),
-      dailyLists: dailyLists.map((dailyList) => ({
-        id: dailyList.id,
-        date: dailyList.date,
-      })),
-      dailyListProjections: dailyListProjections.map((projection) => ({
-        id: projection.id,
-        taskId: projection.taskId,
-        orderToken: projection.orderToken,
-        listId: projection.dailyListId,
-        createdAt: projection.createdAt,
-      })),
-      taskTemplates: taskTemplates.map((template) => ({
-        id: template.id,
-        title: template.title,
-        // projectId: template.projectId,
-        orderToken: template.orderToken,
-        horizon: template.horizon,
-        repeatRule: template.repeatRule,
-        createdAt: template.createdAt,
-        lastGeneratedAt: template.lastGeneratedAt,
-        projectCategoryId: template.projectCategoryId,
-      })),
-    };
-  }),
-  loadBackup: selector(function* (backup: Backup): GenReturn<void> {
-    for (const table of registeredSyncableTables) {
-      const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
-        (r) => r.id,
-      );
-
-      yield* deleteRows(table, allIds);
-    }
-
-    const models = getNewModels(backup);
-
-    for (const model of models) {
-      yield* insert(appTypeTablesMap[model.type], [model]);
-    }
-  }),
   // selectors
   byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
     for (const slice of Object.values(appTypeSlicesMap)) {
@@ -140,64 +22,36 @@ export const appSlice2 = {
 
     return entity;
   }),
-  taskOfModel: selector(function* (
-    model: AnyModel,
-  ): GenReturn<Task | undefined> {
-    if (isTask(model)) {
-      return model;
-    } else if (isTaskProjection(model)) {
-      return yield* tasksSlice2.byId(model.taskId);
-    }
-    return undefined;
-  }),
-  taskBoxById: selector(function* (
-    id: string,
-  ): GenReturn<Task | TaskTemplate | TaskProjection | undefined> {
-    const slices = [tasksSlice2, projectionsSlice2, taskTemplatesSlice2];
-    for (const slice of slices) {
-      const res = yield* slice.byId(id);
 
-      if (res) {
-        return res;
-      }
-    }
+  canDrop: selector(function* (id: string, dropId: string): GenReturn<boolean> {
+    const model = yield* appSlice2.byId(id);
+    if (!model) return false;
 
-    return undefined;
-  }),
-  cardWrapperIdOrDefault: selector(function* (
-    id: string,
-  ): GenReturn<Task | TaskTemplate | TaskProjection> {
-    const entity = yield* appSlice2.taskBoxById(id);
-    if (!entity) {
-      return defaultTask;
-    }
+    const slice = appTypeSlicesMap[model.type];
+    if (!slice) throw new Error("Unknown model type");
 
-    return entity;
+    return yield* slice.canDrop(id, dropId);
   }),
 
   // actions
+  handleDrop: action(function* (
+    id: string,
+    dropId: string,
+    edge: "top" | "bottom",
+  ): GenReturn<void> {
+    const model = yield* appSlice2.byId(id);
+    if (!model) return;
+
+    const slice = appTypeSlicesMap[model.type];
+    if (!slice) throw new Error("Unknown model type");
+
+    yield* slice.handleDrop(id, dropId, edge);
+  }),
+
   delete: action(function* (model: AnyModel): GenReturn<void> {
     const slice = appTypeSlicesMap[model.type];
     if (!slice) throw new Error("Unknown model type");
 
     yield* slice.delete([model.id]);
-  }),
-
-  createSiblingCard: action(function* (
-    taskBox: Task | TaskProjection | TaskTemplate,
-    position: "before" | "after",
-    taskParams?: Partial<Task>,
-  ) {
-    if (isTask(taskBox) || isTaskTemplate(taskBox)) {
-      return yield* projectCategoryCardsSlice2.createSiblingTask(
-        taskBox.id,
-        position,
-        taskParams,
-      );
-    } else if (isTaskProjection(taskBox)) {
-      return yield* projectionsSlice2.createSibling(taskBox.id, position);
-    } else {
-      assertUnreachable(taskBox);
-    }
   }),
 };

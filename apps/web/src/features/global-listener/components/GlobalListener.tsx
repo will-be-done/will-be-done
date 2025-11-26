@@ -258,7 +258,7 @@ export function GlobalListener() {
           }
 
           dispatch(
-            dropSlice2.handleDrop(
+            appSlice2.handleDrop(
               targetItemInfo[1].id,
               dropModelId,
               closestEdgeOfTarget || "top",

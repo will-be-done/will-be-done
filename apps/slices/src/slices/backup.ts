@@ -1,19 +1,33 @@
 import {
-  AnyModel,
-  DailyList,
-  dailyListType,
-  getDMY,
-  Project,
+  deleteRows,
+  insert,
+  runQuery,
+  selectFrom,
+  selector,
+} from "@will-be-done/hyperdb";
+import type { GenReturn } from "./utils";
+import { getDMY } from "./utils";
+import { tasksSlice2, type Task, taskType } from "./tasks";
+import {
+  projectionsSlice2,
   projectionType,
-  projectType,
-  Task,
+  type TaskProjection,
+} from "./projections";
+import {
+  taskTemplatesSlice2,
+  type TaskTemplate,
+  taskTemplateType,
+} from "./taskTemplates";
+import { dailyListsSlice2, dailyListType, type DailyList } from "./dailyLists";
+import { allProjectsSlice2 } from "./allProjects";
+import { projectType, type Project } from "./projects";
+import { AnyModel, appTypeTablesMap } from "./maps";
+import { registeredSyncableTables } from "./syncMap";
+import {
+  projectCategoriesSlice2,
   ProjectCategory,
   projectCategoryType,
-  TaskProjection,
-  TaskTemplate,
-  taskTemplateType,
-  taskType,
-} from "./slices";
+} from "./projectCategories";
 import uuidByString from "uuid-by-string";
 
 interface CategoryBackup {
@@ -81,7 +95,7 @@ export interface Backup {
   projectCategories: CategoryBackup[];
 }
 
-export const getNewModels = (backup: Backup): AnyModel[] => {
+const getNewModels = (backup: Backup): AnyModel[] => {
   const models: AnyModel[] = [];
 
   // First, create all projects
@@ -216,4 +230,102 @@ export const getNewModels = (backup: Backup): AnyModel[] => {
   }
 
   return models;
+};
+
+export const backupSlice = {
+  loadBackup: selector(function* (backup: Backup): GenReturn<void> {
+    for (const table of registeredSyncableTables) {
+      const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
+        (r) => r.id,
+      );
+
+      yield* deleteRows(table, allIds);
+    }
+
+    const models = getNewModels(backup);
+
+    for (const model of models) {
+      yield* insert(appTypeTablesMap[model.type], [model]);
+    }
+  }),
+  getBackup: selector(function* (): GenReturn<Backup> {
+    const tasks: Task[] = yield* tasksSlice2.all();
+    const projects: Project[] = yield* allProjectsSlice2.all();
+    const taskTemplates: TaskTemplate[] = yield* taskTemplatesSlice2.all();
+    const dailyLists: DailyList[] = [];
+    const dailyListProjections: TaskProjection[] = [];
+
+    // Get all daily lists
+    const allDailyListIds = yield* dailyListsSlice2.allIds();
+    for (const id of allDailyListIds) {
+      const dailyList = yield* dailyListsSlice2.byId(id);
+      if (dailyList) {
+        dailyLists.push(dailyList);
+      }
+    }
+
+    // Get all projections
+    const allProjectionIds = yield* projectionsSlice2.allIds();
+    for (const id of allProjectionIds) {
+      const projection = yield* projectionsSlice2.byId(id);
+      if (projection) {
+        dailyListProjections.push(projection);
+      }
+    }
+
+    const allCategories = yield* projectCategoriesSlice2.all();
+
+    return {
+      projectCategories: allCategories.map((group) => ({
+        id: group.id,
+        title: group.title,
+        projectId: group.projectId,
+        createdAt: group.createdAt,
+        orderToken: group.orderToken,
+      })),
+      tasks: tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        state: task.state,
+        // projectId: task.projectId,
+        orderToken: task.orderToken,
+        lastToggledAt: task.lastToggledAt,
+        createdAt: task.createdAt,
+        horizon: task.horizon,
+        templateId: task.templateId,
+        templateDate: task.templateDate,
+        projectCategoryId: task.projectCategoryId,
+      })),
+      projects: projects.map((project) => ({
+        id: project.id,
+        title: project.title,
+        icon: project.icon,
+        isInbox: project.isInbox,
+        orderToken: project.orderToken,
+        createdAt: project.createdAt,
+      })),
+      dailyLists: dailyLists.map((dailyList) => ({
+        id: dailyList.id,
+        date: dailyList.date,
+      })),
+      dailyListProjections: dailyListProjections.map((projection) => ({
+        id: projection.id,
+        taskId: projection.taskId,
+        orderToken: projection.orderToken,
+        listId: projection.dailyListId,
+        createdAt: projection.createdAt,
+      })),
+      taskTemplates: taskTemplates.map((template) => ({
+        id: template.id,
+        title: template.title,
+        // projectId: template.projectId,
+        orderToken: template.orderToken,
+        horizon: template.horizon,
+        repeatRule: template.repeatRule,
+        createdAt: template.createdAt,
+        lastGeneratedAt: template.lastGeneratedAt,
+        projectCategoryId: template.projectCategoryId,
+      })),
+    };
+  }),
 };

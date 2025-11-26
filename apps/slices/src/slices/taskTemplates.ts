@@ -20,6 +20,7 @@ import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectCategoriesSlice2 } from "./projectCategories";
 import { appSlice2 } from "./app";
+import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -293,6 +294,21 @@ export const taskTemplatesSlice2 = {
     // );
 
     return template;
+  }),
+  canDrop: selector(function* (
+    taskTemplateId: string,
+    dropId: string,
+  ): GenReturn<boolean> {
+    yield* noop();
+
+    return false;
+  }),
+  handleDrop: action(function* (
+    taskTemplateId: string,
+    dropId: string,
+    edge: "top" | "bottom",
+  ): GenReturn<void> {
+    yield* noop();
   }),
   // genTaskAndProjectionsForTemplate: action(function* (
   //   templateId: string,

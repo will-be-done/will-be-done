@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { startOfDay } from "date-fns";
 import {
   appSlice2,
+  cardsSlice,
   dropSlice2,
   isTask,
   isTaskProjection,
@@ -159,7 +160,7 @@ export const TaskComp = ({
     [taskId],
   );
   const cardWrapper = useSyncSelector(
-    () => appSlice2.cardWrapperIdOrDefault(taskBoxId),
+    () => cardsSlice.cardWrapperIdOrDefault(taskBoxId),
     [taskBoxId],
   );
   const project = useSyncSelector(
@@ -227,8 +228,8 @@ export const TaskComp = ({
 
     if (!isFocused) return;
 
-    const upTask = upModel && select(appSlice2.taskOfModel(upModel));
-    const downTask = downModel && select(appSlice2.taskOfModel(downModel));
+    const upTask = upModel && select(cardsSlice.taskOfModel(upModel));
+    const downTask = downModel && select(cardsSlice.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
       dispatch(focusSlice2.focusByKey(down.key));
@@ -326,12 +327,12 @@ export const TaskComp = ({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, "top"));
+        dispatch(appSlice2.handleDrop(id, cardWrapper.id, "top"));
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, "top"));
+        dispatch(appSlice2.handleDrop(id, cardWrapper.id, "top"));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -364,7 +365,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, edge));
+        dispatch(appSlice2.handleDrop(id, cardWrapper.id, edge));
 
         scroll();
       } else if (isMoveDown && down) {
@@ -391,7 +392,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(dropSlice2.handleDrop(id, cardWrapper.id, edge));
+        dispatch(appSlice2.handleDrop(id, cardWrapper.id, edge));
 
         scroll();
       }
@@ -426,7 +427,7 @@ export const TaskComp = ({
       unstable_batchedUpdates(() => {
         // TODO: maybe pass as prop to Task component
         const newBox = dispatch(
-          appSlice2.createSiblingCard(
+          cardsSlice.createSiblingCard(
             cardWrapper,
             isAddAfter ? "after" : "before",
             newTaskParams,
@@ -504,7 +505,7 @@ export const TaskComp = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(dropSlice2.canDrop(cardWrapper.id, data.modelId));
+          return select(appSlice2.canDrop(cardWrapper.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {

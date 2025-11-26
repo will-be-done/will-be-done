@@ -19,6 +19,7 @@ import { uuidv7 } from "uuidv7";
 import { defaultProject, Project, projectsSlice2 } from "./projects";
 import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
 import { Task, tasksSlice2 } from "./tasks";
+import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 export const projectCategoryType = "projectCategory";
 
@@ -171,6 +172,20 @@ export const projectCategoriesSlice2 = {
 
   delete: action(function* (ids: string[]): GenReturn<void> {
     yield* deleteRows(projectCategoriesTable, ids);
+  }),
+
+  handleDrop: action(function* (
+    categoryId: string,
+    dropId: string,
+    edge: "top" | "bottom",
+  ): GenReturn<void> {}),
+  canDrop: selector(function* (
+    categoryId: string,
+    dropId: string,
+  ): GenReturn<boolean> {
+    yield* noop();
+
+    return false;
   }),
 };
 
