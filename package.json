@@ -12,5 +12,8 @@
     "dev:client": "bun --cwd apps/web run dev",
     "dev:server": "bun --cwd apps/api run dev"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "overrides": {
+    "zod-validation-error": "^4.0.0"
+  }
 }

@@ -30,6 +30,7 @@ export const useGlobalListener = <K extends keyof WindowEventMap>(
 ) => {
   const addEvent = useEventTypes((st) => st.addEvent);
   const callbacks = useEventTypes((st) => st.callbacks);
+  // eslint-disable-next-line react-hooks/purity
   const id = useMemo(() => Math.random().toString(36).slice(2), []);
 
   let cbMap = callbacks.get(key);

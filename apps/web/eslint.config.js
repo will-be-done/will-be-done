@@ -41,7 +41,6 @@ export default tseslint.config(
           additionalHooks: "(useSyncSelector)",
         },
       ],
-      "react-hooks/react-compiler": "warn",
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },

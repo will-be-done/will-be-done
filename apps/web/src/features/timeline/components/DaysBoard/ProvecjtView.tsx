@@ -115,6 +115,8 @@ const ProjectItem = function ProjectItemComp({
     [focusItem.key],
   );
 
+  const dispatch = useDispatch();
+
   useGlobalListener("mousedown", (e: MouseEvent) => {
     const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
 
@@ -128,8 +130,6 @@ const ProjectItem = function ProjectItemComp({
       dispatch(focusSlice2.resetFocus());
     }
   });
-
-  const dispatch = useDispatch();
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (!isFocused) return;

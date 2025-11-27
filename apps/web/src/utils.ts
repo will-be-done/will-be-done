@@ -5,12 +5,14 @@ export const usePrevious = <T>(value: T): T | undefined => {
   useEffect(() => {
     ref.current = value;
   });
+  // eslint-disable-next-line react-hooks/refs
   return ref.current;
 };
 
 export function useUnmount(func: () => void) {
   const funcRef = useRef(func);
 
+  // eslint-disable-next-line react-hooks/refs
   funcRef.current = func;
 
   useEffect(
@@ -23,7 +25,6 @@ export function useUnmount(func: () => void) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const shouldNeverHappen = (msg?: string, ...args: any[]): never => {
-   
   console.error(msg, ...args);
   if (process.env.NODE_ENV === "development") {
     // eslint-disable-next-line no-debugger

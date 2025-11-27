@@ -5,7 +5,7 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
 import { focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
@@ -33,9 +33,10 @@ export const MoveModal = ({
       );
   }, [allProjects, searchQuery, exceptProjectId]);
 
-  useEffect(() => {
+  const updateSearchQuery = useCallback((data: string) => {
     setSelectedIndex(0);
-  }, [searchQuery]);
+    setSearchQuery(data);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown" || (e.ctrlKey && e.code === "KeyJ")) {
@@ -86,7 +87,7 @@ export const MoveModal = ({
               ref={inputRef}
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => updateSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search projects..."
               className="w-full rounded bg-gray-900 p-2 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500"

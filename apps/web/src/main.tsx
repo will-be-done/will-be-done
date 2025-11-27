@@ -1,5 +1,5 @@
 import "./fixGlobal";
-import { scan } from "react-scan";
+// import { scan } from "react-scan";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
@@ -11,9 +11,9 @@ import { routeTree } from "./routeTree.gen";
 
 import reportWebVitals from "./reportWebVitals.ts";
 
-scan({
-  enabled: true,
-});
+// scan({
+//   enabled: true,
+// });
 
 // Create a new router instance
 const router = createRouter({

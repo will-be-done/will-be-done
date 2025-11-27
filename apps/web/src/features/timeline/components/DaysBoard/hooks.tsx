@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 export const useCurrentDMY = () => {
-  const [date, setDate] = useState(getDMY(new Date()));
+  const [date, setDate] = useState(() => getDMY(new Date()));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -18,7 +18,7 @@ export const useCurrentDMY = () => {
 };
 
 export const useCurrentDate = () => {
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(() => new Date());
 
   useEffect(() => {
     const interval = setInterval(() => {
