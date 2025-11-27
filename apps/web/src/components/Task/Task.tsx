@@ -26,16 +26,16 @@ import { RotateCw, CircleDashed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { startOfDay } from "date-fns";
 import {
-  appSlice2,
+  appSlice,
   cardsSlice,
   isTask,
   isTaskProjection,
   isTaskTemplate,
-  projectCategoriesSlice2,
-  projectionsSlice2,
-  projectsSlice2,
+  projectCategoriesSlice,
+  dailyListsProjections,
+  projectsSlice,
   Task,
-  tasksSlice2,
+  cardsTasksSlice,
 } from "@will-be-done/slices";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -46,7 +46,7 @@ import {
   parseColumnKey,
 } from "@/store2/slices/focusSlice";
 import { Checkbox } from "@base-ui-components/react/checkbox";
-import { projectCategoryCardsSlice2 } from "@will-be-done/slices";
+import { projectCategoryCardsSlice } from "@will-be-done/slices";
 
 export function CheckboxComp({
   checked,
@@ -155,7 +155,7 @@ export const TaskComp = ({
 }) => {
   const dispatch = useDispatch();
   const card = useSyncSelector(
-    () => projectCategoryCardsSlice2.byIdOrDefault(taskId),
+    () => projectCategoryCardsSlice.byIdOrDefault(taskId),
     [taskId],
   );
   const cardWrapper = useSyncSelector(
@@ -164,14 +164,13 @@ export const TaskComp = ({
   );
   const project = useSyncSelector(
     () =>
-      projectCategoriesSlice2.projectOfCategoryOrDefault(
-        card.projectCategoryId,
-      ),
+      projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
     [card.projectCategoryId],
   );
   const lastProjectionTime = useSyncSelector(
     function* () {
-      return (yield* projectionsSlice2.lastProjectionOfTask(taskId))?.createdAt;
+      return (yield* dailyListsProjections.lastProjectionOfTask(taskId))
+        ?.createdAt;
     },
     [taskId],
   );
@@ -223,7 +222,7 @@ export const TaskComp = ({
     );
 
     const taskState = card.state;
-    dispatch(tasksSlice2.toggleState(taskId));
+    dispatch(cardsTasksSlice.toggleState(taskId));
 
     if (!isFocused) return;
 
@@ -278,7 +277,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        tasksSlice2.update(taskId, {
+        cardsTasksSlice.update(taskId, {
           horizon: "week",
         }),
       );
@@ -286,7 +285,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        tasksSlice2.update(taskId, {
+        cardsTasksSlice.update(taskId, {
           horizon: "month",
         }),
       );
@@ -294,7 +293,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        tasksSlice2.update(taskId, {
+        cardsTasksSlice.update(taskId, {
           horizon: "year",
         }),
       );
@@ -302,7 +301,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        tasksSlice2.update(taskId, {
+        cardsTasksSlice.update(taskId, {
           horizon: "someday",
         }),
       );
@@ -326,12 +325,12 @@ export const TaskComp = ({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dispatch(appSlice2.handleDrop(id, cardWrapper.id, "top"));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top"));
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dispatch(appSlice2.handleDrop(id, cardWrapper.id, "top"));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top"));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -344,7 +343,7 @@ export const TaskComp = ({
         const id = getId(up.key);
         if (!id) return;
 
-        const model = dispatch(appSlice2.byId(id));
+        const model = dispatch(appSlice.byId(id));
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
@@ -364,14 +363,14 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(appSlice2.handleDrop(id, cardWrapper.id, edge));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge));
 
         scroll();
       } else if (isMoveDown && down) {
         const id = getId(down.key);
         if (!id) return;
 
-        const model = dispatch(appSlice2.byId(id));
+        const model = dispatch(appSlice.byId(id));
         if (!model) return;
 
         let edge: "top" | "bottom" = "top";
@@ -391,7 +390,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(appSlice2.handleDrop(id, cardWrapper.id, edge));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge));
 
         scroll();
       }
@@ -405,7 +404,7 @@ export const TaskComp = ({
 
       console.log("delete", focusableItem.key);
       const [up, down] = focusManager.getSiblings(focusableItem.key);
-      dispatch(appSlice2.delete(cardWrapper));
+      dispatch(appSlice.delete(cardWrapper));
 
       if (down) {
         dispatch(focusSlice2.focusByKey(down.key));
@@ -455,7 +454,7 @@ export const TaskComp = ({
 
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
-    dispatch(tasksSlice2.moveToProject(taskId, projectId));
+    dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
@@ -504,7 +503,7 @@ export const TaskComp = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(appSlice2.canDrop(cardWrapper.id, data.modelId));
+          return select(appSlice.canDrop(cardWrapper.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -575,7 +574,7 @@ export const TaskComp = ({
   useEffect(() => {
     if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
       dispatch(
-        tasksSlice2.update(taskId, {
+        cardsTasksSlice.update(taskId, {
           title: editingTitle,
         }),
       );
@@ -585,7 +584,7 @@ export const TaskComp = ({
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
       dispatch(
-        tasksSlice2.update(taskId, {
+        cardsTasksSlice.update(taskId, {
           title: editingTitle,
         }),
       );

@@ -7,24 +7,24 @@ import {
 } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
 import { getDMY } from "./utils";
-import { tasksSlice2, type Task, taskType } from "./cardsTasks";
+import { cardsTasksSlice, type Task, taskType } from "./cardsTasks";
 import {
-  projectionsSlice2,
+  dailyListsProjections,
   projectionType,
   type TaskProjection,
 } from "./dailyListsProjections";
 import {
-  taskTemplatesSlice2,
+  cardsTaskTemplatesSlice,
   type TaskTemplate,
   taskTemplateType,
 } from "./cardsTaskTemplates";
-import { dailyListsSlice2, dailyListType, type DailyList } from "./dailyLists";
-import { allProjectsSlice2 } from "./projectsAll";
+import { dailyListsSlice, dailyListType, type DailyList } from "./dailyLists";
+import { projectsAllSlice } from "./projectsAll";
 import { projectType, type Project } from "./projects";
 import { AnyModel, appTypeTablesMap } from "./maps";
 import { registeredSyncableTables } from "./syncMap";
 import {
-  projectCategoriesSlice2,
+  projectCategoriesSlice,
   ProjectCategory,
   projectCategoryType,
 } from "./projectsCategories";
@@ -249,31 +249,31 @@ export const backupSlice = {
     }
   }),
   getBackup: selector(function* (): GenReturn<Backup> {
-    const tasks: Task[] = yield* tasksSlice2.all();
-    const projects: Project[] = yield* allProjectsSlice2.all();
-    const taskTemplates: TaskTemplate[] = yield* taskTemplatesSlice2.all();
+    const tasks: Task[] = yield* cardsTasksSlice.all();
+    const projects: Project[] = yield* projectsAllSlice.all();
+    const taskTemplates: TaskTemplate[] = yield* cardsTaskTemplatesSlice.all();
     const dailyLists: DailyList[] = [];
     const dailyListProjections: TaskProjection[] = [];
 
     // Get all daily lists
-    const allDailyListIds = yield* dailyListsSlice2.allIds();
+    const allDailyListIds = yield* dailyListsSlice.allIds();
     for (const id of allDailyListIds) {
-      const dailyList = yield* dailyListsSlice2.byId(id);
+      const dailyList = yield* dailyListsSlice.byId(id);
       if (dailyList) {
         dailyLists.push(dailyList);
       }
     }
 
     // Get all projections
-    const allProjectionIds = yield* projectionsSlice2.allIds();
+    const allProjectionIds = yield* dailyListsProjections.allIds();
     for (const id of allProjectionIds) {
-      const projection = yield* projectionsSlice2.byId(id);
+      const projection = yield* dailyListsProjections.byId(id);
       if (projection) {
         dailyListProjections.push(projection);
       }
     }
 
-    const allCategories = yield* projectCategoriesSlice2.all();
+    const allCategories = yield* projectCategoriesSlice.all();
 
     return {
       projectCategories: allCategories.map((group) => ({

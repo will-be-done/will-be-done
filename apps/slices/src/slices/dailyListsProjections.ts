@@ -14,11 +14,11 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
 import { generateKeyPositionedBetween } from "./utils";
-import { appSlice2 } from "./app";
-import { isTask, tasksSlice2, type Task } from "./cardsTasks";
+import { appSlice } from "./app";
+import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
+import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 
 // Type definitions
 export const projectionType = "projection";
@@ -59,7 +59,7 @@ export const taskProjectionsTable = table<TaskProjection>(
 registerSyncableTable(taskProjectionsTable, projectionType);
 
 // Slice
-export const projectionsSlice2 = {
+export const dailyListsProjections = {
   // selectors
   allIds: selector(function* (): GenReturn<string[]> {
     const projections = yield* runQuery(
@@ -85,19 +85,19 @@ export const projectionsSlice2 = {
     return projections;
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<TaskProjection> {
-    return (yield* projectionsSlice2.byId(id)) || defaultTaskProjection;
+    return (yield* dailyListsProjections.byId(id)) || defaultTaskProjection;
   }),
   canDrop: selector(function* (
     taskProjectionId: string,
     dropId: string,
   ): GenReturn<boolean> {
-    const model = yield* appSlice2.byId(dropId);
+    const model = yield* appSlice.byId(dropId);
     if (!model) return false;
 
-    const projection = yield* projectionsSlice2.byId(taskProjectionId);
+    const projection = yield* dailyListsProjections.byId(taskProjectionId);
     if (!projection) return false;
 
-    const projectionTask = yield* tasksSlice2.byId(projection.taskId);
+    const projectionTask = yield* cardsTasksSlice.byId(projection.taskId);
     if (!projectionTask) return false;
 
     if (projectionTask.state === "done") {
@@ -105,7 +105,7 @@ export const projectionsSlice2 = {
     }
 
     if (isTaskProjection(model)) {
-      const modelTask = yield* tasksSlice2.byId(model.taskId);
+      const modelTask = yield* cardsTasksSlice.byId(model.taskId);
       if (!modelTask) return false;
 
       if (modelTask.state === "done") {
@@ -118,7 +118,7 @@ export const projectionsSlice2 = {
   siblings: selector(function* (
     taskProjectionId: string,
   ): GenReturn<[TaskProjection | undefined, TaskProjection | undefined]> {
-    const item = yield* projectionsSlice2.byId(taskProjectionId);
+    const item = yield* dailyListsProjections.byId(taskProjectionId);
     if (!item) return [undefined, undefined];
 
     const sortedProjections = yield* runQuery(
@@ -163,7 +163,7 @@ export const projectionsSlice2 = {
     taskId: string,
   ): GenReturn<TaskProjection | undefined> {
     const projections =
-      yield* projectionsSlice2.sortedProjectionsOfTask(taskId);
+      yield* dailyListsProjections.sortedProjectionsOfTask(taskId);
 
     if (projections.length === 0) return undefined;
     return projections[projections.length - 1];
@@ -179,7 +179,8 @@ export const projectionsSlice2 = {
     const projectionIds: string[] = [];
 
     for (const taskId of taskIds) {
-      const ids = yield* projectionsSlice2.sortedProjectionIdsByTaskId(taskId);
+      const ids =
+        yield* dailyListsProjections.sortedProjectionIdsByTaskId(taskId);
       projectionIds.push(...ids);
     }
 
@@ -207,7 +208,7 @@ export const projectionsSlice2 = {
     id: string,
     projection: Partial<TaskProjection>,
   ): GenReturn<void> {
-    const projInState = yield* projectionsSlice2.byId(id);
+    const projInState = yield* dailyListsProjections.byId(id);
     if (!projInState) throw new Error("Projection not found");
 
     yield* update(taskProjectionsTable, [{ ...projInState, ...projection }]);
@@ -217,22 +218,22 @@ export const projectionsSlice2 = {
     position: "before" | "after",
     taskParams?: Partial<Task>,
   ): GenReturn<TaskProjection> {
-    const taskProjection = yield* projectionsSlice2.byId(taskProjectionId);
+    const taskProjection = yield* dailyListsProjections.byId(taskProjectionId);
 
     if (!taskProjection) throw new Error("TaskProjection not found");
 
-    const newTask = yield* projectCategoryCardsSlice2.createSiblingTask(
+    const newTask = yield* projectCategoryCardsSlice.createSiblingTask(
       taskProjection.taskId,
       position,
       taskParams,
     );
 
-    return yield* projectionsSlice2.create({
+    return yield* dailyListsProjections.create({
       taskId: newTask.id,
       dailyListId: taskProjection.dailyListId,
       orderToken: generateKeyPositionedBetween(
         taskProjection,
-        yield* projectionsSlice2.siblings(taskProjectionId),
+        yield* dailyListsProjections.siblings(taskProjectionId),
         position,
       ),
     });
@@ -242,16 +243,19 @@ export const projectionsSlice2 = {
     dropId: string,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const canDrop = yield* projectionsSlice2.canDrop(taskProjectionId, dropId);
+    const canDrop = yield* dailyListsProjections.canDrop(
+      taskProjectionId,
+      dropId,
+    );
     if (!canDrop) return;
 
-    const taskProjection = yield* projectionsSlice2.byId(taskProjectionId);
+    const taskProjection = yield* dailyListsProjections.byId(taskProjectionId);
     if (!taskProjection) return;
 
-    const dropItem = yield* appSlice2.byId(dropId);
+    const dropItem = yield* appSlice.byId(dropId);
     if (!dropItem) return;
 
-    const [up, down] = yield* projectionsSlice2.siblings(taskProjectionId);
+    const [up, down] = yield* dailyListsProjections.siblings(taskProjectionId);
 
     let between: [string | undefined, string | undefined] = [
       taskProjection.orderToken,
@@ -268,12 +272,12 @@ export const projectionsSlice2 = {
     );
 
     if (isTaskProjection(dropItem)) {
-      yield* projectionsSlice2.update(dropItem.id, {
+      yield* dailyListsProjections.update(dropItem.id, {
         orderToken,
         dailyListId: taskProjection.dailyListId,
       });
     } else if (isTask(dropItem)) {
-      yield* projectionsSlice2.create({
+      yield* dailyListsProjections.create({
         taskId: dropItem.id,
         dailyListId: taskProjection.dailyListId,
         orderToken,
@@ -283,4 +287,4 @@ export const projectionsSlice2 = {
     }
   }),
 };
-registerModelSlice(projectionsSlice2, taskProjectionsTable, projectionType);
+registerModelSlice(dailyListsProjections, taskProjectionsTable, projectionType);

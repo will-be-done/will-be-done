@@ -16,7 +16,7 @@ import {
   changesSlice,
   // projectItemsSlice2,
   registeredSyncableTables,
-  projectsSlice2,
+  projectsSlice,
 } from "@will-be-done/slices";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
@@ -149,8 +149,8 @@ hyperDB.afterDelete(function* (db, table, traits, ops) {
 });
 
 execSync(hyperDB.loadTables([...registeredSyncableTables, changesTable]));
-const inbox = syncDispatch(hyperDB, projectsSlice2.createInboxIfNotExists());
-syncDispatch(hyperDB, projectsSlice2.migrateProjectsWithoutCategories());
+const inbox = syncDispatch(hyperDB, projectsSlice.createInboxIfNotExists());
+syncDispatch(hyperDB, projectsSlice.migrateProjectsWithoutCategories());
 
 const appRouter = router({
   getChangesAfter: publicProcedure
@@ -368,7 +368,7 @@ const memosDir = path.join(__dirname, "..", "dbs", "memos");
 const createTaskIfNotExists = (memoId: string, content: string) => {
   syncDispatch(
     hyperDB,
-    projectsSlice2.createTaskIfNotExists(
+    projectsSlice.createTaskIfNotExists(
       inbox.id,
       memoId.toLowerCase(),
       "prepend",

@@ -9,7 +9,7 @@ import {
   table,
   update,
 } from "@will-be-done/hyperdb";
-import { appSlice2 } from "@will-be-done/slices";
+import { appSlice } from "@will-be-done/slices";
 
 export type FocusKey = string & { __brand: never };
 
@@ -351,13 +351,13 @@ export const focusManager = (() => {
       let upModel: AnyModel | undefined = undefined;
       if (up) {
         const { id } = parseColumnKey(up.key);
-        upModel = yield* appSlice2.byId(id);
+        upModel = yield* appSlice.byId(id);
       }
 
       let downModel: AnyModel | undefined = undefined;
       if (down) {
         const { id } = parseColumnKey(down.key);
-        downModel = yield* appSlice2.byId(id);
+        downModel = yield* appSlice.byId(id);
       }
 
       return [

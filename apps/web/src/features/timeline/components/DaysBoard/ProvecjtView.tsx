@@ -1,5 +1,5 @@
 import { ProjectItemsList2 } from "@/features/project/components/ProjectItemsList/ProjectItemList2";
-import { dailyListsSlice2, inboxId } from "@will-be-done/slices";
+import { dailyListsSlice, inboxId } from "@will-be-done/slices";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -31,9 +31,9 @@ import {
   useSyncSelector,
 } from "@will-be-done/hyperdb";
 import {
-  allProjectsSlice2,
-  appSlice2,
-  projectsSlice2,
+  projectsAllSlice,
+  appSlice,
+  projectsSlice,
 } from "@will-be-done/slices";
 import { Backup } from "@will-be-done/slices";
 import {
@@ -105,7 +105,7 @@ const ProjectItem = function ProjectItemComp({
 
   const db = useDB();
   const project = useSyncSelector(
-    () => projectsSlice2.byIdOrDefault(projectId),
+    () => projectsSlice.byIdOrDefault(projectId),
     [projectId],
   );
   const focusItem = useRegisterFocusItem(
@@ -157,7 +157,7 @@ const ProjectItem = function ProjectItemComp({
 
       const [up, down] = focusManager.getSiblings(focusItem.key);
 
-      dispatch(projectsSlice2.delete([project.id]));
+      dispatch(projectsSlice.delete([project.id]));
 
       if (down) {
         dispatch(focusSlice2.focusByKey(down.key));
@@ -225,7 +225,7 @@ const ProjectItem = function ProjectItemComp({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(db, projectsSlice2.canDrop(project.id, data.modelId));
+          return select(db, projectsSlice.canDrop(project.id, data.modelId));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -316,7 +316,7 @@ const ProjectItem = function ProjectItemComp({
     }
 
     dispatch(
-      projectsSlice2.update(project.id, {
+      projectsSlice.update(project.id, {
         title: newTitle,
       }),
     );
@@ -327,7 +327,7 @@ const ProjectItem = function ProjectItemComp({
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice2.delete([project.id]));
+      dispatch(projectsSlice.delete([project.id]));
     }
   };
 
@@ -379,7 +379,7 @@ const ProjectItem = function ProjectItemComp({
               className="h-[326px] rounded-lg shadow-md"
               onEmojiSelect={({ emoji }) => {
                 dispatch(
-                  projectsSlice2.update(project.id, {
+                  projectsSlice.update(project.id, {
                     icon: emoji,
                   }),
                 );
@@ -501,10 +501,10 @@ export const ProjectView = ({
   const project = useSyncSelector(
     function* () {
       if (selectedProjectId == "inbox") {
-        return yield* allProjectsSlice2.inbox();
+        return yield* projectsAllSlice.inbox();
       }
 
-      return yield* projectsSlice2.byIdOrDefault(selectedProjectId);
+      return yield* projectsSlice.byIdOrDefault(selectedProjectId);
     },
     [selectedProjectId],
   );
@@ -519,9 +519,9 @@ export const ProjectView = ({
   //   [exceptDailyListIds, project.id],
   // );
 
-  const inboxProject = useSyncSelector(() => allProjectsSlice2.inbox(), []);
+  const inboxProject = useSyncSelector(() => projectsAllSlice.inbox(), []);
   const projectIdsWithoutInbox = useSyncSelector(
-    () => allProjectsSlice2.childrenIdsWithoutInbox(),
+    () => projectsAllSlice.childrenIdsWithoutInbox(),
     [],
   );
 
@@ -529,7 +529,7 @@ export const ProjectView = ({
     const title = prompt("Enter project title");
 
     if (title) {
-      dispatch(projectsSlice2.create({ title }, "append"));
+      dispatch(projectsSlice.create({ title }, "append"));
     }
   };
 

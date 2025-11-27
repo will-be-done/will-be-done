@@ -9,7 +9,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useUnmount } from "../../utils";
 import { focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { allProjectsSlice2 } from "@will-be-done/slices";
+import { projectsAllSlice } from "@will-be-done/slices";
 
 export const MoveModal = ({
   setIsOpen,
@@ -23,7 +23,7 @@ export const MoveModal = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const allProjects = useSyncSelector(() => allProjectsSlice2.allSorted(), []);
+  const allProjects = useSyncSelector(() => projectsAllSlice.allSorted(), []);
 
   const projects = useMemo(() => {
     return allProjects

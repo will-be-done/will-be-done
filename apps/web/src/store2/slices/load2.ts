@@ -28,10 +28,10 @@ import { IDBBatchAtomicVFS } from "wa-sqlite/src/examples/IDBBatchAtomicVFS.js";
 import {
   changesSlice,
   changesTable,
-  projectsSlice2,
+  projectsSlice,
   Change,
   ChangesetArrayType,
-  taskTemplatesSlice2,
+  cardsTaskTemplatesSlice,
   registeredSyncableTables,
   registeredSyncableTableNameMap,
 } from "@will-be-done/slices";
@@ -360,7 +360,7 @@ export const initDbStore2 = async (): Promise<SubscribableDB> => {
       void bc.postMessage(e);
     }).startLoop();
 
-    syncDispatch(syncSubDb, projectsSlice2.createInboxIfNotExists());
+    syncDispatch(syncSubDb, projectsSlice.createInboxIfNotExists());
 
     const bc = new BroadcastChannel(`changes-${getClientId()}3`);
 

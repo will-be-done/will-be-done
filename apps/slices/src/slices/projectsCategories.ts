@@ -16,9 +16,9 @@ import { isObjectType } from "../utils";
 import { registerModelSlice } from "./maps";
 import { registerSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
-import { defaultProject, Project, projectsSlice2 } from "./projects";
-import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
-import { Task, tasksSlice2 } from "./cardsTasks";
+import { defaultProject, Project, projectsSlice } from "./projects";
+import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
+import { Task, cardsTasksSlice } from "./cardsTasks";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 export const projectCategoryType = "projectCategory";
@@ -56,7 +56,7 @@ export const defaultProjectCategory: ProjectCategory = {
   createdAt: 0,
 };
 
-export const projectCategoriesSlice2 = {
+export const projectCategoriesSlice = {
   byId: selector(function* (
     id: string,
   ): GenReturn<ProjectCategory | undefined> {
@@ -69,7 +69,7 @@ export const projectCategoriesSlice2 = {
     return tasks[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<ProjectCategory> {
-    return (yield* projectCategoriesSlice2.byId(id)) || defaultProjectCategory;
+    return (yield* projectCategoriesSlice.byId(id)) || defaultProjectCategory;
   }),
   all: selector(function* (): GenReturn<ProjectCategory[]> {
     const tasks = yield* runQuery(
@@ -92,29 +92,29 @@ export const projectCategoriesSlice2 = {
   projectOfCategory: selector(function* (
     categoryId: string,
   ): GenReturn<Project | undefined> {
-    const category = yield* projectCategoriesSlice2.byId(categoryId);
+    const category = yield* projectCategoriesSlice.byId(categoryId);
     if (!category) return undefined;
 
-    return yield* projectsSlice2.byId(category.projectId);
+    return yield* projectsSlice.byId(category.projectId);
   }),
   projectOfCategoryOrDefault: selector(function* (
     categoryId: string,
   ): GenReturn<Project> {
-    const category = yield* projectCategoriesSlice2.byId(categoryId);
+    const category = yield* projectCategoriesSlice.byId(categoryId);
     if (!category) return defaultProject;
 
-    return yield* projectsSlice2.byIdOrDefault(category.projectId);
+    return yield* projectsSlice.byIdOrDefault(category.projectId);
   }),
 
   firstChild: selector(function* (
     projectId: string,
   ): GenReturn<ProjectCategory | undefined> {
-    return (yield* projectCategoriesSlice2.byProjectId(projectId))[0];
+    return (yield* projectCategoriesSlice.byProjectId(projectId))[0];
   }),
   lastChild: selector(function* (
     projectId: string,
   ): GenReturn<ProjectCategory | undefined> {
-    const result = yield* projectCategoriesSlice2.byProjectId(projectId);
+    const result = yield* projectCategoriesSlice.byProjectId(projectId);
     if (result.length === 0) return undefined;
 
     return result[result.length - 1];
@@ -129,7 +129,7 @@ export const projectCategoriesSlice2 = {
   ): GenReturn<ProjectCategory> {
     const orderToken = yield* generateOrderTokenPositioned(
       group.projectId,
-      projectCategoriesSlice2,
+      projectCategoriesSlice,
       position,
     );
 
@@ -159,11 +159,11 @@ export const projectCategoriesSlice2 = {
   ): GenReturn<Task> {
     const orderToken = yield* generateOrderTokenPositioned(
       categoryId,
-      projectCategoryCardsSlice2,
+      projectCategoryCardsSlice,
       position,
     );
 
-    return yield* tasksSlice2.createTask({
+    return yield* cardsTasksSlice.createTask({
       ...taskAttrs,
       orderToken: orderToken,
       projectCategoryId: categoryId,
@@ -190,7 +190,7 @@ export const projectCategoriesSlice2 = {
 };
 
 registerModelSlice(
-  projectCategoriesSlice2,
+  projectCategoriesSlice,
   projectCategoriesTable,
   projectCategoryType,
 );

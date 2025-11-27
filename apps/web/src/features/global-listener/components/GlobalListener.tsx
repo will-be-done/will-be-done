@@ -8,7 +8,7 @@ import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import {
-  appSlice2,
+  appSlice,
   dailyListType,
   projectionType,
   projectType,
@@ -216,7 +216,7 @@ export function GlobalListener() {
             if (!isModelDNDData(t.data)) {
               return [] as const;
             }
-            const entity = select(db, appSlice2.byId(t.data.modelId));
+            const entity = select(db, appSlice.byId(t.data.modelId));
             if (!entity) return [] as const;
             return [[t, entity] as const];
           });
@@ -257,7 +257,7 @@ export function GlobalListener() {
           }
 
           dispatch(
-            appSlice2.handleDrop(
+            appSlice.handleDrop(
               targetItemInfo[1].id,
               dropModelId,
               closestEdgeOfTarget || "top",

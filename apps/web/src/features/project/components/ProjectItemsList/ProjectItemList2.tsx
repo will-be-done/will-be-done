@@ -5,14 +5,14 @@ import { useCallback, useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   Project,
-  projectCategoriesSlice2,
+  projectCategoriesSlice,
   ProjectCategory,
 } from "@will-be-done/slices";
 import {
   TasksColumn,
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
-import { projectCategoryCardsSlice2 } from "@will-be-done/slices";
+import { projectCategoryCardsSlice } from "@will-be-done/slices";
 
 const ProjectTasksColumn = ({
   project,
@@ -24,11 +24,11 @@ const ProjectTasksColumn = ({
   const dispatch = useDispatch();
 
   const todoTaskIds = useSyncSelector(
-    () => projectCategoryCardsSlice2.childrenIds(category.id),
+    () => projectCategoryCardsSlice.childrenIds(category.id),
     [category.id],
   );
   const doneTaskIds = useSyncSelector(
-    () => projectCategoryCardsSlice2.doneChildrenIds(category.id),
+    () => projectCategoryCardsSlice.doneChildrenIds(category.id),
     [category.id],
   );
   const lastTaskI = todoTaskIds.length == 0 ? 0 : todoTaskIds.length - 1;
@@ -42,7 +42,7 @@ const ProjectTasksColumn = ({
     }
 
     const task = dispatch(
-      projectCategoriesSlice2.createTask(category.id, "prepend"),
+      projectCategoriesSlice.createTask(category.id, "prepend"),
     );
 
     dispatch(focusSlice2.editByKey(buildFocusKey(task.id, task.type)));
@@ -107,7 +107,7 @@ const ProjectTasksColumn = ({
 
 export const ProjectItemsList2 = ({ project }: { project: Project }) => {
   const categories = useSyncSelector(
-    () => projectCategoriesSlice2.byProjectId(project.id),
+    () => projectCategoriesSlice.byProjectId(project.id),
     [project.id],
   );
 

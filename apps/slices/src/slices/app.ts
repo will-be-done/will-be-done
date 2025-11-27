@@ -4,7 +4,7 @@ import { defaultTask } from "./cardsTasks";
 import { AnyModel, appTypeSlicesMap } from "./maps";
 
 // Slice
-export const appSlice2 = {
+export const appSlice = {
   // selectors
   byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
     for (const slice of Object.values(appTypeSlicesMap)) {
@@ -15,7 +15,7 @@ export const appSlice2 = {
     return undefined;
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<AnyModel> {
-    const entity = yield* appSlice2.byId(id);
+    const entity = yield* appSlice.byId(id);
     if (!entity) {
       return defaultTask;
     }
@@ -24,7 +24,7 @@ export const appSlice2 = {
   }),
 
   canDrop: selector(function* (id: string, dropId: string): GenReturn<boolean> {
-    const model = yield* appSlice2.byId(id);
+    const model = yield* appSlice.byId(id);
     if (!model) return false;
 
     const slice = appTypeSlicesMap[model.type];
@@ -39,7 +39,7 @@ export const appSlice2 = {
     dropId: string,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const model = yield* appSlice2.byId(id);
+    const model = yield* appSlice.byId(id);
     if (!model) return;
 
     const slice = appTypeSlicesMap[model.type];

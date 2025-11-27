@@ -12,11 +12,11 @@ import {
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
 import type { GenReturn } from "./utils";
-import { tasksSlice2, type Task } from "./cardsTasks";
+import { cardsTasksSlice, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoriesSlice2 } from "./projectsCategories";
-import { appSlice2 } from "./app";
+import { projectCategoriesSlice } from "./projectsCategories";
+import { appSlice } from "./app";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 // Type definitions
@@ -113,7 +113,7 @@ function createRuleFromString(ruleString: string): RRule {
 }
 
 // Slice
-export const taskTemplatesSlice2 = {
+export const cardsTaskTemplatesSlice = {
   // selectors
   allIds: selector(function* (): GenReturn<string[]> {
     const templates = yield* runQuery(
@@ -131,7 +131,7 @@ export const taskTemplatesSlice2 = {
     return templates[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<TaskTemplate> {
-    return (yield* taskTemplatesSlice2.byId(id)) || defaultTaskTemplate;
+    return (yield* cardsTaskTemplatesSlice.byId(id)) || defaultTaskTemplate;
   }),
   all: selector(function* (): GenReturn<TaskTemplate[]> {
     const templates = yield* runQuery(
@@ -140,31 +140,31 @@ export const taskTemplatesSlice2 = {
     return templates;
   }),
   ids: selector(function* (): GenReturn<string[]> {
-    const templates = yield* taskTemplatesSlice2.all();
+    const templates = yield* cardsTaskTemplatesSlice.all();
     return templates.map((t) => t.id);
   }),
   rule: selector(function* (id: string): GenReturn<RRule> {
-    const template = yield* taskTemplatesSlice2.byIdOrDefault(id);
+    const template = yield* cardsTaskTemplatesSlice.byIdOrDefault(id);
     return createRuleFromString(template.repeatRule || defaultRule);
   }),
   ruleText: selector(function* (id: string): GenReturn<string> {
-    const rule = yield* taskTemplatesSlice2.rule(id);
+    const rule = yield* cardsTaskTemplatesSlice.rule(id);
     return rule.toText();
   }),
   newTasksInRange: selector(function* (
     fromDate: Date,
     toDate: Date,
   ): GenReturn<Task[]> {
-    const templates = yield* taskTemplatesSlice2.all();
+    const templates = yield* cardsTaskTemplatesSlice.all();
     const newTasks: Task[] = [];
 
     for (const template of templates) {
-      const rule = yield* taskTemplatesSlice2.rule(template.id);
+      const rule = yield* cardsTaskTemplatesSlice.rule(template.id);
 
       const dates = rule.between(fromDate, toDate);
       for (const date of dates) {
         const taskId = generateTaskId(template.id, date);
-        const existingTask = yield* tasksSlice2.byId(taskId);
+        const existingTask = yield* cardsTasksSlice.byId(taskId);
         if (!existingTask) {
           newTasks.push(templateToTask(template, date));
         }
@@ -177,10 +177,10 @@ export const taskTemplatesSlice2 = {
     templateId: string,
     toDate: Date,
   ): GenReturn<Task[]> {
-    const template = yield* taskTemplatesSlice2.byId(templateId);
+    const template = yield* cardsTaskTemplatesSlice.byId(templateId);
     if (!template) return [];
 
-    const rule = yield* taskTemplatesSlice2.rule(templateId);
+    const rule = yield* cardsTaskTemplatesSlice.rule(templateId);
     const newTasks: Task[] = [];
 
     const dates = rule.between(
@@ -189,7 +189,7 @@ export const taskTemplatesSlice2 = {
     );
     for (const date of dates) {
       const taskId = generateTaskId(template.id, date);
-      const existingTask = yield* tasksSlice2.byId(taskId);
+      const existingTask = yield* cardsTasksSlice.byId(taskId);
       if (!existingTask) {
         newTasks.push(templateToTask(template, date));
       }
@@ -200,11 +200,11 @@ export const taskTemplatesSlice2 = {
   newTasksToGenForTemplates: selector(function* (
     toDate: Date,
   ): GenReturn<Task[]> {
-    const templateIds = yield* taskTemplatesSlice2.ids();
+    const templateIds = yield* cardsTaskTemplatesSlice.ids();
     const newTasks: Task[] = [];
 
     for (const templateId of templateIds) {
-      const tasks = yield* taskTemplatesSlice2.newTasksToGenForTemplate(
+      const tasks = yield* cardsTaskTemplatesSlice.newTasksToGenForTemplate(
         templateId,
         toDate,
       );
@@ -224,7 +224,7 @@ export const taskTemplatesSlice2 = {
     const id = template.id || uuidv7();
     const projectCategoryId =
       template.projectCategoryId ??
-      (yield* projectCategoriesSlice2.firstChild(template.projectId))?.id;
+      (yield* projectCategoriesSlice.firstChild(template.projectId))?.id;
     if (!projectCategoryId) throw new Error("Category of project not found");
 
     const newTemplate: TaskTemplate = {
@@ -246,16 +246,16 @@ export const taskTemplatesSlice2 = {
     id: string,
     template: Partial<TaskTemplate>,
   ): GenReturn<TaskTemplate> {
-    const templateInState = yield* taskTemplatesSlice2.byId(id);
+    const templateInState = yield* cardsTaskTemplatesSlice.byId(id);
     if (!templateInState) throw new Error("Template not found");
 
     yield* update(taskTemplatesTable, [{ ...templateInState, ...template }]);
     return templateInState;
   }),
   delete: action(function* (ids: string[]): GenReturn<void> {
-    const taskIds = yield* tasksSlice2.taskIdsOfTemplateId(ids);
+    const taskIds = yield* cardsTasksSlice.taskIdsOfTemplateId(ids);
     for (const tId of taskIds) {
-      yield* tasksSlice2.update(tId, {
+      yield* cardsTasksSlice.update(tId, {
         templateId: undefined,
         templateDate: undefined,
       });
@@ -266,7 +266,7 @@ export const taskTemplatesSlice2 = {
     task: Task,
     data: Partial<TaskTemplate>,
   ): GenReturn<TaskTemplate> {
-    yield* appSlice2.delete(task);
+    yield* appSlice.delete(task);
 
     const newId = uuidv7();
     const template: TaskTemplate = {
@@ -359,10 +359,14 @@ export const taskTemplatesSlice2 = {
   //   return generatedTasks;
   // }),
   cleanAll: action(function* (): GenReturn<void> {
-    const templates = yield* taskTemplatesSlice2.all();
+    const templates = yield* cardsTaskTemplatesSlice.all();
     for (const template of templates) {
       yield* deleteRows(taskTemplatesTable, [template.id]);
     }
   }),
 };
-registerModelSlice(taskTemplatesSlice2, taskTemplatesTable, taskTemplateType);
+registerModelSlice(
+  cardsTaskTemplatesSlice,
+  taskTemplatesTable,
+  taskTemplateType,
+);

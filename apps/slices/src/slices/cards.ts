@@ -1,20 +1,20 @@
 import { action, selector } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
 import { assertUnreachable } from "./utils";
-import { tasksSlice2, type Task, defaultTask } from "./cardsTasks";
+import { cardsTasksSlice, type Task, defaultTask } from "./cardsTasks";
 import {
-  projectionsSlice2,
+  dailyListsProjections,
   type TaskProjection,
 } from "./dailyListsProjections";
 import {
-  taskTemplatesSlice2,
+  cardsTaskTemplatesSlice,
   type TaskTemplate,
   isTaskTemplate,
 } from "./cardsTaskTemplates";
 import { isTask } from "./cardsTasks";
 import { isTaskProjection } from "./dailyListsProjections";
 import { AnyModel } from "./maps";
-import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
+import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 
 export const cardsSlice = {
   createSiblingCard: action(function* (
@@ -23,13 +23,13 @@ export const cardsSlice = {
     taskParams?: Partial<Task>,
   ) {
     if (isTask(taskBox) || isTaskTemplate(taskBox)) {
-      return yield* projectCategoryCardsSlice2.createSiblingTask(
+      return yield* projectCategoryCardsSlice.createSiblingTask(
         taskBox.id,
         position,
         taskParams,
       );
     } else if (isTaskProjection(taskBox)) {
-      return yield* projectionsSlice2.createSibling(taskBox.id, position);
+      return yield* dailyListsProjections.createSibling(taskBox.id, position);
     } else {
       assertUnreachable(taskBox);
     }
@@ -38,7 +38,11 @@ export const cardsSlice = {
   cardWrapperId: selector(function* (
     id: string,
   ): GenReturn<Task | TaskTemplate | TaskProjection | undefined> {
-    const slices = [tasksSlice2, projectionsSlice2, taskTemplatesSlice2];
+    const slices = [
+      cardsTasksSlice,
+      dailyListsProjections,
+      cardsTaskTemplatesSlice,
+    ];
     for (const slice of slices) {
       const res = yield* slice.byId(id);
 
@@ -66,7 +70,7 @@ export const cardsSlice = {
     if (isTask(model)) {
       return model;
     } else if (isTaskProjection(model)) {
-      return yield* tasksSlice2.byId(model.taskId);
+      return yield* cardsTasksSlice.byId(model.taskId);
     }
     return undefined;
   }),

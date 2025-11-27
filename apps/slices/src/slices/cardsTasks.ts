@@ -13,17 +13,20 @@ import {
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
-import { appSlice2 } from "./app";
-import { projectionsSlice2, isTaskProjection } from "./dailyListsProjections";
+import { appSlice } from "./app";
+import {
+  dailyListsProjections,
+  isTaskProjection,
+} from "./dailyListsProjections";
 import {
   isTaskTemplate,
   TaskTemplate,
-  taskTemplatesSlice2,
+  cardsTaskTemplatesSlice,
 } from "./cardsTaskTemplates";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
-import { projectCategoriesSlice2 } from "./projectsCategories";
+import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
+import { projectCategoriesSlice } from "./projectsCategories";
 
 // Type definitions
 export const taskType = "task";
@@ -81,15 +84,15 @@ export const tasksTable = table<Task>("tasks").withIndexes({
 registerSyncableTable(tasksTable, taskType);
 
 // Slice - imports are at the bottom to avoid circular dependency issues
-export const tasksSlice2 = {
+export const cardsTasksSlice = {
   canDrop: selector(function* (
     taskId: string,
     dropId: string,
   ): GenReturn<boolean> {
-    const model = yield* appSlice2.byId(dropId);
+    const model = yield* appSlice.byId(dropId);
     if (!model) return false;
 
-    const task = yield* tasksSlice2.byId(taskId);
+    const task = yield* cardsTasksSlice.byId(taskId);
     if (!task) return false;
 
     if (task.state === "done") {
@@ -112,7 +115,7 @@ export const tasksSlice2 = {
     return tasks[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<Task> {
-    return (yield* tasksSlice2.byId(id)) || defaultTask;
+    return (yield* cardsTasksSlice.byId(id)) || defaultTask;
   }),
   taskIdsOfTemplateId: selector(function* (ids: string[]): GenReturn<string[]> {
     const tasks = yield* runQuery(
@@ -133,10 +136,10 @@ export const tasksSlice2 = {
   // actions
   delete: action(function* (ids: string[]): GenReturn<void> {
     yield* deleteRows(tasksTable, ids);
-    yield* projectionsSlice2.deleteProjectionsOfTask(ids);
+    yield* dailyListsProjections.deleteProjectionsOfTask(ids);
   }),
   update: action(function* (id: string, task: Partial<Task>): GenReturn<void> {
-    const taskInState = yield* tasksSlice2.byId(id);
+    const taskInState = yield* cardsTasksSlice.byId(id);
     if (!taskInState) throw new Error("Task not found");
 
     yield* update(tasksTable, [{ ...taskInState, ...task }]);
@@ -168,15 +171,15 @@ export const tasksSlice2 = {
     dropId: string,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    if (!(yield* tasksSlice2.canDrop(taskId, dropId))) return;
+    if (!(yield* cardsTasksSlice.canDrop(taskId, dropId))) return;
 
-    const task = yield* tasksSlice2.byId(taskId);
+    const task = yield* cardsTasksSlice.byId(taskId);
     if (!task) return shouldNeverHappen("task not found");
 
-    const dropItem = yield* appSlice2.byId(dropId);
+    const dropItem = yield* appSlice.byId(dropId);
     if (!dropItem) return shouldNeverHappen("drop item not found");
 
-    const [up, down] = yield* projectCategoryCardsSlice2.siblings(taskId);
+    const [up, down] = yield* projectCategoryCardsSlice.siblings(taskId);
 
     let between: [string | undefined, string | undefined] = [
       task.orderToken,
@@ -193,25 +196,25 @@ export const tasksSlice2 = {
     );
 
     if (isTask(dropItem)) {
-      yield* tasksSlice2.update(dropItem.id, {
+      yield* cardsTasksSlice.update(dropItem.id, {
         projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
       });
     } else if (isTaskTemplate(dropItem)) {
-      yield* taskTemplatesSlice2.update(dropItem.id, {
+      yield* cardsTaskTemplatesSlice.update(dropItem.id, {
         projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
       });
     } else if (isTaskProjection(dropItem)) {
-      const taskOfDrop = yield* tasksSlice2.byId(dropItem.taskId);
+      const taskOfDrop = yield* cardsTasksSlice.byId(dropItem.taskId);
       if (!taskOfDrop) return shouldNeverHappen("task not found", dropItem);
 
-      yield* tasksSlice2.update(taskOfDrop.id, {
+      yield* cardsTasksSlice.update(taskOfDrop.id, {
         orderToken: orderToken,
         projectCategoryId: task.projectCategoryId,
       });
 
-      yield* projectionsSlice2.delete([dropItem.id]);
+      yield* dailyListsProjections.delete([dropItem.id]);
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
     }
@@ -220,10 +223,10 @@ export const tasksSlice2 = {
     taskId: string,
     projectId: string,
   ): GenReturn<void> {
-    const task = yield* tasksSlice2.byId(taskId);
+    const task = yield* cardsTasksSlice.byId(taskId);
     if (!task) throw new Error("Task not found");
 
-    const firstCategory = yield* projectCategoriesSlice2.firstChild(projectId);
+    const firstCategory = yield* projectCategoriesSlice.firstChild(projectId);
     if (!firstCategory) throw new Error("No categories found");
 
     yield* update(tasksTable, [
@@ -234,7 +237,7 @@ export const tasksSlice2 = {
     ]);
   }),
   toggleState: action(function* (taskId: string): GenReturn<void> {
-    const task = yield* tasksSlice2.byId(taskId);
+    const task = yield* cardsTasksSlice.byId(taskId);
     if (!task) throw new Error("Task not found");
 
     yield* update(tasksTable, [
@@ -246,7 +249,7 @@ export const tasksSlice2 = {
     ]);
   }),
   createFromTemplate: action(function* (taskTemplate: TaskTemplate) {
-    yield* appSlice2.delete(taskTemplate);
+    yield* appSlice.delete(taskTemplate);
 
     const newId = uuidv7();
     const newTask: Task = {
@@ -270,7 +273,7 @@ export const tasksSlice2 = {
     yield* deleteRows(tasksTable, ids);
   }),
   deleteById: action(function* (id: string): GenReturn<void> {
-    yield* tasksSlice2.delete([id]);
+    yield* cardsTasksSlice.delete([id]);
   }),
 };
-registerModelSlice(tasksSlice2, tasksTable, taskType);
+registerModelSlice(cardsTasksSlice, tasksTable, taskType);

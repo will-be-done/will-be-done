@@ -10,9 +10,9 @@ import { useFilterStore } from "./filterStore";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useSyncSelector } from "@will-be-done/hyperdb";
 import {
-  allProjectsSlice2,
-  dailyListsSlice2,
-  projectsSlice2,
+  projectsAllSlice,
+  dailyListsSlice,
+  projectsSlice,
   Task,
 } from "@will-be-done/slices";
 import { useMemo } from "react";
@@ -37,7 +37,7 @@ function ProjectSuggestions({
   const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
   const project = useSyncSelector(
-    () => projectsSlice2.byIdOrDefault(projectId),
+    () => projectsSlice.byIdOrDefault(projectId),
     [projectId],
   );
 
@@ -45,7 +45,7 @@ function ProjectSuggestions({
   const idsToAlwaysInclude = useMemo(() => (id ? [id] : []), [id]);
   const taskIds = useSyncSelector(
     () =>
-      dailyListsSlice2.notDoneTaskIdsExceptDailies(
+      dailyListsSlice.notDoneTaskIdsExceptDailies(
         projectId,
         exceptDailyListIds,
         taskHorizons,
@@ -101,7 +101,7 @@ function ProjectSuggestions({
 
 const TaskSuggestionsBody = () => {
   const selectedProjectIds = useSyncSelector(
-    () => allProjectsSlice2.childrenIds(),
+    () => projectsAllSlice.childrenIds(),
     [],
   );
 

@@ -8,7 +8,7 @@ import { FocusKey } from "@/store2/slices/focusSlice";
 import { useEffect, useRef, useState } from "react";
 import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import { useSelect } from "@will-be-done/hyperdb";
-import { appSlice2, dropSlice2 } from "@will-be-done/slices";
+import { appSlice, dropSlice2 } from "@will-be-done/slices";
 
 export const TasksColumnGrid = ({
   columnsCount,
@@ -78,7 +78,7 @@ export const TasksColumn = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(appSlice2.canDrop(columnModelId, data.modelId));
+          return select(appSlice.canDrop(columnModelId, data.modelId));
         },
         getIsSticky: () => true,
         onDragEnter: () => setDndState(isTaskOver),

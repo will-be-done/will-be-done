@@ -1,9 +1,9 @@
-import { type Task, tasksTable } from "./tasks";
-import { taskProjectionsTable, TaskProjection } from "./projections";
-import { TaskTemplate, taskTemplatesTable } from "./taskTemplates";
+import { type Task, tasksTable } from "./cardsTasks";
+import { taskProjectionsTable, TaskProjection } from "./dailyListsProjections";
+import { TaskTemplate, taskTemplatesTable } from "./cardsTaskTemplates";
 import { DailyList, dailyListsTable } from "./dailyLists";
 import { Project, projectsTable } from "./projects";
-import { ProjectCategory, projectCategoriesTable } from "./projectCategories";
+import { ProjectCategory, projectCategoriesTable } from "./projectsCategories";
 
 export type AnyModel =
   | Task

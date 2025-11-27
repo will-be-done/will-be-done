@@ -14,18 +14,18 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { OrderableItem, GenReturn } from "./utils";
 import { inboxId, generateOrderTokenPositioned } from "./utils";
-import { appSlice2 } from "./app";
-import { allProjectsSlice2 } from "./projectsAll";
-import { isTask, Task, tasksSlice2, tasksTable } from "./cardsTasks";
+import { appSlice } from "./app";
+import { projectsAllSlice } from "./projectsAll";
+import { isTask, Task, cardsTasksSlice, tasksTable } from "./cardsTasks";
 import {
   isTaskTemplate,
-  taskTemplatesSlice2,
+  cardsTaskTemplatesSlice,
   taskTemplatesTable,
 } from "./cardsTaskTemplates";
 import { isTaskProjection } from "./dailyListsProjections";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoriesSlice2 } from "./projectsCategories";
+import { projectCategoriesSlice } from "./projectsCategories";
 
 // Type definitions
 export const projectType = "project";
@@ -61,7 +61,7 @@ export const projectsTable = table<Project>("projects").withIndexes({
 registerSyncableTable(projectsTable, projectType);
 
 // Slice (will be populated after all slices are defined to avoid circular dependencies)
-export const projectsSlice2 = {
+export const projectsSlice = {
   // selectors
   allIds: selector(function* (): GenReturn<string[]> {
     const projects = yield* runQuery(
@@ -79,16 +79,16 @@ export const projectsSlice2 = {
     return projects[0];
   }),
   byIdOrDefault: selector(function* (id: string): GenReturn<Project> {
-    return (yield* projectsSlice2.byId(id)) || defaultProject;
+    return (yield* projectsSlice.byId(id)) || defaultProject;
   }),
   canDrop: selector(function* (
     projectId: string,
     dropItemId: string,
   ): GenReturn<boolean> {
-    const project = yield* projectsSlice2.byId(projectId);
+    const project = yield* projectsSlice.byId(projectId);
     if (!project) return false;
 
-    const dropItem = yield* appSlice2.byId(dropItemId);
+    const dropItem = yield* appSlice.byId(dropItemId);
     if (!dropItem) return false;
 
     // Projects can accept tasks, templates, projections, and other projects
@@ -102,12 +102,12 @@ export const projectsSlice2 = {
 
   // actions
   createInboxIfNotExists: action(function* (): GenReturn<Project> {
-    const inbox = yield* projectsSlice2.byId(inboxId);
+    const inbox = yield* projectsSlice.byId(inboxId);
     if (inbox) {
       return inbox;
     }
 
-    return yield* projectsSlice2.create(
+    return yield* projectsSlice.create(
       {
         id: inboxId,
         title: "Inbox",
@@ -128,7 +128,7 @@ export const projectsSlice2 = {
   ): GenReturn<Project> {
     const orderToken = yield* generateOrderTokenPositioned(
       "all-projects-list",
-      allProjectsSlice2,
+      projectsAllSlice,
       position,
     );
 
@@ -145,15 +145,15 @@ export const projectsSlice2 = {
     };
 
     yield* insert(projectsTable, [newProject]);
-    yield* projectCategoriesSlice2.createCategory(
+    yield* projectCategoriesSlice.createCategory(
       { projectId: newProject.id, title: "Week" },
       "append",
     );
-    yield* projectCategoriesSlice2.createCategory(
+    yield* projectCategoriesSlice.createCategory(
       { projectId: newProject.id, title: "Month" },
       "append",
     );
-    yield* projectCategoriesSlice2.createCategory(
+    yield* projectCategoriesSlice.createCategory(
       { projectId: newProject.id, title: "Ideas" },
       "append",
     );
@@ -164,7 +164,7 @@ export const projectsSlice2 = {
     id: string,
     project: Partial<Project>,
   ): GenReturn<void> {
-    const projectInState = yield* projectsSlice2.byId(id);
+    const projectInState = yield* projectsSlice.byId(id);
     if (!projectInState) throw new Error("Project not found");
 
     yield* update(projectsTable, [{ ...projectInState, ...project }]);
@@ -177,18 +177,18 @@ export const projectsSlice2 = {
     dropItemId: string,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const canDrop = yield* projectsSlice2.canDrop(projectId, dropItemId);
+    const canDrop = yield* projectsSlice.canDrop(projectId, dropItemId);
     if (!canDrop) return;
 
-    const project = yield* projectsSlice2.byId(projectId);
+    const project = yield* projectsSlice.byId(projectId);
     if (!project) throw new Error("Project not found");
 
-    const dropItem = yield* appSlice2.byId(dropItemId);
+    const dropItem = yield* appSlice.byId(dropItemId);
     if (!dropItem) throw new Error("Target not found");
 
     if (isProject(dropItem)) {
       // Reorder projects - would need proper fractional indexing
-      const [up, down] = yield* allProjectsSlice2.siblings(project.id);
+      const [up, down] = yield* projectsAllSlice.siblings(project.id);
 
       let orderToken: string;
       if (edge === "top") {
@@ -203,29 +203,31 @@ export const projectsSlice2 = {
         );
       }
 
-      yield* projectsSlice2.update(dropItem.id, { orderToken });
+      yield* projectsSlice.update(dropItem.id, { orderToken });
     } else if (isTask(dropItem) || isTaskTemplate(dropItem)) {
-      const category = yield* projectCategoriesSlice2.firstChild(project.id);
+      const category = yield* projectCategoriesSlice.firstChild(project.id);
       if (!category) throw new Error("No categories found in project");
 
       // Move task/template to this project
       if (isTask(dropItem)) {
-        yield* tasksSlice2.update(dropItem.id, {
+        yield* cardsTasksSlice.update(dropItem.id, {
           projectCategoryId: category.id,
         });
       } else {
-        yield* taskTemplatesSlice2.update(dropItem.id, {
+        yield* cardsTaskTemplatesSlice.update(dropItem.id, {
           projectCategoryId: category.id,
         });
       }
     } else if (isTaskProjection(dropItem)) {
-      const category = yield* projectCategoriesSlice2.firstChild(project.id);
+      const category = yield* projectCategoriesSlice.firstChild(project.id);
       if (!category) throw new Error("No categories found in project");
 
       // Move the underlying task to this project
-      const task = yield* tasksSlice2.byId(dropItem.taskId);
+      const task = yield* cardsTasksSlice.byId(dropItem.taskId);
       if (task) {
-        yield* tasksSlice2.update(task.id, { projectCategoryId: category.id });
+        yield* cardsTasksSlice.update(task.id, {
+          projectCategoryId: category.id,
+        });
       }
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
@@ -241,25 +243,25 @@ export const projectsSlice2 = {
     let templatesUpdated = 0;
 
     // Get all project IDs
-    const projectIds = yield* projectsSlice2.allIds();
+    const projectIds = yield* projectsSlice.allIds();
 
     // Process each project
     for (const projectId of projectIds) {
       // Check if project has categories
       const existingCategories =
-        yield* projectCategoriesSlice2.byProjectId(projectId);
+        yield* projectCategoriesSlice.byProjectId(projectId);
 
       if (existingCategories.length === 0) {
         // Create three default categories
-        const weekCategory = yield* projectCategoriesSlice2.createCategory(
+        const weekCategory = yield* projectCategoriesSlice.createCategory(
           { projectId, title: "Week" },
           "append",
         );
-        yield* projectCategoriesSlice2.createCategory(
+        yield* projectCategoriesSlice.createCategory(
           { projectId, title: "Month" },
           "append",
         );
-        yield* projectCategoriesSlice2.createCategory(
+        yield* projectCategoriesSlice.createCategory(
           { projectId, title: "Ideas" },
           "append",
         );
@@ -272,8 +274,7 @@ export const projectsSlice2 = {
         ),
       );
 
-      const firstCategory =
-        yield* projectCategoriesSlice2.firstChild(projectId);
+      const firstCategory = yield* projectCategoriesSlice.firstChild(projectId);
       if (!firstCategory) throw new Error("No categories found");
 
       // Filter tasks with null projectCategoryId
@@ -326,18 +327,17 @@ export const projectsSlice2 = {
       | "prepend",
     taskAttrs?: Partial<Task>,
   ): GenReturn<Task> {
-    const project = yield* projectsSlice2.byId(projectId);
+    const project = yield* projectsSlice.byId(projectId);
     if (!project) throw new Error("Project not found");
 
     let projectCategoryId = taskAttrs?.projectCategoryId;
     if (!projectCategoryId) {
-      const firstCategory =
-        yield* projectCategoriesSlice2.firstChild(projectId);
+      const firstCategory = yield* projectCategoriesSlice.firstChild(projectId);
       if (!firstCategory) throw new Error("No categories found");
       projectCategoryId = firstCategory.id;
     }
 
-    return yield* projectCategoriesSlice2.createTask(
+    return yield* projectCategoriesSlice.createTask(
       projectCategoryId,
       position,
       taskAttrs,
@@ -353,12 +353,12 @@ export const projectsSlice2 = {
       | "prepend",
     taskAttrs?: Partial<Task>,
   ): GenReturn<Task> {
-    const task = yield* tasksSlice2.byId(taskId);
+    const task = yield* cardsTasksSlice.byId(taskId);
     if (task) {
       return task;
     }
 
-    return yield* projectsSlice2.createTaskIfNotExists(
+    return yield* projectsSlice.createTaskIfNotExists(
       projectId,
       taskId,
       position,
@@ -366,4 +366,4 @@ export const projectsSlice2 = {
     );
   }),
 };
-registerModelSlice(projectsSlice2, projectsTable, projectType);
+registerModelSlice(projectsSlice, projectsTable, projectType);

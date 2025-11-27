@@ -5,9 +5,9 @@ import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   DailyList,
-  dailyListsSlice2,
+  dailyListsSlice,
   inboxId,
-  projectionsSlice2,
+  dailyListsProjections,
 } from "@will-be-done/slices";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice";
@@ -29,7 +29,7 @@ const TaskProjection = ({
   orderNumber: string;
 }) => {
   const projection = useSyncSelector(
-    () => projectionsSlice2.byIdOrDefault(projectionId),
+    () => dailyListsProjections.byIdOrDefault(projectionId),
     [projectionId],
   );
 
@@ -56,7 +56,7 @@ const ColumnView = ({
   orderNumber: number;
 }) => {
   const dailyList = useSyncSelector(
-    () => dailyListsSlice2.byIdOrDefault(dailyListId),
+    () => dailyListsSlice.byIdOrDefault(dailyListId),
     [dailyListId],
   );
   const currentDate = useCurrentDMY();
@@ -65,12 +65,12 @@ const ColumnView = ({
   }, [currentDate, dailyList.date]);
 
   const projectionIds = useSyncSelector(
-    () => dailyListsSlice2.childrenIds(dailyListId),
+    () => dailyListsSlice.childrenIds(dailyListId),
     [dailyListId],
   );
 
   const doneProjectionIds = useSyncSelector(
-    () => dailyListsSlice2.doneChildrenIds(dailyListId),
+    () => dailyListsSlice.doneChildrenIds(dailyListId),
     [dailyListId],
   );
 
@@ -187,7 +187,7 @@ const BoardView = ({
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
       const projection = dispatch(
-        dailyListsSlice2.createProjectionWithTask(
+        dailyListsSlice.createProjectionWithTask(
           dailyList.id,
           inboxId,
           "prepend",
@@ -297,13 +297,13 @@ export const Board2 = ({ selectedDate }: { selectedDate: Date }) => {
   );
 
   const dailyListsIds = useSyncSelector(
-    () => dailyListsSlice2.idsByDates(weekDays),
+    () => dailyListsSlice.idsByDates(weekDays),
     [weekDays],
   );
   const dispatch = useDispatch();
 
   useEffect(() => {
-    dispatch(dailyListsSlice2.createManyIfNotPresent(weekDays));
+    dispatch(dailyListsSlice.createManyIfNotPresent(weekDays));
   }, [dispatch, weekDays]);
 
   const setExceptDailyListIds = useSuggestionsStore(
