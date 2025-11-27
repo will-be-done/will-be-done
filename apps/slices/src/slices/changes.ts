@@ -395,7 +395,7 @@ export const Changeset = z.object({
         tableName: z.string(),
         deletedAt: z.string().nullable(),
         clientId: z.string(),
-        changes: z.record(z.string()),
+        changes: z.record(z.string(), z.string()),
         createdAt: z.string(),
         updatedAt: z.string(),
       }),

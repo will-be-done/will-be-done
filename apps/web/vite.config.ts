@@ -8,7 +8,6 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 export default defineConfig({
   plugins: [
     // Please make sure that '@tanstack/router-plugin' is passed before '@vitejs/plugin-react'
-    // @ts-expect-error don't know why
     tanstackRouter({
       target: "react",
       autoCodeSplitting: true,
@@ -18,7 +17,6 @@ export default defineConfig({
         plugins: [["babel-plugin-react-compiler", {}]],
       },
     }),
-    // @ts-expect-error don't know why
     tailwindcss(),
   ],
   resolve: {

@@ -3,13 +3,7 @@ import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
 import { useSyncSelector } from "./react/hooks";
-import {
-  create,
-  getById,
-  getFirst10ProjectsIds,
-  insertMillion,
-  update,
-} from "./db";
+import { create, getById, insertMillion, update } from "./db";
 import { useDB } from "./react/context";
 import { syncDispatch } from "./hyperdb/action";
 
@@ -35,7 +29,7 @@ const Project = ({ id }: { id: string }) => {
 };
 
 const SortedProjects = () => {
-  const projectIds = useSyncSelector(getFirst10ProjectsIds);
+  const projectIds: string[] = [];
 
   return (
     <div>
