@@ -8,7 +8,7 @@ import { FocusKey } from "@/store2/slices/focusSlice";
 import { useEffect, useRef, useState } from "react";
 import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import { useSelect } from "@will-be-done/hyperdb";
-import { appSlice, dropSlice2 } from "@will-be-done/slices";
+import { appSlice } from "@will-be-done/slices";
 
 export const TasksColumnGrid = ({
   columnsCount,

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useSuggestionsStore } from "../TaskSuggestions/suggestionsStore";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   DailyList,
@@ -306,13 +305,6 @@ export const Board2 = ({ selectedDate }: { selectedDate: Date }) => {
     dispatch(dailyListsSlice.createManyIfNotPresent(weekDays));
   }, [dispatch, weekDays]);
 
-  const setExceptDailyListIds = useSuggestionsStore(
-    (state) => state.setExceptDailyListIds,
-  );
-
-  useEffect(() => {
-    setExceptDailyListIds(dailyListsIds);
-  }, [dailyListsIds, setExceptDailyListIds]);
   return (
     <BoardView
       previousDate={previousDate}

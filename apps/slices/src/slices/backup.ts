@@ -143,7 +143,7 @@ const getNewModels = (backup: Backup): AnyModel[] => {
       id: taskBackup.id,
       title: taskBackup.title,
       state: taskBackup.state,
-      // projectId: taskBackup.projectId,
+      projectId: "",
       projectCategoryId: taskBackup.projectCategoryId,
       orderToken: taskBackup.orderToken,
       lastToggledAt: taskBackup.lastToggledAt,
@@ -193,6 +193,7 @@ const getNewModels = (backup: Backup): AnyModel[] => {
       createdAt: templateBackup.createdAt,
       lastGeneratedAt: templateBackup.lastGeneratedAt,
       projectCategoryId: category.id,
+      projectId: "",
     };
 
     models.push(template);

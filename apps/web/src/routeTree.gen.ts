@@ -8,82 +8,43 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-// Import Routes
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as Timeline2IndexRouteImport } from './routes/timeline2/index'
+import { Route as Timeline2DateRouteImport } from './routes/timeline2/$date'
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as IndexImport } from './routes/index'
-import { Route as Timeline2IndexImport } from './routes/timeline2/index'
-import { Route as Timeline2DateImport } from './routes/timeline2/$date'
-
-// Create/Update Routes
-
-const IndexRoute = IndexImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const Timeline2IndexRoute = Timeline2IndexImport.update({
+const Timeline2IndexRoute = Timeline2IndexRouteImport.update({
   id: '/timeline2/',
   path: '/timeline2/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const Timeline2DateRoute = Timeline2DateImport.update({
+const Timeline2DateRoute = Timeline2DateRouteImport.update({
   id: '/timeline2/$date',
   path: '/timeline2/$date',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-// Populate the FileRoutesByPath interface
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexImport
-      parentRoute: typeof rootRoute
-    }
-    '/timeline2/$date': {
-      id: '/timeline2/$date'
-      path: '/timeline2/$date'
-      fullPath: '/timeline2/$date'
-      preLoaderRoute: typeof Timeline2DateImport
-      parentRoute: typeof rootRoute
-    }
-    '/timeline2/': {
-      id: '/timeline2/'
-      path: '/timeline2'
-      fullPath: '/timeline2'
-      preLoaderRoute: typeof Timeline2IndexImport
-      parentRoute: typeof rootRoute
-    }
-  }
-}
-
-// Create and export the route tree
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/timeline2/$date': typeof Timeline2DateRoute
   '/timeline2': typeof Timeline2IndexRoute
 }
-
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/timeline2/$date': typeof Timeline2DateRoute
   '/timeline2': typeof Timeline2IndexRoute
 }
-
 export interface FileRoutesById {
-  __root__: typeof rootRoute
+  __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/timeline2/$date': typeof Timeline2DateRoute
   '/timeline2/': typeof Timeline2IndexRoute
 }
-
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/timeline2/$date' | '/timeline2'
@@ -92,11 +53,36 @@ export interface FileRouteTypes {
   id: '__root__' | '/' | '/timeline2/$date' | '/timeline2/'
   fileRoutesById: FileRoutesById
 }
-
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   Timeline2DateRoute: typeof Timeline2DateRoute
   Timeline2IndexRoute: typeof Timeline2IndexRoute
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeline2/': {
+      id: '/timeline2/'
+      path: '/timeline2'
+      fullPath: '/timeline2'
+      preLoaderRoute: typeof Timeline2IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeline2/$date': {
+      id: '/timeline2/$date'
+      path: '/timeline2/$date'
+      fullPath: '/timeline2/$date'
+      preLoaderRoute: typeof Timeline2DateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -104,31 +90,6 @@ const rootRouteChildren: RootRouteChildren = {
   Timeline2DateRoute: Timeline2DateRoute,
   Timeline2IndexRoute: Timeline2IndexRoute,
 }
-
-export const routeTree = rootRoute
+export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-/* ROUTE_MANIFEST_START
-{
-  "routes": {
-    "__root__": {
-      "filePath": "__root.tsx",
-      "children": [
-        "/",
-        "/timeline2/$date",
-        "/timeline2/"
-      ]
-    },
-    "/": {
-      "filePath": "index.tsx"
-    },
-    "/timeline2/$date": {
-      "filePath": "timeline2/$date.tsx"
-    },
-    "/timeline2/": {
-      "filePath": "timeline2/index.tsx"
-    }
-  }
-}
-ROUTE_MANIFEST_END */

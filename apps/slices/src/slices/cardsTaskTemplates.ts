@@ -26,7 +26,7 @@ export type TaskTemplate = {
   type: typeof taskTemplateType;
   id: string;
   title: string;
-  // projectId: string;
+  projectId: string;
   orderToken: string;
   horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
@@ -47,7 +47,7 @@ export const defaultTaskTemplate: TaskTemplate = {
   createdAt: 0,
   lastGeneratedAt: 0,
   projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
-  // projectId: "",
+  projectId: "",
 };
 
 // Table definition
@@ -60,10 +60,10 @@ export const taskTemplatesTable = table<TaskTemplate>(
     cols: ["projectCategoryId", "orderToken"],
     type: "btree",
   },
-  // byProjectIdOrderToken: {
-  //   cols: ["projectId", "orderToken"],
-  //   type: "btree",
-  // },
+  byProjectIdOrderToken: {
+    cols: ["projectId", "orderToken"],
+    type: "btree",
+  },
 });
 registerSyncableTable(taskTemplatesTable, taskTemplateType);
 
@@ -78,7 +78,7 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     id: generateTaskId(tmpl.id, date),
     title: tmpl.title,
     state: "todo",
-    // projectId: tmpl.projectId,
+    projectId: tmpl.projectId,
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
     lastToggledAt: date.getTime(),
@@ -279,6 +279,7 @@ export const cardsTaskTemplatesSlice = {
       horizon: task.horizon,
       lastGeneratedAt: startOfDay(new Date(task.createdAt)).getTime() - 1,
       projectCategoryId: task.projectCategoryId,
+      projectId: "",
       ...data,
     };
 
