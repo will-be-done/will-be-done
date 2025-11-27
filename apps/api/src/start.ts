@@ -325,6 +325,7 @@ server.setNotFoundHandler((request, reply) => {
       reply.code(404).send({ error: "index.html not found" });
     }
   } catch (err) {
+    console.error("Error serving index.html:", err);
     reply.code(500).send({ error: "Server error" });
   }
 });
@@ -335,22 +336,24 @@ const start = async () => {
 
     const signals = ["SIGINT", "SIGTERM", "SIGQUIT"];
     for (const signal of signals) {
-      process.on(signal, async () => {
-        server.log.info(
-          `${signal} signal received, shutting down gracefully...`,
-        );
+      process.on(signal, () => {
+        void (async () => {
+          server.log.info(
+            `${signal} signal received, shutting down gracefully...`,
+          );
 
-        try {
-          // Close the Fastify server first
-          await server.close();
-          server.log.info("Server closed successfully");
+          try {
+            // Close the Fastify server first
+            await server.close();
+            server.log.info("Server closed successfully");
 
-          // Then exit the process
-          process.exit(0);
-        } catch (err) {
-          server.log.error(`Error during graceful shutdown: ${err}`);
-          process.exit(1);
-        }
+            // Then exit the process
+            process.exit(0);
+          } catch (err) {
+            server.log.error(`Error during graceful shutdown: ${err}`);
+            process.exit(1);
+          }
+        })();
       });
     }
   } catch (err) {
@@ -475,4 +478,4 @@ async function processTranscriptions() {
   }
 }
 
-processTranscriptions();
+void processTranscriptions();

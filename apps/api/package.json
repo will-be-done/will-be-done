@@ -5,7 +5,9 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run src/start.ts"
+    "dev": "bun run src/start.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
     "@types/bun": "latest"
