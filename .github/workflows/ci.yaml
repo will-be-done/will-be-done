@@ -24,8 +24,16 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Install Playwright browsers
+        if: matrix.package == 'hyperdb'
+        run: bunx playwright install chromium
+
       - name: Lint @apps/${{ matrix.package }}
         run: cd apps/${{ matrix.package }} && bun run lint
 
       - name: TypeCheck @apps/${{ matrix.package }}
         run: cd apps/${{ matrix.package }} && bun run ts
+
+      - name: Test @apps/${{ matrix.package }}
+        if: matrix.package == 'hyperdb'
+        run: cd apps/${{ matrix.package }} && bun run test
