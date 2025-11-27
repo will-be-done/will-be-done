@@ -9,6 +9,10 @@ on:
 jobs:
   lint-and-typecheck:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [web, hyperdb, api, slices]
 
     steps:
       - uses: actions/checkout@v4
@@ -20,26 +24,8 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Lint @apps/web
-        run: cd apps/web && bun run lint
+      - name: Lint @apps/${{ matrix.package }}
+        run: cd apps/${{ matrix.package }} && bun run lint
 
-      - name: TypeCheck @apps/web
-        run: cd apps/web && bun run ts
-
-      - name: Lint @apps/hyperdb
-        run: cd apps/hyperdb && bun run lint
-
-      - name: TypeCheck @apps/hyperdb
-        run: cd apps/hyperdb && bun run ts
-
-      - name: Lint @apps/api
-        run: cd apps/api && bun run lint
-
-      - name: TypeCheck @apps/api
-        run: cd apps/api && bun run ts
-
-      - name: Lint @apps/slices
-        run: cd apps/slices && bun run lint
-
-      - name: TypeCheck @apps/slices
-        run: cd apps/slices && bun run ts
+      - name: TypeCheck @apps/${{ matrix.package }}
+        run: cd apps/${{ matrix.package }} && bun run ts
