@@ -1,5 +1,5 @@
 import { isObjectType } from "../utils";
-import { shouldNeverHappen } from "@/utils";
+import { shouldNeverHappen } from "../utils";
 import {
   action,
   deleteRows,
