@@ -1,5 +1,4 @@
 import { isObjectType } from "../utils";
-import { shouldNeverHappen } from "@/utils";
 import {
   action,
   deleteRows,
@@ -13,12 +12,10 @@ import {
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
 import type { GenReturn } from "./utils";
-import { tasksSlice2, type Task } from "./tasks";
-// import { projectItemsSlice2 } from "./projectItems";
-import { dailyListsSlice2 } from "./dailyLists";
+import { tasksSlice2, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoriesSlice2 } from "./projectCategories";
+import { projectCategoriesSlice2 } from "./projectsCategories";
 import { appSlice2 } from "./app";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 

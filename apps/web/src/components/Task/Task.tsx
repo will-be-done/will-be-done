@@ -28,7 +28,6 @@ import { startOfDay } from "date-fns";
 import {
   appSlice2,
   cardsSlice,
-  dropSlice2,
   isTask,
   isTaskProjection,
   isTaskTemplate,
@@ -47,7 +46,7 @@ import {
   parseColumnKey,
 } from "@/store2/slices/focusSlice";
 import { Checkbox } from "@base-ui-components/react/checkbox";
-import { projectCategoryCardsSlice2 } from "@will-be-done/slices/src/slices/projectCategoryCards";
+import { projectCategoryCardsSlice2 } from "@will-be-done/slices";
 
 export function CheckboxComp({
   checked,

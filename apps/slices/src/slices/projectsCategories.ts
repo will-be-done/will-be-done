@@ -17,8 +17,8 @@ import { registerModelSlice } from "./maps";
 import { registerSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
 import { defaultProject, Project, projectsSlice2 } from "./projects";
-import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
-import { Task, tasksSlice2 } from "./tasks";
+import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
+import { Task, tasksSlice2 } from "./cardsTasks";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 export const projectCategoryType = "projectCategory";

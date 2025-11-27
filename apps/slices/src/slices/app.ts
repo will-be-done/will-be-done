@@ -1,6 +1,6 @@
 import { action, selector } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
-import { defaultTask } from "./tasks";
+import { defaultTask } from "./cardsTasks";
 import { AnyModel, appTypeSlicesMap } from "./maps";
 
 // Slice

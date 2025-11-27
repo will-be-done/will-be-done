@@ -7,19 +7,19 @@ import {
 } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
 import { getDMY } from "./utils";
-import { tasksSlice2, type Task, taskType } from "./tasks";
+import { tasksSlice2, type Task, taskType } from "./cardsTasks";
 import {
   projectionsSlice2,
   projectionType,
   type TaskProjection,
-} from "./projections";
+} from "./dailyListsProjections";
 import {
   taskTemplatesSlice2,
   type TaskTemplate,
   taskTemplateType,
-} from "./taskTemplates";
+} from "./cardsTaskTemplates";
 import { dailyListsSlice2, dailyListType, type DailyList } from "./dailyLists";
-import { allProjectsSlice2 } from "./allProjects";
+import { allProjectsSlice2 } from "./projectsAll";
 import { projectType, type Project } from "./projects";
 import { AnyModel, appTypeTablesMap } from "./maps";
 import { registeredSyncableTables } from "./syncMap";
@@ -27,7 +27,7 @@ import {
   projectCategoriesSlice2,
   ProjectCategory,
   projectCategoryType,
-} from "./projectCategories";
+} from "./projectsCategories";
 import uuidByString from "uuid-by-string";
 
 interface CategoryBackup {

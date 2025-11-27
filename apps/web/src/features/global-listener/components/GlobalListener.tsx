@@ -10,7 +10,6 @@ import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/clo
 import {
   appSlice2,
   dailyListType,
-  dropSlice2,
   projectionType,
   projectType,
   taskType,

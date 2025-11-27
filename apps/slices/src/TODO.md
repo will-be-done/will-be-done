@@ -15,3 +15,5 @@
    1. FirstCard
    2. LastCard
    3. Cards
+
+DO THIS: move all children related things to dailyListProjections.ts for dailyList.ts for example

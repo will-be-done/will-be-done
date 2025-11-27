@@ -14,16 +14,16 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
 import { appSlice2 } from "./app";
-import { projectionsSlice2, isTaskProjection } from "./projections";
+import { projectionsSlice2, isTaskProjection } from "./dailyListsProjections";
 import {
   isTaskTemplate,
   TaskTemplate,
   taskTemplatesSlice2,
-} from "./taskTemplates";
+} from "./cardsTaskTemplates";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
-import { projectCategoriesSlice2 } from "./projectCategories";
+import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
+import { projectCategoriesSlice2 } from "./projectsCategories";
 
 // Type definitions
 export const taskType = "task";

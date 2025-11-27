@@ -13,13 +13,13 @@ import uuidByString from "uuid-by-string";
 import type { GenReturn, OrderableItem } from "./utils";
 import { generateOrderTokenPositioned, getDMY } from "./utils";
 import { appSlice2 } from "./app";
-import { isTask, tasksSlice2, type Task } from "./tasks";
+import { isTask, tasksSlice2, type Task } from "./cardsTasks";
 import {
   isTaskProjection,
   projectionsSlice2,
   type TaskProjection,
   taskProjectionsTable,
-} from "./projections";
+} from "./dailyListsProjections";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectsSlice2 } from "./projects";

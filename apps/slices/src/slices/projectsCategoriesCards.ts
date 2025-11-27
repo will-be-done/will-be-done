@@ -1,12 +1,12 @@
 import { runQuery, selector, selectFrom, action } from "@will-be-done/hyperdb";
 import { generateKeyPositionedBetween, GenReturn } from "./utils";
 import { dailyListsSlice2 } from "./dailyLists";
-import { defaultTask, Task, tasksSlice2, tasksTable } from "./tasks";
+import { defaultTask, Task, tasksSlice2, tasksTable } from "./cardsTasks";
 import {
   TaskTemplate,
   taskTemplatesSlice2,
   taskTemplatesTable,
-} from "./taskTemplates";
+} from "./cardsTaskTemplates";
 
 export type Card = Task | TaskTemplate;
 

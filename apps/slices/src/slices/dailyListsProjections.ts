@@ -15,10 +15,10 @@ import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
 import { generateKeyPositionedBetween } from "./utils";
 import { appSlice2 } from "./app";
-import { isTask, tasksSlice2, type Task } from "./tasks";
+import { isTask, tasksSlice2, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
+import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
 
 // Type definitions
 export const projectionType = "projection";

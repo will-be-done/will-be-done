@@ -1,17 +1,20 @@
 import { action, selector } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
 import { assertUnreachable } from "./utils";
-import { tasksSlice2, type Task, defaultTask } from "./tasks";
-import { projectionsSlice2, type TaskProjection } from "./projections";
+import { tasksSlice2, type Task, defaultTask } from "./cardsTasks";
+import {
+  projectionsSlice2,
+  type TaskProjection,
+} from "./dailyListsProjections";
 import {
   taskTemplatesSlice2,
   type TaskTemplate,
   isTaskTemplate,
-} from "./taskTemplates";
-import { isTask } from "./tasks";
-import { isTaskProjection } from "./projections";
-import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
+} from "./cardsTaskTemplates";
+import { isTask } from "./cardsTasks";
+import { isTaskProjection } from "./dailyListsProjections";
 import { AnyModel } from "./maps";
+import { projectCategoryCardsSlice2 } from "./projectsCategoriesCards";
 
 export const cardsSlice = {
   createSiblingCard: action(function* (

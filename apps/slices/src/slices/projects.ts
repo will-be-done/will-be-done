@@ -15,18 +15,17 @@ import { uuidv7 } from "uuidv7";
 import type { OrderableItem, GenReturn } from "./utils";
 import { inboxId, generateOrderTokenPositioned } from "./utils";
 import { appSlice2 } from "./app";
-import { allProjectsSlice2 } from "./allProjects";
-import { isTask, Task, tasksSlice2, tasksTable } from "./tasks";
+import { allProjectsSlice2 } from "./projectsAll";
+import { isTask, Task, tasksSlice2, tasksTable } from "./cardsTasks";
 import {
   isTaskTemplate,
   taskTemplatesSlice2,
   taskTemplatesTable,
-} from "./taskTemplates";
-import { isTaskProjection } from "./projections";
+} from "./cardsTaskTemplates";
+import { isTaskProjection } from "./dailyListsProjections";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { ProjectCategory, projectCategoriesSlice2 } from "./projectCategories";
-import { projectCategoryCardsSlice2 } from "./projectCategoryCards";
+import { projectCategoriesSlice2 } from "./projectsCategories";
 
 // Type definitions
 export const projectType = "project";
