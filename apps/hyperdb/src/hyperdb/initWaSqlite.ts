@@ -1,12 +1,8 @@
 import SQLiteAsyncESMFactory from "wa-sqlite/dist/wa-sqlite-async.mjs";
-import SQLiteSyncESMFactory from "wa-sqlite/dist/wa-sqlite.mjs";
 import asyncSqlWasmUrl from "wa-sqlite/dist/wa-sqlite-async.wasm?url";
-import syncSqlWasmUrl from "wa-sqlite/dist/wa-sqlite.wasm?url";
 import * as SQLite from "wa-sqlite";
 import { MemoryAsyncVFS } from "wa-sqlite/src/examples/MemoryAsyncVFS.js";
-import { MemoryVFS } from "wa-sqlite/src/examples/MemoryVFS.js";
 import { AsyncSqlDriver } from "./drivers/AsyncSqlDriver";
-import { SqlDriver } from "./drivers/SqlDriver";
 
 export async function initWasmIDBAsync() {
   const module = await SQLiteAsyncESMFactory({

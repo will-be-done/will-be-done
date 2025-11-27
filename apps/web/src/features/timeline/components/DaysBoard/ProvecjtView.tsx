@@ -1,5 +1,5 @@
 import { ProjectItemsList2 } from "@/features/project/components/ProjectItemsList/ProjectItemList2";
-import { dailyListsSlice, inboxId } from "@will-be-done/slices";
+import { inboxId } from "@will-be-done/slices";
 import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
 import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -21,28 +21,22 @@ import { DndModelData, isModelDNDData } from "@/features/dnd/models";
 import { cn } from "@/lib/utils";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement";
-import { Link } from "@tanstack/react-router";
 import {
-  execSync,
   select,
   useDB,
   useDispatch,
-  useSelect,
   useSyncSelector,
 } from "@will-be-done/hyperdb";
 import {
   projectsAllSlice,
-  appSlice,
   projectsSlice,
 } from "@will-be-done/slices";
-import { Backup } from "@will-be-done/slices";
 import {
   buildFocusKey,
   focusManager,
   focusSlice2,
 } from "@/store2/slices/focusSlice";
 import { ColumnListProvider } from "@/features/focus/components/ParentListProvider";
-import { useCurrentDate, useCurrentDMY } from "./hooks";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
   EmojiPicker,
@@ -93,7 +87,6 @@ const ProjectItem = function ProjectItemComp({
   orderNumber,
   onProjectClick,
   isSelected,
-  exceptDailyListIds,
 }: {
   projectId: string;
   orderNumber: string;
@@ -271,20 +264,6 @@ const ProjectItem = function ProjectItemComp({
       }),
     );
   }, [db, project.id, project.type]);
-
-  const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
-      e.preventDefault();
-      dispatch(focusSlice2.resetEdit());
-    }
-  };
-
-  const isEditing = useSyncSelector(
-    () => focusSlice2.isEditing(focusItem.key),
-    [focusItem.key],
-  );
-
-  const currentDate = useCurrentDate();
 
   // TODO: return back
   const notDoneTasksCount = 0;
@@ -556,20 +535,20 @@ export const ProjectView = ({
           </div>
           <div className="h-full overflow-y-auto flex flex-col gap-2 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
             <ProjectItem
-              exceptDailyListIds={exceptDailyListIds}
               projectId={inboxProject.id}
               orderNumber="0"
               onProjectClick={setSelectedProjectId}
               isSelected={selectedProjectId === inboxProject.id}
+              exceptDailyListIds={exceptDailyListIds}
             />
             {projectIdsWithoutInbox.map((id, i) => (
               <ProjectItem
-                exceptDailyListIds={exceptDailyListIds}
                 key={id}
                 projectId={id}
                 orderNumber={(i + 1).toString()}
                 onProjectClick={setSelectedProjectId}
                 isSelected={selectedProjectId === id}
+                exceptDailyListIds={exceptDailyListIds}
               />
             ))}
           </div>

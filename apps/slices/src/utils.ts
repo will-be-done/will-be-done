@@ -10,7 +10,7 @@ export const shouldNeverHappen = (msg?: string, ...args: any[]): never => {
   throw new Error(`This should never happen: ${msg}`);
 };
 
-export function assertUnreachable(x: never): never {
+export function assertUnreachable(_x: never): never {
   throw new Error("Didn't expect to get here");
 }
 

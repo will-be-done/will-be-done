@@ -83,6 +83,7 @@
     "eslint-plugin-react-hooks": "6.0.0-rc.1",
     "eslint-plugin-react-refresh": "^0.4.19",
     "eslint-plugin-react-x": "^1.49.0",
+    "eslint-plugin-unused-imports": "^4.3.0",
     "globals": "^15.15.0",
     "jsdom": "^26.0.0",
     "prettier": "^3.5.3",

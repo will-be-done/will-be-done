@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isInputElement } from "@/utils/isInputElement.ts";
@@ -14,7 +14,7 @@ import {
   projectType,
   taskType,
 } from "@will-be-done/slices";
-import { select, useDB, useDispatch, useSelect } from "@will-be-done/hyperdb";
+import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
 import {
   FocusKey,
   focusManager,

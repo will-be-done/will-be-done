@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
@@ -16,7 +16,6 @@ import { NavPanel } from "./NavPanel";
 import { useCurrentDMY, useDaysPreferences, useHiddenDays } from "./hooks";
 import { ProjectView } from "./ProvecjtView";
 import { TasksColumn, TasksColumnGrid } from "@/components/TasksGrid/TasksGrid";
-import { ScrollArea } from "@base-ui-components/react/scroll-area";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 
@@ -152,7 +151,7 @@ type ProjectsViewSize = {
 
 const useProjectsViewSize = create<ProjectsViewSize>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       projectsViewHeight: 20,
       projectsViewHidden: false,
       setProjectsViewHeight: (value: number) => {

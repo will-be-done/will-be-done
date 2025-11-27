@@ -33,7 +33,7 @@ export const useCurrentDate = () => {
 
 export const useDaysPreferences = create<DaysPreferences>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       daysWindow: 7,
       daysShift: 0,
       setDaysWindow: (value: number) => {
@@ -67,7 +67,7 @@ export type HiddenDays = {
 
 export const useHiddenDays = create<HiddenDays>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       hiddenDays: {},
       setHiddenDays: (value: Record<string, boolean>) => {
         set({ hiddenDays: value });

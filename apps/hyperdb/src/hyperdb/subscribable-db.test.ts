@@ -3,7 +3,6 @@ import { SubscribableDB, type Op } from "./subscribable-db";
 import { DB, SyncDB } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
-import { SqlDriver } from "./drivers/SqlDriver";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
 // import { SqlDriver } from "./drivers/SqlDriver";
 

@@ -17,7 +17,6 @@ import * as SQLite from "wa-sqlite";
 export const waSqliteWebBackend =
   ({
     wasmUrl,
-    pageSize,
     cacheSize,
   }: {
     wasmUrl: string;

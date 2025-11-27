@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { table } from "./table";
-import { DB, SyncDB, SyncDBTx, type HyperDB, type HyperDBTx } from "./db";
+import { DB, SyncDB, SyncDBTx } from "./db";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
 // import { SqlDriver } from "./drivers/SqlDriver";
 

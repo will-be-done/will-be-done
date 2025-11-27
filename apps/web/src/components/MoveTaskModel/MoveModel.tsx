@@ -98,6 +98,7 @@ export const MoveModal = ({
               {projects.map((pr, index) => (
                 <button
                   key={pr.id}
+                  type="button"
                   className={`mx-2 cursor-pointer rounded p-3 text-left ${
                     index === selectedIndex
                       ? "bg-sky-900"

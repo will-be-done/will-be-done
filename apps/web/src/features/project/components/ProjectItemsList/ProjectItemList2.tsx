@@ -1,7 +1,7 @@
 import { TaskComp } from "../../../../components/Task/Task.tsx";
 import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
 import { ParentListItemProvider } from "@/features/focus/components/ParentListProvider.tsx";
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   Project,
@@ -114,7 +114,7 @@ export const ProjectItemsList2 = ({ project }: { project: Project }) => {
   return (
     <>
       <TasksColumnGrid columnsCount={categories.length}>
-        {categories.map((group, i) => (
+        {categories.map((group) => (
           <ProjectTasksColumn
             key={group.id}
             category={group}

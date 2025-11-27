@@ -33,7 +33,6 @@ import {
   isTaskTemplate,
   projectCategoriesSlice,
   dailyListsProjections,
-  projectsSlice,
   Task,
   cardsTasksSlice,
 } from "@will-be-done/slices";
@@ -202,7 +201,6 @@ export const TaskComp = ({
       // }
     }
   };
-  const [dragId, setDragId] = useState<string | undefined>(undefined);
 
   const isFocused = useSyncSelector(
     () => focusSlice2.isFocused(focusableItem.key),
@@ -261,7 +259,7 @@ export const TaskComp = ({
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
 
     const getId = (key: FocusKey) => {
-      const { id, type } = parseColumnKey(key);
+      const { id } = parseColumnKey(key);
       return id;
     };
 
@@ -521,7 +519,6 @@ export const TaskComp = ({
         onDragEnter: (args) => {
           const data = args.source.data;
           if (isModelDNDData(data)) {
-            setDragId(data.modelId);
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
@@ -529,16 +526,13 @@ export const TaskComp = ({
           const data = args.source.data;
 
           if (isModelDNDData(data)) {
-            setDragId(data.modelId);
             setClosestEdge(extractClosestEdge(args.self.data));
           }
         },
         onDragLeave: () => {
-          setDragId(undefined);
           setClosestEdge(null);
         },
         onDrop: () => {
-          setDragId(undefined);
           setClosestEdge(null);
         },
       }),

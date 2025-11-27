@@ -253,7 +253,7 @@ export const projectsSlice = {
 
       if (existingCategories.length === 0) {
         // Create three default categories
-        const weekCategory = yield* projectCategoriesSlice.createCategory(
+        yield* projectCategoriesSlice.createCategory(
           { projectId, title: "Week" },
           "append",
         );

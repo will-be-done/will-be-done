@@ -7,12 +7,15 @@ import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
+    // @ts-expect-error don't know why
     TanStackRouterVite({ autoCodeSplitting: true }),
+    // @ts-expect-error don't know why
     react({
       babel: {
         plugins: [["babel-plugin-react-compiler", {}]],
       },
     }),
+    // @ts-expect-error don't know why
     tailwindcss(),
   ],
   resolve: {

@@ -16,7 +16,6 @@ export function useSyncSelector<TReturn>(
   const db = useDB();
   const selector = useMemo(() => {
     return initSelector(db, gen, debugKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, ...(deps || [])]);
 
   return useSyncExternalStore(selector.subscribe, selector.getSnapshot);

@@ -175,13 +175,13 @@ export const projectCategoriesSlice = {
   }),
 
   handleDrop: action(function* (
-    categoryId: string,
-    dropId: string,
-    edge: "top" | "bottom",
+    _categoryId: string,
+    _dropId: string,
+    _edge: "top" | "bottom",
   ): GenReturn<void> {}),
   canDrop: selector(function* (
-    categoryId: string,
-    dropId: string,
+    _categoryId: string,
+    _dropId: string,
   ): GenReturn<boolean> {
     yield* noop();
 

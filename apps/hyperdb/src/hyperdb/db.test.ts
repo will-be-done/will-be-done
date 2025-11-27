@@ -4,7 +4,6 @@ import { DB, SyncDB } from "./db.ts";
 // import { SqlDriver } from "./drivers/SqlDriver.ts";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver.ts";
 import { table } from "./table.ts";
-import { SqlDriver } from "./drivers/SqlDriver.ts";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm.ts";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(

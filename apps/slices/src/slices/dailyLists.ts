@@ -13,7 +13,7 @@ import uuidByString from "uuid-by-string";
 import type { GenReturn, OrderableItem } from "./utils";
 import { generateOrderTokenPositioned, getDMY } from "./utils";
 import { appSlice } from "./app";
-import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
+import { isTask, cardsTasksSlice } from "./cardsTasks";
 import {
   isTaskProjection,
   dailyListsProjections,

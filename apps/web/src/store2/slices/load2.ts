@@ -11,7 +11,6 @@ import {
   execSync,
   HyperDB,
   insert,
-  Row,
   runQuery,
   runSelectorAsync,
   selectFrom,
@@ -31,7 +30,6 @@ import {
   projectsSlice,
   Change,
   ChangesetArrayType,
-  cardsTaskTemplatesSlice,
   registeredSyncableTables,
   registeredSyncableTableNameMap,
 } from "@will-be-done/slices";
@@ -43,7 +41,6 @@ import {
   createLeaderElection,
   LeaderElector,
 } from "broadcast-channel";
-import { groupBy, maxBy } from "es-toolkit";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { focusTable } from "./focusSlice";
 
