@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run src/start.ts",
+    "ts": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
