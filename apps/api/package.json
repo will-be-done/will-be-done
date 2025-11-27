@@ -21,8 +21,8 @@
     "@trpc/server": "^11.5.0",
     "@will-be-done/hyperdb": "workspace:*",
     "@will-be-done/slices": "workspace:*",
-    "dotenv": "^16.5.0",
+    "dotenv": "^17.2.3",
     "fastify": "^5.3.2",
-    "zod": "^3.24.3"
+    "zod": "^4.1.13"
   }
 }
