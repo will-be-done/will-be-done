@@ -26,7 +26,7 @@ const encodingRank = sortBy(
 ).map(([key]) => key as EncodingType);
 
 export function encodingTypeOf(value: ScanValue): EncodingType {
-  if (value === null) {
+  if (value === null || value === undefined) {
     return "null";
   }
   if (value === true || value === false) {

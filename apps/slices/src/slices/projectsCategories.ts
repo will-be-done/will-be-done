@@ -6,6 +6,7 @@ import {
   selectFrom,
   selector,
   table,
+  update,
 } from "@will-be-done/hyperdb";
 import {
   generateOrderTokenPositioned,
@@ -18,8 +19,16 @@ import { registerSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
 import { defaultProject, Project, projectsSlice } from "./projects";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
-import { Task, cardsTasksSlice } from "./cardsTasks";
+import { Task, cardsTasksSlice, isTask } from "./cardsTasks";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
+import { appSlice } from "./app";
+import {
+  dailyListsProjections,
+  isTaskProjection,
+} from "./dailyListsProjections";
+import { isTaskTemplate } from "./cardsTaskTemplates";
+import { cardsSlice } from "./cards";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 
 export const projectCategoryType = "projectCategory";
 
@@ -81,9 +90,15 @@ export const projectCategoriesSlice = {
   byProjectId: selector(function* (
     projectId: string,
   ): GenReturn<ProjectCategory[]> {
+    return yield* projectCategoriesSlice.byProjectIds([projectId]);
+  }),
+
+  byProjectIds: selector(function* (
+    projectIds: string[],
+  ): GenReturn<ProjectCategory[]> {
     const categories = yield* runQuery(
       selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
-        q.eq("projectId", projectId),
+        projectIds.map((id) => q.eq("projectId", id)),
       ),
     );
     return categories;
@@ -120,26 +135,104 @@ export const projectCategoriesSlice = {
     return result[result.length - 1];
   }),
 
+  updateCategory: action(function* (
+    categoryId: string,
+    category: Partial<ProjectCategory>,
+  ): GenReturn<void> {
+    const categoryInState = yield* projectCategoriesSlice.byId(categoryId);
+    if (!categoryInState) throw new Error("Category not found");
+
+    yield* update(projectCategoriesTable, [
+      { ...categoryInState, ...category },
+    ]);
+  }),
+
+  siblings: selector(function* (
+    categoryId: string,
+  ): GenReturn<[ProjectCategory | undefined, ProjectCategory | undefined]> {
+    const item = yield* projectCategoriesSlice.byId(categoryId);
+    if (!item) return [undefined, undefined];
+
+    const sortedProjectCategories = yield* runQuery(
+      selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
+        q.eq("projectId", item.projectId),
+      ),
+    );
+
+    const index = sortedProjectCategories.findIndex((p) => p.id === categoryId);
+
+    const beforeId =
+      index > 0 ? sortedProjectCategories[index - 1].id : undefined;
+    const afterId =
+      index < sortedProjectCategories.length - 1
+        ? sortedProjectCategories[index + 1].id
+        : undefined;
+
+    const before = beforeId
+      ? yield* projectCategoriesSlice.byIdOrDefault(beforeId)
+      : undefined;
+    const after = afterId
+      ? yield* projectCategoriesSlice.byIdOrDefault(afterId)
+      : undefined;
+
+    return [before, after];
+  }),
+
+  moveLeft: action(function* (categoryId: string): GenReturn<void> {
+    const [up] = yield* projectCategoriesSlice.siblings(categoryId);
+    const [up2] = up
+      ? yield* projectCategoriesSlice.siblings(up?.id)
+      : [undefined, undefined];
+
+    if (!up) return;
+
+    yield* projectCategoriesSlice.updateCategory(categoryId, {
+      orderToken: generateJitteredKeyBetween(
+        up2?.orderToken || null,
+        up.orderToken,
+      ),
+    });
+  }),
+
+  moveRight: action(function* (categoryId: string): GenReturn<void> {
+    const [_up, down] = yield* projectCategoriesSlice.siblings(categoryId);
+    const [_up2, down2] = down
+      ? yield* projectCategoriesSlice.siblings(down?.id)
+      : [undefined, undefined];
+
+    if (!down) return;
+
+    yield* projectCategoriesSlice.updateCategory(categoryId, {
+      orderToken: generateJitteredKeyBetween(
+        down.orderToken,
+        down2?.orderToken || null,
+      ),
+    });
+  }),
+
   createCategory: action(function* (
-    group: Partial<ProjectCategory> & { projectId: string; title: string },
+    categoryDraft: Partial<ProjectCategory> & {
+      projectId: string;
+      title: string;
+    },
     position:
       | [OrderableItem | undefined, OrderableItem | undefined]
       | "append"
       | "prepend",
   ): GenReturn<ProjectCategory> {
     const orderToken = yield* generateOrderTokenPositioned(
-      group.projectId,
+      categoryDraft.projectId,
       projectCategoriesSlice,
       position,
     );
 
-    const id = group.id || uuidv7();
+    const id = categoryDraft.id || uuidv7();
 
     const category: ProjectCategory = {
       type: projectCategoryType,
       id,
-      title: group.title,
-      projectId: group.projectId,
+      title: categoryDraft.title,
+      projectId: categoryDraft.projectId,
       orderToken: orderToken,
       createdAt: Date.now(),
     };
@@ -171,21 +264,59 @@ export const projectCategoriesSlice = {
   }),
 
   delete: action(function* (ids: string[]): GenReturn<void> {
+    const idsToDelete: string[] = [];
+
+    for (const categoryId of ids) {
+      const childrenIds =
+        yield* projectCategoryCardsSlice.childrenIds(categoryId);
+      const doneChildrenIds =
+        yield* projectCategoryCardsSlice.doneChildrenIds(categoryId);
+
+      idsToDelete.push(...childrenIds, ...doneChildrenIds);
+    }
+
+    if (idsToDelete.length > 0) {
+      yield* cardsSlice.deleteByIds(idsToDelete);
+    }
+
     yield* deleteRows(projectCategoriesTable, ids);
   }),
 
   handleDrop: action(function* (
-    _categoryId: string,
-    _dropId: string,
+    categoryId: string,
+    dropId: string,
     _edge: "top" | "bottom",
-  ): GenReturn<void> {}),
+  ): GenReturn<void> {
+    const dropItem = yield* appSlice.byId(dropId);
+    if (!dropItem) return;
+
+    if (isTask(dropItem)) {
+      yield* cardsTasksSlice.update(dropItem.id, {
+        projectCategoryId: categoryId,
+      });
+    } else if (isTaskProjection(dropItem)) {
+      const task = yield* cardsTasksSlice.byId(dropItem.taskId);
+      if (!task) return;
+
+      yield* cardsTasksSlice.update(task.id, {
+        projectCategoryId: categoryId,
+      });
+
+      yield* dailyListsProjections.delete([dropItem.id]);
+    }
+  }),
   canDrop: selector(function* (
     _categoryId: string,
-    _dropId: string,
+    dropId: string,
   ): GenReturn<boolean> {
     yield* noop();
 
-    return false;
+    const dropItem = yield* appSlice.byId(dropId);
+    if (!dropItem) return false;
+
+    return (
+      isTask(dropItem) || isTaskProjection(dropItem) || isTaskTemplate(dropItem)
+    );
   }),
 };
 

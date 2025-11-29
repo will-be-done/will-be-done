@@ -153,9 +153,14 @@ export const TaskComp = ({
   displayLastProjectionTime?: boolean;
 }) => {
   const dispatch = useDispatch();
+
   const card = useSyncSelector(
     () => projectCategoryCardsSlice.byIdOrDefault(taskId),
     [taskId],
+  );
+  const category = useSyncSelector(
+    () => projectCategoriesSlice.byIdOrDefault(card.projectCategoryId),
+    [card.projectCategoryId],
   );
   const cardWrapper = useSyncSelector(
     () => cardsSlice.cardWrapperIdOrDefault(taskBoxId),
@@ -711,7 +716,7 @@ export const TaskComp = ({
                 : "bg-panel-tinted text-panel-selected",
             )}
           >
-            <div>{card.horizon}</div>
+            <div>{category.title}</div>
 
             {lastProjectionTime !== undefined &&
               lastProjectionTime !== 0 &&

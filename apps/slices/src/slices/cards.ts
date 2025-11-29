@@ -74,4 +74,9 @@ export const cardsSlice = {
     }
     return undefined;
   }),
+
+  deleteByIds: action(function* (ids: string[]): GenReturn<void> {
+    yield* cardsTasksSlice.deleteByIds(ids);
+    yield* cardsTaskTemplatesSlice.delete(ids);
+  }),
 };

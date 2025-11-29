@@ -170,6 +170,9 @@ export const projectsSlice = {
     yield* update(projectsTable, [{ ...projectInState, ...project }]);
   }),
   delete: action(function* (ids: string[]): GenReturn<void> {
+    const projectCategories = yield* projectCategoriesSlice.byProjectIds(ids);
+
+    yield* projectCategoriesSlice.delete(projectCategories.map((c) => c.id));
     yield* deleteRows(projectsTable, ids);
   }),
   handleDrop: action(function* (

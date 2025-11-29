@@ -271,8 +271,8 @@ export const cardsTasksSlice = {
 
     return newTask;
   }),
-  deleteByIds: action(function* (ids: string[]) {
-    yield* deleteRows(tasksTable, ids);
+  deleteByIds: action(function* (ids: string[]): GenReturn<void> {
+    yield* cardsTasksSlice.delete(ids);
   }),
   deleteById: action(function* (id: string): GenReturn<void> {
     yield* cardsTasksSlice.delete([id]);

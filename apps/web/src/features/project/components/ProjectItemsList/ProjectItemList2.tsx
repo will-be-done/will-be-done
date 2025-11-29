@@ -62,9 +62,109 @@ const ProjectTasksColumn = ({
           </div>
         </>
       }
-      columnModelId={project.id}
-      columnModelType={project.type}
+      columnModelId={category.id}
+      columnModelType={category.type}
       onAddClick={handleAddClick}
+      actions={
+        <>
+          <button
+            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            type="button"
+            onClick={() => {
+              const title = prompt("Enter new name");
+              if (!title) return;
+
+              const [left, _right] = dispatch(
+                projectCategoriesSlice.siblings(category.id),
+              );
+
+              dispatch(
+                projectCategoriesSlice.createCategory(
+                  {
+                    projectId: category.projectId,
+                    title,
+                  },
+                  [left, category],
+                ),
+              );
+            }}
+          >
+            AL
+          </button>
+          <button
+            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            type="button"
+            onClick={() => {
+              const title = prompt("Enter new name");
+              if (!title) return;
+
+              const [_left, right] = dispatch(
+                projectCategoriesSlice.siblings(category.id),
+              );
+
+              dispatch(
+                projectCategoriesSlice.createCategory(
+                  {
+                    projectId: category.projectId,
+                    title,
+                  },
+                  [category, right],
+                ),
+              );
+            }}
+          >
+            AR
+          </button>
+          <button
+            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            type="button"
+            onClick={() => {
+              dispatch(projectCategoriesSlice.moveLeft(category.id));
+            }}
+          >
+            ML
+          </button>
+          <button
+            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            type="button"
+            onClick={() => {
+              dispatch(projectCategoriesSlice.moveRight(category.id));
+            }}
+          >
+            MR
+          </button>
+          <button
+            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            type="button"
+            onClick={() => {
+              const confirmed = confirm(
+                "Are you sure you want to delete this project category?",
+              );
+              if (!confirmed) return;
+
+              dispatch(projectCategoriesSlice.delete([category.id]));
+            }}
+          >
+            D
+          </button>
+          <button
+            className="hidden group-hover:block cursor-pointer text-panel mb-6"
+            type="button"
+            onClick={() => {
+              const newTitle = prompt("Enter new title", category.title);
+              if (!newTitle) return;
+
+              dispatch(
+                projectCategoriesSlice.updateCategory(category.id, {
+                  title: newTitle,
+                }),
+              );
+            }}
+          >
+            E
+          </button>
+        </>
+      }
     >
       <div className="flex flex-col gap-4 w-full py-4">
         {todoTaskIds.map((id, i) => {

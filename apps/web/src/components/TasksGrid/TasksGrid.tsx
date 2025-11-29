@@ -46,6 +46,7 @@ export const TasksColumn = ({
   children,
   panelWidth,
   onAddClick,
+  actions,
 }: {
   focusKey: FocusKey;
   orderNumber: number;
@@ -57,6 +58,7 @@ export const TasksColumn = ({
   children: React.ReactNode;
   panelWidth?: number;
   onAddClick?: () => void;
+  actions?: React.ReactNode;
 }) => {
   const select = useSelect();
   const columnRef = useRef<HTMLDivElement>(null);
@@ -134,6 +136,7 @@ export const TasksColumn = ({
               </svg>
             </button>
           )}
+          {actions}
           <button
             type="button"
             className={cn(
