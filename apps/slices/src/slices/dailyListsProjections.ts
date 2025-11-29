@@ -19,6 +19,8 @@ import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
+import { dailyListsSlice } from "./dailyLists";
+import { parse } from "date-fns";
 
 // Type definitions
 export const projectionType = "projection";
@@ -157,6 +159,19 @@ export const dailyListsProjections = {
       ),
     );
 
+    const dailyLists = new Map(
+      (yield* dailyListsSlice.byIds(projections.map((p) => p.dailyListId))).map(
+        (d) => [d.id, d] as const,
+      ),
+    );
+
+    projections.sort((a, b) => {
+      const aDate = dailyLists.get(a.dailyListId)?.date;
+      const bDate = dailyLists.get(b.dailyListId)?.date;
+
+      return (aDate || "") > (bDate || "") ? 1 : -1;
+    });
+
     return projections;
   }),
   lastProjectionOfTask: selector(function* (
@@ -167,6 +182,17 @@ export const dailyListsProjections = {
 
     if (projections.length === 0) return undefined;
     return projections[projections.length - 1];
+  }),
+  lastDateOfProjection: selector(function* (
+    taskId: string,
+  ): GenReturn<Date | undefined> {
+    const lastProjection =
+      yield* dailyListsProjections.lastProjectionOfTask(taskId);
+    if (!lastProjection) return undefined;
+    const dailyList = yield* dailyListsSlice.byId(lastProjection.dailyListId);
+    if (!dailyList) return undefined;
+
+    return parse(dailyList.date, "yyyy-MM-dd", new Date());
   }),
 
   // actions

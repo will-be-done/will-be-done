@@ -46,6 +46,7 @@ import {
 } from "@/store2/slices/focusSlice";
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices";
+import { useCurrentDate } from "@/features/timeline/components/DaysBoard/hooks";
 
 export function CheckboxComp({
   checked,
@@ -172,14 +173,12 @@ export const TaskComp = ({
     [card.projectCategoryId],
   );
   const lastProjectionTime = useSyncSelector(
-    function* () {
-      return (yield* dailyListsProjections.lastProjectionOfTask(taskId))
-        ?.createdAt;
-    },
+    () => dailyListsProjections.lastDateOfProjection(taskId),
     [taskId],
   );
+  const date = useCurrentDate();
   const shouldHighlightProjectionTime =
-    lastProjectionTime && startOfDay(new Date()).getTime() > lastProjectionTime;
+    lastProjectionTime && startOfDay(date) > lastProjectionTime;
 
   const [editingTitle, setEditingTitle] = useState<string>(card.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);

@@ -23,7 +23,7 @@ export const useCurrentDate = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setDate(new Date());
-    }, 1000);
+    }, 60_000);
 
     return () => clearInterval(interval);
   }, []);

@@ -67,6 +67,14 @@ export const dailyListsSlice = {
     );
     return dailyLists[0];
   }),
+  byIds: selector(function* (ids: string[]): GenReturn<DailyList[]> {
+    const dailyLists = yield* runQuery(
+      selectFrom(dailyListsTable, "byId").where((q) =>
+        ids.map((id) => q.eq("id", id)),
+      ),
+    );
+    return dailyLists;
+  }),
   byIdOrDefault: selector(function* (id: string): GenReturn<DailyList> {
     return (yield* dailyListsSlice.byId(id)) || defaultDailyList;
   }),
@@ -85,7 +93,17 @@ export const dailyListsSlice = {
       ),
     );
 
-    return projections.map((proj) => proj.id);
+    const notDoneTasksIds = new Set<string>();
+    for (const proj of projections) {
+      const task = yield* cardsTasksSlice.byId(proj.taskId);
+      if (task?.state !== "done") {
+        notDoneTasksIds.add(proj.taskId);
+      }
+    }
+
+    return projections
+      .filter((proj) => notDoneTasksIds.has(proj.taskId))
+      .map((proj) => proj.id);
   }),
   doneChildrenIds: selector(function* (
     dailyListId: string,

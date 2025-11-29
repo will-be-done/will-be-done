@@ -22,10 +22,15 @@ import {
   cardsTaskTemplatesSlice,
   taskTemplatesTable,
 } from "./cardsTaskTemplates";
-import { isTaskProjection } from "./dailyListsProjections";
+import {
+  dailyListsProjections,
+  isTaskProjection,
+} from "./dailyListsProjections";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectCategoriesSlice } from "./projectsCategories";
+import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
+import { dailyListsSlice } from "./dailyLists";
 
 // Type definitions
 export const projectType = "project";
@@ -98,6 +103,58 @@ export const projectsSlice = {
       isTaskTemplate(dropItem) ||
       isTaskProjection(dropItem)
     );
+  }),
+
+  overdueTasksCountExceptDailiesCount: selector(function* (
+    projectId: string,
+    exceptDailyListIds: string[],
+    currentDate: Date,
+  ): GenReturn<number> {
+    const categories = yield* projectCategoriesSlice.byProjectId(projectId);
+
+    const taskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
+    const exceptCardIds: Set<string> = new Set(taskIds);
+
+    const finalChildrenIds: string[] = [];
+    for (const category of categories) {
+      const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
+        category.id,
+      );
+
+      for (const id of childrenIds) {
+        const lastProjection =
+          yield* dailyListsProjections.lastProjectionOfTask(id);
+        if (!lastProjection) continue;
+
+        const lastCreatedAt = lastProjection.createdAt;
+        if (lastCreatedAt < currentDate.getTime()) {
+          finalChildrenIds.push(id);
+        }
+      }
+    }
+
+    return finalChildrenIds.filter((id) => !exceptCardIds.has(id)).length;
+  }),
+
+  notDoneTasksCountExceptDailiesCount: selector(function* (
+    projectId: string,
+    exceptDailyListIds: string[],
+  ): GenReturn<number> {
+    const categories = yield* projectCategoriesSlice.byProjectId(projectId);
+
+    const taskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
+    const exceptCardIds: Set<string> = new Set(taskIds);
+
+    const finalChildrenIds: string[] = [];
+    for (const category of categories) {
+      const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
+        category.id,
+      );
+
+      finalChildrenIds.push(...childrenIds);
+    }
+
+    return finalChildrenIds.filter((id) => !exceptCardIds.has(id)).length;
   }),
 
   // actions

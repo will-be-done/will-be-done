@@ -41,6 +41,7 @@ import {
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker";
 import { Popover } from "@/components/ui/popover";
+import { useCurrentDate } from "./hooks";
 
 const ProjectDragPreview = function TaskPrimitiveComponent({
   title,
@@ -84,6 +85,7 @@ const ProjectItem = function ProjectItemComp({
   orderNumber,
   onProjectClick,
   isSelected,
+  exceptDailyListIds,
 }: {
   projectId: string;
   orderNumber: string;
@@ -262,17 +264,25 @@ const ProjectItem = function ProjectItemComp({
     );
   }, [db, project.id, project.type]);
 
-  // TODO: return back
-  const notDoneTasksCount = 0;
-  const overdueTasksCount = 0;
-  // const notDoneTasksCount = useSyncSelector(
-  //   () =>
-  //     projectItemsSlice2.notDoneTaskCountExceptDailiesCount(
-  //       project.id,
-  //       exceptDailyListIds,
-  //     ),
-  //   [project.id, exceptDailyListIds],
-  // );
+  const currentDate = useCurrentDate();
+
+  const overdueTasksCount = useSyncSelector(
+    () =>
+      projectsSlice.overdueTasksCountExceptDailiesCount(
+        project.id,
+        exceptDailyListIds,
+        currentDate,
+      ),
+    [project.id, exceptDailyListIds, currentDate],
+  );
+  const notDoneTasksCount = useSyncSelector(
+    () =>
+      projectsSlice.notDoneTasksCountExceptDailiesCount(
+        project.id,
+        exceptDailyListIds,
+      ),
+    [project.id, exceptDailyListIds],
+  );
   //
   // const overdueTasksCount = useSyncSelector(
   //   () =>
