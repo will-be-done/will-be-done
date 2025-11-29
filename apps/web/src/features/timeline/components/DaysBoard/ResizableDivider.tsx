@@ -48,7 +48,12 @@ export const ResizableDivider = ({
 
   return (
     <div
-      className="h-[6px] flex items-center cursor-row-resize group translate-y-[-3px] relative w-full"
+      className={cn(
+        "h-[6px] flex items-center cursor-row-resize group translate-y-[3px] relative w-full",
+        {
+          "translate-y-[-3px]": isHidden,
+        },
+      )}
       onMouseDown={handleMouseDown}
     >
       <div className="fixed flex bottom-[3px] left-0 right-0 justify-center items-center">

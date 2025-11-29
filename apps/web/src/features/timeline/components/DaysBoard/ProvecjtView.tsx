@@ -27,10 +27,7 @@ import {
   useDispatch,
   useSyncSelector,
 } from "@will-be-done/hyperdb";
-import {
-  projectsAllSlice,
-  projectsSlice,
-} from "@will-be-done/slices";
+import { projectsAllSlice, projectsSlice } from "@will-be-done/slices";
 import {
   buildFocusKey,
   focusManager,
@@ -523,13 +520,15 @@ export const ProjectView = ({
     /* doneTaskIds={doneChildrenIds} */
   }
   return (
-    <>
-      <ProjectItemsList2 project={project} />
+    <div className="flex h-full">
+      <div className="overflow-y-auto">
+        <ProjectItemsList2 project={project} />
+      </div>
       <ColumnListProvider
         focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
         priority="0"
       >
-        <div className="absolute w-80 h-full bg-panel-2 right-0 top-0 bottom-0 m-auto rounded-l-lg flex flex-col">
+        <div className="w-80 h-full bg-panel-2 ml-auto rounded-l-lg flex flex-col">
           <div className="flex justify-center text-subheader my-2">
             Projects
           </div>
@@ -563,6 +562,6 @@ export const ProjectView = ({
           </div>
         </div>
       </ColumnListProvider>
-    </>
+    </div>
   );
 };
