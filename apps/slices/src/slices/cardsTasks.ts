@@ -37,7 +37,6 @@ export type Task = {
   id: string;
   title: string;
   state: TaskState;
-  projectId: string;
   projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
@@ -55,7 +54,6 @@ export const defaultTask: Task = {
   id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
   title: "default task kek",
   state: "todo",
-  projectId: "",
   orderToken: "",
   lastToggledAt: 0,
   createdAt: 0,
@@ -68,10 +66,6 @@ export const defaultTask: Task = {
 export const tasksTable = table<Task>("tasks").withIndexes({
   byIds: { cols: ["id"], type: "btree" },
   byId: { cols: ["id"], type: "hash" },
-  byProjectIdOrderStates: {
-    cols: ["projectId", "state", "orderToken"],
-    type: "btree",
-  },
   byCategoryIdOrderStates: {
     cols: ["projectCategoryId", "state", "orderToken"],
     type: "btree",
@@ -159,7 +153,6 @@ export const cardsTasksSlice = {
       horizon: "week",
       templateId: null,
       templateDate: null,
-      projectId: "",
       ...task,
     };
 
@@ -265,7 +258,6 @@ export const cardsTasksSlice = {
       createdAt: taskTemplate.createdAt,
       templateId: taskTemplate.id,
       templateDate: taskTemplate.lastGeneratedAt,
-      projectId: "",
     };
     yield* insert(tasksTable, [newTask]);
 
