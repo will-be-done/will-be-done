@@ -145,6 +145,8 @@ const getColumnValuesFromBounds = (
       throw new Error(
         "Hash index should have exactly one equality condition for column '" +
           indexDef.column +
+          "' and index name '" +
+          indexDef.name +
           "': " +
           JSON.stringify(bound),
       );

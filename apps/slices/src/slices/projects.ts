@@ -16,12 +16,8 @@ import type { OrderableItem, GenReturn } from "./utils";
 import { inboxId, generateOrderTokenPositioned } from "./utils";
 import { appSlice } from "./app";
 import { projectsAllSlice } from "./projectsAll";
-import { isTask, Task, cardsTasksSlice, tasksTable } from "./cardsTasks";
-import {
-  isTaskTemplate,
-  cardsTaskTemplatesSlice,
-  taskTemplatesTable,
-} from "./cardsTaskTemplates";
+import { isTask, Task, cardsTasksSlice } from "./cardsTasks";
+import { isTaskTemplate, cardsTaskTemplatesSlice } from "./cardsTaskTemplates";
 import {
   dailyListsProjections,
   isTaskProjection,
@@ -292,92 +288,6 @@ export const projectsSlice = {
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
     }
-  }),
-  migrateProjectsWithoutCategories: action(function* (): GenReturn<{
-    projectsMigrated: number;
-    tasksUpdated: number;
-    templatesUpdated: number;
-  }> {
-    let projectsMigrated = 0;
-    let tasksUpdated = 0;
-    let templatesUpdated = 0;
-
-    // Get all project IDs
-    const projectIds = yield* projectsSlice.allIds();
-
-    // Process each project
-    for (const projectId of projectIds) {
-      // Check if project has categories
-      const existingCategories =
-        yield* projectCategoriesSlice.byProjectId(projectId);
-
-      if (existingCategories.length === 0) {
-        // Create three default categories
-        yield* projectCategoriesSlice.createCategory(
-          { projectId, title: "Week" },
-          "append",
-        );
-        yield* projectCategoriesSlice.createCategory(
-          { projectId, title: "Month" },
-          "append",
-        );
-        yield* projectCategoriesSlice.createCategory(
-          { projectId, title: "Ideas" },
-          "append",
-        );
-      }
-
-      // Get all tasks for this project (both todo and done)
-      const allTasks = yield* runQuery(
-        selectFrom(tasksTable, "byProjectIdOrderStates").where((q) =>
-          q.eq("projectId", projectId),
-        ),
-      );
-
-      const firstCategory = yield* projectCategoriesSlice.firstChild(projectId);
-      if (!firstCategory) throw new Error("No categories found");
-
-      // Filter tasks with null projectCategoryId
-      const unassignedTasks = allTasks.filter((t) => !t.projectCategoryId);
-
-      if (unassignedTasks.length > 0) {
-        // Update tasks with Week category ID
-        const updatedTasks = unassignedTasks.map((task) => ({
-          ...task,
-          projectCategoryId: firstCategory.id,
-        }));
-
-        yield* update(tasksTable, updatedTasks);
-        tasksUpdated += updatedTasks.length;
-      }
-
-      // Get all task templates for this project
-      const allTemplates = yield* runQuery(
-        selectFrom(taskTemplatesTable, "byProjectIdOrderToken").where((q) =>
-          q.eq("projectId", projectId),
-        ),
-      );
-
-      // Filter templates with null projectCategoryId
-      const unassignedTemplates = allTemplates.filter(
-        (t) => !t.projectCategoryId,
-      );
-
-      if (unassignedTemplates.length > 0) {
-        // Update templates with Week category ID
-        const updatedTemplates = unassignedTemplates.map((template) => ({
-          ...template,
-          projectCategoryId: firstCategory.id,
-        }));
-
-        yield* update(taskTemplatesTable, updatedTemplates);
-        templatesUpdated += updatedTemplates.length;
-      }
-
-      projectsMigrated++;
-    }
-
-    return { projectsMigrated, tasksUpdated, templatesUpdated };
   }),
   createTask: action(function* (
     projectId: string,

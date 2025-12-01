@@ -15,7 +15,6 @@ import type { GenReturn } from "./utils";
 import { cardsTasksSlice, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectCategoriesSlice } from "./projectsCategories";
 import { appSlice } from "./app";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
@@ -26,7 +25,6 @@ export type TaskTemplate = {
   type: typeof taskTemplateType;
   id: string;
   title: string;
-  projectId: string;
   orderToken: string;
   horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
@@ -47,7 +45,6 @@ export const defaultTaskTemplate: TaskTemplate = {
   createdAt: 0,
   lastGeneratedAt: 0,
   projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
-  projectId: "",
 };
 
 // Table definition
@@ -58,10 +55,6 @@ export const taskTemplatesTable = table<TaskTemplate>(
   byIds: { cols: ["id"], type: "btree" },
   byCategoryIdOrderStates: {
     cols: ["projectCategoryId", "orderToken"],
-    type: "btree",
-  },
-  byProjectIdOrderToken: {
-    cols: ["projectId", "orderToken"],
     type: "btree",
   },
 });
@@ -78,7 +71,6 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     id: generateTaskId(tmpl.id, date),
     title: tmpl.title,
     state: "todo",
-    projectId: tmpl.projectId,
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
     lastToggledAt: date.getTime(),
@@ -218,15 +210,11 @@ export const cardsTaskTemplatesSlice = {
   // actions
   create: action(function* (
     template: Partial<TaskTemplate> & {
-      projectId: string;
       orderToken: string;
+      projectCategoryId: string;
     },
   ): GenReturn<TaskTemplate> {
     const id = template.id || uuidv7();
-    const projectCategoryId =
-      template.projectCategoryId ??
-      (yield* projectCategoriesSlice.firstChild(template.projectId))?.id;
-    if (!projectCategoryId) throw new Error("Category of project not found");
 
     const newTemplate: TaskTemplate = {
       type: taskTemplateType,
@@ -236,7 +224,6 @@ export const cardsTaskTemplatesSlice = {
       repeatRule: defaultRule,
       createdAt: Date.now(),
       lastGeneratedAt: Date.now(),
-      projectCategoryId: projectCategoryId,
       ...template,
     };
 
@@ -280,7 +267,6 @@ export const cardsTaskTemplatesSlice = {
       horizon: task.horizon,
       lastGeneratedAt: startOfDay(new Date(task.createdAt)).getTime() - 1,
       projectCategoryId: task.projectCategoryId,
-      projectId: "",
       ...data,
     };
 
