@@ -1,17 +1,21 @@
+import { State } from "@/utils/State";
 import { getDMY } from "@will-be-done/slices";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
+const dateState = new State(new Date());
+setInterval(() => {
+  dateState.set(new Date());
+}, 60 * 1000);
+
 export const useCurrentDMY = () => {
   const [date, setDate] = useState(() => getDMY(new Date()));
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setDate(getDMY(new Date()));
-    }, 1000);
-
-    return () => clearInterval(interval);
+    dateState.subscribe((value) => {
+      setDate(getDMY(value));
+    });
   }, []);
 
   return date;
@@ -21,11 +25,9 @@ export const useCurrentDate = () => {
   const [date, setDate] = useState(() => new Date());
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setDate(new Date());
-    }, 60_000);
-
-    return () => clearInterval(interval);
+    dateState.subscribe((value) => {
+      setDate(value);
+    });
   }, []);
 
   return date;

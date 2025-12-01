@@ -28,7 +28,6 @@ type SelectRangeCmd = {
   index: string;
   selectQuery: SelectQuery;
   bounds: TupleScanOptions[];
-  originalError: Error;
 };
 type NoopCmd = { type: typeof noopType };
 
@@ -57,15 +56,12 @@ export function* runQuery<QType extends SelectQuery>(toQuery: {
       `Index not found: ${indexName as string} for table: ${table.tableName}`,
     );
 
-  const originalError = new Error();
-
   return (yield {
     type: "selectRange",
     table: table,
     index: indexName as string,
     selectQuery: query,
     bounds: convertWhereToBound(indexDef.cols as string[], query.where),
-    originalError,
   } satisfies SelectRangeCmd) as ExtractSchema<QType["from"]>[];
 }
 
@@ -177,7 +173,7 @@ export function runSelector<TReturn>(
       selectRangeCmds.push(result.value);
       const val = result.value;
 
-      const { table, index, selectQuery, originalError } = val;
+      const { table, index, selectQuery } = val;
 
       try {
         result = currentGen.next(
@@ -188,7 +184,7 @@ export function runSelector<TReturn>(
           ),
         );
       } catch (error) {
-        console.error("orginal stack", originalError);
+        console.error("error happened for cmd", result.value);
         throw error;
       }
     } else if (isNoopCmd(result.value)) {
@@ -216,7 +212,7 @@ export async function runSelectorAsync<TReturn>(
       selectRangeCmds.push(result.value);
       const val = result.value;
 
-      const { table, index, selectQuery, originalError } = val;
+      const { table, index, selectQuery } = val;
 
       try {
         result = currentGen.next(
@@ -227,7 +223,7 @@ export async function runSelectorAsync<TReturn>(
           ),
         );
       } catch (error) {
-        console.error("orginal stack", originalError);
+        console.error("error happened for cmd", result.value);
         throw error;
       }
     } else if (isNoopCmd(result.value)) {
