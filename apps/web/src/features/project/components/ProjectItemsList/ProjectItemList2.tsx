@@ -4,6 +4,7 @@ import { ParentListItemProvider } from "@/features/focus/components/ParentListPr
 import { useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
+  dailyListsSlice,
   Project,
   projectCategoriesSlice,
   ProjectCategory,
@@ -17,9 +18,11 @@ import { projectCategoryCardsSlice } from "@will-be-done/slices";
 const ProjectTasksColumn = ({
   project,
   category,
+  exceptTaskIds,
 }: {
   project: Project;
   category: ProjectCategory;
+  exceptTaskIds?: Set<string>;
 }) => {
   const dispatch = useDispatch();
 
@@ -167,7 +170,10 @@ const ProjectTasksColumn = ({
       }
     >
       <div className="flex flex-col gap-4 w-full py-4">
-        {todoTaskIds.map((id, i) => {
+        {(exceptTaskIds
+          ? todoTaskIds.filter((id) => !exceptTaskIds.has(id))
+          : []
+        ).map((id, i) => {
           return (
             <TaskComp
               orderNumber={(i + 2).toString()}
@@ -187,7 +193,10 @@ const ProjectTasksColumn = ({
           )}
           priority={(lastTaskI + 2).toString()}
         >
-          {doneTaskIds.map((id, i) => {
+          {(exceptTaskIds
+            ? doneTaskIds.filter((id) => !exceptTaskIds.has(id))
+            : []
+          ).map((id, i) => {
             return (
               <TaskComp
                 displayLastProjectionTime
@@ -205,10 +214,20 @@ const ProjectTasksColumn = ({
   );
 };
 
-export const ProjectItemsList2 = ({ project }: { project: Project }) => {
+export const ProjectItemsList2 = ({
+  project,
+  exceptDailyListIds,
+}: {
+  project: Project;
+  exceptDailyListIds?: string[];
+}) => {
   const categories = useSyncSelector(
     () => projectCategoriesSlice.byProjectId(project.id),
     [project.id],
+  );
+  const exceptTaskIds = useSyncSelector(
+    () => dailyListsSlice.allTaskIds(exceptDailyListIds ?? []),
+    [exceptDailyListIds],
   );
 
   return (
@@ -219,6 +238,7 @@ export const ProjectItemsList2 = ({ project }: { project: Project }) => {
             key={group.id}
             category={group}
             project={project}
+            exceptTaskIds={exceptTaskIds}
           />
         ))}
       </TasksColumnGrid>

@@ -717,21 +717,19 @@ export const TaskComp = ({
           >
             <div>{category.title}</div>
 
-            {lastProjectionTime !== undefined &&
-              lastProjectionTime !== 0 &&
-              displayLastProjectionTime && (
-                <div
-                  className={cn("text-center", {
-                    "text-amber-400": shouldHighlightProjectionTime,
-                  })}
-                >
-                  {new Date(lastProjectionTime).toLocaleDateString("en-US", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </div>
-              )}
+            {lastProjectionTime !== undefined && displayLastProjectionTime && (
+              <div
+                className={cn("text-center", {
+                  "text-amber-400": shouldHighlightProjectionTime,
+                })}
+              >
+                {new Date(lastProjectionTime).toLocaleDateString("en-US", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </div>
+            )}
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
               <div className="text-right">
                 {project.icon || "🟡"} {project.title}

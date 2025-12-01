@@ -523,16 +523,13 @@ export const ProjectView = ({
     return <div>Project not found</div>;
   }
 
-  {
-    /* todoTaskIds={notDoneChildrenIds} */
-  }
-  {
-    /* doneTaskIds={doneChildrenIds} */
-  }
   return (
     <div className="flex h-full">
       <div className="overflow-y-auto">
-        <ProjectItemsList2 project={project} />
+        <ProjectItemsList2
+          project={project}
+          exceptDailyListIds={exceptDailyListIds}
+        />
       </div>
       <ColumnListProvider
         focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
