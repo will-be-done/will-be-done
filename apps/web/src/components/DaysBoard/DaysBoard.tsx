@@ -8,14 +8,14 @@ import {
   inboxId,
   dailyListsProjections,
 } from "@will-be-done/slices";
-import { cn } from "@/lib/utils";
-import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice";
-import { TaskComp } from "@/components/Task/Task";
-import { ResizableDivider } from "./ResizableDivider";
-import { NavPanel } from "./NavPanel";
-import { useCurrentDMY, useDaysPreferences, useHiddenDays } from "./hooks";
-import { ProjectView } from "./ProvecjtView";
-import { TasksColumn, TasksColumnGrid } from "@/components/TasksGrid/TasksGrid";
+import { cn } from "@/lib/utils.ts";
+import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { TaskComp } from "@/components/Task/Task.tsx";
+import { ResizableDivider } from "./ResizableDivider.tsx";
+import { NavPanel } from "./NavPanel.tsx";
+import { useCurrentDMY, useDaysPreferences, useHiddenDays } from "./hooks.tsx";
+import { ProjectView } from "./ProvecjtView.tsx";
+import { TasksColumn, TasksColumnGrid } from "@/components/TasksGrid/TasksGrid.tsx";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 
@@ -194,7 +194,7 @@ const BoardView = ({
       );
 
       dispatch(
-        focusSlice2.editByKey(buildFocusKey(projection.id, projection.type)),
+        focusSlice.editByKey(buildFocusKey(projection.id, projection.type)),
       );
     },
     [dispatch],
@@ -279,7 +279,7 @@ const BoardView = ({
   );
 };
 
-export const Board2 = ({ selectedDate }: { selectedDate: Date }) => {
+export const Board = ({ selectedDate }: { selectedDate: Date }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
 
   const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);

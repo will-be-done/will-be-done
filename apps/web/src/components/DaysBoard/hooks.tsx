@@ -1,4 +1,4 @@
-import { State } from "@/utils/State";
+import { State } from "@/utils/State.ts";
 import { getDMY } from "@will-be-done/slices";
 import { useEffect, useState } from "react";
 import { create } from "zustand";

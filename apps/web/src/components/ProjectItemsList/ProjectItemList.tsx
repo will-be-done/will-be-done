@@ -1,6 +1,6 @@
-import { TaskComp } from "../../../../components/Task/Task.tsx";
-import { buildFocusKey, focusSlice2 } from "@/store2/slices/focusSlice.ts";
-import { ParentListItemProvider } from "@/features/focus/components/ParentListProvider.tsx";
+import { TaskComp } from "../Task/Task.tsx";
+import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { ParentListItemProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -48,7 +48,7 @@ const ProjectTasksColumn = ({
       projectCategoriesSlice.createTask(category.id, "prepend"),
     );
 
-    dispatch(focusSlice2.editByKey(buildFocusKey(task.id, task.type)));
+    dispatch(focusSlice.editByKey(buildFocusKey(task.id, task.type)));
   };
   const handleHideClick = () => setIsHiddenClicked((v) => !v);
 
@@ -214,7 +214,7 @@ const ProjectTasksColumn = ({
   );
 };
 
-export const ProjectItemsList2 = ({
+export const ProjectItemsList = ({
   project,
   exceptDailyListIds,
 }: {

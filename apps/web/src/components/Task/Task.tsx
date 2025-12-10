@@ -14,13 +14,13 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import ReactDOM, { unstable_batchedUpdates } from "react-dom";
-import { DndModelData, isModelDNDData } from "@/features/dnd/models";
+import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
-import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
+import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
-import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
+import { useRegisterFocusItem } from "@/components/Focus/useLists.ts";
 import clsx from "clsx";
 import { RotateCw, CircleDashed } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,12 +41,12 @@ import {
   buildFocusKey,
   FocusKey,
   focusManager,
-  focusSlice2,
+  focusSlice,
   parseColumnKey,
-} from "@/store2/slices/focusSlice";
+} from "@/store/focusSlice.ts";
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices";
-import { useCurrentDate } from "@/features/timeline/components/DaysBoard/hooks";
+import { useCurrentDate } from "@/components/DaysBoard/hooks";
 
 export function CheckboxComp({
   checked,
@@ -193,7 +193,7 @@ export const TaskComp = ({
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
 
-      dispatch(focusSlice2.resetEdit());
+      dispatch(focusSlice.resetEdit());
 
       // if (e.key === "Enter") {
       //   task.setTitle(editingTitle);
@@ -207,11 +207,11 @@ export const TaskComp = ({
   };
 
   const isFocused = useSyncSelector(
-    () => focusSlice2.isFocused(focusableItem.key),
+    () => focusSlice.isFocused(focusableItem.key),
     [focusableItem.key],
   );
   const isEditing = useSyncSelector(
-    () => focusSlice2.isEditing(focusableItem.key),
+    () => focusSlice.isEditing(focusableItem.key),
     [focusableItem.key],
   );
   const select = useSelect();
@@ -232,15 +232,15 @@ export const TaskComp = ({
     const downTask = downModel && select(cardsSlice.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
-      dispatch(focusSlice2.focusByKey(down.key));
+      dispatch(focusSlice.focusByKey(down.key));
     } else if (upTask && upTask.state === taskState) {
-      dispatch(focusSlice2.focusByKey(up.key));
+      dispatch(focusSlice.focusByKey(up.key));
     }
   }, [dispatch, focusableItem.key, isFocused, card, select, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    const isSomethingEditing = select(focusSlice2.isSomethingEditing());
-    const isFocusDisabled = select(focusSlice2.isFocusDisabled());
+    const isSomethingEditing = select(focusSlice.isSomethingEditing());
+    const isFocusDisabled = select(focusSlice.isFocusDisabled());
 
     if (isSomethingEditing) return;
     if (!isFocused) return;
@@ -314,7 +314,7 @@ export const TaskComp = ({
     } else if (e.code === "KeyM" && noModifiers) {
       e.preventDefault();
 
-      // NOTE: this is needed to restore focus back correctly after modal close
+      // NOTE: this is needed to restore Focus back correctly after modal close
       ref.current?.focus();
       setIsMoveModalOpen(true);
     } else if (isMoveLeft || isMoveRight) {
@@ -409,16 +409,16 @@ export const TaskComp = ({
       dispatch(appSlice.delete(cardWrapper));
 
       if (down) {
-        dispatch(focusSlice2.focusByKey(down.key));
+        dispatch(focusSlice.focusByKey(down.key));
       } else if (up) {
-        dispatch(focusSlice2.focusByKey(up.key));
+        dispatch(focusSlice.focusByKey(up.key));
       } else {
-        dispatch(focusSlice2.resetFocus());
+        dispatch(focusSlice.resetFocus());
       }
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      dispatch(focusSlice2.editByKey(focusableItem.key));
+      dispatch(focusSlice.editByKey(focusableItem.key));
     } else if (isAddAfter || isAddBefore) {
       if (isTask(card) && card.state === "done") return;
 
@@ -433,7 +433,7 @@ export const TaskComp = ({
             newTaskParams,
           ),
         );
-        dispatch(focusSlice2.editByKey(buildFocusKey(newBox.id, newBox.type)));
+        dispatch(focusSlice.editByKey(buildFocusKey(newBox.id, newBox.type)));
       });
 
       return;
@@ -624,7 +624,7 @@ export const TaskComp = ({
           `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-3 text-sm text-content shadow-lg`,
           // {
           //   is
-          //   "bg-focused-panel focus-visible:outline-focused-panel-selected":
+          //   "bg-focused-panel Focus-visible:outline-focused-panel-selected":
           //     isFocused,
           // },
           isFocused &&
@@ -647,10 +647,10 @@ export const TaskComp = ({
         )}
         style={{}}
         onClick={() =>
-          dispatch(focusSlice2.focusByKey(focusableItem.key, true))
+          dispatch(focusSlice.focusByKey(focusableItem.key, true))
         }
         onDoubleClick={() => {
-          dispatch(focusSlice2.editByKey(focusableItem.key));
+          dispatch(focusSlice.editByKey(focusableItem.key));
         }}
         ref={ref}
       >

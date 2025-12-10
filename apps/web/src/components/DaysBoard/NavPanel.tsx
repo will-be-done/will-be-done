@@ -1,7 +1,7 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils.ts";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { useDaysPreferences } from "./hooks";
+import { useDaysPreferences } from "./hooks.tsx";
 
 export const NavPanel = ({
   previousDate,
@@ -20,7 +20,7 @@ export const NavPanel = ({
       <div className="bg-panel w-full mx-5 rounded-b-lg text-xs text-primary flex align-center content-center relative h-6 stroke-primary shadow-md ">
         <div className="absolute left-1/2 -translate-x-1/2 underline decoration-dotted flex items-center justify-items-center h-full">
           <Link
-            to="/timeline2/$date"
+            to="/timeline/$date"
             params={{
               date: format(previousDate, "yyyy-MM-dd"),
             }}
@@ -43,7 +43,7 @@ export const NavPanel = ({
           </Link>
           {format(selectedDate, "dd MMM yyyy")}
           <Link
-            to="/timeline2/$date"
+            to="/timeline/$date"
             params={{
               date: format(nextDate, "yyyy-MM-dd"),
             }}

@@ -71,7 +71,7 @@ apps/web/src/
 ├── store2/            # Store slices
 │   └── slices/
 │       ├── focusSlice.ts
-│       └── load2.ts
+│       └── load.ts
 ├── lib/               # Utility libraries
 │   └── utils.ts
 └── main.tsx          # Application entry point

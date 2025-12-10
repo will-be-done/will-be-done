@@ -41,8 +41,8 @@ import {
   createLeaderElection,
   LeaderElector,
 } from "broadcast-channel";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
-import { focusTable } from "./focusSlice";
+import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
+import { focusTable } from "./focusSlice.ts";
 
 const initClock = (clientId: string) => {
   let now = Date.now();
@@ -182,7 +182,7 @@ const syncSlice = {
 //
 const lock = new AwaitLock();
 let initedDb: SubscribableDB | null = null;
-export const initDbStore2 = async (): Promise<SubscribableDB> => {
+export const initDbStore = async (): Promise<SubscribableDB> => {
   await lock.acquireAsync();
   try {
     if (initedDb) {

@@ -1,5 +1,5 @@
 import { useEffect, PropsWithChildren } from "react";
-import { useEventTypes } from "../hooks.tsx";
+import { useEventTypes } from "./hooks.tsx";
 
 export const KeyPressedCtxProvider = ({ children }: PropsWithChildren) => {
   const callbacks = useEventTypes((st) => st.callbacks);

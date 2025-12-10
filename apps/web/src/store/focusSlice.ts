@@ -41,7 +41,7 @@ export const parseColumnKey = (
   return { type, id, component };
 };
 
-const columnKey = "focus-manager-column^^focus-manager-column" as FocusKey;
+const columnKey = "Focus-manager-column^^Focus-manager-column" as FocusKey;
 
 type FocusItem = {
   key: FocusKey;
@@ -65,7 +65,7 @@ export const focusTable = table<FocusState>("focus").withIndexes({
   byId: { cols: ["id"], type: "hash" },
 });
 
-const FOCUS_STATE_ID = "focus-state";
+const FOCUS_STATE_ID = "Focus-state";
 
 // Create the initial state
 const initialFocusState: FocusState = {
@@ -92,14 +92,14 @@ const getFocusState = selector(function* (): GenReturn<FocusState> {
   return states[0];
 });
 
-export const focusSlice2 = {
+export const focusSlice = {
   getFocusKey: selector(function* (): GenReturn<FocusKey | null> {
     const state = yield* getFocusState();
     return state.focusItemKey;
   }),
 
   getFocusedModelId: selector(function* (): GenReturn<string | undefined> {
-    const key = yield* focusSlice2.getFocusKey();
+    const key = yield* focusSlice.getFocusKey();
     if (!key) return undefined;
     return parseColumnKey(key).id;
   }),
@@ -207,7 +207,7 @@ export const focusSlice2 = {
 
     if (currentState.editItemKey === key) return;
 
-    yield* focusSlice2.focusByKey(key, true);
+    yield* focusSlice.focusByKey(key, true);
 
     const updatedState: FocusState = {
       ...currentState,
@@ -283,9 +283,9 @@ export const focusManager = (() => {
     },
 
     // editItem: () => {
-    //   if (!state.focus.editItemKey) return undefined;
+    //   if (!state.Focus.editItemKey) return undefined;
     //
-    //   return scope.itemsById[state.focus.editItemKey];
+    //   return scope.itemsById[state.Focus.editItemKey];
     // },
 
     findColumn: (key: FocusKey): FocusItem | undefined => {
@@ -490,140 +490,6 @@ export const focusManager = (() => {
   return manager;
 })();
 
-// // Create a wrapper interface to maintain backward compatibility
-// export class FocusManager {
-//   private state: FocusState = initialFocusState;
-//
-//   get itemsById() {
-//     return this.state.itemsById;
-//   }
-//
-//   get childrenMap() {
-//     return this.state.childrenByParentId;
-//   }
-//
-//   isFocused(key: FocusKey) {
-//     return focusSlice.isFocused(this.state, key);
-//   }
-//
-//   isEditing(key: FocusKey) {
-//     return focusSlice.isEditing(this.state, key);
-//   }
-//
-//   get isSomethingEditing() {
-//     return focusSlice.isSomethingEditing(this.state);
-//   }
-//
-//   get isSomethingFocused() {
-//     return focusSlice.isSomethingFocused(this.state);
-//   }
-//
-//   get focusItem() {
-//     return focusSlice.focusItem(this.state);
-//   }
-//
-//   get editItem() {
-//     return focusSlice.editItem(this.state);
-//   }
-//
-//   disableFocus() {
-//     this.state = focusSlice.disableFocus(this.state);
-//   }
-//
-//   enableFocus() {
-//     this.state = focusSlice.enableFocus(this.state);
-//   }
-//
-//   focusByKey(key: FocusKey, skipElFocus = false) {
-//     this.state = focusSlice.focusByKey(this.state, key, skipElFocus);
-//   }
-//
-//   editByKey(key: FocusKey) {
-//     this.state = focusSlice.editByKey(this.state, key);
-//   }
-//
-//   resetFocus() {
-//     this.state = focusSlice.resetFocus(this.state);
-//   }
-//
-//   resetEdit() {
-//     this.state = focusSlice.resetEdit(this.state);
-//   }
-//
-//   registerColumn(key: FocusKey, priority: string) {
-//     this.state = focusSlice.registerColumn(this.state, key, priority);
-//   }
-//
-//   buildItem(parentKey: FocusKey, itemKey: FocusKey, priority: string) {
-//     return focusSlice.buildItem(this.state, parentKey, itemKey, priority);
-//   }
-//
-//   registerItem(item: FocusItem) {
-//     this.state = focusSlice.registerItem(this.state, item);
-//   }
-//
-//   unregister(key: FocusKey) {
-//     this.state = focusSlice.unregister(this.state, key);
-//   }
-//
-//   getByKey(key: FocusKey) {
-//     return focusSlice.getByKey(this.state, key);
-//   }
-//
-//   findColumn(key: FocusKey) {
-//     return focusSlice.findColumn(this.state, key);
-//   }
-//
-//   allItems(parentKey: FocusKey, allItems: FocusItem[] = []) {
-//     return focusSlice.getAllItems(this.state, parentKey);
-//   }
-//
-//   String() {
-//     return printTree(this);
-//   }
-// }
-//
-// // Helper functions for compatibility
-// function printTree(manager: {
-//   itemsById: Record<string, FocusItem>;
-//   childrenMap: Record<string, string[]>;
-// }): string {
-//   const output: string[] = [];
-//
-//   const columnKeys = manager.childrenMap[columnKey] || [];
-//   const columns = columnKeys
-//     .map((key) => manager.itemsById[key])
-//     .filter((col): col is FocusItem => !!col);
-//
-//   columns.forEach((column) => {
-//     const childrenKeys = manager.childrenMap[column.key] || [];
-//     output.push(`${column.key} (${column.priority}) ${childrenKeys.length}`);
-//
-//     // Print children of the column
-//     const childPrefix = "";
-//     childrenKeys.forEach((childKey, index) => {
-//       const childItem = manager.itemsById[childKey];
-//       if (!childItem) return;
-//
-//       const isLastChild = index === childrenKeys.length - 1;
-//       output.push(
-//         `${childPrefix}${isLastChild ? "└── " : "├── "}${childItem.key} (${
-//           childItem.priority
-//         })`,
-//       );
-//
-//       printNode(
-//         childItem,
-//         childPrefix + (isLastChild ? "    " : "│   "),
-//         output,
-//         manager,
-//       );
-//     });
-//   });
-//
-//   return output.join("\n");
-// }
-
 const print = () => {
   for (const column of focusManager.getColumns()) {
     console.log("column", column.key, column.priority);
@@ -637,10 +503,3 @@ const print = () => {
 
 // @ts-expect-error it's ok
 window.printFocus = print;
-
-// // Create and export a singleton instance
-// export const focusSlice = new FocusManager();
-//
-// // Expose the focus manager to the window for debugging
-// (window as unknown as { focusSlice: FocusManager }).focusSlice =
-//   focusSlice;

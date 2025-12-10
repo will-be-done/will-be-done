@@ -1,7 +1,7 @@
-import { ProjectItemsList2 } from "@/features/project/components/ProjectItemsList/ProjectItemList2";
+import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 import { Backup, backupSlice, inboxId } from "@will-be-done/slices";
-import { useRegisterFocusItem } from "@/features/focus/hooks/useLists.ts";
-import { useGlobalListener } from "@/features/global-listener/hooks.tsx";
+import { useRegisterFocusItem } from "@/components/Focus/useLists.ts";
+import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -17,10 +17,10 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import invariant from "tiny-invariant";
-import { DndModelData, isModelDNDData } from "@/features/dnd/models";
-import { cn } from "@/lib/utils";
+import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
+import { cn } from "@/lib/utils.ts";
 import ReactDOM from "react-dom";
-import { isInputElement } from "@/utils/isInputElement";
+import { isInputElement } from "@/utils/isInputElement.ts";
 import {
   select,
   useDB,
@@ -31,17 +31,17 @@ import { projectsAllSlice, projectsSlice } from "@will-be-done/slices";
 import {
   buildFocusKey,
   focusManager,
-  focusSlice2,
-} from "@/store2/slices/focusSlice";
-import { ColumnListProvider } from "@/features/focus/components/ParentListProvider";
+  focusSlice,
+} from "@/store/focusSlice.ts";
+import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
   EmojiPicker,
   EmojiPickerContent,
   EmojiPickerSearch,
-} from "@/components/ui/emoji-picker";
-import { Popover } from "@/components/ui/popover";
-import { useCurrentDate } from "./hooks";
+} from "@/components/ui/emoji-picker.tsx";
+import { Popover } from "@/components/ui/popover.tsx";
+import { useCurrentDate } from "./hooks.tsx";
 
 const ProjectDragPreview = function TaskPrimitiveComponent({
   title,
@@ -110,14 +110,14 @@ const ProjectItem = function ProjectItemComp({
   const ref = useRef<HTMLButtonElement>(null);
 
   const isFocused = useSyncSelector(
-    () => focusSlice2.isFocused(focusItem.key),
+    () => focusSlice.isFocused(focusItem.key),
     [focusItem.key],
   );
 
   const dispatch = useDispatch();
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
-    const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
+    const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
 
     if (
       isFocused &&
@@ -126,13 +126,13 @@ const ProjectItem = function ProjectItemComp({
       !isFocusDisabled &&
       !e.defaultPrevented
     ) {
-      dispatch(focusSlice2.resetFocus());
+      dispatch(focusSlice.resetFocus());
     }
   });
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (!isFocused) return;
-    const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
+    const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
 
     if (isFocusDisabled || e.defaultPrevented) return;
     const activeElement =
@@ -152,16 +152,16 @@ const ProjectItem = function ProjectItemComp({
       dispatch(projectsSlice.delete([project.id]));
 
       if (down) {
-        dispatch(focusSlice2.focusByKey(down.key));
+        dispatch(focusSlice.focusByKey(down.key));
       } else if (up) {
-        dispatch(focusSlice2.focusByKey(up.key));
+        dispatch(focusSlice.focusByKey(up.key));
       } else {
-        dispatch(focusSlice2.resetFocus());
+        dispatch(focusSlice.resetFocus());
       }
     } else if (e.code === "KeyI" && noModifiers) {
       e.preventDefault();
 
-      dispatch(focusSlice2.editByKey(focusItem.key));
+      dispatch(focusSlice.editByKey(focusItem.key));
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
@@ -324,7 +324,7 @@ const ProjectItem = function ProjectItemComp({
       {/* <input */}
       {/*   ref={(e) => { */}
       {/*     if (!e) return; */}
-      {/*     e.focus(); */}
+      {/*     e.Focus(); */}
       {/*   }} */}
       {/*   type="text" */}
       {/*   value={project.title} */}
@@ -383,7 +383,7 @@ const ProjectItem = function ProjectItemComp({
           ref={ref}
           onClick={() => {
             // console.log("focusItem click", focusItem);
-            dispatch(focusSlice2.focusByKey(focusItem.key, true));
+            dispatch(focusSlice.focusByKey(focusItem.key, true));
             onProjectClick(project.id);
           }}
         >
@@ -588,7 +588,7 @@ export const ProjectView = ({
   return (
     <div className="flex h-full">
       <div className="overflow-y-auto">
-        <ProjectItemsList2
+        <ProjectItemsList
           project={project}
           exceptDailyListIds={exceptDailyListIds}
         />

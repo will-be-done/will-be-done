@@ -1,6 +1,6 @@
 import { createContext, use, useEffect, useMemo } from "react";
 import { padStart } from "es-toolkit/compat";
-import { FocusKey, focusManager } from "@/store2/slices/focusSlice.ts";
+import { FocusKey, focusManager } from "@/store/focusSlice.ts";
 
 export const ParentListContext = createContext<FocusKey | undefined>(undefined);
 

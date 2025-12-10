@@ -10,53 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as Timeline2IndexRouteImport } from './routes/timeline2/index'
-import { Route as Timeline2DateRouteImport } from './routes/timeline2/$date'
+import { Route as TimelineIndexRouteImport } from './routes/timeline/index'
+import { Route as TimelineDateRouteImport } from './routes/timeline/$date'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Timeline2IndexRoute = Timeline2IndexRouteImport.update({
-  id: '/timeline2/',
-  path: '/timeline2/',
+const TimelineIndexRoute = TimelineIndexRouteImport.update({
+  id: '/timeline/',
+  path: '/timeline/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Timeline2DateRoute = Timeline2DateRouteImport.update({
-  id: '/timeline2/$date',
-  path: '/timeline2/$date',
+const TimelineDateRoute = TimelineDateRouteImport.update({
+  id: '/timeline/$date',
+  path: '/timeline/$date',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/timeline2/$date': typeof Timeline2DateRoute
-  '/timeline2': typeof Timeline2IndexRoute
+  '/timeline/$date': typeof TimelineDateRoute
+  '/timeline': typeof TimelineIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/timeline2/$date': typeof Timeline2DateRoute
-  '/timeline2': typeof Timeline2IndexRoute
+  '/timeline/$date': typeof TimelineDateRoute
+  '/timeline': typeof TimelineIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/timeline2/$date': typeof Timeline2DateRoute
-  '/timeline2/': typeof Timeline2IndexRoute
+  '/timeline/$date': typeof TimelineDateRoute
+  '/timeline/': typeof TimelineIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/timeline2/$date' | '/timeline2'
+  fullPaths: '/' | '/timeline/$date' | '/timeline'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/timeline2/$date' | '/timeline2'
-  id: '__root__' | '/' | '/timeline2/$date' | '/timeline2/'
+  to: '/' | '/timeline/$date' | '/timeline'
+  id: '__root__' | '/' | '/timeline/$date' | '/timeline/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  Timeline2DateRoute: typeof Timeline2DateRoute
-  Timeline2IndexRoute: typeof Timeline2IndexRoute
+  TimelineDateRoute: typeof TimelineDateRoute
+  TimelineIndexRoute: typeof TimelineIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -68,18 +68,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/timeline2/': {
-      id: '/timeline2/'
-      path: '/timeline2'
-      fullPath: '/timeline2'
-      preLoaderRoute: typeof Timeline2IndexRouteImport
+    '/timeline/': {
+      id: '/timeline/'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof TimelineIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/timeline2/$date': {
-      id: '/timeline2/$date'
-      path: '/timeline2/$date'
-      fullPath: '/timeline2/$date'
-      preLoaderRoute: typeof Timeline2DateRouteImport
+    '/timeline/$date': {
+      id: '/timeline/$date'
+      path: '/timeline/$date'
+      fullPath: '/timeline/$date'
+      preLoaderRoute: typeof TimelineDateRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -87,8 +87,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  Timeline2DateRoute: Timeline2DateRoute,
-  Timeline2IndexRoute: Timeline2IndexRoute,
+  TimelineDateRoute: TimelineDateRoute,
+  TimelineIndexRoute: TimelineIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

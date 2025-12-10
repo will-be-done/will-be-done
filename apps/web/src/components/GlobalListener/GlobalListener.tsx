@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isInputElement } from "@/utils/isInputElement.ts";
-import { isModelDNDData } from "@/features/dnd/models.ts";
+import { isModelDNDData } from "@/lib/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
@@ -19,8 +19,8 @@ import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
 import {
   FocusKey,
   focusManager,
-  focusSlice2,
-} from "@/store2/slices/focusSlice";
+  focusSlice,
+} from "@/store/focusSlice.ts";
 
 export function GlobalListener() {
   const dispatch = useDispatch();
@@ -28,9 +28,9 @@ export function GlobalListener() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isSomethingFocused = select(db, focusSlice2.isSomethingFocused());
+      const isSomethingFocused = select(db, focusSlice.isSomethingFocused());
 
-      const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
+      const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
 
       if (isFocusDisabled || e.defaultPrevented) return;
 
@@ -68,7 +68,7 @@ export function GlobalListener() {
       }
 
       if (e.code === "Escape" && !isSomethingFocused) {
-        dispatch(focusSlice2.resetFocus());
+        dispatch(focusSlice.resetFocus());
 
         return;
       }
@@ -80,7 +80,7 @@ export function GlobalListener() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isFocusDisabled = select(db, focusSlice2.isFocusDisabled());
+      const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
 
       if (isFocusDisabled || e.defaultPrevented) return;
 
@@ -93,26 +93,26 @@ export function GlobalListener() {
       // If it's an input, return early
       if (isInput) return;
 
-      // const setFocus = (focus: FocusItem) => {
-      //   focus.focus();
+      // const setFocus = (Focus: FocusItem) => {
+      //   Focus.Focus();
       //
       //   const elements = document.querySelectorAll<HTMLElement>(
-      //     '[data-focusable-key="' + focus.key + '"]',
+      //     '[data-focusable-key="' + Focus.key + '"]',
       //   );
       //
       //   if (!elements.length) {
-      //     shouldNeverHappen("focusable element not found", { focus });
+      //     shouldNeverHappen("focusable element not found", { Focus });
       //     return;
       //   }
       //
       //   if (elements.length > 1) {
-      //     shouldNeverHappen("focusable element > 1", { focus });
+      //     shouldNeverHappen("focusable element > 1", { Focus });
       //     return;
       //   }
       //
       //   const el = elements[0];
       //   if (el) {
-      //     el.focus();
+      //     el.Focus();
       //
       //     el.scrollIntoView({
       //       behavior: "smooth",
@@ -132,7 +132,7 @@ export function GlobalListener() {
       const isRight =
         e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
 
-      const focusItemKey = select(db, focusSlice2.getFocusKey());
+      const focusItemKey = select(db, focusSlice.getFocusKey());
       const focusedItem = focusItemKey && focusManager.getItem(focusItemKey);
       if (focusedItem && (isUp || isDown)) {
         e.preventDefault();
@@ -142,11 +142,11 @@ export function GlobalListener() {
         if (isUp) {
           if (!up) return;
 
-          dispatch(focusSlice2.focusByKey(up.key));
+          dispatch(focusSlice.focusByKey(up.key));
         } else if (isDown) {
           if (!down) return;
 
-          dispatch(focusSlice2.focusByKey(down.key));
+          dispatch(focusSlice.focusByKey(down.key));
         }
       } else if (focusedItem && (isLeft || isRight)) {
         e.preventDefault();
@@ -158,11 +158,11 @@ export function GlobalListener() {
         if (isLeft) {
           if (!left) return;
 
-          dispatch(focusSlice2.focusByKey(left.key));
+          dispatch(focusSlice.focusByKey(left.key));
         } else if (isRight) {
           if (!right) return;
 
-          dispatch(focusSlice2.focusByKey(right.key));
+          dispatch(focusSlice.focusByKey(right.key));
         }
       }
     };
@@ -177,7 +177,7 @@ export function GlobalListener() {
         const focusableKey = focusedElement.getAttribute("data-focusable-key");
 
         if (focusableKey) {
-          dispatch(focusSlice2.focusByKey(focusableKey as FocusKey, true));
+          dispatch(focusSlice.focusByKey(focusableKey as FocusKey, true));
         }
       }
     };
