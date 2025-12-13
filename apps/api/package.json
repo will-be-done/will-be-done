@@ -26,6 +26,7 @@
     "@will-be-done/slices": "workspace:*",
     "dotenv": "^17.2.3",
     "fastify": "^5.6.2",
+    "uuidv7": "^1.1.0",
     "zod": "^4.1.13"
   }
 }
