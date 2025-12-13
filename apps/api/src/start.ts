@@ -1,23 +1,13 @@
 import { z } from "zod";
-import { publicProcedure, router } from "./trpc";
-import { Database } from "bun:sqlite";
 import {
-  DB,
-  execSync,
-  SqlDriver,
-  syncDispatch,
-  select,
-  SubscribableDB,
-} from "@will-be-done/hyperdb";
+  publicProcedure,
+  protectedProcedure,
+  router,
+  createContext,
+} from "./trpc";
+import { syncDispatch, select } from "@will-be-done/hyperdb";
 import * as dotenv from "dotenv";
-import {
-  changesTable,
-  ChangesetArray,
-  changesSlice,
-  // projectItemsSlice2,
-  registeredSyncableTables,
-  projectsSlice,
-} from "@will-be-done/slices";
+import { ChangesetArray, changesSlice } from "@will-be-done/slices";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
 import multipart from "@fastify/multipart";
@@ -27,148 +17,208 @@ import {
   fastifyTRPCPlugin,
   type FastifyTRPCPluginOptions,
 } from "@trpc/server/adapters/fastify";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
-// import "./transcribe";
+import { getTodoDB, getMainDB } from "./db/db";
+import { authSlice } from "./slices/authSlice";
+import { vaultSlice } from "./slices/vaultSlice";
+import { TRPCError } from "@trpc/server";
 
 dotenv.config();
 
-const clientId = "server";
-const initClock = (clientId: string) => {
-  let now = Date.now();
-  let n = 0;
-
-  return () => {
-    const newNow = Date.now();
-
-    if (newNow === now) {
-      n++;
-    } else if (newNow > now) {
-      now = newNow;
-      n = 0;
-    }
-
-    return `${now}-${n.toString().padStart(4, "0")}-${clientId}`;
-  };
-};
-const nextClock = initClock(clientId);
-
-console.log(
-  "Loading database...",
-  path.join(__dirname, "..", "dbs", "main2.sqlite"),
-);
-const sqliteDB = new Database(
-  path.join(__dirname, "..", "dbs", "main2.sqlite"),
-  { strict: true },
-);
-
-export type SqlValue = number | string | Uint8Array | null;
-const sqliteDriver = new SqlDriver({
-  exec(sql: string, params?: SqlValue[]): void {
-    if (!params) {
-      sqliteDB.run(sql);
-    } else {
-      sqliteDB.run(sql, params);
-    }
-  },
-  prepare(sql: string) {
-    const stmt = sqliteDB.prepare(sql);
-
-    return {
-      values(values: SqlValue[]): SqlValue[][] {
-        return stmt.values(...values) as SqlValue[][];
-      },
-      finalize(): void {
-        stmt.finalize();
-      },
-    };
-  },
-});
-
-const hyperDB = new SubscribableDB(new DB(sqliteDriver));
-
-hyperDB.afterInsert(function* (db, table, traits, ops) {
-  if (table === changesTable) return;
-  if (traits.some((t) => t.type === "skip-sync")) {
-    return;
-  }
-
-  for (const op of ops) {
-    syncDispatch(
-      db,
-      changesSlice.insertChangeFromInsert(
-        op.table,
-        op.newValue,
-        clientId,
-        nextClock,
-      ),
-    );
-  }
-
-  yield* noop();
-});
-hyperDB.afterUpdate(function* (db, table, traits, ops) {
-  if (table === changesTable) return;
-  if (traits.some((t) => t.type === "skip-sync")) {
-    return;
-  }
-
-  for (const op of ops) {
-    syncDispatch(
-      db,
-      changesSlice.insertChangeFromUpdate(
-        op.table,
-        op.oldValue,
-        op.newValue,
-        clientId,
-        nextClock,
-      ),
-    );
-  }
-
-  yield* noop();
-});
-hyperDB.afterDelete(function* (db, table, traits, ops) {
-  if (table === changesTable) return;
-  if (traits.some((t) => t.type === "skip-sync")) {
-    return;
-  }
-
-  for (const op of ops) {
-    syncDispatch(
-      db,
-      changesSlice.insertChangeFromDelete(
-        op.table,
-        op.oldValue,
-        clientId,
-        nextClock,
-      ),
-    );
-  }
-
-  yield* noop();
-});
-
-execSync(hyperDB.loadTables([...registeredSyncableTables, changesTable]));
-const inbox = syncDispatch(hyperDB, projectsSlice.createInboxIfNotExists());
+const mainDB = getMainDB();
+// const { db, nextClock, clientId } = getTodoDB("main");
+// const inbox = syncDispatch(db, projectsSlice.createInboxIfNotExists());
 
 const appRouter = router({
-  getChangesAfter: publicProcedure
-    .input(z.object({ lastServerUpdatedAt: z.string() }))
+  getChangesAfter: protectedProcedure
+    .input(
+      z.object({
+        lastServerUpdatedAt: z.string(),
+        vaultId: z.string(),
+      }),
+    )
     .query(async (opts) => {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      // Check if user has access to the vault
+      const vault = select(mainDB, vaultSlice.getVaultById(opts.input.vaultId));
+      if (!vault || vault.userId !== opts.ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to vault" });
+      }
+
+      const { db } = getTodoDB(opts.input.vaultId);
+
       return select(
-        hyperDB,
+        db,
         changesSlice.getChangesetAfter(opts.input.lastServerUpdatedAt),
       );
     }),
-  handleChanges: publicProcedure
-    .input(ChangesetArray)
+  handleChanges: protectedProcedure
+    .input(
+      z.object({
+        vaultId: z.string(),
+        changeset: ChangesetArray,
+      }),
+    )
     .mutation(async (opts) => {
-      const { input } = opts;
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      // Check if user has access to the vault
+      const vault = select(mainDB, vaultSlice.getVaultById(opts.input.vaultId));
+      if (!vault || vault.userId !== opts.ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to vault" });
+      }
+
+      const { db, nextClock, clientId } = getTodoDB(opts.input.vaultId);
 
       syncDispatch(
-        hyperDB.withTraits({ type: "skip-sync" }),
-        changesSlice.mergeChanges(input, nextClock, clientId),
+        db.withTraits({ type: "skip-sync" }),
+        changesSlice.mergeChanges(opts.input.changeset, nextClock, clientId),
       );
+    }),
+
+  revokeToken: protectedProcedure
+    .input(z.object({ tokenId: z.string() }))
+    .mutation(async (opts) => {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      syncDispatch(mainDB, authSlice.revokeToken(opts.input.tokenId));
+      return { success: true };
+    }),
+
+  register: publicProcedure
+    .input(
+      z.object({
+        email: z.email(),
+        password: z.string().min(8),
+      }),
+    )
+    .mutation(async (opts) => {
+      const { email, password } = opts.input;
+      // Hash password before storing
+      const hashedPassword = await Bun.password.hash(password);
+      const result = syncDispatch(
+        mainDB,
+        authSlice.register(email, hashedPassword),
+      );
+      return result;
+    }),
+  login: publicProcedure
+    .input(
+      z.object({
+        email: z.email(),
+        password: z.string().min(8),
+      }),
+    )
+    .mutation(async (opts) => {
+      const { email, password } = opts.input;
+
+      // Get user to verify password
+      const user = syncDispatch(mainDB, authSlice.getUserByEmail(email));
+      if (!user) {
+        throw new Error("Invalid credentials");
+      }
+
+      // Verify password
+      const isValid = await Bun.password.verify(password, user.password);
+      if (!isValid) {
+        throw new Error("Invalid credentials");
+      }
+
+      // Generate token for authenticated user
+      const result = syncDispatch(mainDB, authSlice.generateToken(user.id));
+
+      return result;
+    }),
+
+  createVault: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+      }),
+    )
+    .mutation(async (opts) => {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const vault = syncDispatch(
+        mainDB,
+        vaultSlice.createVault(opts.ctx.user.id, opts.input.name),
+      );
+
+      return vault;
+    }),
+
+  listVaults: protectedProcedure.query(async (opts) => {
+    if (!opts.ctx.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+
+    const vaults = select(
+      mainDB,
+      vaultSlice.listVaultsByUserId(opts.ctx.user.id),
+    );
+
+    return vaults;
+  }),
+
+  updateVault: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1),
+      }),
+    )
+    .mutation(async (opts) => {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const vault = syncDispatch(
+        mainDB,
+        vaultSlice.updateVault(opts.input.id, opts.input.name),
+      );
+
+      if (!vault) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Vault not found" });
+      }
+
+      return vault;
+    }),
+
+  deleteVault: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .mutation(async (opts) => {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      // Check if user has access to the vault
+      const vault = select(mainDB, vaultSlice.getVaultById(opts.input.id));
+      if (!vault || vault.userId !== opts.ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to vault" });
+      }
+
+      const success = syncDispatch(
+        mainDB,
+        vaultSlice.deleteVault(opts.input.id),
+      );
+
+      if (!success) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Vault not found" });
+      }
+
+      return { success: true };
     }),
 });
 
@@ -188,6 +238,7 @@ server.register(fastifyTRPCPlugin, {
   useWSS: true,
   trpcOptions: {
     router: appRouter,
+    createContext,
   } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
 });
 
@@ -249,57 +300,6 @@ server.post("/upload", async (request, reply) => {
     console.error("Upload error:", error);
     return reply.code(500).send({ error: "Upload failed" });
   }
-});
-
-server.register(async (instance) => {
-  instance.addHook("preHandler", async (request, reply) => {
-    console.log("preHandler", request.headers);
-
-    if (process.env.NODE_ENV === "development" || request.url === "/upload") {
-      return;
-    }
-
-    const authHeader = request.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
-      reply.code(401).send({ error: "Unauthorized - Authentication required" });
-      return reply;
-    }
-  });
-});
-
-server.addHook("onRequest", async (request, reply) => {
-  if (process.env.NODE_ENV === "development" || request.url === "/upload") {
-    return;
-  }
-
-  const authHeader = request.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Basic ")) {
-    reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
-    return reply
-      .code(401)
-      .send({ error: "Unauthorized - Authentication required" });
-  }
-
-  const base64Credentials = authHeader.slice(6); // Remove "Basic "
-
-  const credentials = Buffer.from(base64Credentials, "base64").toString(
-    "utf-8",
-  );
-
-  const [username, password] = credentials.split(":");
-  if (
-    username === (process.env.AUTH_USERNAME || "") &&
-    password === (process.env.AUTH_PASSWORD || "")
-  ) {
-    console.log("Authentication successful");
-    return;
-  }
-
-  //   // If we get here, authentication failed
-  reply.header("WWW-Authenticate", 'Basic realm="Secure Area"');
-  reply.code(401).send({ error: "Authentication failed" });
 });
 
 // Register a not found handler that serves index.html for non-API routes
@@ -368,17 +368,17 @@ export type AppRouter = typeof appRouter;
 const memosDir = path.join(__dirname, "..", "dbs", "memos");
 
 const createTaskIfNotExists = (memoId: string, content: string) => {
-  syncDispatch(
-    hyperDB,
-    projectsSlice.createTaskIfNotExists(
-      inbox.id,
-      memoId.toLowerCase(),
-      "prepend",
-      {
-        title: content,
-      },
-    ),
-  );
+  // syncDispatch(
+  //   db,
+  //   projectsSlice.createTaskIfNotExists(
+  //     inbox.id,
+  //     memoId.toLowerCase(),
+  //     "prepend",
+  //     {
+  //       title: content,
+  //     },
+  //   ),
+  // );
 };
 
 async function transcribeFile(filePath: string): Promise<string | null> {

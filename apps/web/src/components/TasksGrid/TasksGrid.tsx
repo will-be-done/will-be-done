@@ -1,12 +1,12 @@
-import { ColumnListProvider } from "@/features/focus/components/ParentListProvider";
+import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { cn } from "@/lib/utils";
-import { FocusKey } from "@/store2/slices/focusSlice";
+import { FocusKey } from "@/store/focusSlice.ts";
 import { useEffect, useRef, useState } from "react";
-import { DndModelData, isModelDNDData } from "@/features/dnd/models";
+import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { useSelect } from "@will-be-done/hyperdb";
 import { appSlice } from "@will-be-done/slices";
 
@@ -140,8 +140,8 @@ export const TasksColumn = ({
           <button
             type="button"
             className={cn(
-              "flex gap-3 justify-end flex-shrink-0  p-1 rounded-lg  group focus:outline-none ",
-              " group-focus-visible:outline-2 group-focus-visible:outline-offset-1 group-focus-visible:outline-solid group-focus-visible:outline-panel-selected",
+              "flex gap-3 justify-end flex-shrink-0  p-1 rounded-lg  group Focus:outline-none ",
+              " group-Focus-visible:outline-2 group-Focus-visible:outline-offset-1 group-Focus-visible:outline-solid group-Focus-visible:outline-panel-selected",
               {
                 "outline-2 outline-offset-1 outline-solid outline-panel-selected":
                   isOver && isHidden,

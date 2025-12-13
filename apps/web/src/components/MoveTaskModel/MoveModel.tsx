@@ -7,7 +7,7 @@ import {
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
-import { focusSlice2 } from "@/store2/slices/focusSlice.ts";
+import { focusSlice } from "@/store/focusSlice.ts";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import { projectsAllSlice } from "@will-be-done/slices";
 
@@ -56,13 +56,13 @@ export const MoveModal = ({
 
   const dispatch = useDispatch();
   useEffect(() => {
-    dispatch(focusSlice2.disableFocus());
+    dispatch(focusSlice.disableFocus());
 
     inputRef.current?.focus();
   }, [dispatch]);
 
   useUnmount(() => {
-    dispatch(focusSlice2.enableFocus());
+    dispatch(focusSlice.enableFocus());
   });
 
   return (
