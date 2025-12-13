@@ -92,6 +92,7 @@
     "typescript-eslint": "^8.48.0",
     "vite": "^7.2.4",
     "vite-bundle-analyzer": "^1.2.3",
+    "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.0.14",
     "web-vitals": "^5.1.0"
   }
