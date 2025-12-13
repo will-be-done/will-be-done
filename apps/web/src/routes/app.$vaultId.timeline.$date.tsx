@@ -4,23 +4,25 @@ import { z } from "zod";
 import { parse } from "date-fns";
 import { Layout } from "@/components/Layout/Layout.tsx";
 import { Board } from "@/components/DaysBoard/DaysBoard.tsx";
+import { inboxId } from "@will-be-done/slices";
 
 const filterParams = z.object({
-  projectIds: z.array(z.string()).optional(),
+  projectId: z.string().default(inboxId),
 });
 
-export const Route = createFileRoute("/timeline/$date")({
+export const Route = createFileRoute("/app/$vaultId/timeline/$date")({
   component: RouteComponent,
   validateSearch: zodValidator(filterParams),
 });
 
 function RouteComponent() {
   const params = Route.useParams();
+  const { projectId } = Route.useSearch();
   const date = parse(params.date, "yyyy-MM-dd", new Date());
 
   return (
-    <Layout>c
-      <Board selectedDate={date} />
+    <Layout>
+      <Board selectedDate={date} selectedProjectId={projectId} />
     </Layout>
   );
 }

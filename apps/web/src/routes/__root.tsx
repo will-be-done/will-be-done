@@ -1,34 +1,29 @@
-import { GlobalListener } from "@/components/GlobalListener/GlobalListener.tsx";
-import { ThemeProvider } from "@/components/ui/theme-provider";
-import { KeyPressedCtxProvider } from "@/components/GlobalListener/KeyPressedCtxProvider.tsx";
 import { Outlet, createRootRoute } from "@tanstack/react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TRPCProvider, trpcClient } from "@/lib/trpc";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { DBProvider } from "@will-be-done/hyperdb";
-import { initDbStore } from "@/store/load.ts";
 
 export const Route = createRootRoute({
   component: RouteComponent,
-  loader: async () => {
-    return initDbStore();
+});
+
+// Singleton QueryClient for the entire app
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 minute
+    },
   },
 });
 
 function RouteComponent() {
-  const newStore = Route.useLoaderData();
-
   return (
-    <>
-      <DBProvider value={newStore}>
-        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <KeyPressedCtxProvider>
-            <GlobalListener />
+    <QueryClientProvider client={queryClient}>
+      <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
+        <Outlet />
 
-            <Outlet />
-
-            <TanStackRouterDevtools />
-          </KeyPressedCtxProvider>
-        </ThemeProvider>
-      </DBProvider>
-    </>
+        <TanStackRouterDevtools />
+      </TRPCProvider>
+    </QueryClientProvider>
   );
 }

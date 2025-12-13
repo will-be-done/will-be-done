@@ -28,11 +28,7 @@ import {
   useSyncSelector,
 } from "@will-be-done/hyperdb";
 import { projectsAllSlice, projectsSlice } from "@will-be-done/slices";
-import {
-  buildFocusKey,
-  focusManager,
-  focusSlice,
-} from "@/store/focusSlice.ts";
+import { buildFocusKey, focusManager, focusSlice } from "@/store/focusSlice.ts";
 import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
@@ -41,7 +37,7 @@ import {
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
 import { Popover } from "@/components/ui/popover.tsx";
-import { useCurrentDate } from "./hooks.tsx";
+import { useCurrentDate } from "../DaysBoard/hooks.tsx";
 
 const ProjectDragPreview = function TaskPrimitiveComponent({
   title,
@@ -83,15 +79,23 @@ const DropProjectIndicator = function DropProjectIndicatorComp() {
 const ProjectItem = function ProjectItemComp({
   projectId,
   orderNumber,
-  onProjectClick,
+  // onProjectClick,
   isSelected,
   exceptDailyListIds,
+  projectLink: ProjectLink,
 }: {
   projectId: string;
   orderNumber: string;
-  onProjectClick: (projectId: string) => void;
+  // onProjectClick: (projectId: string) => void;
   isSelected: boolean;
   exceptDailyListIds: string[];
+  projectLink: React.ComponentType<
+    React.PropsWithChildren<{
+      projectId: string;
+      className?: string;
+      ref?: React.Ref<HTMLAnchorElement>;
+    }>
+  >;
 }) {
   // console.log("orderNumber", projectId, orderNumber);
 
@@ -107,7 +111,7 @@ const ProjectItem = function ProjectItemComp({
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
 
-  const ref = useRef<HTMLButtonElement>(null);
+  const ref = useRef<HTMLAnchorElement>(null);
 
   const isFocused = useSyncSelector(
     () => focusSlice.isFocused(focusItem.key),
@@ -377,18 +381,19 @@ const ProjectItem = function ProjectItemComp({
           </PopoverContent>
         </Popover>
 
-        <button
-          type="button"
+        {/* onClick={() => { */}
+        {/*   // console.log("focusItem click", focusItem); */}
+        {/*   dispatch(focusSlice.focusByKey(focusItem.key, true)); */}
+        {/*   onProjectClick(project.id); */}
+        {/* }} */}
+        <ProjectLink
+          projectId={project.id}
           className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 cursor-pointer"
           ref={ref}
-          onClick={() => {
-            // console.log("focusItem click", focusItem);
-            dispatch(focusSlice.focusByKey(focusItem.key, true));
-            onProjectClick(project.id);
-          }}
         >
           {project.title}
-        </button>
+        </ProjectLink>
+
         <div
           className={cn(
             "ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
@@ -477,10 +482,22 @@ const ProjectItem = function ProjectItemComp({
 
 export const ProjectView = ({
   exceptDailyListIds,
+  marginTop,
+  projectLink,
+  selectedProjectId,
 }: {
   exceptDailyListIds: string[];
+  marginTop?: boolean;
+  projectLink: React.ComponentType<
+    React.PropsWithChildren<{
+      projectId: string;
+      className?: string;
+      ref?: React.Ref<HTMLAnchorElement>;
+    }>
+  >;
+  selectedProjectId: string;
 }) => {
-  const [selectedProjectId, setSelectedProjectId] = useState(inboxId);
+  // const [selectedProjectId, setSelectedProjectId] = useState(inboxId);
   // const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
   const dispatch = useDispatch();
@@ -586,8 +603,13 @@ export const ProjectView = ({
   }
 
   return (
-    <div className="flex h-full">
-      <div className="overflow-y-auto">
+    <div className="flex h-full w-full shrink-0">
+      <div
+        className={cn("overflow-y-auto ", {
+          "mt-10": marginTop,
+          "mt-2": !marginTop,
+        })}
+      >
         <ProjectItemsList
           project={project}
           exceptDailyListIds={exceptDailyListIds}
@@ -597,7 +619,7 @@ export const ProjectView = ({
         focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
         priority="0"
       >
-        <div className="w-80 h-full bg-panel-2 ml-auto rounded-l-lg flex flex-col">
+        <div className="w-80 h-full bg-panel-2 ml-auto rounded-l-lg flex flex-col shrink-0">
           <div className="flex justify-center text-subheader my-2 mx-3">
             Projects
             <div className="ml-auto">
@@ -619,24 +641,24 @@ export const ProjectView = ({
           </div>
           <div className="h-full overflow-y-auto flex flex-col gap-2 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
             <ProjectItem
+              projectLink={projectLink}
               projectId={inboxProject.id}
               orderNumber="0"
-              onProjectClick={setSelectedProjectId}
               isSelected={selectedProjectId === inboxProject.id}
               exceptDailyListIds={exceptDailyListIds}
             />
             {projectIdsWithoutInbox.map((id, i) => (
               <ProjectItem
+                projectLink={projectLink}
                 key={id}
                 projectId={id}
                 orderNumber={(i + 1).toString()}
-                onProjectClick={setSelectedProjectId}
                 isSelected={selectedProjectId === id}
                 exceptDailyListIds={exceptDailyListIds}
               />
             ))}
           </div>
-          <div className="flex text-center items-center justify-center py-1 text-subheader text-sm ">
+          <div className="flex text-center items-center justify-center pb-3 pt-1  text-subheader text-sm ">
             <button
               type="button"
               onClick={handleAddProjectClick}

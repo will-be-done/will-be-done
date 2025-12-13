@@ -646,9 +646,7 @@ export const TaskComp = ({
           // isSelfDragging && "h-12",
         )}
         style={{}}
-        onClick={() =>
-          dispatch(focusSlice.focusByKey(focusableItem.key, true))
-        }
+        onClick={() => dispatch(focusSlice.focusByKey(focusableItem.key, true))}
         onDoubleClick={() => {
           dispatch(focusSlice.editByKey(focusableItem.key));
         }}
@@ -731,9 +729,14 @@ export const TaskComp = ({
               </div>
             )}
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
-              <div className="text-right">
+              <button
+                className="text-right cursor-pointer"
+                onClick={() => {
+                  setIsMoveModalOpen(true);
+                }}
+              >
                 {project.icon || "🟡"} {project.title}
-              </div>
+              </button>
             )}
           </div>
         </>

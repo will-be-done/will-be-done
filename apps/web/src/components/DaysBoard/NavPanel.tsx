@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils.ts";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { useDaysPreferences } from "./hooks.tsx";
+import { Route } from "@/routes/app.$vaultId.tsx";
 
 export const NavPanel = ({
   previousDate,
@@ -14,15 +15,17 @@ export const NavPanel = ({
 }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
+  const vaultId = Route.useParams().vaultId;
 
   return (
     <div className="top-0 fixed m-auto left-0 right-0 max-w-xl z-40  ">
       <div className="bg-panel w-full mx-5 rounded-b-lg text-xs text-primary flex align-center content-center relative h-6 stroke-primary shadow-md ">
         <div className="absolute left-1/2 -translate-x-1/2 underline decoration-dotted flex items-center justify-items-center h-full">
           <Link
-            to="/timeline/$date"
+            to="/app/$vaultId/timeline/$date"
             params={{
               date: format(previousDate, "yyyy-MM-dd"),
+              vaultId,
             }}
             className="cursor-pointer w-3 flex items-center justify-center h-full"
             aria-label="Previous day"
@@ -43,9 +46,10 @@ export const NavPanel = ({
           </Link>
           {format(selectedDate, "dd MMM yyyy")}
           <Link
-            to="/timeline/$date"
+            to="/app/$vaultId/timeline/$date"
             params={{
               date: format(nextDate, "yyyy-MM-dd"),
+              vaultId,
             }}
             className="cursor-pointer w-3 flex items-center justify-center h-full"
             aria-label="Next day"

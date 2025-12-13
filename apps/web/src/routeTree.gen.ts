@@ -9,58 +9,164 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VaultRouteImport } from './routes/vault'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TimelineIndexRouteImport } from './routes/timeline/index'
-import { Route as TimelineDateRouteImport } from './routes/timeline/$date'
+import { Route as AppVaultIdRouteImport } from './routes/app.$vaultId'
+import { Route as AppVaultIdTimelineIndexRouteImport } from './routes/app.$vaultId.timeline.index'
+import { Route as AppVaultIdProjectsIndexRouteImport } from './routes/app.$vaultId.projects.index'
+import { Route as AppVaultIdTimelineDateRouteImport } from './routes/app.$vaultId.timeline.$date'
+import { Route as AppVaultIdProjectsProjectIdRouteImport } from './routes/app.$vaultId.projects.$projectId'
 
+const VaultRoute = VaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TimelineIndexRoute = TimelineIndexRouteImport.update({
+const AppVaultIdRoute = AppVaultIdRouteImport.update({
+  id: '/app/$vaultId',
+  path: '/app/$vaultId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppVaultIdTimelineIndexRoute = AppVaultIdTimelineIndexRouteImport.update({
   id: '/timeline/',
   path: '/timeline/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppVaultIdRoute,
 } as any)
-const TimelineDateRoute = TimelineDateRouteImport.update({
+const AppVaultIdProjectsIndexRoute = AppVaultIdProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => AppVaultIdRoute,
+} as any)
+const AppVaultIdTimelineDateRoute = AppVaultIdTimelineDateRouteImport.update({
   id: '/timeline/$date',
   path: '/timeline/$date',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppVaultIdRoute,
 } as any)
+const AppVaultIdProjectsProjectIdRoute =
+  AppVaultIdProjectsProjectIdRouteImport.update({
+    id: '/projects/$projectId',
+    path: '/projects/$projectId',
+    getParentRoute: () => AppVaultIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/timeline/$date': typeof TimelineDateRoute
-  '/timeline': typeof TimelineIndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/vault': typeof VaultRoute
+  '/app/$vaultId': typeof AppVaultIdRouteWithChildren
+  '/app/$vaultId/projects/$projectId': typeof AppVaultIdProjectsProjectIdRoute
+  '/app/$vaultId/timeline/$date': typeof AppVaultIdTimelineDateRoute
+  '/app/$vaultId/projects': typeof AppVaultIdProjectsIndexRoute
+  '/app/$vaultId/timeline': typeof AppVaultIdTimelineIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/timeline/$date': typeof TimelineDateRoute
-  '/timeline': typeof TimelineIndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/vault': typeof VaultRoute
+  '/app/$vaultId': typeof AppVaultIdRouteWithChildren
+  '/app/$vaultId/projects/$projectId': typeof AppVaultIdProjectsProjectIdRoute
+  '/app/$vaultId/timeline/$date': typeof AppVaultIdTimelineDateRoute
+  '/app/$vaultId/projects': typeof AppVaultIdProjectsIndexRoute
+  '/app/$vaultId/timeline': typeof AppVaultIdTimelineIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/timeline/$date': typeof TimelineDateRoute
-  '/timeline/': typeof TimelineIndexRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/vault': typeof VaultRoute
+  '/app/$vaultId': typeof AppVaultIdRouteWithChildren
+  '/app/$vaultId/projects/$projectId': typeof AppVaultIdProjectsProjectIdRoute
+  '/app/$vaultId/timeline/$date': typeof AppVaultIdTimelineDateRoute
+  '/app/$vaultId/projects/': typeof AppVaultIdProjectsIndexRoute
+  '/app/$vaultId/timeline/': typeof AppVaultIdTimelineIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/timeline/$date' | '/timeline'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/vault'
+    | '/app/$vaultId'
+    | '/app/$vaultId/projects/$projectId'
+    | '/app/$vaultId/timeline/$date'
+    | '/app/$vaultId/projects'
+    | '/app/$vaultId/timeline'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/timeline/$date' | '/timeline'
-  id: '__root__' | '/' | '/timeline/$date' | '/timeline/'
+  to:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/vault'
+    | '/app/$vaultId'
+    | '/app/$vaultId/projects/$projectId'
+    | '/app/$vaultId/timeline/$date'
+    | '/app/$vaultId/projects'
+    | '/app/$vaultId/timeline'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/vault'
+    | '/app/$vaultId'
+    | '/app/$vaultId/projects/$projectId'
+    | '/app/$vaultId/timeline/$date'
+    | '/app/$vaultId/projects/'
+    | '/app/$vaultId/timeline/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  TimelineDateRoute: typeof TimelineDateRoute
-  TimelineIndexRoute: typeof TimelineIndexRoute
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
+  VaultRoute: typeof VaultRoute
+  AppVaultIdRoute: typeof AppVaultIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/vault': {
+      id: '/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof VaultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -68,27 +174,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/timeline/': {
-      id: '/timeline/'
-      path: '/timeline'
-      fullPath: '/timeline'
-      preLoaderRoute: typeof TimelineIndexRouteImport
+    '/app/$vaultId': {
+      id: '/app/$vaultId'
+      path: '/app/$vaultId'
+      fullPath: '/app/$vaultId'
+      preLoaderRoute: typeof AppVaultIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/timeline/$date': {
-      id: '/timeline/$date'
+    '/app/$vaultId/timeline/': {
+      id: '/app/$vaultId/timeline/'
+      path: '/timeline'
+      fullPath: '/app/$vaultId/timeline'
+      preLoaderRoute: typeof AppVaultIdTimelineIndexRouteImport
+      parentRoute: typeof AppVaultIdRoute
+    }
+    '/app/$vaultId/projects/': {
+      id: '/app/$vaultId/projects/'
+      path: '/projects'
+      fullPath: '/app/$vaultId/projects'
+      preLoaderRoute: typeof AppVaultIdProjectsIndexRouteImport
+      parentRoute: typeof AppVaultIdRoute
+    }
+    '/app/$vaultId/timeline/$date': {
+      id: '/app/$vaultId/timeline/$date'
       path: '/timeline/$date'
-      fullPath: '/timeline/$date'
-      preLoaderRoute: typeof TimelineDateRouteImport
-      parentRoute: typeof rootRouteImport
+      fullPath: '/app/$vaultId/timeline/$date'
+      preLoaderRoute: typeof AppVaultIdTimelineDateRouteImport
+      parentRoute: typeof AppVaultIdRoute
+    }
+    '/app/$vaultId/projects/$projectId': {
+      id: '/app/$vaultId/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/app/$vaultId/projects/$projectId'
+      preLoaderRoute: typeof AppVaultIdProjectsProjectIdRouteImport
+      parentRoute: typeof AppVaultIdRoute
     }
   }
 }
 
+interface AppVaultIdRouteChildren {
+  AppVaultIdProjectsProjectIdRoute: typeof AppVaultIdProjectsProjectIdRoute
+  AppVaultIdTimelineDateRoute: typeof AppVaultIdTimelineDateRoute
+  AppVaultIdProjectsIndexRoute: typeof AppVaultIdProjectsIndexRoute
+  AppVaultIdTimelineIndexRoute: typeof AppVaultIdTimelineIndexRoute
+}
+
+const AppVaultIdRouteChildren: AppVaultIdRouteChildren = {
+  AppVaultIdProjectsProjectIdRoute: AppVaultIdProjectsProjectIdRoute,
+  AppVaultIdTimelineDateRoute: AppVaultIdTimelineDateRoute,
+  AppVaultIdProjectsIndexRoute: AppVaultIdProjectsIndexRoute,
+  AppVaultIdTimelineIndexRoute: AppVaultIdTimelineIndexRoute,
+}
+
+const AppVaultIdRouteWithChildren = AppVaultIdRoute._addFileChildren(
+  AppVaultIdRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  TimelineDateRoute: TimelineDateRoute,
-  TimelineIndexRoute: TimelineIndexRoute,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
+  VaultRoute: VaultRoute,
+  AppVaultIdRoute: AppVaultIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -14,10 +14,17 @@ import { TaskComp } from "@/components/Task/Task.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
 import { useCurrentDMY, useDaysPreferences, useHiddenDays } from "./hooks.tsx";
-import { ProjectView } from "./ProvecjtView.tsx";
-import { TasksColumn, TasksColumnGrid } from "@/components/TasksGrid/TasksGrid.tsx";
+import { ProjectView } from "../ProjectView/ProvecjtView.tsx";
+import {
+  TasksColumn,
+  TasksColumnGrid,
+} from "@/components/TasksGrid/TasksGrid.tsx";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Route } from "@/routes/app.$vaultId.tsx";
+import { NavBar } from "../NavBar/NavBar.tsx";
+import { authUtils } from "@/lib/auth.ts";
 
 const TaskProjection = ({
   projectionId,
@@ -173,11 +180,13 @@ const BoardView = ({
   nextDate,
   selectedDate,
   dailyListsIds,
+  selectedProjectId,
 }: {
   previousDate: Date;
   nextDate: Date;
   selectedDate: Date;
   dailyListsIds: string[];
+  selectedProjectId: string;
 }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const dispatch = useDispatch();
@@ -223,6 +232,50 @@ const BoardView = ({
     setProjectsViewHidden(!projectsViewHidden);
   };
 
+  const vaultId = Route.useParams().vaultId;
+
+  const navigate = useNavigate();
+  const handleSignOutClick = () => {
+    authUtils.signOut();
+
+    void navigate({ to: "/login" });
+  };
+
+  const ProjectLink = useCallback(
+    // eslint-disable-next-line react-x/no-nested-component-definitions
+    ({
+      children,
+      projectId,
+      className,
+      ref,
+    }: {
+      children?: React.ReactNode;
+      projectId: string;
+      className?: string;
+      ref?: React.Ref<HTMLAnchorElement>;
+    }) => {
+      return (
+        <Link
+          to="/app/$vaultId/timeline/$date"
+          params={{
+            date: format(selectedDate, "yyyy-MM-dd"),
+            vaultId,
+          }}
+          search={{
+            projectId,
+          }}
+          className={className}
+          ref={ref}
+        >
+          {children}
+        </Link>
+      );
+    },
+    [selectedDate, vaultId],
+  );
+
+  console.log("projectId", selectedProjectId);
+
   return (
     <>
       <div className="flex flex-col w-full">
@@ -258,6 +311,18 @@ const BoardView = ({
             nextDate={nextDate}
             selectedDate={selectedDate}
           />
+          <div className="absolute left-0 top-0">
+            <NavBar vaultId={vaultId} />
+          </div>
+          <div className="absolute right-0 top-0 ">
+            <div className="flex items-center rounded-bl-lg text-sm bg-panel text-xs text-primary h-6 px-2 gap-3">
+              <Link className="[&.active]:text-accent" to="/vault">
+                vaults
+              </Link>
+
+              <button onClick={handleSignOutClick}>sign out</button>
+            </div>
+          </div>
           {/* </ScrollArea.Root> */}
         </div>
         <div
@@ -272,14 +337,24 @@ const BoardView = ({
             isHidden={projectsViewHidden}
           />
 
-          <ProjectView exceptDailyListIds={dailyListsIds} />
+          <ProjectView
+            exceptDailyListIds={dailyListsIds}
+            selectedProjectId={selectedProjectId}
+            projectLink={ProjectLink}
+          />
         </div>
       </div>
     </>
   );
 };
 
-export const Board = ({ selectedDate }: { selectedDate: Date }) => {
+export const Board = ({
+  selectedDate,
+  selectedProjectId,
+}: {
+  selectedDate: Date;
+  selectedProjectId: string;
+}) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
 
   const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
@@ -310,6 +385,7 @@ export const Board = ({ selectedDate }: { selectedDate: Date }) => {
       nextDate={nextDate}
       selectedDate={selectedDate}
       dailyListsIds={dailyListsIds}
+      selectedProjectId={selectedProjectId}
     />
   );
 };
