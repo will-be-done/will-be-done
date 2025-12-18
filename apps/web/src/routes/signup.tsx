@@ -52,14 +52,11 @@ function SignupPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div className="w-full max-w-md space-y-8 rounded-lg border border-panel-selected bg-panel p-8 shadow-lg">
+      <div className="w-full max-w-md space-y-8 rounded-lg bg-panel p-8 shadow-lg">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-primary">
             Create account
           </h2>
-          <p className="mt-2 text-sm text-content-tinted">
-            Sign up to get started with your account
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
@@ -79,7 +76,7 @@ function SignupPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-input bg-surface px-3 py-2 text-content placeholder-content-tinted shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="mt-1 block w-full rounded-md bg-surface px-3 py-2 text-content placeholder-content-tinted-2 shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 placeholder="Enter your email"
               />
             </div>
@@ -100,7 +97,7 @@ function SignupPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-input bg-surface px-3 py-2 text-content placeholder-content-tinted shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="mt-1 block w-full rounded-md bg-surface px-3 py-2 text-content placeholder-content-tinted-2 shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 placeholder="Create a password (min. 8 characters)"
               />
             </div>
@@ -121,7 +118,7 @@ function SignupPage() {
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-input bg-surface px-3 py-2 text-content placeholder-content-tinted shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="mt-1 block w-full rounded-md bg-surface px-3 py-2 text-content placeholder-content-tinted-2 shadow-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 placeholder="Confirm your password"
               />
             </div>
@@ -139,7 +136,7 @@ function SignupPage() {
           <Button
             type="submit"
             disabled={registerMutation.isPending}
-            className="w-full"
+            className="w-full cursor-pointer"
           >
             {registerMutation.isPending ? "Creating account..." : "Sign up"}
           </Button>

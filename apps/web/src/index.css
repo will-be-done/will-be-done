@@ -30,6 +30,7 @@
   --color-content: var(--color-gray-200);
   --color-done-content: var(--color-neutral-500);
   --color-content-tinted: var(--color-gray-500);
+  --color-content-tinted-2: var(--color-gray-700);
   --color-subheader: var(--color-slate-400);
   --color-notice: var(--color-yellow-500);
 
