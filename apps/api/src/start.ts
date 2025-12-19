@@ -25,8 +25,6 @@ import { TRPCError } from "@trpc/server";
 dotenv.config();
 
 const mainDB = getMainDB();
-// const { db, nextClock, clientId } = getTodoDB("main");
-// const inbox = syncDispatch(db, projectsSlice.createInboxIfNotExists());
 
 const appRouter = router({
   getChangesAfter: protectedProcedure
@@ -44,7 +42,10 @@ const appRouter = router({
       // Check if user has access to the vault
       const vault = select(mainDB, vaultSlice.getVaultById(opts.input.vaultId));
       if (!vault || vault.userId !== opts.ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to vault" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Access denied to vault",
+        });
       }
 
       const { db } = getTodoDB(opts.input.vaultId);
@@ -69,7 +70,10 @@ const appRouter = router({
       // Check if user has access to the vault
       const vault = select(mainDB, vaultSlice.getVaultById(opts.input.vaultId));
       if (!vault || vault.userId !== opts.ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to vault" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Access denied to vault",
+        });
       }
 
       const { db, nextClock, clientId } = getTodoDB(opts.input.vaultId);
@@ -206,7 +210,10 @@ const appRouter = router({
       // Check if user has access to the vault
       const vault = select(mainDB, vaultSlice.getVaultById(opts.input.id));
       if (!vault || vault.userId !== opts.ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied to vault" });
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Access denied to vault",
+        });
       }
 
       const success = syncDispatch(
@@ -240,66 +247,6 @@ server.register(fastifyTRPCPlugin, {
     router: appRouter,
     createContext,
   } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
-});
-
-server.post("/upload", async (request, reply) => {
-  try {
-    const parts = request.parts();
-    let memoId: string = "";
-    let duration: number = 0;
-    let createdAt: number = 0;
-    let audioBuffer: Buffer | null = null;
-    let fileName: string = "";
-
-    for await (const part of parts) {
-      if (part.type === "field") {
-        const fieldName = part.fieldname;
-        const value = part.value as string;
-
-        switch (fieldName) {
-          case "memoId":
-            memoId = value;
-            break;
-          case "duration":
-            duration = parseFloat(value);
-            break;
-          case "createdAt":
-            createdAt = parseFloat(value);
-            break;
-        }
-      } else if (part.type === "file" && part.fieldname === "audio") {
-        fileName = part.filename || `${memoId}.mp4`;
-        audioBuffer = await part.toBuffer();
-      }
-    }
-
-    if (!audioBuffer || !memoId) {
-      return reply.code(400).send({ error: "Missing audio file or memoId" });
-    }
-
-    const memosDir = path.join(__dirname, "..", "dbs", "memos");
-    if (!fs.existsSync(memosDir)) {
-      fs.mkdirSync(memosDir, { recursive: true });
-    }
-
-    const filePath = path.join(memosDir, `${memoId}.mp4`);
-    fs.writeFileSync(filePath, audioBuffer);
-
-    console.log(
-      `Saved memo: ${memoId}, duration: ${duration}, file: ${fileName}`,
-    );
-
-    return reply.code(200).send({
-      success: true,
-      memoId,
-      fileName,
-      duration,
-      createdAt: new Date(createdAt * 1000).toISOString(),
-    });
-  } catch (error) {
-    console.error("Upload error:", error);
-    return reply.code(500).send({ error: "Upload failed" });
-  }
 });
 
 // Register a not found handler that serves index.html for non-API routes
@@ -364,117 +311,3 @@ const start = async () => {
 void start();
 
 export type AppRouter = typeof appRouter;
-
-const memosDir = path.join(__dirname, "..", "dbs", "memos");
-
-const createTaskIfNotExists = (memoId: string, content: string) => {
-  // syncDispatch(
-  //   db,
-  //   projectsSlice.createTaskIfNotExists(
-  //     inbox.id,
-  //     memoId.toLowerCase(),
-  //     "prepend",
-  //     {
-  //       title: content,
-  //     },
-  //   ),
-  // );
-};
-
-async function transcribeFile(filePath: string): Promise<string | null> {
-  try {
-    // Create form data for the HTTP request using Bun's built-in FormData
-    const formData = new FormData();
-    const file = Bun.file(filePath);
-    formData.append("audio", file);
-
-    console.log("sending file", filePath);
-    // Make HTTP request to transcription service
-    const response = await fetch("http://tosi-bosi.com:3284/transcribe", {
-      method: "POST",
-      body: formData,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-    console.log(" file sent", filePath);
-
-    if (!response.ok) {
-      throw new Error(
-        `Transcription service failed: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const result = (await response.json()) as { text: string };
-    return result.text?.trim() || null;
-  } catch (error) {
-    console.error("Transcription error:", error);
-    throw error;
-  }
-}
-
-async function processTranscriptions() {
-  while (true) {
-    try {
-      if (fs.existsSync(memosDir)) {
-        const files = fs.readdirSync(memosDir);
-
-        for (const file of files) {
-          if (file.endsWith(".mp4")) {
-            const filePath = path.join(memosDir, file);
-            const transcriptFile = filePath.replace(".mp4", ".transcript");
-
-            const id = path.basename(file).replace(".mp4", "");
-            console.log("id", id);
-
-            // Skip if already transcribed
-            if (fs.existsSync(transcriptFile)) {
-              const transcript = fs.readFileSync(transcriptFile, "utf8").trim();
-              console.log(`Skipping: ${file} - already transcribed. Content:`);
-              createTaskIfNotExists(id, transcript);
-
-              // Remove .mp4 and transcript files after task creation
-              fs.unlinkSync(filePath);
-              fs.unlinkSync(transcriptFile);
-              console.log(
-                `Removed files: ${file} and ${path.basename(transcriptFile)}`,
-              );
-              continue;
-            }
-
-            console.log(`Transcribing: ${file}`);
-            const transcript = await transcribeFile(filePath);
-
-            if (transcript) {
-              // Save transcript to avoid re-processing
-              fs.writeFileSync(transcriptFile, transcript);
-
-              console.log("==== CREATE TASK ====");
-              createTaskIfNotExists(id, transcript);
-              console.log("==== CREATE TASK ====");
-              console.log(`Transcript for ${file}:`);
-              console.log(transcript);
-
-              // Remove .mp4 and transcript files after task creation
-              fs.unlinkSync(filePath);
-              fs.unlinkSync(transcriptFile);
-              console.log(
-                `Removed files: ${file} and ${path.basename(transcriptFile)}`,
-              );
-            } else {
-              console.log(`Failed to transcribe: ${file}`);
-            }
-          }
-        }
-      } else {
-        console.log("memos folder not found");
-      }
-    } catch (error) {
-      console.error("Processing error:", error);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-  }
-}
-
-void processTranscriptions();

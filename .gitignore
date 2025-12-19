@@ -27,3 +27,8 @@ dist-ssr
 *.sqlite
 
 __screenshots__
+
+# Environment variables
+.env
+.env.local
+.env.production

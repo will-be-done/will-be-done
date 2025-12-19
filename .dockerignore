@@ -37,3 +37,24 @@ dist-ssr
 *.sw?
 *.db
 *.sqlite
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+!README.md
+
+# Screenshots and test files
+__screenshots__
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx

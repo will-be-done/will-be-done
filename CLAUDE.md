@@ -310,11 +310,6 @@ The system tracks three types of changes:
 - `apps/hyperstate` - Deprecated, no longer in use
 - `apps/transcript-server` - Not part of core application
 
-### Authentication:
-- Development mode bypasses auth (`NODE_ENV === "development"`)
-- Production requires Basic HTTP auth via `AUTH_USERNAME` and `AUTH_PASSWORD` env vars
-- Upload endpoint (`/upload`) always bypasses auth
-
 ### Database:
 - Server database: `apps/api/dbs/main2.sqlite`
 - Client uses in-browser storage (implementation in `apps/web`)
