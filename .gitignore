@@ -32,3 +32,5 @@ __screenshots__
 .env
 .env.local
 .env.production
+.envrc
+

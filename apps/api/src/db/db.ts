@@ -39,6 +39,11 @@ const getDB = (dbName: string) => {
   console.log("Loading database...", dbPath);
   const sqliteDB = new Database(dbPath, { strict: true });
 
+  sqliteDB.run("PRAGMA journal_mode=WAL;");
+  sqliteDB.run("PRAGMA synchronous=NORMAL;");
+  sqliteDB.run("PRAGMA journal_size_limit=67108864;");
+  sqliteDB.run("PRAGMA busy_timeout=5000;");
+
   type SqlValue = number | string | Uint8Array | null;
   const sqliteDriver = new SqlDriver({
     exec(sql: string, params?: SqlValue[]): void {

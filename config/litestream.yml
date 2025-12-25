@@ -1,0 +1,12 @@
+# config/litestream.yml
+dbs:
+  - dir: /databases
+    pattern: "*.sqlite"
+    watch: true
+    replicas:
+      - type: s3
+        bucket: will-be-done-prod-dbs
+        endpoint: ${LITESTREAM_ENDPOINT}
+        # Access keys are read from environment variables defined in Kamal
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
