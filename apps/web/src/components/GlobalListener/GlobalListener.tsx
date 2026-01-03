@@ -11,16 +11,11 @@ import {
   appSlice,
   dailyListType,
   projectCategoryType,
-  projectionType,
   projectType,
   taskType,
 } from "@will-be-done/slices";
 import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
-import {
-  FocusKey,
-  focusManager,
-  focusSlice,
-} from "@/store/focusSlice.ts";
+import { FocusKey, focusManager, focusSlice } from "@/store/focusSlice.ts";
 
 export function GlobalListener() {
   const dispatch = useDispatch();
@@ -208,7 +203,6 @@ export function GlobalListener() {
 
           const targetImportanceOrder = [
             taskType,
-            projectionType,
             dailyListType,
             projectCategoryType,
             projectType,
@@ -235,6 +229,14 @@ export function GlobalListener() {
               break;
             }
           }
+
+          const hasDailyList = targetModels.find(
+            ([_, e]) => e.type === dailyListType,
+          );
+
+          const hasProject = targetModels.find(
+            ([_, e]) => e.type === projectType,
+          );
 
           if (!targetItemInfo) {
             shouldNeverHappen(
@@ -263,6 +265,7 @@ export function GlobalListener() {
               targetItemInfo[1].id,
               dropModelId,
               closestEdgeOfTarget || "top",
+              hasDailyList ? "dailyList" : hasProject ? "project" : "global",
             ),
           );
         },

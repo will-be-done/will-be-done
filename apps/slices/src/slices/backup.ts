@@ -9,11 +9,6 @@ import type { GenReturn } from "./utils";
 import { getDMY } from "./utils";
 import { cardsTasksSlice, type Task, taskType } from "./cardsTasks";
 import {
-  dailyListsProjections,
-  projectionType,
-  type TaskProjection,
-} from "./dailyListsProjections";
-import {
   cardsTaskTemplatesSlice,
   type TaskTemplate,
   taskTemplateType,
@@ -50,6 +45,8 @@ interface TaskBackup {
   horizon?: "week" | "month" | "year" | "someday";
   templateId: string | null;
   templateDate: number | null;
+  dailyListId: string | null;
+  dailyListOrderToken: string | null;
 }
 
 interface ProjectBackup {
@@ -64,14 +61,6 @@ interface ProjectBackup {
 interface DailyListBackup {
   id: string;
   date: string;
-}
-
-interface DailyListProjectionBackup {
-  id: string;
-  taskId: string;
-  orderToken: string;
-  listId: string;
-  createdAt: number;
 }
 
 interface TaskTemplateBackup {
@@ -90,7 +79,6 @@ export interface Backup {
   tasks: TaskBackup[];
   projects: ProjectBackup[];
   dailyLists: DailyListBackup[];
-  dailyListProjections: DailyListProjectionBackup[];
   taskTemplates: TaskTemplateBackup[];
   projectCategories: CategoryBackup[];
 }
@@ -150,6 +138,8 @@ const getNewModels = (backup: Backup): AnyModel[] => {
       horizon: taskBackup.horizon || "someday",
       templateId: taskBackup.templateId || null,
       templateDate: taskBackup.templateDate || null,
+      dailyListId: taskBackup.dailyListId || null,
+      dailyListOrderToken: taskBackup.dailyListOrderToken || null,
     };
 
     models.push(task);
@@ -197,37 +187,6 @@ const getNewModels = (backup: Backup): AnyModel[] => {
     models.push(template);
   }
 
-  // Finally create daily list projections
-  for (const projectionBackup of backup.dailyListProjections) {
-    const task = backup.tasks.find((t) => t.id === projectionBackup.taskId);
-    const dailyListId = backup.dailyLists.find(
-      (dl) => dl.id === projectionBackup.listId,
-    )?.id;
-
-    if (!task) {
-      console.warn(`Task ${projectionBackup.taskId} not found for projection`);
-      continue;
-    }
-
-    if (!dailyListId) {
-      console.warn(
-        `DailyList ${projectionBackup.listId} not found for projection`,
-      );
-      continue;
-    }
-
-    const projection: TaskProjection = {
-      createdAt: projectionBackup.createdAt,
-      type: projectionType,
-      id: projectionBackup.id,
-      taskId: projectionBackup.taskId,
-      orderToken: projectionBackup.orderToken,
-      dailyListId: dailyListId,
-    };
-
-    models.push(projection);
-  }
-
   return models;
 };
 
@@ -252,7 +211,6 @@ export const backupSlice = {
     const projects: Project[] = yield* projectsAllSlice.all();
     const taskTemplates: TaskTemplate[] = yield* cardsTaskTemplatesSlice.all();
     const dailyLists: DailyList[] = [];
-    const dailyListProjections: TaskProjection[] = [];
 
     // Get all daily lists
     const allDailyListIds = yield* dailyListsSlice.allIds();
@@ -260,15 +218,6 @@ export const backupSlice = {
       const dailyList = yield* dailyListsSlice.byId(id);
       if (dailyList) {
         dailyLists.push(dailyList);
-      }
-    }
-
-    // Get all projections
-    const allProjectionIds = yield* dailyListsProjections.allIds();
-    for (const id of allProjectionIds) {
-      const projection = yield* dailyListsProjections.byId(id);
-      if (projection) {
-        dailyListProjections.push(projection);
       }
     }
 
@@ -294,6 +243,8 @@ export const backupSlice = {
         templateId: task.templateId,
         templateDate: task.templateDate,
         projectCategoryId: task.projectCategoryId,
+        dailyListId: task.dailyListId,
+        dailyListOrderToken: task.dailyListOrderToken,
       })),
       projects: projects.map((project) => ({
         id: project.id,
@@ -306,13 +257,6 @@ export const backupSlice = {
       dailyLists: dailyLists.map((dailyList) => ({
         id: dailyList.id,
         date: dailyList.date,
-      })),
-      dailyListProjections: dailyListProjections.map((projection) => ({
-        id: projection.id,
-        taskId: projection.taskId,
-        orderToken: projection.orderToken,
-        listId: projection.dailyListId,
-        createdAt: projection.createdAt,
       })),
       taskTemplates: taskTemplates.map((template) => ({
         id: template.id,

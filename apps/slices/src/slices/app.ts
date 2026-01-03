@@ -1,7 +1,8 @@
 import { action, selector } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
-import { defaultTask } from "./cardsTasks";
+import { defaultTask, isTask } from "./cardsTasks";
 import { AnyModel, appTypeSlicesMap } from "./maps";
+import { dailyListTasksSlice } from "./dailyListTasks";
 
 // Slice
 export const appSlice = {
@@ -23,14 +24,22 @@ export const appSlice = {
     return entity;
   }),
 
-  canDrop: selector(function* (id: string, dropId: string): GenReturn<boolean> {
+  canDrop: selector(function* (
+    id: string,
+    dropId: string,
+    scope: "dailyList" | "project" | "global",
+  ): GenReturn<boolean> {
     const model = yield* appSlice.byId(id);
     if (!model) return false;
+
+    if (scope === "dailyList" && isTask(model)) {
+      return yield* dailyListTasksSlice.canDrop(id, dropId);
+    }
 
     const slice = appTypeSlicesMap[model.type];
     if (!slice) throw new Error("Unknown model type");
 
-    return yield* slice.canDrop(id, dropId);
+    return yield* slice.canDrop(id, dropId, scope);
   }),
 
   // actions
@@ -38,14 +47,21 @@ export const appSlice = {
     id: string,
     dropId: string,
     edge: "top" | "bottom",
+    scope: "dailyList" | "project" | "global",
   ): GenReturn<void> {
     const model = yield* appSlice.byId(id);
     if (!model) return;
 
+    if (scope === "dailyList" && isTask(model)) {
+      yield* dailyListTasksSlice.handleDrop(id, dropId, edge);
+
+      return;
+    }
+
     const slice = appTypeSlicesMap[model.type];
     if (!slice) throw new Error("Unknown model type");
 
-    yield* slice.handleDrop(id, dropId, edge);
+    yield* slice.handleDrop(id, dropId, edge, scope);
   }),
 
   delete: action(function* (model: AnyModel): GenReturn<void> {

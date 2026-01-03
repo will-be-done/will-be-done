@@ -5,8 +5,8 @@ import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   DailyList,
   dailyListsSlice,
+  dailyListTasksSlice,
   inboxId,
-  dailyListsProjections,
 } from "@will-be-done/slices";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
@@ -26,31 +26,6 @@ import { Route } from "@/routes/app.$vaultId.tsx";
 import { NavBar } from "../NavBar/NavBar.tsx";
 import { authUtils } from "@/lib/auth.ts";
 
-const TaskProjection = ({
-  projectionId,
-  orderNumber,
-}: {
-  projectionId: string;
-  orderNumber: string;
-}) => {
-  const projection = useSyncSelector(
-    () => dailyListsProjections.byIdOrDefault(projectionId),
-    [projectionId],
-  );
-
-  return (
-    <>
-      <TaskComp
-        orderNumber={orderNumber}
-        taskId={projection.taskId}
-        taskBoxId={projection.id}
-        alwaysShowProject
-        displayLastProjectionTime={false}
-      />
-    </>
-  );
-};
-
 const ColumnView = ({
   dailyListId,
   onTaskAdd,
@@ -69,13 +44,13 @@ const ColumnView = ({
     return currentDate === dailyList.date;
   }, [currentDate, dailyList.date]);
 
-  const projectionIds = useSyncSelector(
-    () => dailyListsSlice.childrenIds(dailyListId),
+  const taskIds = useSyncSelector(
+    () => dailyListTasksSlice.childrenIds(dailyListId),
     [dailyListId],
   );
 
-  const doneProjectionIds = useSyncSelector(
-    () => dailyListsSlice.doneChildrenIds(dailyListId),
+  const doneTaskIds = useSyncSelector(
+    () => dailyListTasksSlice.doneChildrenIds(dailyListId),
     [dailyListId],
   );
 
@@ -87,8 +62,7 @@ const ColumnView = ({
   const setIsHidden = useHiddenDays((state) => state.setIsHidden);
   const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
   const isHidden =
-    isManuallyHidden ||
-    (projectionIds.length == 0 && doneProjectionIds.length == 0);
+    isManuallyHidden || (taskIds.length == 0 && doneTaskIds.length == 0);
   const handleHideClick = () => toggleIsHidden(dailyListId);
 
   const handleAddClick = () => {
@@ -124,22 +98,28 @@ const ColumnView = ({
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
-        {projectionIds.map((id, i) => {
+        {taskIds.map((id, i) => {
           return (
-            <TaskProjection
-              projectionId={id}
+            <TaskComp
               key={id}
               orderNumber={i.toString()}
+              taskId={id}
+              taskBoxId={id}
+              alwaysShowProject
+              scope="dailyList"
             />
           );
         })}
 
-        {doneProjectionIds.map((id, i) => {
+        {doneTaskIds.map((id, i) => {
           return (
-            <TaskProjection
-              projectionId={id}
+            <TaskComp
               key={id}
-              orderNumber={(projectionIds.length + i).toString()}
+              orderNumber={(taskIds.length + i).toString()}
+              taskId={id}
+              taskBoxId={id}
+              alwaysShowProject
+              scope="dailyList"
             />
           );
         })}
@@ -193,8 +173,8 @@ const BoardView = ({
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      const projection = dispatch(
-        dailyListsSlice.createProjectionWithTask(
+      const task = dispatch(
+        dailyListsSlice.createTaskInList(
           dailyList.id,
           inboxId,
           "prepend",
@@ -202,9 +182,7 @@ const BoardView = ({
         ),
       );
 
-      dispatch(
-        focusSlice.editByKey(buildFocusKey(projection.id, projection.type)),
-      );
+      dispatch(focusSlice.editByKey(buildFocusKey(task.id, task.type)));
     },
     [dispatch],
   );

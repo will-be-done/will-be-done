@@ -15,10 +15,6 @@ import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
 import { appSlice } from "./app";
 import {
-  dailyListsProjections,
-  isTaskProjection,
-} from "./dailyListsProjections";
-import {
   isTaskTemplate,
   TaskTemplate,
   cardsTaskTemplatesSlice,
@@ -44,6 +40,8 @@ export type Task = {
   createdAt: number;
   templateId: string | null;
   templateDate: number | null;
+  dailyListId: string | null;
+  dailyListOrderToken: string | null;
 };
 
 export const isTask = isObjectType<Task>(taskType);
@@ -60,6 +58,8 @@ export const defaultTask: Task = {
   horizon: "someday",
   templateId: null,
   templateDate: null,
+  dailyListId: null,
+  dailyListOrderToken: null,
 };
 
 // Table definition
@@ -73,6 +73,14 @@ export const tasksTable = table<Task>("tasks").withIndexes({
   byTemplateId: {
     cols: ["templateId"],
     type: "hash",
+  },
+  byDailyListId: {
+    cols: ["dailyListId"],
+    type: "hash",
+  },
+  byDailyListIdOrderToken: {
+    cols: ["dailyListId", "dailyListOrderToken"],
+    type: "btree",
   },
 });
 registerSyncableTable(tasksTable, taskType);
@@ -97,7 +105,7 @@ export const cardsTasksSlice = {
       return false;
     }
 
-    return isTaskProjection(model) || isTask(model) || isTaskTemplate(model);
+    return isTask(model) || isTaskTemplate(model);
   }),
   byId: selector(function* (id: string): GenReturn<Task | undefined> {
     const tasks = yield* runQuery(
@@ -130,7 +138,6 @@ export const cardsTasksSlice = {
   // actions
   delete: action(function* (ids: string[]): GenReturn<void> {
     yield* deleteRows(tasksTable, ids);
-    yield* dailyListsProjections.deleteProjectionsOfTask(ids);
   }),
   update: action(function* (id: string, task: Partial<Task>): GenReturn<void> {
     const taskInState = yield* cardsTasksSlice.byId(id);
@@ -153,6 +160,8 @@ export const cardsTasksSlice = {
       horizon: "week",
       templateId: null,
       templateDate: null,
+      dailyListId: null,
+      dailyListOrderToken: null,
       ...task,
     };
 
@@ -199,16 +208,6 @@ export const cardsTasksSlice = {
         projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
       });
-    } else if (isTaskProjection(dropItem)) {
-      const taskOfDrop = yield* cardsTasksSlice.byId(dropItem.taskId);
-      if (!taskOfDrop) return shouldNeverHappen("task not found", dropItem);
-
-      yield* cardsTasksSlice.update(taskOfDrop.id, {
-        orderToken: orderToken,
-        projectCategoryId: task.projectCategoryId,
-      });
-
-      yield* dailyListsProjections.delete([dropItem.id]);
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
     }
@@ -258,6 +257,8 @@ export const cardsTasksSlice = {
       createdAt: taskTemplate.createdAt,
       templateId: taskTemplate.id,
       templateDate: taskTemplate.lastGeneratedAt,
+      dailyListId: null,
+      dailyListOrderToken: null,
     };
     yield* insert(tasksTable, [newTask]);
 

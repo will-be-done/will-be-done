@@ -78,6 +78,8 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     createdAt: date.getTime(),
     templateId: tmpl.id,
     templateDate: date.getTime(),
+    dailyListId: null,
+    dailyListOrderToken: null,
   };
 }
 

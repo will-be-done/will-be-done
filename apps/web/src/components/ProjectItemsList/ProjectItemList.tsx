@@ -181,7 +181,7 @@ const ProjectTasksColumn = ({
               taskId={id}
               taskBoxId={id}
               displayedUnderProjectId={project.id}
-              displayLastProjectionTime
+              scope="project"
             />
           );
         })}
@@ -199,12 +199,12 @@ const ProjectTasksColumn = ({
           ).map((id, i) => {
             return (
               <TaskComp
-                displayLastProjectionTime
                 orderNumber={i.toString()}
                 key={id}
                 taskId={id}
                 taskBoxId={id}
                 displayedUnderProjectId={project.id}
+                scope="project"
               />
             );
           })}

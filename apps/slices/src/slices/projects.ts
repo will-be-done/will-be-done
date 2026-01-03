@@ -18,10 +18,6 @@ import { appSlice } from "./app";
 import { projectsAllSlice } from "./projectsAll";
 import { isTask, Task, cardsTasksSlice } from "./cardsTasks";
 import { isTaskTemplate, cardsTaskTemplatesSlice } from "./cardsTaskTemplates";
-import {
-  dailyListsProjections,
-  isTaskProjection,
-} from "./dailyListsProjections";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectCategoriesSlice } from "./projectsCategories";
@@ -92,12 +88,11 @@ export const projectsSlice = {
     const dropItem = yield* appSlice.byId(dropItemId);
     if (!dropItem) return false;
 
-    // Projects can accept tasks, templates, projections, and other projects
+    // Projects can accept tasks, templates, and other projects
     return (
       isProject(dropItem) ||
       isTask(dropItem) ||
-      isTaskTemplate(dropItem) ||
-      isTaskProjection(dropItem)
+      isTaskTemplate(dropItem)
     );
   }),
 
@@ -110,26 +105,58 @@ export const projectsSlice = {
 
     const taskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
     const exceptCardIds: Set<string> = new Set(taskIds);
+    const exceptDailyListSet = new Set(exceptDailyListIds);
 
-    const finalChildrenIds: string[] = [];
+    // First pass: collect all unique dailyListIds that we need to check
+    const dailyListIdsToFetch = new Set<string>();
     for (const category of categories) {
       const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
         category.id,
       );
 
-      for (const id of childrenIds) {
-        const lastProjection =
-          yield* dailyListsProjections.lastProjectionOfTask(id);
-        if (!lastProjection) continue;
+      for (const taskId of childrenIds) {
+        if (exceptCardIds.has(taskId)) continue;
 
-        const lastCreatedAt = lastProjection.createdAt;
-        if (lastCreatedAt < currentDate.getTime()) {
-          finalChildrenIds.push(id);
+        const task = yield* cardsTasksSlice.byId(taskId);
+        if (!task || !task.dailyListId) continue;
+        if (exceptDailyListSet.has(task.dailyListId)) continue;
+
+        dailyListIdsToFetch.add(task.dailyListId);
+      }
+    }
+
+    // Batch fetch all daily lists at once
+    const dailyLists = yield* dailyListsSlice.byIds(
+      Array.from(dailyListIdsToFetch),
+    );
+    const dailyListMap = new Map(dailyLists.map((dl) => [dl.id, dl]));
+
+    // Second pass: count overdue tasks
+    let overdueCount = 0;
+    for (const category of categories) {
+      const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
+        category.id,
+      );
+
+      for (const taskId of childrenIds) {
+        if (exceptCardIds.has(taskId)) continue;
+
+        const task = yield* cardsTasksSlice.byId(taskId);
+        if (!task || !task.dailyListId) continue;
+        if (exceptDailyListSet.has(task.dailyListId)) continue;
+
+        const dailyList = dailyListMap.get(task.dailyListId);
+        if (!dailyList) continue;
+
+        // Parse the date and check if it's before currentDate
+        const listDate = new Date(dailyList.date);
+        if (listDate < currentDate) {
+          overdueCount++;
         }
       }
     }
 
-    return finalChildrenIds.filter((id) => !exceptCardIds.has(id)).length;
+    return overdueCount;
   }),
 
   notDoneTasksCountExceptDailiesCount: selector(function* (
@@ -268,20 +295,11 @@ export const projectsSlice = {
       if (isTask(dropItem)) {
         yield* cardsTasksSlice.update(dropItem.id, {
           projectCategoryId: category.id,
+          dailyListId: null,
+          dailyListOrderToken: null,
         });
       } else {
         yield* cardsTaskTemplatesSlice.update(dropItem.id, {
-          projectCategoryId: category.id,
-        });
-      }
-    } else if (isTaskProjection(dropItem)) {
-      const category = yield* projectCategoriesSlice.firstChild(project.id);
-      if (!category) throw new Error("No categories found in project");
-
-      // Move the underlying task to this project
-      const task = yield* cardsTasksSlice.byId(dropItem.taskId);
-      if (task) {
-        yield* cardsTasksSlice.update(task.id, {
           projectCategoryId: category.id,
         });
       }

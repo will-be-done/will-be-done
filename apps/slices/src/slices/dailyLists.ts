@@ -8,18 +8,12 @@ import {
   selector,
   table,
 } from "@will-be-done/hyperdb";
-import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import uuidByString from "uuid-by-string";
 import type { GenReturn, OrderableItem } from "./utils";
-import { generateOrderTokenPositioned, getDMY } from "./utils";
+import { getDMY } from "./utils";
 import { appSlice } from "./app";
-import { isTask, cardsTasksSlice } from "./cardsTasks";
-import {
-  isTaskProjection,
-  dailyListsProjections,
-  type TaskProjection,
-  taskProjectionsTable,
-} from "./dailyListsProjections";
+import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
+import { dailyListTasksSlice } from "./dailyListTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectsSlice } from "./projects";
@@ -87,54 +81,15 @@ export const dailyListsSlice = {
     return dailyLists[0];
   }),
   childrenIds: selector(function* (dailyListId: string): GenReturn<string[]> {
-    const projections = yield* runQuery(
-      selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
-        q.eq("dailyListId", dailyListId),
-      ),
-    );
-
-    const notDoneTasksIds = new Set<string>();
-    for (const proj of projections) {
-      const task = yield* cardsTasksSlice.byId(proj.taskId);
-      if (task?.state !== "done") {
-        notDoneTasksIds.add(proj.taskId);
-      }
-    }
-
-    return projections
-      .filter((proj) => notDoneTasksIds.has(proj.taskId))
-      .map((proj) => proj.id);
+    return yield* dailyListTasksSlice.childrenIds(dailyListId);
   }),
   doneChildrenIds: selector(function* (
     dailyListId: string,
   ): GenReturn<string[]> {
-    const projections = yield* runQuery(
-      selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
-        q.eq("dailyListId", dailyListId),
-      ),
-    );
-
-    const doneProjections: { id: string; lastToggledAt: number }[] = [];
-    for (const proj of projections) {
-      const task = yield* cardsTasksSlice.byId(proj.taskId);
-      if (task?.state === "done") {
-        doneProjections.push({
-          id: proj.id,
-          lastToggledAt: task.lastToggledAt,
-        });
-      }
-    }
-
-    return doneProjections
-      .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
-      .map((proj) => proj.id);
+    return yield* dailyListTasksSlice.doneChildrenIds(dailyListId);
   }),
   taskIds: selector(function* (dailyListId: string): GenReturn<string[]> {
-    const childrenIds = yield* dailyListsSlice.childrenIds(dailyListId);
-
-    return (yield* dailyListsProjections.byIds(childrenIds)).map(
-      (p) => p.taskId,
-    );
+    return yield* dailyListsSlice.childrenIds(dailyListId);
   }),
   allTaskIds: selector(function* (
     dailyListIds: string[],
@@ -164,21 +119,13 @@ export const dailyListsSlice = {
   }),
   firstChild: selector(function* (
     dailyListId: string,
-  ): GenReturn<TaskProjection | undefined> {
-    const childrenIds = yield* dailyListsSlice.childrenIds(dailyListId);
-    const firstChildId = childrenIds[0];
-    return firstChildId
-      ? yield* dailyListsProjections.byId(firstChildId)
-      : undefined;
+  ): GenReturn<Task | undefined> {
+    return yield* dailyListTasksSlice.firstChild(dailyListId);
   }),
   lastChild: selector(function* (
     dailyListId: string,
-  ): GenReturn<TaskProjection | undefined> {
-    const childrenIds = yield* dailyListsSlice.childrenIds(dailyListId);
-    const lastChildId = childrenIds[childrenIds.length - 1];
-    return lastChildId
-      ? yield* dailyListsProjections.byId(lastChildId)
-      : undefined;
+  ): GenReturn<Task | undefined> {
+    return yield* dailyListTasksSlice.lastChild(dailyListId);
   }),
   canDrop: selector(function* (
     dailyListId: string,
@@ -187,25 +134,11 @@ export const dailyListsSlice = {
     const model = yield* appSlice.byId(dropId);
     if (!model) return false;
 
-    if (!isTaskProjection(model) && !isTask(model)) {
+    if (!isTask(model)) {
       return false;
     }
 
-    if (isTask(model) && model.state === "done") {
-      return true;
-    }
-
-    if (isTaskProjection(model)) {
-      const task = yield* cardsTasksSlice.byId(model.taskId);
-      if (!task) return false;
-      if (task.state === "done") {
-        return true;
-      }
-    }
-
     return true;
-    // const childrenIds = yield* dailyListsSlice2.childrenIds(dailyListId);
-    // return childrenIds.length === 0;
   }),
 
   // actions
@@ -242,27 +175,7 @@ export const dailyListsSlice = {
   delete: action(function* (ids: string[]): GenReturn<void> {
     yield* deleteRows(dailyListsTable, ids);
   }),
-  createProjection: action(function* (
-    dailyListId: string,
-    taskId: string,
-    listPosition:
-      | [OrderableItem | undefined, OrderableItem | undefined]
-      | "append"
-      | "prepend",
-  ): GenReturn<TaskProjection> {
-    const orderToken = yield* generateOrderTokenPositioned(
-      dailyListId,
-      dailyListsSlice,
-      listPosition,
-    );
-
-    return yield* dailyListsProjections.create({
-      taskId: taskId,
-      dailyListId: dailyListId,
-      orderToken: orderToken,
-    });
-  }),
-  createProjectionWithTask: action(function* (
+  createTaskInList: action(function* (
     dailyListId: string,
     projectId: string,
     listPosition:
@@ -273,48 +186,38 @@ export const dailyListsSlice = {
       | [OrderableItem | undefined, OrderableItem | undefined]
       | "append"
       | "prepend",
-  ): GenReturn<TaskProjection> {
+  ): GenReturn<Task> {
     const task = yield* projectsSlice.createTask(projectId, categoryPosition);
 
-    return yield* dailyListsSlice.createProjection(
-      dailyListId,
-      task.id,
-      listPosition,
-    );
+    let position: "append" | "prepend" | [Task | undefined, Task | undefined];
+    if (listPosition === "append" || listPosition === "prepend") {
+      position = listPosition;
+    } else {
+      position = [listPosition[0] as Task | undefined, listPosition[1] as Task | undefined];
+    }
+
+    yield* dailyListTasksSlice.addToDailyList(task.id, dailyListId, position);
+
+    return yield* cardsTasksSlice.byIdOrDefault(task.id);
   }),
   handleDrop: action(function* (
     dailyListId: string,
     dropId: string,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
-    const lastChild = yield* dailyListsSlice.lastChild(dailyListId);
-    const between: [string | null, string | null] = [
-      lastChild?.orderToken || null,
-      null,
-    ];
-
-    const orderToken = generateJitteredKeyBetween(
-      between[0] || null,
-      between[1] || null,
-    );
-
-    const dailyList = yield* dailyListsSlice.byId(dailyListId);
-    if (!dailyList) return;
-
     const drop = yield* appSlice.byId(dropId);
     if (!drop) return;
 
-    if (isTaskProjection(drop)) {
-      yield* dailyListsProjections.update(drop.id, {
-        orderToken,
-        dailyListId: dailyList.id,
-      });
-    } else if (isTask(drop)) {
-      yield* dailyListsSlice.createProjection(dailyList.id, drop.id, [
-        undefined,
-        lastChild,
-      ]);
-    }
+    if (!isTask(drop)) return;
+
+    // Add task to daily list at the end
+    const lastChild = yield* dailyListsSlice.lastChild(dailyListId);
+
+    yield* dailyListTasksSlice.addToDailyList(
+      drop.id,
+      dailyListId,
+      lastChild ? [lastChild, undefined] : "append",
+    );
   }),
 };
 registerModelSlice(dailyListsSlice, dailyListsTable, dailyListType);

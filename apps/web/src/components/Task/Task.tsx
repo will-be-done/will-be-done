@@ -24,15 +24,12 @@ import { useRegisterFocusItem } from "@/components/Focus/useLists.ts";
 import clsx from "clsx";
 import { RotateCw, CircleDashed } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { startOfDay } from "date-fns";
 import {
   appSlice,
   cardsSlice,
   isTask,
-  isTaskProjection,
   isTaskTemplate,
   projectCategoriesSlice,
-  dailyListsProjections,
   Task,
   cardsTasksSlice,
 } from "@will-be-done/slices";
@@ -46,7 +43,6 @@ import {
 } from "@/store/focusSlice.ts";
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices";
-import { useCurrentDate } from "@/components/DaysBoard/hooks";
 
 export function CheckboxComp({
   checked,
@@ -143,7 +139,7 @@ export const TaskComp = ({
   alwaysShowProject,
   orderNumber,
   newTaskParams,
-  displayLastProjectionTime,
+  scope,
 }: {
   taskId: string;
   taskBoxId: string;
@@ -151,7 +147,7 @@ export const TaskComp = ({
   alwaysShowProject?: boolean;
   orderNumber: string;
   newTaskParams?: Partial<Task>;
-  displayLastProjectionTime?: boolean;
+  scope: "dailyList" | "project" | "global";
 }) => {
   const dispatch = useDispatch();
 
@@ -172,13 +168,6 @@ export const TaskComp = ({
       projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
     [card.projectCategoryId],
   );
-  const lastProjectionTime = useSyncSelector(
-    () => dailyListsProjections.lastDateOfProjection(taskId),
-    [taskId],
-  );
-  const date = useCurrentDate();
-  const shouldHighlightProjectionTime =
-    lastProjectionTime && startOfDay(date) > lastProjectionTime;
 
   const [editingTitle, setEditingTitle] = useState<string>(card.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -327,12 +316,12 @@ export const TaskComp = ({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top"));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top", scope));
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top"));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top", scope));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -350,13 +339,16 @@ export const TaskComp = ({
 
         let edge: "top" | "bottom" = "top";
         if (isTask(model) && isTask(cardWrapper)) {
-          if (model.projectCategoryId === cardWrapper.projectCategoryId) {
-            edge = "top";
-          } else {
-            edge = "bottom";
-          }
-        } else if (isTaskProjection(model) && isTaskProjection(cardWrapper)) {
-          if (model.dailyListId === cardWrapper.dailyListId) {
+          // Check if both tasks are in the same context (project category or daily list)
+          if (model.dailyListId && cardWrapper.dailyListId) {
+            if (model.dailyListId === cardWrapper.dailyListId) {
+              edge = "top";
+            } else {
+              edge = "bottom";
+            }
+          } else if (
+            model.projectCategoryId === cardWrapper.projectCategoryId
+          ) {
             edge = "top";
           } else {
             edge = "bottom";
@@ -365,7 +357,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge, scope));
 
         scroll();
       } else if (isMoveDown && down) {
@@ -377,13 +369,16 @@ export const TaskComp = ({
 
         let edge: "top" | "bottom" = "top";
         if (isTask(model) && isTask(cardWrapper)) {
-          if (model.projectCategoryId === cardWrapper.projectCategoryId) {
-            edge = "bottom";
-          } else {
-            edge = "top";
-          }
-        } else if (isTaskProjection(model) && isTaskProjection(cardWrapper)) {
-          if (model.dailyListId === cardWrapper.dailyListId) {
+          // Check if both tasks are in the same context (project category or daily list)
+          if (model.dailyListId && cardWrapper.dailyListId) {
+            if (model.dailyListId === cardWrapper.dailyListId) {
+              edge = "bottom";
+            } else {
+              edge = "top";
+            }
+          } else if (
+            model.projectCategoryId === cardWrapper.projectCategoryId
+          ) {
             edge = "bottom";
           } else {
             edge = "top";
@@ -392,7 +387,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge));
+        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge, scope));
 
         scroll();
       }
@@ -501,11 +496,14 @@ export const TaskComp = ({
       }),
       dropTargetForElements({
         element: element,
-        canDrop: ({ source }) => {
+        canDrop: (inp) => {
+          const { source } = inp;
+          console.log("canDrop", inp);
+
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(appSlice.canDrop(cardWrapper.id, data.modelId));
+          return select(appSlice.canDrop(cardWrapper.id, data.modelId, scope));
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
@@ -541,7 +539,7 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [dispatch, isEditing, select, cardWrapper.id, cardWrapper.type]);
+  }, [dispatch, isEditing, select, cardWrapper.id, cardWrapper.type, scope]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;
@@ -715,19 +713,6 @@ export const TaskComp = ({
           >
             <div>{category.title}</div>
 
-            {lastProjectionTime !== undefined && displayLastProjectionTime && (
-              <div
-                className={cn("text-center", {
-                  "text-amber-400": shouldHighlightProjectionTime,
-                })}
-              >
-                {new Date(lastProjectionTime).toLocaleDateString("en-US", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </div>
-            )}
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
               <button
                 className="text-right cursor-pointer"

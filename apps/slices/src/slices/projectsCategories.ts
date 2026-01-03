@@ -22,10 +22,6 @@ import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { Task, cardsTasksSlice, isTask } from "./cardsTasks";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { appSlice } from "./app";
-import {
-  dailyListsProjections,
-  isTaskProjection,
-} from "./dailyListsProjections";
 import { isTaskTemplate } from "./cardsTaskTemplates";
 import { cardsSlice } from "./cards";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -293,16 +289,9 @@ export const projectCategoriesSlice = {
     if (isTask(dropItem)) {
       yield* cardsTasksSlice.update(dropItem.id, {
         projectCategoryId: categoryId,
+        dailyListId: null,
+        dailyListOrderToken: null,
       });
-    } else if (isTaskProjection(dropItem)) {
-      const task = yield* cardsTasksSlice.byId(dropItem.taskId);
-      if (!task) return;
-
-      yield* cardsTasksSlice.update(task.id, {
-        projectCategoryId: categoryId,
-      });
-
-      yield* dailyListsProjections.delete([dropItem.id]);
     }
   }),
   canDrop: selector(function* (
@@ -315,7 +304,7 @@ export const projectCategoriesSlice = {
     if (!dropItem) return false;
 
     return (
-      isTask(dropItem) || isTaskProjection(dropItem) || isTaskTemplate(dropItem)
+      isTask(dropItem) || isTaskTemplate(dropItem)
     );
   }),
 };

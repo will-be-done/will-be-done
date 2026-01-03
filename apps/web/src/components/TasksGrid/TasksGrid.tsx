@@ -80,7 +80,9 @@ export const TasksColumn = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(appSlice.canDrop(columnModelId, data.modelId));
+          return select(
+            appSlice.canDrop(columnModelId, data.modelId, "dailyList"),
+          );
         },
         getIsSticky: () => true,
         onDragEnter: () => setDndState(isTaskOver),

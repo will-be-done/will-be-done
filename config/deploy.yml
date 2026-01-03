@@ -103,7 +103,7 @@ volumes:
 
 accessories:
   litestream:
-    image: litestream/litestream:latest
+    image: quolpr/litestream:latest
     host: <%= ENV["WEB_IP"] %>
     cmd: replicate -config /etc/litestream.yml
     env:

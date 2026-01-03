@@ -1,5 +1,4 @@
 import { type Task, tasksTable } from "./cardsTasks";
-import { taskProjectionsTable, TaskProjection } from "./dailyListsProjections";
 import { TaskTemplate, taskTemplatesTable } from "./cardsTaskTemplates";
 import { DailyList, dailyListsTable } from "./dailyLists";
 import { Project, projectsTable } from "./projects";
@@ -7,7 +6,6 @@ import { ProjectCategory, projectCategoriesTable } from "./projectsCategories";
 
 export type AnyModel =
   | Task
-  | TaskProjection
   | TaskTemplate
   | Project
   | DailyList
@@ -15,7 +13,6 @@ export type AnyModel =
 
 export type AnyTable =
   | typeof tasksTable
-  | typeof taskProjectionsTable
   | typeof taskTemplatesTable
   | typeof projectsTable
   | typeof dailyListsTable
@@ -24,11 +21,16 @@ export type AnyTable =
 type ModelSlice<T> = {
   byId: (id: string) => Generator<unknown, T | undefined, unknown>;
   delete: (ids: string[]) => Generator<unknown, void, unknown>;
-  canDrop: (id: string, dropId: string) => Generator<unknown, boolean, unknown>;
+  canDrop: (
+    id: string,
+    dropId: string,
+    scope: "dailyList" | "project" | "global",
+  ) => Generator<unknown, boolean, unknown>;
   handleDrop: (
     id: string,
     dropId: string,
     edge: "top" | "bottom",
+    scope: "dailyList" | "project" | "global",
   ) => Generator<unknown, void, unknown>;
 };
 
