@@ -288,6 +288,7 @@ const BoardView = ({
             previousDate={previousDate}
             nextDate={nextDate}
             selectedDate={selectedDate}
+            selectedProjectId={selectedProjectId}
           />
           <div className="absolute left-0 top-0">
             <NavBar vaultId={vaultId} />

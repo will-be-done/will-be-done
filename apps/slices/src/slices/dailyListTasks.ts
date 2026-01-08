@@ -2,15 +2,18 @@ import { shouldNeverHappen } from "../utils";
 import { action, runQuery, selectFrom, selector } from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import type { GenReturn } from "./utils";
-import { generateKeyPositionedBetween } from "./utils";
+import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { appSlice } from "./app";
 import { isTask, cardsTasksSlice, type Task, tasksTable } from "./cardsTasks";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
+import { dailyListsSlice } from "./dailyLists";
+import { parse } from "date-fns";
 
 export const dailyListTasksSlice = {
   // SELECTORS
 
   // Get all tasks in a specific daily list (non-done, ordered)
+  //
   childrenIds: selector(function* (dailyListId: string): GenReturn<string[]> {
     const tasks = yield* runQuery(
       selectFrom(tasksTable, "byDailyListIdOrderToken").where((q) =>
@@ -19,6 +22,18 @@ export const dailyListTasksSlice = {
     );
 
     return tasks.filter((t) => t.state === "todo").map((t) => t.id);
+  }),
+
+  getDateOfTask: selector(function* (
+    taskId: string,
+  ): GenReturn<Date | undefined> {
+    const task = yield* cardsTasksSlice.byId(taskId);
+    if (!task || !task.dailyListId) return undefined;
+
+    const list = yield* dailyListsSlice.byId(task.dailyListId);
+    if (!list) return undefined;
+
+    return parse(list.date, dailyDateFormat, new Date());
   }),
 
   // Get all done tasks in a daily list (sorted by lastToggledAt)

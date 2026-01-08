@@ -32,6 +32,7 @@ import {
   projectCategoriesSlice,
   Task,
   cardsTasksSlice,
+  dailyListTasksSlice,
 } from "@will-be-done/slices";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -43,6 +44,8 @@ import {
 } from "@/store/focusSlice.ts";
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices";
+import { useCurrentDate } from "../DaysBoard/hooks";
+import { startOfDay } from "date-fns";
 
 export function CheckboxComp({
   checked,
@@ -140,6 +143,7 @@ export const TaskComp = ({
   orderNumber,
   newTaskParams,
   scope,
+  displayLastScheduleTime,
 }: {
   taskId: string;
   taskBoxId: string;
@@ -148,9 +152,11 @@ export const TaskComp = ({
   orderNumber: string;
   newTaskParams?: Partial<Task>;
   scope: "dailyList" | "project" | "global";
+  displayLastScheduleTime?: boolean;
 }) => {
   const dispatch = useDispatch();
 
+  // TODO: remove card wrapper
   const card = useSyncSelector(
     () => projectCategoryCardsSlice.byIdOrDefault(taskId),
     [taskId],
@@ -168,6 +174,13 @@ export const TaskComp = ({
       projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
     [card.projectCategoryId],
   );
+  const lastScheduleTime = useSyncSelector(
+    () => dailyListTasksSlice.getDateOfTask(taskId),
+    [taskId],
+  );
+  const date = useCurrentDate();
+  const shouldHighlightTime =
+    lastScheduleTime && startOfDay(date) > lastScheduleTime;
 
   const [editingTitle, setEditingTitle] = useState<string>(card.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -712,6 +725,23 @@ export const TaskComp = ({
             )}
           >
             <div>{category.title}</div>
+
+            {lastScheduleTime !== undefined &&
+              displayLastScheduleTime &&
+              isTask(card) &&
+              card.state === "todo" && (
+                <div
+                  className={cn("text-center", {
+                    "text-amber-400": shouldHighlightTime,
+                  })}
+                >
+                  {new Date(lastScheduleTime).toLocaleDateString("en-US", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </div>
+              )}
 
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
               <button

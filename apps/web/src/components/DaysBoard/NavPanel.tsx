@@ -8,10 +8,12 @@ export const NavPanel = ({
   previousDate,
   nextDate,
   selectedDate,
+  selectedProjectId,
 }: {
   previousDate: Date;
   nextDate: Date;
   selectedDate: Date;
+  selectedProjectId: string;
 }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
@@ -29,6 +31,9 @@ export const NavPanel = ({
             }}
             className="cursor-pointer w-3 flex items-center justify-center h-full"
             aria-label="Previous day"
+            search={{
+              projectId: selectedProjectId,
+            }}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -50,6 +55,9 @@ export const NavPanel = ({
             params={{
               date: format(nextDate, "yyyy-MM-dd"),
               vaultId,
+            }}
+            search={{
+              projectId: selectedProjectId,
             }}
             className="cursor-pointer w-3 flex items-center justify-center h-full"
             aria-label="Next day"

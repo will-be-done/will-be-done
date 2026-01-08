@@ -63,6 +63,14 @@ interface DailyListBackup {
   date: string;
 }
 
+interface DailyListProjectionBackup {
+  id: string;
+  taskId: string;
+  orderToken: string;
+  listId: string;
+  createdAt: number;
+}
+
 interface TaskTemplateBackup {
   id: string;
   title: string;
@@ -81,6 +89,7 @@ export interface Backup {
   dailyLists: DailyListBackup[];
   taskTemplates: TaskTemplateBackup[];
   projectCategories: CategoryBackup[];
+  dailyListProjections?: DailyListProjectionBackup[];
 }
 
 const getNewModels = (backup: Backup): AnyModel[] => {
@@ -114,6 +123,16 @@ const getNewModels = (backup: Backup): AnyModel[] => {
     models.push(category);
   }
 
+  // Build projection map for migration from old backups
+  const projectionMap = new Map<string, DailyListProjectionBackup[]>();
+  if (backup.dailyListProjections) {
+    for (const projection of backup.dailyListProjections) {
+      const existing = projectionMap.get(projection.taskId) || [];
+      existing.push(projection);
+      projectionMap.set(projection.taskId, existing);
+    }
+  }
+
   // Then create all tasks
   for (const taskBackup of backup.tasks) {
     const category = backup.projectCategories.find(
@@ -124,6 +143,20 @@ const getNewModels = (backup: Backup): AnyModel[] => {
         `Project ${taskBackup.projectCategoryId} not found for template ${taskBackup.id}`,
       );
       continue;
+    }
+
+    let dailyListId = taskBackup.dailyListId || null;
+    let dailyListOrderToken = taskBackup.dailyListOrderToken || null;
+
+    // Migrate from projections if present (backwards compatibility)
+    if (backup.dailyListProjections && projectionMap.has(taskBackup.id)) {
+      const projections = projectionMap.get(taskBackup.id)!;
+      // Use the latest projection (highest createdAt)
+      const latestProjection = projections.reduce((latest, current) =>
+        current.createdAt > latest.createdAt ? current : latest
+      );
+      dailyListId = latestProjection.listId;
+      dailyListOrderToken = latestProjection.orderToken;
     }
 
     const task: Task = {
@@ -138,8 +171,8 @@ const getNewModels = (backup: Backup): AnyModel[] => {
       horizon: taskBackup.horizon || "someday",
       templateId: taskBackup.templateId || null,
       templateDate: taskBackup.templateDate || null,
-      dailyListId: taskBackup.dailyListId || null,
-      dailyListOrderToken: taskBackup.dailyListOrderToken || null,
+      dailyListId,
+      dailyListOrderToken,
     };
 
     models.push(task);

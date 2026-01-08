@@ -182,6 +182,7 @@ const ProjectTasksColumn = ({
               taskBoxId={id}
               displayedUnderProjectId={project.id}
               scope="project"
+              displayLastScheduleTime
             />
           );
         })}
@@ -205,6 +206,7 @@ const ProjectTasksColumn = ({
                 taskBoxId={id}
                 displayedUnderProjectId={project.id}
                 scope="project"
+                displayLastScheduleTime
               />
             );
           })}

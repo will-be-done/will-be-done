@@ -49,8 +49,10 @@ export function* generateOrderTokenPositioned(
 
 export const inboxId = "01965eb2-7d13-727f-9f50-3d565d0ce2ef";
 
+export const dailyDateFormat = "yyyy-MM-dd";
+
 export function getDMY(date: Date): string {
-  return format(date, "yyyy-MM-dd");
+  return format(date, dailyDateFormat);
 }
 
 export function generateKeyPositionedBetween(
