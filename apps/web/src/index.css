@@ -35,6 +35,11 @@
   --color-notice: var(--color-yellow-500);
 
   --color-popover: var(--color-slate-600);
+  --color-popover-calendar: var(--color-slate-700);
+  --color-calendar-header: var(--color-gray-300);
+  --color-calendar-weekday: var(--color-slate-400);
+  --color-calendar-day: var(--color-gray-400);
+  --color-calendar-border: var(--color-slate-600);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/

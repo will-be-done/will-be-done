@@ -46,6 +46,7 @@ import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices";
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { startOfDay } from "date-fns";
+import { TaskDatePicker } from "./TaskDatePicker";
 
 export function CheckboxComp({
   checked,
@@ -180,7 +181,10 @@ export const TaskComp = ({
   );
   const date = useCurrentDate();
   const shouldHighlightTime =
-    lastScheduleTime && startOfDay(date) > lastScheduleTime;
+    lastScheduleTime &&
+    startOfDay(date) > lastScheduleTime &&
+    isTask(card) &&
+    card.state === "todo";
 
   const [editingTitle, setEditingTitle] = useState<string>(card.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -726,22 +730,28 @@ export const TaskComp = ({
           >
             <div>{category.title}</div>
 
-            {lastScheduleTime !== undefined &&
-              displayLastScheduleTime &&
-              isTask(card) &&
-              card.state === "todo" && (
-                <div
-                  className={cn("text-center", {
-                    "text-amber-400": shouldHighlightTime,
-                  })}
-                >
-                  {new Date(lastScheduleTime).toLocaleDateString("en-US", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </div>
-              )}
+            {displayLastScheduleTime && isTask(card) && (
+              <TaskDatePicker
+                taskId={taskId}
+                currentDate={lastScheduleTime}
+                trigger={
+                  <button
+                    className={cn("text-center cursor-pointer ", {
+                      "text-amber-400": shouldHighlightTime,
+                    })}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {lastScheduleTime
+                      ? new Date(lastScheduleTime).toLocaleDateString("en-US", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : "No Date"}
+                  </button>
+                }
+              />
+            )}
 
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
               <button

@@ -1,7 +1,7 @@
 import { TaskComp } from "../Task/Task.tsx";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
 import { ParentListItemProvider } from "@/components/Focus/ParentListProvider.tsx";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
@@ -51,6 +51,19 @@ const ProjectTasksColumn = ({
     dispatch(focusSlice.editByKey(buildFocusKey(task.id, task.type)));
   };
   const handleHideClick = () => setIsHiddenClicked((v) => !v);
+
+  const [isShowMore, setIsShowMore] = useState(false);
+
+  const finalDoneIds = useMemo(() => {
+    const ids = (() => {
+      if (isShowMore) {
+        return doneTaskIds;
+      }
+      return doneTaskIds.slice(0, 5);
+    })();
+
+    return exceptTaskIds ? ids.filter((id) => !exceptTaskIds.has(id)) : ids;
+  }, [doneTaskIds, exceptTaskIds, isShowMore]);
 
   return (
     <TasksColumn
@@ -194,10 +207,7 @@ const ProjectTasksColumn = ({
           )}
           priority={(lastTaskI + 2).toString()}
         >
-          {(exceptTaskIds
-            ? doneTaskIds.filter((id) => !exceptTaskIds.has(id))
-            : []
-          ).map((id, i) => {
+          {finalDoneIds.map((id, i) => {
             return (
               <TaskComp
                 orderNumber={i.toString()}
@@ -210,6 +220,15 @@ const ProjectTasksColumn = ({
               />
             );
           })}
+
+          {!isShowMore && doneTaskIds.length > 5 && (
+            <button
+              onClick={() => setIsShowMore(true)}
+              className="cursor-pointer text-subheader text-sm"
+            >
+              Show More
+            </button>
+          )}
         </ParentListItemProvider>
       </div>
     </TasksColumn>
