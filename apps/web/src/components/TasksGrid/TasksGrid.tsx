@@ -75,13 +75,19 @@ export const TasksColumn = ({
         getData: (): DndModelData => ({
           modelId: columnModelId,
           modelType: columnModelType,
+          scope: "global",
         }),
         canDrop: ({ source }) => {
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
           return select(
-            appSlice.canDrop(columnModelId, data.modelId, "dailyList"),
+            appSlice.canDrop(
+              columnModelId,
+              "dailyList",
+              data.modelId,
+              "global",
+            ),
           );
         },
         getIsSticky: () => true,

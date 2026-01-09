@@ -189,6 +189,7 @@ const ProjectItem = function ProjectItemComp({
         getInitialData: (): DndModelData => ({
           modelId: project.id,
           modelType: project.type,
+          scope: "global",
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -228,6 +229,7 @@ const ProjectItem = function ProjectItemComp({
           const data: DndModelData = {
             modelId: project.id,
             modelType: project.type,
+            scope: "global",
           };
 
           return attachClosestEdge(data, {

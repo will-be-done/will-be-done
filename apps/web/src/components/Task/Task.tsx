@@ -152,7 +152,7 @@ export const TaskComp = ({
   alwaysShowProject?: boolean;
   orderNumber: string;
   newTaskParams?: Partial<Task>;
-  scope: "dailyList" | "project" | "global";
+  scope: DndScope;
   displayLastScheduleTime?: boolean;
 }) => {
   const dispatch = useDispatch();
@@ -333,12 +333,12 @@ export const TaskComp = ({
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top", scope));
+        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, "top"));
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, "top", scope));
+        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, "top"));
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -374,7 +374,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge, scope));
+        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, edge));
 
         scroll();
       } else if (isMoveDown && down) {
@@ -404,7 +404,7 @@ export const TaskComp = ({
           edge = "top";
         }
 
-        dispatch(appSlice.handleDrop(id, cardWrapper.id, edge, scope));
+        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, edge));
 
         scroll();
       }
@@ -418,7 +418,12 @@ export const TaskComp = ({
 
       console.log("delete", focusableItem.key);
       const [up, down] = focusManager.getSiblings(focusableItem.key);
-      dispatch(appSlice.delete(cardWrapper));
+
+      if (scope === "dailyList") {
+        dispatch(dailyListTasksSlice.removeFromDailyList(cardWrapper.id));
+      } else {
+        dispatch(appSlice.delete(cardWrapper));
+      }
 
       if (down) {
         dispatch(focusSlice.focusByKey(down.key));
@@ -485,6 +490,7 @@ export const TaskComp = ({
         getInitialData: (): DndModelData => ({
           modelId: cardWrapper.id,
           modelType: cardWrapper.type,
+          scope,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -520,13 +526,16 @@ export const TaskComp = ({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(appSlice.canDrop(cardWrapper.id, data.modelId, scope));
+          return select(
+            appSlice.canDrop(cardWrapper.id, scope, data.modelId, scope),
+          );
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {
           const data: DndModelData = {
             modelId: cardWrapper.id,
             modelType: cardWrapper.type,
+            scope,
           };
 
           return attachClosestEdge(data, {

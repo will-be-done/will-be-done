@@ -284,7 +284,9 @@ export const cardsTaskTemplatesSlice = {
   }),
   canDrop: selector(function* (
     _taskTemplateId: string,
+    _scope: DndScope,
     _dropId: string,
+    _dropScope: DndScope,
   ): GenReturn<boolean> {
     yield* noop();
 
@@ -292,7 +294,9 @@ export const cardsTaskTemplatesSlice = {
   }),
   handleDrop: action(function* (
     _taskTemplateId: string,
+    _scope: DndScope,
     _dropId: string,
+    _dropScope: DndScope,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
     yield* noop();

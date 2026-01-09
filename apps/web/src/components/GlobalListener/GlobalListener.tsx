@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isInputElement } from "@/utils/isInputElement.ts";
-import { isModelDNDData } from "@/lib/dnd/models.ts";
+import { DndScope, isModelDNDData } from "@/lib/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
@@ -199,8 +199,6 @@ export function GlobalListener() {
             return;
           }
 
-          const dropModelId = source.data.modelId;
-
           const targetImportanceOrder = [
             taskType,
             dailyListType,
@@ -214,29 +212,29 @@ export function GlobalListener() {
             }
             const entity = select(db, appSlice.byId(t.data.modelId));
             if (!entity) return [] as const;
-            return [[t, entity] as const];
+            return [[t, entity, t.data.scope] as const];
           });
 
           let targetItemInfo:
-            | readonly [DropTargetRecord, { id: string; type: string }]
+            | readonly [
+                DropTargetRecord,
+                { id: string; type: string },
+                DndScope,
+              ]
             | undefined = undefined;
           for (const importanceType of targetImportanceOrder) {
             targetItemInfo = targetModels.find(
               ([_, e]) => e.type === importanceType,
-            ) as readonly [DropTargetRecord, { id: string; type: string }];
+            ) as readonly [
+              DropTargetRecord,
+              { id: string; type: string },
+              DndScope,
+            ];
 
             if (targetItemInfo) {
               break;
             }
           }
-
-          const hasDailyList = targetModels.find(
-            ([_, e]) => e.type === dailyListType,
-          );
-
-          const hasProject = targetModels.find(
-            ([_, e]) => e.type === projectType,
-          );
 
           if (!targetItemInfo) {
             shouldNeverHappen(
@@ -263,9 +261,10 @@ export function GlobalListener() {
           dispatch(
             appSlice.handleDrop(
               targetItemInfo[1].id,
-              dropModelId,
+              targetItemInfo[2],
+              source.data.modelId,
+              source.data.scope,
               closestEdgeOfTarget || "top",
-              hasDailyList ? "dailyList" : hasProject ? "project" : "global",
             ),
           );
         },

@@ -80,7 +80,9 @@ export const projectsSlice = {
   }),
   canDrop: selector(function* (
     projectId: string,
+    _scope: DndScope,
     dropItemId: string,
+    _dropScope: DndScope,
   ): GenReturn<boolean> {
     const project = yield* projectsSlice.byId(projectId);
     if (!project) return false;
@@ -89,11 +91,7 @@ export const projectsSlice = {
     if (!dropItem) return false;
 
     // Projects can accept tasks, templates, and other projects
-    return (
-      isProject(dropItem) ||
-      isTask(dropItem) ||
-      isTaskTemplate(dropItem)
-    );
+    return isProject(dropItem) || isTask(dropItem) || isTaskTemplate(dropItem);
   }),
 
   overdueTasksCountExceptDailiesCount: selector(function* (
@@ -257,10 +255,17 @@ export const projectsSlice = {
   }),
   handleDrop: action(function* (
     projectId: string,
+    scope: DndScope,
     dropItemId: string,
+    dropScope: DndScope,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const canDrop = yield* projectsSlice.canDrop(projectId, dropItemId);
+    const canDrop = yield* projectsSlice.canDrop(
+      projectId,
+      scope,
+      dropItemId,
+      dropScope,
+    );
     if (!canDrop) return;
 
     const project = yield* projectsSlice.byId(projectId);

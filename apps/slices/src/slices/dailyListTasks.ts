@@ -95,7 +95,9 @@ export const dailyListTasksSlice = {
   // Check if a task/model can be dropped into this daily list context
   canDrop: selector(function* (
     taskId: string,
+    _scope: DndScope,
     dropId: string,
+    _dropScope: DndScope,
   ): GenReturn<boolean> {
     const model = yield* appSlice.byId(dropId);
     if (!model) return false;
@@ -151,10 +153,17 @@ export const dailyListTasksSlice = {
   // Handle drop operations
   handleDrop: action(function* (
     taskId: string,
+    scope: DndScope,
     dropId: string,
+    dropScope: DndScope,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const canDrop = yield* dailyListTasksSlice.canDrop(taskId, dropId);
+    const canDrop = yield* dailyListTasksSlice.canDrop(
+      taskId,
+      scope,
+      dropId,
+      dropScope,
+    );
     if (!canDrop) return;
 
     const task = yield* cardsTasksSlice.byId(taskId);

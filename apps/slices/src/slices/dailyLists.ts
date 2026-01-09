@@ -129,7 +129,9 @@ export const dailyListsSlice = {
   }),
   canDrop: selector(function* (
     dailyListId: string,
+    _scope: DndScope,
     dropId: string,
+    _dropScope: DndScope,
   ): GenReturn<boolean> {
     const model = yield* appSlice.byId(dropId);
     if (!model) return false;
@@ -193,7 +195,10 @@ export const dailyListsSlice = {
     if (listPosition === "append" || listPosition === "prepend") {
       position = listPosition;
     } else {
-      position = [listPosition[0] as Task | undefined, listPosition[1] as Task | undefined];
+      position = [
+        listPosition[0] as Task | undefined,
+        listPosition[1] as Task | undefined,
+      ];
     }
 
     yield* dailyListTasksSlice.addToDailyList(task.id, dailyListId, position);
@@ -202,7 +207,9 @@ export const dailyListsSlice = {
   }),
   handleDrop: action(function* (
     dailyListId: string,
+    _scope: DndScope,
     dropId: string,
+    _dropScope: DndScope,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
     const drop = yield* appSlice.byId(dropId);

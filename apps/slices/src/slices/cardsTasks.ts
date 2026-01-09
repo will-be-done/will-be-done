@@ -13,7 +13,7 @@ import {
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
-import { appSlice } from "./app";
+import { appSlice, DndScope } from "./app";
 import {
   isTaskTemplate,
   TaskTemplate,
@@ -23,6 +23,7 @@ import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { projectCategoriesSlice } from "./projectsCategories";
+import { dailyListTasksSlice } from "./dailyListTasks";
 
 // Type definitions
 export const taskType = "task";
@@ -87,26 +88,6 @@ registerSyncableTable(tasksTable, taskType);
 
 // Slice - imports are at the bottom to avoid circular dependency issues
 export const cardsTasksSlice = {
-  canDrop: selector(function* (
-    taskId: string,
-    dropId: string,
-  ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(dropId);
-    if (!model) return false;
-
-    const task = yield* cardsTasksSlice.byId(taskId);
-    if (!task) return false;
-
-    if (task.state === "done") {
-      return false;
-    }
-
-    if (isTask(model) && model.state === "done") {
-      return false;
-    }
-
-    return isTask(model) || isTaskTemplate(model);
-  }),
   byId: selector(function* (id: string): GenReturn<Task | undefined> {
     const tasks = yield* runQuery(
       selectFrom(tasksTable, "byId")
@@ -169,12 +150,58 @@ export const cardsTasksSlice = {
 
     return newTask;
   }),
+  canDrop: selector(function* (
+    taskId: string,
+    scope: DndScope,
+    dropId: string,
+    dropScope: DndScope,
+  ): GenReturn<boolean> {
+    if (scope === "dailyList") {
+      return yield* dailyListTasksSlice.canDrop(
+        taskId,
+        scope,
+        dropId,
+        dropScope,
+      );
+    }
+
+    const model = yield* appSlice.byId(dropId);
+    if (!model) return false;
+
+    const task = yield* cardsTasksSlice.byId(taskId);
+    if (!task) return false;
+
+    if (task.state === "done") {
+      return false;
+    }
+
+    if (isTask(model) && model.state === "done") {
+      return false;
+    }
+
+    return isTask(model) || isTaskTemplate(model);
+  }),
   handleDrop: action(function* (
     taskId: string,
+    scope: DndScope,
     dropId: string,
+    dropScope: DndScope,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    if (!(yield* cardsTasksSlice.canDrop(taskId, dropId))) return;
+    if (!(yield* cardsTasksSlice.canDrop(taskId, scope, dropId, dropScope)))
+      return;
+
+    if (scope === "dailyList") {
+      yield* dailyListTasksSlice.handleDrop(
+        taskId,
+        scope,
+        dropId,
+        dropScope,
+        edge,
+      );
+
+      return;
+    }
 
     const task = yield* cardsTasksSlice.byId(taskId);
     if (!task) return shouldNeverHappen("task not found");
@@ -198,10 +225,17 @@ export const cardsTasksSlice = {
       between[1] || null,
     );
 
+    const additionalUpdates: Partial<Task> = {};
+    if (dropScope === "dailyList") {
+      additionalUpdates.dailyListId = null;
+      additionalUpdates.dailyListOrderToken = null;
+    }
+
     if (isTask(dropItem)) {
       yield* cardsTasksSlice.update(dropItem.id, {
         projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
+        ...additionalUpdates,
       });
     } else if (isTaskTemplate(dropItem)) {
       yield* cardsTaskTemplatesSlice.update(dropItem.id, {

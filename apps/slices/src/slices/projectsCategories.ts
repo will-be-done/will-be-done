@@ -280,7 +280,9 @@ export const projectCategoriesSlice = {
 
   handleDrop: action(function* (
     categoryId: string,
+    _scope: DndScope,
     dropId: string,
+    _dropScope: DndScope,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
     const dropItem = yield* appSlice.byId(dropId);
@@ -296,16 +298,16 @@ export const projectCategoriesSlice = {
   }),
   canDrop: selector(function* (
     _categoryId: string,
+    _scope: DndScope,
     dropId: string,
+    _dropScope: DndScope,
   ): GenReturn<boolean> {
     yield* noop();
 
     const dropItem = yield* appSlice.byId(dropId);
     if (!dropItem) return false;
 
-    return (
-      isTask(dropItem) || isTaskTemplate(dropItem)
-    );
+    return isTask(dropItem) || isTaskTemplate(dropItem);
   }),
 };
 

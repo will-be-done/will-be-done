@@ -23,14 +23,16 @@ type ModelSlice<T> = {
   delete: (ids: string[]) => Generator<unknown, void, unknown>;
   canDrop: (
     id: string,
+    scope: DndScope,
     dropId: string,
-    scope: "dailyList" | "project" | "global",
+    dropScope: DndScope,
   ) => Generator<unknown, boolean, unknown>;
   handleDrop: (
     id: string,
+    scope: DndScope,
     dropId: string,
+    dropScope: DndScope,
     edge: "top" | "bottom",
-    scope: "dailyList" | "project" | "global",
   ) => Generator<unknown, void, unknown>;
 };
 
