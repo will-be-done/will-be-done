@@ -11,7 +11,7 @@ import {
 import uuidByString from "uuid-by-string";
 import type { GenReturn, OrderableItem } from "./utils";
 import { getDMY } from "./utils";
-import { appSlice } from "./app";
+import { appSlice, DndScope } from "./app";
 import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
 import { dailyListTasksSlice } from "./dailyListTasks";
 import { registerSyncableTable } from "./syncMap";

@@ -15,7 +15,7 @@ import type { GenReturn } from "./utils";
 import { cardsTasksSlice, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { appSlice } from "./app";
+import { appSlice, DndScope } from "./app";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 // Type definitions

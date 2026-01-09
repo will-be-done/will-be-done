@@ -3,7 +3,7 @@ import { action, runQuery, selectFrom, selector } from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import type { GenReturn } from "./utils";
 import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
-import { appSlice } from "./app";
+import { appSlice, DndScope } from "./app";
 import { isTask, cardsTasksSlice, type Task, tasksTable } from "./cardsTasks";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { dailyListsSlice } from "./dailyLists";

@@ -1,3 +1,4 @@
+import { DndScope } from "./app";
 import { type Task, tasksTable } from "./cardsTasks";
 import { TaskTemplate, taskTemplatesTable } from "./cardsTaskTemplates";
 import { DailyList, dailyListsTable } from "./dailyLists";

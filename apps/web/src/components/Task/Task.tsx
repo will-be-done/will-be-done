@@ -33,6 +33,7 @@ import {
   Task,
   cardsTasksSlice,
   dailyListTasksSlice,
+  DndScope,
 } from "@will-be-done/slices";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {

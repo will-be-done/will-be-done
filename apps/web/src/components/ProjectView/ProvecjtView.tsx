@@ -222,7 +222,15 @@ const ProjectItem = function ProjectItemComp({
           const data = source.data;
           if (!isModelDNDData(data)) return false;
 
-          return select(db, projectsSlice.canDrop(project.id, data.modelId));
+          return select(
+            db,
+            projectsSlice.canDrop(
+              project.id,
+              "global",
+              data.modelId,
+              data.scope,
+            ),
+          );
         },
         getIsSticky: () => true,
         getData: ({ input, element }) => {

@@ -14,7 +14,7 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { OrderableItem, GenReturn } from "./utils";
 import { inboxId, generateOrderTokenPositioned } from "./utils";
-import { appSlice } from "./app";
+import { appSlice, DndScope } from "./app";
 import { projectsAllSlice } from "./projectsAll";
 import { isTask, Task, cardsTasksSlice } from "./cardsTasks";
 import { isTaskTemplate, cardsTaskTemplatesSlice } from "./cardsTaskTemplates";
