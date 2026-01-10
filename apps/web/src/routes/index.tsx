@@ -9,18 +9,18 @@ export const Route = createFileRoute("/")({
       throw redirect({ to: "/login" });
     }
 
-    const lastUsedVaultId = authUtils.getLastUsedVaultId();
-    if (lastUsedVaultId) {
+    const lastUsedSpaceId = authUtils.getLastUsedSpaceId();
+    if (lastUsedSpaceId) {
       throw redirect({
-        to: "/app/$vaultId/timeline",
+        to: "/spaces/$spaceId/timeline",
         params: {
-          vaultId: lastUsedVaultId,
+          spaceId: lastUsedSpaceId,
         },
       });
     }
 
     throw redirect({
-      to: "/vault",
+      to: "/spaces",
     });
   },
 });

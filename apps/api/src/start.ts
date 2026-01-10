@@ -19,7 +19,7 @@ import {
 } from "@trpc/server/adapters/fastify";
 import { getTodoDB, getMainDB } from "./db/db";
 import { authSlice } from "./slices/authSlice";
-import { vaultSlice } from "./slices/vaultSlice";
+import { spaceSlice } from "./slices/spaceSlice";
 import { TRPCError } from "@trpc/server";
 
 dotenv.config();
@@ -31,7 +31,7 @@ const appRouter = router({
     .input(
       z.object({
         lastServerUpdatedAt: z.string(),
-        vaultId: z.string(),
+        spaceId: z.string(),
       }),
     )
     .query(async (opts) => {
@@ -39,16 +39,16 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      // Check if user has access to the vault
-      const vault = select(mainDB, vaultSlice.getVaultById(opts.input.vaultId));
-      if (!vault || vault.userId !== opts.ctx.user.id) {
+      // Check if user has access to the space
+      const space = select(mainDB, spaceSlice.getSpaceById(opts.input.spaceId));
+      if (!space || space.userId !== opts.ctx.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Access denied to vault",
+          message: "Access denied to space",
         });
       }
 
-      const { db } = getTodoDB(opts.input.vaultId);
+      const { db } = getTodoDB(opts.input.spaceId);
 
       return select(
         db,
@@ -58,7 +58,7 @@ const appRouter = router({
   handleChanges: protectedProcedure
     .input(
       z.object({
-        vaultId: z.string(),
+        spaceId: z.string(),
         changeset: ChangesetArray,
       }),
     )
@@ -67,16 +67,16 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      // Check if user has access to the vault
-      const vault = select(mainDB, vaultSlice.getVaultById(opts.input.vaultId));
-      if (!vault || vault.userId !== opts.ctx.user.id) {
+      // Check if user has access to the space
+      const space = select(mainDB, spaceSlice.getSpaceById(opts.input.spaceId));
+      if (!space || space.userId !== opts.ctx.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Access denied to vault",
+          message: "Access denied to space",
         });
       }
 
-      const { db, nextClock, clientId } = getTodoDB(opts.input.vaultId);
+      const { db, nextClock, clientId } = getTodoDB(opts.input.spaceId);
 
       syncDispatch(
         db.withTraits({ type: "skip-sync" }),
@@ -140,7 +140,7 @@ const appRouter = router({
       return result;
     }),
 
-  createVault: protectedProcedure
+  createSpace: protectedProcedure
     .input(
       z.object({
         name: z.string().min(1),
@@ -151,28 +151,28 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      const vault = syncDispatch(
+      const space = syncDispatch(
         mainDB,
-        vaultSlice.createVault(opts.ctx.user.id, opts.input.name),
+        spaceSlice.createSpace(opts.ctx.user.id, opts.input.name),
       );
 
-      return vault;
+      return space;
     }),
 
-  listVaults: protectedProcedure.query(async (opts) => {
+  listSpaces: protectedProcedure.query(async (opts) => {
     if (!opts.ctx.user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
 
-    const vaults = select(
+    const spaces = select(
       mainDB,
-      vaultSlice.listVaultsByUserId(opts.ctx.user.id),
+      spaceSlice.listSpacesByUserId(opts.ctx.user.id),
     );
 
-    return vaults;
+    return spaces;
   }),
 
-  updateVault: protectedProcedure
+  updateSpace: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -184,19 +184,19 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      const vault = syncDispatch(
+      const space = syncDispatch(
         mainDB,
-        vaultSlice.updateVault(opts.input.id, opts.input.name),
+        spaceSlice.updateSpace(opts.input.id, opts.input.name),
       );
 
-      if (!vault) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Vault not found" });
+      if (!space) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Space not found" });
       }
 
-      return vault;
+      return space;
     }),
 
-  deleteVault: protectedProcedure
+  deleteSpace: protectedProcedure
     .input(
       z.object({
         id: z.string(),
@@ -207,22 +207,22 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      // Check if user has access to the vault
-      const vault = select(mainDB, vaultSlice.getVaultById(opts.input.id));
-      if (!vault || vault.userId !== opts.ctx.user.id) {
+      // Check if user has access to the space
+      const space = select(mainDB, spaceSlice.getSpaceById(opts.input.id));
+      if (!space || space.userId !== opts.ctx.user.id) {
         throw new TRPCError({
           code: "FORBIDDEN",
-          message: "Access denied to vault",
+          message: "Access denied to space",
         });
       }
 
       const success = syncDispatch(
         mainDB,
-        vaultSlice.deleteVault(opts.input.id),
+        spaceSlice.deleteSpace(opts.input.id),
       );
 
       if (!success) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Vault not found" });
+        throw new TRPCError({ code: "NOT_FOUND", message: "Space not found" });
       }
 
       return { success: true };

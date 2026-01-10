@@ -9,19 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as VaultRouteImport } from './routes/vault'
+import { Route as SpacesRouteImport } from './routes/spaces'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AppVaultIdRouteImport } from './routes/app.$vaultId'
-import { Route as AppVaultIdTimelineIndexRouteImport } from './routes/app.$vaultId.timeline.index'
-import { Route as AppVaultIdProjectsIndexRouteImport } from './routes/app.$vaultId.projects.index'
-import { Route as AppVaultIdTimelineDateRouteImport } from './routes/app.$vaultId.timeline.$date'
-import { Route as AppVaultIdProjectsProjectIdRouteImport } from './routes/app.$vaultId.projects.$projectId'
+import { Route as SpacesIndexRouteImport } from './routes/spaces.index'
+import { Route as SpacesSpaceIdRouteImport } from './routes/spaces.$spaceId'
+import { Route as SpacesSpaceIdTimelineIndexRouteImport } from './routes/spaces.$spaceId.timeline.index'
+import { Route as SpacesSpaceIdProjectsIndexRouteImport } from './routes/spaces.$spaceId.projects.index'
+import { Route as SpacesSpaceIdTimelineDateRouteImport } from './routes/spaces.$spaceId.timeline.$date'
+import { Route as SpacesSpaceIdProjectsProjectIdRouteImport } from './routes/spaces.$spaceId.projects.$projectId'
 
-const VaultRoute = VaultRouteImport.update({
-  id: '/vault',
-  path: '/vault',
+const SpacesRoute = SpacesRouteImport.update({
+  id: '/spaces',
+  path: '/spaces',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
@@ -39,66 +40,76 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppVaultIdRoute = AppVaultIdRouteImport.update({
-  id: '/app/$vaultId',
-  path: '/app/$vaultId',
-  getParentRoute: () => rootRouteImport,
+const SpacesIndexRoute = SpacesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SpacesRoute,
 } as any)
-const AppVaultIdTimelineIndexRoute = AppVaultIdTimelineIndexRouteImport.update({
-  id: '/timeline/',
-  path: '/timeline/',
-  getParentRoute: () => AppVaultIdRoute,
+const SpacesSpaceIdRoute = SpacesSpaceIdRouteImport.update({
+  id: '/$spaceId',
+  path: '/$spaceId',
+  getParentRoute: () => SpacesRoute,
 } as any)
-const AppVaultIdProjectsIndexRoute = AppVaultIdProjectsIndexRouteImport.update({
-  id: '/projects/',
-  path: '/projects/',
-  getParentRoute: () => AppVaultIdRoute,
-} as any)
-const AppVaultIdTimelineDateRoute = AppVaultIdTimelineDateRouteImport.update({
-  id: '/timeline/$date',
-  path: '/timeline/$date',
-  getParentRoute: () => AppVaultIdRoute,
-} as any)
-const AppVaultIdProjectsProjectIdRoute =
-  AppVaultIdProjectsProjectIdRouteImport.update({
+const SpacesSpaceIdTimelineIndexRoute =
+  SpacesSpaceIdTimelineIndexRouteImport.update({
+    id: '/timeline/',
+    path: '/timeline/',
+    getParentRoute: () => SpacesSpaceIdRoute,
+  } as any)
+const SpacesSpaceIdProjectsIndexRoute =
+  SpacesSpaceIdProjectsIndexRouteImport.update({
+    id: '/projects/',
+    path: '/projects/',
+    getParentRoute: () => SpacesSpaceIdRoute,
+  } as any)
+const SpacesSpaceIdTimelineDateRoute =
+  SpacesSpaceIdTimelineDateRouteImport.update({
+    id: '/timeline/$date',
+    path: '/timeline/$date',
+    getParentRoute: () => SpacesSpaceIdRoute,
+  } as any)
+const SpacesSpaceIdProjectsProjectIdRoute =
+  SpacesSpaceIdProjectsProjectIdRouteImport.update({
     id: '/projects/$projectId',
     path: '/projects/$projectId',
-    getParentRoute: () => AppVaultIdRoute,
+    getParentRoute: () => SpacesSpaceIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/vault': typeof VaultRoute
-  '/app/$vaultId': typeof AppVaultIdRouteWithChildren
-  '/app/$vaultId/projects/$projectId': typeof AppVaultIdProjectsProjectIdRoute
-  '/app/$vaultId/timeline/$date': typeof AppVaultIdTimelineDateRoute
-  '/app/$vaultId/projects': typeof AppVaultIdProjectsIndexRoute
-  '/app/$vaultId/timeline': typeof AppVaultIdTimelineIndexRoute
+  '/spaces': typeof SpacesRouteWithChildren
+  '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
+  '/spaces/': typeof SpacesIndexRoute
+  '/spaces/$spaceId/projects/$projectId': typeof SpacesSpaceIdProjectsProjectIdRoute
+  '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
+  '/spaces/$spaceId/projects': typeof SpacesSpaceIdProjectsIndexRoute
+  '/spaces/$spaceId/timeline': typeof SpacesSpaceIdTimelineIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/vault': typeof VaultRoute
-  '/app/$vaultId': typeof AppVaultIdRouteWithChildren
-  '/app/$vaultId/projects/$projectId': typeof AppVaultIdProjectsProjectIdRoute
-  '/app/$vaultId/timeline/$date': typeof AppVaultIdTimelineDateRoute
-  '/app/$vaultId/projects': typeof AppVaultIdProjectsIndexRoute
-  '/app/$vaultId/timeline': typeof AppVaultIdTimelineIndexRoute
+  '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
+  '/spaces': typeof SpacesIndexRoute
+  '/spaces/$spaceId/projects/$projectId': typeof SpacesSpaceIdProjectsProjectIdRoute
+  '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
+  '/spaces/$spaceId/projects': typeof SpacesSpaceIdProjectsIndexRoute
+  '/spaces/$spaceId/timeline': typeof SpacesSpaceIdTimelineIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/vault': typeof VaultRoute
-  '/app/$vaultId': typeof AppVaultIdRouteWithChildren
-  '/app/$vaultId/projects/$projectId': typeof AppVaultIdProjectsProjectIdRoute
-  '/app/$vaultId/timeline/$date': typeof AppVaultIdTimelineDateRoute
-  '/app/$vaultId/projects/': typeof AppVaultIdProjectsIndexRoute
-  '/app/$vaultId/timeline/': typeof AppVaultIdTimelineIndexRoute
+  '/spaces': typeof SpacesRouteWithChildren
+  '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
+  '/spaces/': typeof SpacesIndexRoute
+  '/spaces/$spaceId/projects/$projectId': typeof SpacesSpaceIdProjectsProjectIdRoute
+  '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
+  '/spaces/$spaceId/projects/': typeof SpacesSpaceIdProjectsIndexRoute
+  '/spaces/$spaceId/timeline/': typeof SpacesSpaceIdTimelineIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -106,51 +117,52 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
-    | '/vault'
-    | '/app/$vaultId'
-    | '/app/$vaultId/projects/$projectId'
-    | '/app/$vaultId/timeline/$date'
-    | '/app/$vaultId/projects'
-    | '/app/$vaultId/timeline'
+    | '/spaces'
+    | '/spaces/$spaceId'
+    | '/spaces/'
+    | '/spaces/$spaceId/projects/$projectId'
+    | '/spaces/$spaceId/timeline/$date'
+    | '/spaces/$spaceId/projects'
+    | '/spaces/$spaceId/timeline'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/signup'
-    | '/vault'
-    | '/app/$vaultId'
-    | '/app/$vaultId/projects/$projectId'
-    | '/app/$vaultId/timeline/$date'
-    | '/app/$vaultId/projects'
-    | '/app/$vaultId/timeline'
+    | '/spaces/$spaceId'
+    | '/spaces'
+    | '/spaces/$spaceId/projects/$projectId'
+    | '/spaces/$spaceId/timeline/$date'
+    | '/spaces/$spaceId/projects'
+    | '/spaces/$spaceId/timeline'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/signup'
-    | '/vault'
-    | '/app/$vaultId'
-    | '/app/$vaultId/projects/$projectId'
-    | '/app/$vaultId/timeline/$date'
-    | '/app/$vaultId/projects/'
-    | '/app/$vaultId/timeline/'
+    | '/spaces'
+    | '/spaces/$spaceId'
+    | '/spaces/'
+    | '/spaces/$spaceId/projects/$projectId'
+    | '/spaces/$spaceId/timeline/$date'
+    | '/spaces/$spaceId/projects/'
+    | '/spaces/$spaceId/timeline/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
-  VaultRoute: typeof VaultRoute
-  AppVaultIdRoute: typeof AppVaultIdRouteWithChildren
+  SpacesRoute: typeof SpacesRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/vault': {
-      id: '/vault'
-      path: '/vault'
-      fullPath: '/vault'
-      preLoaderRoute: typeof VaultRouteImport
+    '/spaces': {
+      id: '/spaces'
+      path: '/spaces'
+      fullPath: '/spaces'
+      preLoaderRoute: typeof SpacesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -174,68 +186,87 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/app/$vaultId': {
-      id: '/app/$vaultId'
-      path: '/app/$vaultId'
-      fullPath: '/app/$vaultId'
-      preLoaderRoute: typeof AppVaultIdRouteImport
-      parentRoute: typeof rootRouteImport
+    '/spaces/': {
+      id: '/spaces/'
+      path: '/'
+      fullPath: '/spaces/'
+      preLoaderRoute: typeof SpacesIndexRouteImport
+      parentRoute: typeof SpacesRoute
     }
-    '/app/$vaultId/timeline/': {
-      id: '/app/$vaultId/timeline/'
+    '/spaces/$spaceId': {
+      id: '/spaces/$spaceId'
+      path: '/$spaceId'
+      fullPath: '/spaces/$spaceId'
+      preLoaderRoute: typeof SpacesSpaceIdRouteImport
+      parentRoute: typeof SpacesRoute
+    }
+    '/spaces/$spaceId/timeline/': {
+      id: '/spaces/$spaceId/timeline/'
       path: '/timeline'
-      fullPath: '/app/$vaultId/timeline'
-      preLoaderRoute: typeof AppVaultIdTimelineIndexRouteImport
-      parentRoute: typeof AppVaultIdRoute
+      fullPath: '/spaces/$spaceId/timeline'
+      preLoaderRoute: typeof SpacesSpaceIdTimelineIndexRouteImport
+      parentRoute: typeof SpacesSpaceIdRoute
     }
-    '/app/$vaultId/projects/': {
-      id: '/app/$vaultId/projects/'
+    '/spaces/$spaceId/projects/': {
+      id: '/spaces/$spaceId/projects/'
       path: '/projects'
-      fullPath: '/app/$vaultId/projects'
-      preLoaderRoute: typeof AppVaultIdProjectsIndexRouteImport
-      parentRoute: typeof AppVaultIdRoute
+      fullPath: '/spaces/$spaceId/projects'
+      preLoaderRoute: typeof SpacesSpaceIdProjectsIndexRouteImport
+      parentRoute: typeof SpacesSpaceIdRoute
     }
-    '/app/$vaultId/timeline/$date': {
-      id: '/app/$vaultId/timeline/$date'
+    '/spaces/$spaceId/timeline/$date': {
+      id: '/spaces/$spaceId/timeline/$date'
       path: '/timeline/$date'
-      fullPath: '/app/$vaultId/timeline/$date'
-      preLoaderRoute: typeof AppVaultIdTimelineDateRouteImport
-      parentRoute: typeof AppVaultIdRoute
+      fullPath: '/spaces/$spaceId/timeline/$date'
+      preLoaderRoute: typeof SpacesSpaceIdTimelineDateRouteImport
+      parentRoute: typeof SpacesSpaceIdRoute
     }
-    '/app/$vaultId/projects/$projectId': {
-      id: '/app/$vaultId/projects/$projectId'
+    '/spaces/$spaceId/projects/$projectId': {
+      id: '/spaces/$spaceId/projects/$projectId'
       path: '/projects/$projectId'
-      fullPath: '/app/$vaultId/projects/$projectId'
-      preLoaderRoute: typeof AppVaultIdProjectsProjectIdRouteImport
-      parentRoute: typeof AppVaultIdRoute
+      fullPath: '/spaces/$spaceId/projects/$projectId'
+      preLoaderRoute: typeof SpacesSpaceIdProjectsProjectIdRouteImport
+      parentRoute: typeof SpacesSpaceIdRoute
     }
   }
 }
 
-interface AppVaultIdRouteChildren {
-  AppVaultIdProjectsProjectIdRoute: typeof AppVaultIdProjectsProjectIdRoute
-  AppVaultIdTimelineDateRoute: typeof AppVaultIdTimelineDateRoute
-  AppVaultIdProjectsIndexRoute: typeof AppVaultIdProjectsIndexRoute
-  AppVaultIdTimelineIndexRoute: typeof AppVaultIdTimelineIndexRoute
+interface SpacesSpaceIdRouteChildren {
+  SpacesSpaceIdProjectsProjectIdRoute: typeof SpacesSpaceIdProjectsProjectIdRoute
+  SpacesSpaceIdTimelineDateRoute: typeof SpacesSpaceIdTimelineDateRoute
+  SpacesSpaceIdProjectsIndexRoute: typeof SpacesSpaceIdProjectsIndexRoute
+  SpacesSpaceIdTimelineIndexRoute: typeof SpacesSpaceIdTimelineIndexRoute
 }
 
-const AppVaultIdRouteChildren: AppVaultIdRouteChildren = {
-  AppVaultIdProjectsProjectIdRoute: AppVaultIdProjectsProjectIdRoute,
-  AppVaultIdTimelineDateRoute: AppVaultIdTimelineDateRoute,
-  AppVaultIdProjectsIndexRoute: AppVaultIdProjectsIndexRoute,
-  AppVaultIdTimelineIndexRoute: AppVaultIdTimelineIndexRoute,
+const SpacesSpaceIdRouteChildren: SpacesSpaceIdRouteChildren = {
+  SpacesSpaceIdProjectsProjectIdRoute: SpacesSpaceIdProjectsProjectIdRoute,
+  SpacesSpaceIdTimelineDateRoute: SpacesSpaceIdTimelineDateRoute,
+  SpacesSpaceIdProjectsIndexRoute: SpacesSpaceIdProjectsIndexRoute,
+  SpacesSpaceIdTimelineIndexRoute: SpacesSpaceIdTimelineIndexRoute,
 }
 
-const AppVaultIdRouteWithChildren = AppVaultIdRoute._addFileChildren(
-  AppVaultIdRouteChildren,
+const SpacesSpaceIdRouteWithChildren = SpacesSpaceIdRoute._addFileChildren(
+  SpacesSpaceIdRouteChildren,
 )
+
+interface SpacesRouteChildren {
+  SpacesSpaceIdRoute: typeof SpacesSpaceIdRouteWithChildren
+  SpacesIndexRoute: typeof SpacesIndexRoute
+}
+
+const SpacesRouteChildren: SpacesRouteChildren = {
+  SpacesSpaceIdRoute: SpacesSpaceIdRouteWithChildren,
+  SpacesIndexRoute: SpacesIndexRoute,
+}
+
+const SpacesRouteWithChildren =
+  SpacesRoute._addFileChildren(SpacesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
-  VaultRoute: VaultRoute,
-  AppVaultIdRoute: AppVaultIdRouteWithChildren,
+  SpacesRoute: SpacesRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

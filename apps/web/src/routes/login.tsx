@@ -14,16 +14,16 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
   beforeLoad: () => {
     if (authUtils.isAuthenticated() && authUtils.getUserId()) {
-      const lastUsedVaultId = authUtils.getLastUsedVaultId();
-      if (lastUsedVaultId) {
+      const lastUsedSpaceId = authUtils.getLastUsedSpaceId();
+      if (lastUsedSpaceId) {
         throw redirect({
-          to: "/app/$vaultId/timeline",
+          to: "/spaces/$spaceId/timeline",
           params: {
-            vaultId: lastUsedVaultId,
+            spaceId: lastUsedSpaceId,
           },
         });
       } else {
-        throw redirect({ to: "/vault" });
+        throw redirect({ to: "/spaces" });
       }
     }
   },
@@ -41,7 +41,7 @@ function LoginPage() {
         authUtils.setToken(result.token);
         authUtils.setUserId(result.userId);
 
-        void navigate({ to: "/vault" });
+        void navigate({ to: "/spaces" });
       },
     }),
   );

@@ -72,19 +72,19 @@ const getClientId = (userId: string) => {
   return newId;
 };
 
-async function initAsyncDriver(vaultId: string) {
+async function initAsyncDriver(spaceId: string) {
   const module = await SQLiteAsyncESMFactory({
     locateFile: () => asyncSqlWasmUrl,
   });
 
   const sqlite3 = SQLite.Factory(module);
 
-  console.log("initAsyncDriver - vaultId", vaultId);
+  console.log("initAsyncDriver - spaceId", spaceId);
 
-  const vfs = await IDBBatchAtomicVFS.create("task-db-" + vaultId, module);
+  const vfs = await IDBBatchAtomicVFS.create("task-db-" + spaceId, module);
   sqlite3.vfs_register(vfs, true);
 
-  const db = await sqlite3.open_v2("task-db-" + vaultId);
+  const db = await sqlite3.open_v2("task-db-" + spaceId);
 
   await sqlite3.exec(db, `PRAGMA cache_size=5000;`);
   await sqlite3.exec(db, `PRAGMA journal_mode=DELETE;`);
@@ -183,13 +183,13 @@ const syncSlice = {
 //
 const lock = new AwaitLock();
 const initedDbs: Record<string, SubscribableDB> = {};
-export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
+export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
   await lock.acquireAsync();
   try {
-    if (initedDbs[vaultId]) {
-      return initedDbs[vaultId];
+    if (initedDbs[spaceId]) {
+      return initedDbs[spaceId];
     }
-    const asyncDriver = await initAsyncDriver(vaultId);
+    const asyncDriver = await initAsyncDriver(spaceId);
     const asyncDB = new DB(asyncDriver);
 
     await execAsync(
@@ -222,7 +222,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
           changesSlice.insertChangeFromInsert(
             op.table,
             op.newValue,
-            getClientId(vaultId),
+            getClientId(spaceId),
             nextClock,
           ),
         );
@@ -244,7 +244,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
             op.table,
             op.oldValue,
             op.newValue,
-            getClientId(vaultId),
+            getClientId(spaceId),
             nextClock,
           ),
         );
@@ -265,7 +265,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
           changesSlice.insertChangeFromDelete(
             op.table,
             op.oldValue,
-            getClientId(vaultId),
+            getClientId(spaceId),
             nextClock,
           ),
         );
@@ -277,7 +277,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
     // 1. DONE add support afterUpdate and afterDelete
     // 2. DONE merge backend receiving changesets with in-memory db
 
-    const clientId = getClientId(vaultId);
+    const clientId = getClientId(spaceId);
     const nextClock = initClock(clientId);
 
     for (const table of registeredSyncableTables) {
@@ -315,7 +315,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
               changesSlice.insertChangeFromInsert(
                 op.table,
                 op.newValue,
-                getClientId(vaultId),
+                getClientId(spaceId),
                 nextClock,
               ),
             );
@@ -327,7 +327,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
                 op.table,
                 op.oldValue,
                 op.newValue,
-                getClientId(vaultId),
+                getClientId(spaceId),
                 nextClock,
               ),
             );
@@ -338,7 +338,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
               changesSlice.insertChangeFromDelete(
                 op.table,
                 op.oldValue,
-                getClientId(vaultId),
+                getClientId(spaceId),
                 nextClock,
               ),
             );
@@ -349,10 +349,10 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
       })();
     });
 
-    new Syncer(asyncDB, getClientId(vaultId), vaultId, nextClock, (e) => {
+    new Syncer(asyncDB, getClientId(spaceId), spaceId, nextClock, (e) => {
       syncDispatch(
         syncSubDb.withTraits({ type: "skip-sync" }),
-        changesSlice.mergeChanges(e.changeset, nextClock, getClientId(vaultId)),
+        changesSlice.mergeChanges(e.changeset, nextClock, getClientId(spaceId)),
       );
 
       void bc.postMessage(e);
@@ -360,7 +360,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
 
     syncDispatch(syncSubDb, projectsSlice.createInboxIfNotExists());
 
-    const bc = new BroadcastChannel(`changes-${getClientId(vaultId)}`);
+    const bc = new BroadcastChannel(`changes-${getClientId(spaceId)}`);
 
     bc.onmessage = async (ev) => {
       const data = ev as ChangePersistedEvent;
@@ -370,7 +370,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
         changesSlice.mergeChanges(
           data.changeset,
           nextClock,
-          getClientId(vaultId),
+          getClientId(spaceId),
         ),
       );
     };
@@ -385,7 +385,7 @@ export const initDbStore = async (vaultId: string): Promise<SubscribableDB> => {
     //   }
     // })();
 
-    initedDbs[vaultId] = syncSubDb;
+    initedDbs[spaceId] = syncSubDb;
 
     return syncSubDb;
   } finally {
@@ -402,17 +402,17 @@ class Syncer {
   private elector: LeaderElector;
   private runId = 0;
   private clientId: string;
-  private vaultId: string;
+  private spaceId: string;
 
   constructor(
     private persistentDB: HyperDB,
     clientId: string,
-    vaultId: string,
+    spaceId: string,
     private nextClock: () => string,
     private afterChangesPersisted: (e: ChangePersistedEvent) => void,
   ) {
     this.clientId = clientId;
-    this.vaultId = vaultId;
+    this.spaceId = spaceId;
     this.electionChannel = new BroadcastChannel("election-" + clientId);
     this.elector = createLeaderElection(this.electionChannel);
   }
@@ -455,7 +455,7 @@ class Syncer {
       syncSlice.getOrDefault(),
     );
     const serverChanges = await trpcClient.getChangesAfter.query({
-      vaultId: this.vaultId,
+      spaceId: this.spaceId,
       lastServerUpdatedAt: syncState.lastServerAppliedClock,
     });
     // TODO: apply change to in-memory db too
@@ -578,7 +578,7 @@ class Syncer {
     console.log("sending changes to server", changesets, maxClock);
 
     await trpcClient.handleChanges.mutate({
-      vaultId: this.vaultId,
+      spaceId: this.spaceId,
       changeset: changesets,
     });
     await asyncDispatch(

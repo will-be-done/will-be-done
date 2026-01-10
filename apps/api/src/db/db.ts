@@ -14,7 +14,7 @@ import {
 } from "@will-be-done/slices";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { usersTable, tokensTable } from "../slices/authSlice";
-import { vaultsTable } from "../slices/vaultSlice";
+import { spacesTable } from "../slices/spaceSlice";
 
 const initClock = (clientId: string) => {
   let now = Date.now();
@@ -78,7 +78,7 @@ export const getMainDB = () => {
 
   const db = getDB("main");
 
-  execSync(db.loadTables([usersTable, tokensTable, vaultsTable]));
+  execSync(db.loadTables([usersTable, tokensTable, spacesTable]));
 
   mainDB = db;
   return db;

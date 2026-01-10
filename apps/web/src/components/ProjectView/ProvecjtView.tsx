@@ -552,8 +552,8 @@ export const ProjectView = ({
     return (
       Array.isArray(backup.tasks) &&
       Array.isArray(backup.projects) &&
-      Array.isArray(backup.dailyLists) &&
-      Array.isArray(backup.dailyListProjections)
+      Array.isArray(backup.dailyLists)
+      // Array.isArray(backup.dailyListProjections)
     );
   };
 
@@ -590,6 +590,7 @@ export const ProjectView = ({
             throw new Error("Failed to read file");
           }
           const parsedBackup = JSON.parse(result) as unknown;
+
           // Validate backup structure
           if (!isValidBackup(parsedBackup)) {
             throw new Error("Invalid backup format");

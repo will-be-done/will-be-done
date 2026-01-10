@@ -1,6 +1,6 @@
 const AUTH_TOKEN_KEY = "auth_token";
 const USER_ID_KEY = "user_id";
-const LAST_USED_VAULT_ID_KEY = "vault_id";
+const LAST_USED_SPACE_ID_KEY = "space_id";
 
 export const authUtils = {
   getToken: (): string | null => {
@@ -17,11 +17,11 @@ export const authUtils = {
     return localStorage.getItem(USER_ID_KEY);
   },
 
-  getLastUsedVaultId: (): string | null => {
-    return localStorage.getItem(LAST_USED_VAULT_ID_KEY);
+  getLastUsedSpaceId: (): string | null => {
+    return localStorage.getItem(LAST_USED_SPACE_ID_KEY);
   },
-  setLastUsedVaultId: (vaultId: string): void => {
-    localStorage.setItem(LAST_USED_VAULT_ID_KEY, vaultId);
+  setLastUsedSpaceId: (spaceId: string): void => {
+    localStorage.setItem(LAST_USED_SPACE_ID_KEY, spaceId);
   },
 
   removeToken: (): void => {
@@ -30,14 +30,14 @@ export const authUtils = {
   removeUserId: (): void => {
     localStorage.removeItem(USER_ID_KEY);
   },
-  removeLastUsedVaultId: (): void => {
-    localStorage.removeItem(LAST_USED_VAULT_ID_KEY);
+  removeLastUsedSpaceId: (): void => {
+    localStorage.removeItem(LAST_USED_SPACE_ID_KEY);
   },
 
   signOut: (): void => {
     authUtils.removeToken();
     authUtils.removeUserId();
-    authUtils.removeLastUsedVaultId();
+    authUtils.removeLastUsedSpaceId();
   },
 
   isAuthenticated: (): boolean => {

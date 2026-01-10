@@ -6,16 +6,16 @@ import { DBProvider } from "@will-be-done/hyperdb";
 import { initDbStore } from "@/store/load.ts";
 import { authUtils } from "@/lib/auth";
 
-export const Route = createFileRoute("/app/$vaultId")({
+export const Route = createFileRoute("/spaces/$spaceId")({
   component: RouteComponent,
   loader: async (opts) => {
     if (!authUtils.isAuthenticated()) {
       throw redirect({ to: "/login" });
     }
 
-    authUtils.setLastUsedVaultId(opts.params.vaultId);
+    authUtils.setLastUsedSpaceId(opts.params.spaceId);
 
-    return initDbStore(opts.params.vaultId);
+    return initDbStore(opts.params.spaceId);
   },
 });
 

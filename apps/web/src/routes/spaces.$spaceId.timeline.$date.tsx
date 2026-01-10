@@ -10,7 +10,7 @@ const filterParams = z.object({
   projectId: z.string().default(inboxId),
 });
 
-export const Route = createFileRoute("/app/$vaultId/timeline/$date")({
+export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
   component: RouteComponent,
   validateSearch: zodValidator(filterParams),
 });

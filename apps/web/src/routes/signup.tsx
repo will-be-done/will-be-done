@@ -14,7 +14,7 @@ export const Route = createFileRoute("/signup")({
   component: SignupPage,
   beforeLoad: () => {
     if (authUtils.isAuthenticated()) {
-      throw redirect({ to: "/vault" });
+      throw redirect({ to: "/spaces" });
     }
   },
 });
@@ -33,7 +33,7 @@ function SignupPage() {
         authUtils.setToken(result.token);
         authUtils.setUserId(result.userId);
 
-        void navigate({ to: "/vault" });
+        void navigate({ to: "/spaces" });
       },
     }),
   );

@@ -22,7 +22,7 @@ import {
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Route } from "@/routes/app.$vaultId.tsx";
+import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { NavBar } from "../NavBar/NavBar.tsx";
 import { authUtils } from "@/lib/auth.ts";
 
@@ -210,7 +210,7 @@ const BoardView = ({
     setProjectsViewHidden(!projectsViewHidden);
   };
 
-  const vaultId = Route.useParams().vaultId;
+  const spaceId = Route.useParams().spaceId;
 
   const navigate = useNavigate();
   const handleSignOutClick = () => {
@@ -234,10 +234,10 @@ const BoardView = ({
     }) => {
       return (
         <Link
-          to="/app/$vaultId/timeline/$date"
+          to="/spaces/$spaceId/timeline/$date"
           params={{
             date: format(selectedDate, "yyyy-MM-dd"),
-            vaultId,
+            spaceId,
           }}
           search={{
             projectId,
@@ -249,7 +249,7 @@ const BoardView = ({
         </Link>
       );
     },
-    [selectedDate, vaultId],
+    [selectedDate, spaceId],
   );
 
   console.log("projectId", selectedProjectId);
@@ -291,12 +291,12 @@ const BoardView = ({
             selectedProjectId={selectedProjectId}
           />
           <div className="absolute left-0 top-0">
-            <NavBar vaultId={vaultId} />
+            <NavBar spaceId={spaceId} />
           </div>
           <div className="absolute right-0 top-0 ">
             <div className="flex items-center rounded-bl-lg text-sm bg-panel text-xs text-primary h-6 px-2 gap-3">
-              <Link className="[&.active]:text-accent" to="/vault">
-                vaults
+              <Link className="[&.active]:text-accent" to="/spaces">
+                spaces
               </Link>
 
               <button onClick={handleSignOutClick}>sign out</button>
