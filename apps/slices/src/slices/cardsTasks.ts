@@ -23,7 +23,7 @@ import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { projectCategoriesSlice } from "./projectsCategories";
-import { dailyListsProjectionsSlice, isTaskProjection } from "./dailyListsProjections";
+import { isTaskProjection } from "./dailyListsProjections";
 
 // Type definitions
 export const taskType = "task";

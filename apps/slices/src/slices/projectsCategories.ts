@@ -25,7 +25,7 @@ import { appSlice } from "./app";
 import { isTaskTemplate } from "./cardsTaskTemplates";
 import { cardsSlice } from "./cards";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
-import { dailyListsProjectionsSlice, isTaskProjection } from "./dailyListsProjections";
+import { isTaskProjection } from "./dailyListsProjections";
 
 export const projectCategoryType = "projectCategory";
 

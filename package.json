@@ -10,7 +10,9 @@
   "engines": {},
   "scripts": {
     "dev:client": "bun --cwd apps/web run dev",
-    "dev:server": "bun --cwd apps/api run dev"
+    "dev:server": "bun --cwd apps/api run dev",
+    "ts": "bun run --filter='@will-be-done/web' ts && bun run --filter='@will-be-done/slices' ts",
+    "lint": "bun run --filter='@will-be-done/web' lint && bun run --filter='@will-be-done/slices' lint"
   },
   "devDependencies": {},
   "overrides": {
