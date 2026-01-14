@@ -21,3 +21,44 @@ Coming soon:
 3. More vim keybindings (beyond basic j/k navigation)
 4. Calendar integration
 5. Mobile-friendly UI
+
+## Release Process
+
+### Creating a Stable Release
+
+1. Ensure main branch is stable and all tests pass
+2. Create and push a version tag:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+3. GitHub Actions automatically builds and publishes to ghcr.io
+4. Monitor workflow at: https://github.com/quolpr/will-be-done/actions
+5. Pull and deploy the release:
+   ```bash
+   docker pull ghcr.io/quolpr/will-be-done:0.1.0
+   # or
+   docker pull ghcr.io/quolpr/will-be-done:latest
+   ```
+
+### Canary Builds
+
+- Every commit to main automatically builds a canary release
+- Available as: `ghcr.io/quolpr/will-be-done:canary`
+- Also tagged with commit SHA: `ghcr.io/quolpr/will-be-done:<sha>`
+- Use for testing but not for production deployments
+
+### Multi-platform Support
+
+All images support:
+- `linux/amd64`
+- `linux/arm64`
+
+Docker automatically pulls the correct architecture for your platform.
+
+### Versioning
+
+We follow Semantic Versioning:
+- **MAJOR** version for incompatible API changes
+- **MINOR** version for new features (backward compatible)
+- **PATCH** version for bug fixes
