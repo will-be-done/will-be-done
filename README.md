@@ -33,19 +33,19 @@ Coming soon:
    git push origin v0.1.0
    ```
 3. GitHub Actions automatically builds and publishes to ghcr.io
-4. Monitor workflow at: https://github.com/quolpr/will-be-done/actions
+4. Monitor workflow at: https://github.com/quolpr/will-be-done-app/actions
 5. Pull and deploy the release:
    ```bash
-   docker pull ghcr.io/quolpr/will-be-done:0.1.0
+   docker pull ghcr.io/quolpr/will-be-done-app:0.1.0
    # or
-   docker pull ghcr.io/quolpr/will-be-done:latest
+   docker pull ghcr.io/quolpr/will-be-done-app:latest
    ```
 
 ### Canary Builds
 
 - Every commit to main automatically builds a canary release
-- Available as: `ghcr.io/quolpr/will-be-done:canary`
-- Also tagged with commit SHA: `ghcr.io/quolpr/will-be-done:<sha>`
+- Available as: `ghcr.io/quolpr/will-be-done-app:canary`
+- Also tagged with commit SHA: `ghcr.io/quolpr/will-be-done-app:<sha>`
 - Use for testing but not for production deployments
 
 ### Multi-platform Support

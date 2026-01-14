@@ -5,13 +5,12 @@ on:
     branches: [main]
 
 permissions:
+  contents: read
   packages: write
 
 env:
-  REGISTRY_GHCR: ghcr.io
-  REGISTRY_PRIVATE: registry.tosi-bosi.com
-  IMAGE_NAME_GHCR: quolpr/will-be-done
-  IMAGE_NAME_PRIVATE: willbedone
+  REGISTRY: ghcr.io
+  IMAGE_NAME: quolpr/will-be-done-app
 
 jobs:
   build-canary:
@@ -33,46 +32,30 @@ jobs:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY_GHCR }}
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to Private Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY_PRIVATE }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: Docker metadata for GHCR
-        id: meta-ghcr
+      - name: Docker metadata
+        id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME_GHCR }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=canary
             type=raw,value=${{ steps.tag.outputs.tag }}
           labels: |
-            org.opencontainers.image.title=will-be-done
+            org.opencontainers.image.title=will-be-done-app
             org.opencontainers.image.description=Task management application
             org.opencontainers.image.vendor=quolpr
 
-      - name: Build and push to GitHub Container Registry
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta-ghcr.outputs.tags }}
-          labels: ${{ steps.meta-ghcr.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Build and push to Private Registry
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.REGISTRY_PRIVATE }}/${{ env.IMAGE_NAME_PRIVATE }}:${{ steps.tag.outputs.tag }}
-          cache-from: type=gha
