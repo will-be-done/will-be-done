@@ -14,15 +14,16 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { OrderableItem, GenReturn } from "./utils";
 import { inboxId, generateOrderTokenPositioned } from "./utils";
-import { appSlice, DndScope } from "./app";
+import { appSlice } from "./app";
 import { projectsAllSlice } from "./projectsAll";
 import { isTask, Task, cardsTasksSlice } from "./cardsTasks";
 import { isTaskTemplate, cardsTaskTemplatesSlice } from "./cardsTaskTemplates";
 import { registerSyncableTable } from "./syncMap";
-import { registerModelSlice } from "./maps";
+import { registerModelSlice, AnyModelType } from "./maps";
 import { projectCategoriesSlice } from "./projectsCategories";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { dailyListsSlice } from "./dailyLists";
+import { dailyListsProjectionsSlice, isTaskProjection } from "./dailyListsProjections";
 
 // Type definitions
 export const projectType = "project";
@@ -80,18 +81,26 @@ export const projectsSlice = {
   }),
   canDrop: selector(function* (
     projectId: string,
-    _scope: DndScope,
     dropItemId: string,
-    _dropScope: DndScope,
+    dropModelType: AnyModelType,
   ): GenReturn<boolean> {
     const project = yield* projectsSlice.byId(projectId);
     if (!project) return false;
 
-    const dropItem = yield* appSlice.byId(dropItemId);
+    const dropItem = yield* appSlice.byId(dropItemId, dropModelType);
     if (!dropItem) return false;
 
-    // Projects can accept tasks, templates, and other projects
-    return isProject(dropItem) || isTask(dropItem) || isTaskTemplate(dropItem);
+    // Projects can accept tasks, templates, projections, and other projects
+    if (isProject(dropItem) || isTask(dropItem) || isTaskTemplate(dropItem)) {
+      return true;
+    }
+
+    if (isTaskProjection(dropItem)) {
+      const task = yield* cardsTasksSlice.byId(dropItem.id);
+      return task !== undefined && task.state === "todo";
+    }
+
+    return false;
   }),
 
   overdueTasksCountExceptDailiesCount: selector(function* (
@@ -115,11 +124,11 @@ export const projectsSlice = {
       for (const taskId of childrenIds) {
         if (exceptCardIds.has(taskId)) continue;
 
-        const task = yield* cardsTasksSlice.byId(taskId);
-        if (!task || !task.dailyListId) continue;
-        if (exceptDailyListSet.has(task.dailyListId)) continue;
+        const projection = yield* dailyListsProjectionsSlice.byTaskId(taskId);
+        if (!projection) continue;
+        if (exceptDailyListSet.has(projection.dailyListId)) continue;
 
-        dailyListIdsToFetch.add(task.dailyListId);
+        dailyListIdsToFetch.add(projection.dailyListId);
       }
     }
 
@@ -139,11 +148,11 @@ export const projectsSlice = {
       for (const taskId of childrenIds) {
         if (exceptCardIds.has(taskId)) continue;
 
-        const task = yield* cardsTasksSlice.byId(taskId);
-        if (!task || !task.dailyListId) continue;
-        if (exceptDailyListSet.has(task.dailyListId)) continue;
+        const projection = yield* dailyListsProjectionsSlice.byTaskId(taskId);
+        if (!projection) continue;
+        if (exceptDailyListSet.has(projection.dailyListId)) continue;
 
-        const dailyList = dailyListMap.get(task.dailyListId);
+        const dailyList = dailyListMap.get(projection.dailyListId);
         if (!dailyList) continue;
 
         // Parse the date and check if it's before currentDate
@@ -255,23 +264,21 @@ export const projectsSlice = {
   }),
   handleDrop: action(function* (
     projectId: string,
-    scope: DndScope,
     dropItemId: string,
-    dropScope: DndScope,
+    dropModelType: AnyModelType,
     edge: "top" | "bottom",
   ): GenReturn<void> {
     const canDrop = yield* projectsSlice.canDrop(
       projectId,
-      scope,
       dropItemId,
-      dropScope,
+      dropModelType,
     );
     if (!canDrop) return;
 
     const project = yield* projectsSlice.byId(projectId);
     if (!project) throw new Error("Project not found");
 
-    const dropItem = yield* appSlice.byId(dropItemId);
+    const dropItem = yield* appSlice.byId(dropItemId, dropModelType);
     if (!dropItem) throw new Error("Target not found");
 
     if (isProject(dropItem)) {
@@ -292,7 +299,7 @@ export const projectsSlice = {
       }
 
       yield* projectsSlice.update(dropItem.id, { orderToken });
-    } else if (isTask(dropItem) || isTaskTemplate(dropItem)) {
+    } else if (isTask(dropItem) || isTaskTemplate(dropItem) || isTaskProjection(dropItem)) {
       const category = yield* projectCategoriesSlice.firstChild(project.id);
       if (!category) throw new Error("No categories found in project");
 
@@ -300,13 +307,20 @@ export const projectsSlice = {
       if (isTask(dropItem)) {
         yield* cardsTasksSlice.update(dropItem.id, {
           projectCategoryId: category.id,
-          dailyListId: null,
-          dailyListOrderToken: null,
         });
-      } else {
+      } else if (isTaskTemplate(dropItem)) {
         yield* cardsTaskTemplatesSlice.update(dropItem.id, {
           projectCategoryId: category.id,
         });
+      } else if (isTaskProjection(dropItem)) {
+        // When dropping a projection onto a project, move the underlying task
+        const task = yield* cardsTasksSlice.byId(dropItem.id);
+        if (task) {
+          yield* cardsTasksSlice.update(task.id, {
+            projectCategoryId: category.id,
+          });
+          // Keep the projection in the daily list
+        }
       }
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);

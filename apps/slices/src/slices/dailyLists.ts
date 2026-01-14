@@ -11,9 +11,14 @@ import {
 import uuidByString from "uuid-by-string";
 import type { GenReturn, OrderableItem } from "./utils";
 import { getDMY } from "./utils";
-import { appSlice, DndScope } from "./app";
+import { appSlice } from "./app";
 import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
-import { dailyListTasksSlice } from "./dailyListTasks";
+import {
+  dailyListsProjectionsSlice,
+  TaskProjection,
+  isTaskProjection,
+} from "./dailyListsProjections";
+import { AnyModelType } from "./maps";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectsSlice } from "./projects";
@@ -81,12 +86,12 @@ export const dailyListsSlice = {
     return dailyLists[0];
   }),
   childrenIds: selector(function* (dailyListId: string): GenReturn<string[]> {
-    return yield* dailyListTasksSlice.childrenIds(dailyListId);
+    return yield* dailyListsProjectionsSlice.childrenIds(dailyListId);
   }),
   doneChildrenIds: selector(function* (
     dailyListId: string,
   ): GenReturn<string[]> {
-    return yield* dailyListTasksSlice.doneChildrenIds(dailyListId);
+    return yield* dailyListsProjectionsSlice.doneChildrenIds(dailyListId);
   }),
   taskIds: selector(function* (dailyListId: string): GenReturn<string[]> {
     return yield* dailyListsSlice.childrenIds(dailyListId);
@@ -120,27 +125,31 @@ export const dailyListsSlice = {
   firstChild: selector(function* (
     dailyListId: string,
   ): GenReturn<Task | undefined> {
-    return yield* dailyListTasksSlice.firstChild(dailyListId);
+    return yield* dailyListsProjectionsSlice.firstChild(dailyListId);
   }),
   lastChild: selector(function* (
     dailyListId: string,
   ): GenReturn<Task | undefined> {
-    return yield* dailyListTasksSlice.lastChild(dailyListId);
+    return yield* dailyListsProjectionsSlice.lastChild(dailyListId);
   }),
   canDrop: selector(function* (
     dailyListId: string,
-    _scope: DndScope,
     dropId: string,
-    _dropScope: DndScope,
+    dropModelType: AnyModelType,
   ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(dropId);
+    const model = yield* appSlice.byId(dropId, dropModelType);
     if (!model) return false;
 
-    if (!isTask(model)) {
-      return false;
+    if (isTask(model)) {
+      return model.state === "todo";
     }
 
-    return true;
+    if (isTaskProjection(model)) {
+      const task = yield* cardsTasksSlice.byId(model.id);
+      return task !== undefined && task.state === "todo";
+    }
+
+    return false;
   }),
 
   // actions
@@ -191,39 +200,51 @@ export const dailyListsSlice = {
   ): GenReturn<Task> {
     const task = yield* projectsSlice.createTask(projectId, categoryPosition);
 
-    let position: "append" | "prepend" | [Task | undefined, Task | undefined];
+    let position:
+      | "append"
+      | "prepend"
+      | [TaskProjection | undefined, TaskProjection | undefined];
     if (listPosition === "append" || listPosition === "prepend") {
       position = listPosition;
     } else {
       position = [
-        listPosition[0] as Task | undefined,
-        listPosition[1] as Task | undefined,
+        listPosition[0] as TaskProjection | undefined,
+        listPosition[1] as TaskProjection | undefined,
       ];
     }
 
-    yield* dailyListTasksSlice.addToDailyList(task.id, dailyListId, position);
+    yield* dailyListsProjectionsSlice.addToDailyList(task.id, dailyListId, position);
 
     return yield* cardsTasksSlice.byIdOrDefault(task.id);
   }),
   handleDrop: action(function* (
     dailyListId: string,
-    _scope: DndScope,
     dropId: string,
-    _dropScope: DndScope,
+    dropModelType: AnyModelType,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
-    const drop = yield* appSlice.byId(dropId);
+    const drop = yield* appSlice.byId(dropId, dropModelType);
     if (!drop) return;
 
-    if (!isTask(drop)) return;
+    let taskId: string;
+    if (isTask(drop)) {
+      taskId = drop.id;
+    } else if (isTaskProjection(drop)) {
+      taskId = drop.id; // projection.id is the same as task.id
+    } else {
+      return;
+    }
 
     // Add task to daily list at the end
-    const lastChild = yield* dailyListsSlice.lastChild(dailyListId);
+    const projections =
+      yield* dailyListsProjectionsSlice.byDailyListId(dailyListId);
+    const lastProjection =
+      projections.length > 0 ? projections[projections.length - 1] : undefined;
 
-    yield* dailyListTasksSlice.addToDailyList(
-      drop.id,
+    yield* dailyListsProjectionsSlice.addToDailyList(
+      taskId,
       dailyListId,
-      lastChild ? [lastChild, undefined] : "append",
+      lastProjection ? [lastProjection, undefined] : "append",
     );
   }),
 };

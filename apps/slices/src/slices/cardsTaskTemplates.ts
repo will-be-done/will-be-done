@@ -15,7 +15,7 @@ import type { GenReturn } from "./utils";
 import { cardsTasksSlice, type Task } from "./cardsTasks";
 import { registerSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { appSlice, DndScope } from "./app";
+import { appSlice } from "./app";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 
 // Type definitions
@@ -78,8 +78,6 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     createdAt: date.getTime(),
     templateId: tmpl.id,
     templateDate: date.getTime(),
-    dailyListId: null,
-    dailyListOrderToken: null,
   };
 }
 
@@ -256,7 +254,7 @@ export const cardsTaskTemplatesSlice = {
     task: Task,
     data: Partial<TaskTemplate>,
   ): GenReturn<TaskTemplate> {
-    yield* appSlice.delete(task);
+    yield* appSlice.delete(task.id, task.type);
 
     const newId = uuidv7();
     const template: TaskTemplate = {
@@ -284,9 +282,8 @@ export const cardsTaskTemplatesSlice = {
   }),
   canDrop: selector(function* (
     _taskTemplateId: string,
-    _scope: DndScope,
     _dropId: string,
-    _dropScope: DndScope,
+    _dropModelType: string,
   ): GenReturn<boolean> {
     yield* noop();
 
@@ -294,9 +291,8 @@ export const cardsTaskTemplatesSlice = {
   }),
   handleDrop: action(function* (
     _taskTemplateId: string,
-    _scope: DndScope,
     _dropId: string,
-    _dropScope: DndScope,
+    _dropModelType: string,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
     yield* noop();

@@ -14,17 +14,18 @@ import {
   OrderableItem,
 } from "./utils";
 import { isObjectType } from "../utils";
-import { registerModelSlice } from "./maps";
+import { registerModelSlice, AnyModelType } from "./maps";
 import { registerSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
 import { defaultProject, Project, projectsSlice } from "./projects";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { Task, cardsTasksSlice, isTask } from "./cardsTasks";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
-import { appSlice, DndScope } from "./app";
+import { appSlice } from "./app";
 import { isTaskTemplate } from "./cardsTaskTemplates";
 import { cardsSlice } from "./cards";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
+import { dailyListsProjectionsSlice, isTaskProjection } from "./dailyListsProjections";
 
 export const projectCategoryType = "projectCategory";
 
@@ -280,34 +281,48 @@ export const projectCategoriesSlice = {
 
   handleDrop: action(function* (
     categoryId: string,
-    _scope: DndScope,
     dropId: string,
-    _dropScope: DndScope,
+    dropModelType: AnyModelType,
     _edge: "top" | "bottom",
   ): GenReturn<void> {
-    const dropItem = yield* appSlice.byId(dropId);
+    const dropItem = yield* appSlice.byId(dropId, dropModelType);
     if (!dropItem) return;
 
     if (isTask(dropItem)) {
       yield* cardsTasksSlice.update(dropItem.id, {
         projectCategoryId: categoryId,
-        dailyListId: null,
-        dailyListOrderToken: null,
       });
+    } else if (isTaskProjection(dropItem)) {
+      // When dropping a projection onto a category, move the underlying task
+      const task = yield* cardsTasksSlice.byId(dropItem.id);
+      if (task) {
+        yield* cardsTasksSlice.update(task.id, {
+          projectCategoryId: categoryId,
+        });
+        // Keep the projection in the daily list
+      }
     }
   }),
   canDrop: selector(function* (
     _categoryId: string,
-    _scope: DndScope,
     dropId: string,
-    _dropScope: DndScope,
+    dropModelType: AnyModelType,
   ): GenReturn<boolean> {
     yield* noop();
 
-    const dropItem = yield* appSlice.byId(dropId);
+    const dropItem = yield* appSlice.byId(dropId, dropModelType);
     if (!dropItem) return false;
 
-    return isTask(dropItem) || isTaskTemplate(dropItem);
+    if (isTask(dropItem) || isTaskTemplate(dropItem)) {
+      return true;
+    }
+
+    if (isTaskProjection(dropItem)) {
+      const task = yield* cardsTasksSlice.byId(dropItem.id);
+      return task !== undefined && task.state === "todo";
+    }
+
+    return false;
   }),
 };
 

@@ -23,6 +23,11 @@ import {
   ProjectCategory,
   projectCategoryType,
 } from "./projectsCategories";
+import {
+  dailyListsProjectionsSlice,
+  projectionType,
+  TaskProjection,
+} from "./dailyListsProjections";
 import uuidByString from "uuid-by-string";
 
 interface CategoryBackup {
@@ -37,7 +42,6 @@ interface TaskBackup {
   id: string;
   title: string;
   state: "todo" | "done";
-  // projectId: string;
   projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
@@ -45,8 +49,9 @@ interface TaskBackup {
   horizon?: "week" | "month" | "year" | "someday";
   templateId: string | null;
   templateDate: number | null;
-  dailyListId: string | null;
-  dailyListOrderToken: string | null;
+  // Legacy fields for backwards compatibility (when loading old backups)
+  dailyListId?: string | null;
+  dailyListOrderToken?: string | null;
 }
 
 interface ProjectBackup {
@@ -65,16 +70,15 @@ interface DailyListBackup {
 
 interface DailyListProjectionBackup {
   id: string;
-  taskId: string;
+  taskId?: string; // Legacy field - in new format id === taskId
   orderToken: string;
-  listId: string;
+  listId: string; // dailyListId
   createdAt: number;
 }
 
 interface TaskTemplateBackup {
   id: string;
   title: string;
-  // projectId: string;
   orderToken: string;
   horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
@@ -123,13 +127,16 @@ const getNewModels = (backup: Backup): AnyModel[] => {
     models.push(category);
   }
 
-  // Build projection map for migration from old backups
-  const projectionMap = new Map<string, DailyListProjectionBackup[]>();
+  // Build projection map for migration from old backups (where projections have taskId)
+  const legacyProjectionMap = new Map<string, DailyListProjectionBackup[]>();
   if (backup.dailyListProjections) {
     for (const projection of backup.dailyListProjections) {
-      const existing = projectionMap.get(projection.taskId) || [];
-      existing.push(projection);
-      projectionMap.set(projection.taskId, existing);
+      // If taskId exists, it's a legacy format
+      if (projection.taskId) {
+        const existing = legacyProjectionMap.get(projection.taskId) || [];
+        existing.push(projection);
+        legacyProjectionMap.set(projection.taskId, existing);
+      }
     }
   }
 
@@ -140,23 +147,9 @@ const getNewModels = (backup: Backup): AnyModel[] => {
     );
     if (!category) {
       console.warn(
-        `Project ${taskBackup.projectCategoryId} not found for template ${taskBackup.id}`,
+        `Project ${taskBackup.projectCategoryId} not found for task ${taskBackup.id}`,
       );
       continue;
-    }
-
-    let dailyListId = taskBackup.dailyListId || null;
-    let dailyListOrderToken = taskBackup.dailyListOrderToken || null;
-
-    // Migrate from projections if present (backwards compatibility)
-    if (backup.dailyListProjections && projectionMap.has(taskBackup.id)) {
-      const projections = projectionMap.get(taskBackup.id)!;
-      // Use the latest projection (highest createdAt)
-      const latestProjection = projections.reduce((latest, current) =>
-        current.createdAt > latest.createdAt ? current : latest
-      );
-      dailyListId = latestProjection.listId;
-      dailyListOrderToken = latestProjection.orderToken;
     }
 
     const task: Task = {
@@ -171,8 +164,6 @@ const getNewModels = (backup: Backup): AnyModel[] => {
       horizon: taskBackup.horizon || "someday",
       templateId: taskBackup.templateId || null,
       templateDate: taskBackup.templateDate || null,
-      dailyListId,
-      dailyListOrderToken,
     };
 
     models.push(task);
@@ -220,6 +211,53 @@ const getNewModels = (backup: Backup): AnyModel[] => {
     models.push(template);
   }
 
+  // Create projections - handle both new format (id = taskId) and legacy format (separate taskId field)
+  if (backup.dailyListProjections) {
+    for (const projectionBackup of backup.dailyListProjections) {
+      // In new format, id = taskId, so taskId field is optional
+      const taskId = projectionBackup.taskId || projectionBackup.id;
+
+      // Verify the task exists
+      const taskExists = backup.tasks.some((t) => t.id === taskId);
+      if (!taskExists) {
+        console.warn(`Task ${taskId} not found for projection`);
+        continue;
+      }
+
+      const projection: TaskProjection = {
+        type: projectionType,
+        id: taskId, // projection.id = task.id
+        orderToken: projectionBackup.orderToken,
+        dailyListId: projectionBackup.listId,
+        createdAt: projectionBackup.createdAt,
+      };
+
+      models.push(projection);
+    }
+  }
+
+  // Handle legacy backup format where dailyListId was on tasks directly
+  for (const taskBackup of backup.tasks) {
+    // Skip if we already have a projection for this task (from dailyListProjections array)
+    const hasProjection = backup.dailyListProjections?.some(
+      (p) => (p.taskId || p.id) === taskBackup.id,
+    );
+    if (hasProjection) continue;
+
+    // Check if task has legacy dailyListId field
+    if (taskBackup.dailyListId && taskBackup.dailyListOrderToken) {
+      const projection: TaskProjection = {
+        type: projectionType,
+        id: taskBackup.id,
+        orderToken: taskBackup.dailyListOrderToken,
+        dailyListId: taskBackup.dailyListId,
+        createdAt: taskBackup.createdAt,
+      };
+
+      models.push(projection);
+    }
+  }
+
   return models;
 };
 
@@ -254,6 +292,16 @@ export const backupSlice = {
       }
     }
 
+    // Get all projections
+    const projections: TaskProjection[] = [];
+    const allProjectionIds = yield* dailyListsProjectionsSlice.allIds();
+    for (const id of allProjectionIds) {
+      const projection = yield* dailyListsProjectionsSlice.byId(id);
+      if (projection) {
+        projections.push(projection);
+      }
+    }
+
     const allCategories = yield* projectCategoriesSlice.all();
 
     return {
@@ -268,7 +316,6 @@ export const backupSlice = {
         id: task.id,
         title: task.title,
         state: task.state,
-        // projectId: task.projectId,
         orderToken: task.orderToken,
         lastToggledAt: task.lastToggledAt,
         createdAt: task.createdAt,
@@ -276,8 +323,6 @@ export const backupSlice = {
         templateId: task.templateId,
         templateDate: task.templateDate,
         projectCategoryId: task.projectCategoryId,
-        dailyListId: task.dailyListId,
-        dailyListOrderToken: task.dailyListOrderToken,
       })),
       projects: projects.map((project) => ({
         id: project.id,
@@ -291,10 +336,15 @@ export const backupSlice = {
         id: dailyList.id,
         date: dailyList.date,
       })),
+      dailyListProjections: projections.map((projection) => ({
+        id: projection.id, // id = taskId in new format
+        orderToken: projection.orderToken,
+        listId: projection.dailyListId,
+        createdAt: projection.createdAt,
+      })),
       taskTemplates: taskTemplates.map((template) => ({
         id: template.id,
         title: template.title,
-        // projectId: template.projectId,
         orderToken: template.orderToken,
         horizon: template.horizon,
         repeatRule: template.repeatRule,

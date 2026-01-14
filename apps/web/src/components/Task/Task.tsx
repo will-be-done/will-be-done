@@ -32,8 +32,8 @@ import {
   projectCategoriesSlice,
   Task,
   cardsTasksSlice,
-  dailyListTasksSlice,
-  DndScope,
+  dailyListsProjectionsSlice,
+  CardWrapperType,
 } from "@will-be-done/slices";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -139,21 +139,21 @@ export const DropTaskIndicator = ({
 // TODO: think about to remove taskBox
 export const TaskComp = ({
   taskId,
-  taskBoxId,
+  cardWrapperId,
+  cardWrapperType,
   displayedUnderProjectId,
   alwaysShowProject,
   orderNumber,
   newTaskParams,
-  scope,
   displayLastScheduleTime,
 }: {
   taskId: string;
-  taskBoxId: string;
+  cardWrapperId: string;
+  cardWrapperType: CardWrapperType;
   displayedUnderProjectId?: string;
   alwaysShowProject?: boolean;
   orderNumber: string;
   newTaskParams?: Partial<Task>;
-  scope: DndScope;
   displayLastScheduleTime?: boolean;
 }) => {
   const dispatch = useDispatch();
@@ -168,8 +168,8 @@ export const TaskComp = ({
     [card.projectCategoryId],
   );
   const cardWrapper = useSyncSelector(
-    () => cardsSlice.cardWrapperIdOrDefault(taskBoxId),
-    [taskBoxId],
+    () => cardsSlice.cardWrapperIdOrDefault(cardWrapperId, cardWrapperType),
+    [cardWrapperId, cardWrapperType],
   );
   const project = useSyncSelector(
     () =>
@@ -177,7 +177,7 @@ export const TaskComp = ({
     [card.projectCategoryId],
   );
   const lastScheduleTime = useSyncSelector(
-    () => dailyListTasksSlice.getDateOfTask(taskId),
+    () => dailyListsProjectionsSlice.getDateOfTask(taskId),
     [taskId],
   );
   const date = useCurrentDate();
@@ -263,7 +263,8 @@ export const TaskComp = ({
     const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
 
     const isMoveUp = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyK");
-    const isMoveDown = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyJ");
+    const isMoveDown =
+      e.ctrlKey && (e.code === "ArrowDown" || e.code == "KeyJ");
     const isMoveLeft =
       e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
     const isMoveRight =
@@ -333,13 +334,31 @@ export const TaskComp = ({
 
       if (isMoveLeft && leftColumn) {
         const id = getId(leftColumn.key);
+        const { type } = parseColumnKey(leftColumn.key);
 
-        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, "top"));
+        dispatch(
+          appSlice.handleDrop(
+            id,
+            type,
+            cardWrapper.id,
+            cardWrapper.type,
+            "top",
+          ),
+        );
         scroll();
       } else if (isMoveRight && rightColumn) {
         const id = getId(rightColumn.key);
+        const { type } = parseColumnKey(rightColumn.key);
 
-        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, "top"));
+        dispatch(
+          appSlice.handleDrop(
+            id,
+            type,
+            cardWrapper.id,
+            cardWrapper.type,
+            "top",
+          ),
+        );
         scroll();
       }
     } else if (isMoveUp || isMoveDown) {
@@ -352,60 +371,34 @@ export const TaskComp = ({
         const id = getId(up.key);
         if (!id) return;
 
-        const model = dispatch(appSlice.byId(id));
-        if (!model) return;
+        const { type } = parseColumnKey(up.key);
 
-        let edge: "top" | "bottom" = "top";
-        if (isTask(model) && isTask(cardWrapper)) {
-          // Check if both tasks are in the same context (project category or daily list)
-          if (model.dailyListId && cardWrapper.dailyListId) {
-            if (model.dailyListId === cardWrapper.dailyListId) {
-              edge = "top";
-            } else {
-              edge = "bottom";
-            }
-          } else if (
-            model.projectCategoryId === cardWrapper.projectCategoryId
-          ) {
-            edge = "top";
-          } else {
-            edge = "bottom";
-          }
-        } else {
-          edge = "top";
-        }
-
-        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, edge));
+        dispatch(
+          appSlice.handleDrop(
+            id,
+            type,
+            cardWrapper.id,
+            cardWrapper.type,
+            "top",
+          ),
+        );
 
         scroll();
       } else if (isMoveDown && down) {
         const id = getId(down.key);
         if (!id) return;
 
-        const model = dispatch(appSlice.byId(id));
-        if (!model) return;
+        const { type } = parseColumnKey(down.key);
 
-        let edge: "top" | "bottom" = "top";
-        if (isTask(model) && isTask(cardWrapper)) {
-          // Check if both tasks are in the same context (project category or daily list)
-          if (model.dailyListId && cardWrapper.dailyListId) {
-            if (model.dailyListId === cardWrapper.dailyListId) {
-              edge = "bottom";
-            } else {
-              edge = "top";
-            }
-          } else if (
-            model.projectCategoryId === cardWrapper.projectCategoryId
-          ) {
-            edge = "bottom";
-          } else {
-            edge = "top";
-          }
-        } else {
-          edge = "top";
-        }
-
-        dispatch(appSlice.handleDrop(id, scope, cardWrapper.id, scope, edge));
+        dispatch(
+          appSlice.handleDrop(
+            id,
+            type,
+            cardWrapper.id,
+            cardWrapper.type,
+            "bottom",
+          ),
+        );
 
         scroll();
       }
@@ -420,11 +413,7 @@ export const TaskComp = ({
       console.log("delete", focusableItem.key);
       const [up, down] = focusManager.getSiblings(focusableItem.key);
 
-      if (scope === "dailyList") {
-        dispatch(dailyListTasksSlice.removeFromDailyList(cardWrapper.id));
-      } else {
-        dispatch(appSlice.delete(cardWrapper));
-      }
+      dispatch(appSlice.delete(cardWrapper.id, cardWrapper.type));
 
       if (down) {
         dispatch(focusSlice.focusByKey(down.key));
@@ -443,7 +432,6 @@ export const TaskComp = ({
       e.preventDefault();
 
       unstable_batchedUpdates(() => {
-        // TODO: maybe pass as prop to Task component
         const newBox = dispatch(
           cardsSlice.createSiblingCard(
             cardWrapper,
@@ -452,6 +440,8 @@ export const TaskComp = ({
           ),
         );
         dispatch(focusSlice.editByKey(buildFocusKey(newBox.id, newBox.type)));
+        // setTimeout(() => {
+        // }, 100);
       });
 
       return;
@@ -491,7 +481,6 @@ export const TaskComp = ({
         getInitialData: (): DndModelData => ({
           modelId: cardWrapper.id,
           modelType: cardWrapper.type,
-          scope,
         }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
@@ -528,7 +517,12 @@ export const TaskComp = ({
           if (!isModelDNDData(data)) return false;
 
           return select(
-            appSlice.canDrop(cardWrapper.id, scope, data.modelId, scope),
+            appSlice.canDrop(
+              cardWrapper.id,
+              cardWrapper.type,
+              data.modelId,
+              data.modelType,
+            ),
           );
         },
         getIsSticky: () => true,
@@ -536,7 +530,6 @@ export const TaskComp = ({
           const data: DndModelData = {
             modelId: cardWrapper.id,
             modelType: cardWrapper.type,
-            scope,
           };
 
           return attachClosestEdge(data, {
@@ -566,7 +559,7 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [dispatch, isEditing, select, cardWrapper.id, cardWrapper.type, scope]);
+  }, [dispatch, isEditing, select, cardWrapper.id, cardWrapper.type]);
 
   const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
     if (!el) return;

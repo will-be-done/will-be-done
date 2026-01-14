@@ -10,7 +10,7 @@ import { X } from "lucide-react";
 import { useDispatch } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
-  dailyListTasksSlice,
+  dailyListsProjectionsSlice,
   getDMY,
 } from "@will-be-done/slices";
 
@@ -38,14 +38,14 @@ export function TaskDatePicker({
     const dailyList = dispatch(dailyListsSlice.createIfNotPresent(dateString));
 
     // Add task to the daily list
-    dispatch(dailyListTasksSlice.addToDailyList(taskId, dailyList.id, "append"));
+    dispatch(dailyListsProjectionsSlice.addToDailyList(taskId, dailyList.id, "append"));
 
     // Close popover
     setOpen(false);
   };
 
   const handleClearDate = () => {
-    dispatch(dailyListTasksSlice.removeFromDailyList(taskId));
+    dispatch(dailyListsProjectionsSlice.removeFromDailyList(taskId));
     setOpen(false);
   };
 

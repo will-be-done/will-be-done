@@ -1,54 +1,23 @@
-# React + TypeScript + Vite
+This is my 5th attempt in 2 years to make task manager of my dream. And it looks like I very close to my dream!
+I already use it daily, and I fairly enjoy it. Two reasons why I need it - self-hosted(I own my data),
+daily planning. Hope you find something that could be useful for you too!
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Top features:
+1. Weekly timeline view - see multiple days as columns, plan your week visually
+2. Everything drag & drop - move tasks between days, projects, categories
+3. Kanban boards everywhere - each project has categories (Week/Month/Ideas/etc)
+4. Horizons - organize tasks by time scope (Week/Month/Year/Someday) instead of random priority numbers
+5. Repeating tasks - set up recurring tasks with flexible schedules (daily, weekly, custom patterns)
+6. Multiple spaces - separate workspaces for work/personal/different projects
+7. Keyboard navigation - vim-style keys (j/k) and arrows to move around fast
+8. Local first - works offline, syncs back when you're online
+9. Self-hosted - one docker command, no external dependencies
+10. Open source
+11. Custom DB with b-tree indexes - way faster than Redux or similar libs, everything runs in-memory on frontend
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+Coming soon:
+1. Attachments and comments for tasks
+2. Global search
+3. More vim keybindings (beyond basic j/k navigation)
+4. Calendar integration
+5. Mobile-friendly UI

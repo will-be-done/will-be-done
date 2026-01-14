@@ -192,9 +192,9 @@ const ProjectTasksColumn = ({
               orderNumber={(i + 2).toString()}
               key={id}
               taskId={id}
-              taskBoxId={id}
+              cardWrapperId={id}
+              cardWrapperType="task"
               displayedUnderProjectId={project.id}
-              scope="project"
               displayLastScheduleTime
             />
           );
@@ -213,9 +213,9 @@ const ProjectTasksColumn = ({
                 orderNumber={i.toString()}
                 key={id}
                 taskId={id}
-                taskBoxId={id}
+                cardWrapperId={id}
+                cardWrapperType="task"
                 displayedUnderProjectId={project.id}
-                scope="project"
                 displayLastScheduleTime
               />
             );

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isInputElement } from "@/utils/isInputElement.ts";
-import { DndScope, isModelDNDData } from "@/lib/dnd/models.ts";
+import { isModelDNDData } from "@/lib/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
@@ -13,6 +13,8 @@ import {
   projectCategoryType,
   projectType,
   taskType,
+  projectionType,
+  AnyModelType,
 } from "@will-be-done/slices";
 import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
 import { FocusKey, focusManager, focusSlice } from "@/store/focusSlice.ts";
@@ -200,6 +202,7 @@ export function GlobalListener() {
           }
 
           const targetImportanceOrder = [
+            projectionType,
             taskType,
             dailyListType,
             projectCategoryType,
@@ -210,16 +213,15 @@ export function GlobalListener() {
             if (!isModelDNDData(t.data)) {
               return [] as const;
             }
-            const entity = select(db, appSlice.byId(t.data.modelId));
+            const entity = select(db, appSlice.byId(t.data.modelId, t.data.modelType));
             if (!entity) return [] as const;
-            return [[t, entity, t.data.scope] as const];
+            return [[t, entity] as const];
           });
 
           let targetItemInfo:
             | readonly [
                 DropTargetRecord,
-                { id: string; type: string },
-                DndScope,
+                { id: string; type: AnyModelType },
               ]
             | undefined = undefined;
           for (const importanceType of targetImportanceOrder) {
@@ -227,8 +229,7 @@ export function GlobalListener() {
               ([_, e]) => e.type === importanceType,
             ) as readonly [
               DropTargetRecord,
-              { id: string; type: string },
-              DndScope,
+              { id: string; type: AnyModelType },
             ];
 
             if (targetItemInfo) {
@@ -261,9 +262,9 @@ export function GlobalListener() {
           dispatch(
             appSlice.handleDrop(
               targetItemInfo[1].id,
-              targetItemInfo[2],
+              targetItemInfo[1].type,
               source.data.modelId,
-              source.data.scope,
+              source.data.modelType,
               closestEdgeOfTarget || "top",
             ),
           );

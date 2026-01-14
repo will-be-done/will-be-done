@@ -5,7 +5,7 @@ import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   DailyList,
   dailyListsSlice,
-  dailyListTasksSlice,
+  dailyListsProjectionsSlice,
   inboxId,
 } from "@will-be-done/slices";
 import { cn } from "@/lib/utils.ts";
@@ -45,12 +45,12 @@ const ColumnView = ({
   }, [currentDate, dailyList.date]);
 
   const taskIds = useSyncSelector(
-    () => dailyListTasksSlice.childrenIds(dailyListId),
+    () => dailyListsProjectionsSlice.childrenIds(dailyListId),
     [dailyListId],
   );
 
   const doneTaskIds = useSyncSelector(
-    () => dailyListTasksSlice.doneChildrenIds(dailyListId),
+    () => dailyListsProjectionsSlice.doneChildrenIds(dailyListId),
     [dailyListId],
   );
 
@@ -104,9 +104,9 @@ const ColumnView = ({
               key={id}
               orderNumber={i.toString()}
               taskId={id}
-              taskBoxId={id}
+              cardWrapperId={id}
+              cardWrapperType="projection"
               alwaysShowProject
-              scope="dailyList"
             />
           );
         })}
@@ -117,9 +117,9 @@ const ColumnView = ({
               key={id}
               orderNumber={(taskIds.length + i).toString()}
               taskId={id}
-              taskBoxId={id}
+              cardWrapperId={id}
+              cardWrapperType="projection"
               alwaysShowProject
-              scope="dailyList"
             />
           );
         })}

@@ -13,17 +13,17 @@ import {
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { GenReturn } from "./utils";
-import { appSlice, DndScope } from "./app";
+import { appSlice } from "./app";
 import {
   isTaskTemplate,
   TaskTemplate,
   cardsTaskTemplatesSlice,
 } from "./cardsTaskTemplates";
 import { registerSyncableTable } from "./syncMap";
-import { registerModelSlice } from "./maps";
+import { registerModelSlice, AnyModelType } from "./maps";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { projectCategoriesSlice } from "./projectsCategories";
-import { dailyListTasksSlice } from "./dailyListTasks";
+import { dailyListsProjectionsSlice, isTaskProjection } from "./dailyListsProjections";
 
 // Type definitions
 export const taskType = "task";
@@ -41,8 +41,6 @@ export type Task = {
   createdAt: number;
   templateId: string | null;
   templateDate: number | null;
-  dailyListId: string | null;
-  dailyListOrderToken: string | null;
 };
 
 export const isTask = isObjectType<Task>(taskType);
@@ -59,8 +57,6 @@ export const defaultTask: Task = {
   horizon: "someday",
   templateId: null,
   templateDate: null,
-  dailyListId: null,
-  dailyListOrderToken: null,
 };
 
 // Table definition
@@ -74,14 +70,6 @@ export const tasksTable = table<Task>("tasks").withIndexes({
   byTemplateId: {
     cols: ["templateId"],
     type: "hash",
-  },
-  byDailyListId: {
-    cols: ["dailyListId"],
-    type: "hash",
-  },
-  byDailyListIdOrderToken: {
-    cols: ["dailyListId", "dailyListOrderToken"],
-    type: "btree",
   },
 });
 registerSyncableTable(tasksTable, taskType);
@@ -141,8 +129,6 @@ export const cardsTasksSlice = {
       horizon: "week",
       templateId: null,
       templateDate: null,
-      dailyListId: null,
-      dailyListOrderToken: null,
       ...task,
     };
 
@@ -152,20 +138,10 @@ export const cardsTasksSlice = {
   }),
   canDrop: selector(function* (
     taskId: string,
-    scope: DndScope,
     dropId: string,
-    dropScope: DndScope,
+    dropModelType: AnyModelType,
   ): GenReturn<boolean> {
-    if (scope === "dailyList") {
-      return yield* dailyListTasksSlice.canDrop(
-        taskId,
-        scope,
-        dropId,
-        dropScope,
-      );
-    }
-
-    const model = yield* appSlice.byId(dropId);
+    const model = yield* appSlice.byId(dropId, dropModelType);
     if (!model) return false;
 
     const task = yield* cardsTasksSlice.byId(taskId);
@@ -179,34 +155,26 @@ export const cardsTasksSlice = {
       return false;
     }
 
+    if (isTaskProjection(model)) {
+      const droppedTask = yield* cardsTasksSlice.byId(model.id);
+      return droppedTask !== undefined && droppedTask.state === "todo";
+    }
+
     return isTask(model) || isTaskTemplate(model);
   }),
   handleDrop: action(function* (
     taskId: string,
-    scope: DndScope,
     dropId: string,
-    dropScope: DndScope,
+    dropModelType: AnyModelType,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    if (!(yield* cardsTasksSlice.canDrop(taskId, scope, dropId, dropScope)))
+    if (!(yield* cardsTasksSlice.canDrop(taskId, dropId, dropModelType)))
       return;
-
-    if (scope === "dailyList") {
-      yield* dailyListTasksSlice.handleDrop(
-        taskId,
-        scope,
-        dropId,
-        dropScope,
-        edge,
-      );
-
-      return;
-    }
 
     const task = yield* cardsTasksSlice.byId(taskId);
     if (!task) return shouldNeverHappen("task not found");
 
-    const dropItem = yield* appSlice.byId(dropId);
+    const dropItem = yield* appSlice.byId(dropId, dropModelType);
     if (!dropItem) return shouldNeverHappen("drop item not found");
 
     const [up, down] = yield* projectCategoryCardsSlice.siblings(taskId);
@@ -225,23 +193,26 @@ export const cardsTasksSlice = {
       between[1] || null,
     );
 
-    const additionalUpdates: Partial<Task> = {};
-    if (dropScope === "dailyList") {
-      additionalUpdates.dailyListId = null;
-      additionalUpdates.dailyListOrderToken = null;
-    }
-
     if (isTask(dropItem)) {
       yield* cardsTasksSlice.update(dropItem.id, {
         projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
-        ...additionalUpdates,
       });
     } else if (isTaskTemplate(dropItem)) {
       yield* cardsTaskTemplatesSlice.update(dropItem.id, {
         projectCategoryId: task.projectCategoryId,
         orderToken: orderToken,
       });
+    } else if (isTaskProjection(dropItem)) {
+      // When dropping a projection onto a task, move the underlying task
+      const droppedTask = yield* cardsTasksSlice.byId(dropItem.id);
+      if (droppedTask) {
+        yield* cardsTasksSlice.update(droppedTask.id, {
+          projectCategoryId: task.projectCategoryId,
+          orderToken: orderToken,
+        });
+        // Keep the projection in the daily list
+      }
     } else {
       shouldNeverHappen("unknown drop item type", dropItem);
     }
@@ -276,7 +247,7 @@ export const cardsTasksSlice = {
     ]);
   }),
   createFromTemplate: action(function* (taskTemplate: TaskTemplate) {
-    yield* appSlice.delete(taskTemplate);
+    yield* appSlice.delete(taskTemplate.id, taskTemplate.type);
 
     const newId = uuidv7();
     const newTask: Task = {
@@ -291,8 +262,6 @@ export const cardsTasksSlice = {
       createdAt: taskTemplate.createdAt,
       templateId: taskTemplate.id,
       templateDate: taskTemplate.lastGeneratedAt,
-      dailyListId: null,
-      dailyListOrderToken: null,
     };
     yield* insert(tasksTable, [newTask]);
 

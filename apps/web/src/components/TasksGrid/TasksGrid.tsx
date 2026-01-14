@@ -8,7 +8,7 @@ import { FocusKey } from "@/store/focusSlice.ts";
 import { useEffect, useRef, useState } from "react";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { useSelect } from "@will-be-done/hyperdb";
-import { appSlice } from "@will-be-done/slices";
+import { appSlice, AnyModelType } from "@will-be-done/slices";
 
 export const TasksColumnGrid = ({
   columnsCount,
@@ -54,7 +54,7 @@ export const TasksColumn = ({
   onHideClick: () => void;
   header?: React.ReactNode;
   columnModelId: string;
-  columnModelType: string;
+  columnModelType: AnyModelType;
   children: React.ReactNode;
   panelWidth?: number;
   onAddClick?: () => void;
@@ -75,7 +75,6 @@ export const TasksColumn = ({
         getData: (): DndModelData => ({
           modelId: columnModelId,
           modelType: columnModelType,
-          scope: "global",
         }),
         canDrop: ({ source }) => {
           const data = source.data;
@@ -84,9 +83,9 @@ export const TasksColumn = ({
           return select(
             appSlice.canDrop(
               columnModelId,
-              "dailyList",
+              columnModelType,
               data.modelId,
-              "global",
+              data.modelType,
             ),
           );
         },

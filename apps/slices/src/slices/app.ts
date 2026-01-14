@@ -1,25 +1,25 @@
 import { action, selector } from "@will-be-done/hyperdb";
 import type { GenReturn } from "./utils";
 import { defaultTask } from "./cardsTasks";
-import { AnyModel, appTypeSlicesMap } from "./maps";
-
-export type DndScope = "dailyList" | "project" | "global";
+import { AnyModel, AnyModelType, appTypeSlicesMap } from "./maps";
 
 // Slice
 export const appSlice = {
   // selectors
-  // TODO: byIdAndType
-  byId: selector(function* (id: string): GenReturn<AnyModel | undefined> {
-    for (const slice of Object.values(appTypeSlicesMap)) {
-      const item = yield* slice.byId(id);
-      if (item) return item;
-    }
-
-    return undefined;
+  byId: selector(function* (
+    id: string,
+    modelType: AnyModelType,
+  ): GenReturn<AnyModel | undefined> {
+    const slice = appTypeSlicesMap[modelType];
+    if (!slice) throw new Error(`Unknown model type: ${modelType}`);
+    return yield* slice.byId(id);
   }),
-  // TODO: byIdAndType
-  byIdOrDefault: selector(function* (id: string): GenReturn<AnyModel> {
-    const entity = yield* appSlice.byId(id);
+
+  byIdOrDefault: selector(function* (
+    id: string,
+    modelType: AnyModelType,
+  ): GenReturn<AnyModel> {
+    const entity = yield* appSlice.byId(id, modelType);
     if (!entity) {
       return defaultTask;
     }
@@ -29,40 +29,46 @@ export const appSlice = {
 
   canDrop: selector(function* (
     id: string,
-    scope: DndScope,
+    modelType: AnyModelType,
     dropId: string,
-    dropScope: DndScope,
+    dropModelType: AnyModelType,
   ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(id);
+    const model = yield* appSlice.byId(id, modelType);
     if (!model) return false;
 
     const slice = appTypeSlicesMap[model.type];
-    if (!slice) throw new Error("Unknown model type");
+    if (!slice) throw new Error(`Unknown model type: ${model.type}`);
 
-    return yield* slice.canDrop(id, scope, dropId, dropScope);
+    return yield* slice.canDrop(id, dropId, dropModelType);
   }),
 
   // actions
   handleDrop: action(function* (
     id: string,
-    scope: DndScope,
+    modelType: AnyModelType,
     dropId: string,
-    dropScope: DndScope,
+    dropModelType: AnyModelType,
     edge: "top" | "bottom",
   ): GenReturn<void> {
-    const model = yield* appSlice.byId(id);
+    const model = yield* appSlice.byId(id, modelType);
     if (!model) return;
 
     const slice = appTypeSlicesMap[model.type];
-    if (!slice) throw new Error("Unknown model type");
+    if (!slice) throw new Error(`Unknown model type: ${model.type}`);
 
-    yield* slice.handleDrop(id, scope, dropId, dropScope, edge);
+    yield* slice.handleDrop(id, dropId, dropModelType, edge);
   }),
 
-  delete: action(function* (model: AnyModel): GenReturn<void> {
-    const slice = appTypeSlicesMap[model.type];
-    if (!slice) throw new Error("Unknown model type");
+  delete: action(function* (
+    id: string,
+    modelType: AnyModelType,
+  ): GenReturn<void> {
+    const model = yield* appSlice.byId(id, modelType);
+    if (!model) return;
 
-    yield* slice.delete([model.id]);
+    const slice = appTypeSlicesMap[model.type];
+    if (!slice) throw new Error(`Unknown model type: ${model.type}`);
+
+    yield* slice.delete([id]);
   }),
 };

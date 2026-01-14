@@ -7,16 +7,30 @@ import {
   type TaskTemplate,
   isTaskTemplate,
 } from "./cardsTaskTemplates";
-import { AnyModel } from "./maps";
+import { AnyModel, appTypeSlicesMap } from "./maps";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
+import {
+  dailyListsProjectionsSlice,
+  isTaskProjection,
+  TaskProjection,
+} from "./dailyListsProjections";
+
+export type CardWrapper = Task | TaskTemplate | TaskProjection;
+export type CardWrapperType = CardWrapper["type"];
 
 export const cardsSlice = {
   createSiblingCard: action(function* (
-    taskBox: Task | TaskTemplate,
+    taskBox: Task | TaskTemplate | TaskProjection,
     position: "before" | "after",
     taskParams?: Partial<Task>,
   ) {
-    if (isTask(taskBox) || isTaskTemplate(taskBox)) {
+    if (isTaskProjection(taskBox)) {
+      return yield* dailyListsProjectionsSlice.createSibling(
+        taskBox.id,
+        position,
+        taskParams,
+      );
+    } else if (isTask(taskBox) || isTaskTemplate(taskBox)) {
       return yield* projectCategoryCardsSlice.createSiblingTask(
         taskBox.id,
         position,
@@ -29,25 +43,18 @@ export const cardsSlice = {
 
   cardWrapperId: selector(function* (
     id: string,
-  ): GenReturn<Task | TaskTemplate | undefined> {
-    const slices = [
-      cardsTasksSlice,
-      cardsTaskTemplatesSlice,
-    ];
-    for (const slice of slices) {
-      const res = yield* slice.byId(id);
+    modelType: CardWrapperType,
+  ): GenReturn<CardWrapper | undefined> {
+    const slice = appTypeSlicesMap[modelType];
+    if (!slice) throw new Error(`Unknown model type: ${modelType}`);
 
-      if (res) {
-        return res;
-      }
-    }
-
-    return undefined;
+    return (yield* slice.byId(id)) as CardWrapper;
   }),
   cardWrapperIdOrDefault: selector(function* (
     id: string,
-  ): GenReturn<Task | TaskTemplate> {
-    const entity = yield* cardsSlice.cardWrapperId(id);
+    modelType: CardWrapperType,
+  ): GenReturn<CardWrapper> {
+    const entity = yield* cardsSlice.cardWrapperId(id, modelType);
     if (!entity) {
       return defaultTask;
     }
@@ -58,14 +65,20 @@ export const cardsSlice = {
   taskOfModel: selector(function* (
     model: AnyModel,
   ): GenReturn<Task | undefined> {
+    if (isTaskProjection(model)) {
+      return yield* cardsTasksSlice.byId(model.id);
+    }
+
     if (isTask(model)) {
       return model;
     }
+
     return undefined;
   }),
 
   deleteByIds: action(function* (ids: string[]): GenReturn<void> {
     yield* cardsTasksSlice.deleteByIds(ids);
     yield* cardsTaskTemplatesSlice.delete(ids);
+    yield* dailyListsProjectionsSlice.delete(ids);
   }),
 };

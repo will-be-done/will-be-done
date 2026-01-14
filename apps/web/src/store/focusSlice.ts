@@ -33,12 +33,20 @@ export const buildFocusKey = (
 
 export const parseColumnKey = (
   key: FocusKey,
-): { type: string; id: string; component?: string } => {
+): {
+  type: "template" | "dailyList" | "project" | "task" | "projectCategory" | "projection";
+  id: string;
+  component?: string;
+} => {
   const [type, id, component] = key.split("^^");
 
   if (!type || !id) return shouldNeverHappen("key is not valid", { key });
 
-  return { type, id, component };
+  return {
+    type: type as "template" | "dailyList" | "project" | "task" | "projectCategory" | "projection",
+    id,
+    component,
+  };
 };
 
 const columnKey = "Focus-manager-column^^Focus-manager-column" as FocusKey;
@@ -350,14 +358,14 @@ export const focusManager = (() => {
 
       let upModel: AnyModel | undefined = undefined;
       if (up) {
-        const { id } = parseColumnKey(up.key);
-        upModel = yield* appSlice.byId(id);
+        const { id, type } = parseColumnKey(up.key);
+        upModel = yield* appSlice.byId(id, type);
       }
 
       let downModel: AnyModel | undefined = undefined;
       if (down) {
-        const { id } = parseColumnKey(down.key);
-        downModel = yield* appSlice.byId(id);
+        const { id, type } = parseColumnKey(down.key);
+        downModel = yield* appSlice.byId(id, type);
       }
 
       return [
