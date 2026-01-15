@@ -19,6 +19,7 @@ import { AnyModel } from "./maps";
 
 export type Change = {
   id: string;
+  entityId: string;
   tableName: string;
   createdAt: string;
   updatedAt: string;
@@ -28,19 +29,20 @@ export type Change = {
 };
 export const changesTable = table<Change>("changes").withIndexes({
   byId: { cols: ["id"], type: "hash" },
-  byIdAndTableName: { cols: ["id", "tableName"], type: "btree" },
+  byEntityId: { cols: ["entityId"], type: "hash" },
+  byEntityIdAndTableName: { cols: ["entityId", "tableName"], type: "btree" },
   byUpdatedAt: { cols: ["updatedAt"], type: "btree" },
 });
 
 type GenReturn<T> = Generator<unknown, T, unknown>;
 export const changesSlice = {
   byIdAndName: selector(function* (
-    id: string,
+    entityId: string,
     tableName: string,
   ): GenReturn<Change | undefined> {
     const changes = yield* runQuery(
-      selectFrom(changesTable, "byIdAndTableName")
-        .where((q) => q.eq("id", id).eq("tableName", tableName))
+      selectFrom(changesTable, "byEntityIdAndTableName")
+        .where((q) => q.eq("entityId", entityId).eq("tableName", tableName))
         .limit(1),
     );
 
@@ -81,14 +83,14 @@ export const changesSlice = {
 
       const rows = yield* runQuery(
         selectFrom(table, "byId").where((q) =>
-          changes.map((c) => q.eq("id", c.id)),
+          changes.map((c) => q.eq("id", c.entityId)),
         ),
       );
       const rowsMap = new Map(rows.map((r) => [r.id, r]));
 
       const data = changes
         .map((c) => {
-          const row = rowsMap.get(c.id);
+          const row = rowsMap.get(c.entityId);
 
           if (!row) {
             if (c.deletedAt == null) {
@@ -132,7 +134,8 @@ export const changesSlice = {
     }
 
     const newChange: Change = {
-      id: row.id,
+      id: `${tableDef.tableName}:${row.id}`,
+      entityId: row.id,
       tableName: tableDef.tableName,
       deletedAt: null,
       clientId: clientId,
@@ -161,7 +164,8 @@ export const changesSlice = {
     const change: Change =
       (yield* changesSlice.byIdAndName(oldRow.id, tableDef.tableName)) ||
       ({
-        id: oldRow.id,
+        id: `${tableDef.tableName}:${oldRow.id}`,
+        entityId: oldRow.id,
         tableName: tableDef.tableName,
         createdAt: updatedAt,
         updatedAt: updatedAt,
@@ -202,7 +206,8 @@ export const changesSlice = {
       row.id,
       tableDef.tableName,
     )) || {
-      id: row.id,
+      id: `${tableDef.tableName}:${row.id}`,
+      entityId: row.id,
       tableName: tableDef.tableName,
       createdAt: deletedAt,
       updatedAt: deletedAt,
@@ -238,17 +243,17 @@ export const changesSlice = {
       }
 
       const currentChanges = yield* runQuery(
-        selectFrom(changesTable, "byIdAndTableName").where((q) =>
+        selectFrom(changesTable, "byEntityIdAndTableName").where((q) =>
           changeset.data.map((c) =>
-            q.eq("id", c.change.id).eq("tableName", c.change.tableName),
+            q.eq("entityId", c.change.entityId).eq("tableName", changeset.tableName),
           ),
         ),
       );
-      const currentChangesMap = new Map(currentChanges.map((c) => [c.id, c]));
+      const currentChangesMap = new Map(currentChanges.map((c) => [c.entityId, c]));
 
       const currentRows = yield* runQuery(
         selectFrom(table, "byId").where((q) =>
-          changeset.data.map((c) => q.eq("id", c.change.id)),
+          changeset.data.map((c) => q.eq("id", c.change.entityId)),
         ),
       );
       const currentRowsMap = new Map(currentRows.map((r) => [r.id, r]));
@@ -257,14 +262,14 @@ export const changesSlice = {
         change: incomingChange,
         row: incomingRow,
       } of changeset.data) {
-        const currentChanges = currentChangesMap.get(incomingChange.id);
-        const currentRow = currentRowsMap.get(incomingChange.id);
+        const currentChanges = currentChangesMap.get(incomingChange.entityId);
+        const currentRow = currentRowsMap.get(incomingChange.entityId);
 
         const { mergedChanges, mergedRow } = mergeChanges(
           currentChanges?.changes ?? {},
           incomingChange.changes,
-          currentRow ?? { id: incomingChange.id },
-          incomingRow ?? { id: incomingChange.id },
+          currentRow ?? { id: incomingChange.entityId },
+          incomingRow ?? { id: incomingChange.entityId },
         );
 
         // Delete always wins, no conflict resolution needed actually
@@ -297,7 +302,8 @@ export const changesSlice = {
         })();
 
         allChanges.push({
-          id: incomingChange.id,
+          id: `${table.tableName}:${incomingChange.entityId}`,
+          entityId: incomingChange.entityId,
           tableName: table.tableName,
           createdAt: currentChanges?.createdAt ?? currentClock,
           updatedAt: currentClock,
@@ -392,6 +398,7 @@ export const Changeset = z.object({
       row: row.optional(),
       change: z.object({
         id: z.string(),
+        entityId: z.string(),
         tableName: z.string(),
         deletedAt: z.string().nullable(),
         clientId: z.string(),

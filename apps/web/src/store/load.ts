@@ -504,7 +504,7 @@ class Syncer {
 
           for (const { change, row } of changeset.data) {
             if (change.deletedAt != null) {
-              toDeleteRows.push(change.id);
+              toDeleteRows.push(change.entityId);
             } else if (row) {
               toInsertRows.push(row);
             }
@@ -517,6 +517,7 @@ class Syncer {
 
             allChanges.push({
               id: change.id,
+              entityId: change.entityId,
               tableName: table.tableName,
               // TODO: use local createdAt value. Or maybe not?
               createdAt: change?.createdAt,
