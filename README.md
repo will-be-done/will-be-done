@@ -9,11 +9,8 @@ Top features:
 4. Horizons - organize tasks by time scope (Week/Month/Year/Someday) instead of random priority numbers
 5. Repeating tasks - set up recurring tasks with flexible schedules (daily, weekly, custom patterns)
 6. Multiple spaces - separate workspaces for work/personal/different projects
-7. Keyboard navigation - vim-style keys (j/k) and arrows to move around fast
-8. Local first - works offline, syncs back when you're online
-9. Self-hosted - one docker command, no external dependencies
-10. Open source
-11. Custom DB with b-tree indexes - way faster than Redux or similar libs, everything runs in-memory on frontend
+7. Local first - works offline, syncs back when you're online
+8. Self-hosted - one docker command, no external dependencies
 
 Coming soon:
 1. Attachments and comments for tasks
