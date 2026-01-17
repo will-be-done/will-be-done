@@ -41,7 +41,8 @@ const getDB = (dbName: string) => {
 
   sqliteDB.run("PRAGMA journal_mode=WAL;");
   sqliteDB.run("PRAGMA synchronous=NORMAL;");
-  sqliteDB.run("PRAGMA journal_size_limit=67108864;");
+  sqliteDB.run("PRAGMA journal_size_limit=6144000;");
+  sqliteDB.run("PRAGMA foreign_keys = ON;");
   sqliteDB.run("PRAGMA busy_timeout=5000;");
 
   type SqlValue = number | string | Uint8Array | null;

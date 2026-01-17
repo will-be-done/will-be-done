@@ -22,7 +22,7 @@ export function LandingPage() {
       </div>
 
       {/* Get Started Your Way Section */}
-      <div className="border-y-2 border-dashed border-slate-300 bg-slate-50">
+      <div className="border-b-2 border-dashed border-slate-300 bg-slate-50">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <div className="mb-12">
             <h2 className="mb-4 text-4xl font-bold md:text-5xl">
