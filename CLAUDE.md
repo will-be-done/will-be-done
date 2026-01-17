@@ -9,19 +9,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `bun dev:server` - Start the API server in development mode (Fastify + Bun)
 
 ### Web Client (apps/web/)
-- `pnpm dev` - Start Vite development server with React 19
-- `pnpm build` - Build for production (TypeScript check + Vite build)
-- `pnpm ts` - Run TypeScript compiler check
-- `pnpm lint` - Run ESLint
-- `pnpm lint:fix` - Run ESLint with auto-fix
-- `pnpm test` - Run Vitest tests
-- `pnpm format` - Format code with Prettier
+- `bun dev` - Start Vite development server with React 19
+- `bun build` - Build for production (TypeScript check + Vite build)
+- `bun ts` - Run TypeScript compiler check
+- `bun lint` - Run ESLint
+- `bun lint:fix` - Run ESLint with auto-fix
+- `bun test` - Run Vitest tests
+- `bun format` - Format code with Prettier
 
 ### API Server (apps/api/)
-- `pnpm dev` - Start development server with Bun (runs src/start.ts)
+- `bun dev` - Start development server with Bun (runs src/start.ts)
 
 ### Slices Library (apps/slices/)
-- `pnpm ts` - Run TypeScript compiler check
+- `bun ts` - Run TypeScript compiler check
 
 ## Architecture Overview
 
@@ -35,9 +35,9 @@ The frontend application built with modern React and TypeScript.
 **Key Technologies:**
 - **Framework**: React 19 with React Compiler (babel-plugin-react-compiler)
 - **Routing**: TanStack Router v1 with file-based routing and auto code splitting
-- **Styling**: Tailwind CSS v4 with Radix UI components
+- **Styling**: Tailwind CSS v4 with @base-ui-components/react and select Radix UI components (dialog, popover, separator, slot)
 - **State Management**: Custom hyperdb-based system with shared slices
-- **Build Tool**: Vite 6 with React plugin
+- **Build Tool**: Vite 7 with React plugin
 - **Testing**: Vitest with jsdom
 - **Forms**: TanStack React Form with Zod validation
 - **HTTP Client**: tRPC client for type-safe API calls
@@ -46,42 +46,45 @@ The frontend application built with modern React and TypeScript.
 **Project Structure:**
 ```
 apps/web/src/
-├── routes/              # TanStack Router file-based routes
-│   ├── __root.tsx      # Root layout
-│   ├── index.tsx       # Home page
-│   ├── projects/       # Project management routes
-│   │   ├── index.tsx
-│   │   └── $projectId.tsx
-│   ├── timeline/       # Timeline view routes
-│   │   ├── index.tsx
-│   │   └── $date.tsx
-│   └── timeline2/      # Alternative timeline view
+├── routes/                                        # TanStack Router file-based routes
+│   ├── __root.tsx                                # Root layout
+│   ├── index.tsx                                 # Home/redirect page
+│   ├── landing.tsx                               # Landing page
+│   ├── login.tsx                                 # Login page
+│   ├── signup.tsx                                # Signup page
+│   ├── spaces.tsx                                # Spaces layout
+│   ├── spaces.index.tsx                          # Spaces list
+│   ├── spaces.$spaceId.tsx                       # Space layout
+│   ├── spaces.$spaceId.projects.index.tsx        # Projects list
+│   ├── spaces.$spaceId.projects.$projectId.tsx   # Project view
+│   ├── spaces.$spaceId.timeline.index.tsx        # Timeline view
+│   └── spaces.$spaceId.timeline.$date.tsx        # Daily timeline
 ├── components/          # Reusable UI components
 │   ├── Details/
 │   ├── Layout/
 │   ├── Task/
 │   ├── TasksGrid/
 │   └── ui/             # Base UI components
-├── features/           # Feature-specific components and logic
-│   ├── dnd/           # Drag and drop functionality
-│   ├── focus/         # Focus mode features
-│   ├── global-listener/
-│   ├── project/       # Project-specific features
-│   └── timeline/      # Timeline-specific features
-├── store2/            # Store slices
+├── store/              # Store slices
 │   └── slices/
 │       ├── focusSlice.ts
 │       └── load.ts
-├── lib/               # Utility libraries
+├── lib/                # Utility libraries
+│   ├── dnd/           # Drag and drop functionality
 │   └── utils.ts
-└── main.tsx          # Application entry point
+└── main.tsx           # Application entry point
 ```
+
+**Route Structure Notes:**
+- TanStack Router uses dot-notation for nested routes (not folder hierarchy)
+- All project/timeline routes are under a `spaces.$spaceId` hierarchy for multi-space support
+- Authentication routes (login, signup, landing) are at the root level
+- Dynamic segments use `$paramName` syntax (e.g., `$spaceId`, `$projectId`, `$date`)
 
 **Development Notes:**
 - The app uses React 19's new features and the React Compiler for automatic optimization
 - Vite proxy forwards `/api` requests to `localhost:3000` (API server)
 - Path alias `@` points to `apps/web/src/`
-- Uses react-scan for development performance monitoring
 
 #### `apps/api` - tRPC API Server
 The backend server providing synchronization and data persistence.
@@ -89,7 +92,9 @@ The backend server providing synchronization and data persistence.
 **Key Technologies:**
 - **Runtime**: Bun (fast JavaScript runtime)
 - **Framework**: Fastify with tRPC adapter
-- **Database**: SQLite (via bun:sqlite) stored in `dbs/main2.sqlite`
+- **Database**: SQLite (via bun:sqlite)
+  - Main database: `dbs/main.sqlite` - User accounts and space metadata
+  - Space databases: `dbs/{spaceId}.sqlite` - Per-space data isolation
 - **Database Abstraction**: Custom hyperdb with SqlDriver
 - **RPC**: tRPC for type-safe client-server communication
 - **File Upload**: @fastify/multipart for handling uploads
@@ -113,7 +118,9 @@ apps/api/src/
 - **Logical Clock**: Hybrid logical clock for change ordering (`timestamp-sequence-clientId`)
 - **Change Tracking**: Automatic tracking of all database changes via hyperdb hooks
 - **Sync System**: Bidirectional sync with conflict-free merge
-- **Authentication**: Basic HTTP auth (bypassed in development mode)
+- **Authentication**: Token-based authentication system with user accounts and space-scoped access control
+  - Each space has its own access controls tied to user ownership
+  - JWT-based session management
 - **Audio Transcription**: Background processing of uploaded audio memos
   - Files stored in `dbs/memos/`
   - Transcribed via external service at `http://tosi-bosi.com:3284/transcribe`
@@ -140,20 +147,21 @@ A TypeScript library containing shared business logic and data models used by bo
 **Available Slices:**
 ```
 apps/slices/src/slices/
-├── app.ts              # Core application slice with unified byId selector
-├── tasks.ts            # Task management (create, update, toggle, delete)
-├── projects.ts         # Project hierarchy and inbox
-├── projectItems.ts     # Project items management
-├── taskGroups.ts       # Task grouping functionality
-├── taskTemplates.ts    # Recurring task templates (RRule-based)
-├── projections.ts      # Task projections (views/filters)
-├── dailyLists.ts       # Daily task lists
-├── allProjects.ts      # All projects view
-├── changes.ts          # Change tracking for sync
-├── syncMap.ts          # Sync table registry
-├── maps.ts             # Model type registry
-├── drop.ts             # Drag and drop logic
-└── utils.ts            # Shared utilities
+├── app.ts                      # Core application slice with unified byId selector
+├── cards.ts                    # Core cards system
+├── cardsTasks.ts               # Task management (create, update, toggle, delete)
+├── cardsTaskTemplates.ts       # Recurring task templates (RRule-based)
+├── projects.ts                 # Project hierarchy
+├── projectsAll.ts              # All projects view
+├── projectsCategories.ts       # Project categorization
+├── projectsCategoriesCards.ts  # Cards within project categories
+├── dailyLists.ts               # Daily task lists
+├── dailyListsProjections.ts    # Task projections (views/filters)
+├── backup.ts                   # Backup/restore functionality
+├── changes.ts                  # Change tracking for sync
+├── syncMap.ts                  # Sync table registry
+├── maps.ts                     # Model type registry
+└── utils.ts                    # Shared utilities
 ```
 
 **Data Models:**
@@ -165,6 +173,9 @@ All entities follow a consistent pattern:
 - **Type Discrimination**: `type` field for polymorphic queries
 
 **Key Data Models:**
+
+The application uses a hierarchical structure: **Project → ProjectCategory → Tasks**
+
 1. **Task**
    ```typescript
    {
@@ -172,8 +183,7 @@ All entities follow a consistent pattern:
      id: string,
      title: string,
      state: "todo" | "done",
-     projectId: string,
-     taskGroupId: string | null,
+     projectCategoryId: string,  // Parent category (replaces projectId + taskGroupId)
      orderToken: string,
      lastToggledAt: number,
      horizon: "week" | "month" | "year" | "someday",
@@ -196,7 +206,19 @@ All entities follow a consistent pattern:
    }
    ```
 
-3. **TaskTemplate** - For recurring tasks using RRule
+3. **ProjectCategory** - Organizational categories within projects
+   ```typescript
+   {
+     type: "projectCategory",
+     id: string,
+     title: string,
+     projectId: string,  // Parent project
+     orderToken: string,
+     createdAt: number
+   }
+   ```
+
+4. **TaskTemplate** - For recurring tasks using RRule
    ```typescript
    {
      type: "taskTemplate",
@@ -218,6 +240,32 @@ Tables use strategic indexes for performance:
 Slices register themselves in two registries:
 - `registeredSyncableTables` - Tables that participate in sync
 - Model slice registry - Type-to-slice mapping for polymorphic operations
+
+### Multi-Space Architecture
+
+The application supports multiple workspaces (called "spaces"), enabling users to maintain separate work contexts with complete data isolation.
+
+**Key Features:**
+- **Isolated Databases**: Each space has its own SQLite database (`dbs/{spaceId}.sqlite`)
+- **User Ownership**: Each space is owned by a specific user (tied to userId)
+- **Independent Data**: Projects, tasks, categories, and settings are completely separate per space
+- **Space-Scoped Routing**: All routes are structured as `spaces.$spaceId.*` to scope operations to the current space
+- **Independent Sync**: Each space maintains its own sync state and change tracking
+
+**Space Management:**
+- Users can create multiple spaces from the spaces list page
+- Switching between spaces changes the active database and context
+- Authentication system ties users to their spaces for access control
+- Each space contains:
+  - Projects and project categories
+  - Tasks and task templates
+  - Daily lists and projections
+  - Space-specific settings and preferences
+
+**Database Structure:**
+- Main database: `dbs/main.sqlite` - Stores user accounts and space metadata
+- Space databases: `dbs/{spaceId}.sqlite` - One per space, contains all space-specific data
+- Space IDs are UUIDs for uniqueness and security
 
 ### Cross-Application Data Flow
 
@@ -251,17 +299,21 @@ The system tracks three types of changes:
 ### Technology Stack Summary
 
 **Frontend:**
-- React 19 + TypeScript + Vite 6
+- React 19 + TypeScript + Vite 7
 - TanStack Router + TanStack Form
-- Tailwind CSS 4 + Radix UI
+- Tailwind CSS 4 + @base-ui-components/react with select Radix UI components
 - tRPC Client
 - Vitest for testing
+- @atlaskit/pragmatic-drag-and-drop for drag & drop
 
 **Backend:**
 - Bun runtime
 - Fastify + tRPC Server
-- SQLite (bun:sqlite)
+- SQLite (bun:sqlite) with multi-database architecture
+  - Main database for users and space metadata
+  - Per-space databases for data isolation
 - Custom hyperdb abstraction
+- Token-based authentication with JWT
 
 **Shared:**
 - TypeScript 5.7
@@ -269,6 +321,7 @@ The system tracks three types of changes:
 - Custom hyperdb state management
 - Fractional indexing for ordering
 - RRule for recurring tasks
+- Hybrid logical clock for distributed sync
 
 ## Development Workflow
 
@@ -311,9 +364,10 @@ The system tracks three types of changes:
 - `apps/transcript-server` - Not part of core application
 
 ### Database:
-- Server database: `apps/api/dbs/main2.sqlite`
+- Main database: `apps/api/dbs/main.sqlite` - User accounts and space metadata
+- Space databases: `apps/api/dbs/{spaceId}.sqlite` - Per-space data isolation
 - Client uses in-browser storage (implementation in `apps/web`)
-- Inbox project created automatically on server startup
+- Each space gets its own database instance for complete data isolation
 
 ### Code Style:
 - Use generator functions (`function*`) for slices

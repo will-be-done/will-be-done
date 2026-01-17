@@ -10,7 +10,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: quolpr/will-be-done-app
+  IMAGE_NAME: will-be-done/will-be-done
 
 jobs:
   build-canary:
@@ -45,9 +45,9 @@ jobs:
             type=raw,value=canary
             type=raw,value=${{ steps.tag.outputs.tag }}
           labels: |
-            org.opencontainers.image.title=will-be-done-app
+            org.opencontainers.image.title=will-be-done
             org.opencontainers.image.description=Task management application
-            org.opencontainers.image.vendor=quolpr
+            org.opencontainers.image.vendor=will-be-done
 
       - name: Build and push
         uses: docker/build-push-action@v6
