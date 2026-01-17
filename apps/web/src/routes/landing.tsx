@@ -62,7 +62,7 @@ function LandingPage() {
   -p 3000:3000 \\
   -v will_be_done_storage:/app/apps/api/dbs \\
   --restart unless-stopped \\
-  ghcr.io/quolpr/will-be-done-app:latest`}
+  ghcr.io/will-be-done/will-be-done:latest`}
                   </code>
                 </pre>
               </div>
