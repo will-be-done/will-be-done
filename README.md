@@ -36,6 +36,7 @@ Coming soon:
 1. More vim keybindings (beyond basic j/k navigation)
 1. Calendar integration
 1. Mobile-friendly UI
+1. Color and background customization per project
 
 ## Release Process
 
