@@ -5,6 +5,12 @@
   "type": "module",
   "main": "src/index.ts",
   "module": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./space": "./src/space/index.ts",
+    "./user": "./src/user/index.ts",
+    "./common": "./src/common/index.ts"
+  },
   "scripts": {
     "ts": "tsc -b",
     "lint": "eslint .",
