@@ -1,5 +1,5 @@
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
-import { Backup, backupSlice, inboxId } from "@will-be-done/slices";
+import { Backup, backupSlice, inboxId } from "@will-be-done/slices/space";
 import { useRegisterFocusItem } from "@/components/Focus/useLists.ts";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -27,7 +27,7 @@ import {
   useDispatch,
   useSyncSelector,
 } from "@will-be-done/hyperdb";
-import { projectsAllSlice, projectsSlice } from "@will-be-done/slices";
+import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
 import { buildFocusKey, focusManager, focusSlice } from "@/store/focusSlice.ts";
 import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
@@ -223,11 +223,7 @@ const ProjectItem = function ProjectItemComp({
 
           return select(
             db,
-            projectsSlice.canDrop(
-              project.id,
-              data.modelId,
-              data.modelType,
-            ),
+            projectsSlice.canDrop(project.id, data.modelId, data.modelType),
           );
         },
         getIsSticky: () => true,

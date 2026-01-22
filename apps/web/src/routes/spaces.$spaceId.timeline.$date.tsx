@@ -4,7 +4,7 @@ import { z } from "zod";
 import { parse } from "date-fns";
 import { Layout } from "@/components/Layout/Layout.tsx";
 import { Board } from "@/components/DaysBoard/DaysBoard.tsx";
-import { inboxId } from "@will-be-done/slices";
+import { inboxId } from "@will-be-done/slices/space";
 
 const filterParams = z.object({
   projectId: z.string().default(inboxId),

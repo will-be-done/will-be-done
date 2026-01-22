@@ -15,7 +15,7 @@ import {
   taskType,
   projectionType,
   AnyModelType,
-} from "@will-be-done/slices";
+} from "@will-be-done/slices/space";
 import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
 import { FocusKey, focusManager, focusSlice } from "@/store/focusSlice.ts";
 
@@ -213,16 +213,16 @@ export function GlobalListener() {
             if (!isModelDNDData(t.data)) {
               return [] as const;
             }
-            const entity = select(db, appSlice.byId(t.data.modelId, t.data.modelType));
+            const entity = select(
+              db,
+              appSlice.byId(t.data.modelId, t.data.modelType),
+            );
             if (!entity) return [] as const;
             return [[t, entity] as const];
           });
 
           let targetItemInfo:
-            | readonly [
-                DropTargetRecord,
-                { id: string; type: AnyModelType },
-              ]
+            | readonly [DropTargetRecord, { id: string; type: AnyModelType }]
             | undefined = undefined;
           for (const importanceType of targetImportanceOrder) {
             targetItemInfo = targetModels.find(

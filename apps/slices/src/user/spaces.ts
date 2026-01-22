@@ -9,11 +9,13 @@ import {
   update,
 } from "@will-be-done/hyperdb";
 import { uuidv7 } from "uuidv7";
-import type { GenReturn } from "@will-be-done/slices/src/slices/utils";
+import type { GenReturn } from "@will-be-done/slices";
+import { registerUserSyncableTable } from "./syncMap";
 
+export const spacesTableType = "space";
 export type Space = {
   id: string;
-  userId: string;
+  type: typeof spacesTableType;
   name: string;
   createdAt: string;
   updatedAt: string;
@@ -21,7 +23,7 @@ export type Space = {
 
 export const spacesTable = table<Space>("spaces").withIndexes({
   byId: { cols: ["id"], type: "hash" },
-  byUserId: { cols: ["userId"], type: "btree" },
+  byIds: { cols: ["id"], type: "btree" },
 });
 
 export const spaceSlice = {
@@ -35,23 +37,18 @@ export const spaceSlice = {
     return spaces[0];
   }),
 
-  listSpacesByUserId: selector(function* (userId: string): GenReturn<Space[]> {
-    const spaces = yield* runQuery(
-      selectFrom(spacesTable, "byUserId").where((q) => q.eq("userId", userId)),
-    );
+  listSpaces: selector(function* (): GenReturn<Space[]> {
+    const spaces = yield* runQuery(selectFrom(spacesTable, "byIds"));
     return spaces;
   }),
 
   // Actions
-  createSpace: action(function* (
-    userId: string,
-    name: string,
-  ): GenReturn<Space> {
+  createSpace: action(function* (name: string): GenReturn<Space> {
     const spaceId = uuidv7();
     const now = new Date().toISOString();
     const space: Space = {
       id: spaceId,
-      userId,
+      type: spacesTableType,
       name,
       createdAt: now,
       updatedAt: now,
@@ -93,3 +90,5 @@ export const spaceSlice = {
     return true;
   }),
 };
+
+registerUserSyncableTable(spacesTable, spacesTableType);

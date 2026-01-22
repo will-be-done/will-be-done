@@ -1,6 +1,5 @@
 export * from "./projectsAll";
 export * from "./app";
-export * from "./changes";
 export * from "./dailyLists";
 export * from "./dailyListsProjections";
 export * from "./projects";

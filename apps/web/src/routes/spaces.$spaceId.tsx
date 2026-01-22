@@ -5,6 +5,7 @@ import { Outlet, redirect, createFileRoute } from "@tanstack/react-router";
 import { DBProvider } from "@will-be-done/hyperdb";
 import { initDbStore } from "@/store/load.ts";
 import { authUtils } from "@/lib/auth";
+import { spaceDBConfig } from "@/store/configs";
 
 export const Route = createFileRoute("/spaces/$spaceId")({
   component: RouteComponent,
@@ -15,7 +16,7 @@ export const Route = createFileRoute("/spaces/$spaceId")({
 
     authUtils.setLastUsedSpaceId(opts.params.spaceId);
 
-    return initDbStore(opts.params.spaceId);
+    return initDbStore(spaceDBConfig(opts.params.spaceId));
   },
 });
 

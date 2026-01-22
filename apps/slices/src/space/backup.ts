@@ -17,7 +17,7 @@ import { dailyListsSlice, dailyListType, type DailyList } from "./dailyLists";
 import { projectsAllSlice } from "./projectsAll";
 import { projectType, type Project } from "./projects";
 import { AnyModel, appTypeTablesMap } from "./maps";
-import { registeredSyncableTables } from "./syncMap";
+import { registeredSpaceSyncableTables } from "./syncMap";
 import {
   projectCategoriesSlice,
   ProjectCategory,
@@ -263,7 +263,7 @@ const getNewModels = (backup: Backup): AnyModel[] => {
 
 export const backupSlice = {
   loadBackup: selector(function* (backup: Backup): GenReturn<void> {
-    for (const table of registeredSyncableTables) {
+    for (const table of registeredSpaceSyncableTables) {
       const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
         (r) => r.id,
       );

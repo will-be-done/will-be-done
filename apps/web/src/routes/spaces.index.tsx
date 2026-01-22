@@ -4,12 +4,17 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
-import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { authUtils } from "@/lib/auth";
-import { trpc } from "@/lib/trpc";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { queryClient } from "@/lib/query";
+import { initDbStore } from "@/store/load";
+import {
+  DBProvider,
+  useDispatch,
+  useSyncSelector,
+} from "@will-be-done/hyperdb";
+import { spaceSlice } from "@will-be-done/slices/user";
+import { userDBConfig } from "@/store/configs";
 
 export const Route = createFileRoute("/spaces/")({
   component: SpacePage,
@@ -19,44 +24,32 @@ export const Route = createFileRoute("/spaces/")({
     }
   },
   loader: async () => {
-    await queryClient.prefetchQuery(trpc.listSpaces.queryOptions());
+    const userId = authUtils.getUserId();
+
+    if (!userId) {
+      throw redirect({ to: "/login" });
+    }
+
+    return initDbStore(userDBConfig(userId));
   },
 });
 
-function SpacePage() {
+function SpacePageComponent() {
   const navigate = useNavigate();
 
-  const spacesQuery = useSuspenseQuery(trpc.listSpaces.queryOptions());
+  const spaces = useSyncSelector(() => spaceSlice.listSpaces(), []);
+  const dispatch = useDispatch();
 
-  const createSpaceMutation = useMutation(
-    trpc.createSpace.mutationOptions({
-      onSuccess: () => {
-        void spacesQuery.refetch();
-      },
-    }),
-  );
-
-  const updateSpaceMutation = useMutation(
-    trpc.updateSpace.mutationOptions({
-      onSuccess: () => {
-        void spacesQuery.refetch();
-      },
-    }),
-  );
-
-  const deleteSpaceMutation = useMutation(
-    trpc.deleteSpace.mutationOptions({
-      onSuccess: () => {
-        void spacesQuery.refetch();
-      },
-    }),
-  );
+  const handleSignOut = () => {
+    authUtils.signOut();
+    void navigate({ to: "/login" });
+  };
 
   const handleCreateSpace = () => {
     const name = window.prompt("Enter space name:");
-    if (name?.trim()) {
-      createSpaceMutation.mutate({ name: name.trim() });
-    }
+    if (!name?.trim()) return;
+
+    dispatch(spaceSlice.createSpace(name));
   };
 
   const handleUpdateSpace = (
@@ -69,7 +62,7 @@ function SpacePage() {
 
     const name = window.prompt("Enter new space name:", currentName);
     if (name?.trim() && name !== currentName) {
-      updateSpaceMutation.mutate({ id: spaceId, name: name.trim() });
+      dispatch(spaceSlice.updateSpace(spaceId, name));
     }
   };
 
@@ -81,18 +74,13 @@ function SpacePage() {
     e.preventDefault();
     e.stopPropagation();
 
-    if (
-      window.confirm(
-        `Are you sure you want to delete space "${spaceName}"? This action cannot be undone.`,
-      )
-    ) {
-      deleteSpaceMutation.mutate({ id: spaceId });
-    }
-  };
+    const ok = window.confirm(
+      `Are you sure you want to delete space "${spaceName}"? This action cannot be undone.`,
+    );
 
-  const handleSignOut = () => {
-    authUtils.signOut();
-    void navigate({ to: "/login" });
+    if (!ok) return;
+
+    dispatch(spaceSlice.deleteSpace(spaceId));
   };
 
   return (
@@ -118,67 +106,122 @@ function SpacePage() {
           </div>
         </div>
 
-        {spacesQuery.isLoading && (
-          <div className="text-content-tinted">Loading spaces...</div>
-        )}
-
-        {spacesQuery.error && (
-          <div className="text-notice">
-            Error loading spaces:{" "}
-            {spacesQuery.error instanceof Error
-              ? spacesQuery.error.message
-              : "Unknown error"}
-          </div>
-        )}
-
-        {spacesQuery.data && (
-          <div className="grid grid-cols-4 gap-4">
-            {spacesQuery.data.map((space) => (
-              <Link
-                to="/spaces/$spaceId/timeline"
-                params={{
-                  spaceId: space.id,
-                }}
-                key={space.id}
-                className="bg-panel rounded-lg shadow-lg border cursor-pointer"
-                style={{ height: "60px" }}
-              >
-                <div className="h-full flex items-center justify-between px-3">
-                  <span className="text-content font-medium truncate">
-                    {space.name}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) =>
-                        handleUpdateSpace(space.id, space.name, e)
-                      }
-                      className="text-content-tinted hover:text-accent transition-colors cursor-pointer"
-                      aria-label="Edit space"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) =>
-                        handleDeleteSpace(space.id, space.name, e)
-                      }
-                      className="text-content-tinted hover:text-notice transition-colors cursor-pointer"
-                      aria-label="Delete space"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+        <div className="grid grid-cols-4 gap-4">
+          {spaces.map((space) => (
+            <Link
+              to="/spaces/$spaceId/timeline"
+              params={{
+                spaceId: space.id,
+              }}
+              key={space.id}
+              className="bg-panel rounded-lg shadow-lg border cursor-pointer"
+              style={{ height: "60px" }}
+            >
+              <div className="h-full flex items-center justify-between px-3">
+                <span className="text-content font-medium truncate">
+                  {space.name}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleUpdateSpace(space.id, space.name, e)}
+                    className="text-content-tinted hover:text-accent transition-colors cursor-pointer"
+                    aria-label="Edit space"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteSpace(space.id, space.name, e)}
+                    className="text-content-tinted hover:text-notice transition-colors cursor-pointer"
+                    aria-label="Delete space"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-              </Link>
-            ))}
-          </div>
-        )}
+              </div>
+            </Link>
+          ))}
+        </div>
 
-        {spacesQuery.data && spacesQuery.data.length === 0 && (
+        {spaces.length === 0 && (
           <div className="text-center text-content-tinted py-12">
             No spaces yet. Create your first space to get started.
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function SpacePage() {
+  const newStore = Route.useLoaderData();
+
+  // const spacesQuery = useSuspenseQuery(trpc.listSpaces.queryOptions());
+  //
+  // const createSpaceMutation = useMutation(
+  //   trpc.createSpace.mutationOptions({
+  //     onSuccess: () => {
+  //       void spacesQuery.refetch();
+  //     },
+  //   }),
+  // );
+  //
+  // const updateSpaceMutation = useMutation(
+  //   trpc.updateSpace.mutationOptions({
+  //     onSuccess: () => {
+  //       void spacesQuery.refetch();
+  //     },
+  //   }),
+  // );
+  //
+  // const deleteSpaceMutation = useMutation(
+  //   trpc.deleteSpace.mutationOptions({
+  //     onSuccess: () => {
+  //       void spacesQuery.refetch();
+  //     },
+  //   }),
+  // );
+  //
+  // const handleCreateSpace = () => {
+  //   const name = window.prompt("Enter space name:");
+  //   if (name?.trim()) {
+  //     createSpaceMutation.mutate({ name: name.trim() });
+  //   }
+  // };
+  //
+  // const handleUpdateSpace = (
+  //   spaceId: string,
+  //   currentName: string,
+  //   e: React.MouseEvent,
+  // ) => {
+  //   e.preventDefault();
+  //   e.stopPropagation();
+  //
+  //   const name = window.prompt("Enter new space name:", currentName);
+  //   if (name?.trim() && name !== currentName) {
+  //     updateSpaceMutation.mutate({ id: spaceId, name: name.trim() });
+  //   }
+  // };
+  //
+  // const handleDeleteSpace = (
+  //   spaceId: string,
+  //   spaceName: string,
+  //   e: React.MouseEvent,
+  // ) => {
+  //   e.preventDefault();
+  //   e.stopPropagation();
+  //
+  //   if (
+  //     window.confirm(
+  //       `Are you sure you want to delete space "${spaceName}"? This action cannot be undone.`,
+  //     )
+  //   ) {
+  //     deleteSpaceMutation.mutate({ id: spaceId });
+  //   }
+  // };
+
+  return (
+    <DBProvider value={newStore}>
+      <SpacePageComponent />
+    </DBProvider>
   );
 }

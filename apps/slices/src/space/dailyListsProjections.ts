@@ -13,7 +13,7 @@ import {
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import type { GenReturn } from "./utils";
 import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
-import { registerSyncableTable } from "./syncMap";
+import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
 import { appSlice } from "./app";
 import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
@@ -55,7 +55,7 @@ export const taskProjectionsTable = table<TaskProjection>(
     type: "btree",
   },
 });
-registerSyncableTable(taskProjectionsTable, projectionType);
+registerSpaceSyncableTable(taskProjectionsTable, projectionType);
 
 // Slice
 export const dailyListsProjectionsSlice = {

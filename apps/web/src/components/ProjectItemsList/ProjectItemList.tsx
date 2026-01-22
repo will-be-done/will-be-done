@@ -8,12 +8,12 @@ import {
   Project,
   projectCategoriesSlice,
   ProjectCategory,
-} from "@will-be-done/slices";
+} from "@will-be-done/slices/space";
 import {
   TasksColumn,
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
-import { projectCategoryCardsSlice } from "@will-be-done/slices";
+import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 
 const ProjectTasksColumn = ({
   project,

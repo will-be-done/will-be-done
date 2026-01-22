@@ -14,8 +14,6 @@ import { isEqual } from "es-toolkit";
 import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
-import { registeredSyncableTableNameMap } from "./syncMap";
-import { AnyModel } from "./maps";
 
 export type Change = {
   id: string;
@@ -57,6 +55,7 @@ export const changesSlice = {
   }),
   getChangesetAfter: selector(function* (
     after: string,
+    registeredSyncableTableNameMap: Record<string, TableDefinition>,
   ): GenReturn<{ changesets: ChangesetArrayType; maxClock: string }> {
     const changesToSend = yield* changesSlice.allChangesAfter(after);
     const changesets: ChangesetArrayType = [];
@@ -229,6 +228,7 @@ export const changesSlice = {
     input: ChangesetArrayType,
     nextClock: () => string,
     clientId: string,
+    registeredSyncableTableNameMap: Record<string, TableDefinition>,
   ) {
     const allChanges: Change[] = [];
 
@@ -245,11 +245,15 @@ export const changesSlice = {
       const currentChanges = yield* runQuery(
         selectFrom(changesTable, "byEntityIdAndTableName").where((q) =>
           changeset.data.map((c) =>
-            q.eq("entityId", c.change.entityId).eq("tableName", changeset.tableName),
+            q
+              .eq("entityId", c.change.entityId)
+              .eq("tableName", changeset.tableName),
           ),
         ),
       );
-      const currentChangesMap = new Map(currentChanges.map((c) => [c.entityId, c]));
+      const currentChangesMap = new Map(
+        currentChanges.map((c) => [c.entityId, c]),
+      );
 
       const currentRows = yield* runQuery(
         selectFrom(table, "byId").where((q) =>
@@ -313,8 +317,8 @@ export const changesSlice = {
         });
       }
 
-      yield* insert(table, toInsertRows as AnyModel[]);
-      yield* update(table, toUpdateRows as AnyModel[]);
+      yield* insert(table, toInsertRows);
+      yield* update(table, toUpdateRows);
       yield* deleteRows(table, toDeleteRows);
     }
 

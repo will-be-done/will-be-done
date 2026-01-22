@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { FastifyRequest, FastifyReply } from "fastify";
 import { syncDispatch } from "@will-be-done/hyperdb";
-import { getMainDB } from "./db/db";
+import { getMainHyperDB } from "./db/db";
 import { authSlice } from "./slices/authSlice";
 
 /**
@@ -23,7 +23,7 @@ export async function createContext({
   req: FastifyRequest;
   res: FastifyReply;
 }): Promise<Context> {
-  const mainDB = getMainDB();
+  const mainDB = getMainHyperDB();
 
   async function getUserFromHeader() {
     const authHeader = req.headers.authorization;

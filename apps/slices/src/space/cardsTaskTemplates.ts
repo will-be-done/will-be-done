@@ -13,7 +13,7 @@ import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
 import type { GenReturn } from "./utils";
 import { cardsTasksSlice, type Task } from "./cardsTasks";
-import { registerSyncableTable } from "./syncMap";
+import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { appSlice } from "./app";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
@@ -58,7 +58,7 @@ export const taskTemplatesTable = table<TaskTemplate>(
     type: "btree",
   },
 });
-registerSyncableTable(taskTemplatesTable, taskTemplateType);
+registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
 function generateTaskId(taskTemplateId: string, date: Date): string {

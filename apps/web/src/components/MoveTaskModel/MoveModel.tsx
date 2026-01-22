@@ -9,7 +9,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
 import { focusSlice } from "@/store/focusSlice.ts";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { projectsAllSlice } from "@will-be-done/slices";
+import { projectsAllSlice } from "@will-be-done/slices/space";
 
 export const MoveModal = ({
   setIsOpen,

@@ -1,4 +1,4 @@
-import { AnyModelType } from "@will-be-done/slices";
+import { AnyModelType } from "@will-be-done/slices/space";
 
 export type DndModelData = {
   modelId: string;

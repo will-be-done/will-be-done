@@ -12,7 +12,7 @@ import {
   dailyListsSlice,
   dailyListsProjectionsSlice,
   getDMY,
-} from "@will-be-done/slices";
+} from "@will-be-done/slices/space";
 
 interface TaskDatePickerProps {
   taskId: string;
@@ -38,7 +38,9 @@ export function TaskDatePicker({
     const dailyList = dispatch(dailyListsSlice.createIfNotPresent(dateString));
 
     // Add task to the daily list
-    dispatch(dailyListsProjectionsSlice.addToDailyList(taskId, dailyList.id, "append"));
+    dispatch(
+      dailyListsProjectionsSlice.addToDailyList(taskId, dailyList.id, "append"),
+    );
 
     // Close popover
     setOpen(false);
@@ -52,7 +54,10 @@ export function TaskDatePicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="w-auto p-0 bg-popover-calendar border-calendar-border" align="end">
+      <PopoverContent
+        className="w-auto p-0 bg-popover-calendar border-calendar-border"
+        align="end"
+      >
         <div className="flex flex-col">
           <Calendar
             mode="single"

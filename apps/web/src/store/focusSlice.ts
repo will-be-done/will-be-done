@@ -1,5 +1,5 @@
 import { shouldNeverHappen } from "@/utils.ts";
-import type { AnyModel } from "@will-be-done/slices";
+import type { AnyModel } from "@will-be-done/slices/space";
 import {
   action,
   insert,
@@ -9,7 +9,7 @@ import {
   table,
   update,
 } from "@will-be-done/hyperdb";
-import { appSlice } from "@will-be-done/slices";
+import { appSlice } from "@will-be-done/slices/space";
 
 export type FocusKey = string & { __brand: never };
 
@@ -34,7 +34,13 @@ export const buildFocusKey = (
 export const parseColumnKey = (
   key: FocusKey,
 ): {
-  type: "template" | "dailyList" | "project" | "task" | "projectCategory" | "projection";
+  type:
+    | "template"
+    | "dailyList"
+    | "project"
+    | "task"
+    | "projectCategory"
+    | "projection";
   id: string;
   component?: string;
 } => {
@@ -43,7 +49,13 @@ export const parseColumnKey = (
   if (!type || !id) return shouldNeverHappen("key is not valid", { key });
 
   return {
-    type: type as "template" | "dailyList" | "project" | "task" | "projectCategory" | "projection",
+    type: type as
+      | "template"
+      | "dailyList"
+      | "project"
+      | "task"
+      | "projectCategory"
+      | "projection",
     id,
     component,
   };
