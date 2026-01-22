@@ -113,44 +113,6 @@ async function initAsyncDriver(dbName: string) {
   return new AsyncSqlDriver(sqlite3, db);
 }
 
-// TODO: next
-// 1. Develop new sync protocol that will track changes in db
-//    maybe just track last change of each column?
-// the algo is such:
-// 1. get diff time and check what columns are changed
-// 2. select all rows that are changed from sync table
-// 3. merge new changes diff
-//
-// Suppose you have such table:
-// id | name | age
-// 1  | bob  | 23
-//
-// It will have this sync_statuses table:
-// id | recordId | table | changes                                    | isDeleted | clientId | lastChangedAt
-// 31 | 1        | users | {id: "10:23", name: "10:23", age: "11:00"} | false     | a1       | 11:00
-//
-// So each row will have they own sync_status record. Both server and client will have this table.
-//
-// And then, the sync algo:
-// 1. We send changes to server starting from last lastSentAt(preferences table) time,
-// 2. Save new lastSentAt
-// 3. We poll server for changes that happened after last serverAppliedClock.
-//    Server even will send back changes that we sent on step 1 - it's ok for v1 of sync protocol
-// 4. Save new serverAppliedClock
-//
-// This will allow to ensure server authority. On our change send server may
-// perform thie own changes(uniq values unsurence for example), and send them to us.
-//
-//
-// 1. We receive sync_statuses + rows of sync_statuses from server starting from last serverAppliedClock(preferences table) time
-// 2. We take MAX(lastChangedAt) from sync_statuses of server and ours, and will
-//    take client col change if it's higher than server change.
-// 3. Then we send sync_statuses + rows of sync_statuses that lastChangedAt > lastSendAt(preferences table) to server and update lastSendAt to now
-// 4. Store new serverAppliedClock and lastSendAt time in preferences table
-
-//
-// So we have sync table that for each column it will store last changed time of that column
-//
 const lock = new AwaitLock();
 const initedDbs: Record<string, SubscribableDB> = {};
 export const initDbStore = async (
@@ -249,9 +211,9 @@ export const initDbStore = async (
       execSync(syncDB.insert(table, res));
     }
 
-    syncSubDb.subscribe((ops, traits) => {
-      console.log("ops", ops);
+    const bc = new BroadcastChannel(`changes-${getClientId(dbName)}`);
 
+    syncSubDb.subscribe((ops, traits) => {
       ops = ops.filter(
         (op) => op.table !== changesTable && op.table !== focusTable,
       );
@@ -261,16 +223,25 @@ export const initDbStore = async (
         return;
       }
 
-      console.log("new changes from in-mem db", ops, traits);
-
       void (async () => {
+        // Map to collect changes grouped by table name
+        type RowType = Record<string, string | number | boolean | null> & {
+          id: string;
+        };
+        const changesByTable = new Map<
+          string,
+          Array<{ row?: RowType; change: Change }>
+        >();
+
         const tx = await execAsync(asyncDB.beginTx());
         for (const op of ops) {
           if (op.table == changesTable) continue;
 
+          let change: Change | undefined;
+
           if (op.type === "insert") {
             await execAsync(tx.insert(op.table, [op.newValue]));
-            await asyncDispatch(
+            change = await asyncDispatch(
               tx,
               changesSlice.insertChangeFromInsert(
                 op.table,
@@ -281,7 +252,7 @@ export const initDbStore = async (
             );
           } else if (op.type === "update") {
             await execAsync(tx.update(op.table, [op.newValue]));
-            await asyncDispatch(
+            change = await asyncDispatch(
               tx,
               changesSlice.insertChangeFromUpdate(
                 op.table,
@@ -293,7 +264,7 @@ export const initDbStore = async (
             );
           } else if (op.type === "delete") {
             await execAsync(tx.delete(op.table, [op.oldValue.id]));
-            await asyncDispatch(
+            change = await asyncDispatch(
               tx,
               changesSlice.insertChangeFromDelete(
                 op.table,
@@ -303,13 +274,31 @@ export const initDbStore = async (
               ),
             );
           }
+
+          // Collect the change if one was created
+          if (change) {
+            const tableName = op.table.tableName;
+            if (!changesByTable.has(tableName)) {
+              changesByTable.set(tableName, []);
+            }
+
+            const row = op.type === "delete" ? undefined : op.newValue;
+            changesByTable.get(tableName)!.push({ row, change });
+          }
         }
 
         await execAsync(tx.commit());
+
+        const changeset: ChangesetArrayType = [];
+        for (const [tableName, data] of changesByTable) {
+          changeset.push({ tableName, data });
+        }
+
+        if (changeset.length > 0) {
+          void bc.postMessage({ changeset } satisfies ChangePersistedEvent);
+        }
       })();
     });
-
-    const bc = new BroadcastChannel(`changes-${getClientId(dbName)}`);
 
     bc.onmessage = async (ev) => {
       const data = ev as ChangePersistedEvent;
@@ -335,8 +324,6 @@ export const initDbStore = async (
           syncConfig.tableNameMap,
         ),
       );
-
-      void bc.postMessage(e);
     }).startLoop();
 
     syncConfig.afterInit(syncSubDb);

@@ -25,11 +25,12 @@ Then open http://localhost:3000 in your browser.
 
 Top features:
 1. Weekly timeline view - see multiple days as columns, plan your week visually
+1. Local and offline first - works offline, syncs back when you're online
+1. Top tier performance (it's based on own DB development - apps/hyperdb)
 1. Everything drag & drop - move tasks between days, projects, categories
 1. Kanban boards everywhere - each project has categories (Week/Month/Ideas/etc)
 1. Multiple spaces - separate workspaces for work/personal/different projects
 1. Keyboard navigation - vim-style keys (j/k) and arrows to move around fast
-1. Local and offline first - works offline, syncs back when you're online
 1. Self-hosted - one docker command, no external dependencies
 1. Open source
 

@@ -154,7 +154,7 @@ export const changesSlice = {
     newRow: Row,
     clientId: string,
     nextClock: () => string,
-  ): GenReturn<void> {
+  ): GenReturn<Change | undefined> {
     if (oldRow.id !== newRow.id) {
       throw new Error("Cannot update row with different id");
     }
@@ -181,7 +181,7 @@ export const changesSlice = {
     }
 
     if (Object.keys(changedRows).length === 0) {
-      return;
+      return undefined;
     }
 
     const newChange: Change = {
@@ -191,6 +191,8 @@ export const changesSlice = {
     };
 
     yield* insert(changesTable, [newChange]);
+
+    return newChange;
   }),
 
   insertChangeFromDelete: action(function* (
@@ -198,7 +200,7 @@ export const changesSlice = {
     row: Row,
     clientId: string,
     nextClock: () => string,
-  ): GenReturn<void> {
+  ): GenReturn<Change> {
     const deletedAt = nextClock();
 
     const change = (yield* changesSlice.byIdAndName(
@@ -215,13 +217,15 @@ export const changesSlice = {
       changes: {},
     };
 
-    yield* insert(changesTable, [
-      {
-        ...change,
-        deletedAt,
-        updatedAt: deletedAt,
-      },
-    ]);
+    const deletedChange: Change = {
+      ...change,
+      deletedAt,
+      updatedAt: deletedAt,
+    };
+
+    yield* insert(changesTable, [deletedChange]);
+
+    return deletedChange;
   }),
 
   mergeChanges: action(function* (
