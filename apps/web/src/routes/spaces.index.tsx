@@ -74,6 +74,12 @@ function SpacePageComponent() {
     e.preventDefault();
     e.stopPropagation();
 
+    const ok = window.confirm(
+      `Are you sure you want to delete space "${spaceName}"? This action cannot be undone.`,
+    );
+
+    if (!ok) return;
+
     dispatch(spaceSlice.deleteSpace(spaceId));
   };
 
