@@ -7,7 +7,7 @@ import {
   dailyListsSlice,
   dailyListsProjectionsSlice,
   inboxId,
-} from "@will-be-done/slices";
+} from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";

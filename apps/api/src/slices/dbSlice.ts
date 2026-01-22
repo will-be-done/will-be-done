@@ -1,4 +1,11 @@
-import { runQuery, table, selectFrom, selector } from "@will-be-done/hyperdb";
+import {
+  runQuery,
+  table,
+  selectFrom,
+  selector,
+  action,
+  insert,
+} from "@will-be-done/hyperdb";
 import { GenReturn } from "@will-be-done/slices";
 
 export type Db = {
@@ -24,5 +31,29 @@ export const dbSlice = {
     );
 
     return dbs[0];
+  }),
+  getByIdOrCreate: action(function* (
+    id: string,
+    type: "user" | "space",
+    userId: string,
+  ): GenReturn<Db> {
+    const db = yield* dbSlice.getById(id, type);
+    if (db) {
+      if (db.userId !== userId) {
+        throw new Error("User does not have access to this db");
+      }
+
+      return db;
+    }
+
+    const newDb: Db = {
+      id,
+      type,
+      userId: userId,
+    };
+
+    yield* insert(dbsTable, [newDb]);
+
+    return newDb;
   }),
 };

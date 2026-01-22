@@ -8,7 +8,7 @@ import {
   table,
 } from "@will-be-done/hyperdb";
 import { uuidv7 } from "uuidv7";
-import type { GenReturn } from "@will-be-done/slices/src/slices/utils";
+import type { GenReturn } from "@will-be-done/slices";
 
 export type User = {
   id: string;
@@ -37,7 +37,9 @@ export const tokensTable = table<Token>("tokens").withIndexes({
 
 export const authSlice = {
   // Selectors
-  getUserByEmail: selector(function* (email: string): GenReturn<User | undefined> {
+  getUserByEmail: selector(function* (
+    email: string,
+  ): GenReturn<User | undefined> {
     const users = yield* runQuery(
       selectFrom(usersTable, "byEmail")
         .where((q) => q.eq("email", email))
@@ -67,7 +69,7 @@ export const authSlice = {
   // Actions
   register: action(function* (
     email: string,
-    hashedPassword: string
+    hashedPassword: string,
   ): GenReturn<{ userId: string; token: string }> {
     // Check if user exists
     const existing = yield* authSlice.getUserByEmail(email);
@@ -102,7 +104,7 @@ export const authSlice = {
   }),
 
   generateToken: action(function* (
-    userId: string
+    userId: string,
   ): GenReturn<{ userId: string; token: string }> {
     // Generate token
     const tokenId = uuidv7();
@@ -117,9 +119,7 @@ export const authSlice = {
     return { userId, token: tokenId };
   }),
 
-  validateToken: action(function* (
-    tokenId: string
-  ): GenReturn<User | null> {
+  validateToken: action(function* (tokenId: string): GenReturn<User | null> {
     const token = yield* authSlice.getTokenById(tokenId);
     if (!token) {
       return null;
@@ -135,8 +135,7 @@ export const authSlice = {
 
   revokeAllUserTokens: action(function* (userId: string): GenReturn<void> {
     const tokens = yield* runQuery(
-      selectFrom(tokensTable, "byUserId")
-        .where((q) => q.eq("userId", userId))
+      selectFrom(tokensTable, "byUserId").where((q) => q.eq("userId", userId)),
     );
     const tokenIds = tokens.map((t) => t.id);
     if (tokenIds.length > 0) {

@@ -5,16 +5,20 @@ import {
   SqlDriver,
   SubscribableDB,
   syncDispatch,
+  TableDefinition,
 } from "@will-be-done/hyperdb";
 import path from "path";
-import {
-  changesSlice,
-  changesTable,
-  registeredSyncableTables,
-} from "@will-be-done/slices";
+import { changesSlice, changesTable } from "@will-be-done/slices/common";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { usersTable, tokensTable } from "../slices/authSlice";
-import { spacesTable } from "../slices/spaceSlice";
+import { dbsTable } from "../slices/dbSlice";
+
+export interface DBConfig {
+  dbId: string;
+  dbType: "user" | "space";
+  persistDBTables: TableDefinition[];
+  tableNameMap: Record<string, TableDefinition>;
+}
 
 const initClock = (clientId: string) => {
   let now = Date.now();
@@ -34,7 +38,9 @@ const initClock = (clientId: string) => {
   };
 };
 
-const getDB = (dbName: string) => {
+const getDB = (dbType: string, dbId: string) => {
+  const dbName = dbType + "-" + dbId;
+
   const dbPath = path.join(__dirname, "..", "..", "dbs", dbName + ".sqlite");
   console.log("Loading database...", dbPath);
   const sqliteDB = new Database(dbPath, { strict: true });
@@ -72,37 +78,39 @@ const getDB = (dbName: string) => {
 };
 
 let mainDB: DB | undefined = undefined;
-export const getMainDB = () => {
+export const getMainHyperDB = () => {
   if (mainDB) {
     return mainDB;
   }
 
-  const db = getDB("main");
+  const db = getDB("main", "main");
 
-  execSync(db.loadTables([usersTable, tokensTable, spacesTable]));
+  execSync(db.loadTables([usersTable, tokensTable, dbsTable]));
 
   mainDB = db;
   return db;
 };
 
-const todoDBs: Map<
+const dbs: Map<
   string,
   {
+    dbConfig: DBConfig;
     db: SubscribableDB;
     nextClock: () => string;
     clientId: string;
   }
 > = new Map();
 
-export const getTodoDB = (dbName: string) => {
-  const db = todoDBs.get(dbName);
+export const getHyperDB = (dbConfig: DBConfig) => {
+  const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
+  const db = dbs.get(dbName);
   if (db) {
     return db;
   }
 
   const clientId = "server-" + dbName;
   const nextClock = initClock(clientId);
-  const hyperDB = new SubscribableDB(getDB(dbName));
+  const hyperDB = new SubscribableDB(getDB(dbConfig.dbType, dbConfig.dbId));
 
   hyperDB.afterInsert(function* (db, table, traits, ops) {
     if (table === changesTable) return;
@@ -168,14 +176,15 @@ export const getTodoDB = (dbName: string) => {
     yield* noop();
   });
 
-  execSync(hyperDB.loadTables([...registeredSyncableTables, changesTable]));
+  execSync(hyperDB.loadTables(dbConfig.persistDBTables));
 
   const res = {
     db: hyperDB,
+    dbConfig: dbConfig,
     nextClock,
     clientId,
   };
-  todoDBs.set(dbName, res);
+  dbs.set(dbName, res);
 
   return res;
 };

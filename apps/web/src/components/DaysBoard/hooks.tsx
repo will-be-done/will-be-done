@@ -1,5 +1,5 @@
 import { State } from "@/utils/State.ts";
-import { getDMY } from "@will-be-done/slices";
+import { getDMY } from "@will-be-done/slices/space";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";

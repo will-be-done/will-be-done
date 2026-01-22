@@ -14,8 +14,6 @@ import { isEqual } from "es-toolkit";
 import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
-import { registeredSpaceSyncableTableNameMap } from "./syncMap";
-import { AnyModel } from "./maps";
 
 export type Change = {
   id: string;
@@ -57,6 +55,7 @@ export const changesSlice = {
   }),
   getChangesetAfter: selector(function* (
     after: string,
+    registeredSyncableTableNameMap: Record<string, TableDefinition>,
   ): GenReturn<{ changesets: ChangesetArrayType; maxClock: string }> {
     const changesToSend = yield* changesSlice.allChangesAfter(after);
     const changesets: ChangesetArrayType = [];
@@ -75,7 +74,7 @@ export const changesSlice = {
     const groupedChanges = groupBy(changesToSend, (c) => c.tableName);
 
     for (const [tableName, changes] of Object.entries(groupedChanges)) {
-      const table = registeredSpaceSyncableTableNameMap[tableName];
+      const table = registeredSyncableTableNameMap[tableName];
       if (!table) {
         console.error("Unknown table, skipping sync for it", tableName);
         continue;
@@ -229,6 +228,7 @@ export const changesSlice = {
     input: ChangesetArrayType,
     nextClock: () => string,
     clientId: string,
+    registeredSyncableTableNameMap: Record<string, TableDefinition>,
   ) {
     const allChanges: Change[] = [];
 
@@ -237,7 +237,7 @@ export const changesSlice = {
       const toUpdateRows: Row[] = [];
       const toInsertRows: Row[] = [];
 
-      const table = registeredSpaceSyncableTableNameMap[changeset.tableName];
+      const table = registeredSyncableTableNameMap[changeset.tableName];
       if (!table) {
         throw new Error("Unknown table: " + changeset.tableName);
       }
@@ -317,8 +317,8 @@ export const changesSlice = {
         });
       }
 
-      yield* insert(table, toInsertRows as AnyModel[]);
-      yield* update(table, toUpdateRows as AnyModel[]);
+      yield* insert(table, toInsertRows);
+      yield* update(table, toUpdateRows);
       yield* deleteRows(table, toDeleteRows);
     }
 

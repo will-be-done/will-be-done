@@ -19,7 +19,7 @@ import {
   TaskTemplate,
   cardsTaskTemplatesSlice,
 } from "./cardsTaskTemplates";
-import { registerSyncableTable } from "./syncMap";
+import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { projectCategoriesSlice } from "./projectsCategories";
@@ -72,7 +72,7 @@ export const tasksTable = table<Task>("tasks").withIndexes({
     type: "hash",
   },
 });
-registerSyncableTable(tasksTable, taskType);
+registerSpaceSyncableTable(tasksTable, taskType);
 
 // Slice - imports are at the bottom to avoid circular dependency issues
 export const cardsTasksSlice = {

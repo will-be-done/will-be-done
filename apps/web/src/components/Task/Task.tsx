@@ -34,7 +34,7 @@ import {
   cardsTasksSlice,
   dailyListsProjectionsSlice,
   CardWrapperType,
-} from "@will-be-done/slices";
+} from "@will-be-done/slices/space";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   buildFocusKey,
@@ -44,7 +44,7 @@ import {
   parseColumnKey,
 } from "@/store/focusSlice.ts";
 import { Checkbox } from "@base-ui-components/react/checkbox";
-import { projectCategoryCardsSlice } from "@will-be-done/slices";
+import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";

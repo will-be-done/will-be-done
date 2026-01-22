@@ -7,7 +7,7 @@ import {
 } from "./trpc";
 import { syncDispatch, select } from "@will-be-done/hyperdb";
 import * as dotenv from "dotenv";
-import { ChangesetArray, changesSlice } from "@will-be-done/slices";
+import { ChangesetArray, changesSlice } from "@will-be-done/slices/common";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
 import multipart from "@fastify/multipart";
@@ -17,21 +17,53 @@ import {
   fastifyTRPCPlugin,
   type FastifyTRPCPluginOptions,
 } from "@trpc/server/adapters/fastify";
-import { getTodoDB, getMainDB } from "./db/db";
+import { getHyperDB, getMainHyperDB } from "./db/db";
 import { authSlice } from "./slices/authSlice";
-import { spaceSlice } from "./slices/spaceSlice";
 import { TRPCError } from "@trpc/server";
+import { dbSlice } from "./slices/dbSlice";
+import { assertUnreachable } from "./utils";
+import { dbConfigByType } from "./db/configs";
 
 dotenv.config();
 
-const mainDB = getMainDB();
+const mainDB = getMainHyperDB();
+
+const checkDBAccessOrCreateDB = (
+  dbId: string,
+  dbType: "user" | "space",
+  authedUserId: string,
+) => {
+  if (dbType === "user") {
+    if (authedUserId !== dbId) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Access denied to user",
+      });
+    }
+  } else if (dbType === "space") {
+    const db = syncDispatch(
+      mainDB,
+      dbSlice.getByIdOrCreate(dbId, dbType, authedUserId),
+    );
+
+    if (db.userId !== authedUserId) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Access denied to space",
+      });
+    }
+  } else {
+    assertUnreachable(dbType);
+  }
+};
 
 const appRouter = router({
   getChangesAfter: protectedProcedure
     .input(
       z.object({
         lastServerUpdatedAt: z.string(),
-        spaceId: z.string(),
+        dbId: z.string(),
+        dbType: z.union([z.literal("user"), z.literal("space")]),
       }),
     )
     .query(async (opts) => {
@@ -39,26 +71,28 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      // Check if user has access to the space
-      const space = select(mainDB, spaceSlice.getSpaceById(opts.input.spaceId));
-      if (!space || space.userId !== opts.ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Access denied to space",
-        });
-      }
+      checkDBAccessOrCreateDB(
+        opts.input.dbId,
+        opts.input.dbType,
+        opts.ctx.user.id,
+      );
 
-      const { db } = getTodoDB(opts.input.spaceId);
+      const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
+      const { db } = getHyperDB(config);
 
       return select(
         db,
-        changesSlice.getChangesetAfter(opts.input.lastServerUpdatedAt),
+        changesSlice.getChangesetAfter(
+          opts.input.lastServerUpdatedAt,
+          config.tableNameMap,
+        ),
       );
     }),
   handleChanges: protectedProcedure
     .input(
       z.object({
-        spaceId: z.string(),
+        dbId: z.string(),
+        dbType: z.union([z.literal("user"), z.literal("space")]),
         changeset: ChangesetArray,
       }),
     )
@@ -67,20 +101,24 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      // Check if user has access to the space
-      const space = select(mainDB, spaceSlice.getSpaceById(opts.input.spaceId));
-      if (!space || space.userId !== opts.ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Access denied to space",
-        });
-      }
+      checkDBAccessOrCreateDB(
+        opts.input.dbId,
+        opts.input.dbType,
+        opts.ctx.user.id,
+      );
 
-      const { db, nextClock, clientId } = getTodoDB(opts.input.spaceId);
+      const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
+
+      const { db, nextClock, clientId } = getHyperDB(config);
 
       syncDispatch(
         db.withTraits({ type: "skip-sync" }),
-        changesSlice.mergeChanges(opts.input.changeset, nextClock, clientId),
+        changesSlice.mergeChanges(
+          opts.input.changeset,
+          nextClock,
+          clientId,
+          config.tableNameMap,
+        ),
       );
     }),
 
@@ -138,94 +176,6 @@ const appRouter = router({
       const result = syncDispatch(mainDB, authSlice.generateToken(user.id));
 
       return result;
-    }),
-
-  createSpace: protectedProcedure
-    .input(
-      z.object({
-        name: z.string().min(1),
-      }),
-    )
-    .mutation(async (opts) => {
-      if (!opts.ctx.user) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
-
-      const space = syncDispatch(
-        mainDB,
-        spaceSlice.createSpace(opts.ctx.user.id, opts.input.name),
-      );
-
-      return space;
-    }),
-
-  listSpaces: protectedProcedure.query(async (opts) => {
-    if (!opts.ctx.user) {
-      throw new TRPCError({ code: "UNAUTHORIZED" });
-    }
-
-    const spaces = select(
-      mainDB,
-      spaceSlice.listSpacesByUserId(opts.ctx.user.id),
-    );
-
-    return spaces;
-  }),
-
-  updateSpace: protectedProcedure
-    .input(
-      z.object({
-        id: z.string(),
-        name: z.string().min(1),
-      }),
-    )
-    .mutation(async (opts) => {
-      if (!opts.ctx.user) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
-
-      const space = syncDispatch(
-        mainDB,
-        spaceSlice.updateSpace(opts.input.id, opts.input.name),
-      );
-
-      if (!space) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Space not found" });
-      }
-
-      return space;
-    }),
-
-  deleteSpace: protectedProcedure
-    .input(
-      z.object({
-        id: z.string(),
-      }),
-    )
-    .mutation(async (opts) => {
-      if (!opts.ctx.user) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
-
-      // Check if user has access to the space
-      const space = select(mainDB, spaceSlice.getSpaceById(opts.input.id));
-      if (!space || space.userId !== opts.ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Access denied to space",
-        });
-      }
-
-      const success = syncDispatch(
-        mainDB,
-        spaceSlice.deleteSpace(opts.input.id),
-      );
-
-      if (!success) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Space not found" });
-      }
-
-      return { success: true };
     }),
 });
 

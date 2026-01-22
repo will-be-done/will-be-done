@@ -18,12 +18,15 @@ import { appSlice } from "./app";
 import { projectsAllSlice } from "./projectsAll";
 import { isTask, Task, cardsTasksSlice } from "./cardsTasks";
 import { isTaskTemplate, cardsTaskTemplatesSlice } from "./cardsTaskTemplates";
-import { registerSyncableTable } from "./syncMap";
+import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
 import { projectCategoriesSlice } from "./projectsCategories";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { dailyListsSlice } from "./dailyLists";
-import { dailyListsProjectionsSlice, isTaskProjection } from "./dailyListsProjections";
+import {
+  dailyListsProjectionsSlice,
+  isTaskProjection,
+} from "./dailyListsProjections";
 
 // Type definitions
 export const projectType = "project";
@@ -56,7 +59,7 @@ export const projectsTable = table<Project>("projects").withIndexes({
   byOrderToken: { cols: ["orderToken"], type: "btree" },
   byIsInbox: { cols: ["isInbox"], type: "hash" },
 });
-registerSyncableTable(projectsTable, projectType);
+registerSpaceSyncableTable(projectsTable, projectType);
 
 // Slice (will be populated after all slices are defined to avoid circular dependencies)
 export const projectsSlice = {
@@ -299,7 +302,11 @@ export const projectsSlice = {
       }
 
       yield* projectsSlice.update(dropItem.id, { orderToken });
-    } else if (isTask(dropItem) || isTaskTemplate(dropItem) || isTaskProjection(dropItem)) {
+    } else if (
+      isTask(dropItem) ||
+      isTaskTemplate(dropItem) ||
+      isTaskProjection(dropItem)
+    ) {
       const category = yield* projectCategoriesSlice.firstChild(project.id);
       if (!category) throw new Error("No categories found in project");
 

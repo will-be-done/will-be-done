@@ -1,7 +1,6 @@
 import SQLiteAsyncESMFactory from "wa-sqlite/dist/wa-sqlite-async.mjs";
 import { nanoid } from "nanoid";
 import {
-  action,
   asyncDispatch,
   AsyncSqlDriver,
   BptreeInmemDriver,
@@ -14,11 +13,9 @@ import {
   runQuery,
   runSelectorAsync,
   selectFrom,
-  selector,
   SubscribableDB,
   syncDispatch,
-  table,
-  update,
+  TableDefinition,
 } from "@will-be-done/hyperdb";
 import AwaitLock from "await-lock";
 import asyncSqlWasmUrl from "wa-sqlite/dist/wa-sqlite-async.wasm?url";
@@ -27,12 +24,10 @@ import { IDBBatchAtomicVFS } from "wa-sqlite/src/examples/IDBBatchAtomicVFS.js";
 import {
   changesSlice,
   changesTable,
-  projectsSlice,
   Change,
   ChangesetArrayType,
-  registeredSyncableTables,
-  registeredSyncableTableNameMap,
-} from "@will-be-done/slices";
+  syncSlice,
+} from "@will-be-done/slices/common";
 import * as SQLite from "wa-sqlite";
 import {
   BroadcastChannel,
@@ -42,6 +37,16 @@ import {
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
 import { focusTable } from "./focusSlice.ts";
 import { trpcClient } from "@/lib/trpc.ts";
+
+export interface SyncConfig {
+  dbId: string;
+  dbType: "user" | "space";
+  persistDBTables: TableDefinition[];
+  inmemDBTables: TableDefinition[];
+  syncableDBTables: TableDefinition[];
+  tableNameMap: Record<string, TableDefinition>;
+  afterInit: (db: HyperDB) => void;
+}
 
 const initClock = (clientId: string) => {
   let now = Date.now();
@@ -61,30 +66,32 @@ const initClock = (clientId: string) => {
   };
 };
 
-const getClientId = (userId: string) => {
-  const id = localStorage.getItem("clientId-" + userId);
+const getClientId = (dbName: string) => {
+  const key = "clientId-" + dbName;
+
+  const id = localStorage.getItem(key);
 
   if (id) return id;
 
   const newId = nanoid();
-  localStorage.setItem("clientId" + userId, newId);
+  localStorage.setItem(key, newId);
 
   return newId;
 };
 
-async function initAsyncDriver(spaceId: string) {
+async function initAsyncDriver(dbName: string) {
   const module = await SQLiteAsyncESMFactory({
     locateFile: () => asyncSqlWasmUrl,
   });
 
   const sqlite3 = SQLite.Factory(module);
 
-  console.log("initAsyncDriver - spaceId", spaceId);
+  console.log("initAsyncDriver - spaceId", dbName);
 
-  const vfs = await IDBBatchAtomicVFS.create("task-db-" + spaceId, module);
+  const vfs = await IDBBatchAtomicVFS.create("db-" + dbName, module);
   sqlite3.vfs_register(vfs, true);
 
-  const db = await sqlite3.open_v2("task-db-" + spaceId);
+  const db = await sqlite3.open_v2("db-" + dbName);
 
   await sqlite3.exec(db, `PRAGMA cache_size=5000;`);
   await sqlite3.exec(db, `PRAGMA journal_mode=DELETE;`);
@@ -105,43 +112,6 @@ async function initAsyncDriver(spaceId: string) {
 
   return new AsyncSqlDriver(sqlite3, db);
 }
-
-export type SyncState = {
-  id: string;
-  lastSentClock: string;
-  lastServerAppliedClock: string;
-};
-const syncStateId = "deae72d6-ffca-4d20-9b3f-87e71acce8b6";
-export const syncStateTable = table<SyncState>("syncState").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-});
-
-type GenReturn<T> = Generator<unknown, T, unknown>;
-const syncSlice = {
-  getOrDefault: selector(function* (): GenReturn<SyncState> {
-    const currentSyncState = (yield* runQuery(
-      selectFrom(syncStateTable, "byId").where((q) => q.eq("id", syncStateId)),
-    ))[0];
-
-    return (
-      currentSyncState ?? {
-        id: syncStateId,
-        lastSentClock: "",
-        lastServerAppliedClock: "",
-      }
-    );
-  }),
-
-  update: action(function* (updates: Partial<SyncState>): GenReturn<SyncState> {
-    const currentSyncState = yield* syncSlice.getOrDefault();
-    return yield* update(syncStateTable, [
-      {
-        ...currentSyncState,
-        ...updates,
-      },
-    ]);
-  }),
-};
 
 // TODO: next
 // 1. Develop new sync protocol that will track changes in db
@@ -183,31 +153,24 @@ const syncSlice = {
 //
 const lock = new AwaitLock();
 const initedDbs: Record<string, SubscribableDB> = {};
-export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
+export const initDbStore = async (
+  syncConfig: SyncConfig,
+): Promise<SubscribableDB> => {
+  const dbName = syncConfig.dbType + "-" + syncConfig.dbId;
+
   await lock.acquireAsync();
   try {
-    if (initedDbs[spaceId]) {
-      return initedDbs[spaceId];
+    if (initedDbs[dbName]) {
+      return initedDbs[dbName];
     }
-    const asyncDriver = await initAsyncDriver(spaceId);
+    const asyncDriver = await initAsyncDriver(dbName);
     const asyncDB = new DB(asyncDriver);
 
-    await execAsync(
-      asyncDB.loadTables([
-        ...registeredSyncableTables,
-        changesTable,
-        syncStateTable,
-      ]),
-    );
+    await execAsync(asyncDB.loadTables(syncConfig.persistDBTables));
 
     const syncDB = new DB(new BptreeInmemDriver());
-    execSync(
-      syncDB.loadTables([
-        ...registeredSyncableTables,
-        changesTable,
-        focusTable,
-      ]),
-    );
+
+    execSync(syncDB.loadTables(syncConfig.inmemDBTables));
 
     const syncSubDb = new SubscribableDB(syncDB);
     syncSubDb.afterInsert(function* (db, table, traits, ops) {
@@ -222,7 +185,7 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
           changesSlice.insertChangeFromInsert(
             op.table,
             op.newValue,
-            getClientId(spaceId),
+            getClientId(dbName),
             nextClock,
           ),
         );
@@ -244,7 +207,7 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
             op.table,
             op.oldValue,
             op.newValue,
-            getClientId(spaceId),
+            getClientId(dbName),
             nextClock,
           ),
         );
@@ -265,7 +228,7 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
           changesSlice.insertChangeFromDelete(
             op.table,
             op.oldValue,
-            getClientId(spaceId),
+            getClientId(dbName),
             nextClock,
           ),
         );
@@ -273,14 +236,11 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
 
       yield* noop();
     });
-    // TODO:
-    // 1. DONE add support afterUpdate and afterDelete
-    // 2. DONE merge backend receiving changesets with in-memory db
 
-    const clientId = getClientId(spaceId);
+    const clientId = getClientId(dbName);
     const nextClock = initClock(clientId);
 
-    for (const table of registeredSyncableTables) {
+    for (const table of syncConfig.syncableDBTables) {
       const res = await runSelectorAsync(asyncDB, function* () {
         return yield* runQuery(selectFrom(table, "byIds"));
       });
@@ -315,7 +275,7 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
               changesSlice.insertChangeFromInsert(
                 op.table,
                 op.newValue,
-                getClientId(spaceId),
+                getClientId(dbName),
                 nextClock,
               ),
             );
@@ -327,7 +287,7 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
                 op.table,
                 op.oldValue,
                 op.newValue,
-                getClientId(spaceId),
+                getClientId(dbName),
                 nextClock,
               ),
             );
@@ -338,7 +298,7 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
               changesSlice.insertChangeFromDelete(
                 op.table,
                 op.oldValue,
-                getClientId(spaceId),
+                getClientId(dbName),
                 nextClock,
               ),
             );
@@ -349,18 +309,7 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
       })();
     });
 
-    new Syncer(asyncDB, getClientId(spaceId), spaceId, nextClock, (e) => {
-      syncDispatch(
-        syncSubDb.withTraits({ type: "skip-sync" }),
-        changesSlice.mergeChanges(e.changeset, nextClock, getClientId(spaceId)),
-      );
-
-      void bc.postMessage(e);
-    }).startLoop();
-
-    syncDispatch(syncSubDb, projectsSlice.createInboxIfNotExists());
-
-    const bc = new BroadcastChannel(`changes-${getClientId(spaceId)}`);
+    const bc = new BroadcastChannel(`changes-${getClientId(dbName)}`);
 
     bc.onmessage = async (ev) => {
       const data = ev as ChangePersistedEvent;
@@ -370,22 +319,29 @@ export const initDbStore = async (spaceId: string): Promise<SubscribableDB> => {
         changesSlice.mergeChanges(
           data.changeset,
           nextClock,
-          getClientId(spaceId),
+          getClientId(dbName),
+          syncConfig.tableNameMap,
         ),
       );
     };
 
-    // void (async () => {
-    //   while (true) {
-    //     syncDispatch(
-    //       syncSubDb,
-    //       taskTemplatesSlice2.genTasksAndProjections(new Date()),
-    //     );
-    //     await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
-    //   }
-    // })();
+    new Syncer(asyncDB, getClientId(dbName), syncConfig, nextClock, (e) => {
+      syncDispatch(
+        syncSubDb.withTraits({ type: "skip-sync" }),
+        changesSlice.mergeChanges(
+          e.changeset,
+          nextClock,
+          getClientId(dbName),
+          syncConfig.tableNameMap,
+        ),
+      );
 
-    initedDbs[spaceId] = syncSubDb;
+      void bc.postMessage(e);
+    }).startLoop();
+
+    syncConfig.afterInit(syncSubDb);
+
+    initedDbs[dbName] = syncSubDb;
 
     return syncSubDb;
   } finally {
@@ -402,17 +358,17 @@ class Syncer {
   private elector: LeaderElector;
   private runId = 0;
   private clientId: string;
-  private spaceId: string;
+  private syncConfig: SyncConfig;
 
   constructor(
     private persistentDB: HyperDB,
     clientId: string,
-    spaceId: string,
+    syncConfig: SyncConfig,
     private nextClock: () => string,
     private afterChangesPersisted: (e: ChangePersistedEvent) => void,
   ) {
     this.clientId = clientId;
-    this.spaceId = spaceId;
+    this.syncConfig = syncConfig;
     this.electionChannel = new BroadcastChannel("election-" + clientId);
     this.elector = createLeaderElection(this.electionChannel);
   }
@@ -455,12 +411,10 @@ class Syncer {
       syncSlice.getOrDefault(),
     );
     const serverChanges = await trpcClient.getChangesAfter.query({
-      spaceId: this.spaceId,
       lastServerUpdatedAt: syncState.lastServerAppliedClock,
+      dbId: this.syncConfig.dbId,
+      dbType: this.syncConfig.dbType,
     });
-    // TODO: apply change to in-memory db too
-    // maybe need to merge changes in-memory and in async db on client too?
-
     // TODO: make server to not return changes of current client, otherwise
     // it will ruin real time editing experience.
 
@@ -479,6 +433,7 @@ class Syncer {
       (function* () {
         const { changesets } = yield* changesSlice.getChangesetAfter(
           syncState.lastSentClock,
+          that.syncConfig.tableNameMap,
         );
         if (changesets.length !== 0) {
           console.log(
@@ -497,7 +452,7 @@ class Syncer {
           // const toUpdateRows: AppSyncableModel[] = [];
           const toInsertRows: { id: string; [key: string]: unknown }[] = [];
 
-          const table = registeredSyncableTableNameMap[changeset.tableName];
+          const table = that.syncConfig.tableNameMap[changeset.tableName];
           if (!table) {
             throw new Error("Unknown table: " + changeset.tableName);
           }
@@ -551,6 +506,8 @@ class Syncer {
   }
 
   private async sendChangesToServer() {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const that = this;
     const { changesets, maxClock } = await asyncDispatch(
       this.persistentDB,
       (function* () {
@@ -564,6 +521,7 @@ class Syncer {
 
         const { changesets, maxClock } = yield* changesSlice.getChangesetAfter(
           currentSyncState.lastSentClock,
+          that.syncConfig.tableNameMap,
         );
 
         console.log("new client changes", changesets, maxClock);
@@ -579,7 +537,8 @@ class Syncer {
     console.log("sending changes to server", changesets, maxClock);
 
     await trpcClient.handleChanges.mutate({
-      spaceId: this.spaceId,
+      dbId: this.syncConfig.dbId,
+      dbType: this.syncConfig.dbType,
       changeset: changesets,
     });
     await asyncDispatch(

@@ -19,7 +19,7 @@ import {
   isTaskProjection,
 } from "./dailyListsProjections";
 import { AnyModelType } from "./maps";
-import { registerSyncableTable } from "./syncMap";
+import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectsSlice } from "./projects";
 
@@ -46,7 +46,7 @@ export const dailyListsTable = table<DailyList>("daily_lists").withIndexes({
   byIds: { cols: ["id"], type: "btree" },
   byDate: { cols: ["date"], type: "hash" },
 });
-registerSyncableTable(dailyListsTable, dailyListType);
+registerSpaceSyncableTable(dailyListsTable, dailyListType);
 
 // Slice
 export const dailyListsSlice = {
@@ -213,7 +213,11 @@ export const dailyListsSlice = {
       ];
     }
 
-    yield* dailyListsProjectionsSlice.addToDailyList(task.id, dailyListId, position);
+    yield* dailyListsProjectionsSlice.addToDailyList(
+      task.id,
+      dailyListId,
+      position,
+    );
 
     return yield* cardsTasksSlice.byIdOrDefault(task.id);
   }),

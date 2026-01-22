@@ -15,7 +15,7 @@ import {
 } from "./utils";
 import { isObjectType } from "../utils";
 import { registerModelSlice, AnyModelType } from "./maps";
-import { registerSyncableTable } from "./syncMap";
+import { registerSpaceSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
 import { defaultProject, Project, projectsSlice } from "./projects";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
@@ -51,7 +51,7 @@ export const projectCategoriesTable = table<ProjectCategory>(
     type: "btree",
   },
 });
-registerSyncableTable(projectCategoriesTable, projectCategoryType);
+registerSpaceSyncableTable(projectCategoriesTable, projectCategoryType);
 
 export const defaultProjectCategory: ProjectCategory = {
   type: projectCategoryType,
