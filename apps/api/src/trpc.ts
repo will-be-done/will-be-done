@@ -15,7 +15,30 @@ export interface Context {
 }
 
 /**
- * Create context for each request
+ * Shared context creation from auth token
+ */
+function createContextFromToken(authHeader?: string): Context {
+  const mainDB = getMainHyperDB();
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return { user: null };
+  }
+
+  const token = authHeader.slice(7); // Remove "Bearer "
+
+  try {
+    const user = syncDispatch(mainDB, authSlice.validateToken(token));
+    return { user };
+  } catch (error) {
+    console.error("Token validation error:", error);
+    return { user: null };
+  }
+}
+
+/**
+ * Create context for requests (HTTP and WebSocket)
+ * For HTTP: token comes from Authorization header
+ * For WebSocket: token comes from URL query parameter
  */
 export async function createContext({
   req,
@@ -23,31 +46,19 @@ export async function createContext({
   req: FastifyRequest;
   res: FastifyReply;
 }): Promise<Context> {
-  const mainDB = getMainHyperDB();
-
-  async function getUserFromHeader() {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return null;
-    }
-
-    const token = authHeader.slice(7); // Remove "Bearer "
-
-    try {
-      const user = syncDispatch(mainDB, authSlice.validateToken(token));
-      return user;
-    } catch (error) {
-      console.error("Token validation error:", error);
-      return null;
-    }
+  // First try Authorization header (HTTP requests)
+  if (req.headers.authorization) {
+    return createContextFromToken(req.headers.authorization);
   }
 
-  const user = await getUserFromHeader();
+  // Then try URL query parameter (WebSocket connections)
+  const url = new URL(req.url || "", "http://localhost");
+  const token = url.searchParams.get("token");
+  if (token) {
+    return createContextFromToken(`Bearer ${token}`);
+  }
 
-  return {
-    user,
-  };
+  return { user: null };
 }
 
 /**

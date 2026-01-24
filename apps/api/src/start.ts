@@ -11,6 +11,7 @@ import { ChangesetArray, changesSlice } from "@will-be-done/slices/common";
 import fastify from "fastify";
 import staticPlugin from "@fastify/static";
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 import path from "path";
 import fs from "fs";
 import {
@@ -23,6 +24,11 @@ import { TRPCError } from "@trpc/server";
 import { dbSlice } from "./slices/dbSlice";
 import { assertUnreachable } from "./utils";
 import { dbConfigByType } from "./db/configs";
+import {
+  subscriptionManager,
+  NotificationData,
+} from "./subscriptionManager";
+import { State } from "./utils/State";
 
 dotenv.config();
 
@@ -120,6 +126,61 @@ const appRouter = router({
           config.tableNameMap,
         ),
       );
+
+      // Notify all subscribed clients that changes are available
+      subscriptionManager.notifyChangesAvailable(
+        opts.input.dbId,
+        opts.input.dbType,
+      );
+    }),
+
+  // Subscription for real-time change notifications
+  onChangesAvailable: protectedProcedure
+    .input(
+      z.object({
+        dbId: z.string(),
+        dbType: z.union([z.literal("user"), z.literal("space")]),
+      }),
+    )
+    .subscription(async function* (opts) {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      // Verify access to the database
+      checkDBAccessOrCreateDB(
+        opts.input.dbId,
+        opts.input.dbType,
+        opts.ctx.user.id,
+      );
+
+      // Each subscription gets its own State to collect notifications
+      const state = new State<NotificationData[]>([]);
+
+      // Subscribe to EventEmitter and push to our local State
+      const unsubscribe = subscriptionManager.subscribe(
+        opts.input.dbId,
+        opts.input.dbType,
+        (data) => {
+          state.modify((notifications) => [...notifications, data]);
+        },
+      );
+
+      try {
+        while (true) {
+          const notifications = state.get();
+          state.set([]);
+
+          for (const notification of notifications) {
+            yield notification;
+          }
+
+          // Wait for new notifications
+          await state.newEmitted();
+        }
+      } finally {
+        unsubscribe();
+      }
     }),
 
   revokeToken: protectedProcedure
@@ -183,6 +244,9 @@ const server = fastify({
   logger: true,
   bodyLimit: 100485760,
 });
+
+// Register WebSocket plugin BEFORE tRPC plugin
+server.register(websocket);
 
 server.register(staticPlugin, {
   root: path.join(__dirname, "..", "public"),
