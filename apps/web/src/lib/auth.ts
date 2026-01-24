@@ -1,3 +1,5 @@
+import { resetWsClient } from "./trpc";
+
 const AUTH_TOKEN_KEY = "auth_token";
 const USER_ID_KEY = "user_id";
 const LAST_USED_SPACE_ID_KEY = "space_id";
@@ -38,6 +40,8 @@ export const authUtils = {
     authUtils.removeToken();
     authUtils.removeUserId();
     authUtils.removeLastUsedSpaceId();
+    // Reset WebSocket to force reconnection with new auth state
+    resetWsClient();
   },
 
   isAuthenticated: (): boolean => {

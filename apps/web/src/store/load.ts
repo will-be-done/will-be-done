@@ -37,6 +37,7 @@ import {
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
 import { focusTable } from "./focusSlice.ts";
 import { trpcClient } from "@/lib/trpc.ts";
+import { State } from "@/utils/State.ts";
 
 export interface SyncConfig {
   dbId: string;
@@ -213,6 +214,25 @@ export const initDbStore = async (
 
     const bc = new BroadcastChannel(`changes-${getClientId(dbName)}`);
 
+    // Create syncer early so we can reference it in the subscribe callback
+    const syncer = new Syncer(
+      asyncDB,
+      getClientId(dbName),
+      syncConfig,
+      nextClock,
+      (e) => {
+        syncDispatch(
+          syncSubDb.withTraits({ type: "skip-sync" }),
+          changesSlice.mergeChanges(
+            e.changeset,
+            nextClock,
+            getClientId(dbName),
+            syncConfig.tableNameMap,
+          ),
+        );
+      },
+    );
+
     syncSubDb.subscribe((ops, traits) => {
       ops = ops.filter(
         (op) => op.table !== changesTable && op.table !== focusTable,
@@ -297,6 +317,9 @@ export const initDbStore = async (
         if (changeset.length > 0) {
           void bc.postMessage({ changeset } satisfies ChangePersistedEvent);
         }
+
+        // Notify syncer that local changes are persisted to trigger immediate sync
+        syncer.forceSync();
       })();
     });
 
@@ -314,17 +337,7 @@ export const initDbStore = async (
       );
     };
 
-    new Syncer(asyncDB, getClientId(dbName), syncConfig, nextClock, (e) => {
-      syncDispatch(
-        syncSubDb.withTraits({ type: "skip-sync" }),
-        changesSlice.mergeChanges(
-          e.changeset,
-          nextClock,
-          getClientId(dbName),
-          syncConfig.tableNameMap,
-        ),
-      );
-    }).startLoop();
+    syncer.startLoop();
 
     syncConfig.afterInit(syncSubDb);
 
@@ -346,6 +359,11 @@ class Syncer {
   private runId = 0;
   private clientId: string;
   private syncConfig: SyncConfig;
+  private wsUnsubscribe: (() => void) | null = null;
+
+  // State-based sync triggers - emit to wake up the sync loop
+  private wsNotification = new State<number>(0);
+  private forceSyncNotification = new State<number>(0);
 
   constructor(
     private persistentDB: HyperDB,
@@ -359,24 +377,68 @@ class Syncer {
     this.electionChannel = new BroadcastChannel("election-" + clientId);
     this.elector = createLeaderElection(this.electionChannel);
   }
+
   startLoop() {
     this.elector.onduplicate = () => {
       console.log("onduplicate");
 
       this.runId++;
+      this.cleanupWebSocket();
       void this.run();
     };
 
     void this.run();
   }
 
+  /**
+   * Called when local changes are persisted to trigger immediate sync
+   */
+  forceSync() {
+    this.forceSyncNotification.set(0);
+  }
+
+  private cleanupWebSocket() {
+    if (this.wsUnsubscribe) {
+      this.wsUnsubscribe();
+      this.wsUnsubscribe = null;
+    }
+  }
+
+  private setupWebSocketSubscription() {
+    // Subscribe to change notifications via tRPC subscription
+    const subscription = trpcClient.onChangesAvailable.subscribe(
+      {
+        dbId: this.syncConfig.dbId,
+        dbType: this.syncConfig.dbType,
+      },
+      {
+        onData: () => {
+          console.log("WebSocket notification received");
+          this.wsNotification.set(0);
+        },
+        onError: (err) => {
+          console.error("WebSocket subscription error:", err);
+          // On error, emit to allow sync loop to continue
+          this.wsNotification.set(0);
+        },
+      },
+    );
+
+    this.wsUnsubscribe = subscription.unsubscribe;
+  }
+
   async run() {
     const myRunId = ++this.runId;
 
     await this.elector.awaitLeadership();
+
+    // Setup WebSocket subscription once we become leader
+    this.setupWebSocketSubscription();
+
     while (true) {
       if (this.runId !== myRunId) {
         console.log("runId !== myRunId, stopping syncer loop");
+        this.cleanupWebSocket();
         return;
       }
       try {
@@ -388,7 +450,15 @@ class Syncer {
         console.error(e);
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      // Use Promise.race between timeout, WebSocket notification, and local changes
+      const result = await Promise.race([
+        new Promise<"timeout">((resolve) =>
+          setTimeout(() => resolve("timeout"), 5000),
+        ),
+        this.wsNotification.newEmitted().then(() => "ws" as const),
+        this.forceSyncNotification.newEmitted().then(() => "local" as const),
+      ]);
+      console.log(`Sync triggered by: ${result}`);
     }
   }
 
