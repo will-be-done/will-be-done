@@ -38,7 +38,6 @@ Coming soon:
 1. Attachments and comments for tasks
 1. Global search
 1. More vim keybindings (beyond basic j/k navigation)
-1. Calendar integration
 1. Mobile-friendly UI
 1. Color and background customization per project
 
