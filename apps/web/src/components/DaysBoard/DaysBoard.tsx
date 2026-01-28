@@ -293,13 +293,14 @@ const BoardView = ({
           <div className="absolute left-0 top-0">
             <NavBar spaceId={spaceId} />
           </div>
-          <div className="absolute right-0 top-0 ">
-            <div className="flex items-center rounded-bl-lg text-sm bg-panel text-xs text-primary h-6 px-2 gap-3">
-              <Link className="[&.active]:text-accent" to="/spaces">
+          <div className="absolute right-0 top-0">
+            <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
+              <Link
+                className="transition-colors hover:text-primary"
+                to="/spaces"
+              >
                 spaces
               </Link>
-
-              <button onClick={handleSignOutClick}>sign out</button>
             </div>
           </div>
           {/* </ScrollArea.Root> */}

@@ -20,16 +20,16 @@ export const NavPanel = ({
   const spaceId = Route.useParams().spaceId;
 
   return (
-    <div className="top-0 fixed m-auto left-0 right-0 max-w-xl z-40  ">
-      <div className="bg-panel w-full mx-5 rounded-b-lg text-xs text-primary flex align-center content-center relative h-6 stroke-primary shadow-md ">
-        <div className="absolute left-1/2 -translate-x-1/2 underline decoration-dotted flex items-center justify-items-center h-full">
+    <div className="top-0 fixed m-auto left-0 right-0 max-w-xl z-40">
+      <div className="bg-surface-elevated w-full mx-5 rounded-b-lg text-[13px] text-content flex items-center relative h-8 stroke-content ring-1 ring-ring">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 h-full">
           <Link
             to="/spaces/$spaceId/timeline/$date"
             params={{
               date: format(previousDate, "yyyy-MM-dd"),
               spaceId,
             }}
-            className="cursor-pointer w-3 flex items-center justify-center h-full"
+            className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
             aria-label="Previous day"
             search={{
               projectId: selectedProjectId,
@@ -49,7 +49,7 @@ export const NavPanel = ({
               />
             </svg>
           </Link>
-          {format(selectedDate, "dd MMM yyyy")}
+          <span className="font-medium">{format(selectedDate, "dd MMM yyyy")}</span>
           <Link
             to="/spaces/$spaceId/timeline/$date"
             params={{
@@ -59,7 +59,7 @@ export const NavPanel = ({
             search={{
               projectId: selectedProjectId,
             }}
-            className="cursor-pointer w-3 flex items-center justify-center h-full"
+            className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
             aria-label="Next day"
           >
             <svg
@@ -77,15 +77,18 @@ export const NavPanel = ({
             </svg>
           </Link>
         </div>
-        <div className="ml-auto mr-1 flex">
+        <div className="ml-auto mr-2 flex gap-0.5">
           {[1, 2, 3, 4, 5, 6, 7].map((dayCount) => (
             <button
               type="button"
               key={dayCount}
               onClick={() => setDaysWindow(dayCount)}
-              className={cn(`cursor-pointer w-4 text-center `, {
-                "font-bold text-accent": dayCount == daysToShow,
-              })}
+              className={cn(
+                "cursor-pointer w-5 h-5 text-center rounded transition-all text-content-tinted hover:text-primary",
+                {
+                  "bg-accent text-white font-semibold": dayCount == daysToShow,
+                },
+              )}
             >
               {dayCount}
             </button>

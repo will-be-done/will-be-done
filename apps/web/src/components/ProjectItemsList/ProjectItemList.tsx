@@ -14,6 +14,14 @@ import {
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
 import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
+import {
+  AddLeftIcon,
+  AddRightIcon,
+  MoveLeftIcon,
+  MoveRightIcon,
+  PencilIcon,
+  TrashIcon,
+} from "@/components/ui/icons.tsx";
 
 const ProjectTasksColumn = ({
   project,
@@ -84,8 +92,9 @@ const ProjectTasksColumn = ({
       actions={
         <>
           <button
-            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
+            title="Add column to the left"
             onClick={() => {
               const title = prompt("Enter new name");
               if (!title) return;
@@ -105,11 +114,12 @@ const ProjectTasksColumn = ({
               );
             }}
           >
-            AL
+            <AddLeftIcon />
           </button>
           <button
-            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
+            title="Add column to the right"
             onClick={() => {
               const title = prompt("Enter new name");
               if (!title) return;
@@ -129,29 +139,32 @@ const ProjectTasksColumn = ({
               );
             }}
           >
-            AR
+            <AddRightIcon />
           </button>
           <button
-            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
+            title="Move column to the left"
             onClick={() => {
               dispatch(projectCategoriesSlice.moveLeft(category.id));
             }}
           >
-            ML
+            <MoveLeftIcon className="rotate-180" />
           </button>
           <button
-            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
+            title="Move column to the right"
             onClick={() => {
               dispatch(projectCategoriesSlice.moveRight(category.id));
             }}
           >
-            MR
+            <MoveRightIcon className="rotate-180" />
           </button>
           <button
-            className="hidden group-hover:block cursor-pointer text-panel mb-2"
+            className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
+            title="Delete column"
             onClick={() => {
               const confirmed = confirm(
                 "Are you sure you want to delete this project category?",
@@ -161,11 +174,12 @@ const ProjectTasksColumn = ({
               dispatch(projectCategoriesSlice.delete([category.id]));
             }}
           >
-            D
+            <TrashIcon className="rotate-180" />
           </button>
           <button
-            className="hidden group-hover:block cursor-pointer text-panel mb-6"
+            className="hidden group-hover:block cursor-pointer text-white mb-6"
             type="button"
+            title="Edit column name"
             onClick={() => {
               const newTitle = prompt("Enter new title", category.title);
               if (!newTitle) return;
@@ -177,7 +191,7 @@ const ProjectTasksColumn = ({
               );
             }}
           >
-            E
+            <PencilIcon className="rotate-180" />
           </button>
         </>
       }

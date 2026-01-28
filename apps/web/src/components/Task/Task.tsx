@@ -59,12 +59,12 @@ export function CheckboxComp({
   return (
     <Checkbox.Root
       defaultChecked
-      className="flex size-4 items-center justify-center rounded-sm bg-input border-gray-300 mt-0.5"
+      className="flex size-4 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring mt-0.5 transition-all hover:ring-ring-hover data-[checked]:bg-input-checked data-[checked]:ring-input-checked"
       tabIndex={-1}
       checked={checked}
       onCheckedChange={onChange}
     >
-      <Checkbox.Indicator className="flex text-input-checked data-[unchecked]:hidden">
+      <Checkbox.Indicator className="flex text-white data-[unchecked]:hidden">
         <CheckIcon className="size-2.5" />
       </Checkbox.Indicator>
     </Checkbox.Root>
@@ -102,18 +102,14 @@ const TaskPrimitive = ({
 }) => {
   return (
     <div
-      className={`p-3 rounded-lg border ${"border-gray-700 bg-gray-750"} shadow-md`}
+      className="p-3 rounded-lg bg-panel ring-1 ring-ring shadow-lg"
       style={style}
     >
       <div className="flex items-center gap-2">
         <div className="flex items-center justify-end">
-          <input
-            type="checkbox"
-            className="h-4 w-4 bg-gray-700 border-gray-600 rounded"
-            tabIndex={-1}
-          />
+          <div className="h-4 w-4 rounded-sm bg-input-bg ring-1 ring-ring" />
         </div>
-        <div className="font-medium text-gray-200 h-6">{title}</div>
+        <div className="font-medium text-content h-6">{title}</div>
       </div>
     </div>
   );
@@ -127,7 +123,7 @@ export const DropTaskIndicator = ({
   return (
     <div
       className={clsx(
-        "absolute left-0 right-0 bottom-0 w-full bg-panel-selected h-[2px] rounded-lg",
+        "absolute left-0 right-0 bottom-0 w-full bg-accent h-[2px] rounded-full",
         direction == "top" && "top-[-9px]",
         direction == "bottom" && "bottom-[-9px]",
       )}
@@ -639,29 +635,14 @@ export const TaskComp = ({
         data-focusable-key={focusableItem.key}
         tabIndex={0}
         className={clsx(
-          `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-3 text-sm text-content shadow-lg`,
-          // {
-          //   is
-          //   "bg-focused-panel Focus-visible:outline-focused-panel-selected":
-          //     isFocused,
-          // },
-          isFocused &&
-            (isTask(card) && card.state === "done"
-              ? "outline outline-3 outline-done-panel-selected"
-              : "outline outline-3 outline-panel-selected"),
-          isTask(card) && card.state === "done"
-            ? "bg-done-panel text-done-content"
-            : "bg-panel",
-          // isFocused
-          //   ? "border-blue-500 bg-gray-700"
-          //   : "border-gray-700 bg-gray-750",
-
-          // (dndState.type === "dragging" || dndState.type === "preview") &&
-          //   !isSelfDragging &&
-          //   "hidden",
-
-          // isHidden && "hidden",
-          // isSelfDragging && "h-12",
+          `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
+          isFocused
+            ? isTask(card) && card.state === "done"
+              ? "ring-2 ring-done-panel-selected text-done-content"
+              : "ring-2 ring-accent text-content"
+            : isTask(card) && card.state === "done"
+              ? "ring-done-ring text-done-content hover:ring-ring-hover"
+              : "ring-ring text-content hover:ring-ring-hover",
         )}
         style={{}}
         onClick={() => dispatch(focusSlice.focusByKey(focusableItem.key, true))}
@@ -678,11 +659,22 @@ export const TaskComp = ({
               <RotateCw className="h-3 w-3" />
             )}
           </div>
-          <div className="flex items-start gap-1.5 px-2 pt-2">
+          <div
+            className={clsx(
+              "flex items-start gap-1.5 px-2 pt-2 font-medium pb-3 rounded-t-lg transition-all ",
+              isFocused
+                ? isTask(card) && card.state === "done"
+                  ? "bg-done-panel"
+                  : "bg-panel-hover"
+                : isTask(card) && card.state === "done"
+                  ? "bg-done-panel"
+                  : "bg-panel hover:bg-panel-hover",
+            )}
+          >
             {isEditing ? (
               <>
                 {isTask(card) && (
-                  <div className="flex items-center justify-end">
+                  <div className="flex items-center justify-end ">
                     <CheckboxComp
                       checked={card.state === "done"}
                       onChange={handleTick}
@@ -720,15 +712,10 @@ export const TaskComp = ({
           </div>
           <div
             className={cn(
-              "flex justify-between mt-3 text-sm  px-2 py-1 text-xs rounded-b-lg",
-              // {
-              //   "bg-focused-panel-tinted text-focused-panel-selected":
-              //     isFocused,
-              // },
-
+              "flex justify-between text-sm px-2 py-1.5 text-xs rounded-b-lg",
               isTask(card) && card.state === "done"
-                ? "bg-done-panel-tinted text-done-selected"
-                : "bg-panel-tinted text-panel-selected",
+                ? "bg-done-panel-tinted text-done-content"
+                : "bg-panel-tinted text-content-tinted",
             )}
           >
             <div>{category.title}</div>

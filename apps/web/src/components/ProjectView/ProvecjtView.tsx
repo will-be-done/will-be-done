@@ -51,12 +51,12 @@ const ProjectDragPreview = function TaskPrimitiveComponent({
   return (
     <div
       className={cn(
-        "flex items-center px-2 py-1.5 rounded-lg cursor-pointer bg-gray-900",
+        "flex items-center px-2 py-1.5 rounded-lg cursor-pointer bg-panel ring-1 ring-ring",
       )}
       style={style}
     >
       <span className="text-base mr-2 flex-shrink-0">{icon}</span>
-      <span className="text-white text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+      <span className="text-content text-sm whitespace-nowrap overflow-hidden text-ellipsis">
         {title}
       </span>
     </div>
@@ -72,8 +72,7 @@ const idleState: State = { type: "idle" };
 const draggingState: State = { type: "dragging" };
 
 const DropProjectIndicator = function DropProjectIndicatorComp() {
-  // p-3 rounded-lg border border-blue-500 bg-gray-700 shadow-md transition-colors h-12
-  return <div className={`rounded-lg border-blue-500 bg-gray-700 h-10`}></div>;
+  return <div className="rounded-lg bg-accent/20 ring-1 ring-accent h-10" />;
 };
 
 const ProjectItem = function ProjectItemComp({
@@ -111,7 +110,7 @@ const ProjectItem = function ProjectItemComp({
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
 
-  const ref = useRef<HTMLAnchorElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   const isFocused = useSyncSelector(
     () => focusSlice.isFocused(focusItem.key),
@@ -348,24 +347,24 @@ const ProjectItem = function ProjectItemComp({
       {/* params={{ projectId: project.id }} */}
       {/* href={`/projects/${project.id}`} */}
       <div
+        ref={ref}
         data-focusable-key={focusItem.key}
-        key={project.id}
         className={cn(
-          "flex items-center rounded-md px-2  text-content group",
-          // isFocused ? "bg-gray-800" : "hover:bg-gray-800",
-          closestEdge == "whole" &&
-            "outline-2 outline-offset-1 outline-solid outline-panel-selected",
-          isSelected ? "text-accent" : "text-content",
-          // {
-          //   hidden: isEditing,
-          // },
+          "flex items-center rounded-md px-2 py-1 text-content group transition-all",
+          closestEdge == "whole" && "ring-2 ring-accent bg-accent/10",
+          isSelected
+            ? "text-accent bg-accent/10"
+            : "text-content hover:bg-panel-hover",
         )}
       >
         <Popover>
           <PopoverTrigger asChild>
-            <div className="text-base mr-4 flex-shrink-0 cursor-pointer">
+            <button
+              type="button"
+              className="text-base mr-4 flex-shrink-0 cursor-pointer"
+            >
               {project.icon || "🟡"}
-            </div>
+            </button>
           </PopoverTrigger>
           <PopoverContent className="w-fit p-0">
             <EmojiPicker
@@ -384,32 +383,28 @@ const ProjectItem = function ProjectItemComp({
           </PopoverContent>
         </Popover>
 
-        {/* onClick={() => { */}
-        {/*   // console.log("focusItem click", focusItem); */}
-        {/*   dispatch(focusSlice.focusByKey(focusItem.key, true)); */}
-        {/*   onProjectClick(project.id); */}
-        {/* }} */}
         <ProjectLink
           projectId={project.id}
-          className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 cursor-pointer"
-          ref={ref}
+          className="flex-1 flex items-center min-w-0"
         >
-          {project.title}
-        </ProjectLink>
+          <span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2">
+            {project.title}
+          </span>
 
-        <div
-          className={cn(
-            "ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
-            project.id !== inboxId && "group-hover:hidden",
-          )}
-        >
-          {overdueTasksCount > 0 && (
-            <>
-              <div className="text-notice">{overdueTasksCount}</div>|
-            </>
-          )}
-          <div>{notDoneTasksCount}</div>
-        </div>
+          <div
+            className={cn(
+              "ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
+              project.id !== inboxId && "group-hover:hidden",
+            )}
+          >
+            {overdueTasksCount > 0 && (
+              <>
+                <div className="text-notice">{overdueTasksCount}</div>|
+              </>
+            )}
+            <div>{notDoneTasksCount}</div>
+          </div>
+        </ProjectLink>
 
         {/* group-hover:flex hidden */}
         <div
@@ -623,27 +618,29 @@ export const ProjectView = ({
         focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
         priority="0"
       >
-        <div className="w-80 h-full bg-panel-2 ml-auto rounded-l-lg flex flex-col shrink-0">
-          <div className="flex justify-center text-subheader my-2 mx-3">
+        <div className="w-80 h-full bg-surface-elevated ml-auto rounded-l-lg flex flex-col shrink-0 ring-1 ring-ring">
+          <div className="flex justify-center text-content-tinted my-3 mx-3 text-[13px] font-medium">
             Projects
-            <div className="ml-auto">
+            <div className="ml-auto flex gap-2">
               <button
                 type="button"
                 onClick={handleLoadBackup}
-                className="cursor-pointer"
+                className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
+                title="Load backup"
               >
                 L
               </button>
               <button
-                className="ml-2 cursor-pointer"
+                className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
                 type="button"
                 onClick={handleDownloadBackup}
+                title="Download backup"
               >
                 D
               </button>
             </div>
           </div>
-          <div className="h-full overflow-y-auto flex flex-col gap-2 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
+          <div className="h-full overflow-y-auto flex flex-col gap-1 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
             <ProjectItem
               projectLink={projectLink}
               projectId={inboxProject.id}
@@ -662,13 +659,13 @@ export const ProjectView = ({
               />
             ))}
           </div>
-          <div className="flex text-center items-center justify-center pb-3 pt-1  text-subheader text-sm ">
+          <div className="flex text-center items-center justify-center pb-3 pt-2 border-t border-ring">
             <button
               type="button"
               onClick={handleAddProjectClick}
-              className="cursor-pointer"
+              className="cursor-pointer text-[13px] text-content-tinted hover:text-accent transition-colors"
             >
-              Add Project
+              + Add Project
             </button>
           </div>
         </div>

@@ -73,11 +73,10 @@ export const MoveModal = ({
       onClose={() => setIsOpen(false)}
       onKeyDown={handleKeyDown}
     >
-      <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="mx-auto flex h-[70vh] w-full max-w-3xl flex-col rounded-2xl bg-gray-800 p-5 shadow-xl">
+        <DialogPanel className="mx-auto flex h-[70vh] w-full max-w-3xl flex-col rounded-lg bg-popover p-5 ring-1 ring-ring backdrop-blur-xl">
           <DialogTitle
-            className="mb-3 border-b pb-2 text-lg font-medium leading-6 text-gray-200"
+            className="mb-3 border-b border-ring pb-3 text-lg font-medium leading-6 text-primary"
             as="h3"
           >
             Choose project
@@ -90,20 +89,20 @@ export const MoveModal = ({
               onChange={(e) => updateSearchQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search projects..."
-              className="w-full rounded bg-gray-900 p-2 text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full rounded bg-surface-elevated px-3 py-2.5 text-content placeholder-content-tinted-2 border border-ring transition-all focus:outline-none focus:border-accent"
               autoFocus
             />
           </div>
           <Description className="flex-1 overflow-y-auto" as="div">
-            <div className="grid gap-1 text-gray-200">
+            <div className="grid gap-1 text-content">
               {projects.map((pr, index) => (
                 <button
                   key={pr.id}
                   type="button"
-                  className={`mx-2 cursor-pointer rounded p-3 text-left ${
+                  className={`cursor-pointer rounded px-3 py-2.5 text-left transition-colors ${
                     index === selectedIndex
-                      ? "bg-sky-900"
-                      : "bg-gray-900 hover:bg-sky-900"
+                      ? "bg-accent/20 text-primary border border-accent"
+                      : "border border-transparent hover:bg-panel-hover"
                   }`}
                   onClick={() => handleMove(pr.id)}
                 >

@@ -55,7 +55,7 @@ export function TaskDatePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0 bg-popover-calendar border-calendar-border"
+        className="w-auto p-0"
         align="end"
       >
         <div className="flex flex-col">
@@ -68,12 +68,12 @@ export function TaskDatePicker({
             }}
           />
           {currentDate && open && (
-            <div className="p-3 border-t border-calendar-border">
+            <div className="p-3 border-t border-ring">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleClearDate}
-                className="w-full flex items-center justify-center gap-2 text-content bg-panel border-calendar-border hover:bg-panel-tinted hover:border-content-tinted"
+                className="w-full flex items-center justify-center gap-2 text-content bg-transparent border-ring hover:bg-panel-hover hover:text-primary"
               >
                 <X className="h-4 w-4" />
                 Clear Date

@@ -49,17 +49,17 @@ export const ResizableDivider = ({
   return (
     <div
       className={cn(
-        "h-[6px] flex items-center cursor-row-resize group translate-y-[3px] relative w-full",
+        "h-[6px] flex items-center cursor-row-resize group relative w-full",
         {
-          "translate-y-[-3px]": isHidden,
+          "translate-y-[-6px]": isHidden,
         },
       )}
       onMouseDown={handleMouseDown}
     >
-      <div className="fixed flex bottom-[3px] left-0 right-0 justify-center items-center">
+      <div className="absolute bottom-px left-0 right-0 flex justify-center items-end">
         <button
           type="button"
-          className="w-6 h-3 bg-panel-2 rounded-t-md flex justify-center items-center cursor-pointer "
+          className="w-6 h-3 bg-surface-elevated border border-ring border-b-0 rounded-t-md flex justify-center items-center cursor-pointer transition-colors"
           onClick={onHideClick}
         >
           <svg
@@ -67,12 +67,12 @@ export const ResizableDivider = ({
             width={6}
             height={3}
             fill="none"
-            className={cn({
+            className={cn("text-content-tinted", {
               "rotate-180": !isHidden,
             })}
           >
             <path
-              stroke="#CBD5E1"
+              stroke="currentColor"
               strokeLinecap="round"
               strokeLinejoin="round"
               d="M.5 2.167 2.737.5l2.237 1.667"
@@ -80,7 +80,7 @@ export const ResizableDivider = ({
           </svg>
         </button>
       </div>
-      <div className="h-[1px] w-full bg-panel-2 transition-colors" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-ring transition-colors" />
     </div>
   );
 };
