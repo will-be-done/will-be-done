@@ -26,34 +26,35 @@
   --color-surface-elevated: rgba(255, 255, 255, 0.03);
 
   /* Ring/border colors */
-  --color-ring: rgba(255, 255, 255, 0.06);
-  --color-ring-hover: rgba(255, 255, 255, 0.1);
-  --color-ring-focus: rgba(59, 130, 246, 0.5);
+  --color-ring: oklch(0 0 0 / 0);
+  --color-ring-hover: oklch(0 0 0 / 0);
+  --color-ring-focus: oklch(62.3% 0.188 260 / 0.5);
 
   /* Panel colors - slight blue tint for active cards */
-  --color-panel: rgba(51, 65, 85, 0.4);
-  --color-panel-tinted: rgba(51, 65, 85);
-  --color-panel-selected: var(--color-blue-500);
-  --color-panel-hover: rgba(51, 65, 85, 0.5);
+  /* oklch(37.2% 0.045 257 / 0) */
+  --color-panel: oklch(37.2% 0.045 257 / 0.8);
+  --color-panel-tinted: oklch(27.9% 0.041 259 / 0.8);
+  --color-panel-hover: oklch(38% 0.045 257 / 0.8);
 
   /* Done state - neutral gray, clearly different */
-  --color-done-panel: rgba(148, 163, 184, 0.15);
-  --color-done-panel-tinted: rgba(148, 163, 184, 0.2);
-  --color-done-panel-selected: var(--color-slate-500);
+  --color-done-panel: oklch(27.4% 0.005 286 / 0.8);
+  --color-done-panel-tinted: oklch(21% 0.006 286 / 0.8);
+  --color-done-panel-selected: oklch(50% 0.006 286 / 1);
   --color-done-content: var(--color-slate-400);
-  --color-done-ring: rgba(148, 163, 184, 0.2);
+  --color-done-ring: oklch(0 0 0 / 0);
 
   /* Focused state */
-  --color-focused-panel: rgba(59, 130, 246, 0.15);
+  --color-focused-panel: oklch(62.3% 0.188 260 / 0.15);
   --color-focused-panel-selected: var(--color-blue-400);
-  --color-focused-panel-tinted: rgba(59, 130, 246, 0.1);
+  --color-focused-panel-tinted: oklch(62.3% 0.188 260 / 0.1);
 
-  --color-panel-2: rgba(255, 255, 255, 0.04);
+  --color-panel-2: oklch(100% 0 none / 0.04);
 
   /* Input colors */
-  --color-input: var(--color-slate-300);
-  --color-input-checked: var(--color-blue-500);
-  --color-input-bg: rgba(255, 255, 255, 0.05);
+  --color-input: oklch(11% 0.006 286);
+  --color-input-indicator-checked: oklch(21% 0.006 286 / 0.8);
+  --color-input-checked: oklch(90% 0 none / 1);
+  --color-input-bg: oklch(90% 0 none / 1);
 
   /* Text colors - brighter for better readability */
   --color-primary: var(--color-white);
@@ -66,16 +67,16 @@
   --color-notice: var(--color-amber-400);
 
   /* Popover/calendar - semi-transparent with blur */
-  --color-popover: rgba(30, 41, 59, 0.05);
-  --color-popover-calendar: rgba(30, 41, 59, 0.05);
+  --color-popover: oklch(27.9% 0.037 260 / 0.05);
+  --color-popover-calendar: oklch(27.9% 0.037 260 / 0.05);
   --color-calendar-header: var(--color-slate-200);
   --color-calendar-weekday: var(--color-slate-400);
   --color-calendar-day: var(--color-slate-300);
-  --color-calendar-border: rgba(255, 255, 255, 0.1);
+  --color-calendar-border: oklch(100% 0 none / 0.1);
 
   /* Gradient orb colors (for background effects) */
-  --color-orb-blue: rgba(37, 99, 235, 0.08);
-  --color-orb-indigo: rgba(99, 102, 241, 0.06);
+  --color-orb-blue: oklch(54.6% 0.215 263 / 0.08);
+  --color-orb-indigo: oklch(58.5% 0.204 277 / 0.06);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/

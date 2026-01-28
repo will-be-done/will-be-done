@@ -64,7 +64,7 @@ export function CheckboxComp({
       checked={checked}
       onCheckedChange={onChange}
     >
-      <Checkbox.Indicator className="flex text-white data-[unchecked]:hidden">
+      <Checkbox.Indicator className="flex text-input-indicator-checked data-[unchecked]:hidden">
         <CheckIcon className="size-2.5" />
       </Checkbox.Indicator>
     </Checkbox.Root>
@@ -638,11 +638,11 @@ export const TaskComp = ({
           `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
           isFocused
             ? isTask(card) && card.state === "done"
-              ? "ring-2 ring-done-panel-selected bg-done-panel text-done-content"
-              : "ring-2 ring-accent bg-panel-hover text-content"
+              ? "ring-2 ring-done-panel-selected text-done-content"
+              : "ring-2 ring-accent text-content"
             : isTask(card) && card.state === "done"
-              ? "ring-done-ring bg-done-panel text-done-content hover:ring-ring-hover"
-              : "ring-ring bg-panel text-content hover:ring-ring-hover hover:bg-panel-hover",
+              ? "ring-done-ring text-done-content hover:ring-ring-hover"
+              : "ring-ring text-content hover:ring-ring-hover",
         )}
         style={{}}
         onClick={() => dispatch(focusSlice.focusByKey(focusableItem.key, true))}
@@ -659,11 +659,22 @@ export const TaskComp = ({
               <RotateCw className="h-3 w-3" />
             )}
           </div>
-          <div className="flex items-start gap-1.5 px-2 pt-2 font-medium">
+          <div
+            className={clsx(
+              "flex items-start gap-1.5 px-2 pt-2 font-medium pb-3 rounded-t-lg transition-all ",
+              isFocused
+                ? isTask(card) && card.state === "done"
+                  ? "bg-done-panel"
+                  : "bg-panel-hover"
+                : isTask(card) && card.state === "done"
+                  ? "bg-done-panel"
+                  : "bg-panel hover:bg-panel-hover",
+            )}
+          >
             {isEditing ? (
               <>
                 {isTask(card) && (
-                  <div className="flex items-center justify-end mt-0.5">
+                  <div className="flex items-center justify-end ">
                     <CheckboxComp
                       checked={card.state === "done"}
                       onChange={handleTick}
@@ -682,7 +693,7 @@ export const TaskComp = ({
             ) : (
               <>
                 {isTask(card) && (
-                  <div className="flex justify-end mt-0.5">
+                  <div className="flex justify-end">
                     <CheckboxComp
                       checked={card.state === "done"}
                       onChange={handleTick}
@@ -701,7 +712,7 @@ export const TaskComp = ({
           </div>
           <div
             className={cn(
-              "flex justify-between mt-3 text-sm px-2 py-1.5 text-xs rounded-b-lg",
+              "flex justify-between text-sm px-2 py-1.5 text-xs rounded-b-lg",
               isTask(card) && card.state === "done"
                 ? "bg-done-panel-tinted text-done-content"
                 : "bg-panel-tinted text-content-tinted",

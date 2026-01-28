@@ -59,7 +59,7 @@ export const ResizableDivider = ({
       <div className="absolute bottom-px left-0 right-0 flex justify-center items-end">
         <button
           type="button"
-          className="w-6 h-3 bg-surface-elevated border border-ring border-b-0 rounded-t-md flex justify-center items-center cursor-pointer hover:bg-panel-hover transition-colors"
+          className="w-6 h-3 bg-surface-elevated border border-ring border-b-0 rounded-t-md flex justify-center items-center cursor-pointer transition-colors"
           onClick={onHideClick}
         >
           <svg
