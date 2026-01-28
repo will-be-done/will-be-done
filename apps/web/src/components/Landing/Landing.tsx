@@ -133,31 +133,36 @@ export function LandingPage() {
               </h1>
 
               <p className="mb-8 max-w-lg text-[17px] leading-relaxed text-slate-400">
-                A minimal task manager for visual weekly planning. Drag tasks
-                between days, organize by project, use vim keybindings, work
-                offline and sync back later.
+                Open source kanban for visual weekly planning. Drag & drop tasks
+                between days and projects, navigate with vim keybindings. Works
+                offline, syncs when you're back online.
               </p>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <Link
-                  to="/signup"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
-                >
-                  Try Cloud Version
-                  <svg
-                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="flex flex-col items-start gap-1.5">
+                  <Link
+                    to="/signup"
+                    className="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13 7l5 5m0 0l-5 5m5-5H6"
-                    />
-                  </svg>
-                </Link>
+                    Try Cloud Version
+                    <svg
+                      className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13 7l5 5m0 0l-5 5m5-5H6"
+                      />
+                    </svg>
+                  </Link>
+                  <span className="text-[12px] text-slate-500">
+                    Free while in alpha
+                  </span>
+                </div>
                 <a
                   href="https://github.com/will-be-done/will-be-done"
                   target="_blank"
@@ -182,20 +187,20 @@ export function LandingPage() {
 
             {/* Floating task cards */}
             <div className="relative hidden h-[340px] lg:block">
-              {/* Card 1 - Top */}
+              {/* Card 1 - Top, normal state */}
               <div
-                className="absolute left-8 top-0 w-64 overflow-hidden rounded-lg bg-panel shadow-lg transition-transform duration-300 ease-out"
+                className="absolute left-8 top-0 w-64 rounded-lg bg-panel/80 backdrop-blur-md ring-1 ring-ring shadow-lg transition-transform duration-300 ease-out"
                 style={{
                   transform: `rotate(-2deg) translate(${mousePosition.x * 4}px, ${mousePosition.y * 3}px)`,
                 }}
               >
-                <div className="flex items-start gap-1.5 px-2 pt-2 pb-2">
-                  <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-sm bg-input" />
-                  <p className="text-sm text-content">
+                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
+                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring" />
+                  <div className="min-h-5 text-content">
                     Design new landing page
-                  </p>
+                  </div>
                 </div>
-                <div className="flex justify-between bg-panel-tinted px-2 py-1 text-xs text-subheader">
+                <div className="mt-3 flex justify-between rounded-b-lg bg-panel-tinted/80 px-2 py-1.5 text-xs text-content-tinted">
                   <span>Week</span>
                   <span>🎨 Personal</span>
                 </div>
@@ -203,43 +208,45 @@ export function LandingPage() {
 
               {/* Card 2 - Middle, done state */}
               <div
-                className="absolute right-0 top-24 w-72 overflow-hidden rounded-lg bg-done-panel shadow-lg transition-transform duration-300 ease-out"
+                className="absolute right-0 top-24 w-72 rounded-lg bg-done-panel/80 backdrop-blur-md ring-1 ring-done-ring shadow-lg transition-transform duration-300 ease-out"
                 style={{
                   transform: `rotate(1deg) translate(${mousePosition.x * -5}px, ${mousePosition.y * 4}px)`,
                 }}
               >
-                <div className="flex items-start gap-1.5 px-2 pt-2 pb-2">
-                  <div className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm bg-input">
+                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
+                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-checked ring-1 ring-input-checked">
                     <svg
-                      className="h-2.5 w-2.5 text-input-checked"
+                      className="size-2.5 text-white"
                       fill="currentColor"
                       viewBox="0 0 10 10"
                     >
                       <path d="M9.1603 1.12218C9.50684 1.34873 9.60427 1.81354 9.37792 2.16038L5.13603 8.66012C5.01614 8.8438 4.82192 8.96576 4.60451 8.99384C4.3871 9.02194 4.1683 8.95335 4.00574 8.80615L1.24664 6.30769C0.939709 6.02975 0.916013 5.55541 1.19372 5.24822C1.47142 4.94102 1.94536 4.91731 2.2523 5.19524L4.36085 7.10461L8.12299 1.33999C8.34934 0.993152 8.81376 0.895638 9.1603 1.12218Z" />
                     </svg>
                   </div>
-                  <p className="text-sm text-done-content line-through">
+                  <div className="min-h-5 text-done-content line-through">
                     Review pull requests
-                  </p>
+                  </div>
                 </div>
-                <div className="flex justify-between bg-done-panel-tinted px-2 py-1 text-xs text-subheader">
+                <div className="mt-3 flex justify-between rounded-b-lg bg-done-panel-tinted/80 px-2 py-1.5 text-xs text-done-content">
                   <span>Week</span>
                   <span>💼 Work</span>
                 </div>
               </div>
 
-              {/* Card 3 - Bottom left */}
+              {/* Card 3 - Bottom left, normal state */}
               <div
-                className="absolute bottom-18 left-4 w-60 overflow-hidden rounded-lg bg-panel shadow-lg transition-transform duration-300 ease-out"
+                className="absolute bottom-18 left-4 w-60 rounded-lg bg-panel/80 backdrop-blur-md ring-1 ring-ring shadow-lg transition-transform duration-300 ease-out"
                 style={{
                   transform: `rotate(2deg) translate(${mousePosition.x * 3}px, ${mousePosition.y * -4}px)`,
                 }}
               >
-                <div className="flex items-start gap-1.5 px-2 pt-2 pb-2">
-                  <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-sm bg-input" />
-                  <p className="text-sm text-content">Write documentation</p>
+                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
+                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring" />
+                  <div className="min-h-5 text-content">
+                    Write documentation
+                  </div>
                 </div>
-                <div className="flex justify-between bg-panel-tinted px-2 py-1 text-xs text-subheader">
+                <div className="mt-3 flex justify-between rounded-b-lg bg-panel-tinted/80 px-2 py-1.5 text-xs text-content-tinted">
                   <span>Near future</span>
                   <span>💼 Work</span>
                 </div>
@@ -247,16 +254,16 @@ export function LandingPage() {
 
               {/* Card 4 - Bottom right, focused state */}
               <div
-                className="absolute bottom-6 right-8 w-56 overflow-hidden rounded-lg bg-focused-panel shadow-lg outline outline-3 outline-focused-panel-selected transition-transform duration-300 ease-out"
+                className="absolute bottom-6 right-8 w-56 rounded-lg bg-panel-hover/80 backdrop-blur-md ring-2 ring-accent shadow-lg transition-transform duration-300 ease-out"
                 style={{
                   transform: `rotate(-1deg) translate(${mousePosition.x * -4}px, ${mousePosition.y * -3}px)`,
                 }}
               >
-                <div className="flex items-start gap-1.5 px-2 pt-2 pb-2">
-                  <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-sm bg-input" />
-                  <p className="text-sm text-content">Ship v2.0 release</p>
+                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
+                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring" />
+                  <div className="min-h-5 text-content">Ship v2.0 release</div>
                 </div>
-                <div className="flex justify-between bg-focused-panel-tinted px-2 py-1 text-xs text-focused-panel-selected">
+                <div className="mt-3 flex justify-between rounded-b-lg bg-panel-tinted/80 px-2 py-1.5 text-xs text-content-tinted">
                   <span>Week</span>
                   <span>🚀 Release</span>
                 </div>
@@ -639,14 +646,14 @@ export function LandingPage() {
                 Ready to plan your week?
               </h2>
               <p className="mb-8 text-[15px] text-slate-400">
-                Free cloud version during alpha. Self-host anytime.
+                Free cloud version while in alpha. Self-host anytime.
               </p>
               <div className="flex flex-wrap justify-center gap-3">
                 <Link
                   to="/signup"
                   className="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400"
                 >
-                  Get started free
+                  Get Started — It's Free
                   <svg
                     className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
                     fill="none"

@@ -21,40 +21,61 @@
   --font-sans: InterVariable, sans-serif;
   --font-sans--font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 
-  --color-surface: var(--color-gray-900);
+  /* Base surface - dark blue-black */
+  --color-surface: #0a0a0f;
+  --color-surface-elevated: rgba(255, 255, 255, 0.03);
 
-  --color-panel: var(--color-slate-700);
-  --color-panel-tinted: var(--color-slate-800);
-  --color-panel-selected: var(--color-slate-500);
+  /* Ring/border colors */
+  --color-ring: rgba(255, 255, 255, 0.06);
+  --color-ring-hover: rgba(255, 255, 255, 0.1);
+  --color-ring-focus: rgba(59, 130, 246, 0.5);
 
-  --color-done-panel: var(--color-zinc-800);
-  --color-done-panel-tinted: var(--color-zinc-900);
-  --color-done-panel-selected: var(--color-zinc-500);
+  /* Panel colors - slight blue tint for active cards */
+  --color-panel: rgba(51, 65, 85, 0.4);
+  --color-panel-tinted: rgba(51, 65, 85);
+  --color-panel-selected: var(--color-blue-500);
+  --color-panel-hover: rgba(51, 65, 85, 0.5);
 
-  --color-focused-panel: var(--color-purple-800);
-  --color-focused-panel-selected: var(--color-purple-400);
-  --color-focused-panel-tinted: var(--color-purple-900);
+  /* Done state - neutral gray, clearly different */
+  --color-done-panel: rgba(148, 163, 184, 0.15);
+  --color-done-panel-tinted: rgba(148, 163, 184, 0.2);
+  --color-done-panel-selected: var(--color-slate-500);
+  --color-done-content: var(--color-slate-400);
+  --color-done-ring: rgba(148, 163, 184, 0.2);
 
-  --color-panel-2: var(--color-gray-800);
+  /* Focused state */
+  --color-focused-panel: rgba(59, 130, 246, 0.15);
+  --color-focused-panel-selected: var(--color-blue-400);
+  --color-focused-panel-tinted: rgba(59, 130, 246, 0.1);
 
-  --color-input: var(--color-gray-300);
-  --color-input-checked: var(--color-gray-900);
+  --color-panel-2: rgba(255, 255, 255, 0.04);
 
-  --color-primary: var(--color-gray-300);
-  --color-accent: var(--color-purple-500);
-  --color-content: var(--color-gray-200);
-  --color-done-content: var(--color-neutral-500);
-  --color-content-tinted: var(--color-gray-500);
-  --color-content-tinted-2: var(--color-gray-700);
-  --color-subheader: var(--color-slate-400);
-  --color-notice: var(--color-yellow-500);
+  /* Input colors */
+  --color-input: var(--color-slate-300);
+  --color-input-checked: var(--color-blue-500);
+  --color-input-bg: rgba(255, 255, 255, 0.05);
 
-  --color-popover: var(--color-slate-600);
-  --color-popover-calendar: var(--color-slate-700);
-  --color-calendar-header: var(--color-gray-300);
+  /* Text colors - brighter for better readability */
+  --color-primary: var(--color-white);
+  --color-accent: var(--color-blue-500);
+  --color-accent-hover: var(--color-blue-400);
+  --color-content: var(--color-slate-100);
+  --color-content-tinted: var(--color-slate-300);
+  --color-content-tinted-2: var(--color-slate-600);
+  --color-subheader: var(--color-slate-300);
+  --color-notice: var(--color-amber-400);
+
+  /* Popover/calendar - semi-transparent with blur */
+  --color-popover: rgba(30, 41, 59, 0.05);
+  --color-popover-calendar: rgba(30, 41, 59, 0.05);
+  --color-calendar-header: var(--color-slate-200);
   --color-calendar-weekday: var(--color-slate-400);
-  --color-calendar-day: var(--color-gray-400);
-  --color-calendar-border: var(--color-slate-600);
+  --color-calendar-day: var(--color-slate-300);
+  --color-calendar-border: rgba(255, 255, 255, 0.1);
+
+  /* Gradient orb colors (for background effects) */
+  --color-orb-blue: rgba(37, 99, 235, 0.08);
+  --color-orb-indigo: rgba(99, 102, 241, 0.06);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/

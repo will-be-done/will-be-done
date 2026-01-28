@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { useSelect } from "@will-be-done/hyperdb";
 import { appSlice, AnyModelType } from "@will-be-done/slices/space";
+import { PlusIcon } from "@/components/ui/icons.tsx";
 
 export const TasksColumnGrid = ({
   columnsCount,
@@ -118,40 +119,27 @@ export const TasksColumn = ({
             writingMode: "vertical-rl",
             textOrientation: "mixed",
             transform: "rotate(180deg)",
-            // width: "48px",
           }}
         >
-          {onAddClick && (
-            <button
-              className="hidden group-hover:block cursor-pointer text-panel mb-6"
-              onClick={onAddClick}
-              type="button"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width={24}
-                height={24}
-                fill="none"
+          <div className="mb-4 flex">
+            {onAddClick && (
+              <button
+                className="hidden group-hover:block cursor-pointer text-white mb-2"
+                onClick={onAddClick}
+                type="button"
               >
-                <path
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 12h14m-7-7v14"
-                />
-              </svg>
-            </button>
-          )}
-          {actions}
+                <PlusIcon className="rotate-180" />
+              </button>
+            )}
+            {actions}
+          </div>
           <button
             type="button"
             className={cn(
-              "flex gap-3 justify-end flex-shrink-0  p-1 rounded-lg  group Focus:outline-none ",
-              " group-Focus-visible:outline-2 group-Focus-visible:outline-offset-1 group-Focus-visible:outline-solid group-Focus-visible:outline-panel-selected",
+              "flex gap-3 justify-end flex-shrink-0 p-1 rounded-lg group focus:outline-none transition-all",
+              "group-focus-visible:ring-2 group-focus-visible:ring-accent",
               {
-                "outline-2 outline-offset-1 outline-solid outline-panel-selected":
-                  isOver && isHidden,
+                "ring-2 ring-accent": isOver && isHidden,
               },
             )}
             onClick={onHideClick}
