@@ -4,7 +4,7 @@ daily planning and vim keybinds. Hope you find something that could be useful fo
 
 You can try the cloud version for free at [will-be-done.app](https://will-be-done.app/) before installing through Docker.
 
-<img width="1451" height="995" alt="screenshot" src="https://github.com/user-attachments/assets/ecbd5840-3509-4d76-a1be-66eaa481cc91" />
+<img width="3442" height="1960" alt="screen" src="https://github.com/user-attachments/assets/9e685994-50be-4064-a6f3-0de7e943b1a4" />
 
 
 ## Installation
