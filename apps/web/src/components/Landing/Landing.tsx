@@ -188,86 +188,54 @@ export function LandingPage() {
             {/* Floating task cards */}
             <div className="relative hidden h-[340px] lg:block">
               {/* Card 1 - Top, normal state */}
-              <div
-                className="absolute left-8 top-0 w-64 rounded-lg bg-panel/80 backdrop-blur-md ring-1 ring-ring shadow-lg transition-transform duration-300 ease-out"
+              <FloatingTaskCard
+                title="Design new landing page"
+                category="Personal"
+                categoryIcon="🎨"
+                horizon="Week"
+                className="absolute left-8 top-0 w-64"
                 style={{
                   transform: `rotate(-2deg) translate(${mousePosition.x * 4}px, ${mousePosition.y * 3}px)`,
                 }}
-              >
-                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
-                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring" />
-                  <div className="min-h-5 text-content">
-                    Design new landing page
-                  </div>
-                </div>
-                <div className="mt-3 flex justify-between rounded-b-lg bg-panel-tinted/80 px-2 py-1.5 text-xs text-content-tinted">
-                  <span>Week</span>
-                  <span>🎨 Personal</span>
-                </div>
-              </div>
+              />
 
               {/* Card 2 - Middle, done state */}
-              <div
-                className="absolute right-0 top-24 w-72 rounded-lg bg-done-panel/80 backdrop-blur-md ring-1 ring-done-ring shadow-lg transition-transform duration-300 ease-out"
+              <FloatingTaskCard
+                title="Review pull requests"
+                category="Work"
+                categoryIcon="💼"
+                horizon="Week"
+                isDone
+                className="absolute right-0 top-24 w-72"
                 style={{
                   transform: `rotate(1deg) translate(${mousePosition.x * -5}px, ${mousePosition.y * 4}px)`,
                 }}
-              >
-                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
-                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-checked ring-1 ring-input-checked">
-                    <svg
-                      className="size-2.5 text-white"
-                      fill="currentColor"
-                      viewBox="0 0 10 10"
-                    >
-                      <path d="M9.1603 1.12218C9.50684 1.34873 9.60427 1.81354 9.37792 2.16038L5.13603 8.66012C5.01614 8.8438 4.82192 8.96576 4.60451 8.99384C4.3871 9.02194 4.1683 8.95335 4.00574 8.80615L1.24664 6.30769C0.939709 6.02975 0.916013 5.55541 1.19372 5.24822C1.47142 4.94102 1.94536 4.91731 2.2523 5.19524L4.36085 7.10461L8.12299 1.33999C8.34934 0.993152 8.81376 0.895638 9.1603 1.12218Z" />
-                    </svg>
-                  </div>
-                  <div className="min-h-5 text-done-content line-through">
-                    Review pull requests
-                  </div>
-                </div>
-                <div className="mt-3 flex justify-between rounded-b-lg bg-done-panel-tinted/80 px-2 py-1.5 text-xs text-done-content">
-                  <span>Week</span>
-                  <span>💼 Work</span>
-                </div>
-              </div>
+              />
 
               {/* Card 3 - Bottom left, normal state */}
-              <div
-                className="absolute bottom-18 left-4 w-60 rounded-lg bg-panel/80 backdrop-blur-md ring-1 ring-ring shadow-lg transition-transform duration-300 ease-out"
+              <FloatingTaskCard
+                title="Write documentation"
+                category="Work"
+                categoryIcon="💼"
+                horizon="Near future"
+                className="absolute bottom-18 left-4 w-60"
                 style={{
                   transform: `rotate(2deg) translate(${mousePosition.x * 3}px, ${mousePosition.y * -4}px)`,
                 }}
-              >
-                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
-                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring" />
-                  <div className="min-h-5 text-content">
-                    Write documentation
-                  </div>
-                </div>
-                <div className="mt-3 flex justify-between rounded-b-lg bg-panel-tinted/80 px-2 py-1.5 text-xs text-content-tinted">
-                  <span>Near future</span>
-                  <span>💼 Work</span>
-                </div>
-              </div>
+              />
 
               {/* Card 4 - Bottom right, focused state */}
-              <div
-                className="absolute bottom-6 right-8 w-56 rounded-lg bg-panel-hover/80 backdrop-blur-md ring-2 ring-accent shadow-lg transition-transform duration-300 ease-out"
+              <FloatingTaskCard
+                title="Ship v2.0 release"
+                category="Release"
+                categoryIcon="🚀"
+                horizon="Week"
+                isFocused
+                className="absolute bottom-6 right-8 w-56"
                 style={{
                   transform: `rotate(-1deg) translate(${mousePosition.x * -4}px, ${mousePosition.y * -3}px)`,
                 }}
-              >
-                <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium">
-                  <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring" />
-                  <div className="min-h-5 text-content">Ship v2.0 release</div>
-                </div>
-                <div className="mt-3 flex justify-between rounded-b-lg bg-panel-tinted/80 px-2 py-1.5 text-xs text-content-tinted">
-                  <span>Week</span>
-                  <span>🚀 Release</span>
-                </div>
-              </div>
+              />
             </div>
           </div>
         </div>
@@ -750,6 +718,79 @@ function RoadmapItem({ text }: { text: string }) {
         />
       </svg>
       <span className="text-[13px] text-slate-300">{text}</span>
+    </div>
+  );
+}
+
+// Floating task card for landing page hero
+function FloatingTaskCard({
+  title,
+  category,
+  categoryIcon,
+  horizon,
+  isDone = false,
+  isFocused = false,
+  className,
+  style,
+}: {
+  title: string;
+  category: string;
+  categoryIcon: string;
+  horizon: string;
+  isDone?: boolean;
+  isFocused?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  if (isDone) {
+    return (
+      <div
+        className={`rounded-lg backdrop-blur-md ring-1 ring-done-ring shadow-lg transition-transform duration-300 ease-out ${className}`}
+        style={style}
+      >
+        <div className="flex items-start gap-1.5 px-2 pt-2 text-base font-medium bg-done-panel/80 pb-3 rounded-t-lg">
+          <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-checked ring-1 ring-input-checked">
+            <svg
+              className="size-2.5 text-white"
+              fill="currentColor"
+              viewBox="0 0 10 10"
+            >
+              <path d="M9.1603 1.12218C9.50684 1.34873 9.60427 1.81354 9.37792 2.16038L5.13603 8.66012C5.01614 8.8438 4.82192 8.96576 4.60451 8.99384C4.3871 9.02194 4.1683 8.95335 4.00574 8.80615L1.24664 6.30769C0.939709 6.02975 0.916013 5.55541 1.19372 5.24822C1.47142 4.94102 1.94536 4.91731 2.2523 5.19524L4.36085 7.10461L8.12299 1.33999C8.34934 0.993152 8.81376 0.895638 9.1603 1.12218Z" />
+            </svg>
+          </div>
+          <div className="min-h-5 text-done-content line-through">{title}</div>
+        </div>
+        <div className="flex justify-between rounded-b-lg bg-done-panel-tinted/80 px-2 py-1.5 text-xs text-done-content">
+          <span>{horizon}</span>
+          <span>
+            {categoryIcon} {category}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`rounded-lg backdrop-blur-md shadow-lg transition-transform duration-300 ease-out ${
+        isFocused ? "ring-2 ring-accent" : "ring-1 ring-ring"
+      } ${className}`}
+      style={style}
+    >
+      <div
+        className={`flex items-start gap-1.5 px-2 pt-2 text-base font-medium pb-3 rounded-t-lg ${
+          isFocused ? "bg-panel-hover/80" : "bg-panel/80"
+        }`}
+      >
+        <div className="mt-0.5 flex size-4 flex-shrink-0 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring" />
+        <div className="min-h-5 text-content">{title}</div>
+      </div>
+      <div className="flex justify-between rounded-b-lg bg-panel-tinted/80 px-2 py-1.5 text-xs text-content-tinted">
+        <span>{horizon}</span>
+        <span>
+          {categoryIcon} {category}
+        </span>
+      </div>
     </div>
   );
 }

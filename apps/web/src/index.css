@@ -52,8 +52,7 @@
 
   /* Input colors */
   --color-input: oklch(11% 0.006 286);
-  --color-input-indicator-checked: oklch(21% 0.006 286 / 0.8);
-  --color-input-checked: oklch(90% 0 none / 1);
+  --color-input-checked: var(--color-blue-500);
   --color-input-bg: oklch(90% 0 none / 1);
 
   /* Text colors - brighter for better readability */

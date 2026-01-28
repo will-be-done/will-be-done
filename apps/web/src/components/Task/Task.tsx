@@ -64,7 +64,7 @@ export function CheckboxComp({
       checked={checked}
       onCheckedChange={onChange}
     >
-      <Checkbox.Indicator className="flex text-input-indicator-checked data-[unchecked]:hidden">
+      <Checkbox.Indicator className="flex text-white data-[unchecked]:hidden">
         <CheckIcon className="size-2.5" />
       </Checkbox.Indicator>
     </Checkbox.Root>
