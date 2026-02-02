@@ -60,15 +60,18 @@ export class BackupManager {
       // Get all database files
       const dbFiles = this.getAllDatabaseFiles();
       console.log(`[Backup] Found ${dbFiles.length} database files to backup`);
+      console.log(`[Backup] Database files: ${dbFiles.join(", ")}`);
 
       const s3Keys: string[] = [];
       let totalSize = 0;
 
       // Timestamp for this backup batch
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      console.log(`[Backup] Starting backup loop with timestamp: ${timestamp}`);
 
       // Backup each database file
-      for (const dbFile of dbFiles) {
+      for (let i = 0; i < dbFiles.length; i++) {
+        const dbFile = dbFiles[i];
         const dbPath = path.join(this.dbsPath, dbFile);
         const tempBackupPath = path.join(
           this.tempBackupDir,
@@ -76,7 +79,12 @@ export class BackupManager {
         );
 
         try {
+          console.log(
+            `[Backup] Processing database ${i + 1}/${dbFiles.length}: ${dbFile}`
+          );
+
           // Use VACUUM INTO to create clean backup
+          console.log(`[Backup] Running VACUUM INTO for ${dbFile}...`);
           await this.vacuumDatabase(dbPath, tempBackupPath);
 
           // Get file size
@@ -84,18 +92,21 @@ export class BackupManager {
           totalSize += fileStats.size;
 
           // Upload to S3
+          console.log(
+            `[Backup] Uploading ${dbFile} to S3 (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)...`
+          );
           const s3Key = `backups/${tier}/${timestamp}/${dbFile}`;
           await this.s3Client.uploadFile(tempBackupPath, s3Key);
           s3Keys.push(s3Key);
 
           console.log(
-            `[Backup] Backed up ${dbFile} (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)`
+            `[Backup] ✓ Completed ${dbFile} (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)`
           );
 
           // Clean up temp file
           unlinkSync(tempBackupPath);
         } catch (error) {
-          console.error(`[Backup] Failed to backup ${dbFile}:`, error);
+          console.error(`[Backup] ✗ Failed to backup ${dbFile}:`, error);
           // Clean up temp file if it exists
           if (existsSync(tempBackupPath)) {
             unlinkSync(tempBackupPath);
@@ -244,6 +255,11 @@ export class BackupManager {
     outputPath: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Set a timeout of 5 minutes per database
+      const timeout = setTimeout(() => {
+        reject(new Error(`VACUUM operation timed out after 5 minutes for ${dbPath}`));
+      }, 5 * 60 * 1000);
+
       try {
         const db = new Database(dbPath, { readonly: true });
 
@@ -251,8 +267,10 @@ export class BackupManager {
         db.run(`VACUUM main INTO '${outputPath}'`);
 
         db.close();
+        clearTimeout(timeout);
         resolve();
       } catch (error) {
+        clearTimeout(timeout);
         reject(error);
       }
     });
