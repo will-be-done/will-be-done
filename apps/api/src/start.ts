@@ -314,6 +314,18 @@ const start = async () => {
         const backupManager = new BackupManager(mainDB, backupConfig, dbsPath);
         backupScheduler = new BackupScheduler(backupManager);
         backupScheduler.start();
+
+        // Trigger initial backup on startup
+        console.log("[Backup] Triggering initial backup...");
+        void backupManager
+          .performBackup("hourly")
+          .then(() => {
+            console.log("[Backup] Initial backup completed successfully");
+          })
+          .catch((error) => {
+            console.error("[Backup] Initial backup failed:", error);
+            // Non-fatal: scheduled backups will continue
+          });
       } catch (error) {
         console.error("[Backup] Failed to initialize backup system:", error);
         // Non-fatal: server continues without backups
