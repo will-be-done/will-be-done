@@ -46,8 +46,13 @@ builder:
 env:
   clear:
     NODE_ENV: production
-  # secret:
-  #   - RAILS_MASTER_KEY
+  secret:
+    - IS_S3_SQLITE_BACKUP_ENABLED
+    - S3_ACCESS_KEY_ID
+    - S3_SECRET_ACCESS_KEY
+    - S3_ENDPOINT
+    - S3_BUCKET_NAME
+    - S3_REGION
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal app logs -r job" will tail logs from the first server in the job section.

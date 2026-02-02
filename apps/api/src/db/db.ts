@@ -12,6 +12,10 @@ import { changesSlice, changesTable } from "@will-be-done/slices/common";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { usersTable, tokensTable } from "../slices/authSlice";
 import { dbsTable } from "../slices/dbSlice";
+import {
+  backupStateTable,
+  backupTierStateTable,
+} from "../slices/backupSlice";
 
 export interface DBConfig {
   dbId: string;
@@ -85,7 +89,15 @@ export const getMainHyperDB = () => {
 
   const db = getDB("main", "main");
 
-  execSync(db.loadTables([usersTable, tokensTable, dbsTable]));
+  execSync(
+    db.loadTables([
+      usersTable,
+      tokensTable,
+      dbsTable,
+      backupStateTable,
+      backupTierStateTable,
+    ])
+  );
 
   mainDB = db;
   return db;
