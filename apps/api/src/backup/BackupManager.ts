@@ -6,16 +6,14 @@ import type { DB } from "@will-be-done/hyperdb";
 import { syncDispatch, select } from "@will-be-done/hyperdb";
 import { S3Client } from "./S3Client";
 import { RetentionPolicy } from "./RetentionPolicy";
-import {
-  backupSlice,
-  type BackupMetadata,
-} from "../slices/backupSlice";
+import { ScheduledTimeCalculator } from "./ScheduledTimeCalculator";
+import { backupSlice } from "../slices/backupSlice";
 import type { BackupConfig, BackupTier } from "./types";
 
 export class BackupManager {
   private s3Client: S3Client;
   private retentionPolicy: RetentionPolicy;
-  private isBackupInProgress = false;
+  private scheduledTimeCalculator: ScheduledTimeCalculator;
   private tempBackupDir: string;
 
   constructor(
@@ -23,8 +21,10 @@ export class BackupManager {
     private config: BackupConfig,
     private dbsPath: string
   ) {
+    console.log("[BackupManager] Initializing backup manager");
     this.s3Client = new S3Client(config);
     this.retentionPolicy = new RetentionPolicy(config);
+    this.scheduledTimeCalculator = new ScheduledTimeCalculator(config);
     this.tempBackupDir = path.join(dbsPath, "backups-temp");
 
     // Ensure temp backup directory exists
@@ -33,43 +33,67 @@ export class BackupManager {
     }
   }
 
-  async performBackup(tier: BackupTier): Promise<void> {
-    if (this.isBackupInProgress) {
-      console.log(`[Backup] Backup already in progress, skipping ${tier}`);
+  async verifyBucketAccess(): Promise<void> {
+    return this.s3Client.verifyBucketAccess();
+  }
+
+  async performBackup(dueTiers: BackupTier[]): Promise<void> {
+    if (dueTiers.length === 0) {
       return;
     }
 
-    this.isBackupInProgress = true;
+    const now = new Date();
     const startTime = Date.now();
 
-    try {
-      console.log(`[Backup] Starting ${tier} backup`);
+    // Calculate scheduled times for each tier
+    const tierScheduledTimes = new Map<BackupTier, string>();
+    const backupIds = new Map<BackupTier, string>();
 
-      // Create backup record
-      const backupId = syncDispatch(
-        this.mainDB,
-        backupSlice.createBackup(tier)
-      );
-
-      // Update status to running
+    // Mark all tiers as in progress
+    for (const tier of dueTiers) {
       syncDispatch(
         this.mainDB,
-        backupSlice.updateBackupStatus(backupId, "running")
+        backupSlice.updateTierState(tier, {
+          isBackupInProgress: true,
+        })
       );
+    }
+
+    try {
+      console.log(`[Backup] Starting backup for tiers: ${dueTiers.join(", ")}`);
+
+      // Create backup records for each tier
+
+      for (const tier of dueTiers) {
+        const scheduledTime = this.scheduledTimeCalculator.getScheduledTime(
+          tier,
+          now
+        );
+        const scheduledTimeStr = scheduledTime.toISOString();
+        tierScheduledTimes.set(tier, scheduledTimeStr);
+
+        // Create backup record
+        const backupId = syncDispatch(
+          this.mainDB,
+          backupSlice.createBackup(tier, scheduledTimeStr)
+        );
+        backupIds.set(tier, backupId);
+
+        // Mark as running
+        syncDispatch(this.mainDB, backupSlice.startBackup(backupId));
+
+        console.log(
+          `[Backup] Created ${tier} backup (scheduled: ${scheduledTimeStr}, id: ${backupId})`
+        );
+      }
 
       // Get all database files
       const dbFiles = this.getAllDatabaseFiles();
       console.log(`[Backup] Found ${dbFiles.length} database files to backup`);
-      console.log(`[Backup] Database files: ${dbFiles.join(", ")}`);
 
-      const s3Keys: string[] = [];
       let totalSize = 0;
 
-      // Timestamp for this backup batch
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      console.log(`[Backup] Starting backup loop with timestamp: ${timestamp}`);
-
-      // Backup each database file
+      // Process each database file (VACUUM once, upload to all tiers)
       for (let i = 0; i < dbFiles.length; i++) {
         const dbFile = dbFiles[i];
         const dbPath = path.join(this.dbsPath, dbFile);
@@ -80,33 +104,57 @@ export class BackupManager {
 
         try {
           console.log(
-            `[Backup] Processing database ${i + 1}/${dbFiles.length}: ${dbFile}`
+            `[Backup] Processing ${i + 1}/${dbFiles.length}: ${dbFile}`
           );
 
-          // Use VACUUM INTO to create clean backup
-          console.log(`[Backup] Running VACUUM INTO for ${dbFile}...`);
+          // VACUUM once per database
+          const vacuumStart = Date.now();
           await this.vacuumDatabase(dbPath, tempBackupPath);
+          const vacuumDurationMs = Date.now() - vacuumStart;
 
           // Get file size
           const fileStats = await stat(tempBackupPath);
           totalSize += fileStats.size;
 
-          // Upload to S3
           console.log(
-            `[Backup] Uploading ${dbFile} to S3 (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)...`
+            `[Backup] Vacuumed ${dbFile} in ${vacuumDurationMs}ms (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)`
           );
-          const s3Key = `backups/${tier}/${timestamp}/${dbFile}`;
-          await this.s3Client.uploadFile(tempBackupPath, s3Key);
-          s3Keys.push(s3Key);
 
-          console.log(
-            `[Backup] ✓ Completed ${dbFile} (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)`
-          );
+          // Upload to S3 for each tier
+          for (const tier of dueTiers) {
+            const scheduledTimeStr = tierScheduledTimes.get(tier)!;
+            const timestamp = scheduledTimeStr.replace(/[:.]/g, "-");
+            const s3Key = `backups/${tier}/${timestamp}/${dbFile}`;
+
+            const uploadStart = Date.now();
+            await this.s3Client.uploadFile(tempBackupPath, s3Key);
+            const uploadDurationMs = Date.now() - uploadStart;
+
+            console.log(
+              `[Backup] Uploaded ${dbFile} to ${tier} in ${uploadDurationMs}ms`
+            );
+
+            // Create BackupFile record
+            const backupId = backupIds.get(tier)!;
+            syncDispatch(
+              this.mainDB,
+              backupSlice.createBackupFile(
+                backupId,
+                tier,
+                scheduledTimeStr,
+                dbFile,
+                s3Key,
+                fileStats.size,
+                vacuumDurationMs,
+                uploadDurationMs
+              )
+            );
+          }
 
           // Clean up temp file
           unlinkSync(tempBackupPath);
         } catch (error) {
-          console.error(`[Backup] ✗ Failed to backup ${dbFile}:`, error);
+          console.error(`[Backup] Failed to backup ${dbFile}:`, error);
           // Clean up temp file if it exists
           if (existsSync(tempBackupPath)) {
             unlinkSync(tempBackupPath);
@@ -115,60 +163,74 @@ export class BackupManager {
         }
       }
 
-      const durationMs = Date.now() - startTime;
+      const totalDurationMs = Date.now() - startTime;
 
-      // Update backup status to completed
-      const metadata: BackupMetadata = {
-        files: dbFiles,
-        s3Keys,
-        totalSizeBytes: totalSize,
-        durationMs,
-      };
+      // Mark all backups as completed
+      for (const tier of dueTiers) {
+        const backupId = backupIds.get(tier)!;
+        const scheduledTimeStr = tierScheduledTimes.get(tier)!;
+        const scheduledTime = new Date(scheduledTimeStr);
+        const nextScheduledTime = this.scheduledTimeCalculator.getNextScheduledTime(
+          tier,
+          scheduledTime
+        );
 
-      syncDispatch(
-        this.mainDB,
-        backupSlice.updateBackupStatus(backupId, "completed", metadata)
-      );
+        syncDispatch(
+          this.mainDB,
+          backupSlice.completeBackup(backupId, totalSize, totalDurationMs)
+        );
 
-      // Update tier state
-      const now = new Date();
-      const nextBackupAt = this.retentionPolicy.getNextBackupTime(tier, now);
+        syncDispatch(
+          this.mainDB,
+          backupSlice.updateTierState(tier, {
+            lastScheduledTime: scheduledTimeStr,
+            nextScheduledTime: nextScheduledTime.toISOString(),
+            lastCompletedAt: new Date().toISOString(),
+            consecutiveFailures: 0,
+            isBackupInProgress: false,
+          })
+        );
 
-      syncDispatch(
-        this.mainDB,
-        backupSlice.updateTierState(tier, {
-          lastBackupAt: now.toISOString(),
-          nextBackupAt: nextBackupAt.toISOString(),
-          consecutiveFailures: 0,
-        })
-      );
+        console.log(
+          `[Backup] Completed ${tier} backup (next scheduled: ${nextScheduledTime.toISOString()})`
+        );
+
+        // Run cleanup for this tier
+        await this.cleanupOldBackups(tier);
+      }
 
       console.log(
-        `[Backup] Completed ${tier} backup in ${(durationMs / 1000).toFixed(2)}s (${(totalSize / 1024 / 1024).toFixed(2)} MB)`
+        `[Backup] All backups completed in ${(totalDurationMs / 1000).toFixed(2)}s (${(totalSize / 1024 / 1024).toFixed(2)} MB)`
       );
-      console.log(
-        `[Backup] Next ${tier} backup scheduled for ${nextBackupAt.toISOString()}`
-      );
-
-      // Run cleanup
-      await this.cleanupOldBackups(tier);
     } catch (error) {
-      console.error(`[Backup] ${tier} backup failed:`, error);
+      console.error(`[Backup] Backup failed:`, error);
 
-      // Update tier state to track failure
-      const tierState = select(this.mainDB, backupSlice.getTierState(tier));
-      const consecutiveFailures = (tierState?.consecutiveFailures || 0) + 1;
+      // Mark all tiers as failed
+      for (const tier of dueTiers) {
+        const backupId = backupIds.get(tier);
+        if (backupId) {
+          syncDispatch(
+            this.mainDB,
+            backupSlice.failBackup(
+              backupId,
+              error instanceof Error ? error.message : String(error)
+            )
+          );
+        }
 
-      syncDispatch(
-        this.mainDB,
-        backupSlice.updateTierState(tier, {
-          consecutiveFailures,
-        })
-      );
+        const tierState = select(this.mainDB, backupSlice.getTierState(tier));
+        const consecutiveFailures = (tierState?.consecutiveFailures || 0) + 1;
+
+        syncDispatch(
+          this.mainDB,
+          backupSlice.updateTierState(tier, {
+            consecutiveFailures,
+            isBackupInProgress: false,
+          })
+        );
+      }
 
       throw error;
-    } finally {
-      this.isBackupInProgress = false;
     }
   }
 
@@ -194,21 +256,26 @@ export class BackupManager {
 
         for (const backup of backupsToDelete) {
           try {
-            // Parse metadata to get S3 keys
-            const metadata = backup.metadata
-              ? (JSON.parse(backup.metadata) as BackupMetadata)
-              : null;
+            // Get all files for this backup
+            const files = select(
+              this.mainDB,
+              backupSlice.getBackupFiles(backup.id)
+            );
 
-            if (metadata?.s3Keys && metadata.s3Keys.length > 0) {
-              // Delete from S3
-              await this.s3Client.deleteFiles(metadata.s3Keys);
+            if (files.length > 0) {
+              // Delete all files from S3
+              const s3Keys = files.map((f) => f.s3Key);
+              await this.s3Client.deleteFiles(s3Keys);
               console.log(
-                `[Backup] Deleted ${metadata.s3Keys.length} files from S3 for backup ${backup.id}`
+                `[Backup] Deleted ${s3Keys.length} files from S3 for backup ${backup.id}`
               );
             }
 
-            // Delete backup record from database
-            syncDispatch(this.mainDB, backupSlice.deleteBackup(backup.id));
+            // Delete backup record and all associated files from database
+            syncDispatch(
+              this.mainDB,
+              backupSlice.deleteBackupWithFiles(backup.id)
+            );
           } catch (error) {
             console.error(
               `[Backup] Failed to delete backup ${backup.id}:`,
@@ -224,21 +291,6 @@ export class BackupManager {
     } catch (error) {
       console.error(`[Backup] Cleanup failed for ${tier}:`, error);
     }
-  }
-
-  shouldBackupNow(tier: BackupTier): boolean {
-    const tierState = select(this.mainDB, backupSlice.getTierState(tier));
-
-    if (!tierState) {
-      // No tier state yet, should run first backup
-      return true;
-    }
-
-    const nextBackupAt = tierState.nextBackupAt
-      ? new Date(tierState.nextBackupAt)
-      : null;
-
-    return this.retentionPolicy.shouldBackupNow(tier, nextBackupAt);
   }
 
   private getAllDatabaseFiles(): string[] {
@@ -257,21 +309,26 @@ export class BackupManager {
     return new Promise((resolve, reject) => {
       // Set a timeout of 5 minutes per database
       const timeout = setTimeout(() => {
-        reject(new Error(`VACUUM operation timed out after 5 minutes for ${dbPath}`));
+        reject(
+          new Error(
+            `VACUUM operation timed out after 5 minutes for ${dbPath}`
+          )
+        );
       }, 5 * 60 * 1000);
 
       try {
-        const db = new Database(dbPath, { readonly: true });
-
-        // Execute VACUUM INTO to create clean backup
+        const db = new Database(dbPath);
         db.run(`VACUUM main INTO '${outputPath}'`);
-
         db.close();
         clearTimeout(timeout);
         resolve();
       } catch (error) {
         clearTimeout(timeout);
-        reject(error);
+        reject(
+          new Error(
+            `VACUUM failed for ${dbPath}: ${error instanceof Error ? error.message : String(error)}`
+          )
+        );
       }
     });
   }

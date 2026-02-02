@@ -312,22 +312,27 @@ const start = async () => {
         }
 
         const backupManager = new BackupManager(mainDB, backupConfig, dbsPath);
-        backupScheduler = new BackupScheduler(backupManager);
+
+        // Skip bucket verification - HeadBucket may not be allowed
+        // Verification will happen during the first actual upload
+        console.log(
+          "[Backup] Skipping bucket verification (will verify on first upload)"
+        );
+
+        backupScheduler = new BackupScheduler(mainDB, backupManager, backupConfig);
         backupScheduler.start();
 
-        // Trigger initial backup on startup
-        console.log("[Backup] Triggering initial backup...");
-        void backupManager
-          .performBackup("hourly")
-          .then(() => {
-            console.log("[Backup] Initial backup completed successfully");
-          })
-          .catch((error) => {
-            console.error("[Backup] Initial backup failed:", error);
-            // Non-fatal: scheduled backups will continue
-          });
+        // Note: BackupScheduler automatically checks for due backups on startup,
+        // so no need to manually trigger initial backup
       } catch (error) {
-        console.error("[Backup] Failed to initialize backup system:", error);
+        console.error("[Backup] Failed to initialize backup system");
+        if (error instanceof Error) {
+          console.error("[Backup] Error name:", error.name);
+          console.error("[Backup] Error message:", error.message);
+          console.error("[Backup] Error stack:", error.stack);
+        } else {
+          console.error("[Backup] Error value:", String(error));
+        }
         // Non-fatal: server continues without backups
       }
     } else {

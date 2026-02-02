@@ -1,15 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { RetentionPolicy } from "./RetentionPolicy";
 import type { BackupConfig } from "./types";
-import {
-  addHours,
-  addDays,
-  addWeeks,
-  addMonths,
-  startOfDay,
-  startOfWeek,
-  startOfMonth,
-} from "date-fns";
+import { addHours, addDays, addWeeks, addMonths } from "date-fns";
 
 const mockConfig: BackupConfig = {
   IS_S3_SQLITE_BACKUP_ENABLED: true,
@@ -26,105 +18,6 @@ const mockConfig: BackupConfig = {
 };
 
 describe("RetentionPolicy", () => {
-  describe("getNextBackupTime", () => {
-    test("hourly: adds interval hours from last backup", () => {
-      const policy = new RetentionPolicy(mockConfig);
-      const lastBackup = new Date("2026-02-02T10:00:00Z");
-
-      const nextTime = policy.getNextBackupTime("hourly", lastBackup);
-
-      const expected = addHours(lastBackup, 4);
-      expect(nextTime).toEqual(expected);
-    });
-
-    test("hourly: uses current time if no last backup", () => {
-      const policy = new RetentionPolicy(mockConfig);
-      const before = new Date();
-
-      const nextTime = policy.getNextBackupTime("hourly", null);
-
-      const after = new Date();
-      // Should be approximately 4 hours from now
-      expect(nextTime.getTime()).toBeGreaterThanOrEqual(
-        addHours(before, 4).getTime() - 1000
-      );
-      expect(nextTime.getTime()).toBeLessThanOrEqual(
-        addHours(after, 4).getTime() + 1000
-      );
-    });
-
-    test("daily: returns next day at midnight", () => {
-      const policy = new RetentionPolicy(mockConfig);
-      const lastBackup = new Date("2026-02-02T10:30:00Z");
-
-      const nextTime = policy.getNextBackupTime("daily", lastBackup);
-
-      const expected = addDays(startOfDay(lastBackup), 1);
-      expect(nextTime).toEqual(expected);
-      expect(nextTime.getHours()).toBe(0);
-      expect(nextTime.getMinutes()).toBe(0);
-      expect(nextTime.getSeconds()).toBe(0);
-    });
-
-    test("weekly: returns next Monday at midnight", () => {
-      const policy = new RetentionPolicy(mockConfig);
-      // Sunday Feb 2, 2026
-      const lastBackup = new Date("2026-02-02T10:30:00Z");
-
-      const nextTime = policy.getNextBackupTime("weekly", lastBackup);
-
-      // Should be Monday Feb 9, 2026
-      const expected = addWeeks(
-        startOfWeek(lastBackup, { weekStartsOn: 1 }),
-        1
-      );
-      expect(nextTime).toEqual(expected);
-      expect(nextTime.getDay()).toBe(1); // Monday
-      expect(nextTime.getHours()).toBe(0);
-      expect(nextTime.getMinutes()).toBe(0);
-    });
-
-    test("monthly: returns first of next month at midnight", () => {
-      const policy = new RetentionPolicy(mockConfig);
-      const lastBackup = new Date("2026-02-15T10:30:00Z");
-
-      const nextTime = policy.getNextBackupTime("monthly", lastBackup);
-
-      const expected = addMonths(startOfMonth(lastBackup), 1);
-      expect(nextTime).toEqual(expected);
-      expect(nextTime.getDate()).toBe(1);
-      expect(nextTime.getHours()).toBe(0);
-      expect(nextTime.getMinutes()).toBe(0);
-    });
-  });
-
-  describe("shouldBackupNow", () => {
-    test("returns true when no next backup time set", () => {
-      const policy = new RetentionPolicy(mockConfig);
-
-      const result = policy.shouldBackupNow("hourly", null);
-
-      expect(result).toBe(true);
-    });
-
-    test("returns true when current time is past next backup time", () => {
-      const policy = new RetentionPolicy(mockConfig);
-      const pastTime = new Date(Date.now() - 1000 * 60 * 60); // 1 hour ago
-
-      const result = policy.shouldBackupNow("hourly", pastTime);
-
-      expect(result).toBe(true);
-    });
-
-    test("returns false when current time is before next backup time", () => {
-      const policy = new RetentionPolicy(mockConfig);
-      const futureTime = new Date(Date.now() + 1000 * 60 * 60); // 1 hour from now
-
-      const result = policy.shouldBackupNow("hourly", futureTime);
-
-      expect(result).toBe(false);
-    });
-  });
 
   describe("getRetentionCount", () => {
     test("returns correct counts for each tier", () => {

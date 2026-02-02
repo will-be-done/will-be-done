@@ -15,6 +15,7 @@ import { dbsTable } from "../slices/dbSlice";
 import {
   backupStateTable,
   backupTierStateTable,
+  backupFileTable,
 } from "../slices/backupSlice";
 
 export interface DBConfig {
@@ -96,6 +97,7 @@ export const getMainHyperDB = () => {
       dbsTable,
       backupStateTable,
       backupTierStateTable,
+      backupFileTable,
     ])
   );
 

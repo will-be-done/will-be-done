@@ -1,70 +1,79 @@
-import cron from "node-cron";
+import type { DB } from "@will-be-done/hyperdb";
+import { select } from "@will-be-done/hyperdb";
 import type { BackupManager } from "./BackupManager";
-import type { BackupTier } from "./types";
+import type { BackupTier, BackupConfig } from "./types";
+import { ScheduledTimeCalculator } from "./ScheduledTimeCalculator";
+import { backupSlice } from "../slices/backupSlice";
 
 export class BackupScheduler {
-  private jobs: Map<BackupTier, cron.ScheduledTask> = new Map();
+  private intervalId: Timer | null = null;
+  private scheduledTimeCalculator: ScheduledTimeCalculator;
 
-  constructor(private backupManager: BackupManager) {}
-
-  start(): void {
-    console.log("[BackupScheduler] Starting backup schedulers");
-
-    // Hourly: Check every 15 minutes
-    this.scheduleJob("hourly", "*/15 * * * *");
-
-    // Daily: Check every hour at :05
-    this.scheduleJob("daily", "5 * * * *");
-
-    // Weekly: Check daily at 00:10
-    this.scheduleJob("weekly", "10 0 * * *");
-
-    // Monthly: Check daily at 00:15
-    this.scheduleJob("monthly", "15 0 * * *");
-
-    console.log("[BackupScheduler] All backup schedulers started");
+  constructor(
+    private mainDB: DB,
+    private backupManager: BackupManager,
+    private config: BackupConfig
+  ) {
+    this.scheduledTimeCalculator = new ScheduledTimeCalculator(config);
   }
 
-  private scheduleJob(tier: BackupTier, cronExpression: string): void {
-    const job = cron.schedule(
-      cronExpression,
-      () => {
-        void (async () => {
-          try {
-            if (this.backupManager.shouldBackupNow(tier)) {
-              console.log(`[BackupScheduler] Triggering ${tier} backup`);
-              await this.backupManager.performBackup(tier);
-            } else {
-              console.log(
-                `[BackupScheduler] ${tier} backup not due yet, skipping`
-              );
-            }
-          } catch (error) {
-            console.error(`[BackupScheduler] ${tier} backup failed:`, error);
-          }
-        })();
-      },
-      {
-        scheduled: false, // Don't start immediately, we'll start manually
+  start(): void {
+    console.log("[BackupScheduler] Starting backup scheduler");
+
+    // Run initial check on startup (to catch any missed backups)
+    void this.checkAndRunBackups();
+
+    // Check every 15 minutes
+    this.intervalId = setInterval(() => {
+      void this.checkAndRunBackups();
+    }, 15 * 60 * 1000);
+
+    console.log("[BackupScheduler] Backup scheduler started (checking every 15 minutes)");
+  }
+
+  private async checkAndRunBackups(): Promise<void> {
+    try {
+      const now = new Date();
+
+      // Load all tier states
+      const allTiers: BackupTier[] = ["hourly", "daily", "weekly", "monthly"];
+      const tierStates = new Map();
+
+      for (const tier of allTiers) {
+        const state = select(this.mainDB, backupSlice.getTierState(tier));
+        tierStates.set(tier, state);
       }
-    );
 
-    this.jobs.set(tier, job);
-    job.start();
+      // Determine which tiers are due
+      const dueTiers = this.scheduledTimeCalculator.getDueTiers(
+        tierStates,
+        now
+      );
 
-    console.log(
-      `[BackupScheduler] Scheduled ${tier} backup with cron: ${cronExpression}`
-    );
+      if (dueTiers.length === 0) {
+        console.log("[BackupScheduler] No backups due");
+        return;
+      }
+
+      console.log(
+        `[BackupScheduler] Tiers due for backup: ${dueTiers.join(", ")}`
+      );
+
+      // Run backups for all due tiers
+      await this.backupManager.performBackup(dueTiers);
+    } catch (error) {
+      console.error("[BackupScheduler] Backup check failed:", error);
+    }
   }
 
   async stop(): Promise<void> {
-    console.log("[BackupScheduler] Stopping backup schedulers");
+    console.log("[BackupScheduler] Stopping backup scheduler");
 
-    for (const [tier, job] of this.jobs.entries()) {
-      job.stop();
-      console.log(`[BackupScheduler] Stopped ${tier} backup scheduler`);
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
 
-    this.jobs.clear();
+    console.log("[BackupScheduler] Backup scheduler stopped");
   }
 }

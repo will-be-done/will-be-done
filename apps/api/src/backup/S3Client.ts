@@ -4,9 +4,9 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
+  HeadBucketCommand,
 } from "@aws-sdk/client-s3";
-import { createReadStream } from "fs";
-import { stat } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import type { BackupConfig } from "./types";
 
 export class S3Client {
@@ -14,6 +14,7 @@ export class S3Client {
   private bucketName: string;
 
   constructor(config: BackupConfig) {
+    console.log("[S3Client] Initializing S3 client");
     this.bucketName = config.S3_BUCKET_NAME!;
 
     this.client = new AWSS3Client({
@@ -24,25 +25,69 @@ export class S3Client {
       },
       endpoint: config.S3_ENDPOINT,
       forcePathStyle: true, // Required for MinIO and some S3-compatible services
+      requestChecksumCalculation: "WHEN_REQUIRED", // Disable automatic checksums for R2 compatibility (AWS SDK v3 >= 3.729.0)
+      responseChecksumValidation: "WHEN_REQUIRED", // Disable checksum validation on GET operations for R2 compatibility
     });
   }
 
-  async uploadFile(localPath: string, s3Key: string): Promise<string> {
-    const fileStream = createReadStream(localPath);
-    const fileStats = await stat(localPath);
+  async verifyBucketAccess(): Promise<void> {
+    try {
+      await this.client.send(
+        new HeadBucketCommand({
+          Bucket: this.bucketName,
+        })
+      );
+      console.log(`[S3Client] ✓ Bucket access verified: ${this.bucketName}`);
+    } catch (error: unknown) {
+      const err = error as Record<string, unknown>;
+      console.error(`[S3Client] ✗ Bucket access failed:`, err?.message);
+      throw new Error(
+        `Cannot access S3 bucket "${this.bucketName}": ${err?.message || String(error)}`
+      );
+    }
+  }
 
-    await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: s3Key,
-        Body: fileStream,
-        ContentLength: fileStats.size,
-        Metadata: {
-          originalPath: localPath,
-          uploadedAt: new Date().toISOString(),
-        },
-      })
-    );
+  async uploadFile(localPath: string, s3Key: string): Promise<string> {
+    const fileStats = await stat(localPath);
+    const startTime = Date.now();
+
+    try {
+      const fileBuffer = await readFile(localPath);
+
+      // Create upload promise with timeout (5 minutes)
+      const uploadPromise = this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: s3Key,
+          Body: fileBuffer,
+          ContentLength: fileStats.size,
+          Metadata: {
+            originalPath: localPath,
+            uploadedAt: new Date().toISOString(),
+          },
+        })
+      );
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Upload timeout after 5 minutes for ${s3Key}`));
+        }, 5 * 60 * 1000);
+      });
+
+      await Promise.race([uploadPromise, timeoutPromise]);
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(
+        `[S3Client] Uploaded ${s3Key} in ${duration}s (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)`
+      );
+    } catch (error: unknown) {
+      const err = error as Record<string, unknown>;
+      console.error(`[S3Client] Upload failed for ${s3Key}:`, err?.message);
+      const errorMsg = `S3 upload failed for ${s3Key}: ${
+        (err?.message as string) || String(error)
+      }`;
+      throw new Error(errorMsg);
+    }
 
     return s3Key;
   }

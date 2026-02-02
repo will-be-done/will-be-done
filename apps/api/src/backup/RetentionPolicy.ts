@@ -1,62 +1,8 @@
-import {
-  addHours,
-  addDays,
-  addWeeks,
-  addMonths,
-  startOfDay,
-  startOfWeek,
-  startOfMonth,
-} from "date-fns";
+import { addHours, addDays, addWeeks, addMonths } from "date-fns";
 import type { BackupConfig, BackupTier } from "./types";
 
 export class RetentionPolicy {
   constructor(private config: BackupConfig) {}
-
-  getNextBackupTime(tier: BackupTier, lastBackupAt: Date | null): Date {
-    const now = new Date();
-    const referenceTime = lastBackupAt || now;
-
-    switch (tier) {
-      case "hourly": {
-        // Add interval hours from last backup
-        return addHours(referenceTime, this.config.BACKUP_HOURLY_INTERVAL_HOURS);
-      }
-
-      case "daily": {
-        // Next day at midnight
-        const nextDay = addDays(startOfDay(referenceTime), 1);
-        return nextDay;
-      }
-
-      case "weekly": {
-        // Next Monday at midnight
-        const nextMonday = addWeeks(
-          startOfWeek(referenceTime, { weekStartsOn: 1 }),
-          1
-        );
-        return nextMonday;
-      }
-
-      case "monthly": {
-        // First of next month at midnight
-        const nextMonth = addMonths(startOfMonth(referenceTime), 1);
-        return nextMonth;
-      }
-
-      default:
-        throw new Error(`Unknown backup tier: ${tier}`);
-    }
-  }
-
-  shouldBackupNow(tier: BackupTier, nextBackupAt: Date | null): boolean {
-    if (!nextBackupAt) {
-      // No backup scheduled yet, should run now
-      return true;
-    }
-
-    const now = new Date();
-    return now >= nextBackupAt;
-  }
 
   getRetentionCount(tier: BackupTier): number {
     switch (tier) {
