@@ -235,8 +235,10 @@ describe("backupSlice", () => {
           "main.sqlite",
           "backups/hourly/2026-02-03T12-00-00Z/main.sqlite",
           1024000,
+          153600, // ~15% compressed size
           5000,
-          2000
+          2000,
+          300
         )
       );
 
@@ -274,8 +276,10 @@ describe("backupSlice", () => {
           "main.sqlite",
           "backups/hourly/2026-02-03T12-00-00Z/main.sqlite",
           1024000,
+          153600,
           5000,
-          2000
+          2000,
+          300
         )
       );
 
@@ -288,8 +292,10 @@ describe("backupSlice", () => {
           "space1.sqlite",
           "backups/hourly/2026-02-03T12-00-00Z/space1.sqlite",
           2048000,
+          307200,
           6000,
-          3000
+          3000,
+          400
         )
       );
 
@@ -323,8 +329,10 @@ describe("backupSlice", () => {
           "main.sqlite",
           "backups/hourly/2026-02-03T12-00-00Z/main.sqlite",
           1024000,
+          153600,
           5000,
-          2000
+          2000,
+          300
         )
       );
 
@@ -341,8 +349,10 @@ describe("backupSlice", () => {
           "main.sqlite",
           "backups/hourly/2026-02-03T16-00-00Z/main.sqlite",
           1024000,
+          153600,
           5000,
-          2000
+          2000,
+          300
         )
       );
 
@@ -376,8 +386,10 @@ describe("backupSlice", () => {
           "main.sqlite",
           "backups/hourly/2026-02-03T12-00-00Z/main.sqlite",
           1024000,
+          153600,
           5000,
-          2000
+          2000,
+          300
         )
       );
 
@@ -390,8 +402,10 @@ describe("backupSlice", () => {
           "space1.sqlite",
           "backups/hourly/2026-02-03T12-00-00Z/space1.sqlite",
           2048000,
+          307200,
           6000,
-          3000
+          3000,
+          400
         )
       );
 

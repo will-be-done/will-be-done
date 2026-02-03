@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { readdirSync, unlinkSync, existsSync, mkdirSync } from "fs";
-import { stat } from "fs/promises";
+import { stat, readFile, writeFile } from "fs/promises";
 import path from "path";
 import type { DB } from "@will-be-done/hyperdb";
 import { syncDispatch, select } from "@will-be-done/hyperdb";
@@ -109,32 +109,47 @@ export class BackupManager {
 
           // VACUUM once per database
           const vacuumStart = Date.now();
-          await this.vacuumDatabase(dbPath, tempBackupPath);
+          this.vacuumDatabase(dbPath, tempBackupPath);
           const vacuumDurationMs = Date.now() - vacuumStart;
 
-          // Get file size
+          // Drop all indexes and VACUUM again to reclaim space
+          const dropIndexStart = Date.now();
+          this.dropAllIndexesAndVacuum(tempBackupPath);
+          const dropIndexDurationMs = Date.now() - dropIndexStart;
+
+          // Get file size AFTER dropping indexes and second VACUUM
           const fileStats = await stat(tempBackupPath);
           totalSize += fileStats.size;
 
           console.log(
-            `[Backup] Vacuumed ${dbFile} in ${vacuumDurationMs}ms (${(fileStats.size / 1024 / 1024).toFixed(2)} MB)`
+            `[Backup] Processed ${dbFile}: vacuum=${vacuumDurationMs}ms, drop-indexes+vacuum=${dropIndexDurationMs}ms, size=${(fileStats.size / 1024 / 1024).toFixed(2)} MB`
+          );
+
+          // Compress file
+          const compressedPath = tempBackupPath + '.zst';
+          const compressionStart = Date.now();
+          const { compressedSize, durationMs: compressionDurationMs } =
+            await this.compressFile(tempBackupPath, compressedPath);
+
+          console.log(
+            `[Backup] Compressed ${dbFile}: ${(fileStats.size / 1024 / 1024).toFixed(2)} MB → ${(compressedSize / 1024 / 1024).toFixed(2)} MB (${((1 - compressedSize / fileStats.size) * 100).toFixed(1)}% reduction) in ${compressionDurationMs}ms`
           );
 
           // Upload to S3 for each tier
           for (const tier of dueTiers) {
             const scheduledTimeStr = tierScheduledTimes.get(tier)!;
             const timestamp = scheduledTimeStr.replace(/[:.]/g, "-");
-            const s3Key = `backups/${tier}/${timestamp}/${dbFile}`;
+            const s3Key = `backups/${tier}/${timestamp}/${dbFile}.zst`; // Add .zst extension
 
             const uploadStart = Date.now();
-            await this.s3Client.uploadFile(tempBackupPath, s3Key);
+            await this.s3Client.uploadFile(compressedPath, s3Key); // Upload compressed file
             const uploadDurationMs = Date.now() - uploadStart;
 
             console.log(
-              `[Backup] Uploaded ${dbFile} to ${tier} in ${uploadDurationMs}ms`
+              `[Backup] Uploaded ${dbFile}.zst to ${tier} in ${uploadDurationMs}ms`
             );
 
-            // Create BackupFile record
+            // Create BackupFile record with both sizes
             const backupId = backupIds.get(tier)!;
             syncDispatch(
               this.mainDB,
@@ -144,20 +159,27 @@ export class BackupManager {
                 scheduledTimeStr,
                 dbFile,
                 s3Key,
-                fileStats.size,
+                fileStats.size,           // Original size (after vacuum + drop indexes)
+                compressedSize,           // Compressed size
                 vacuumDurationMs,
-                uploadDurationMs
+                uploadDurationMs,
+                compressionDurationMs     // Compression duration
               )
             );
           }
 
-          // Clean up temp file
+          // Clean up temp files
           unlinkSync(tempBackupPath);
+          unlinkSync(compressedPath);
         } catch (error) {
           console.error(`[Backup] Failed to backup ${dbFile}:`, error);
-          // Clean up temp file if it exists
+          // Clean up temp files if they exist
           if (existsSync(tempBackupPath)) {
             unlinkSync(tempBackupPath);
+          }
+          const compressedPath = tempBackupPath + '.zst';
+          if (existsSync(compressedPath)) {
+            unlinkSync(compressedPath);
           }
           throw error;
         }
@@ -302,34 +324,82 @@ export class BackupManager {
     );
   }
 
-  private async vacuumDatabase(
-    dbPath: string,
-    outputPath: string
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // Set a timeout of 5 minutes per database
-      const timeout = setTimeout(() => {
-        reject(
-          new Error(
-            `VACUUM operation timed out after 5 minutes for ${dbPath}`
-          )
-        );
-      }, 5 * 60 * 1000);
+  private vacuumDatabase(dbPath: string, outputPath: string): void {
+    try {
+      const db = new Database(dbPath);
+      db.run(`VACUUM main INTO ?`, [outputPath]);
+      db.close();
+    } catch (error) {
+      throw new Error(
+        `VACUUM failed for ${dbPath}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 
-      try {
-        const db = new Database(dbPath);
-        db.run(`VACUUM main INTO '${outputPath}'`);
-        db.close();
-        clearTimeout(timeout);
-        resolve();
-      } catch (error) {
-        clearTimeout(timeout);
-        reject(
-          new Error(
-            `VACUUM failed for ${dbPath}: ${error instanceof Error ? error.message : String(error)}`
-          )
-        );
+  private dropAllIndexesAndVacuum(dbPath: string): void {
+    const db = new Database(dbPath);
+
+    try {
+      // Query all user-created indexes (exclude sqlite_autoindex_*)
+      const indexes = db
+        .prepare(
+          `SELECT name FROM sqlite_master
+           WHERE type='index'
+           AND name NOT LIKE 'sqlite_autoindex_%'
+           AND sql IS NOT NULL`
+        )
+        .all() as Array<{ name: string }>;
+
+      console.log(`[Backup] Dropping ${indexes.length} indexes from ${path.basename(dbPath)}`);
+
+      // Drop each index
+      for (const { name } of indexes) {
+        try {
+          db.run(`DROP INDEX IF EXISTS ${name}`);
+        } catch (error) {
+          console.warn(`[Backup] Failed to drop index ${name}:`, error);
+          // Continue dropping other indexes
+        }
       }
-    });
+
+      console.log(`[Backup] Dropped all indexes from ${path.basename(dbPath)}`);
+
+      // VACUUM again to reclaim space from dropped indexes
+      console.log(`[Backup] Running VACUUM to reclaim index space`);
+      db.run(`VACUUM`);
+      console.log(`[Backup] VACUUM completed`);
+    } finally {
+      db.close();
+    }
+  }
+
+  private async compressFile(
+    inputPath: string,
+    outputPath: string
+  ): Promise<{ compressedSize: number; durationMs: number }> {
+    const startTime = Date.now();
+
+    try {
+      // Read file
+      const fileBuffer = await readFile(inputPath);
+
+      // Use zstd level 3 for good balance of speed and compression
+      // zstd level 3 is faster than gzip level 3 with similar compression ratios
+      const compressed = await Bun.zstdCompress(fileBuffer, { level: 3 });
+
+      // Write compressed file
+      await writeFile(outputPath, compressed);
+
+      const durationMs = Date.now() - startTime;
+      const compressedSize = compressed.length;
+
+      return { compressedSize, durationMs };
+    } catch (error) {
+      throw new Error(
+        `Compression failed for ${inputPath}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
   }
 }

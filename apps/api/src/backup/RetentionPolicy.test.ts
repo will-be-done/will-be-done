@@ -10,6 +10,7 @@ const mockConfig: BackupConfig = {
   S3_ENDPOINT: "http://localhost:9000",
   S3_BUCKET_NAME: "test-bucket",
   S3_REGION: "us-east-1",
+  BACKUP_ENABLED_TIERS: ["hourly", "daily", "weekly", "monthly"],
   BACKUP_HOURLY_INTERVAL_HOURS: 4,
   BACKUP_HOURLY_KEEP_COUNT: 4,
   BACKUP_DAILY_KEEP_DAYS: 5,

@@ -18,7 +18,8 @@ const mockConfig: BackupConfig = {
   S3_ENDPOINT: "http://localhost:9000",
   S3_BUCKET_NAME: "test-bucket",
   S3_REGION: "us-east-1",
-  BACKUP_HOURLY_INTERVAL_HOURS: 4,
+  BACKUP_ENABLED_TIERS: ["hourly", "daily", "weekly", "monthly"],
+  BACKUP_HOURLY_INTERVAL_HOURS: 12,
   BACKUP_HOURLY_KEEP_COUNT: 4,
   BACKUP_DAILY_KEEP_DAYS: 5,
   BACKUP_WEEKLY_KEEP_WEEKS: 2,
@@ -59,7 +60,9 @@ describe("BackupScheduler", () => {
             }
           },
           values(params?: SqlValue[]): SqlValue[][] {
-            return (params ? stmt.values(...params) : stmt.values()) as SqlValue[][];
+            return (
+              params ? stmt.values(...params) : stmt.values()
+            ) as SqlValue[][];
           },
           finalize(): void {
             stmt.finalize();
@@ -70,7 +73,7 @@ describe("BackupScheduler", () => {
 
     db = new DB(sqliteDriver);
     execSync(
-      db.loadTables([backupStateTable, backupTierStateTable, backupFileTable])
+      db.loadTables([backupStateTable, backupTierStateTable, backupFileTable]),
     );
 
     // Create a mock backup manager
@@ -107,35 +110,38 @@ describe("BackupScheduler", () => {
           nextScheduledTime: "2026-02-03T12:00:00.000Z",
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       // Set up other tiers as current
       syncDispatch(
         db,
         backupSlice.updateTierState("daily", {
-          lastScheduledTime: new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
+          lastScheduledTime:
+            new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       syncDispatch(
         db,
         backupSlice.updateTierState("weekly", {
-          lastScheduledTime: new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
+          lastScheduledTime:
+            new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       syncDispatch(
         db,
         backupSlice.updateTierState("monthly", {
-          lastScheduledTime: new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
+          lastScheduledTime:
+            new Date().toISOString().split("T")[0] + "T00:00:00.000Z",
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
@@ -149,8 +155,9 @@ describe("BackupScheduler", () => {
 
     test("does not trigger backup when all tiers are current", async () => {
       const now = new Date();
+      const intervalMs = mockConfig.BACKUP_HOURLY_INTERVAL_HOURS * 60 * 60 * 1000;
       const scheduledTime = new Date(
-        Math.floor(now.getTime() / (4 * 60 * 60 * 1000)) * (4 * 60 * 60 * 1000)
+        Math.floor(now.getTime() / intervalMs) * intervalMs,
       );
       const scheduledTimeStr = scheduledTime.toISOString();
 
@@ -161,7 +168,7 @@ describe("BackupScheduler", () => {
           lastScheduledTime: scheduledTimeStr,
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       const today = new Date();
@@ -172,7 +179,7 @@ describe("BackupScheduler", () => {
           lastScheduledTime: today.toISOString(),
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       // Get current week start (Monday)
@@ -186,7 +193,7 @@ describe("BackupScheduler", () => {
           lastScheduledTime: currentWeekStart.toISOString(),
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       // Get current month start
@@ -198,7 +205,7 @@ describe("BackupScheduler", () => {
           lastScheduledTime: monthStart.toISOString(),
           consecutiveFailures: 0,
           isBackupInProgress: false,
-        })
+        }),
       );
 
       const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
@@ -217,7 +224,7 @@ describe("BackupScheduler", () => {
         backupSlice.updateTierState("hourly", {
           lastScheduledTime: "2026-02-03T08:00:00.000Z",
           isBackupInProgress: true, // In progress!
-        })
+        }),
       );
 
       const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
@@ -291,7 +298,7 @@ describe("BackupScheduler", () => {
         const scheduler = new BackupScheduler(
           db,
           mockBackupManager,
-          mockConfig
+          mockConfig,
         );
 
         // Should not throw - error should be caught and logged
@@ -303,7 +310,7 @@ describe("BackupScheduler", () => {
         // Verify error was logged
         expect(consoleErrorMock).toHaveBeenCalledWith(
           "[BackupScheduler] Backup check failed:",
-          expect.any(Error)
+          expect.any(Error),
         );
       } finally {
         // Restore console.error

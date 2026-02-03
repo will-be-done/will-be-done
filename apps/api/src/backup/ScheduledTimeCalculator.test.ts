@@ -10,6 +10,7 @@ const mockConfig: BackupConfig = {
   S3_ENDPOINT: "http://localhost:9000",
   S3_BUCKET_NAME: "test-bucket",
   S3_REGION: "us-east-1",
+  BACKUP_ENABLED_TIERS: ["hourly", "daily", "weekly", "monthly"],
   BACKUP_HOURLY_INTERVAL_HOURS: 4,
   BACKUP_HOURLY_KEEP_COUNT: 4,
   BACKUP_DAILY_KEEP_DAYS: 5,
@@ -350,6 +351,28 @@ describe("ScheduledTimeCalculator", () => {
       const dueTiers = calculator.getDueTiers(tierStates, now);
 
       expect(dueTiers).toEqual([]);
+    });
+
+    test("respects BACKUP_ENABLED_TIERS configuration", () => {
+      // Config with only daily and weekly enabled
+      const configWithLimitedTiers: BackupConfig = {
+        ...mockConfig,
+        BACKUP_ENABLED_TIERS: ["daily", "weekly"],
+      };
+      const calculator = new ScheduledTimeCalculator(configWithLimitedTiers);
+      const now = new Date("2026-02-03T12:30:00Z");
+
+      const tierStates = new Map<BackupTier, BackupTierState | undefined>([
+        ["hourly", undefined],
+        ["daily", undefined],
+        ["weekly", undefined],
+        ["monthly", undefined],
+      ]);
+
+      const dueTiers = calculator.getDueTiers(tierStates, now);
+
+      // Only daily and weekly should be due, not hourly or monthly
+      expect(dueTiers).toEqual(["daily", "weekly"]);
     });
   });
 });

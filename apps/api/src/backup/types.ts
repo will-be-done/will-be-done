@@ -13,6 +13,10 @@ export const BackupConfigSchema = z.object({
   S3_ENDPOINT: z.string().optional(),
   S3_BUCKET_NAME: z.string().optional(),
   S3_REGION: z.string().default("us-east-1"),
+  BACKUP_ENABLED_TIERS: z
+    .string()
+    .default("hourly,daily,weekly,monthly")
+    .transform((val) => val.split(",").map((s) => s.trim()) as BackupTier[]),
   BACKUP_HOURLY_INTERVAL_HOURS: z.coerce.number().int().min(1).default(4),
   BACKUP_HOURLY_KEEP_COUNT: z.coerce.number().int().min(1).default(4),
   BACKUP_DAILY_KEEP_DAYS: z.coerce.number().int().min(1).default(5),

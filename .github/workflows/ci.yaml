@@ -35,5 +35,5 @@ jobs:
         run: cd apps/${{ matrix.package }} && bun run ts
 
       - name: Test @apps/${{ matrix.package }}
-        if: matrix.package == 'hyperdb'
+        if: matrix.package == 'hyperdb' || matrix.package == 'api'
         run: cd apps/${{ matrix.package }} && bun run test

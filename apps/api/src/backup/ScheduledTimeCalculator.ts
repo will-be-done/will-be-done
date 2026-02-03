@@ -81,18 +81,19 @@ export class ScheduledTimeCalculator {
   /**
    * Determine which tiers are due for backup.
    * A tier is due if:
-   * 1. It has never run (lastScheduledTime is null)
-   * 2. The current scheduled time is different from the last scheduled time
-   * 3. No backup is currently in progress for this tier
+   * 1. It is enabled in the configuration
+   * 2. It has never run (lastScheduledTime is null)
+   * 3. The current scheduled time is different from the last scheduled time
+   * 4. No backup is currently in progress for this tier
    */
   getDueTiers(
     tierStates: Map<BackupTier, BackupTierState | undefined>,
     now: Date
   ): BackupTier[] {
-    const allTiers: BackupTier[] = ["hourly", "daily", "weekly", "monthly"];
+    const enabledTiers = this.config.BACKUP_ENABLED_TIERS;
     const dueTiers: BackupTier[] = [];
 
-    for (const tier of allTiers) {
+    for (const tier of enabledTiers) {
       const tierState = tierStates.get(tier);
       const currentScheduledTime = this.getScheduledTime(tier, now);
       const currentScheduledTimeStr = currentScheduledTime.toISOString();

@@ -7,7 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 dbs
+doit.sh
 
+.wrangler
 node_modules
 dist
 dist-ssr

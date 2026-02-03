@@ -34,8 +34,10 @@ export type BackupFile = {
   fileName: string; // e.g., "main.sqlite"
   s3Key: string; // Full S3 path
   sizeBytes: number;
+  compressedSizeBytes: number;
   vacuumDurationMs: number;
   uploadDurationMs: number;
+  compressionDurationMs: number;
   createdAt: string;
 };
 
@@ -219,8 +221,10 @@ export const backupSlice = {
     fileName: string,
     s3Key: string,
     sizeBytes: number,
+    compressedSizeBytes: number,
     vacuumDurationMs: number,
     uploadDurationMs: number,
+    compressionDurationMs: number,
   ): GenReturn<string> {
     const fileId = uuidv7();
     const now = new Date().toISOString();
@@ -233,8 +237,10 @@ export const backupSlice = {
       fileName,
       s3Key,
       sizeBytes,
+      compressedSizeBytes,
       vacuumDurationMs,
       uploadDurationMs,
+      compressionDurationMs,
       createdAt: now,
     };
 
