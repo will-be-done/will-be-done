@@ -29,7 +29,8 @@ import { State } from "./utils/State";
 import { getBackupConfig } from "./backup/types";
 import { BackupManager } from "./backup/BackupManager";
 import { BackupScheduler } from "./backup/BackupScheduler";
-import { getCaptchaConfig, verifyCaptchaToken } from "./captcha/types";
+import { getCaptchaConfig } from "./captcha/types";
+import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
 
 dotenv.config();
 

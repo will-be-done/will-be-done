@@ -29,33 +29,9 @@ export function getCaptchaConfig(): CaptchaConfig | null {
   }
   if (!config.CF_CAPTCHA_SECRET_KEY) {
     throw new Error(
-      "CF_CAPTCHA_SECRET_KEY is required when captcha is enabled"
+      "CF_CAPTCHA_SECRET_KEY is required when captcha is enabled",
     );
   }
 
   return config;
-}
-
-export async function verifyCaptchaToken(
-  token: string,
-  secretKey: string
-): Promise<boolean> {
-  const response = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        secret: secretKey,
-        response: token,
-      }),
-    }
-  );
-
-  const data = (await response.json()) as {
-    success: boolean;
-    "error-codes": string[];
-  };
-
-  return data.success;
 }
