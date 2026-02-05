@@ -8,7 +8,8 @@
     "dev": "bun run src/start.ts",
     "ts": "tsc -b",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -17,6 +18,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.703.0",
     "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.3.0",
     "@fastify/static": "^8.3.0",
@@ -25,6 +27,7 @@
     "@trpc/server": "^11.7.2",
     "@will-be-done/hyperdb": "workspace:*",
     "@will-be-done/slices": "workspace:*",
+    "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.6.2",
     "uuidv7": "^1.1.0",

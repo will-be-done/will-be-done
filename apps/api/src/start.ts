@@ -24,11 +24,11 @@ import { TRPCError } from "@trpc/server";
 import { dbSlice } from "./slices/dbSlice";
 import { assertUnreachable } from "./utils";
 import { dbConfigByType } from "./db/configs";
-import {
-  subscriptionManager,
-  NotificationData,
-} from "./subscriptionManager";
+import { subscriptionManager, NotificationData } from "./subscriptionManager";
 import { State } from "./utils/State";
+import { getBackupConfig } from "./backup/types";
+import { BackupManager } from "./backup/BackupManager";
+import { BackupScheduler } from "./backup/BackupScheduler";
 
 dotenv.config();
 
@@ -292,7 +292,52 @@ server.setNotFoundHandler((request, reply) => {
 
 const start = async () => {
   try {
+    console.log("Starting server...");
     await server.listen({ port: 3000, host: "0.0.0.0" });
+    console.log("Server started");
+
+    // Initialize backup system
+    let backupScheduler: BackupScheduler | null = null;
+    const backupConfig = getBackupConfig();
+
+    if (backupConfig?.IS_S3_SQLITE_BACKUP_ENABLED) {
+      try {
+        console.log("[Backup] S3 backup system enabled");
+        const dbsPath = path.join(__dirname, "..", "dbs");
+
+        // Ensure temp backup directory exists
+        const tempBackupPath = path.join(dbsPath, "backups-temp");
+        if (!fs.existsSync(tempBackupPath)) {
+          fs.mkdirSync(tempBackupPath, { recursive: true });
+        }
+
+        const backupManager = new BackupManager(mainDB, backupConfig, dbsPath);
+
+        // Skip bucket verification - HeadBucket may not be allowed
+        // Verification will happen during the first actual upload
+        console.log(
+          "[Backup] Skipping bucket verification (will verify on first upload)"
+        );
+
+        backupScheduler = new BackupScheduler(mainDB, backupManager, backupConfig);
+        backupScheduler.start();
+
+        // Note: BackupScheduler automatically checks for due backups on startup,
+        // so no need to manually trigger initial backup
+      } catch (error) {
+        console.error("[Backup] Failed to initialize backup system");
+        if (error instanceof Error) {
+          console.error("[Backup] Error name:", error.name);
+          console.error("[Backup] Error message:", error.message);
+          console.error("[Backup] Error stack:", error.stack);
+        } else {
+          console.error("[Backup] Error value:", String(error));
+        }
+        // Non-fatal: server continues without backups
+      }
+    } else {
+      console.log("[Backup] S3 backup system disabled");
+    }
 
     const signals = ["SIGINT", "SIGTERM", "SIGQUIT"];
     for (const signal of signals) {
@@ -303,7 +348,12 @@ const start = async () => {
           );
 
           try {
-            // Close the Fastify server first
+            // Stop backup scheduler first
+            if (backupScheduler) {
+              await backupScheduler.stop();
+            }
+
+            // Close the Fastify server
             await server.close();
             server.log.info("Server closed successfully");
 

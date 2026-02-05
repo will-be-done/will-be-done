@@ -46,8 +46,13 @@ builder:
 env:
   clear:
     NODE_ENV: production
-  # secret:
-  #   - RAILS_MASTER_KEY
+  secret:
+    - IS_S3_SQLITE_BACKUP_ENABLED
+    - S3_ACCESS_KEY_ID
+    - S3_SECRET_ACCESS_KEY
+    - S3_ENDPOINT
+    - S3_BUCKET_NAME
+    - S3_REGION
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal app logs -r job" will tail logs from the first server in the job section.
@@ -101,17 +106,3 @@ volumes:
 #     directories:
 #       - data:/data
 
-accessories:
-  litestream:
-    image: litestream/litestream:0.5.6
-    host: <%= ENV["WEB_IP"] %>
-    cmd: replicate -config /etc/litestream.yml
-    env:
-      secret:
-        - LITESTREAM_ACCESS_KEY_ID
-        - LITESTREAM_SECRET_ACCESS_KEY
-        - LITESTREAM_ENDPOINT
-    volumes:
-      - "will_be_done_storage:/databases"
-    files:
-      - config/litestream.yml:/etc/litestream.yml
