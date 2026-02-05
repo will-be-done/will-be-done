@@ -34,51 +34,61 @@ Top features:
 1. Self-hosted - one docker command, no external dependencies
 1. Open source
 
-Coming soon:
-1. Attachments and comments for tasks
-1. Global search
-1. More vim keybindings (beyond basic j/k navigation)
-1. Mobile-friendly UI
-1. Color and background customization per project
-1. API
+## Vim keybinds
 
-## Release Process
+When you focused on task
+1. `i`, `enter` - insert mode. You can edit the task. `esc` - exit insert mode.
+1. `j`, `k` - move between tasks up and down
+1. `h`, `l` - move between columns left and right
+1. `ctrl-j`, `ctrl-k` - move task up and down
+1. `ctrl-h`, `ctrl-j` - move task left and right
+1. `o` - create new task down to focused
+1. `O` - create new task up to focused
+1. `space` - toggle task state
+1. `m` - move task to other project
+1. `d` - delete task
 
-### Creating a Stable Release
+Planned:
+1. `u`/`r` - undo/redo action
+1. `?` - change date
 
-1. Ensure main branch is stable and all tests pass
-2. Create and push a version tag:
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-3. GitHub Actions automatically builds and publishes to ghcr.io
-4. Monitor workflow at: https://github.com/will-be-done/will-be-done/actions
-5. Pull and deploy the release:
-   ```bash
-   docker pull ghcr.io/will-be-done/will-be-done:0.1.0
-   # or
-   docker pull ghcr.io/will-be-done/will-be-done:latest
-   ```
+## Missing features that will be added soon
 
-### Canary Builds
+From tasks perspective:
+1. Repeating tasks
+1. Task details
+1. Comments to tasks
+1. Attachments
+1. Global search among tasks/details/comments
+1. Checklist inside task
 
-- Every commit to main automatically builds a canary release
-- Available as: `ghcr.io/will-be-done/will-be-done:canary`
-- Also tagged with commit SHA: `ghcr.io/will-be-done/will-be-done:<sha>`
-- Use for testing but not for production deployments
+From projects perspective:
+1. Themes per project(custom background of project and custom color of project tasks)
 
-### Multi-platform Support
+From daily columns perspective:
+1. Calendar integration
 
-All images support:
-- `linux/amd64`
-- `linux/arm64`
+From api perspective:
+1. API for developer. It will open ability for developers to write own bots.
+1. MCP integration
 
-Docker automatically pulls the correct architecture for your platform.
+UI/UX:
+1. Multi selection of tasks
+1. Global command palette
+1. Better vim keybinds. Right now some of them are missing and sometime they are buggy
+1. Global themes.
+1. Undo/redo action
+1. DnD for project columns
+1. I18n
 
-### Versioning
+Others:
+1. Desktop version to be able to have global shortcut
+1. Mobile version or just simple inbox app with ability to just dictate
+1. Migrator from popular task managers
 
-We follow Semantic Versioning:
-- **MAJOR** version for incompatible API changes
-- **MINOR** version for new features (backward compatible)
-- **PATCH** version for bug fixes
+## Features that are not planning for now
+
+1. Multi users per space/project
+1. Sharing tasks/projects/spaces
+1. No time schedules for tasks
+
