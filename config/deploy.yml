@@ -53,6 +53,9 @@ env:
     - S3_ENDPOINT
     - S3_BUCKET_NAME
     - S3_REGION
+    - CF_CAPTCHA_ENABLED
+    - CF_CAPTCHA_SITE_KEY
+    - CF_CAPTCHA_SECRET_KEY
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal app logs -r job" will tail logs from the first server in the job section.

@@ -5,9 +5,10 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { authUtils } from "@/lib/auth";
 import { useTRPC } from "@/lib/trpc";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
@@ -80,6 +81,12 @@ function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
+  const captchaConfigQuery = useQuery(trpc.getCaptchaConfig.queryOptions());
+
+  const captchaEnabled = captchaConfigQuery.data?.enabled ?? false;
+  const captchaSiteKey = captchaConfigQuery.data?.siteKey;
 
   const registerMutation = useMutation(
     trpc.register.mutationOptions({
@@ -101,7 +108,11 @@ function SignupPage() {
       return;
     }
 
-    registerMutation.mutate({ email, password });
+    registerMutation.mutate({
+      email,
+      password,
+      ...(captchaToken ? { captchaToken } : {}),
+    });
   };
 
   return (
@@ -198,6 +209,16 @@ function SignupPage() {
                 />
               </div>
 
+              {captchaEnabled && captchaSiteKey && (
+                <div className="flex justify-center">
+                  <Turnstile
+                    siteKey={captchaSiteKey}
+                    onSuccess={setCaptchaToken}
+                    options={{ theme: "dark" }}
+                  />
+                </div>
+              )}
+
               {(error || registerMutation.error) && (
                 <div className="rounded-md bg-red-500/10 px-4 py-3 text-[13px] text-red-400 ring-1 ring-red-500/20">
                   {error ||
@@ -209,7 +230,10 @@ function SignupPage() {
 
               <button
                 type="submit"
-                disabled={registerMutation.isPending}
+                disabled={
+                  registerMutation.isPending ||
+                  (captchaEnabled && !captchaToken)
+                }
                 className="group mt-2 w-full cursor-pointer rounded-lg bg-blue-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {registerMutation.isPending ? (

@@ -29,10 +29,13 @@ import { State } from "./utils/State";
 import { getBackupConfig } from "./backup/types";
 import { BackupManager } from "./backup/BackupManager";
 import { BackupScheduler } from "./backup/BackupScheduler";
+import { getCaptchaConfig } from "./captcha/types";
+import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
 
 dotenv.config();
 
 const mainDB = getMainHyperDB();
+const captchaConfig = getCaptchaConfig();
 
 const checkDBAccessOrCreateDB = (
   dbId: string,
@@ -194,15 +197,44 @@ const appRouter = router({
       return { success: true };
     }),
 
+  getCaptchaConfig: publicProcedure.query(() => {
+    return {
+      enabled: captchaConfig !== null,
+      siteKey: captchaConfig?.CF_CAPTCHA_SITE_KEY ?? null,
+    };
+  }),
   register: publicProcedure
     .input(
       z.object({
         email: z.email(),
         password: z.string().min(8),
+        captchaToken: z.string().optional(),
       }),
     )
     .mutation(async (opts) => {
-      const { email, password } = opts.input;
+      const { email, password, captchaToken } = opts.input;
+
+      if (captchaConfig) {
+        if (!captchaToken) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Captcha verification required",
+          });
+        }
+
+        const isValid = await verifyCaptchaToken(
+          captchaToken,
+          captchaConfig.CF_CAPTCHA_SECRET_KEY!,
+        );
+
+        if (!isValid) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Captcha verification failed",
+          });
+        }
+      }
+
       // Hash password before storing
       const hashedPassword = await Bun.password.hash(password);
       const result = syncDispatch(
