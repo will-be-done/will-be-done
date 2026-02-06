@@ -27,8 +27,10 @@ import { dbConfigByType } from "./db/configs";
 import { subscriptionManager, NotificationData } from "./subscriptionManager";
 import { State } from "./utils/State";
 import { getBackupConfig } from "./backup/types";
-import { BackupManager } from "./backup/BackupManager";
-import { BackupScheduler } from "./backup/BackupScheduler";
+import type {
+  WorkerMessage,
+  WorkerResponse,
+} from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
 import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
 
@@ -328,36 +330,48 @@ const start = async () => {
     await server.listen({ port: 3000, host: "0.0.0.0" });
     console.log("Server started");
 
-    // Initialize backup system
-    let backupScheduler: BackupScheduler | null = null;
+    // Initialize backup system in a worker
+    let backupWorker: Worker | null = null;
     const backupConfig = getBackupConfig();
 
     if (backupConfig?.IS_S3_SQLITE_BACKUP_ENABLED) {
       try {
-        console.log("[Backup] S3 backup system enabled");
+        console.log("[Backup] S3 backup system enabled, spawning worker...");
         const dbsPath = path.join(__dirname, "..", "dbs");
 
-        // Ensure temp backup directory exists
-        const tempBackupPath = path.join(dbsPath, "backups-temp");
-        if (!fs.existsSync(tempBackupPath)) {
-          fs.mkdirSync(tempBackupPath, { recursive: true });
-        }
-
-        const backupManager = new BackupManager(mainDB, backupConfig, dbsPath);
-
-        // Skip bucket verification - HeadBucket may not be allowed
-        // Verification will happen during the first actual upload
-        console.log(
-          "[Backup] Skipping bucket verification (will verify on first upload)"
+        // Spawn backup worker
+        backupWorker = new Worker(
+          new URL("./backup/backupWorker.ts", import.meta.url).href
         );
 
-        backupScheduler = new BackupScheduler(mainDB, backupManager, backupConfig);
-        backupScheduler.start();
+        // Handle messages from worker
+        backupWorker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+          const response = event.data;
+          switch (response.type) {
+            case "initialized":
+              console.log("[Backup] Worker initialized successfully");
+              break;
+            case "shutdown-complete":
+              console.log("[Backup] Worker shutdown complete");
+              break;
+            case "error":
+              console.error("[Backup] Worker error:", response.message);
+              break;
+          }
+        };
 
-        // Note: BackupScheduler automatically checks for due backups on startup,
-        // so no need to manually trigger initial backup
+        backupWorker.onerror = (error) => {
+          console.error("[Backup] Worker error:", error);
+        };
+
+        // Send init message to worker
+        backupWorker.postMessage({
+          type: "init",
+          config: backupConfig,
+          dbsPath,
+        } satisfies WorkerMessage);
       } catch (error) {
-        console.error("[Backup] Failed to initialize backup system");
+        console.error("[Backup] Failed to initialize backup worker");
         if (error instanceof Error) {
           console.error("[Backup] Error name:", error.name);
           console.error("[Backup] Error message:", error.message);
@@ -380,9 +394,33 @@ const start = async () => {
           );
 
           try {
-            // Stop backup scheduler first
-            if (backupScheduler) {
-              await backupScheduler.stop();
+            // Stop backup worker first
+            if (backupWorker) {
+              // Send shutdown message and wait for response
+              const shutdownPromise = new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                  reject(new Error("Backup worker shutdown timeout"));
+                }, 10000);
+
+                const originalOnMessage = backupWorker!.onmessage;
+                backupWorker!.onmessage = (event: MessageEvent<WorkerResponse>) => {
+                  if (event.data.type === "shutdown-complete") {
+                    clearTimeout(timeout);
+                    resolve();
+                  } else if (event.data.type === "error") {
+                    clearTimeout(timeout);
+                    reject(new Error(event.data.message));
+                  }
+                  // Also call original handler
+                  if (originalOnMessage) {
+                    originalOnMessage.call(backupWorker, event);
+                  }
+                };
+              });
+
+              backupWorker.postMessage({ type: "shutdown" } satisfies WorkerMessage);
+              await shutdownPromise;
+              backupWorker.terminate();
             }
 
             // Close the Fastify server

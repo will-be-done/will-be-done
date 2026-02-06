@@ -17,9 +17,9 @@ export const BackupConfigSchema = z.object({
     .string()
     .default("hourly,daily,weekly,monthly")
     .transform((val) => val.split(",").map((s) => s.trim()) as BackupTier[]),
-  BACKUP_HOURLY_INTERVAL_HOURS: z.coerce.number().int().min(1).default(4),
-  BACKUP_HOURLY_KEEP_COUNT: z.coerce.number().int().min(1).default(4),
-  BACKUP_DAILY_KEEP_DAYS: z.coerce.number().int().min(1).default(5),
+  BACKUP_HOURLY_INTERVAL_HOURS: z.coerce.number().int().min(1).default(6),
+  BACKUP_HOURLY_KEEP_COUNT: z.coerce.number().int().min(1).default(2),
+  BACKUP_DAILY_KEEP_DAYS: z.coerce.number().int().min(1).default(3),
   BACKUP_WEEKLY_KEEP_WEEKS: z.coerce.number().int().min(1).default(2),
   BACKUP_MONTHLY_KEEP_MONTHS: z.coerce.number().int().min(1).default(2),
 });
@@ -61,9 +61,7 @@ export function getBackupConfig(): BackupConfig | null {
     throw new Error("S3_ACCESS_KEY_ID is required when backup is enabled");
   }
   if (!config.S3_SECRET_ACCESS_KEY) {
-    throw new Error(
-      "S3_SECRET_ACCESS_KEY is required when backup is enabled"
-    );
+    throw new Error("S3_SECRET_ACCESS_KEY is required when backup is enabled");
   }
   if (!config.S3_ENDPOINT) {
     throw new Error("S3_ENDPOINT is required when backup is enabled");

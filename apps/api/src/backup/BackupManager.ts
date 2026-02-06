@@ -112,6 +112,9 @@ export class BackupManager {
           this.vacuumDatabase(dbPath, tempBackupPath);
           const vacuumDurationMs = Date.now() - vacuumStart;
 
+          // Get file size AFTER first VACUUM (before dropping indexes)
+          const sizeAfterVacuum = (await stat(tempBackupPath)).size;
+
           // Drop all indexes and VACUUM again to reclaim space
           const dropIndexStart = Date.now();
           this.dropAllIndexesAndVacuum(tempBackupPath);
@@ -121,8 +124,13 @@ export class BackupManager {
           const fileStats = await stat(tempBackupPath);
           totalSize += fileStats.size;
 
+          const indexReduction = sizeAfterVacuum - fileStats.size;
+          const indexReductionPct = sizeAfterVacuum > 0
+            ? ((indexReduction / sizeAfterVacuum) * 100).toFixed(1)
+            : "0.0";
+
           console.log(
-            `[Backup] Processed ${dbFile}: vacuum=${vacuumDurationMs}ms, drop-indexes+vacuum=${dropIndexDurationMs}ms, size=${(fileStats.size / 1024 / 1024).toFixed(2)} MB`
+            `[Backup] Processed ${dbFile}: vacuum=${vacuumDurationMs}ms (${(sizeAfterVacuum / 1024 / 1024).toFixed(2)} MB), drop-indexes+vacuum=${dropIndexDurationMs}ms (${(indexReduction / 1024 / 1024).toFixed(2)} MB / ${indexReductionPct}% reduction), final=${(fileStats.size / 1024 / 1024).toFixed(2)} MB`
           );
 
           // Compress file
