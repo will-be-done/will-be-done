@@ -1,0 +1,37 @@
+# Will Be Done
+
+> Open source weekly planner and task manager. Self-hosted with Docker or use the free cloud version.
+
+## Features
+
+- **Weekly timeline**: See your entire week as columns. Drag tasks between days.
+- **Kanban per project**: Organize tasks by horizon — Week, Month, Ideas, Someday.
+- **Drag & drop**: Move tasks between days, projects, and categories.
+- **Vim keybindings**: Navigate with j/k, quick actions with keyboard shortcuts.
+- **Multiple spaces**: Separate workspaces for work, personal, and side projects.
+- **Offline first**: Works without internet. Syncs automatically when back online.
+- **Self-hosted**: Single Docker container, SQLite database, no external dependencies.
+- **Real-time sync**: Changes sync across all browser tabs instantly.
+
+## Tech Stack
+
+- Frontend: React 19, TypeScript, Vite, TanStack Router, Tailwind CSS
+- Backend: Bun, Fastify, tRPC, SQLite
+- Sync: Hybrid logical clock, offline-first, conflict-free merge
+- Database: Custom hyperdb engine with fractional indexing
+
+## Quick Start (Docker)
+
+```
+docker run -d \
+  -p 3000:3000 \
+  -v will_be_done:/app/apps/api/dbs \
+  --restart unless-stopped \
+  ghcr.io/will-be-done/will-be-done:latest
+```
+
+## Links
+
+- Website: https://will-be-done.app
+- GitHub: https://github.com/will-be-done/will-be-done
+- License: AGPL-3.0

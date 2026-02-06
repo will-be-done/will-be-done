@@ -88,63 +88,547 @@ export function LandingPage() {
         }}
       />
 
-      {/* <nav className="relative z-10 border-b border-white/[0.04]"> */}
-      {/*   <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4"> */}
-      {/*     <div className="flex items-center gap-2.5"> */}
-      {/*       <Logo size={32} /> */}
-      {/*       <span className="text-[15px] font-semibold tracking-tight text-white"> */}
-      {/*         Will Be Done */}
-      {/*       </span> */}
-      {/*     </div> */}
-      {/*     <div className="flex items-center gap-3"> */}
-      {/*       <Link */}
-      {/*         to="/login" */}
-      {/*         className="rounded-lg px-3.5 py-2 text-[13px] font-medium text-slate-400 transition-colors hover:text-white" */}
-      {/*       > */}
-      {/*         Sign in */}
-      {/*       </Link> */}
-      {/*     </div> */}
-      {/*   </div> */}
-      {/* </nav> */}
+      <nav className="sr-only" aria-label="Main navigation">
+        <a href="/">Home</a>
+        <Link to="/signup">Sign Up</Link>
+        <Link to="/login">Sign In</Link>
+        <a href="https://github.com/will-be-done/will-be-done">GitHub</a>
+      </nav>
 
-      {/* Hero */}
-      <section className="relative px-6 pb-16 pt-20 md:pb-20 md:pt-10">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div>
-              <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1.5 ring-1 ring-blue-500/20">
-                <span className="text-[12px] font-medium tracking-wide text-blue-300">
-                  Open Source
-                </span>
-                <span className="text-blue-400/50">·</span>
-                <span className="text-[12px] font-medium tracking-wide text-blue-300">
-                  Self Hosted
-                </span>
-                <span className="text-blue-400/50">·</span>
-                <span className="text-[12px] font-medium tracking-wide text-blue-300">
-                  Offline First
-                </span>
+      <main>
+        {/* Hero */}
+        <section
+          aria-label="Hero"
+          className="relative px-6 pb-16 pt-20 md:pb-20 md:pt-10"
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="grid items-center gap-12 lg:grid-cols-2">
+              <div>
+                <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1.5 ring-1 ring-blue-500/20">
+                  <span className="text-[12px] font-medium tracking-wide text-blue-300">
+                    Open Source
+                  </span>
+                  <span className="text-blue-400/50">·</span>
+                  <span className="text-[12px] font-medium tracking-wide text-blue-300">
+                    Self Hosted
+                  </span>
+                  <span className="text-blue-400/50">·</span>
+                  <span className="text-[12px] font-medium tracking-wide text-blue-300">
+                    Offline First
+                  </span>
+                </div>
+
+                <h1 className="mb-5 text-4xl font-bold leading-[1.1] tracking-tight text-white md:text-5xl lg:text-[56px]">
+                  Weekly planning
+                  <br />
+                  <span className="text-slate-500">that actually works</span>
+                </h1>
+
+                <p className="mb-8 max-w-lg text-[17px] leading-relaxed text-slate-400">
+                  Open source self-hosted kanban for visual weekly planning.
+                  Drag & drop tasks between days and projects, navigate with vim
+                  keybindings. Works offline, syncs when you're back online.
+                </p>
+
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="flex flex-col items-start gap-1.5">
+                    <Link
+                      to="/signup"
+                      className="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
+                    >
+                      Try Cloud Version
+                      <svg
+                        className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M13 7l5 5m0 0l-5 5m5-5H6"
+                        />
+                      </svg>
+                    </Link>
+                    <span className="text-[12px] text-slate-500">
+                      Free while in alpha
+                    </span>
+                  </div>
+                  <a
+                    href="https://github.com/will-be-done/will-be-done"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-5 py-3 text-[14px] font-medium text-slate-300 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <svg
+                      className="h-4 w-4"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    View on GitHub
+                  </a>
+                </div>
               </div>
 
-              <h1 className="mb-5 text-4xl font-bold leading-[1.1] tracking-tight text-white md:text-5xl lg:text-[56px]">
-                Weekly planning
-                <br />
-                <span className="text-slate-500">that actually works</span>
-              </h1>
+              {/* Floating task cards */}
+              <div className="relative hidden h-[340px] lg:block">
+                {/* Card 1 - Top, normal state */}
+                <FloatingTaskCard
+                  title="Design new landing page"
+                  category="Personal"
+                  categoryIcon="🎨"
+                  horizon="Week"
+                  className="absolute left-8 top-0 w-64"
+                  style={{
+                    transform: `rotate(-2deg) translate(${mousePosition.x * 4}px, ${mousePosition.y * 3}px)`,
+                  }}
+                />
 
-              <p className="mb-8 max-w-lg text-[17px] leading-relaxed text-slate-400">
-                Open source kanban for visual weekly planning. Drag & drop tasks
-                between days and projects, navigate with vim keybindings. Works
-                offline, syncs when you're back online.
-              </p>
+                {/* Card 2 - Middle, done state */}
+                <FloatingTaskCard
+                  title="Review pull requests"
+                  category="Work"
+                  categoryIcon="💼"
+                  horizon="Week"
+                  isDone
+                  className="absolute right-0 top-24 w-72"
+                  style={{
+                    transform: `rotate(1deg) translate(${mousePosition.x * -5}px, ${mousePosition.y * 4}px)`,
+                  }}
+                />
 
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="flex flex-col items-start gap-1.5">
+                {/* Card 3 - Bottom left, normal state */}
+                <FloatingTaskCard
+                  title="Write documentation"
+                  category="Work"
+                  categoryIcon="💼"
+                  horizon="Near future"
+                  className="absolute bottom-18 left-4 w-60"
+                  style={{
+                    transform: `rotate(2deg) translate(${mousePosition.x * 3}px, ${mousePosition.y * -4}px)`,
+                  }}
+                />
+
+                {/* Card 4 - Bottom right, focused state */}
+                <FloatingTaskCard
+                  title="Ship v2.0 release"
+                  category="Release"
+                  categoryIcon="🚀"
+                  horizon="Week"
+                  isFocused
+                  className="absolute bottom-6 right-8 w-56"
+                  style={{
+                    transform: `rotate(-1deg) translate(${mousePosition.x * -4}px, ${mousePosition.y * -3}px)`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Self-host section */}
+        <section
+          aria-label="Self-hosting"
+          className="relative border-t border-white/[0.04] px-6 py-20"
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
+              <div>
+                <div className="mb-4 inline-flex items-center gap-2 rounded-lg bg-slate-800/50 px-3 py-1.5">
+                  <svg
+                    className="h-4 w-4 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"
+                    />
+                  </svg>
+                  <span className="text-[12px] font-medium text-slate-400">
+                    Self-hosted
+                  </span>
+                </div>
+
+                <h2 className="mb-4 text-2xl font-bold tracking-tight text-white md:text-3xl">
+                  One command to own your data
+                </h2>
+
+                <p className="mb-6 text-[15px] leading-relaxed text-slate-400">
+                  Run it on your own server. No external dependencies, no
+                  accounts, no tracking. Just a simple Docker container.
+                </p>
+
+                <ul className="space-y-3 text-[14px] text-slate-400">
+                  <li className="flex items-center gap-3">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10">
+                      <svg
+                        className="h-3 w-3 text-blue-400"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    SQLite database, easily backed up
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10">
+                      <svg
+                        className="h-3 w-3 text-blue-400"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    Works offline, syncs when connected
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10">
+                      <svg
+                        className="h-3 w-3 text-blue-400"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    Multi-space support for work & personal
+                  </li>
+                </ul>
+              </div>
+
+              <div className="overflow-hidden rounded-xl bg-[#0d0d14] ring-1 ring-white/[0.08]">
+                <div className="flex items-center gap-2 bg-[#1a1a1f] px-3 py-2.5">
+                  <div className="flex gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+                  </div>
+                  <span className="ml-2 text-[11px] text-slate-500">
+                    terminal
+                  </span>
+                </div>
+                <pre className="overflow-x-auto p-5 font-mono text-[13px] leading-relaxed">
+                  <code>
+                    <span className="text-slate-500">$</span>{" "}
+                    <span className="text-slate-200">docker run -d \</span>
+                    {"\n"}
+                    {"  "}
+                    <span className="text-slate-400">-p 3000:3000 \</span>
+                    {"\n"}
+                    {"  "}
+                    <span className="text-slate-400">
+                      -v will_be_done:/app/apps/api/dbs \
+                    </span>
+                    {"\n"}
+                    {"  "}
+                    <span className="text-slate-400">
+                      --restart unless-stopped \
+                    </span>
+                    {"\n"}
+                    {"  "}
+                    <span className="text-blue-400">
+                      ghcr.io/will-be-done/will-be-done:latest
+                    </span>
+                    {"\n\n"}
+                    <span className="text-green-400">✓</span>{" "}
+                    <span className="text-slate-400">Running at</span>{" "}
+                    <span className="text-blue-300">http://localhost:3000</span>
+                  </code>
+                </pre>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* App Screenshot */}
+        <section
+          aria-label="App screenshot"
+          className="relative px-6 py-24 border-t border-white/[0.04] "
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="overflow-hidden rounded-lg ring-1 ring-white/10 shadow-2xl shadow-black/50">
+              {/* <div className="flex h-10 items-center gap-4 bg-[#38383d] px-3"> */}
+              {/*   <div className="flex gap-2"> */}
+              {/*     <div className="h-3 w-3 rounded-full bg-[#ff5f56]" /> */}
+              {/*     <div className="h-3 w-3 rounded-full bg-[#ffbd2e]" /> */}
+              {/*     <div className="h-3 w-3 rounded-full bg-[#27c93f]" /> */}
+              {/*   </div> */}
+              {/*   <div className="flex flex-1 justify-center"> */}
+              {/*     <div className="rounded-md bg-[#1d1d1f] px-4 py-1"> */}
+              {/*       <span className="text-xs text-white/60">localhost:3000</span> */}
+              {/*     </div> */}
+              {/*   </div> */}
+              {/*   <div className="w-[60px]" /> */}
+              {/* </div> */}
+
+              {/* Screenshot */}
+              <img
+                src="/screen.png"
+                alt="Will Be Done - Weekly timeline view with tasks organized by day"
+                className="w-full"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Features */}
+        <section
+          aria-label="Features"
+          className="relative border-t border-white/[0.04] px-6 py-20"
+        >
+          <div className="mx-auto max-w-5xl">
+            <h2 className="mb-12 text-2xl font-bold tracking-tight text-white md:text-3xl">
+              Features
+            </h2>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                }
+                title="Weekly timeline"
+                description="See your entire week as columns. Drag tasks between days."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                    />
+                  </svg>
+                }
+                title="Drag & drop"
+                description="Move tasks between days, projects, and categories."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
+                    />
+                  </svg>
+                }
+                title="Kanban per project"
+                description="Week, Month, Ideas, Someday — organize your way."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                    />
+                  </svg>
+                }
+                title="Multiple spaces"
+                description="Separate workspaces for work, personal, and side projects."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+                    />
+                  </svg>
+                }
+                title="Offline first"
+                description="Works offline. Syncs back when you're online."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                }
+                title="Vim keybindings"
+                description="Navigate with j/k, quick actions with shortcuts."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                    />
+                  </svg>
+                }
+                title="One Docker container"
+                description="Self-host with a single command. No complex setup."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                }
+                title="Instant sync"
+                description="Changes sync across all browser tabs in real-time."
+              />
+              <FeatureCard
+                icon={
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                }
+                title="Top tier performance"
+                description="Built on hyperdb, a custom high-performance database engine."
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Roadmap */}
+        <section
+          aria-label="Roadmap"
+          className="relative border-t border-white/[0.04] px-6 py-20"
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-8 flex items-center gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10">
+                <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-white">Coming soon</h2>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <RoadmapItem text="Task comments and attachments" />
+              <RoadmapItem text="Global search" />
+              <RoadmapItem text="More vim keybindings" />
+              <RoadmapItem text="Mobile-friendly UI" />
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section
+          aria-label="Call to action"
+          className="relative border-t border-white/[0.04] px-6 py-20"
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10 p-8 ring-1 ring-white/[0.06] md:p-12">
+              <div className="mx-auto max-w-xl text-center">
+                <h2 className="mb-4 text-2xl font-bold tracking-tight text-white md:text-3xl">
+                  Ready to plan your week?
+                </h2>
+                <p className="mb-8 text-[15px] text-slate-400">
+                  Free cloud version while in alpha. Self-host anytime.
+                </p>
+                <div className="flex flex-wrap justify-center gap-3">
                   <Link
                     to="/signup"
-                    className="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
+                    className="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400"
                   >
-                    Try Cloud Version
+                    Get Started — It's Free
                     <svg
                       className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
                       fill="none"
@@ -159,488 +643,12 @@ export function LandingPage() {
                       />
                     </svg>
                   </Link>
-                  <span className="text-[12px] text-slate-500">
-                    Free while in alpha
-                  </span>
                 </div>
-                <a
-                  href="https://github.com/will-be-done/will-be-done"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-5 py-3 text-[14px] font-medium text-slate-300 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.08] hover:text-white"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  View on GitHub
-                </a>
-              </div>
-            </div>
-
-            {/* Floating task cards */}
-            <div className="relative hidden h-[340px] lg:block">
-              {/* Card 1 - Top, normal state */}
-              <FloatingTaskCard
-                title="Design new landing page"
-                category="Personal"
-                categoryIcon="🎨"
-                horizon="Week"
-                className="absolute left-8 top-0 w-64"
-                style={{
-                  transform: `rotate(-2deg) translate(${mousePosition.x * 4}px, ${mousePosition.y * 3}px)`,
-                }}
-              />
-
-              {/* Card 2 - Middle, done state */}
-              <FloatingTaskCard
-                title="Review pull requests"
-                category="Work"
-                categoryIcon="💼"
-                horizon="Week"
-                isDone
-                className="absolute right-0 top-24 w-72"
-                style={{
-                  transform: `rotate(1deg) translate(${mousePosition.x * -5}px, ${mousePosition.y * 4}px)`,
-                }}
-              />
-
-              {/* Card 3 - Bottom left, normal state */}
-              <FloatingTaskCard
-                title="Write documentation"
-                category="Work"
-                categoryIcon="💼"
-                horizon="Near future"
-                className="absolute bottom-18 left-4 w-60"
-                style={{
-                  transform: `rotate(2deg) translate(${mousePosition.x * 3}px, ${mousePosition.y * -4}px)`,
-                }}
-              />
-
-              {/* Card 4 - Bottom right, focused state */}
-              <FloatingTaskCard
-                title="Ship v2.0 release"
-                category="Release"
-                categoryIcon="🚀"
-                horizon="Week"
-                isFocused
-                className="absolute bottom-6 right-8 w-56"
-                style={{
-                  transform: `rotate(-1deg) translate(${mousePosition.x * -4}px, ${mousePosition.y * -3}px)`,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* App Screenshot */}
-      <section className="relative px-6 pb-24">
-        <div className="mx-auto max-w-5xl">
-          <div className="overflow-hidden rounded-lg ring-1 ring-white/10 shadow-2xl shadow-black/50">
-            {/* <div className="flex h-10 items-center gap-4 bg-[#38383d] px-3"> */}
-            {/*   <div className="flex gap-2"> */}
-            {/*     <div className="h-3 w-3 rounded-full bg-[#ff5f56]" /> */}
-            {/*     <div className="h-3 w-3 rounded-full bg-[#ffbd2e]" /> */}
-            {/*     <div className="h-3 w-3 rounded-full bg-[#27c93f]" /> */}
-            {/*   </div> */}
-            {/*   <div className="flex flex-1 justify-center"> */}
-            {/*     <div className="rounded-md bg-[#1d1d1f] px-4 py-1"> */}
-            {/*       <span className="text-xs text-white/60">localhost:3000</span> */}
-            {/*     </div> */}
-            {/*   </div> */}
-            {/*   <div className="w-[60px]" /> */}
-            {/* </div> */}
-
-            {/* Screenshot */}
-            <img
-              src="/screen.png"
-              alt="Will Be Done - Weekly timeline view with tasks organized by day"
-              className="w-full"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Self-host section */}
-      <section className="relative border-t border-white/[0.04] px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
-            <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-lg bg-slate-800/50 px-3 py-1.5">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"
-                  />
-                </svg>
-                <span className="text-[12px] font-medium text-slate-400">
-                  Self-hosted
-                </span>
-              </div>
-
-              <h2 className="mb-4 text-2xl font-bold tracking-tight text-white md:text-3xl">
-                One command to own your data
-              </h2>
-
-              <p className="mb-6 text-[15px] leading-relaxed text-slate-400">
-                Run it on your own server. No external dependencies, no
-                accounts, no tracking. Just a simple Docker container.
-              </p>
-
-              <ul className="space-y-3 text-[14px] text-slate-400">
-                <li className="flex items-center gap-3">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10">
-                    <svg
-                      className="h-3 w-3 text-blue-400"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  SQLite database, easily backed up
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10">
-                    <svg
-                      className="h-3 w-3 text-blue-400"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  Works offline, syncs when connected
-                </li>
-                <li className="flex items-center gap-3">
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10">
-                    <svg
-                      className="h-3 w-3 text-blue-400"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  Multi-space support for work & personal
-                </li>
-              </ul>
-            </div>
-
-            <div className="overflow-hidden rounded-xl bg-[#0d0d14] ring-1 ring-white/[0.08]">
-              <div className="flex items-center gap-2 bg-[#1a1a1f] px-3 py-2.5">
-                <div className="flex gap-1.5">
-                  <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
-                  <div className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
-                  <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-                </div>
-                <span className="ml-2 text-[11px] text-slate-500">
-                  terminal
-                </span>
-              </div>
-              <pre className="overflow-x-auto p-5 font-mono text-[13px] leading-relaxed">
-                <code>
-                  <span className="text-slate-500">$</span>{" "}
-                  <span className="text-slate-200">docker run -d \</span>
-                  {"\n"}
-                  {"  "}
-                  <span className="text-slate-400">-p 3000:3000 \</span>
-                  {"\n"}
-                  {"  "}
-                  <span className="text-slate-400">
-                    -v will_be_done:/app/apps/api/dbs \
-                  </span>
-                  {"\n"}
-                  {"  "}
-                  <span className="text-slate-400">
-                    --restart unless-stopped \
-                  </span>
-                  {"\n"}
-                  {"  "}
-                  <span className="text-blue-400">
-                    ghcr.io/will-be-done/will-be-done:latest
-                  </span>
-                  {"\n\n"}
-                  <span className="text-green-400">✓</span>{" "}
-                  <span className="text-slate-400">Running at</span>{" "}
-                  <span className="text-blue-300">http://localhost:3000</span>
-                </code>
-              </pre>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="relative border-t border-white/[0.04] px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="mb-12 text-2xl font-bold tracking-tight text-white md:text-3xl">
-            Features
-          </h2>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-              }
-              title="Weekly timeline"
-              description="See your entire week as columns. Drag tasks between days."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-                  />
-                </svg>
-              }
-              title="Drag & drop"
-              description="Move tasks between days, projects, and categories."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
-                  />
-                </svg>
-              }
-              title="Kanban per project"
-              description="Week, Month, Ideas, Someday — organize your way."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                  />
-                </svg>
-              }
-              title="Multiple spaces"
-              description="Separate workspaces for work, personal, and side projects."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
-                  />
-                </svg>
-              }
-              title="Offline first"
-              description="Works offline. Syncs back when you're online."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-              }
-              title="Vim keybindings"
-              description="Navigate with j/k, quick actions with shortcuts."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
-                  />
-                </svg>
-              }
-              title="One Docker container"
-              description="Self-host with a single command. No complex setup."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-              }
-              title="Instant sync"
-              description="Changes sync across all browser tabs in real-time."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              }
-              title="Top tier performance"
-              description="Built on hyperdb, a custom high-performance database engine."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Roadmap */}
-      <section className="relative border-t border-white/[0.04] px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-8 flex items-center gap-3">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10">
-              <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-white">Coming soon</h2>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <RoadmapItem text="Task comments and attachments" />
-            <RoadmapItem text="Global search" />
-            <RoadmapItem text="More vim keybindings" />
-            <RoadmapItem text="Mobile-friendly UI" />
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="relative border-t border-white/[0.04] px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <div className="rounded-2xl bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10 p-8 ring-1 ring-white/[0.06] md:p-12">
-            <div className="mx-auto max-w-xl text-center">
-              <h2 className="mb-4 text-2xl font-bold tracking-tight text-white md:text-3xl">
-                Ready to plan your week?
-              </h2>
-              <p className="mb-8 text-[15px] text-slate-400">
-                Free cloud version while in alpha. Self-host anytime.
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                <Link
-                  to="/signup"
-                  className="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400"
-                >
-                  Get Started — It's Free
-                  <svg
-                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M13 7l5 5m0 0l-5 5m5-5H6"
-                    />
-                  </svg>
-                </Link>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
       {/* Footer */}
       <footer className="relative border-t border-white/[0.04] px-6 py-8">

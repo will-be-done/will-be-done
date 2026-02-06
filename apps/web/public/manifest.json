@@ -1,6 +1,7 @@
 {
-  "name": "@will-be-done/web",
-  "short_name": "@will-be-done/web",
+  "name": "Will Be Done",
+  "short_name": "Will Be Done",
+  "description": "Open source weekly planner and task manager with kanban boards, drag & drop, vim keybindings, and self-hosting via Docker.",
   "start_url": "/login",
   "display": "standalone",
   "background_color": "#111827",
