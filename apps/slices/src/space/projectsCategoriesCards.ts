@@ -102,7 +102,9 @@ export const projectCategoryCardsSlice = {
       ),
     );
 
-    return tasks.map((p) => p.id);
+    return tasks
+      .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
+      .map((p) => p.id);
   }),
   doneChildrenIdsExceptDailies: selector(function* (
     projectCategoryId: string,

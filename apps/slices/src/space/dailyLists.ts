@@ -225,7 +225,7 @@ export const dailyListsSlice = {
     dailyListId: string,
     dropId: string,
     dropModelType: AnyModelType,
-    _edge: "top" | "bottom",
+    edge: "top" | "bottom",
   ): GenReturn<void> {
     const drop = yield* appSlice.byId(dropId, dropModelType);
     if (!drop) return;
@@ -239,16 +239,10 @@ export const dailyListsSlice = {
       return;
     }
 
-    // Add task to daily list at the end
-    const projections =
-      yield* dailyListsProjectionsSlice.byDailyListId(dailyListId);
-    const lastProjection =
-      projections.length > 0 ? projections[projections.length - 1] : undefined;
-
     yield* dailyListsProjectionsSlice.addToDailyList(
       taskId,
       dailyListId,
-      lastProjection ? [lastProjection, undefined] : "append",
+      edge === "top" ? "prepend" : "append",
     );
   }),
 };

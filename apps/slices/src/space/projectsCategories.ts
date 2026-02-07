@@ -283,14 +283,31 @@ export const projectCategoriesSlice = {
     categoryId: string,
     dropId: string,
     dropModelType: AnyModelType,
-    _edge: "top" | "bottom",
+    edge: "top" | "bottom",
   ): GenReturn<void> {
     const dropItem = yield* appSlice.byId(dropId, dropModelType);
     if (!dropItem) return;
 
+    const childrenIds =
+      yield* projectCategoryCardsSlice.childrenIds(categoryId);
+    let orderToken: string;
+    if (childrenIds.length === 0) {
+      orderToken = generateJitteredKeyBetween(null, null);
+    } else if (edge === "top") {
+      const first =
+        yield* projectCategoryCardsSlice.byIdOrDefault(childrenIds[0]);
+      orderToken = generateJitteredKeyBetween(null, first.orderToken || null);
+    } else {
+      const last = yield* projectCategoryCardsSlice.byIdOrDefault(
+        childrenIds[childrenIds.length - 1],
+      );
+      orderToken = generateJitteredKeyBetween(last.orderToken || null, null);
+    }
+
     if (isTask(dropItem)) {
       yield* cardsTasksSlice.update(dropItem.id, {
         projectCategoryId: categoryId,
+        orderToken,
       });
     } else if (isTaskProjection(dropItem)) {
       // When dropping a projection onto a category, move the underlying task
@@ -298,6 +315,7 @@ export const projectCategoriesSlice = {
       if (task) {
         yield* cardsTasksSlice.update(task.id, {
           projectCategoryId: categoryId,
+          orderToken,
         });
         // Keep the projection in the daily list
       }

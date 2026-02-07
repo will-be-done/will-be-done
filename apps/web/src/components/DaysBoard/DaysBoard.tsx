@@ -182,7 +182,7 @@ const BoardView = ({
         ),
       );
 
-      dispatch(focusSlice.editByKey(buildFocusKey(task.id, task.type)));
+      dispatch(focusSlice.editByKey(buildFocusKey(task.id, "projection")));
     },
     [dispatch],
   );

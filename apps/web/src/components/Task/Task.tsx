@@ -271,13 +271,6 @@ export const TaskComp = ({
       return id;
     };
 
-    const scroll = () => {
-      ref.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "center",
-      });
-    };
 
     if (e.code === "Digit1" && noModifiers) {
       e.preventDefault();
@@ -328,9 +321,10 @@ export const TaskComp = ({
         focusableItem.key,
       );
 
-      if (isMoveLeft && leftColumn) {
-        const id = getId(leftColumn.key);
-        const { type } = parseColumnKey(leftColumn.key);
+      const targetColumn = isMoveLeft ? leftColumn : rightColumn;
+      if (targetColumn) {
+        const id = getId(targetColumn.key);
+        const { type } = parseColumnKey(targetColumn.key);
 
         dispatch(
           appSlice.handleDrop(
@@ -341,21 +335,21 @@ export const TaskComp = ({
             "top",
           ),
         );
-        scroll();
-      } else if (isMoveRight && rightColumn) {
-        const id = getId(rightColumn.key);
-        const { type } = parseColumnKey(rightColumn.key);
 
-        dispatch(
-          appSlice.handleDrop(
-            id,
-            type,
-            cardWrapper.id,
-            cardWrapper.type,
-            "top",
-          ),
-        );
-        scroll();
+        const key = focusableItem.key;
+        setTimeout(() => {
+          const el = document.querySelector<HTMLElement>(
+            `[data-focusable-key="${key}"]`,
+          );
+          if (el) {
+            el.focus();
+            el.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "center",
+            });
+          }
+        }, 0);
       }
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
@@ -363,11 +357,12 @@ export const TaskComp = ({
 
       const [up, down] = focusManager.getSiblings(focusableItem.key);
 
-      if (isMoveUp && up) {
-        const id = getId(up.key);
+      const target = isMoveUp ? up : down;
+      if (target) {
+        const id = getId(target.key);
         if (!id) return;
 
-        const { type } = parseColumnKey(up.key);
+        const { type } = parseColumnKey(target.key);
 
         dispatch(
           appSlice.handleDrop(
@@ -375,28 +370,24 @@ export const TaskComp = ({
             type,
             cardWrapper.id,
             cardWrapper.type,
-            "top",
+            isMoveUp ? "top" : "bottom",
           ),
         );
 
-        scroll();
-      } else if (isMoveDown && down) {
-        const id = getId(down.key);
-        if (!id) return;
-
-        const { type } = parseColumnKey(down.key);
-
-        dispatch(
-          appSlice.handleDrop(
-            id,
-            type,
-            cardWrapper.id,
-            cardWrapper.type,
-            "bottom",
-          ),
-        );
-
-        scroll();
+        const key = focusableItem.key;
+        setTimeout(() => {
+          const el = document.querySelector<HTMLElement>(
+            `[data-focusable-key="${key}"]`,
+          );
+          if (el) {
+            el.focus();
+            el.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "center",
+            });
+          }
+        }, 0);
       }
 
       return;
@@ -635,7 +626,7 @@ export const TaskComp = ({
         data-focusable-key={focusableItem.key}
         tabIndex={0}
         className={clsx(
-          `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
+          `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
           isFocused
             ? isTask(card) && card.state === "done"
               ? "ring-2 ring-done-panel-selected text-done-content"
@@ -661,7 +652,7 @@ export const TaskComp = ({
           </div>
           <div
             className={clsx(
-              "flex items-start gap-1.5 px-2 pt-2 font-medium pb-3 rounded-t-lg transition-all ",
+              "flex items-start gap-1.5 px-2 pt-2 font-medium pb-3 rounded-t-lg ",
               isFocused
                 ? isTask(card) && card.state === "done"
                   ? "bg-done-panel"
