@@ -8,6 +8,7 @@ const withoutTraitsType = "withoutTraits";
 const insertType = "insert";
 const updateType = "update";
 const deleteType = "delete";
+const getCurrentTraitsType = "getCurrentTraits";
 
 export type WithTraitsCmd = {
   type: typeof withTraitsType;
@@ -42,6 +43,13 @@ export type DeleteActionCmd = {
 };
 const isDeleteActionCmd = (cmd: any): cmd is DeleteActionCmd =>
   cmd.type === deleteType;
+
+export type GetCurrentTraitsCmd = {
+  type: typeof getCurrentTraitsType;
+};
+
+export const isGetCurrentTraitsCmd = (cmd: any): cmd is GetCurrentTraitsCmd =>
+  cmd.type === getCurrentTraitsType;
 
 export type ActionFn<TReturn, TParams extends any[]> = (
   ...args: TParams
@@ -100,6 +108,12 @@ export function* deleteRows<TTable extends TableDefinition<any, any>>(
   } satisfies DeleteActionCmd;
 }
 
+export function* getCurrentTraits(): Generator<unknown, Trait[], unknown> {
+  return (yield {
+    type: getCurrentTraitsType,
+  } satisfies GetCurrentTraitsCmd) as Trait[];
+}
+
 export function syncDispatch<TReturn>(
   db: HyperDB,
   action: Generator<unknown, TReturn, unknown>,
@@ -133,6 +147,8 @@ export function syncDispatch<TReturn>(
         result = action.next(
           execSync(tx.delete(result.value.table, result.value.values)),
         );
+      } else if (isGetCurrentTraitsCmd(result.value)) {
+        result = action.next(db.getTraits());
       } else {
         result = action.next();
       }
@@ -185,6 +201,8 @@ export async function asyncDispatch<TReturn>(
         result = action.next(
           await execAsync(tx.delete(result.value.table, result.value.values)),
         );
+      } else if (isGetCurrentTraitsCmd(result.value)) {
+        result = action.next(db.getTraits());
       } else {
         result = action.next();
       }

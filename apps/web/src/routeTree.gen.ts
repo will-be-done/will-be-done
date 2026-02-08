@@ -91,8 +91,8 @@ export interface FileRoutesByFullPath {
   '/spaces/': typeof SpacesIndexRoute
   '/spaces/$spaceId/projects/$projectId': typeof SpacesSpaceIdProjectsProjectIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
-  '/spaces/$spaceId/projects/': typeof SpacesSpaceIdProjectsIndexRoute
-  '/spaces/$spaceId/timeline/': typeof SpacesSpaceIdTimelineIndexRoute
+  '/spaces/$spaceId/projects': typeof SpacesSpaceIdProjectsIndexRoute
+  '/spaces/$spaceId/timeline': typeof SpacesSpaceIdTimelineIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -132,8 +132,8 @@ export interface FileRouteTypes {
     | '/spaces/'
     | '/spaces/$spaceId/projects/$projectId'
     | '/spaces/$spaceId/timeline/$date'
-    | '/spaces/$spaceId/projects/'
-    | '/spaces/$spaceId/timeline/'
+    | '/spaces/$spaceId/projects'
+    | '/spaces/$spaceId/timeline'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -223,14 +223,14 @@ declare module '@tanstack/react-router' {
     '/spaces/$spaceId/timeline/': {
       id: '/spaces/$spaceId/timeline/'
       path: '/timeline'
-      fullPath: '/spaces/$spaceId/timeline/'
+      fullPath: '/spaces/$spaceId/timeline'
       preLoaderRoute: typeof SpacesSpaceIdTimelineIndexRouteImport
       parentRoute: typeof SpacesSpaceIdRoute
     }
     '/spaces/$spaceId/projects/': {
       id: '/spaces/$spaceId/projects/'
       path: '/projects'
-      fullPath: '/spaces/$spaceId/projects/'
+      fullPath: '/spaces/$spaceId/projects'
       preLoaderRoute: typeof SpacesSpaceIdProjectsIndexRouteImport
       parentRoute: typeof SpacesSpaceIdRoute
     }

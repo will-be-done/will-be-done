@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./space": "./src/space/index.ts",
     "./user": "./src/user/index.ts",
-    "./common": "./src/common/index.ts"
+    "./common": "./src/common/index.ts",
+    "./traits": "./src/traits/index.ts"
   },
   "scripts": {
     "ts": "tsc -b",
@@ -22,6 +23,7 @@
     "es-toolkit": "^1.42.0",
     "fractional-indexing-jittered": "^1.0.0",
     "rrule": "^2.8.1",
+    "uuid": "^13.0.0",
     "uuid-by-string": "^4.0.0",
     "uuidv7": "^1.0.2",
     "zod": "^4.1.13"

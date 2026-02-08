@@ -11,6 +11,7 @@ import {
 import { isRowInRange } from "./drivers/tuple";
 import type { SelectQuery } from "./query";
 import { convertWhereToBound } from "./bounds";
+import { isGetCurrentTraitsCmd } from "./action";
 
 export type PartialScanOptions<T extends Row = Row> = {
   lte?: Partial<T>[];
@@ -187,6 +188,8 @@ export function runSelector<TReturn>(
         console.error("error happened for cmd", result.value);
         throw error;
       }
+    } else if (isGetCurrentTraitsCmd(result.value)) {
+      result = currentGen.next(db.getTraits());
     } else if (isNoopCmd(result.value)) {
       result = currentGen.next();
     } else {
@@ -226,6 +229,8 @@ export async function runSelectorAsync<TReturn>(
         console.error("error happened for cmd", result.value);
         throw error;
       }
+    } else if (isGetCurrentTraitsCmd(result.value)) {
+      result = currentGen.next(db.getTraits());
     } else if (isNoopCmd(result.value)) {
       result = currentGen.next();
     } else {

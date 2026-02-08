@@ -13,7 +13,7 @@ import {
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { OrderableItem, GenReturn } from "./utils";
-import { inboxId, generateOrderTokenPositioned } from "./utils";
+import { generateOrderTokenPositioned } from "./utils";
 import { appSlice } from "./app";
 import { projectsAllSlice } from "./projectsAll";
 import { isTask, Task, cardsTasksSlice } from "./cardsTasks";
@@ -27,8 +27,8 @@ import {
   dailyListsProjectionsSlice,
   isTaskProjection,
 } from "./dailyListsProjections";
+import { genUUIDV5 } from "../traits";
 
-// Type definitions
 export const projectType = "project";
 export type Project = {
   type: typeof projectType;
@@ -104,6 +104,9 @@ export const projectsSlice = {
     }
 
     return false;
+  }),
+  inboxProjectId: selector(function* () {
+    return yield* genUUIDV5(projectType, "inbox");
   }),
 
   overdueTasksCountExceptDailiesCount: selector(function* (
@@ -192,14 +195,16 @@ export const projectsSlice = {
 
   // actions
   createInboxIfNotExists: action(function* (): GenReturn<Project> {
-    const inbox = yield* projectsSlice.byId(inboxId);
+    const inbox = yield* projectsSlice.byId(
+      yield* projectsSlice.inboxProjectId(),
+    );
     if (inbox) {
       return inbox;
     }
 
     return yield* projectsSlice.create(
       {
-        id: inboxId,
+        id: yield* projectsSlice.inboxProjectId(),
         title: "Inbox",
         icon: "",
         isInbox: true,
@@ -234,19 +239,32 @@ export const projectsSlice = {
       ...project,
     };
 
+    const isInbox = newProject.isInbox;
+
     yield* insert(projectsTable, [newProject]);
-    yield* projectCategoriesSlice.createCategory(
-      { projectId: newProject.id, title: "Week" },
-      "append",
-    );
-    yield* projectCategoriesSlice.createCategory(
-      { projectId: newProject.id, title: "Month" },
-      "append",
-    );
-    yield* projectCategoriesSlice.createCategory(
-      { projectId: newProject.id, title: "Ideas" },
-      "append",
-    );
+    if (isInbox) {
+      yield* projectCategoriesSlice.createCategory(
+        {
+          projectId: newProject.id,
+          title: "Inbox",
+          id: yield* projectCategoriesSlice.inboxCategoryId(),
+        },
+        "append",
+      );
+    } else {
+      yield* projectCategoriesSlice.createCategory(
+        { projectId: newProject.id, title: "Week" },
+        "append",
+      );
+      yield* projectCategoriesSlice.createCategory(
+        { projectId: newProject.id, title: "Month" },
+        "append",
+      );
+      yield* projectCategoriesSlice.createCategory(
+        { projectId: newProject.id, title: "Ideas" },
+        "append",
+      );
+    }
 
     return newProject;
   }),

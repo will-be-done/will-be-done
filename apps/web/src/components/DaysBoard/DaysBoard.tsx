@@ -6,7 +6,7 @@ import {
   DailyList,
   dailyListsSlice,
   dailyListsProjectionsSlice,
-  inboxId,
+  projectsSlice,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
@@ -21,10 +21,9 @@ import {
 } from "@/components/TasksGrid/TasksGrid.tsx";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { NavBar } from "../NavBar/NavBar.tsx";
-import { authUtils } from "@/lib/auth.ts";
 
 const ColumnView = ({
   dailyListId,
@@ -170,6 +169,7 @@ const BoardView = ({
 }) => {
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const dispatch = useDispatch();
+  const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
@@ -184,7 +184,7 @@ const BoardView = ({
 
       dispatch(focusSlice.editByKey(buildFocusKey(task.id, "projection")));
     },
-    [dispatch],
+    [dispatch, inboxId],
   );
 
   const {
@@ -212,12 +212,12 @@ const BoardView = ({
 
   const spaceId = Route.useParams().spaceId;
 
-  const navigate = useNavigate();
-  const handleSignOutClick = () => {
-    authUtils.signOut();
-
-    void navigate({ to: "/login" });
-  };
+  // const navigate = useNavigate();
+  // const handleSignOutClick = () => {
+  //   authUtils.signOut();
+  //
+  //   void navigate({ to: "/login" });
+  // };
 
   const ProjectLink = useCallback(
     // eslint-disable-next-line react-x/no-nested-component-definitions

@@ -1,5 +1,4 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { inboxId } from "@will-be-done/slices/space";
 
 export const Route = createFileRoute("/spaces/$spaceId/projects/")({
   loader: (opts) => {
@@ -9,7 +8,7 @@ export const Route = createFileRoute("/spaces/$spaceId/projects/")({
       to: `/spaces/$spaceId/projects/$projectId`,
       params: {
         spaceId,
-        projectId: inboxId,
+        projectId: "inbox",
       },
     });
   },
