@@ -39,6 +39,7 @@ import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
 import { focusTable } from "./focusSlice.ts";
 import { trpcClient } from "@/lib/trpc.ts";
 import { State } from "@/utils/State.ts";
+import { AutoBackuper } from "./autoBackup.ts";
 
 export interface SyncConfig {
   dbId: string;
@@ -349,6 +350,9 @@ export const initDbStore = async (
     syncer.startLoop();
 
     syncConfig.afterInit(syncSubDb);
+
+    const autoBackuper = new AutoBackuper(dbName, syncSubDb);
+    autoBackuper.start();
 
     initedDbs[dbName] = syncSubDb;
 
