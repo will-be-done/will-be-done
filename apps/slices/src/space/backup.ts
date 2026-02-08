@@ -177,6 +177,8 @@ const getNewModels = action(function* (backup: Backup): GenReturn<AnyModel[]> {
     models.push(task);
   }
 
+  const dailyListIdMap = new Map<string, string>();
+
   // Create daily lists
   for (const dailyListBackup of backup.dailyLists) {
     if (dailyListBackup.date.length !== 10) {
@@ -188,6 +190,8 @@ const getNewModels = action(function* (backup: Backup): GenReturn<AnyModel[]> {
       id: yield* dailyListsSlice.getId(dailyListBackup.date),
       date: dailyListBackup.date,
     };
+
+    dailyListIdMap.set(dailyListBackup.id, dailyList.id);
 
     models.push(dailyList);
   }
@@ -236,7 +240,7 @@ const getNewModels = action(function* (backup: Backup): GenReturn<AnyModel[]> {
         type: projectionType,
         id: taskId, // projection.id = task.id
         orderToken: projectionBackup.orderToken,
-        dailyListId: projectionBackup.listId,
+        dailyListId: dailyListIdMap.get(projectionBackup.listId)!,
         createdAt: projectionBackup.createdAt,
       };
 
