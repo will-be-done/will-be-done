@@ -35,12 +35,10 @@ export const projectsAllSlice = {
     return lastChildId ? yield* projectsSlice.byId(lastChildId) : undefined;
   }),
   inbox: selector(function* (): GenReturn<Project> {
-    const projects = yield* runQuery(
-      selectFrom(projectsTable, "byIsInbox")
-        .where((q) => q.eq("isInbox", true))
-        .limit(1),
+    return (
+      (yield* projectsSlice.byId(yield* projectsSlice.inboxProjectId())) ||
+      defaultProject
     );
-    return projects[0] || defaultProject;
   }),
   siblings: selector(function* (
     projectId: string,

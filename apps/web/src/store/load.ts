@@ -28,6 +28,7 @@ import {
   ChangesetArrayType,
   syncSlice,
 } from "@will-be-done/slices/common";
+import { dbIdTrait } from "@will-be-done/slices/traits";
 import * as SQLite from "wa-sqlite";
 import {
   BroadcastChannel,
@@ -127,11 +128,19 @@ export const initDbStore = async (
       return initedDbs[dbName];
     }
     const asyncDriver = await initAsyncDriver(dbName);
-    const asyncDB = new DB(asyncDriver);
+    const asyncDB = new DB(
+      asyncDriver,
+      [],
+      [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
+    );
 
     await execAsync(asyncDB.loadTables(syncConfig.persistDBTables));
 
-    const syncDB = new DB(new BptreeInmemDriver());
+    const syncDB = new DB(
+      new BptreeInmemDriver(),
+      [],
+      [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
+    );
 
     execSync(syncDB.loadTables(syncConfig.inmemDBTables));
 

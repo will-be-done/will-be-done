@@ -27,10 +27,7 @@ import { dbConfigByType } from "./db/configs";
 import { subscriptionManager, NotificationData } from "./subscriptionManager";
 import { State } from "./utils/State";
 import { getBackupConfig } from "./backup/types";
-import type {
-  WorkerMessage,
-  WorkerResponse,
-} from "./backup/backupWorker";
+import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
 import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
 
@@ -341,7 +338,7 @@ const start = async () => {
 
         // Spawn backup worker
         backupWorker = new Worker(
-          new URL("./backup/backupWorker.ts", import.meta.url).href
+          new URL("./backup/backupWorker.ts", import.meta.url).href,
         );
 
         // Handle messages from worker
@@ -403,7 +400,9 @@ const start = async () => {
                 }, 10000);
 
                 const originalOnMessage = backupWorker!.onmessage;
-                backupWorker!.onmessage = (event: MessageEvent<WorkerResponse>) => {
+                backupWorker!.onmessage = (
+                  event: MessageEvent<WorkerResponse>,
+                ) => {
                   if (event.data.type === "shutdown-complete") {
                     clearTimeout(timeout);
                     resolve();
@@ -418,7 +417,9 @@ const start = async () => {
                 };
               });
 
-              backupWorker.postMessage({ type: "shutdown" } satisfies WorkerMessage);
+              backupWorker.postMessage({
+                type: "shutdown",
+              } satisfies WorkerMessage);
               await shutdownPromise;
               backupWorker.terminate();
             }

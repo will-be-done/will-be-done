@@ -19,7 +19,7 @@ export class BackupManager {
   constructor(
     private mainDB: DB,
     private config: BackupConfig,
-    private dbsPath: string
+    private dbsPath: string,
   ) {
     console.log("[BackupManager] Initializing backup manager");
     this.s3Client = new S3Client(config);
@@ -55,7 +55,7 @@ export class BackupManager {
         this.mainDB,
         backupSlice.updateTierState(tier, {
           isBackupInProgress: true,
-        })
+        }),
       );
     }
 
@@ -67,7 +67,7 @@ export class BackupManager {
       for (const tier of dueTiers) {
         const scheduledTime = this.scheduledTimeCalculator.getScheduledTime(
           tier,
-          now
+          now,
         );
         const scheduledTimeStr = scheduledTime.toISOString();
         tierScheduledTimes.set(tier, scheduledTimeStr);
@@ -75,7 +75,7 @@ export class BackupManager {
         // Create backup record
         const backupId = syncDispatch(
           this.mainDB,
-          backupSlice.createBackup(tier, scheduledTimeStr)
+          backupSlice.createBackup(tier, scheduledTimeStr),
         );
         backupIds.set(tier, backupId);
 
@@ -83,7 +83,7 @@ export class BackupManager {
         syncDispatch(this.mainDB, backupSlice.startBackup(backupId));
 
         console.log(
-          `[Backup] Created ${tier} backup (scheduled: ${scheduledTimeStr}, id: ${backupId})`
+          `[Backup] Created ${tier} backup (scheduled: ${scheduledTimeStr}, id: ${backupId})`,
         );
       }
 
@@ -99,12 +99,12 @@ export class BackupManager {
         const dbPath = path.join(this.dbsPath, dbFile);
         const tempBackupPath = path.join(
           this.tempBackupDir,
-          `${dbFile}.backup`
+          `${dbFile}.backup`,
         );
 
         try {
           console.log(
-            `[Backup] Processing ${i + 1}/${dbFiles.length}: ${dbFile}`
+            `[Backup] Processing ${i + 1}/${dbFiles.length}: ${dbFile}`,
           );
 
           // VACUUM once per database
@@ -125,22 +125,22 @@ export class BackupManager {
           totalSize += fileStats.size;
 
           const indexReduction = sizeAfterVacuum - fileStats.size;
-          const indexReductionPct = sizeAfterVacuum > 0
-            ? ((indexReduction / sizeAfterVacuum) * 100).toFixed(1)
-            : "0.0";
+          const indexReductionPct =
+            sizeAfterVacuum > 0
+              ? ((indexReduction / sizeAfterVacuum) * 100).toFixed(1)
+              : "0.0";
 
           console.log(
-            `[Backup] Processed ${dbFile}: vacuum=${vacuumDurationMs}ms (${(sizeAfterVacuum / 1024 / 1024).toFixed(2)} MB), drop-indexes+vacuum=${dropIndexDurationMs}ms (${(indexReduction / 1024 / 1024).toFixed(2)} MB / ${indexReductionPct}% reduction), final=${(fileStats.size / 1024 / 1024).toFixed(2)} MB`
+            `[Backup] Processed ${dbFile}: vacuum=${vacuumDurationMs}ms (${(sizeAfterVacuum / 1024 / 1024).toFixed(2)} MB), drop-indexes+vacuum=${dropIndexDurationMs}ms (${(indexReduction / 1024 / 1024).toFixed(2)} MB / ${indexReductionPct}% reduction), final=${(fileStats.size / 1024 / 1024).toFixed(2)} MB`,
           );
 
           // Compress file
-          const compressedPath = tempBackupPath + '.zst';
-          const compressionStart = Date.now();
+          const compressedPath = tempBackupPath + ".zst";
           const { compressedSize, durationMs: compressionDurationMs } =
             await this.compressFile(tempBackupPath, compressedPath);
 
           console.log(
-            `[Backup] Compressed ${dbFile}: ${(fileStats.size / 1024 / 1024).toFixed(2)} MB → ${(compressedSize / 1024 / 1024).toFixed(2)} MB (${((1 - compressedSize / fileStats.size) * 100).toFixed(1)}% reduction) in ${compressionDurationMs}ms`
+            `[Backup] Compressed ${dbFile}: ${(fileStats.size / 1024 / 1024).toFixed(2)} MB → ${(compressedSize / 1024 / 1024).toFixed(2)} MB (${((1 - compressedSize / fileStats.size) * 100).toFixed(1)}% reduction) in ${compressionDurationMs}ms`,
           );
 
           // Upload to S3 for each tier
@@ -154,7 +154,7 @@ export class BackupManager {
             const uploadDurationMs = Date.now() - uploadStart;
 
             console.log(
-              `[Backup] Uploaded ${dbFile}.zst to ${tier} in ${uploadDurationMs}ms`
+              `[Backup] Uploaded ${dbFile}.zst to ${tier} in ${uploadDurationMs}ms`,
             );
 
             // Create BackupFile record with both sizes
@@ -167,12 +167,12 @@ export class BackupManager {
                 scheduledTimeStr,
                 dbFile,
                 s3Key,
-                fileStats.size,           // Original size (after vacuum + drop indexes)
-                compressedSize,           // Compressed size
+                fileStats.size, // Original size (after vacuum + drop indexes)
+                compressedSize, // Compressed size
                 vacuumDurationMs,
                 uploadDurationMs,
-                compressionDurationMs     // Compression duration
-              )
+                compressionDurationMs, // Compression duration
+              ),
             );
           }
 
@@ -185,7 +185,7 @@ export class BackupManager {
           if (existsSync(tempBackupPath)) {
             unlinkSync(tempBackupPath);
           }
-          const compressedPath = tempBackupPath + '.zst';
+          const compressedPath = tempBackupPath + ".zst";
           if (existsSync(compressedPath)) {
             unlinkSync(compressedPath);
           }
@@ -200,14 +200,15 @@ export class BackupManager {
         const backupId = backupIds.get(tier)!;
         const scheduledTimeStr = tierScheduledTimes.get(tier)!;
         const scheduledTime = new Date(scheduledTimeStr);
-        const nextScheduledTime = this.scheduledTimeCalculator.getNextScheduledTime(
-          tier,
-          scheduledTime
-        );
+        const nextScheduledTime =
+          this.scheduledTimeCalculator.getNextScheduledTime(
+            tier,
+            scheduledTime,
+          );
 
         syncDispatch(
           this.mainDB,
-          backupSlice.completeBackup(backupId, totalSize, totalDurationMs)
+          backupSlice.completeBackup(backupId, totalSize, totalDurationMs),
         );
 
         syncDispatch(
@@ -218,11 +219,11 @@ export class BackupManager {
             lastCompletedAt: new Date().toISOString(),
             consecutiveFailures: 0,
             isBackupInProgress: false,
-          })
+          }),
         );
 
         console.log(
-          `[Backup] Completed ${tier} backup (next scheduled: ${nextScheduledTime.toISOString()})`
+          `[Backup] Completed ${tier} backup (next scheduled: ${nextScheduledTime.toISOString()})`,
         );
 
         // Run cleanup for this tier
@@ -230,7 +231,7 @@ export class BackupManager {
       }
 
       console.log(
-        `[Backup] All backups completed in ${(totalDurationMs / 1000).toFixed(2)}s (${(totalSize / 1024 / 1024).toFixed(2)} MB)`
+        `[Backup] All backups completed in ${(totalDurationMs / 1000).toFixed(2)}s (${(totalSize / 1024 / 1024).toFixed(2)} MB)`,
       );
     } catch (error) {
       console.error(`[Backup] Backup failed:`, error);
@@ -243,8 +244,8 @@ export class BackupManager {
             this.mainDB,
             backupSlice.failBackup(
               backupId,
-              error instanceof Error ? error.message : String(error)
-            )
+              error instanceof Error ? error.message : String(error),
+            ),
           );
         }
 
@@ -256,7 +257,7 @@ export class BackupManager {
           backupSlice.updateTierState(tier, {
             consecutiveFailures,
             isBackupInProgress: false,
-          })
+          }),
         );
       }
 
@@ -271,7 +272,7 @@ export class BackupManager {
       // Get all completed backups for this tier
       const backups = select(
         this.mainDB,
-        backupSlice.getCompletedBackupsByTier(tier)
+        backupSlice.getCompletedBackupsByTier(tier),
       );
 
       const retentionCount = this.retentionPolicy.getRetentionCount(tier);
@@ -281,7 +282,7 @@ export class BackupManager {
         const backupsToDelete = backups.slice(retentionCount);
 
         console.log(
-          `[Backup] Deleting ${backupsToDelete.length} old ${tier} backups (keeping ${retentionCount})`
+          `[Backup] Deleting ${backupsToDelete.length} old ${tier} backups (keeping ${retentionCount})`,
         );
 
         for (const backup of backupsToDelete) {
@@ -289,7 +290,7 @@ export class BackupManager {
             // Get all files for this backup
             const files = select(
               this.mainDB,
-              backupSlice.getBackupFiles(backup.id)
+              backupSlice.getBackupFiles(backup.id),
             );
 
             if (files.length > 0) {
@@ -297,25 +298,25 @@ export class BackupManager {
               const s3Keys = files.map((f) => f.s3Key);
               await this.s3Client.deleteFiles(s3Keys);
               console.log(
-                `[Backup] Deleted ${s3Keys.length} files from S3 for backup ${backup.id}`
+                `[Backup] Deleted ${s3Keys.length} files from S3 for backup ${backup.id}`,
               );
             }
 
             // Delete backup record and all associated files from database
             syncDispatch(
               this.mainDB,
-              backupSlice.deleteBackupWithFiles(backup.id)
+              backupSlice.deleteBackupWithFiles(backup.id),
             );
           } catch (error) {
             console.error(
               `[Backup] Failed to delete backup ${backup.id}:`,
-              error
+              error,
             );
           }
         }
       } else {
         console.log(
-          `[Backup] No cleanup needed for ${tier} (${backups.length}/${retentionCount} backups)`
+          `[Backup] No cleanup needed for ${tier} (${backups.length}/${retentionCount} backups)`,
         );
       }
     } catch (error) {
@@ -328,7 +329,7 @@ export class BackupManager {
 
     // Filter for .sqlite files only (not .wal or .shm)
     return files.filter(
-      (file) => file.endsWith(".sqlite") && !file.includes(".sqlite-")
+      (file) => file.endsWith(".sqlite") && !file.includes(".sqlite-"),
     );
   }
 
@@ -339,7 +340,7 @@ export class BackupManager {
       db.close();
     } catch (error) {
       throw new Error(
-        `VACUUM failed for ${dbPath}: ${error instanceof Error ? error.message : String(error)}`
+        `VACUUM failed for ${dbPath}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -354,11 +355,13 @@ export class BackupManager {
           `SELECT name FROM sqlite_master
            WHERE type='index'
            AND name NOT LIKE 'sqlite_autoindex_%'
-           AND sql IS NOT NULL`
+           AND sql IS NOT NULL`,
         )
         .all() as Array<{ name: string }>;
 
-      console.log(`[Backup] Dropping ${indexes.length} indexes from ${path.basename(dbPath)}`);
+      console.log(
+        `[Backup] Dropping ${indexes.length} indexes from ${path.basename(dbPath)}`,
+      );
 
       // Drop each index
       for (const { name } of indexes) {
@@ -383,7 +386,7 @@ export class BackupManager {
 
   private async compressFile(
     inputPath: string,
-    outputPath: string
+    outputPath: string,
   ): Promise<{ compressedSize: number; durationMs: number }> {
     const startTime = Date.now();
 
@@ -406,7 +409,7 @@ export class BackupManager {
       throw new Error(
         `Compression failed for ${inputPath}: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }

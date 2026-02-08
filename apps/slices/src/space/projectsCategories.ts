@@ -26,6 +26,7 @@ import { isTaskTemplate } from "./cardsTaskTemplates";
 import { cardsSlice } from "./cards";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { isTaskProjection } from "./dailyListsProjections";
+import { genUUIDV5 } from "../traits";
 
 export const projectCategoryType = "projectCategory";
 
@@ -82,6 +83,9 @@ export const projectCategoriesSlice = {
       selectFrom(projectCategoriesTable, "byProjectIdOrderToken"),
     );
     return tasks;
+  }),
+  inboxCategoryId: selector(function* (): GenReturn<string> {
+    return yield* genUUIDV5(projectCategoryType, "inbox");
   }),
 
   byProjectId: selector(function* (
@@ -294,8 +298,9 @@ export const projectCategoriesSlice = {
     if (childrenIds.length === 0) {
       orderToken = generateJitteredKeyBetween(null, null);
     } else if (edge === "top") {
-      const first =
-        yield* projectCategoryCardsSlice.byIdOrDefault(childrenIds[0]);
+      const first = yield* projectCategoryCardsSlice.byIdOrDefault(
+        childrenIds[0],
+      );
       orderToken = generateJitteredKeyBetween(null, first.orderToken || null);
     } else {
       const last = yield* projectCategoryCardsSlice.byIdOrDefault(

@@ -1,4 +1,5 @@
 import {
+  action,
   deleteRows,
   insert,
   runQuery,
@@ -15,7 +16,7 @@ import {
 } from "./cardsTaskTemplates";
 import { dailyListsSlice, dailyListType, type DailyList } from "./dailyLists";
 import { projectsAllSlice } from "./projectsAll";
-import { projectType, type Project } from "./projects";
+import { projectsSlice, projectType, type Project } from "./projects";
 import { AnyModel, appTypeTablesMap } from "./maps";
 import { registeredSpaceSyncableTables } from "./syncMap";
 import {
@@ -28,7 +29,6 @@ import {
   projectionType,
   TaskProjection,
 } from "./dailyListsProjections";
-import uuidByString from "uuid-by-string";
 
 interface CategoryBackup {
   id: string;
@@ -96,14 +96,19 @@ export interface Backup {
   dailyListProjections?: DailyListProjectionBackup[];
 }
 
-const getNewModels = (backup: Backup): AnyModel[] => {
+const getNewModels = action(function* (backup: Backup): GenReturn<AnyModel[]> {
   const models: AnyModel[] = [];
+
+  const inboxProjectIdInBackup = backup.projects.find((p) => p.isInbox)?.id;
+  const inboxProjectId = yield* projectsSlice.inboxProjectId();
 
   // First, create all projects
   for (const projectBackup of backup.projects) {
     const project: Project = {
       type: projectType,
-      id: projectBackup.id,
+      id: projectBackup.isInbox
+        ? yield* projectsSlice.inboxProjectId()
+        : projectBackup.id,
       title: projectBackup.title,
       icon: projectBackup.icon,
       isInbox: projectBackup.isInbox,
@@ -119,7 +124,10 @@ const getNewModels = (backup: Backup): AnyModel[] => {
       type: projectCategoryType,
       id: categoryBackup.id,
       title: categoryBackup.title,
-      projectId: categoryBackup.projectId,
+      projectId:
+        categoryBackup.projectId === inboxProjectIdInBackup
+          ? inboxProjectId
+          : categoryBackup.projectId,
       createdAt: categoryBackup.createdAt,
       orderToken: categoryBackup.orderToken,
     };
@@ -177,7 +185,7 @@ const getNewModels = (backup: Backup): AnyModel[] => {
 
     const dailyList: DailyList = {
       type: dailyListType,
-      id: uuidByString(dailyListBackup.date),
+      id: yield* dailyListsSlice.getId(dailyListBackup.date),
       date: dailyListBackup.date,
     };
 
@@ -259,7 +267,7 @@ const getNewModels = (backup: Backup): AnyModel[] => {
   }
 
   return models;
-};
+});
 
 export const backupSlice = {
   loadBackup: selector(function* (backup: Backup): GenReturn<void> {
@@ -271,7 +279,7 @@ export const backupSlice = {
       yield* deleteRows(table, allIds);
     }
 
-    const models = getNewModels(backup);
+    const models = yield* getNewModels(backup);
 
     for (const model of models) {
       yield* insert(appTypeTablesMap[model.type], [model]);

@@ -8,7 +8,6 @@ import {
   selector,
   table,
 } from "@will-be-done/hyperdb";
-import uuidByString from "uuid-by-string";
 import type { GenReturn, OrderableItem } from "./utils";
 import { getDMY } from "./utils";
 import { appSlice } from "./app";
@@ -22,6 +21,7 @@ import { AnyModelType } from "./maps";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { projectsSlice } from "./projects";
+import { genUUIDV5 } from "../traits";
 
 // Type definitions
 export const dailyListType = "dailyList";
@@ -151,10 +151,13 @@ export const dailyListsSlice = {
 
     return false;
   }),
+  getId: selector(function* (date: string): GenReturn<string> {
+    return yield* genUUIDV5(dailyListType, date);
+  }),
 
   // actions
   create: action(function* (dailyList: { date: string }): GenReturn<DailyList> {
-    const id = uuidByString(dailyList.date);
+    const id = yield* dailyListsSlice.getId(dailyList.date);
     const newDailyList: DailyList = {
       type: dailyListType,
       id,

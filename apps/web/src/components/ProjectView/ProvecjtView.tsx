@@ -1,5 +1,5 @@
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
-import { Backup, backupSlice, inboxId } from "@will-be-done/slices/space";
+import { Backup, backupSlice } from "@will-be-done/slices/space";
 import { useRegisterFocusItem } from "@/components/Focus/useLists.ts";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -323,6 +323,11 @@ const ProjectItem = function ProjectItemComp({
     }
   };
 
+  const inboxProjectId = useSyncSelector(
+    () => projectsSlice.inboxProjectId(),
+    [],
+  );
+
   return (
     <>
       {closestEdge == "top" && <DropProjectIndicator />}
@@ -350,23 +355,25 @@ const ProjectItem = function ProjectItemComp({
         ref={ref}
         data-focusable-key={focusItem.key}
         className={cn(
-          "flex items-center rounded-md px-2 py-1 text-content group transition-all",
+          "relative flex items-center rounded-md px-2 py-1 text-content group transition-all",
           closestEdge == "whole" && "ring-2 ring-accent bg-accent/10",
           isSelected
             ? "text-accent bg-accent/10"
             : "text-content hover:bg-panel-hover",
         )}
       >
+        <ProjectLink projectId={project.id} className="absolute inset-0" />
+
         <Popover>
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="text-base mr-4 flex-shrink-0 cursor-pointer"
+              className="relative z-10 text-base mr-4 flex-shrink-0 cursor-pointer"
             >
               {project.icon || "🟡"}
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-fit p-0">
+          <PopoverContent className="z-50 w-fit p-0">
             <EmojiPicker
               className="h-[326px] rounded-lg shadow-md"
               onEmojiSelect={({ emoji }) => {
@@ -383,34 +390,28 @@ const ProjectItem = function ProjectItemComp({
           </PopoverContent>
         </Popover>
 
-        <ProjectLink
-          projectId={project.id}
-          className="flex-1 flex items-center min-w-0"
-        >
-          <span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2">
-            {project.title}
-          </span>
+        <span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1 min-w-0">
+          {project.title}
+        </span>
 
-          <div
-            className={cn(
-              "ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
-              project.id !== inboxId && "group-hover:hidden",
-            )}
-          >
-            {overdueTasksCount > 0 && (
-              <>
-                <div className="text-notice">{overdueTasksCount}</div>|
-              </>
-            )}
-            <div>{notDoneTasksCount}</div>
-          </div>
-        </ProjectLink>
-
-        {/* group-hover:flex hidden */}
         <div
           className={cn(
-            "ml-auto flex gap-2 text-content-tinted stroke-content hidden",
-            project.id !== inboxId && "group-hover:flex",
+            "relative z-10 ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
+            project.id !== inboxProjectId && "group-hover:hidden",
+          )}
+        >
+          {overdueTasksCount > 0 && (
+            <>
+              <div className="text-notice">{overdueTasksCount}</div>|
+            </>
+          )}
+          <div>{notDoneTasksCount}</div>
+        </div>
+
+        <div
+          className={cn(
+            "relative z-10 ml-auto flex gap-2 text-content-tinted stroke-content hidden",
+            project.id !== inboxProjectId && "group-hover:flex",
           )}
         >
           <button
@@ -520,7 +521,7 @@ export const ProjectView = ({
   //   [exceptDailyListIds, project.id],
   // );
 
-  const inboxProject = useSyncSelector(() => projectsAllSlice.inbox(), []);
+  const inboxProjectId = useSyncSelector(() => projectsAllSlice.inbox(), []);
   const projectIdsWithoutInbox = useSyncSelector(
     () => projectsAllSlice.childrenIdsWithoutInbox(),
     [],
@@ -643,9 +644,9 @@ export const ProjectView = ({
           <div className="h-full overflow-y-auto flex flex-col gap-1 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
             <ProjectItem
               projectLink={projectLink}
-              projectId={inboxProject.id}
+              projectId={inboxProjectId.id}
               orderNumber="0"
-              isSelected={selectedProjectId === inboxProject.id}
+              isSelected={selectedProjectId === inboxProjectId.id}
               exceptDailyListIds={exceptDailyListIds}
             />
             {projectIdsWithoutInbox.map((id, i) => (

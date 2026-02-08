@@ -4,10 +4,11 @@ import { z } from "zod";
 import { parse } from "date-fns";
 import { Layout } from "@/components/Layout/Layout.tsx";
 import { Board } from "@/components/DaysBoard/DaysBoard.tsx";
-import { inboxId } from "@will-be-done/slices/space";
+import { useSyncSelector } from "@will-be-done/hyperdb";
+import { projectsSlice } from "@will-be-done/slices/space";
 
 const filterParams = z.object({
-  projectId: z.string().default(inboxId),
+  projectId: z.string().default("inbox"),
 });
 
 export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
@@ -20,9 +21,17 @@ function RouteComponent() {
   const { projectId } = Route.useSearch();
   const date = parse(params.date, "yyyy-MM-dd", new Date());
 
+  const inboxProjectId = useSyncSelector(
+    () => projectsSlice.inboxProjectId(),
+    [],
+  );
+
   return (
     <Layout>
-      <Board selectedDate={date} selectedProjectId={projectId} />
+      <Board
+        selectedDate={date}
+        selectedProjectId={projectId === "inbox" ? inboxProjectId : projectId}
+      />
     </Layout>
   );
 }

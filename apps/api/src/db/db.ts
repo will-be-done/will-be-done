@@ -17,6 +17,7 @@ import {
   backupTierStateTable,
   backupFileTable,
 } from "../slices/backupSlice";
+import { dbIdTrait } from "@will-be-done/slices/traits";
 
 export interface DBConfig {
   dbId: string;
@@ -79,7 +80,7 @@ const getDB = (dbType: string, dbId: string) => {
     },
   });
 
-  return new DB(sqliteDriver);
+  return new DB(sqliteDriver, [], [dbIdTrait(dbType, dbId)]);
 };
 
 let mainDB: DB | undefined = undefined;
@@ -98,7 +99,7 @@ export const getMainHyperDB = () => {
       backupStateTable,
       backupTierStateTable,
       backupFileTable,
-    ])
+    ]),
   );
 
   mainDB = db;
