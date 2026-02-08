@@ -71,8 +71,20 @@ type State =
 const idleState: State = { type: "idle" };
 const draggingState: State = { type: "dragging" };
 
-const DropProjectIndicator = function DropProjectIndicatorComp() {
-  return <div className="rounded-lg bg-accent/20 ring-1 ring-accent h-10" />;
+const DropProjectIndicator = function DropProjectIndicatorComp({
+  direction,
+}: {
+  direction: "top" | "bottom";
+}) {
+  return (
+    <div
+      className={cn(
+        "absolute left-0 right-0 w-full bg-accent h-[2px] rounded-full",
+        direction === "top" && "top-[-5px]",
+        direction === "bottom" && "bottom-[-5px]",
+      )}
+    />
+  );
 };
 
 const ProjectItem = function ProjectItemComp({
@@ -111,6 +123,7 @@ const ProjectItem = function ProjectItemComp({
   const [dndState, setDndState] = useState<State>(idleState);
 
   const ref = useRef<HTMLDivElement>(null);
+  const linkRef = useRef<HTMLAnchorElement>(null);
 
   const isFocused = useSyncSelector(
     () => focusSlice.isFocused(focusItem.key),
@@ -329,46 +342,30 @@ const ProjectItem = function ProjectItemComp({
   );
 
   return (
-    <>
-      {closestEdge == "top" && <DropProjectIndicator />}
+    <div className="relative">
+      {closestEdge == "top" && <DropProjectIndicator direction="top" />}
 
-      {/* <input */}
-      {/*   ref={(e) => { */}
-      {/*     if (!e) return; */}
-      {/*     e.Focus(); */}
-      {/*   }} */}
-      {/*   type="text" */}
-      {/*   value={project.title} */}
-      {/*   onChange={(e) => { */}
-      {/*     dispatch( */}
-      {/*       projectsActions.update(project.id, { */}
-      {/*         title: e.target.value, */}
-      {/*       }), */}
-      {/*     ); */}
-      {/*   }} */}
-      {/*   onKeyDown={handleInputKeyDown} */}
-      {/* /> */}
-      {/* to="/projects/$projectId" */}
-      {/* params={{ projectId: project.id }} */}
-      {/* href={`/projects/${project.id}`} */}
       <div
         ref={ref}
         data-focusable-key={focusItem.key}
+        onClick={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.closest("button, a")) return;
+          linkRef.current?.click();
+        }}
         className={cn(
-          "relative flex items-center rounded-md px-2 py-1 text-content group transition-all",
+          "flex items-center rounded-md px-2 py-1 text-content group transition-all cursor-pointer",
           closestEdge == "whole" && "ring-2 ring-accent bg-accent/10",
           isSelected
             ? "text-accent bg-accent/10"
             : "text-content hover:bg-panel-hover",
         )}
       >
-        <ProjectLink projectId={project.id} className="absolute inset-0" />
-
         <Popover>
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="relative z-10 text-base mr-4 flex-shrink-0 cursor-pointer"
+              className="text-base mr-4 flex-shrink-0 cursor-pointer"
             >
               {project.icon || "🟡"}
             </button>
@@ -390,13 +387,20 @@ const ProjectItem = function ProjectItemComp({
           </PopoverContent>
         </Popover>
 
-        <span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1 min-w-0">
+        <ProjectLink
+          ref={(el) => {
+            linkRef.current = el;
+            if (el) el.draggable = false;
+          }}
+          projectId={project.id}
+          className="text-sm whitespace-nowrap overflow-hidden text-ellipsis pr-2 flex-1 min-w-0"
+        >
           {project.title}
-        </span>
+        </ProjectLink>
 
         <div
           className={cn(
-            "relative z-10 ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
+            "ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
             project.id !== inboxProjectId && "group-hover:hidden",
           )}
         >
@@ -410,7 +414,7 @@ const ProjectItem = function ProjectItemComp({
 
         <div
           className={cn(
-            "relative z-10 ml-auto flex gap-2 text-content-tinted stroke-content hidden",
+            "ml-auto flex gap-2 text-content-tinted stroke-content hidden",
             project.id !== inboxProjectId && "group-hover:flex",
           )}
         >
@@ -460,7 +464,7 @@ const ProjectItem = function ProjectItemComp({
         </div>
       </div>
 
-      {closestEdge == "bottom" && <DropProjectIndicator />}
+      {closestEdge == "bottom" && <DropProjectIndicator direction="bottom" />}
 
       {dndState.type === "preview" &&
         ReactDOM.createPortal(
@@ -475,7 +479,7 @@ const ProjectItem = function ProjectItemComp({
           />,
           dndState.container,
         )}
-    </>
+    </div>
   );
 };
 
