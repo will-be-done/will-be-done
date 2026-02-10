@@ -14,7 +14,7 @@ Run with Docker:
 ```bash
 docker run -d \
   -p 3000:3000 \
-  -v will_be_done_storage:/app/apps/api/dbs \
+  -v will_be_done_storage:/var/lib/will-be-done \
   --restart unless-stopped \
   ghcr.io/will-be-done/will-be-done:latest
 ```

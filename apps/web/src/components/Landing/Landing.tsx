@@ -342,7 +342,7 @@ export function LandingPage() {
                     {"\n"}
                     {"  "}
                     <span className="text-slate-400">
-                      -v will_be_done:/app/apps/api/dbs \
+                      -v will_be_done:/var/lib/will-be-done \
                     </span>
                     {"\n"}
                     {"  "}

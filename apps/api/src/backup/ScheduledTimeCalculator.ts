@@ -27,7 +27,7 @@ export class ScheduledTimeCalculator {
       case "hourly": {
         // Round down to nearest interval boundary
         const intervalMs =
-          this.config.BACKUP_HOURLY_INTERVAL_HOURS * 60 * 60 * 1000;
+          this.config.WBD_BACKUP_HOURLY_INTERVAL_HOURS * 60 * 60 * 1000;
         const timestamp = now.getTime();
         const roundedTimestamp = Math.floor(timestamp / intervalMs) * intervalMs;
         return new Date(roundedTimestamp);
@@ -61,7 +61,7 @@ export class ScheduledTimeCalculator {
       case "hourly":
         return addHours(
           currentScheduledTime,
-          this.config.BACKUP_HOURLY_INTERVAL_HOURS
+          this.config.WBD_BACKUP_HOURLY_INTERVAL_HOURS
         );
 
       case "daily":
@@ -90,7 +90,7 @@ export class ScheduledTimeCalculator {
     tierStates: Map<BackupTier, BackupTierState | undefined>,
     now: Date
   ): BackupTier[] {
-    const enabledTiers = this.config.BACKUP_ENABLED_TIERS;
+    const enabledTiers = this.config.WBD_BACKUP_ENABLED_TIERS;
     const dueTiers: BackupTier[] = [];
 
     for (const tier of enabledTiers) {

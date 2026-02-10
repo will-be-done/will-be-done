@@ -7,7 +7,7 @@ image: quolpr/will-be-done-app
 # Deploy to these servers.
 servers:
   web:
-    - <%= ENV["WEB_IP"] %>
+    - <%= ENV["WBD_WEB_IP"] %>
   # job:
   #   hosts:
   #     - 192.168.0.1
@@ -47,15 +47,15 @@ env:
   clear:
     NODE_ENV: production
   secret:
-    - IS_S3_SQLITE_BACKUP_ENABLED
-    - S3_ACCESS_KEY_ID
-    - S3_SECRET_ACCESS_KEY
-    - S3_ENDPOINT
-    - S3_BUCKET_NAME
-    - S3_REGION
-    - CF_CAPTCHA_ENABLED
-    - CF_CAPTCHA_SITE_KEY
-    - CF_CAPTCHA_SECRET_KEY
+    - WBD_BACKUP_S3_ENABLED
+    - WBD_BACKUP_S3_ACCESS_KEY_ID
+    - WBD_BACKUP_S3_SECRET_ACCESS_KEY
+    - WBD_BACKUP_S3_ENDPOINT
+    - WBD_BACKUP_S3_BUCKET_NAME
+    - WBD_BACKUP_S3_REGION
+    - WBD_CF_CAPTCHA_ENABLED
+    - WBD_CF_CAPTCHA_SITE_KEY
+    - WBD_CF_CAPTCHA_SECRET_KEY
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal app logs -r job" will tail logs from the first server in the job section.
@@ -71,7 +71,7 @@ env:
 # Use a persistent storage volume.
 #
 volumes:
-  - "will_be_done_storage:/app/apps/api/dbs"
+  - "will_be_done_storage:/var/lib/will-be-done/db"
 
 # Bridge fingerprinted assets, like JS and CSS, between versions to avoid
 # hitting 404 on in-flight requests. Combines all files from new and old
@@ -108,4 +108,3 @@ volumes:
 #     port: 6379
 #     directories:
 #       - data:/data
-

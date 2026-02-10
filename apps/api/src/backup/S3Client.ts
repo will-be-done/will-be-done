@@ -15,15 +15,15 @@ export class S3Client {
 
   constructor(config: BackupConfig) {
     console.log("[S3Client] Initializing S3 client");
-    this.bucketName = config.S3_BUCKET_NAME!;
+    this.bucketName = config.WBD_BACKUP_S3_BUCKET_NAME!;
 
     this.client = new AWSS3Client({
-      region: config.S3_REGION,
+      region: config.WBD_BACKUP_S3_REGION,
       credentials: {
-        accessKeyId: config.S3_ACCESS_KEY_ID!,
-        secretAccessKey: config.S3_SECRET_ACCESS_KEY!,
+        accessKeyId: config.WBD_BACKUP_S3_ACCESS_KEY_ID!,
+        secretAccessKey: config.WBD_BACKUP_S3_SECRET_ACCESS_KEY!,
       },
-      endpoint: config.S3_ENDPOINT,
+      endpoint: config.WBD_BACKUP_S3_ENDPOINT,
       forcePathStyle: true, // Required for MinIO and some S3-compatible services
       requestChecksumCalculation: "WHEN_REQUIRED", // Disable automatic checksums for R2 compatibility (AWS SDK v3 >= 3.729.0)
       responseChecksumValidation: "WHEN_REQUIRED", // Disable checksum validation on GET operations for R2 compatibility

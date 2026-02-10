@@ -34,9 +34,14 @@ COPY --from=builder /app/apps/web/dist /app/apps/api/public
 # Copy package files and install production dependencies for API
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bun.lockb* ./
-RUN bun install --production 
+RUN bun install --production
 
-# Expose port 8080
+# Create default storage directory
+RUN mkdir -p /var/lib/will-be-done/db
+
+ENV WBD_STORAGE_PATH=/var/lib/will-be-done
+ENV WBD_DB_PATH=/var/lib/will-be-done/db
+
 EXPOSE 3000
 
 # Start Bun server

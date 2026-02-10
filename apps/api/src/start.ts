@@ -28,6 +28,7 @@ import { subscriptionManager, NotificationData } from "./subscriptionManager";
 import { State } from "./utils/State";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
+import { getEnvConfig } from "./env";
 import { getCaptchaConfig } from "./captcha/types";
 import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
 
@@ -199,7 +200,7 @@ const appRouter = router({
   getCaptchaConfig: publicProcedure.query(() => {
     return {
       enabled: captchaConfig !== null,
-      siteKey: captchaConfig?.CF_CAPTCHA_SITE_KEY ?? null,
+      siteKey: captchaConfig?.WBD_CF_CAPTCHA_SITE_KEY ?? null,
     };
   }),
   register: publicProcedure
@@ -223,7 +224,7 @@ const appRouter = router({
 
         const isValid = await verifyCaptchaToken(
           captchaToken,
-          captchaConfig.CF_CAPTCHA_SECRET_KEY!,
+          captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
         );
 
         if (!isValid) {
@@ -331,10 +332,10 @@ const start = async () => {
     let backupWorker: Worker | null = null;
     const backupConfig = getBackupConfig();
 
-    if (backupConfig?.IS_S3_SQLITE_BACKUP_ENABLED) {
+    if (backupConfig?.WBD_BACKUP_S3_ENABLED) {
       try {
         console.log("[Backup] S3 backup system enabled, spawning worker...");
-        const dbsPath = path.join(__dirname, "..", "dbs");
+        const dbsPath = getEnvConfig().WBD_DB_PATH;
 
         // Spawn backup worker
         backupWorker = new Worker(

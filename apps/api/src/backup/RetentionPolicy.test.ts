@@ -4,18 +4,18 @@ import type { BackupConfig } from "./types";
 import { addHours, addDays, addWeeks, addMonths } from "date-fns";
 
 const mockConfig: BackupConfig = {
-  IS_S3_SQLITE_BACKUP_ENABLED: true,
-  S3_ACCESS_KEY_ID: "test-key",
-  S3_SECRET_ACCESS_KEY: "test-secret",
-  S3_ENDPOINT: "http://localhost:9000",
-  S3_BUCKET_NAME: "test-bucket",
-  S3_REGION: "us-east-1",
-  BACKUP_ENABLED_TIERS: ["hourly", "daily", "weekly", "monthly"],
-  BACKUP_HOURLY_INTERVAL_HOURS: 4,
-  BACKUP_HOURLY_KEEP_COUNT: 4,
-  BACKUP_DAILY_KEEP_DAYS: 5,
-  BACKUP_WEEKLY_KEEP_WEEKS: 2,
-  BACKUP_MONTHLY_KEEP_MONTHS: 2,
+  WBD_BACKUP_S3_ENABLED: true,
+  WBD_BACKUP_S3_ACCESS_KEY_ID: "test-key",
+  WBD_BACKUP_S3_SECRET_ACCESS_KEY: "test-secret",
+  WBD_BACKUP_S3_ENDPOINT: "http://localhost:9000",
+  WBD_BACKUP_S3_BUCKET_NAME: "test-bucket",
+  WBD_BACKUP_S3_REGION: "us-east-1",
+  WBD_BACKUP_ENABLED_TIERS: ["hourly", "daily", "weekly", "monthly"],
+  WBD_BACKUP_HOURLY_INTERVAL_HOURS: 4,
+  WBD_BACKUP_HOURLY_KEEP_COUNT: 4,
+  WBD_BACKUP_DAILY_KEEP_DAYS: 5,
+  WBD_BACKUP_WEEKLY_KEEP_WEEKS: 2,
+  WBD_BACKUP_MONTHLY_KEEP_MONTHS: 2,
 };
 
 describe("RetentionPolicy", () => {

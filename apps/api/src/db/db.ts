@@ -8,6 +8,7 @@ import {
   TableDefinition,
 } from "@will-be-done/hyperdb";
 import path from "path";
+import { getEnvConfig } from "../env";
 import { changesSlice, changesTable } from "@will-be-done/slices/common";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { usersTable, tokensTable } from "../slices/authSlice";
@@ -47,7 +48,7 @@ const initClock = (clientId: string) => {
 const getDB = (dbType: string, dbId: string) => {
   const dbName = dbType + "-" + dbId;
 
-  const dbPath = path.join(__dirname, "..", "..", "dbs", dbName + ".sqlite");
+  const dbPath = path.join(getEnvConfig().WBD_DB_PATH, dbName + ".sqlite");
   console.log("Loading database...", dbPath);
   const sqliteDB = new Database(dbPath, { strict: true });
 

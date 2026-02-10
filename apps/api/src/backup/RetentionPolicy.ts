@@ -7,13 +7,13 @@ export class RetentionPolicy {
   getRetentionCount(tier: BackupTier): number {
     switch (tier) {
       case "hourly":
-        return this.config.BACKUP_HOURLY_KEEP_COUNT;
+        return this.config.WBD_BACKUP_HOURLY_KEEP_COUNT;
       case "daily":
-        return this.config.BACKUP_DAILY_KEEP_DAYS;
+        return this.config.WBD_BACKUP_DAILY_KEEP_DAYS;
       case "weekly":
-        return this.config.BACKUP_WEEKLY_KEEP_WEEKS;
+        return this.config.WBD_BACKUP_WEEKLY_KEEP_WEEKS;
       case "monthly":
-        return this.config.BACKUP_MONTHLY_KEEP_MONTHS;
+        return this.config.WBD_BACKUP_MONTHLY_KEEP_MONTHS;
       default:
         throw new Error(`Unknown backup tier: ${tier}`);
     }
@@ -27,7 +27,7 @@ export class RetentionPolicy {
       case "hourly":
         return addHours(
           now,
-          -retentionCount * this.config.BACKUP_HOURLY_INTERVAL_HOURS
+          -retentionCount * this.config.WBD_BACKUP_HOURLY_INTERVAL_HOURS
         );
       case "daily":
         return addDays(now, -retentionCount);
