@@ -22,6 +22,9 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       workbox: {
+        globPatterns: [
+          "**/*.{js,css,html,woff2,json,svg,wasm,webmanifest,png}",
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/rsms\.me\/.*/i,
