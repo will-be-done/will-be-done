@@ -6,6 +6,13 @@ You can try the cloud version for free at [will-be-done.app](https://will-be-don
 
 <img width="3442" height="1960" alt="screen" src="https://github.com/user-attachments/assets/9e685994-50be-4064-a6f3-0de7e943b1a4" />
 
+## Video Preview
+
+
+
+https://github.com/user-attachments/assets/4b532c76-b061-4449-9df0-808ac3e2fc43
+
+
 
 ## Installation
 
