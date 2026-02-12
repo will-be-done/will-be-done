@@ -1,3 +1,4 @@
+import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import { Link } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 
@@ -59,6 +60,7 @@ function Logo({ size = 32 }: { size?: number }) {
 
 export function LandingPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -175,59 +177,126 @@ export function LandingPage() {
                     View on GitHub
                   </a>
                 </div>
+
+                {/* Mobile video preview */}
+                <button
+                  onClick={() => setIsVideoOpen(true)}
+                  aria-label="Play demo video"
+                  className="relative mt-8 w-full cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/10 transition-transform duration-300 ease-out active:scale-[0.98] lg:hidden"
+                >
+                  <video
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="pointer-events-none aspect-video w-full object-cover"
+                  >
+                    <source src="/site_embed_1080p.webm" type="video/webm" />
+                    <source src="/site_embed_1080p.mp4" type="video/mp4" />
+                  </video>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/30 backdrop-blur-sm">
+                      <svg
+                        className="ml-0.5 h-5 w-5 text-white"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
               </div>
 
               {/* Floating task cards */}
-              <div className="relative hidden h-[340px] lg:block">
-                {/* Card 1 - Top, normal state */}
+              <div className="relative hidden h-[380px] lg:block">
+                {/* Card 1 - Top left (behind thumbnail) */}
                 <FloatingTaskCard
                   title="Design new landing page"
                   category="Personal"
                   categoryIcon="🎨"
                   horizon="Week"
-                  className="absolute left-8 top-0 w-64"
+                  className="absolute left-0 top-0 z-0 w-64"
                   style={{
                     transform: `rotate(-2deg) translate(${mousePosition.x * 4}px, ${mousePosition.y * 3}px)`,
                   }}
                 />
 
-                {/* Card 2 - Middle, done state */}
+                {/* Card 2 - Right (in front of thumbnail) */}
                 <FloatingTaskCard
                   title="Review pull requests"
                   category="Work"
                   categoryIcon="💼"
                   horizon="Week"
                   isDone
-                  className="absolute right-0 top-24 w-72"
+                  className="absolute right-0 top-16 z-20 w-72"
                   style={{
                     transform: `rotate(1deg) translate(${mousePosition.x * -5}px, ${mousePosition.y * 4}px)`,
                   }}
                 />
 
-                {/* Card 3 - Bottom left, normal state */}
+                {/* Card 3 - Bottom left (behind thumbnail) */}
                 <FloatingTaskCard
                   title="Write documentation"
                   category="Work"
                   categoryIcon="💼"
                   horizon="Near future"
-                  className="absolute bottom-18 left-4 w-60"
+                  className="absolute bottom-16 left-0 z-0 w-60"
                   style={{
                     transform: `rotate(2deg) translate(${mousePosition.x * 3}px, ${mousePosition.y * -4}px)`,
                   }}
                 />
 
-                {/* Card 4 - Bottom right, focused state */}
+                {/* Card 4 - Bottom right (in front of thumbnail) */}
                 <FloatingTaskCard
                   title="Ship v2.0 release"
                   category="Release"
                   categoryIcon="🚀"
                   horizon="Week"
                   isFocused
-                  className="absolute bottom-6 right-8 w-56"
+                  className="absolute bottom-0 right-4 z-20 w-56"
                   style={{
                     transform: `rotate(-1deg) translate(${mousePosition.x * -4}px, ${mousePosition.y * -3}px)`,
                   }}
                 />
+
+                {/* Video thumbnail wrapper (positioning + parallax) */}
+                <div
+                  className="absolute left-1/2 top-1/2 z-30 h-[180px] w-[280px]"
+                  style={{
+                    transform: `translate(-50%, -50%) translate(${mousePosition.x * 2}px, ${mousePosition.y * 2}px)`,
+                  }}
+                >
+                  <button
+                    onClick={() => setIsVideoOpen(true)}
+                    aria-label="Play demo video"
+                    className="h-full w-full cursor-pointer overflow-hidden rounded-xl ring-1 ring-white/10 transition-transform duration-300 ease-out hover:scale-105"
+                  >
+                    {/* Embedded preview video */}
+                    <video
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="pointer-events-none h-full w-full object-cover"
+                    >
+                      <source src="/site_embed_1080p.webm" type="video/webm" />
+                      <source src="/site_embed_1080p.mp4" type="video/mp4" />
+                    </video>
+                    {/* Play button overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/30 backdrop-blur-sm">
+                        <svg
+                          className="ml-0.5 h-6 w-6 text-white"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -683,6 +752,54 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Video modal */}
+      <Dialog
+        open={isVideoOpen}
+        onClose={() => setIsVideoOpen(false)}
+        className="relative z-50"
+      >
+        <DialogBackdrop
+          transition
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm transition duration-300 data-[closed]:opacity-0"
+        />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <DialogPanel
+            transition
+            className="relative w-full max-w-4xl transition duration-300 data-[closed]:scale-95 data-[closed]:opacity-0"
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setIsVideoOpen(false)}
+              className="absolute -top-10 right-0 text-white/70 transition-colors hover:text-white"
+              aria-label="Close video"
+            >
+              <svg
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+            <video
+              controls
+              autoPlay
+              playsInline
+              className="w-full rounded-xl shadow-2xl ring-1 ring-white/10"
+            >
+              <source src="/site_embed_1080p.webm" type="video/webm" />
+              <source src="/site_embed_1080p.mp4" type="video/mp4" />
+            </video>
+          </DialogPanel>
+        </div>
+      </Dialog>
     </div>
   );
 }
