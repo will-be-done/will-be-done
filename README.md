@@ -1,4 +1,4 @@
-This is my 5th attempt in 2 years to make task manager of my dream. And it looks like I very close to my dream!
+This is my third attempt in 2 years to make task manager of my dream. And it looks like I very close to my dream!
 I already use it daily, and I fairly enjoy it. Three reasons why I need it - self-hosted(I own my data),
 daily planning and vim keybinds. Hope you find something that could be useful for you too!
 
