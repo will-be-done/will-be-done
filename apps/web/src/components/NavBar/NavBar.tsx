@@ -19,6 +19,13 @@ export const NavBar = ({ spaceId }: { spaceId: string }) => {
       >
         timeline
       </Link>
+      <Link
+        className="transition-colors hover:text-primary [&.active]:text-accent"
+        to="/spaces/$spaceId/dates"
+        params={{ spaceId }}
+      >
+        dates
+      </Link>
     </div>
   );
 };
