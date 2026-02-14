@@ -14,7 +14,6 @@ import { TaskComp } from "@/components/Task/Task.tsx";
 import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
-import { NavBar } from "@/components/NavBar/NavBar.tsx";
 import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { PlusIcon } from "@/components/ui/icons.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
@@ -22,6 +21,7 @@ import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
+import { DateViewSidebar } from "./DateViewSidebar.tsx";
 
 const DateNavHeader = ({
   previousDate,
@@ -35,7 +35,7 @@ const DateNavHeader = ({
   const spaceId = Route.useParams().spaceId;
 
   return (
-    <div className="top-0 fixed m-auto left-0 right-0 max-w-xl z-40">
+    <div className="top-0 absolute m-auto left-0 right-0 max-w-xl z-40">
       <div className="bg-surface-elevated w-full mx-5 rounded-b-lg text-[13px] text-content flex items-center relative h-8 stroke-content ring-1 ring-ring">
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 h-full">
           <Link
@@ -258,32 +258,43 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
     [dispatch, inboxId],
   );
 
-  const spaceId = Route.useParams().spaceId;
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null,
+  );
+  const handleProjectSelect = useCallback((projectId: string) => {
+    setSelectedProjectId((prev) => (prev === projectId ? null : projectId));
+  }, []);
 
   return (
-    <div className="flex flex-col w-full">
-      <div className="overflow-y-auto pt-10 h-full">
-        <div className="max-w-lg mx-auto px-4 py-4">
-          {dailyListsIds[0] && (
-            <SingleDayColumn
-              dailyListId={dailyListsIds[0]}
-              onTaskAdd={handleAddTask}
-            />
-          )}
-        </div>
-        <DateNavHeader
-          previousDate={previousDate}
-          nextDate={nextDate}
-          selectedDate={selectedDate}
-        />
-        <div className="absolute left-0 top-0">
-          <NavBar spaceId={spaceId} />
-        </div>
-        <div className="absolute right-0 top-0">
-          <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
-            <Link className="transition-colors hover:text-primary" to="/spaces">
-              spaces
-            </Link>
+    <div className="flex w-full h-full">
+      <DateViewSidebar
+        selectedProjectId={selectedProjectId}
+        onProjectSelect={handleProjectSelect}
+      />
+      <div className="flex flex-col flex-1 min-w-0 relative">
+        <div className="overflow-y-auto pt-10 h-full">
+          <div className="max-w-lg mx-auto px-4 py-4">
+            {dailyListsIds[0] && (
+              <SingleDayColumn
+                dailyListId={dailyListsIds[0]}
+                onTaskAdd={handleAddTask}
+              />
+            )}
+          </div>
+          <DateNavHeader
+            previousDate={previousDate}
+            nextDate={nextDate}
+            selectedDate={selectedDate}
+          />
+          <div className="absolute right-0 top-0">
+            <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
+              <Link
+                className="transition-colors hover:text-primary"
+                to="/spaces"
+              >
+                spaces
+              </Link>
+            </div>
           </div>
         </div>
       </div>
