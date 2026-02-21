@@ -16,23 +16,6 @@ import {
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
 
-const EditIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    width="13"
-    height="13"
-    viewBox="0 0 12 13"
-  >
-    <path
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={1.5}
-      d="M11.136 3.357a1.527 1.527 0 1 0-2.16-2.16l-7.228 7.23c-.126.126-.22.28-.271.45L.76 11.235a.27.27 0 0 0 .338.337l2.358-.715c.17-.052.324-.144.45-.27l7.229-7.23Z"
-    />
-  </svg>
-);
 
 const DeleteIcon = () => (
   <svg width="13" height="13" viewBox="0 0 12 13" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -53,12 +36,6 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
     [projectId],
   );
 
-  const handleEditClick = () => {
-    const newTitle = prompt("Enter new project title", project.title);
-    if (newTitle == "" || newTitle == null) return;
-    dispatch(projectsSlice.update(project.id, { title: newTitle }));
-  };
-
   const handleDeleteClick = () => {
     const shouldDelete = confirm(
       "Are you sure you want to delete this project?",
@@ -68,10 +45,16 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
     }
   };
 
+  const handleTitleClick = () => {
+    const newTitle = prompt("Enter new project title", project.title);
+    if (newTitle == "" || newTitle == null) return;
+    dispatch(projectsSlice.update(project.id, { title: newTitle }));
+  };
+
   return (
     <div className="mt-5">
       {/* Project header */}
-      <div className="flex items-start gap-3 mb-6 group">
+      <div className="flex items-start gap-3 mb-6">
         <Popover>
           <PopoverTrigger asChild>
             <button
@@ -94,20 +77,17 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
           </PopoverContent>
         </Popover>
 
-        <div className="flex-1 min-w-0">
-          <h1 className="text-3xl font-bold text-content leading-tight">
+        <button
+          type="button"
+          onClick={handleTitleClick}
+          className="flex-1 min-w-0 text-left cursor-pointer"
+        >
+          <h1 className="text-3xl font-bold text-content leading-tight hover:text-primary transition-colors">
             {project.title}
           </h1>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-2">
-          <button
-            onClick={handleEditClick}
-            type="button"
-            className="cursor-pointer text-content-tinted hover:text-primary transition-colors flex justify-center items-center"
-          >
-            <EditIcon />
-          </button>
+        <div className="flex items-center flex-shrink-0 mt-2">
           <button
             onClick={handleDeleteClick}
             type="button"
