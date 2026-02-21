@@ -12,8 +12,14 @@ import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover.tsx";
+import { Calendar } from "@/components/ui/calendar.tsx";
 import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import invariant from "tiny-invariant";
@@ -75,6 +81,8 @@ const SingleDayColumn = ({
   nextDate: Date;
 }) => {
   const spaceId = Route.useParams().spaceId;
+  const navigate = useNavigate();
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const dailyList = useSyncSelector(
     () => dailyListsSlice.byIdOrDefault(dailyListId),
     [dailyListId],
@@ -155,18 +163,40 @@ const SingleDayColumn = ({
             <ChevronLeft />
           </Link>
 
-          <div className="flex items-baseline gap-2.5">
-            <span className="text-xs text-subheader">
-              {format(dailyList.date, "dd MMM")}
-            </span>
-            <span
-              className={cn("uppercase text-content text-3xl font-bold", {
-                "text-accent": isToday,
-              })}
-            >
-              {format(dailyList.date, "EEEE")}
-            </span>
-          </div>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <div className="flex items-baseline gap-2.5 cursor-pointer transition-opacity select-none">
+                <span className="text-xs text-subheader">
+                  {format(dailyList.date, "dd MMM")}
+                </span>
+                <span
+                  className={cn("uppercase text-content text-3xl font-bold", {
+                    "text-accent": isToday,
+                  })}
+                >
+                  {format(dailyList.date, "EEEE")}
+                </span>
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={new Date(dailyList.date)}
+                onSelect={(date) => {
+                  if (date) {
+                    void navigate({
+                      to: "/spaces/$spaceId/dates/$date",
+                      params: {
+                        spaceId,
+                        date: format(date, "yyyy-MM-dd"),
+                      },
+                    });
+                    setCalendarOpen(false);
+                  }
+                }}
+              />
+            </PopoverContent>
+          </Popover>
 
           <Link
             to="/spaces/$spaceId/dates/$date"
@@ -208,9 +238,7 @@ const SingleDayColumn = ({
 
         <div
           ref={scrollableRef}
-          className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {
-            "ring-2 ring-accent rounded-lg": isOver,
-          })}
+          className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
         >
           {taskIds.map((id, i) => (
             <TaskComp

@@ -216,13 +216,19 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
-        "text-calendar-day cursor-pointer data-[today=true]:text-content data-[selected-single=true]:bg-accent/20 data-[selected-single=true]:text-content data-[selected-single=true]:ring-1 data-[selected-single=true]:ring-accent data-[range-middle=true]:bg-accent/20 data-[range-middle=true]:text-content data-[range-start=true]:bg-accent/20 data-[range-start=true]:text-content data-[range-end=true]:bg-accent/20 data-[range-end=true]:text-content group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-panel-tinted hover:text-content flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
+        "relative text-calendar-day cursor-pointer data-[today=true]:text-content data-[selected-single=true]:bg-accent/20 data-[selected-single=true]:text-content data-[selected-single=true]:ring-1 data-[selected-single=true]:ring-accent data-[range-middle=true]:bg-accent/20 data-[range-middle=true]:text-content data-[range-start=true]:bg-accent/20 data-[range-start=true]:text-content data-[range-end=true]:bg-accent/20 data-[range-end=true]:text-content group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-panel-tinted hover:text-content flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
         defaultClassNames.day,
         className,
       )}
       {...props}
-    />
+    >
+      {props.children}
+      {modifiers.today && (
+        <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent pointer-events-none" />
+      )}
+    </Button>
   );
 }
+
 
 export { Calendar, CalendarDayButton };
