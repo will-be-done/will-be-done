@@ -32,6 +32,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
+import { useSidebarStore } from "@/store/sidebarStore.ts";
 
 const ChevronLeft = () => (
   <svg
@@ -278,6 +279,8 @@ const SingleDayColumn = ({
 };
 
 export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
+  const sidebarWidth = useSidebarStore((s) => s.width);
+  const setSidebarWidth = useSidebarStore((s) => s.setWidth);
   const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
   const previousDate = useMemo(() => subDays(selectedDate, 1), [selectedDate]);
   const nextDate = useMemo(() => addDays(selectedDate, 1), [selectedDate]);
@@ -309,19 +312,14 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
     [dispatch, inboxId],
   );
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    null,
-  );
-  const handleProjectSelect = useCallback((projectId: string) => {
-    setSelectedProjectId((prev) => (prev === projectId ? null : projectId));
-  }, []);
-
   return (
-    <SidebarProvider defaultOpen={true} className="min-h-0 h-full w-full">
-      <DateViewSidebar
-        selectedProjectId={selectedProjectId}
-        onProjectSelect={handleProjectSelect}
-      />
+    <SidebarProvider
+      defaultOpen={true}
+      className="min-h-0 h-full w-full"
+      width={sidebarWidth}
+      onWidthChange={setSidebarWidth}
+    >
+      <DateViewSidebar />
       <SidebarInset className="min-h-0 bg-transparent">
         <div className="relative h-full">
           <SidebarTrigger className="absolute left-2 top-2 z-20 text-content-tinted hover:text-primary backdrop-blur-md cursor-pointer" />

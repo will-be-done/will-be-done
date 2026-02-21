@@ -93,8 +93,10 @@ const CategorySection = ({
 
 export const ProjectTaskPanel = ({
   projectId,
+  embedded = false,
 }: {
   projectId: string;
+  embedded?: boolean;
 }) => {
   const project = useSyncSelector(
     () => projectsSlice.byIdOrDefault(projectId),
@@ -105,6 +107,20 @@ export const ProjectTaskPanel = ({
     () => projectCategoriesSlice.byProjectId(projectId),
     [projectId],
   );
+
+  if (embedded) {
+    return (
+      <div className="flex flex-col gap-1">
+        {categories.map((cat) => (
+          <CategorySection
+            key={cat.id}
+            categoryId={cat.id}
+            projectId={projectId}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
