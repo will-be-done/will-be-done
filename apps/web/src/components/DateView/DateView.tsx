@@ -15,91 +15,66 @@ import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
-import { PlusIcon } from "@/components/ui/icons.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { DateViewSidebar } from "./DateViewSidebar.tsx";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar.tsx";
 
-const DateNavHeader = ({
-  previousDate,
-  nextDate,
-  selectedDate,
-}: {
-  previousDate: Date;
-  nextDate: Date;
-  selectedDate: Date;
-}) => {
-  const spaceId = Route.useParams().spaceId;
+const ChevronLeft = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    width="5"
+    height="8"
+    viewBox="0 0 5 8"
+  >
+    <path
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.5"
+      d="M4 7 1 4l3-3"
+    />
+  </svg>
+);
 
-  return (
-    <div className="top-0 absolute m-auto left-0 right-0 max-w-xl z-40">
-      <div className="bg-surface-elevated w-full mx-5 rounded-b-lg text-[13px] text-content flex items-center relative h-8 stroke-content ring-1 ring-ring">
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 h-full">
-          <Link
-            to="/spaces/$spaceId/dates/$date"
-            params={{
-              date: format(previousDate, "yyyy-MM-dd"),
-              spaceId,
-            }}
-            className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
-            aria-label="Previous day"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              width="4"
-              height="6"
-              viewBox="0 0 4 6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3 5.5.5 3 3 .5"
-              />
-            </svg>
-          </Link>
-          <span className="font-medium">
-            {format(selectedDate, "dd MMM yyyy")}
-          </span>
-          <Link
-            to="/spaces/$spaceId/dates/$date"
-            params={{
-              date: format(nextDate, "yyyy-MM-dd"),
-              spaceId,
-            }}
-            className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
-            aria-label="Next day"
-          >
-            <svg
-              width="4"
-              height="6"
-              viewBox="0 0 4 6"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M0.5 0.499999L3 3L0.5 5.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-};
+const ChevronRight = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    width="5"
+    height="8"
+    viewBox="0 0 5 8"
+  >
+    <path
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.5"
+      d="M1 1l3 3-3 3"
+    />
+  </svg>
+);
 
 const SingleDayColumn = ({
   dailyListId,
   onTaskAdd,
+  previousDate,
+  nextDate,
 }: {
   dailyListId: string;
   onTaskAdd: (dailyList: DailyList) => void;
+  previousDate: Date;
+  nextDate: Date;
 }) => {
+  const spaceId = Route.useParams().spaceId;
   const dailyList = useSyncSelector(
     () => dailyListsSlice.byIdOrDefault(dailyListId),
     [dailyListId],
@@ -165,9 +140,22 @@ const SingleDayColumn = ({
       focusKey={buildFocusKey(dailyList.id, dailyList.type, "DateView")}
       priority="100"
     >
-      <div ref={columnRef} className="flex flex-col w-full">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-baseline gap-3">
+      <div ref={columnRef} className="flex flex-col w-full mt-5">
+        {/* Date header with navigation arrows */}
+        <div className="flex items-center justify-between mb-5">
+          <Link
+            to="/spaces/$spaceId/dates/$date"
+            params={{
+              date: format(previousDate, "yyyy-MM-dd"),
+              spaceId,
+            }}
+            className="w-8 h-8 flex items-center justify-center rounded-md text-content-tinted hover:text-primary hover:bg-surface-elevated transition-colors"
+            aria-label="Previous day"
+          >
+            <ChevronLeft />
+          </Link>
+
+          <div className="flex items-baseline gap-2.5">
             <span className="text-xs text-subheader">
               {format(dailyList.date, "dd MMM")}
             </span>
@@ -179,17 +167,48 @@ const SingleDayColumn = ({
               {format(dailyList.date, "EEEE")}
             </span>
           </div>
-          <button
-            className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
-            onClick={() => onTaskAdd(dailyList)}
-            type="button"
+
+          <Link
+            to="/spaces/$spaceId/dates/$date"
+            params={{
+              date: format(nextDate, "yyyy-MM-dd"),
+              spaceId,
+            }}
+            className="w-8 h-8 flex items-center justify-center rounded-md text-content-tinted hover:text-primary hover:bg-surface-elevated transition-colors"
+            aria-label="Next day"
           >
-            <PlusIcon />
-          </button>
+            <ChevronRight />
+          </Link>
         </div>
+
+        {/* Add task row at the top of the list */}
+        <button
+          type="button"
+          onClick={() => onTaskAdd(dailyList)}
+          className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 mb-3 transition-colors group cursor-pointer"
+        >
+          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+            <svg
+              width="8"
+              height="8"
+              viewBox="0 0 8 8"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M4 1v6M1 4h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <span>Add task</span>
+        </button>
+
         <div
           ref={scrollableRef}
-          className={cn("flex flex-col gap-4 w-full overflow-y-auto", {
+          className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {
             "ring-2 ring-accent rounded-lg": isOver,
           })}
         >
@@ -215,11 +234,11 @@ const SingleDayColumn = ({
             />
           ))}
 
-          {taskIds.length === 0 && doneTaskIds.length === 0 && (
-            <div className="text-content-tinted text-sm text-center py-8">
-              No tasks for this day
-            </div>
-          )}
+          {/* {taskIds.length === 0 && doneTaskIds.length === 0 && ( */}
+          {/*   <div className="text-content-tinted text-sm text-center py-8"> */}
+          {/*     No tasks for this day */}
+          {/*   </div> */}
+          {/* )} */}
         </div>
       </div>
     </ColumnListProvider>
@@ -266,28 +285,28 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
   }, []);
 
   return (
-    <div className="flex w-full h-full">
+    <SidebarProvider defaultOpen={true} className="min-h-0 h-full w-full">
       <DateViewSidebar
         selectedProjectId={selectedProjectId}
         onProjectSelect={handleProjectSelect}
       />
-      <div className="flex flex-col flex-1 min-w-0 relative">
-        <div className="overflow-y-auto pt-10 h-full">
-          <div className="max-w-lg mx-auto px-4 py-4">
-            {dailyListsIds[0] && (
-              <SingleDayColumn
-                dailyListId={dailyListsIds[0]}
-                onTaskAdd={handleAddTask}
-              />
-            )}
+      <SidebarInset className="min-h-0 bg-transparent">
+        <div className="relative h-full">
+          <SidebarTrigger className="absolute left-2 top-2 z-20 text-content-tinted hover:text-primary backdrop-blur-md cursor-pointer" />
+          <div className="overflow-y-auto h-full">
+            <div className="max-w-lg mx-auto px-4 py-4">
+              {dailyListsIds[0] && (
+                <SingleDayColumn
+                  dailyListId={dailyListsIds[0]}
+                  onTaskAdd={handleAddTask}
+                  previousDate={previousDate}
+                  nextDate={nextDate}
+                />
+              )}
+            </div>
           </div>
-          <DateNavHeader
-            previousDate={previousDate}
-            nextDate={nextDate}
-            selectedDate={selectedDate}
-          />
           <div className="absolute right-0 top-0">
-            <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
+            <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated/70 backdrop-blur-md ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
               <Link
                 className="transition-colors hover:text-primary"
                 to="/spaces"
@@ -297,7 +316,7 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 };
