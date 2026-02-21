@@ -46,7 +46,7 @@ import {
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 import { useCurrentDate } from "../DaysBoard/hooks";
-import { startOfDay } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
 
 export function CheckboxComp({
@@ -142,6 +142,7 @@ export const TaskComp = ({
   orderNumber,
   newTaskParams,
   displayLastScheduleTime,
+  centerScheduleDate,
 }: {
   taskId: string;
   cardWrapperId: string;
@@ -151,6 +152,7 @@ export const TaskComp = ({
   orderNumber: string;
   newTaskParams?: Partial<Task>;
   displayLastScheduleTime?: boolean;
+  centerScheduleDate?: boolean;
 }) => {
   const dispatch = useDispatch();
 
@@ -703,7 +705,10 @@ export const TaskComp = ({
           </div>
           <div
             className={cn(
-              "flex justify-between text-sm px-2 py-1.5 text-xs rounded-b-lg",
+              "text-sm px-2 py-1.5 text-xs rounded-b-lg",
+              centerScheduleDate && displayLastScheduleTime
+                ? "grid grid-cols-[1fr_auto_1fr] items-center gap-1"
+                : "flex items-center justify-between",
               isTask(card) && card.state === "done"
                 ? "bg-done-panel-tinted text-done-content"
                 : "bg-panel-tinted text-content-tinted",
@@ -712,31 +717,73 @@ export const TaskComp = ({
             <div>{category.title}</div>
 
             {displayLastScheduleTime && isTask(card) && (
-              <TaskDatePicker
-                taskId={taskId}
-                currentDate={lastScheduleTime}
-                trigger={
-                  <button
-                    className={cn("text-center cursor-pointer ", {
-                      "text-amber-400": shouldHighlightTime,
-                    })}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {lastScheduleTime
-                      ? new Date(lastScheduleTime).toLocaleDateString("en-US", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })
-                      : "No Date"}
-                  </button>
-                }
-              />
+              <div
+                className={cn(
+                  centerScheduleDate ? "flex justify-center" : undefined,
+                )}
+              >
+                <TaskDatePicker
+                  taskId={taskId}
+                  currentDate={lastScheduleTime}
+                  trigger={
+                    <button
+                      className={cn(
+                        "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer",
+                        "hover:bg-black/5 dark:hover:bg-white/5",
+                        shouldHighlightTime
+                          ? "text-amber-400"
+                          : "text-content-tinted hover:text-content",
+                      )}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 10 10"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="shrink-0"
+                      >
+                        <rect
+                          x="0.5"
+                          y="1.5"
+                          width="9"
+                          height="8"
+                          rx="1.5"
+                          stroke="currentColor"
+                        />
+                        <path
+                          d="M3 0.5V2.5M7 0.5V2.5"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                        />
+                        <path d="M0.5 4.5H9.5" stroke="currentColor" />
+                      </svg>
+                      <span>
+                        {lastScheduleTime
+                          ? format(
+                              lastScheduleTime,
+                              lastScheduleTime.getFullYear() ===
+                                new Date().getFullYear()
+                                ? "MMM d"
+                                : "MMM d, yyyy",
+                            )
+                          : "No date"}
+                      </span>
+                    </button>
+                  }
+                />
+              </div>
             )}
 
             {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
               <button
-                className="text-right cursor-pointer"
+                className={cn(
+                  "cursor-pointer",
+                  centerScheduleDate && displayLastScheduleTime
+                    ? "text-right justify-self-end"
+                    : "text-right",
+                )}
                 onClick={() => {
                   setIsMoveModalOpen(true);
                 }}
