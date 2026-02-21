@@ -220,6 +220,8 @@ const SingleDayColumn = ({
               cardWrapperId={id}
               cardWrapperType="projection"
               alwaysShowProject
+              displayLastScheduleTime
+              centerScheduleDate
             />
           ))}
 
@@ -231,6 +233,8 @@ const SingleDayColumn = ({
               cardWrapperId={id}
               cardWrapperType="projection"
               alwaysShowProject
+              displayLastScheduleTime
+              centerScheduleDate
             />
           ))}
 
