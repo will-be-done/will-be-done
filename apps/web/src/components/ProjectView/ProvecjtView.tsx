@@ -400,16 +400,17 @@ const ProjectItem = function ProjectItemComp({
 
         <div
           className={cn(
-            "ml-auto flex items-center gap-1 text-content-tinted flex-shrink-0 ",
+            "ml-auto flex items-center gap-1 text-xs tabular-nums text-content-tinted flex-shrink-0 ",
             project.id !== inboxProjectId && "group-hover:hidden",
           )}
         >
           {overdueTasksCount > 0 && (
             <>
-              <div className="text-notice">{overdueTasksCount}</div>|
+              <span className="text-notice">{overdueTasksCount}</span>
+              <span className="text-content-tinted/50">|</span>
             </>
           )}
-          <div>{notDoneTasksCount}</div>
+          <span>{notDoneTasksCount}</span>
         </div>
 
         <div

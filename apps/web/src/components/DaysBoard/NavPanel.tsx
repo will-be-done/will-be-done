@@ -1,8 +1,15 @@
 import { cn } from "@/lib/utils.ts";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { useDaysPreferences } from "./hooks.tsx";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
+import { useState } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover.tsx";
+import { Calendar } from "@/components/ui/calendar.tsx";
 
 export const NavPanel = ({
   previousDate,
@@ -18,6 +25,8 @@ export const NavPanel = ({
   const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const setDaysWindow = useDaysPreferences((state) => state.setDaysWindow);
   const spaceId = Route.useParams().spaceId;
+  const navigate = useNavigate();
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   return (
     <div className="top-0 fixed m-auto left-0 right-0 max-w-xl z-40">
@@ -49,7 +58,29 @@ export const NavPanel = ({
               />
             </svg>
           </Link>
-          <span className="font-medium">{format(selectedDate, "dd MMM yyyy")}</span>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <span className="font-medium cursor-pointer hover:text-primary transition-colors select-none">
+                {format(selectedDate, "dd MMM yyyy")}
+              </span>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (date) {
+                    void navigate({
+                      to: "/spaces/$spaceId/timeline/$date",
+                      params: { spaceId, date: format(date, "yyyy-MM-dd") },
+                      search: { projectId: selectedProjectId },
+                    });
+                    setCalendarOpen(false);
+                  }
+                }}
+              />
+            </PopoverContent>
+          </Popover>
           <Link
             to="/spaces/$spaceId/timeline/$date"
             params={{
