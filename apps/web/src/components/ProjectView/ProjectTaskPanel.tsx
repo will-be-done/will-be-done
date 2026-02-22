@@ -201,6 +201,26 @@ const CategorySection = ({
   );
 };
 
+const AddSectionButton = ({ onClick }: { onClick: () => void }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/50 hover:text-content-tinted py-1.5 mt-1 transition-colors group/sec cursor-pointer"
+  >
+    <span className="w-4 h-4 rounded border border-current flex items-center justify-center flex-shrink-0 opacity-50 group-hover/sec:opacity-100 transition-opacity">
+      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+        <path
+          d="M4 1v6M1 4h6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
+    <span>Add section</span>
+  </button>
+);
+
 export const ProjectTaskPanel = ({
   projectId,
   embedded = false,
@@ -227,26 +247,6 @@ export const ProjectTaskPanel = ({
     );
   };
 
-  const AddSectionButton = () => (
-    <button
-      type="button"
-      onClick={handleAddSection}
-      className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/50 hover:text-content-tinted py-1.5 mt-1 transition-colors group/sec cursor-pointer"
-    >
-      <span className="w-4 h-4 rounded border border-current flex items-center justify-center flex-shrink-0 opacity-50 group-hover/sec:opacity-100 transition-opacity">
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-          <path
-            d="M4 1v6M1 4h6"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </span>
-      <span>Add section</span>
-    </button>
-  );
-
   if (embedded) {
     return (
       <div className="flex flex-col gap-1">
@@ -257,7 +257,7 @@ export const ProjectTaskPanel = ({
             projectId={projectId}
           />
         ))}
-        <AddSectionButton />
+        <AddSectionButton onClick={handleAddSection} />
       </div>
     );
   }
@@ -278,7 +278,7 @@ export const ProjectTaskPanel = ({
             projectId={projectId}
           />
         ))}
-        <AddSectionButton />
+        <AddSectionButton onClick={handleAddSection} />
       </div>
     </div>
   );

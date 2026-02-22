@@ -48,7 +48,7 @@ type SidebarContextProps = {
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 
 function useSidebar() {
-  const context = React.useContext(SidebarContext)
+  const context = React.use(SidebarContext)
   if (!context) {
     throw new Error("useSidebar must be used within a SidebarProvider.")
   }
@@ -145,7 +145,7 @@ function SidebarProvider({
   const sidebarWidthValue = widthProp != null ? `${widthProp}px` : SIDEBAR_WIDTH
 
   return (
-    <SidebarContext.Provider value={contextValue}>
+    <SidebarContext value={contextValue}>
       <TooltipProvider delayDuration={0}>
         <div
           data-slot="sidebar-wrapper"
@@ -165,7 +165,7 @@ function SidebarProvider({
           {children}
         </div>
       </TooltipProvider>
-    </SidebarContext.Provider>
+    </SidebarContext>
   )
 }
 
@@ -329,7 +329,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       window.addEventListener("mousemove", onMouseMove)
       window.addEventListener("mouseup", onMouseUp)
     },
-    [toggleSidebar, setWidth]
+    [toggleSidebar, setWidth, setIsResizing]
   )
 
   return (
@@ -658,9 +658,7 @@ function SidebarMenuSkeleton({
   showIcon?: boolean
 }) {
   // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
-  }, [])
+  const [width] = React.useState(() => `${Math.floor(Math.random() * 40) + 50}%`)
 
   return (
     <div
@@ -773,5 +771,6 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  // eslint-disable-next-line react-refresh/only-export-components
   useSidebar,
 }

@@ -99,7 +99,7 @@ const SingleDayColumn = ({
   const select = useSelect();
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
-  const [isOver, setIsOver] = useState(false);
+  const [_isOver, setIsOver] = useState(false);
 
   useEffect(() => {
     invariant(columnRef.current);
