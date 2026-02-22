@@ -100,7 +100,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
               </h1>
             </button>
 
-            <div className="flex items-center flex-shrink-0 mt-3">
+            <div className="flex self-center flex-shrink-0">
               <button
                 onClick={handleDeleteClick}
                 type="button"
@@ -119,6 +119,8 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
           <ProjectTaskPanel projectId={projectId} embedded />
         </div>
       </div>
+
+      {/* TODO: don't render twice lol */}
 
       {/* Desktop: kanban columns (>= sm) — scrolls horizontally when columns overflow */}
       <div className="hidden sm:flex flex-1 min-h-0 overflow-x-auto pb-4">

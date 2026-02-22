@@ -19,6 +19,7 @@ const CalendarIcon = () => (
     viewBox="0 0 15 15"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
+    className="flex-shrink-0"
   >
     <rect
       x="1"
@@ -54,6 +55,7 @@ const TimelineIcon = () => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
+    className="flex-shrink-0"
   >
     <rect width="6" height="16" x="4" y="6" rx="2" />
     <rect width="6" height="9" x="14" y="6" rx="2" />
@@ -68,6 +70,7 @@ const InboxIcon = () => (
     viewBox="0 0 15 15"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
+    className="flex-shrink-0"
   >
     <rect
       x="1.5"

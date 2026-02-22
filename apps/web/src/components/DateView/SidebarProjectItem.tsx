@@ -3,6 +3,7 @@ import { useSyncSelector, useDB, select } from "@will-be-done/hyperdb";
 import { projectsSlice } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useCurrentDate } from "../DaysBoard/hooks.tsx";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -67,9 +68,21 @@ export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
     [projectId],
   );
 
+  const currentDate = useCurrentDate();
+
   const notDoneCount = useSyncSelector(
     () => projectsSlice.notDoneTasksCountExceptDailiesCount(projectId, []),
     [projectId],
+  );
+
+  const overdueCount = useSyncSelector(
+    () =>
+      projectsSlice.overdueTasksCountExceptDailiesCount(
+        projectId,
+        [],
+        currentDate,
+      ),
+    [projectId, currentDate],
   );
 
   const isActive = useRouterState({
@@ -182,9 +195,15 @@ export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
       >
         <span className="text-base flex-shrink-0">{project.icon || "🟡"}</span>
         <span className="flex-1 truncate">{project.title}</span>
-        {notDoneCount > 0 && (
-          <span className="text-xs tabular-nums text-content-tinted">
-            {notDoneCount}
+        {(notDoneCount > 0 || overdueCount > 0) && (
+          <span className="flex items-center gap-1 text-xs tabular-nums text-content-tinted">
+            {overdueCount > 0 && (
+              <>
+                <span className="text-notice">{overdueCount}</span>
+                <span className="text-content-tinted/50">|</span>
+              </>
+            )}
+            <span>{notDoneCount}</span>
           </span>
         )}
       </Link>
