@@ -53,9 +53,9 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header — always narrow, fixed height */}
-      <div className="flex-shrink-0 w-full pt-5 mb-6">
+    <div className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden">
+      {/* Header */}
+      <div className="sm:flex-shrink-0 w-full pt-5 mb-6">
         <div className="max-w-lg mx-auto px-4">
           <div className="flex items-start gap-3">
             <Popover>
@@ -90,7 +90,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
               </h1>
             </button>
 
-            <div className="flex items-center flex-shrink-0 mt-2">
+            <div className="flex items-center flex-shrink-0 mt-3">
               <button
                 onClick={handleDeleteClick}
                 type="button"
@@ -104,7 +104,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
       </div>
 
       {/* Mobile: list view (< sm) */}
-      <div className="sm:hidden flex-1 min-h-0 overflow-y-auto w-full">
+      <div className="sm:hidden w-full">
         <div className="max-w-lg mx-auto px-4 pb-4">
           <ProjectTaskPanel projectId={projectId} embedded />
         </div>
