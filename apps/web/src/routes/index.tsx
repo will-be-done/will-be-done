@@ -20,7 +20,7 @@ export const Route = createFileRoute("/")({
     const lastUsedSpaceId = authUtils.getLastUsedSpaceId();
     if (lastUsedSpaceId) {
       throw redirect({
-        to: "/spaces/$spaceId/timeline",
+        to: "/spaces/$spaceId/dates",
         params: {
           spaceId: lastUsedSpaceId,
         },

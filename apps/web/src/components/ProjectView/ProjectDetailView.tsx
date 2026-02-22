@@ -1,15 +1,7 @@
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { useSidebarStore } from "@/store/sidebarStore.ts";
 import { projectsSlice } from "@will-be-done/slices/space";
-import { ProjectTaskPanel } from "@/components/DateView/ProjectTaskPanel.tsx";
+import { ProjectTaskPanel } from "@/components/ProjectView/ProjectTaskPanel.tsx";
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
-import { DateViewSidebar } from "@/components/DateView/DateViewSidebar.tsx";
-import { Link } from "@tanstack/react-router";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar.tsx";
 import {
   Popover,
   PopoverContent,
@@ -20,7 +12,7 @@ import {
   EmojiPickerContent,
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 const DeleteIcon = () => (
   <svg
@@ -39,6 +31,21 @@ const DeleteIcon = () => (
     />
   </svg>
 );
+
+const SM_BREAKPOINT = 640;
+
+function useIsSmallScreen() {
+  const [isSmall, setIsSmall] = useState(
+    () => window.innerWidth < SM_BREAKPOINT,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${SM_BREAKPOINT - 1}px)`);
+    const onChange = () => setIsSmall(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isSmall;
+}
 
 const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   const dispatch = useDispatch();
@@ -61,6 +68,8 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
     if (newTitle == "" || newTitle == null) return;
     dispatch(projectsSlice.update(project.id, { title: newTitle }));
   };
+
+  const isSmallScreen = useIsSmallScreen();
 
   return (
     <div className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden">
@@ -113,29 +122,24 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
         </div>
       </div>
 
-      {/* Mobile: list view (< sm) */}
-      <div className="sm:hidden w-full">
-        <div className="max-w-lg mx-auto px-4 pb-4">
-          <ProjectTaskPanel projectId={projectId} embedded />
+      {isSmallScreen ? (
+        <div className="w-full">
+          <div className="max-w-lg mx-auto px-4 pb-4">
+            <ProjectTaskPanel projectId={projectId} embedded />
+          </div>
         </div>
-      </div>
-
-      {/* TODO: don't render twice lol */}
-
-      {/* Desktop: kanban columns (>= sm) — scrolls horizontally when columns overflow */}
-      <div className="hidden sm:flex flex-1 min-h-0 overflow-x-auto pb-4">
-        <div className="min-w-max h-full px-4">
-          <ProjectItemsList project={project} />
+      ) : (
+        <div className="flex flex-1 min-h-0 overflow-x-auto pb-4">
+          <div className="min-w-max h-full px-4">
+            <ProjectItemsList project={project} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
-  const sidebarWidth = useSidebarStore((s) => s.width);
-  const setSidebarWidth = useSidebarStore((s) => s.setWidth);
-
   const inboxProjectId = useSyncSelector(
     () => projectsSlice.inboxProjectId(),
     [],
@@ -144,30 +148,5 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
     return projectId === "inbox" ? inboxProjectId : projectId;
   }, [projectId, inboxProjectId]);
 
-  return (
-    <SidebarProvider
-      defaultOpen={true}
-      className="min-h-0 h-full w-full"
-      width={sidebarWidth}
-      onWidthChange={setSidebarWidth}
-    >
-      <DateViewSidebar />
-      <SidebarInset className="min-h-0 bg-transparent">
-        <div className="relative h-full">
-          <SidebarTrigger className="absolute left-2 top-2 z-20 text-content-tinted hover:text-primary backdrop-blur-md cursor-pointer" />
-          <ProjectDetailContent projectId={realProjectId} />
-          <div className="absolute right-0 top-0">
-            <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated/70 backdrop-blur-md ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
-              <Link
-                className="transition-colors hover:text-primary"
-                to="/spaces"
-              >
-                spaces
-              </Link>
-            </div>
-          </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
-  );
+  return <ProjectDetailContent projectId={realProjectId} />;
 };

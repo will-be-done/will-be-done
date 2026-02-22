@@ -20,6 +20,7 @@ import {
 import invariant from "tiny-invariant";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import ReactDOM from "react-dom";
+import { useSidebar } from "@/components/ui/sidebar.tsx";
 
 type DndState =
   | { type: "idle" }
@@ -62,6 +63,7 @@ const DragPreview = ({
 export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
   const spaceId = Route.useParams().spaceId;
   const db = useDB();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const project = useSyncSelector(
     () => projectsSlice.byIdOrDefault(projectId),
@@ -185,6 +187,7 @@ export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
         }}
         to="/spaces/$spaceId/projects/$projectId"
         params={{ spaceId, projectId }}
+        onClick={isMobile ? () => setOpenMobile(false) : undefined}
         className={cn(
           "flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors w-full min-h-[40px]",
           isActive

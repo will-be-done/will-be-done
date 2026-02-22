@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parse } from "date-fns";
-import { Layout } from "@/components/Layout/Layout.tsx";
+import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 import { DateView } from "@/components/DateView/DateView.tsx";
+import { LayoutWithSidebar } from "@/components/Layout/LayoutWithSidebar";
 
 export const Route = createFileRoute("/spaces/$spaceId/dates/$date")({
   component: RouteComponent,
@@ -12,8 +13,10 @@ function RouteComponent() {
   const date = parse(params.date, "yyyy-MM-dd", new Date());
 
   return (
-    <Layout>
-      <DateView selectedDate={date} />
-    </Layout>
+    <GlobalLayout>
+      <LayoutWithSidebar>
+        <DateView selectedDate={date} />
+      </LayoutWithSidebar>
+    </GlobalLayout>
   );
 }

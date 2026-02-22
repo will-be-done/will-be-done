@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Layout } from "@/components/Layout/Layout.tsx";
+import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 import { ProjectDetailView } from "@/components/ProjectView/ProjectDetailView.tsx";
+import { LayoutWithSidebar } from "@/components/Layout/LayoutWithSidebar";
 
 export const Route = createFileRoute("/spaces/$spaceId/projects/$projectId")({
   component: RouteComponent,
@@ -9,8 +10,10 @@ export const Route = createFileRoute("/spaces/$spaceId/projects/$projectId")({
 function RouteComponent() {
   const { projectId } = Route.useParams();
   return (
-    <Layout>
-      <ProjectDetailView projectId={projectId} />
-    </Layout>
+    <GlobalLayout>
+      <LayoutWithSidebar>
+        <ProjectDetailView projectId={projectId} />
+      </LayoutWithSidebar>
+    </GlobalLayout>
   );
 }

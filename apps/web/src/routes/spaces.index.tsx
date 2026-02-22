@@ -191,7 +191,7 @@ function SpacePageComponent() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {spaces.map((space) => (
                 <Link
-                  to="/spaces/$spaceId/timeline"
+                  to="/spaces/$spaceId/dates"
                   params={{
                     spaceId: space.id,
                   }}

@@ -5,6 +5,7 @@ import {
   Sidebar,
   SidebarHeader,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
@@ -90,12 +91,18 @@ const InboxIcon = () => (
   </svg>
 );
 
+const useCloseMobileOnNav = () => {
+  const { isMobile, setOpenMobile } = useSidebar();
+  return isMobile ? () => setOpenMobile(false) : undefined;
+};
+
 const TodayNavItem = () => {
   const spaceId = Route.useParams().spaceId;
   const today = useCurrentDate();
   const dateStr = format(today, "yyyy-MM-dd");
   const weekday = format(today, "EEE");
   const dayNum = format(today, "d");
+  const closeMobile = useCloseMobileOnNav();
 
   const isActive = useRouterState({
     select: (s) =>
@@ -106,6 +113,7 @@ const TodayNavItem = () => {
     <Link
       to="/spaces/$spaceId/dates/$date"
       params={{ spaceId, date: dateStr }}
+      onClick={closeMobile}
       className={cn(
         "flex items-center gap-2 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
         isActive
@@ -126,6 +134,7 @@ const TodayNavItem = () => {
 
 const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
   const spaceId = Route.useParams().spaceId;
+  const closeMobile = useCloseMobileOnNav();
 
   const notDoneCount = useSyncSelector(
     () => projectsSlice.notDoneTasksCountExceptDailiesCount(inboxId, []),
@@ -145,6 +154,7 @@ const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
     <Link
       to="/spaces/$spaceId/projects/$projectId"
       params={{ spaceId, projectId: inboxId }}
+      onClick={closeMobile}
       className={cn(
         "flex items-center gap-2 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
         isActive
@@ -167,6 +177,7 @@ const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
 
 const TimelineNavItem = () => {
   const spaceId = Route.useParams().spaceId;
+  const closeMobile = useCloseMobileOnNav();
 
   const isActive = useRouterState({
     select: (s) =>
@@ -177,6 +188,7 @@ const TimelineNavItem = () => {
     <Link
       to="/spaces/$spaceId/timeline"
       params={{ spaceId }}
+      onClick={closeMobile}
       className={cn(
         "flex items-center gap-2 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
         isActive
@@ -195,7 +207,7 @@ const TimelineNavItem = () => {
   );
 };
 
-export const DateViewSidebar = () => {
+export const AppSidebar = () => {
   const dispatch = useDispatch();
   const inbox = useSyncSelector(() => projectsAllSlice.inbox(), []);
   const projectIdsWithoutInbox = useSyncSelector(
@@ -214,7 +226,7 @@ export const DateViewSidebar = () => {
     <Sidebar
       side="left"
       collapsible="offcanvas"
-      className="border-r-0 [&_[data-slot=sidebar-inner]]:bg-surface-elevated [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-ring"
+      className="[&_[data-slot=sidebar-container]]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-surface-elevated [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-ring"
     >
       <SidebarRail />
       <SidebarHeader className="px-2 pt-3 pb-0 gap-0">

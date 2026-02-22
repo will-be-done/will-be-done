@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { parse } from "date-fns";
-import { Layout } from "@/components/Layout/Layout.tsx";
+import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 import { Board } from "@/components/DaysBoard/DaysBoard.tsx";
 import { useSyncSelector } from "@will-be-done/hyperdb";
 import { projectsSlice } from "@will-be-done/slices/space";
@@ -27,11 +27,11 @@ function RouteComponent() {
   );
 
   return (
-    <Layout>
+    <GlobalLayout>
       <Board
         selectedDate={date}
         selectedProjectId={projectId === "inbox" ? inboxProjectId : projectId}
       />
-    </Layout>
+    </GlobalLayout>
   );
 }
