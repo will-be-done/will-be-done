@@ -10,16 +10,26 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover.tsx";
 import {
   EmojiPicker,
   EmojiPickerContent,
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
-
+import { useMemo } from "react";
 
 const DeleteIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 12 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 12 13"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
     <path
       d="M9.41667 2.91667V10.5C9.41667 10.7873 9.30253 11.0629 9.09937 11.266C8.8962 11.4692 8.62065 11.5833 8.33333 11.5833H2.91667C2.62935 11.5833 2.3538 11.4692 2.15063 11.266C1.94747 11.0629 1.83333 10.7873 1.83333 10.5V2.91667M0.75 2.91667H10.5M3.45833 2.91667V1.83333C3.45833 1.54602 3.57247 1.27047 3.77563 1.0673C3.9788 0.864137 4.25435 0.75 4.54167 0.75H6.70833C6.99565 0.75 7.2712 0.864137 7.47437 1.0673C7.67753 1.27047 7.79167 1.54602 7.79167 1.83333V2.91667"
       stroke="currentColor"
@@ -124,6 +134,14 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const sidebarWidth = useSidebarStore((s) => s.width);
   const setSidebarWidth = useSidebarStore((s) => s.setWidth);
 
+  const inboxProjectId = useSyncSelector(
+    () => projectsSlice.inboxProjectId(),
+    [],
+  );
+  const realProjectId = useMemo(() => {
+    return projectId === "inbox" ? inboxProjectId : projectId;
+  }, [projectId, inboxProjectId]);
+
   return (
     <SidebarProvider
       defaultOpen={true}
@@ -135,10 +153,13 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
       <SidebarInset className="min-h-0 bg-transparent">
         <div className="relative h-full">
           <SidebarTrigger className="absolute left-2 top-2 z-20 text-content-tinted hover:text-primary backdrop-blur-md cursor-pointer" />
-          <ProjectDetailContent projectId={projectId} />
+          <ProjectDetailContent projectId={realProjectId} />
           <div className="absolute right-0 top-0">
             <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated/70 backdrop-blur-md ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
-              <Link className="transition-colors hover:text-primary" to="/spaces">
+              <Link
+                className="transition-colors hover:text-primary"
+                to="/spaces"
+              >
                 spaces
               </Link>
             </div>

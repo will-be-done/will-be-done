@@ -1,7 +1,11 @@
 import { useSyncSelector, useDispatch } from "@will-be-done/hyperdb";
 import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
 import { SidebarProjectItem } from "./SidebarProjectItem.tsx";
-import { Sidebar, SidebarHeader, SidebarRail } from "@/components/ui/sidebar.tsx";
+import {
+  Sidebar,
+  SidebarHeader,
+  SidebarRail,
+} from "@/components/ui/sidebar.tsx";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { format } from "date-fns";
@@ -40,6 +44,23 @@ const CalendarIcon = () => (
   </svg>
 );
 
+const TimelineIcon = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect width="6" height="16" x="4" y="6" rx="2" />
+    <rect width="6" height="9" x="14" y="6" rx="2" />
+    <path d="M22 2H2" />
+  </svg>
+);
+
 const InboxIcon = () => (
   <svg
     width="15"
@@ -75,9 +96,7 @@ const TodayNavItem = () => {
 
   const isActive = useRouterState({
     select: (s) =>
-      s.matches.some(
-        (m) => (m.params as Record<string, string>).date != null,
-      ),
+      s.matches.some((m) => (m.params as Record<string, string>).date != null),
   });
 
   return (
@@ -114,7 +133,8 @@ const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
     select: (s) =>
       s.matches.some(
         (m) =>
-          (m.params as Record<string, string>).projectId === inboxId,
+          (m.params as Record<string, string>).projectId === inboxId ||
+          (m.params as Record<string, string>).projectId === "inbox",
       ),
   });
 
@@ -137,6 +157,36 @@ const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
             {notDoneCount}
           </span>
         )}
+      </div>
+    </Link>
+  );
+};
+
+const TimelineNavItem = () => {
+  const spaceId = Route.useParams().spaceId;
+
+  const isActive = useRouterState({
+    select: (s) =>
+      s.matches.some((m) => (m.pathname as string).includes("/timeline")),
+  });
+
+  return (
+    <Link
+      to="/spaces/$spaceId/timeline"
+      params={{ spaceId }}
+      className={cn(
+        "flex items-center gap-2 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
+        isActive
+          ? "bg-accent/10 ring-accent/30 text-accent"
+          : "ring-ring/40 text-content-tinted hover:text-content hover:bg-surface hover:ring-ring",
+      )}
+    >
+      <TimelineIcon />
+      <div className="flex flex-col min-w-0">
+        <span className="text-[13px] font-medium leading-tight">Timeline</span>
+        <span className="text-[10px] leading-tight opacity-50 tabular-nums">
+          Weekly planner
+        </span>
       </div>
     </Link>
   );
@@ -165,10 +215,13 @@ export const DateViewSidebar = () => {
     >
       <SidebarRail />
       <SidebarHeader className="px-2 pt-3 pb-0 gap-0">
-        {/* Today + Inbox side by side */}
+        {/* Today + Inbox + Timeline */}
         <div className="grid grid-cols-2 gap-1.5">
           <TodayNavItem />
           <InboxNavItem inboxId={inbox.id} />
+          <div className="hidden md:block">
+            <TimelineNavItem />
+          </div>
         </div>
 
         {/* Divider + Projects label */}

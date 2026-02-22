@@ -5,7 +5,7 @@ export const NavBar = ({ spaceId }: { spaceId: string }) => {
     <div className="flex items-center px-3 h-8 text-content-tinted gap-4 text-[13px] bg-surface-elevated ring-1 ring-ring rounded-br-lg">
       <Link
         className="transition-colors hover:text-primary [&.active]:text-accent"
-        to="/spaces/$spaceId/projects"
+        to="/spaces/$spaceId/dates"
         params={{
           spaceId,
         }}
@@ -18,13 +18,6 @@ export const NavBar = ({ spaceId }: { spaceId: string }) => {
         params={{ spaceId }}
       >
         timeline
-      </Link>
-      <Link
-        className="transition-colors hover:text-primary [&.active]:text-accent"
-        to="/spaces/$spaceId/dates"
-        params={{ spaceId }}
-      >
-        dates
       </Link>
     </div>
   );

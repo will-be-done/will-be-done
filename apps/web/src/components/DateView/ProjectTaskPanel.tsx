@@ -172,6 +172,7 @@ const CategorySection = ({
               cardWrapperId={id}
               cardWrapperType="task"
               displayedUnderProjectId={projectId}
+              displayLastScheduleTime
             />
           ))}
           {visibleDoneIds.map((id, i) => (
@@ -182,6 +183,7 @@ const CategorySection = ({
               cardWrapperId={id}
               cardWrapperType="task"
               displayedUnderProjectId={projectId}
+              displayLastScheduleTime
             />
           ))}
           {!isShowMore && doneTaskIds.length > 3 && (
@@ -221,10 +223,7 @@ export const ProjectTaskPanel = ({
     const title = prompt("Section name");
     if (!title) return;
     dispatch(
-      projectCategoriesSlice.createCategory(
-        { projectId, title },
-        "append",
-      ),
+      projectCategoriesSlice.createCategory({ projectId, title }, "append"),
     );
   };
 
