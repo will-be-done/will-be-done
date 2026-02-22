@@ -2,6 +2,7 @@ import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import { useSidebarStore } from "@/store/sidebarStore.ts";
 import { projectsSlice } from "@will-be-done/slices/space";
 import { ProjectTaskPanel } from "@/components/DateView/ProjectTaskPanel.tsx";
+import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 import { DateViewSidebar } from "@/components/DateView/DateViewSidebar.tsx";
 import { Link } from "@tanstack/react-router";
 import {
@@ -52,54 +53,69 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   };
 
   return (
-    <div className="mt-5">
-      {/* Project header */}
-      <div className="flex items-start gap-3 mb-6">
-        <Popover>
-          <PopoverTrigger asChild>
+    <div className="flex flex-col h-full">
+      {/* Header — always narrow, fixed height */}
+      <div className="flex-shrink-0 w-full pt-5 mb-6">
+        <div className="max-w-lg mx-auto px-4">
+          <div className="flex items-start gap-3">
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="text-4xl flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity leading-none mt-1"
+                >
+                  {project.icon || "🟡"}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="z-50 w-fit p-0">
+                <EmojiPicker
+                  className="h-[326px] rounded-lg shadow-md"
+                  onEmojiSelect={({ emoji }) => {
+                    dispatch(projectsSlice.update(project.id, { icon: emoji }));
+                  }}
+                >
+                  <EmojiPickerSearch />
+                  <EmojiPickerContent />
+                </EmojiPicker>
+              </PopoverContent>
+            </Popover>
+
             <button
               type="button"
-              className="text-4xl flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity leading-none mt-1"
+              onClick={handleTitleClick}
+              className="flex-1 min-w-0 text-left cursor-pointer"
             >
-              {project.icon || "🟡"}
+              <h1 className="text-3xl font-bold text-content leading-tight hover:text-primary transition-colors">
+                {project.title}
+              </h1>
             </button>
-          </PopoverTrigger>
-          <PopoverContent className="z-50 w-fit p-0">
-            <EmojiPicker
-              className="h-[326px] rounded-lg shadow-md"
-              onEmojiSelect={({ emoji }) => {
-                dispatch(projectsSlice.update(project.id, { icon: emoji }));
-              }}
-            >
-              <EmojiPickerSearch />
-              <EmojiPickerContent />
-            </EmojiPicker>
-          </PopoverContent>
-        </Popover>
 
-        <button
-          type="button"
-          onClick={handleTitleClick}
-          className="flex-1 min-w-0 text-left cursor-pointer"
-        >
-          <h1 className="text-3xl font-bold text-content leading-tight hover:text-primary transition-colors">
-            {project.title}
-          </h1>
-        </button>
-
-        <div className="flex items-center flex-shrink-0 mt-2">
-          <button
-            onClick={handleDeleteClick}
-            type="button"
-            className="cursor-pointer text-content-tinted hover:text-notice transition-colors flex justify-center items-center"
-          >
-            <DeleteIcon />
-          </button>
+            <div className="flex items-center flex-shrink-0 mt-2">
+              <button
+                onClick={handleDeleteClick}
+                type="button"
+                className="cursor-pointer text-content-tinted hover:text-notice transition-colors flex justify-center items-center"
+              >
+                <DeleteIcon />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Task list */}
-      <ProjectTaskPanel projectId={projectId} embedded />
+      {/* Mobile: list view (< sm) */}
+      <div className="sm:hidden flex-1 min-h-0 overflow-y-auto w-full">
+        <div className="max-w-lg mx-auto px-4 pb-4">
+          <ProjectTaskPanel projectId={projectId} embedded />
+        </div>
+      </div>
+
+      {/* Desktop: kanban columns (>= sm) — scrolls horizontally when columns overflow */}
+      <div className="hidden sm:flex flex-1 min-h-0 overflow-x-auto pb-4">
+        <div className="min-w-max h-full px-4">
+          <ProjectItemsList project={project} />
+        </div>
+      </div>
     </div>
   );
 };
@@ -119,11 +135,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
       <SidebarInset className="min-h-0 bg-transparent">
         <div className="relative h-full">
           <SidebarTrigger className="absolute left-2 top-2 z-20 text-content-tinted hover:text-primary backdrop-blur-md cursor-pointer" />
-          <div className="overflow-y-auto h-full">
-            <div className="max-w-lg mx-auto px-4 py-4">
-              <ProjectDetailContent projectId={projectId} />
-            </div>
-          </div>
+          <ProjectDetailContent projectId={projectId} />
           <div className="absolute right-0 top-0">
             <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated/70 backdrop-blur-md ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
               <Link className="transition-colors hover:text-primary" to="/spaces">
