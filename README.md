@@ -1,8 +1,13 @@
-This is my third attempt in 2 years to make task manager of my dream. And it looks like I very close to my dream!
-I already use it daily, and I fairly enjoy it. Three reasons why I need it - self-hosted(I own my data),
-daily planning and vim keybinds. Hope you find something that could be useful for you too!
+This is my third attempt in 3 years to build the task manager I actually want to use.
+I already use it daily. Three things pushed me to build it rather than buy:
+own my data (self-hosted), a weekly planning view, and vim keybinds.
 
-You can try the **live demo** (no sign-up) at [demo.will-be-done.app](https://demo.will-be-done.app) or the cloud version at [will-be-done.app](https://will-be-done.app/) before installing through Docker.
+But the thing I'm most proud of is the architecture: Will Be Done is local-first.
+Your full database lives in the browser. Every action is instant. It works when
+your server is down. Changes sync in real-time across all tabs and devices.
+
+Try the **live demo** (no sign-up) at [demo.will-be-done.app](https://demo.will-be-done.app)
+or the cloud version at [will-be-done.app](https://will-be-done.app/) before installing.
 
 <img width="3442" height="1960" alt="screen" src="https://github.com/user-attachments/assets/9e685994-50be-4064-a6f3-0de7e943b1a4" />
 
@@ -30,16 +35,17 @@ Then open http://localhost:3000 in your browser.
 
 ## Features
 
-Top features:
-1. Weekly timeline view - see multiple days as columns, plan your week visually
-1. Local and offline first - works offline, syncs back when you're online
-1. Top tier performance (it's based on own DB development - apps/hyperdb)
-1. Everything drag & drop - move tasks between days, projects, categories
-1. Kanban boards everywhere - each project has categories (Week/Month/Ideas/etc)
-1. Multiple spaces - separate workspaces for work/personal/different projects
-1. Keyboard navigation - vim-style keys (j/k) and arrows to move around fast
-1. Self-hosted - one docker command, no external dependencies
-1. Open source
+1. Local-first architecture — full database in the browser, every action is instant, zero network round trips
+1. True offline mode — works with no server, no internet; full read/write, not a cached skeleton
+1. Real-time sync — changes propagate instantly across all tabs and devices, no polling
+1. Weekly timeline view — see multiple days as columns, plan your week visually
+1. Kanban boards per project — each project has categories (Week/Month/Ideas/Someday/etc)
+1. Everything drag & drop — move tasks between days, projects, categories
+1. Multiple spaces — separate workspaces for work/personal/side projects
+1. Vim keybindings — j/k navigation and keyboard shortcuts
+1. Mobile ready — first-class mobile UI
+1. Self-hosted — one Docker command, SQLite, no external dependencies
+1. Open source — AGPL license
 
 ## Vim keybinds
 
@@ -59,14 +65,13 @@ Planned:
 1. `u`/`r` - undo/redo action
 1. `?` - change date
 
-## Missing features that will be added soon
+## Coming soon
 
 From tasks perspective:
 1. Repeating tasks
 1. Task details
-1. Comments to tasks
-1. Attachments
-1. Global search among tasks/details/comments
+1. Task comments and attachments
+1. Global search
 1. Checklist inside task
 
 From projects perspective:
@@ -76,21 +81,19 @@ From daily columns perspective:
 1. Calendar integration
 
 From api perspective:
-1. API for developer. It will open ability for developers to write own bots.
-1. MCP integration
+1. API & MCP integration
 
 UI/UX:
 1. Multi selection of tasks
 1. Global command palette
-1. Better vim keybinds. Right now some of them are missing and sometime they are buggy
+1. More vim keybindings
 1. Global themes.
 1. Undo/redo action
 1. DnD for project columns
 1. I18n
 
 Others:
-1. Desktop version to be able to have global shortcut
-1. Mobile version or just simple inbox app with ability to just dictate
+1. Desktop app with global quick-add shortcut
 1. Migrator from popular task managers
 
 ## Features that are not planning for now

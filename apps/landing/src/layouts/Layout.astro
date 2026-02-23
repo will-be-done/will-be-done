@@ -7,8 +7,8 @@ interface Props {
 }
 
 const {
-  title = 'Will Be Done — Open Source Weekly Planner | Self-Hosted Task Manager',
-  description = "Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, navigate with vim keybindings. Self-host with Docker or use the cloud version. Offline-first, syncs when you're back online.",
+  title = 'Will Be Done — Open Source Task Manager | Local-First, Offline, Instant',
+  description = "Open source task management that's actually instant and actually works offline. Local-first architecture keeps your full database in the browser — no network latency, works when your server is down. Weekly planning, kanban boards, real-time sync, mobile-ready. Free cloud or one Docker command to self-host.",
 } = Astro.props;
 ---
 
@@ -29,15 +29,15 @@ const {
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Will Be Done" />
-    <meta property="og:title" content="Will Be Done — Open Source Weekly Planner" />
-    <meta property="og:description" content="Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, vim keybindings, self-hosted with Docker. Offline-first." />
+    <meta property="og:title" content="Will Be Done — Open Source Task Manager. Actually Instant. Actually Offline." />
+    <meta property="og:description" content="Local-first architecture. True offline support. Real-time sync across tabs and devices. Weekly planner, kanban boards, mobile-ready. Free cloud version or self-host with one Docker command." />
     <meta property="og:url" content="https://will-be-done.app/" />
     <meta property="og:image" content="https://will-be-done.app/screen.png" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Will Be Done — Open Source Weekly Planner" />
-    <meta name="twitter:description" content="Open source kanban for visual weekly planning. Drag & drop, vim keybindings, self-hosted with Docker. Offline-first." />
+    <meta name="twitter:title" content="Will Be Done — Open Source Task Manager. Actually Instant. Actually Offline." />
+    <meta name="twitter:description" content="Local-first architecture. True offline support. Real-time sync across tabs and devices. Weekly planner, kanban boards, mobile-ready." />
     <meta name="twitter:image" content="https://will-be-done.app/screen.png" />
 
     <!-- Structured Data -->
@@ -49,12 +49,12 @@ const {
           "@type": "WebSite",
           "name": "Will Be Done",
           "url": "https://will-be-done.app",
-          "description": "Open source weekly planner and task manager with kanban boards, drag & drop, and vim keybindings."
+          "description": "Open source task management that's actually instant and actually works offline. Local-first architecture with real-time sync, weekly planning, and kanban boards."
         },
         {
           "@type": "SoftwareApplication",
           "name": "Will Be Done",
-          "description": "Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, navigate with vim keybindings. Self-host with Docker or use the cloud version.",
+          "description": "Open source task management with local-first architecture. Every action is instant, works offline, and syncs in real-time. Weekly planning, kanban boards, mobile-ready. Self-host with Docker or use the free cloud version.",
           "applicationCategory": "ProductivityApplication",
           "operatingSystem": "Web, Docker",
           "offers": {
@@ -68,6 +68,9 @@ const {
             "Drag & drop task management",
             "Vim keybindings",
             "Multiple workspaces",
+            "Local-first architecture",
+            "True offline support",
+            "Mobile-friendly UI",
             "Offline-first with sync",
             "Self-hosted via Docker",
             "Real-time sync across tabs"
