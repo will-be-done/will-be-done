@@ -4,7 +4,7 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
-import { authUtils } from "@/lib/auth";
+import { authUtils, isDemoMode } from "@/lib/auth";
 import { Pencil, Plus, Trash2, LogOut } from "lucide-react";
 import { initDbStore } from "@/store/load";
 import {
@@ -18,6 +18,13 @@ import { userDBConfig } from "@/store/configs";
 export const Route = createFileRoute("/spaces/")({
   component: SpacePage,
   beforeLoad: () => {
+    if (isDemoMode()) {
+      throw redirect({
+        to: "/spaces/$spaceId/dates",
+        params: { spaceId: "demo" },
+      });
+    }
+
     if (!authUtils.isAuthenticated() || !authUtils.getUserId()) {
       throw redirect({ to: "/login" });
     }

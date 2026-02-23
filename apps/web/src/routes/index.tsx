@@ -1,9 +1,16 @@
 import { LandingPage } from "@/components/Landing/Landing";
-import { authUtils } from "@/lib/auth";
+import { authUtils, isDemoMode } from "@/lib/auth";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   loader: () => {
+    if (isDemoMode()) {
+      throw redirect({
+        to: "/spaces/$spaceId/dates",
+        params: { spaceId: "demo" },
+      });
+    }
+
     const isAuthed = authUtils.isAuthenticated();
 
     if (!isAuthed) {

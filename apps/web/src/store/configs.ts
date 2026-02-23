@@ -1,16 +1,26 @@
 import { changesTable, syncStateTable } from "@will-be-done/slices/common";
 import {
+  backupSlice,
+  cardsTasksSlice,
   projectsSlice,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
 } from "@will-be-done/slices/space";
 import { focusTable } from "./focusSlice";
-import { HyperDB, syncDispatch } from "@will-be-done/hyperdb";
+import {
+  asyncDispatch,
+  HyperDB,
+  runSelectorAsync,
+  syncDispatch,
+} from "@will-be-done/hyperdb";
 import {
   registeredUserSyncableTableNameMap,
   registeredUserSyncableTables,
 } from "@will-be-done/slices/user";
 import { SyncConfig } from "./load";
+import { generateDemoBackup } from "@/lib/demoData";
+
+const demoDbId = "e89b6c8f-1d6c-4bf4-9d27-478339773fc9";
 
 export const spaceDBConfig = (dbId: string) => {
   return {
@@ -26,6 +36,25 @@ export const spaceDBConfig = (dbId: string) => {
     tableNameMap: registeredSpaceSyncableTableNameMap,
     afterInit: (db: HyperDB) => {
       syncDispatch(db, projectsSlice.createInboxIfNotExists());
+    },
+  } satisfies SyncConfig;
+};
+
+export const demoSpaceDBConfig = () => {
+  return {
+    ...spaceDBConfig(demoDbId),
+    disableSync: true,
+    afterInit: async (db: HyperDB) => {
+      syncDispatch(db, projectsSlice.createInboxIfNotExists());
+      const tasks = await runSelectorAsync(db, function* () {
+        return yield* cardsTasksSlice.all();
+      });
+      if (tasks.length === 0) {
+        await asyncDispatch(
+          db.withTraits({ type: "skip-sync" }),
+          backupSlice.loadBackup(generateDemoBackup()),
+        );
+      }
     },
   } satisfies SyncConfig;
 };
