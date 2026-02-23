@@ -14,13 +14,6 @@ export const Route = createFileRoute("/")({
     const isAuthed = authUtils.isAuthenticated();
 
     if (!isAuthed) {
-      if (
-        window.location.host === "will-be-done.app" ||
-        window.location.host === "localhost:5173"
-      ) {
-        return;
-      }
-
       throw redirect({ to: "/login" });
     }
 
@@ -38,5 +31,4 @@ export const Route = createFileRoute("/")({
       to: "/spaces",
     });
   },
-  component: LandingPage,
 });
