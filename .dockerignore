@@ -47,6 +47,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+.envrc
 
 # Documentation
 *.md

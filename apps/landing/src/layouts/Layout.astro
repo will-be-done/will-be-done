@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import PostHog from '../components/posthog.astro';
 
 interface Props {
   title?: string;
@@ -39,6 +40,8 @@ const {
     <meta name="twitter:title" content="Will Be Done — Open Source Task Manager. Actually Instant. Actually Offline." />
     <meta name="twitter:description" content="Local-first architecture. True offline support. Real-time sync across tabs and devices. Weekly planner, kanban boards, mobile-ready." />
     <meta name="twitter:image" content="https://will-be-done.app/screen.png" />
+
+    <PostHog />
 
     <!-- Structured Data -->
     <script type="application/ld+json">
