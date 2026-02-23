@@ -1,0 +1,26 @@
+# Stage 1: Build the Astro site
+FROM oven/bun:alpine AS builder
+
+WORKDIR /app/apps/landing
+
+# Copy only the landing app (no monorepo workspace deps needed)
+COPY apps/landing/package.json ./
+
+# Install dependencies
+RUN bun install
+
+# Copy the rest of the source
+COPY apps/landing/ ./
+
+# Build the Astro site
+RUN bun run build
+
+# Stage 2: Serve with nginx
+FROM nginx:alpine AS runner
+
+# Copy built static files
+COPY --from=builder /app/apps/landing/dist/ /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

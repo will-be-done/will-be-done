@@ -1,0 +1,26 @@
+# Name of your application. Used to uniquely configure containers.
+service: will-be-done-landing
+
+# Name of the container image.
+image: quolpr/will-be-done-landing
+
+# Deploy to these servers.
+servers:
+  web:
+    - <%= ENV["WBD_WEB_IP"] %>
+
+proxy:
+  ssl: true
+  hosts:
+    - will-be-done.app
+  app_port: 80
+
+# Credentials for your image host.
+registry:
+  server: localhost:5555
+
+# Configure builder setup.
+builder:
+  arch: arm64
+  dockerfile: Dockerfile.landing
+  context: "."

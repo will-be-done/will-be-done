@@ -1,4 +1,3 @@
-import { LandingPage } from "@/components/Landing/Landing";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 

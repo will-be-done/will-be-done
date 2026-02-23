@@ -19,8 +19,7 @@ servers:
 # Note: If using Cloudflare, set encryption mode in SSL/TLS setting to "Full" to enable CF-to-app encryption.
 proxy:
   ssl: true
-  hosts: 
-    - will-be-done.app
+  hosts:
     - app.will-be-done.app
     - demo.will-be-done.app
   # Proxy connects to your container on port 80 by default.
