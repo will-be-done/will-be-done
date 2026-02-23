@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'InterVariable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'InterVariable';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/InterVariable-Italic.woff2') format('woff2');
+}
+
+@theme {
+  --font-sans: InterVariable, sans-serif;
+  --font-sans--font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+
+  /* Panel colors - used by FloatingTaskCard */
+  --color-panel: oklch(37.2% 0.045 257 / 0.8);
+  --color-panel-tinted: oklch(27.9% 0.041 259 / 0.8);
+  --color-panel-hover: oklch(38% 0.045 257 / 0.8);
+
+  /* Done state */
+  --color-done-panel: oklch(27.4% 0.005 286 / 0.8);
+  --color-done-panel-tinted: oklch(21% 0.006 286 / 0.8);
+  --color-done-content: var(--color-slate-400);
+  --color-done-ring: oklch(0 0 0 / 0);
+
+  /* Ring/border */
+  --color-ring: oklch(0 0 0 / 0);
+
+  /* Input colors */
+  --color-input-checked: var(--color-blue-500);
+  --color-input-bg: oklch(90% 0 none / 1);
+
+  /* Text */
+  --color-content: var(--color-slate-100);
+  --color-content-tinted: var(--color-slate-300);
+
+  /* Accent */
+  --color-accent: var(--color-blue-500);
+}
+
+html, body {
+  background-color: #0a0a0f;
+}
