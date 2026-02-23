@@ -18,7 +18,7 @@
 
 @theme {
   --font-sans: InterVariable, sans-serif;
-  --font-sans--font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  --font-sans--font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
 
   /* Panel colors - used by FloatingTaskCard */
   --color-panel: oklch(37.2% 0.045 257 / 0.8);
