@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /spaces/
-
-Sitemap: https://will-be-done.app/sitemap.xml

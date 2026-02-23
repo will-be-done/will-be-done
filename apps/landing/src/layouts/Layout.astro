@@ -1,23 +1,93 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'Will Be Done — Open Source Weekly Planner | Self-Hosted Task Manager',
+  description = "Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, navigate with vim keybindings. Self-host with Docker or use the cloud version. Offline-first, syncs when you're back online.",
+} = Astro.props;
+---
+
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
-	</head>
-	<body>
-		<slot />
-	</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/ios/180.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0a0f" />
+    <link rel="canonical" href="https://will-be-done.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Will Be Done" />
+    <meta property="og:title" content="Will Be Done — Open Source Weekly Planner" />
+    <meta property="og:description" content="Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, vim keybindings, self-hosted with Docker. Offline-first." />
+    <meta property="og:url" content="https://will-be-done.app/" />
+    <meta property="og:image" content="https://will-be-done.app/screen.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Will Be Done — Open Source Weekly Planner" />
+    <meta name="twitter:description" content="Open source kanban for visual weekly planning. Drag & drop, vim keybindings, self-hosted with Docker. Offline-first." />
+    <meta name="twitter:image" content="https://will-be-done.app/screen.png" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "Will Be Done",
+          "url": "https://will-be-done.app",
+          "description": "Open source weekly planner and task manager with kanban boards, drag & drop, and vim keybindings."
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "Will Be Done",
+          "description": "Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, navigate with vim keybindings. Self-host with Docker or use the cloud version.",
+          "applicationCategory": "ProductivityApplication",
+          "operatingSystem": "Web, Docker",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "featureList": [
+            "Weekly timeline view",
+            "Kanban boards per project",
+            "Drag & drop task management",
+            "Vim keybindings",
+            "Multiple workspaces",
+            "Offline-first with sync",
+            "Self-hosted via Docker",
+            "Real-time sync across tabs"
+          ],
+          "screenshot": "https://will-be-done.app/screen.png",
+          "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+          "codeRepository": "https://github.com/will-be-done/will-be-done"
+        }
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
 </html>
 
 <style>
-	html,
-	body {
-		margin: 0;
-		width: 100%;
-		height: 100%;
-	}
+  html, body {
+    margin: 0;
+    width: 100%;
+  }
 </style>
