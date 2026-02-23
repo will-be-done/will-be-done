@@ -9,14 +9,11 @@ your server is down. Changes sync in real-time across all tabs and devices.
 Try the **live demo** (no sign-up) at [demo.will-be-done.app](https://demo.will-be-done.app)
 or the cloud version at [will-be-done.app](https://will-be-done.app/) before installing.
 
-<img width="3442" height="1960" alt="screen" src="https://github.com/user-attachments/assets/9e685994-50be-4064-a6f3-0de7e943b1a4" />
+<img width="1200"  alt="project" src="https://github.com/user-attachments/assets/4f9f5973-e1ba-4d03-af28-5f04f5891ed8" />
 
-## Video Preview
+<hr>
 
-
-
-https://github.com/user-attachments/assets/4b532c76-b061-4449-9df0-808ac3e2fc43
-
+<img width="1200" height="1992" alt="timeline" src="https://github.com/user-attachments/assets/7d9f606e-1203-4dce-a82b-9b39ce631a99" />
 
 
 ## Installation
