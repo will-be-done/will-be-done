@@ -48,7 +48,8 @@ export interface SyncConfig {
   inmemDBTables: TableDefinition[];
   syncableDBTables: TableDefinition[];
   tableNameMap: Record<string, TableDefinition>;
-  afterInit: (db: HyperDB) => void;
+  afterInit: (db: HyperDB) => void | Promise<void>;
+  disableSync?: boolean;
 }
 
 const initClock = (clientId: string) => {
@@ -347,12 +348,14 @@ export const initDbStore = async (
       );
     };
 
-    syncer.startLoop();
+    if (!syncConfig.disableSync) {
+      syncer.startLoop();
 
-    syncConfig.afterInit(syncSubDb);
+      const autoBackuper = new AutoBackuper(dbName, syncSubDb);
+      autoBackuper.start();
+    }
 
-    const autoBackuper = new AutoBackuper(dbName, syncSubDb);
-    autoBackuper.start();
+    await syncConfig.afterInit(syncSubDb);
 
     initedDbs[dbName] = syncSubDb;
 

@@ -16,6 +16,7 @@ import { Route as HomeRouteImport } from './routes/home'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SpacesIndexRouteImport } from './routes/spaces.index'
 import { Route as SpacesSpaceIdRouteImport } from './routes/spaces.$spaceId'
+import { Route as SpacesSpaceIdIndexRouteImport } from './routes/spaces.$spaceId.index'
 import { Route as SpacesSpaceIdTimelineIndexRouteImport } from './routes/spaces.$spaceId.timeline.index'
 import { Route as SpacesSpaceIdProjectsIndexRouteImport } from './routes/spaces.$spaceId.projects.index'
 import { Route as SpacesSpaceIdDatesIndexRouteImport } from './routes/spaces.$spaceId.dates.index'
@@ -57,6 +58,11 @@ const SpacesSpaceIdRoute = SpacesSpaceIdRouteImport.update({
   id: '/$spaceId',
   path: '/$spaceId',
   getParentRoute: () => SpacesRoute,
+} as any)
+const SpacesSpaceIdIndexRoute = SpacesSpaceIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SpacesSpaceIdRoute,
 } as any)
 const SpacesSpaceIdTimelineIndexRoute =
   SpacesSpaceIdTimelineIndexRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/spaces': typeof SpacesRouteWithChildren
   '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
   '/spaces/': typeof SpacesIndexRoute
+  '/spaces/$spaceId/': typeof SpacesSpaceIdIndexRoute
   '/spaces/$spaceId/dates/$date': typeof SpacesSpaceIdDatesDateRoute
   '/spaces/$spaceId/projects/$projectId': typeof SpacesSpaceIdProjectsProjectIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
@@ -113,8 +120,8 @@ export interface FileRoutesByTo {
   '/home': typeof HomeRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
   '/spaces': typeof SpacesIndexRoute
+  '/spaces/$spaceId': typeof SpacesSpaceIdIndexRoute
   '/spaces/$spaceId/dates/$date': typeof SpacesSpaceIdDatesDateRoute
   '/spaces/$spaceId/projects/$projectId': typeof SpacesSpaceIdProjectsProjectIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
@@ -131,6 +138,7 @@ export interface FileRoutesById {
   '/spaces': typeof SpacesRouteWithChildren
   '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
   '/spaces/': typeof SpacesIndexRoute
+  '/spaces/$spaceId/': typeof SpacesSpaceIdIndexRoute
   '/spaces/$spaceId/dates/$date': typeof SpacesSpaceIdDatesDateRoute
   '/spaces/$spaceId/projects/$projectId': typeof SpacesSpaceIdProjectsProjectIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
@@ -148,6 +156,7 @@ export interface FileRouteTypes {
     | '/spaces'
     | '/spaces/$spaceId'
     | '/spaces/'
+    | '/spaces/$spaceId/'
     | '/spaces/$spaceId/dates/$date'
     | '/spaces/$spaceId/projects/$projectId'
     | '/spaces/$spaceId/timeline/$date'
@@ -160,8 +169,8 @@ export interface FileRouteTypes {
     | '/home'
     | '/login'
     | '/signup'
-    | '/spaces/$spaceId'
     | '/spaces'
+    | '/spaces/$spaceId'
     | '/spaces/$spaceId/dates/$date'
     | '/spaces/$spaceId/projects/$projectId'
     | '/spaces/$spaceId/timeline/$date'
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/spaces'
     | '/spaces/$spaceId'
     | '/spaces/'
+    | '/spaces/$spaceId/'
     | '/spaces/$spaceId/dates/$date'
     | '/spaces/$spaceId/projects/$projectId'
     | '/spaces/$spaceId/timeline/$date'
@@ -244,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SpacesSpaceIdRouteImport
       parentRoute: typeof SpacesRoute
     }
+    '/spaces/$spaceId/': {
+      id: '/spaces/$spaceId/'
+      path: '/'
+      fullPath: '/spaces/$spaceId/'
+      preLoaderRoute: typeof SpacesSpaceIdIndexRouteImport
+      parentRoute: typeof SpacesSpaceIdRoute
+    }
     '/spaces/$spaceId/timeline/': {
       id: '/spaces/$spaceId/timeline/'
       path: '/timeline'
@@ -290,6 +307,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface SpacesSpaceIdRouteChildren {
+  SpacesSpaceIdIndexRoute: typeof SpacesSpaceIdIndexRoute
   SpacesSpaceIdDatesDateRoute: typeof SpacesSpaceIdDatesDateRoute
   SpacesSpaceIdProjectsProjectIdRoute: typeof SpacesSpaceIdProjectsProjectIdRoute
   SpacesSpaceIdTimelineDateRoute: typeof SpacesSpaceIdTimelineDateRoute
@@ -299,6 +317,7 @@ interface SpacesSpaceIdRouteChildren {
 }
 
 const SpacesSpaceIdRouteChildren: SpacesSpaceIdRouteChildren = {
+  SpacesSpaceIdIndexRoute: SpacesSpaceIdIndexRoute,
   SpacesSpaceIdDatesDateRoute: SpacesSpaceIdDatesDateRoute,
   SpacesSpaceIdProjectsProjectIdRoute: SpacesSpaceIdProjectsProjectIdRoute,
   SpacesSpaceIdTimelineDateRoute: SpacesSpaceIdTimelineDateRoute,

@@ -24,6 +24,7 @@ import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { NavBar } from "../NavBar/NavBar.tsx";
+import { isDemoMode } from "@/lib/auth.ts";
 
 const ColumnView = ({
   dailyListId,
@@ -293,16 +294,18 @@ const BoardView = ({
           <div className="absolute left-0 top-0">
             <NavBar spaceId={spaceId} />
           </div>
-          <div className="absolute right-0 top-0">
-            <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
-              <Link
-                className="transition-colors hover:text-primary"
-                to="/spaces"
-              >
-                spaces
-              </Link>
+          {!isDemoMode() && (
+            <div className="absolute right-0 top-0">
+              <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
+                <Link
+                  className="transition-colors hover:text-primary"
+                  to="/spaces"
+                >
+                  spaces
+                </Link>
+              </div>
             </div>
-          </div>
+          )}
           {/* </ScrollArea.Root> */}
         </div>
         <div

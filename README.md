@@ -2,7 +2,7 @@ This is my third attempt in 2 years to make task manager of my dream. And it loo
 I already use it daily, and I fairly enjoy it. Three reasons why I need it - self-hosted(I own my data),
 daily planning and vim keybinds. Hope you find something that could be useful for you too!
 
-You can try the cloud version for free at [will-be-done.app](https://will-be-done.app/) before installing through Docker.
+You can try the **live demo** (no sign-up) at [demo.will-be-done.app](https://demo.will-be-done.app) or the cloud version at [will-be-done.app](https://will-be-done.app/) before installing through Docker.
 
 <img width="3442" height="1960" alt="screen" src="https://github.com/user-attachments/assets/9e685994-50be-4064-a6f3-0de7e943b1a4" />
 

@@ -4,19 +4,25 @@ import { KeyPressedCtxProvider } from "@/components/GlobalListener/KeyPressedCtx
 import { Outlet, redirect, createFileRoute } from "@tanstack/react-router";
 import { DBProvider } from "@will-be-done/hyperdb";
 import { initDbStore } from "@/store/load.ts";
-import { authUtils } from "@/lib/auth";
-import { spaceDBConfig } from "@/store/configs";
+import { authUtils, isDemoMode } from "@/lib/auth";
+import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
 
 export const Route = createFileRoute("/spaces/$spaceId")({
   component: RouteComponent,
   loader: async (opts) => {
-    if (!authUtils.isAuthenticated()) {
+    if (!isDemoMode() && !authUtils.isAuthenticated()) {
       throw redirect({ to: "/login" });
     }
 
-    authUtils.setLastUsedSpaceId(opts.params.spaceId);
+    if (!isDemoMode()) {
+      authUtils.setLastUsedSpaceId(opts.params.spaceId);
+    }
 
-    return initDbStore(spaceDBConfig(opts.params.spaceId));
+    const config = isDemoMode()
+      ? demoSpaceDBConfig()
+      : spaceDBConfig(opts.params.spaceId);
+
+    return initDbStore(config);
   },
 });
 

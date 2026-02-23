@@ -28,6 +28,7 @@ import {
   isTaskProjection,
 } from "./dailyListsProjections";
 import { genUUIDV5 } from "../traits";
+import { startOfDay } from "date-fns";
 
 export const projectType = "project";
 export type Project = {
@@ -114,6 +115,8 @@ export const projectsSlice = {
     exceptDailyListIds: string[],
     currentDate: Date,
   ): GenReturn<number> {
+    currentDate = startOfDay(currentDate);
+
     const categories = yield* projectCategoriesSlice.byProjectId(projectId);
 
     const taskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
