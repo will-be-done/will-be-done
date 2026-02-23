@@ -14,6 +14,8 @@ proxy:
   hosts:
     - will-be-done.app
   app_port: 80
+  healthcheck:
+    path: /
 
 # Credentials for your image host.
 registry:
