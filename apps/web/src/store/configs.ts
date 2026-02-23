@@ -50,10 +50,7 @@ export const demoSpaceDBConfig = () => {
         return yield* cardsTasksSlice.all();
       });
       if (tasks.length === 0) {
-        await asyncDispatch(
-          db.withTraits({ type: "skip-sync" }),
-          backupSlice.loadBackup(generateDemoBackup()),
-        );
+        await asyncDispatch(db, backupSlice.loadBackup(generateDemoBackup()));
       }
     },
   } satisfies SyncConfig;
