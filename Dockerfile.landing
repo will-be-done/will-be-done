@@ -12,6 +12,8 @@ RUN bun install
 # Copy the rest of the source
 COPY apps/landing/ ./
 
+ENV PUBLIC_POSTHOG_KEY=phc_qrPoGFFkFW2yTiRH8Fjt4mHBIm4ZzZK2kSJoI5AqvPu
+
 # Build the Astro site
 RUN bun run build
 
