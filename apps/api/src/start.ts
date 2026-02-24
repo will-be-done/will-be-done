@@ -31,6 +31,7 @@ import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getEnvConfig } from "./env";
 import { getCaptchaConfig } from "./captcha/types";
 import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
+import { mcpPlugin } from "./mcp";
 
 dotenv.config();
 
@@ -294,6 +295,8 @@ server.register(fastifyTRPCPlugin, {
     createContext,
   } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
 });
+
+server.register(mcpPlugin);
 
 // Register a not found handler that serves index.html for non-API routes
 server.setNotFoundHandler((request, reply) => {
