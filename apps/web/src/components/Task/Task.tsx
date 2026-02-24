@@ -273,7 +273,6 @@ export const TaskComp = ({
       return id;
     };
 
-
     if (e.code === "Digit1" && noModifiers) {
       e.preventDefault();
 
@@ -500,7 +499,6 @@ export const TaskComp = ({
         element: element,
         canDrop: (inp) => {
           const { source } = inp;
-          console.log("canDrop", inp);
 
           const data = source.data;
           if (!isModelDNDData(data)) return false;

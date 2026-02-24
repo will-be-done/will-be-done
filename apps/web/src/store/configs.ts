@@ -5,14 +5,10 @@ import {
   projectsSlice,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
+  Task,
 } from "@will-be-done/slices/space";
 import { focusTable } from "./focusSlice";
-import {
-  asyncDispatch,
-  HyperDB,
-  runSelectorAsync,
-  syncDispatch,
-} from "@will-be-done/hyperdb";
+import { HyperDB, runSelector, syncDispatch } from "@will-be-done/hyperdb";
 import {
   registeredUserSyncableTableNameMap,
   registeredUserSyncableTables,
@@ -46,14 +42,16 @@ export const demoSpaceDBConfig = () => {
     disableSync: true,
     afterInit: async (db: HyperDB) => {
       syncDispatch(db, projectsSlice.createInboxIfNotExists());
-      const tasks = await runSelectorAsync(db, function* () {
-        return yield* cardsTasksSlice.all();
-      });
+      const tasks = runSelector<Task[]>(
+        db,
+        function* () {
+          return yield* cardsTasksSlice.all();
+        },
+        [],
+      );
+
       if (tasks.length === 0) {
-        await asyncDispatch(
-          db.withTraits({ type: "skip-sync" }),
-          backupSlice.loadBackup(generateDemoBackup()),
-        );
+        syncDispatch(db, backupSlice.loadBackup(generateDemoBackup()));
       }
     },
   } satisfies SyncConfig;
