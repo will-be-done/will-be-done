@@ -1,6 +1,8 @@
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 import { Backup, backupSlice } from "@will-be-done/slices/space";
-import { useRegisterFocusItem } from "@/components/Focus/useLists.ts";
+import {
+  getDOMSiblings,
+} from "@/components/Focus/domNavigation.ts";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -28,8 +30,7 @@ import {
   useSyncSelector,
 } from "@will-be-done/hyperdb";
 import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
-import { buildFocusKey, focusManager, focusSlice } from "@/store/focusSlice.ts";
-import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
+import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
   EmojiPicker,
@@ -89,14 +90,12 @@ const DropProjectIndicator = function DropProjectIndicatorComp({
 
 const ProjectItem = function ProjectItemComp({
   projectId,
-  orderNumber,
   // onProjectClick,
   isSelected,
   exceptDailyListIds,
   projectLink: ProjectLink,
 }: {
   projectId: string;
-  orderNumber: string;
   // onProjectClick: (projectId: string) => void;
   isSelected: boolean;
   exceptDailyListIds: string[];
@@ -108,17 +107,12 @@ const ProjectItem = function ProjectItemComp({
     }>
   >;
 }) {
-  // console.log("orderNumber", projectId, orderNumber);
-
   const db = useDB();
   const project = useSyncSelector(
     () => projectsSlice.byIdOrDefault(projectId),
     [projectId],
   );
-  const focusItem = useRegisterFocusItem(
-    buildFocusKey(project.id, project.type, "ProjectItem"),
-    orderNumber,
-  );
+  const focusItemKey = buildFocusKey(project.id, project.type, "ProjectItem");
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
 
@@ -126,8 +120,8 @@ const ProjectItem = function ProjectItemComp({
   const linkRef = useRef<HTMLAnchorElement>(null);
 
   const isFocused = useSyncSelector(
-    () => focusSlice.isFocused(focusItem.key),
-    [focusItem.key],
+    () => focusSlice.isFocused(focusItemKey),
+    [focusItemKey],
   );
 
   const dispatch = useDispatch();
@@ -163,21 +157,21 @@ const ProjectItem = function ProjectItemComp({
     if (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") {
       e.preventDefault();
 
-      const [up, down] = focusManager.getSiblings(focusItem.key);
+      const [upKey, downKey] = getDOMSiblings(focusItemKey);
 
       dispatch(projectsSlice.delete([project.id]));
 
-      if (down) {
-        dispatch(focusSlice.focusByKey(down.key));
-      } else if (up) {
-        dispatch(focusSlice.focusByKey(up.key));
+      if (downKey) {
+        dispatch(focusSlice.focusByKey(downKey));
+      } else if (upKey) {
+        dispatch(focusSlice.focusByKey(upKey));
       } else {
         dispatch(focusSlice.resetFocus());
       }
     } else if (e.code === "KeyI" && noModifiers) {
       e.preventDefault();
 
-      dispatch(focusSlice.editByKey(focusItem.key));
+      dispatch(focusSlice.editByKey(focusItemKey));
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
@@ -347,7 +341,7 @@ const ProjectItem = function ProjectItemComp({
 
       <div
         ref={ref}
-        data-focusable-key={focusItem.key}
+        data-focusable-key={focusItemKey}
         onClick={(e) => {
           const target = e.target as HTMLElement;
           if (target.closest("button, a")) return;
@@ -620,62 +614,58 @@ export const ProjectView = ({
           exceptDailyListIds={exceptDailyListIds}
         />
       </div>
-      <ColumnListProvider
-        focusKey={buildFocusKey("sidebar", "sidebar", "Sidebar")}
-        priority="0"
+      <div
+        data-focus-column
+        className="w-80 h-full bg-surface-elevated ml-auto rounded-l-lg flex flex-col shrink-0 ring-1 ring-ring"
       >
-        <div className="w-80 h-full bg-surface-elevated ml-auto rounded-l-lg flex flex-col shrink-0 ring-1 ring-ring">
-          <div className="flex justify-center text-content-tinted my-3 mx-3 text-[13px] font-medium">
-            Projects
-            <div className="ml-auto flex gap-2">
-              <button
-                type="button"
-                onClick={handleLoadBackup}
-                className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
-                title="Load backup"
-              >
-                L
-              </button>
-              <button
-                className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
-                type="button"
-                onClick={handleDownloadBackup}
-                title="Download backup"
-              >
-                D
-              </button>
-            </div>
-          </div>
-          <div className="h-full overflow-y-auto flex flex-col gap-1 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
-            <ProjectItem
-              projectLink={projectLink}
-              projectId={inboxProjectId.id}
-              orderNumber="0"
-              isSelected={selectedProjectId === inboxProjectId.id}
-              exceptDailyListIds={exceptDailyListIds}
-            />
-            {projectIdsWithoutInbox.map((id, i) => (
-              <ProjectItem
-                projectLink={projectLink}
-                key={id}
-                projectId={id}
-                orderNumber={(i + 1).toString()}
-                isSelected={selectedProjectId === id}
-                exceptDailyListIds={exceptDailyListIds}
-              />
-            ))}
-          </div>
-          <div className="flex text-center items-center justify-center pb-3 pt-2 border-t border-ring">
+        <div className="flex justify-center text-content-tinted my-3 mx-3 text-[13px] font-medium">
+          Projects
+          <div className="ml-auto flex gap-2">
             <button
               type="button"
-              onClick={handleAddProjectClick}
-              className="cursor-pointer text-[13px] text-content-tinted hover:text-accent transition-colors"
+              onClick={handleLoadBackup}
+              className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
+              title="Load backup"
             >
-              + Add Project
+              L
+            </button>
+            <button
+              className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
+              type="button"
+              onClick={handleDownloadBackup}
+              title="Download backup"
+            >
+              D
             </button>
           </div>
         </div>
-      </ColumnListProvider>
+        <div className="h-full overflow-y-auto flex flex-col gap-1 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
+          <ProjectItem
+            projectLink={projectLink}
+            projectId={inboxProjectId.id}
+            isSelected={selectedProjectId === inboxProjectId.id}
+            exceptDailyListIds={exceptDailyListIds}
+          />
+          {projectIdsWithoutInbox.map((id) => (
+            <ProjectItem
+              projectLink={projectLink}
+              key={id}
+              projectId={id}
+              isSelected={selectedProjectId === id}
+              exceptDailyListIds={exceptDailyListIds}
+            />
+          ))}
+        </div>
+        <div className="flex text-center items-center justify-center pb-3 pt-2 border-t border-ring">
+          <button
+            type="button"
+            onClick={handleAddProjectClick}
+            className="cursor-pointer text-[13px] text-content-tinted hover:text-accent transition-colors"
+          >
+            + Add Project
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

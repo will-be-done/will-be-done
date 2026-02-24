@@ -6,7 +6,6 @@ import {
   projectCategoryCardsSlice,
 } from "@will-be-done/slices/space";
 import { TaskComp } from "@/components/Task/Task.tsx";
-import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
 
 const ArrowUp = () => (
@@ -159,15 +158,15 @@ const CategorySection = ({
         <span>Add task</span>
       </button>
 
-      <ColumnListProvider
-        focusKey={buildFocusKey(categoryId, category.type, "DateViewPanel")}
-        priority="100"
+      <div
+        data-focus-column
+        data-column-model-id={categoryId}
+        data-column-model-type={category.type}
       >
         <div className="flex flex-col gap-2">
-          {todoTaskIds.map((id, i) => (
+          {todoTaskIds.map((id) => (
             <TaskComp
               key={id}
-              orderNumber={i.toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="task"
@@ -175,10 +174,9 @@ const CategorySection = ({
               displayLastScheduleTime
             />
           ))}
-          {visibleDoneIds.map((id, i) => (
+          {visibleDoneIds.map((id) => (
             <TaskComp
               key={id}
-              orderNumber={(todoTaskIds.length + i).toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="task"
@@ -196,7 +194,7 @@ const CategorySection = ({
             </button>
           )}
         </div>
-      </ColumnListProvider>
+      </div>
     </div>
   );
 };
