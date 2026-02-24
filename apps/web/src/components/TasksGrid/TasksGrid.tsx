@@ -1,15 +1,14 @@
-import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { cn } from "@/lib/utils";
-import { FocusKey } from "@/store/focusSlice.ts";
 import { useEffect, useRef, useState } from "react";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { useSelect } from "@will-be-done/hyperdb";
 import { appSlice, AnyModelType } from "@will-be-done/slices/space";
 import { PlusIcon } from "@/components/ui/icons.tsx";
+import { buildFocusKey } from "@/store/focusSlice.ts";
 
 export const TasksColumnGrid = ({
   columnsCount,
@@ -20,6 +19,7 @@ export const TasksColumnGrid = ({
 }) => {
   return (
     <div
+      data-focus-region
       className="grid max-h-full h-full"
       style={{
         gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
@@ -37,8 +37,6 @@ const idle: DailyListDndState = { type: "idle" };
 const isTaskOver: DailyListDndState = { type: "is-task-over" };
 
 export const TasksColumn = ({
-  focusKey,
-  orderNumber,
   isHidden,
   onHideClick,
   header,
@@ -49,8 +47,6 @@ export const TasksColumn = ({
   onAddClick,
   actions,
 }: {
-  focusKey: FocusKey;
-  orderNumber: number;
   isHidden: boolean;
   onHideClick: () => void;
   header?: React.ReactNode;
@@ -65,6 +61,7 @@ export const TasksColumn = ({
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
+  const [isPlaceholderFocused, setIsPlaceholderFocused] = useState(false);
   const isOver = dndState.type == "is-task-over";
 
   useEffect(() => {
@@ -104,15 +101,14 @@ export const TasksColumn = ({
   }, [columnModelId, columnModelType, select]);
 
   return (
-    <ColumnListProvider
-      focusKey={focusKey}
-      priority={(orderNumber + 100).toString()}
+    <div
+      data-focus-column
+      data-column-model-id={columnModelId}
+      data-column-model-type={columnModelType}
+      ref={columnRef}
+      className={cn("relative flex h-full p-1 flex-shrink-0 min-h-0 group")}
+      style={!isHidden ? { minWidth: `${panelWidth ?? 400}px` } : {}}
     >
-      <div
-        ref={columnRef}
-        className={cn("flex h-full p-1 flex-shrink-0 min-h-0 group")}
-        style={!isHidden ? { minWidth: `${panelWidth ?? 400}px` } : {}}
-      >
         <div
           className="flex justify-end"
           style={{
@@ -139,7 +135,7 @@ export const TasksColumn = ({
               "flex gap-3 justify-end flex-shrink-0 p-1 rounded-lg group focus:outline-none transition-all",
               "group-focus-visible:ring-2 group-focus-visible:ring-accent",
               {
-                "ring-2 ring-accent": isOver && isHidden,
+                "ring-2 ring-accent": (isOver || isPlaceholderFocused) && isHidden,
               },
             )}
             onClick={onHideClick}
@@ -158,6 +154,23 @@ export const TasksColumn = ({
             {children}
           </div>
         </div>
+        {onAddClick && (
+          <div
+            data-focus-placeholder
+            data-focusable-key={buildFocusKey(columnModelId, columnModelType, "Column")}
+            tabIndex={0}
+            className="absolute w-0 h-0 overflow-hidden"
+            onFocus={() => setIsPlaceholderFocused(true)}
+            onBlur={() => setIsPlaceholderFocused(false)}
+            onKeyDown={(e) => {
+              const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+              if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
+                e.preventDefault();
+                onAddClick();
+              }
+            }}
+          />
+        )}
 
         {/* <ScrollArea.Root */}
         {/*   className={cn("w-full min-h-0", { */}
@@ -176,7 +189,6 @@ export const TasksColumn = ({
         {/*     <ScrollArea.Thumb className="w-full rounded bg-gray-500" /> */}
         {/*   </ScrollArea.Scrollbar> */}
         {/* </ScrollArea.Root> */}
-      </div>
-    </ColumnListProvider>
+    </div>
   );
 };

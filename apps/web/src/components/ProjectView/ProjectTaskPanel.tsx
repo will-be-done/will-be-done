@@ -1,13 +1,17 @@
-import { useMemo, useState } from "react";
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
+  appSlice,
   projectsSlice,
   projectCategoriesSlice,
   projectCategoryCardsSlice,
 } from "@will-be-done/slices/space";
 import { TaskComp } from "@/components/Task/Task.tsx";
-import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { cn } from "@/lib/utils.ts";
+import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
+import invariant from "tiny-invariant";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -53,6 +57,11 @@ const CategorySection = ({
   projectId: string;
 }) => {
   const dispatch = useDispatch();
+  const select = useSelect();
+  const columnRef = useRef<HTMLDivElement>(null);
+  const [isDndOver, setIsDndOver] = useState(false);
+  const [isPlaceholderFocused, setIsPlaceholderFocused] = useState(false);
+
   const category = useSyncSelector(
     () => projectCategoriesSlice.byIdOrDefault(categoryId),
     [categoryId],
@@ -69,6 +78,29 @@ const CategorySection = ({
   );
 
   const [isShowMore, setIsShowMore] = useState(false);
+
+  useEffect(() => {
+    invariant(columnRef.current);
+    return dropTargetForElements({
+      element: columnRef.current,
+      getData: (): DndModelData => ({
+        modelId: categoryId,
+        modelType: category.type,
+      }),
+      canDrop: ({ source }) => {
+        const data = source.data;
+        if (!isModelDNDData(data)) return false;
+        return select(
+          appSlice.canDrop(categoryId, category.type, data.modelId, data.modelType),
+        );
+      },
+      getIsSticky: () => true,
+      onDragEnter: () => setIsDndOver(true),
+      onDragLeave: () => setIsDndOver(false),
+      onDragStart: () => setIsDndOver(true),
+      onDrop: () => setIsDndOver(false),
+    });
+  }, [categoryId, category.type, select]);
 
   const visibleDoneIds = useMemo(() => {
     if (isShowMore) return doneTaskIds;
@@ -99,7 +131,9 @@ const CategorySection = ({
   return (
     <div className="mb-5">
       {/* Category header */}
-      <div className="flex items-center gap-1 mb-2 px-1">
+      <div className={cn("flex items-center gap-1 mb-2 px-1 rounded-md transition-all", {
+        "ring-2 ring-accent": isDndOver || isPlaceholderFocused,
+      })}>
         <button
           type="button"
           onClick={handleTitleClick}
@@ -159,15 +193,32 @@ const CategorySection = ({
         <span>Add task</span>
       </button>
 
-      <ColumnListProvider
-        focusKey={buildFocusKey(categoryId, category.type, "DateViewPanel")}
-        priority="100"
+      <div
+        ref={columnRef}
+        data-focus-column
+        data-column-model-id={categoryId}
+        data-column-model-type={category.type}
+        className="relative"
       >
+        <div
+          data-focus-placeholder
+          data-focusable-key={buildFocusKey(categoryId, category.type, "Column")}
+          tabIndex={0}
+          className="absolute w-0 h-0 overflow-hidden outline-none"
+          onFocus={() => setIsPlaceholderFocused(true)}
+          onBlur={() => setIsPlaceholderFocused(false)}
+          onKeyDown={(e) => {
+            const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+            if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
+              e.preventDefault();
+              handleAddTask();
+            }
+          }}
+        />
         <div className="flex flex-col gap-2">
-          {todoTaskIds.map((id, i) => (
+          {todoTaskIds.map((id) => (
             <TaskComp
               key={id}
-              orderNumber={i.toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="task"
@@ -175,10 +226,9 @@ const CategorySection = ({
               displayLastScheduleTime
             />
           ))}
-          {visibleDoneIds.map((id, i) => (
+          {visibleDoneIds.map((id) => (
             <TaskComp
               key={id}
-              orderNumber={(todoTaskIds.length + i).toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="task"
@@ -196,7 +246,7 @@ const CategorySection = ({
             </button>
           )}
         </div>
-      </ColumnListProvider>
+      </div>
     </div>
   );
 };
@@ -249,7 +299,7 @@ export const ProjectTaskPanel = ({
 
   if (embedded) {
     return (
-      <div className="flex flex-col gap-1">
+      <div data-focus-stacked className="flex flex-col gap-1">
         {categories.map((cat) => (
           <CategorySection
             key={cat.id}
@@ -270,7 +320,7 @@ export const ProjectTaskPanel = ({
           {project.title}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto px-3 pb-4">
+      <div data-focus-stacked className="flex-1 overflow-y-auto px-3 pb-4">
         {categories.map((cat) => (
           <CategorySection
             key={cat.id}

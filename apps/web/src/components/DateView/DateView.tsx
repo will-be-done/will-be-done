@@ -20,7 +20,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover.tsx";
 import { Calendar } from "@/components/ui/calendar.tsx";
-import { ColumnListProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -138,11 +137,13 @@ const SingleDayColumn = ({
   }, [dailyList.id, dailyList.type, select]);
 
   return (
-    <ColumnListProvider
-      focusKey={buildFocusKey(dailyList.id, dailyList.type, "DateView")}
-      priority="100"
+    <div
+      ref={columnRef}
+      data-focus-column
+      data-column-model-id={dailyList.id}
+      data-column-model-type={dailyList.type}
+      className="flex flex-col w-full mt-5"
     >
-      <div ref={columnRef} className="flex flex-col w-full mt-5">
         {/* Date header with navigation arrows */}
         <div className="flex items-center justify-between mb-5">
           <Link
@@ -234,10 +235,9 @@ const SingleDayColumn = ({
           ref={scrollableRef}
           className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
         >
-          {taskIds.map((id, i) => (
+          {taskIds.map((id) => (
             <TaskComp
               key={id}
-              orderNumber={i.toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="projection"
@@ -247,10 +247,9 @@ const SingleDayColumn = ({
             />
           ))}
 
-          {doneTaskIds.map((id, i) => (
+          {doneTaskIds.map((id) => (
             <TaskComp
               key={id}
-              orderNumber={(taskIds.length + i).toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="projection"
@@ -266,8 +265,7 @@ const SingleDayColumn = ({
           {/*   </div> */}
           {/* )} */}
         </div>
-      </div>
-    </ColumnListProvider>
+    </div>
   );
 };
 

@@ -1,6 +1,5 @@
 import { TaskComp } from "../Task/Task.tsx";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
-import { ParentListItemProvider } from "@/components/Focus/ParentListProvider.tsx";
 import { useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -42,8 +41,6 @@ const ProjectTasksColumn = ({
     () => projectCategoryCardsSlice.doneChildrenIds(category.id),
     [category.id],
   );
-  const lastTaskI = todoTaskIds.length == 0 ? 0 : todoTaskIds.length - 1;
-
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
   const isHidden =
     isHiddenClicked || (doneTaskIds.length == 0 && todoTaskIds.length == 0);
@@ -75,8 +72,6 @@ const ProjectTasksColumn = ({
 
   return (
     <TasksColumn
-      focusKey={buildFocusKey(category.id, category.type, "ProjectItemsList")}
-      orderNumber={500}
       isHidden={isHidden}
       onHideClick={handleHideClick}
       header={
@@ -200,10 +195,9 @@ const ProjectTasksColumn = ({
         {(exceptTaskIds
           ? todoTaskIds.filter((id) => !exceptTaskIds.has(id))
           : []
-        ).map((id, i) => {
+        ).map((id) => {
           return (
             <TaskComp
-              orderNumber={(i + 2).toString()}
               key={id}
               taskId={id}
               cardWrapperId={id}
@@ -213,37 +207,27 @@ const ProjectTasksColumn = ({
             />
           );
         })}
-        <ParentListItemProvider
-          focusKey={buildFocusKey(
-            category.id,
-            category.type,
-            "DoneProjectionsList",
-          )}
-          priority={(lastTaskI + 2).toString()}
-        >
-          {finalDoneIds.map((id, i) => {
-            return (
-              <TaskComp
-                orderNumber={i.toString()}
-                key={id}
-                taskId={id}
-                cardWrapperId={id}
-                cardWrapperType="task"
-                displayedUnderProjectId={project.id}
-                displayLastScheduleTime
-              />
-            );
-          })}
+        {finalDoneIds.map((id) => {
+          return (
+            <TaskComp
+              key={id}
+              taskId={id}
+              cardWrapperId={id}
+              cardWrapperType="task"
+              displayedUnderProjectId={project.id}
+              displayLastScheduleTime
+            />
+          );
+        })}
 
-          {!isShowMore && doneTaskIds.length > 5 && (
-            <button
-              onClick={() => setIsShowMore(true)}
-              className="cursor-pointer text-subheader text-sm"
-            >
-              Show More
-            </button>
-          )}
-        </ParentListItemProvider>
+        {!isShowMore && doneTaskIds.length > 5 && (
+          <button
+            onClick={() => setIsShowMore(true)}
+            className="cursor-pointer text-subheader text-sm"
+          >
+            Show More
+          </button>
+        )}
       </div>
     </TasksColumn>
   );

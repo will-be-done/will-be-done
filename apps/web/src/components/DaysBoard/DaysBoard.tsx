@@ -29,11 +29,9 @@ import { isDemoMode } from "@/lib/auth.ts";
 const ColumnView = ({
   dailyListId,
   onTaskAdd,
-  orderNumber,
 }: {
   dailyListId: string;
   onTaskAdd: (dailyList: DailyList) => void;
-  orderNumber: number;
 }) => {
   const dailyList = useSyncSelector(
     () => dailyListsSlice.byIdOrDefault(dailyListId),
@@ -75,8 +73,6 @@ const ColumnView = ({
 
   return (
     <TasksColumn
-      focusKey={buildFocusKey(dailyList.id, dailyList.type, "ColumnView")}
-      orderNumber={orderNumber + 100}
       isHidden={isHidden}
       onHideClick={handleHideClick}
       header={
@@ -98,11 +94,10 @@ const ColumnView = ({
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
-        {taskIds.map((id, i) => {
+        {taskIds.map((id) => {
           return (
             <TaskComp
               key={id}
-              orderNumber={i.toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="projection"
@@ -111,11 +106,10 @@ const ColumnView = ({
           );
         })}
 
-        {doneTaskIds.map((id, i) => {
+        {doneTaskIds.map((id) => {
           return (
             <TaskComp
               key={id}
-              orderNumber={(taskIds.length + i).toString()}
               taskId={id}
               cardWrapperId={id}
               cardWrapperType="projection"
@@ -269,11 +263,10 @@ const BoardView = ({
           {/* <ScrollArea.Root style={{ height: `${100 - height}%` }}> */}
           {/*   <ScrollArea.Viewport className="h-full overscroll-contain rounded-md w-full pr-4 pl-1"> */}
           <TasksColumnGrid columnsCount={daysToShow}>
-            {dailyListsIds.map((id, i) => (
+            {dailyListsIds.map((id) => (
               <ColumnView
                 dailyListId={id}
                 onTaskAdd={handleAddTask}
-                orderNumber={i}
                 key={id}
               />
             ))}

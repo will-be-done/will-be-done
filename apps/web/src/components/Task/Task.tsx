@@ -20,7 +20,10 @@ import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
-import { useRegisterFocusItem } from "@/components/Focus/useLists.ts";
+import {
+  getDOMSiblings,
+  getDOMAdjacentColumns,
+} from "@/components/Focus/domNavigation.ts";
 import clsx from "clsx";
 import { RotateCw, CircleDashed } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,12 +37,11 @@ import {
   cardsTasksSlice,
   dailyListsProjectionsSlice,
   CardWrapperType,
+  AnyModelType,
 } from "@will-be-done/slices/space";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   buildFocusKey,
-  FocusKey,
-  focusManager,
   focusSlice,
   parseColumnKey,
 } from "@/store/focusSlice.ts";
@@ -139,7 +141,6 @@ export const TaskComp = ({
   cardWrapperType,
   displayedUnderProjectId,
   alwaysShowProject,
-  orderNumber,
   newTaskParams,
   displayLastScheduleTime,
   centerScheduleDate,
@@ -149,7 +150,6 @@ export const TaskComp = ({
   cardWrapperType: CardWrapperType;
   displayedUnderProjectId?: string;
   alwaysShowProject?: boolean;
-  orderNumber: string;
   newTaskParams?: Partial<Task>;
   displayLastScheduleTime?: boolean;
   centerScheduleDate?: boolean;
@@ -189,10 +189,7 @@ export const TaskComp = ({
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const focusableItem = useRegisterFocusItem(
-    buildFocusKey(cardWrapper.id, cardWrapper.type),
-    orderNumber,
-  );
+  const focusableItemKey = buildFocusKey(cardWrapper.id, cardWrapper.type);
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
@@ -212,36 +209,41 @@ export const TaskComp = ({
   };
 
   const isFocused = useSyncSelector(
-    () => focusSlice.isFocused(focusableItem.key),
-    [focusableItem.key],
+    () => focusSlice.isFocused(focusableItemKey),
+    [focusableItemKey],
   );
   const isEditing = useSyncSelector(
-    () => focusSlice.isEditing(focusableItem.key),
-    [focusableItem.key],
+    () => focusSlice.isEditing(focusableItemKey),
+    [focusableItemKey],
   );
   const select = useSelect();
 
   const handleTick = useCallback(() => {
     if (!isTask(card)) return;
 
-    const [[up, upModel], [down, downModel]] = select(
-      focusManager.getModelSiblings(focusableItem.key),
-    );
+    const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
     const taskState = card.state;
     dispatch(cardsTasksSlice.toggleState(taskId));
 
     if (!isFocused) return;
 
+    const upModel = upKey
+      ? select(appSlice.byId(parseColumnKey(upKey).id, parseColumnKey(upKey).type))
+      : undefined;
+    const downModel = downKey
+      ? select(appSlice.byId(parseColumnKey(downKey).id, parseColumnKey(downKey).type))
+      : undefined;
+
     const upTask = upModel && select(cardsSlice.taskOfModel(upModel));
     const downTask = downModel && select(cardsSlice.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
-      dispatch(focusSlice.focusByKey(down.key));
+      dispatch(focusSlice.focusByKey(downKey!));
     } else if (upTask && upTask.state === taskState) {
-      dispatch(focusSlice.focusByKey(up.key));
+      dispatch(focusSlice.focusByKey(upKey!));
     }
-  }, [dispatch, focusableItem.key, isFocused, card, select, taskId]);
+  }, [dispatch, focusableItemKey, isFocused, card, select, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const isSomethingEditing = select(focusSlice.isSomethingEditing());
@@ -267,11 +269,6 @@ export const TaskComp = ({
       e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
     const isMoveRight =
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
-
-    const getId = (key: FocusKey) => {
-      const { id } = parseColumnKey(key);
-      return id;
-    };
 
     if (e.code === "Digit1" && noModifiers) {
       e.preventDefault();
@@ -318,29 +315,24 @@ export const TaskComp = ({
     } else if (isMoveLeft || isMoveRight) {
       e.preventDefault();
 
-      const [leftColumn, rightColumn] = focusManager.getColumnSiblings(
-        focusableItem.key,
-      );
+      const [leftColumnModel, rightColumnModel] =
+        getDOMAdjacentColumns(focusableItemKey);
 
-      const targetColumn = isMoveLeft ? leftColumn : rightColumn;
-      if (targetColumn) {
-        const id = getId(targetColumn.key);
-        const { type } = parseColumnKey(targetColumn.key);
-
+      const targetColumnModel = isMoveLeft ? leftColumnModel : rightColumnModel;
+      if (targetColumnModel) {
         dispatch(
           appSlice.handleDrop(
-            id,
-            type,
+            targetColumnModel.id,
+            targetColumnModel.type as AnyModelType,
             cardWrapper.id,
             cardWrapper.type,
             "top",
           ),
         );
 
-        const key = focusableItem.key;
         setTimeout(() => {
           const el = document.querySelector<HTMLElement>(
-            `[data-focusable-key="${key}"]`,
+            `[data-focusable-key="${focusableItemKey}"]`,
           );
           if (el) {
             el.focus();
@@ -356,14 +348,11 @@ export const TaskComp = ({
       e.preventDefault();
       if (isTask(card) && card.state === "done") return;
 
-      const [up, down] = focusManager.getSiblings(focusableItem.key);
+      const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
-      const target = isMoveUp ? up : down;
-      if (target) {
-        const id = getId(target.key);
-        if (!id) return;
-
-        const { type } = parseColumnKey(target.key);
+      const targetKey = isMoveUp ? upKey : downKey;
+      if (targetKey) {
+        const { id, type } = parseColumnKey(targetKey);
 
         dispatch(
           appSlice.handleDrop(
@@ -375,10 +364,9 @@ export const TaskComp = ({
           ),
         );
 
-        const key = focusableItem.key;
         setTimeout(() => {
           const el = document.querySelector<HTMLElement>(
-            `[data-focusable-key="${key}"]`,
+            `[data-focusable-key="${focusableItemKey}"]`,
           );
           if (el) {
             el.focus();
@@ -398,22 +386,21 @@ export const TaskComp = ({
     ) {
       e.preventDefault();
 
-      console.log("delete", focusableItem.key);
-      const [up, down] = focusManager.getSiblings(focusableItem.key);
+      const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
       dispatch(appSlice.delete(cardWrapper.id, cardWrapper.type));
 
-      if (down) {
-        dispatch(focusSlice.focusByKey(down.key));
-      } else if (up) {
-        dispatch(focusSlice.focusByKey(up.key));
+      if (downKey) {
+        dispatch(focusSlice.focusByKey(downKey));
+      } else if (upKey) {
+        dispatch(focusSlice.focusByKey(upKey));
       } else {
         dispatch(focusSlice.resetFocus());
       }
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      dispatch(focusSlice.editByKey(focusableItem.key));
+      dispatch(focusSlice.editByKey(focusableItemKey));
     } else if (isAddAfter || isAddBefore) {
       if (isTask(card) && card.state === "done") return;
 
@@ -623,7 +610,7 @@ export const TaskComp = ({
     <div className="relative">
       {closestEdge == "top" && <DropTaskIndicator direction="top" />}
       <div
-        data-focusable-key={focusableItem.key}
+        data-focusable-key={focusableItemKey}
         tabIndex={0}
         className={clsx(
           `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
@@ -636,9 +623,9 @@ export const TaskComp = ({
               : "ring-ring text-content hover:ring-ring-hover",
         )}
         style={{}}
-        onClick={() => dispatch(focusSlice.focusByKey(focusableItem.key, true))}
+        onClick={() => dispatch(focusSlice.focusByKey(focusableItemKey, true))}
         onDoubleClick={() => {
-          dispatch(focusSlice.editByKey(focusableItem.key));
+          dispatch(focusSlice.editByKey(focusableItemKey));
         }}
         ref={ref}
       >

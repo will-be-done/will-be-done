@@ -17,7 +17,11 @@ import {
   AnyModelType,
 } from "@will-be-done/slices/space";
 import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
-import { FocusKey, focusManager, focusSlice } from "@/store/focusSlice.ts";
+import { FocusKey, focusSlice } from "@/store/focusSlice.ts";
+import {
+  getDOMSiblings,
+  getDOMColumnSiblingFirstItems,
+} from "@/components/Focus/domNavigation.ts";
 
 export function GlobalListener() {
   const dispatch = useDispatch();
@@ -130,36 +134,33 @@ export function GlobalListener() {
         e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
 
       const focusItemKey = select(db, focusSlice.getFocusKey());
-      const focusedItem = focusItemKey && focusManager.getItem(focusItemKey);
-      if (focusedItem && (isUp || isDown)) {
+      if (focusItemKey && (isUp || isDown)) {
         e.preventDefault();
 
-        const [up, down] = focusManager.getSiblings(focusedItem.key);
+        const [up, down] = getDOMSiblings(focusItemKey);
 
         if (isUp) {
           if (!up) return;
 
-          dispatch(focusSlice.focusByKey(up.key));
+          dispatch(focusSlice.focusByKey(up));
         } else if (isDown) {
           if (!down) return;
 
-          dispatch(focusSlice.focusByKey(down.key));
+          dispatch(focusSlice.focusByKey(down));
         }
-      } else if (focusedItem && (isLeft || isRight)) {
+      } else if (focusItemKey && (isLeft || isRight)) {
         e.preventDefault();
 
-        const [left, right] = focusManager.getSiblingColumnsFirstItem(
-          focusedItem.key,
-        );
+        const [left, right] = getDOMColumnSiblingFirstItems(focusItemKey);
 
         if (isLeft) {
           if (!left) return;
 
-          dispatch(focusSlice.focusByKey(left.key));
+          dispatch(focusSlice.focusByKey(left));
         } else if (isRight) {
           if (!right) return;
 
-          dispatch(focusSlice.focusByKey(right.key));
+          dispatch(focusSlice.focusByKey(right));
         }
       }
     };
