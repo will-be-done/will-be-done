@@ -851,7 +851,7 @@ const logoPath =
     const AUTO_INTERVAL = 4500;
     let current = 0;
     let timer: ReturnType<typeof setInterval> | null = null;
-    let dotAnimFrame: ReturnType<typeof requestAnimationFrame> | null = null;
+    let fillGeneration = 0;
     let dotStartTime = 0;
 
     const slides = document.querySelectorAll<HTMLElement>('.carousel-slide');
@@ -859,59 +859,81 @@ const logoPath =
     const dots = document.querySelectorAll<HTMLElement>('.carousel-dot');
     const dotFills = document.querySelectorAll<HTMLElement>('.carousel-dot-fill');
 
-    function goTo(index: number) {
-      const prev = current;
-      current = (index + SLIDE_COUNT) % SLIDE_COUNT;
+    function startFillAnimation() {
+      const gen = ++fillGeneration;
+      dotStartTime = performance.now();
 
-      slides.forEach((slide, i) => {
-        const isActive = i === current;
-        const isPrev = i === prev;
-        if (isActive) {
-          slide.style.opacity = '1';
-          slide.style.transform = 'translateX(0%) scale(1)';
-          slide.style.zIndex = '10';
-        } else if (isPrev) {
-          slide.style.opacity = '0';
-          slide.style.transform = 'translateX(-5%) scale(0.97)';
-          slide.style.zIndex = '5';
-          setTimeout(() => { slide.style.zIndex = '0'; }, 700);
-        } else {
-          slide.style.opacity = '0';
-          slide.style.transform = 'translateX(8%) scale(0.97)';
-          slide.style.zIndex = '0';
-        }
-      });
-
-      captions.forEach((cap, i) => {
-        if (i === current) {
-          cap.style.opacity = '1';
-          cap.style.transform = 'translateY(0)';
-        } else {
-          cap.style.opacity = '0';
-          cap.style.transform = 'translateY(8px)';
-        }
-      });
-
-      dots.forEach((dot, i) => {
-        dot.style.width = i === current ? '28px' : '14px';
-        const fill = dotFills[i] as HTMLElement;
+      dotFills.forEach((fill) => {
         fill.style.transition = 'none';
         fill.style.width = '0%';
       });
 
-      // Start progress fill on active dot
-      if (dotAnimFrame) cancelAnimationFrame(dotAnimFrame);
-      dotStartTime = performance.now();
       const activeFill = dotFills[current] as HTMLElement;
-      activeFill.style.transition = 'none';
-      activeFill.style.width = '0%';
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
+          if (gen !== fillGeneration) return;
           activeFill.style.transition = `width ${AUTO_INTERVAL}ms linear`;
           activeFill.style.width = '100%';
         });
       });
+    }
+
+    function goTo(index: number) {
+      const prev = current;
+      current = ((index % SLIDE_COUNT) + SLIDE_COUNT) % SLIDE_COUNT;
+
+      if (prev !== current) {
+        const delta = ((current - prev) + SLIDE_COUNT) % SLIDE_COUNT;
+        const forward = delta <= Math.floor(SLIDE_COUNT / 2);
+
+        const enterFrom = forward ? 'translateX(8%) scale(0.97)' : 'translateX(-8%) scale(0.97)';
+        const exitTo = forward ? 'translateX(-5%) scale(0.97)' : 'translateX(5%) scale(0.97)';
+        const standby = forward ? 'translateX(8%) scale(0.97)' : 'translateX(-8%) scale(0.97)';
+
+        // Instantly reposition entering slide without transition
+        const enteringSlide = slides[current];
+        enteringSlide.style.transition = 'none';
+        enteringSlide.style.transform = enterFrom;
+        enteringSlide.style.opacity = '0';
+        enteringSlide.style.zIndex = '10';
+
+        // Animate exiting slide out
+        const exitingSlide = slides[prev];
+        exitingSlide.style.opacity = '0';
+        exitingSlide.style.transform = exitTo;
+        exitingSlide.style.zIndex = '5';
+        setTimeout(() => { exitingSlide.style.zIndex = '0'; }, 700);
+
+        // Park other slides in the correct standby position
+        slides.forEach((slide, i) => {
+          if (i !== current && i !== prev) {
+            slide.style.opacity = '0';
+            slide.style.transform = standby;
+            slide.style.zIndex = '0';
+          }
+        });
+
+        // After browser commits the instant position, animate entering slide in
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            enteringSlide.style.transition = '';
+            enteringSlide.style.transform = 'translateX(0%) scale(1)';
+            enteringSlide.style.opacity = '1';
+          });
+        });
+      }
+
+      captions.forEach((cap, i) => {
+        cap.style.opacity = i === current ? '1' : '0';
+        cap.style.transform = i === current ? 'translateY(0)' : 'translateY(8px)';
+      });
+
+      dots.forEach((dot, i) => {
+        (dot as HTMLElement).style.width = i === current ? '28px' : '14px';
+      });
+
+      startFillAnimation();
     }
 
     function startAuto() {
@@ -919,25 +941,20 @@ const logoPath =
       timer = setInterval(() => goTo(current + 1), AUTO_INTERVAL);
     }
 
-    function resetAuto() {
-      startAuto();
-      goTo(current);
-    }
-
     document.getElementById('carousel-prev')?.addEventListener('click', () => {
       goTo(current - 1);
-      resetAuto();
+      startAuto();
     });
 
     document.getElementById('carousel-next')?.addEventListener('click', () => {
       goTo(current + 1);
-      resetAuto();
+      startAuto();
     });
 
     dots.forEach((dot) => {
       dot.addEventListener('click', () => {
         goTo(parseInt(dot.dataset.dot ?? '0'));
-        resetAuto();
+        startAuto();
       });
     });
 
@@ -945,16 +962,16 @@ const logoPath =
     const carouselEl = document.getElementById('carousel');
     carouselEl?.addEventListener('mouseenter', () => {
       if (timer) clearInterval(timer);
-      if (dotAnimFrame) cancelAnimationFrame(dotAnimFrame);
       const activeFill = dotFills[current] as HTMLElement;
-      // Freeze fill
       const elapsed = performance.now() - dotStartTime;
       const pct = Math.min((elapsed / AUTO_INTERVAL) * 100, 100);
+      ++fillGeneration; // Cancel any pending rAF
       activeFill.style.transition = 'none';
       activeFill.style.width = `${pct}%`;
     });
     carouselEl?.addEventListener('mouseleave', () => {
-      resetAuto();
+      startAuto();
+      startFillAnimation();
     });
 
     // Init
