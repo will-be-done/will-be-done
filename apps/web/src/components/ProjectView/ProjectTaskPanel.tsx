@@ -200,21 +200,6 @@ const CategorySection = ({
         data-column-model-type={category.type}
         className="relative"
       >
-        <div
-          data-focus-placeholder
-          data-focusable-key={buildFocusKey(categoryId, category.type, "Column")}
-          tabIndex={0}
-          className="absolute w-0 h-0 overflow-hidden outline-none"
-          onFocus={() => setIsPlaceholderFocused(true)}
-          onBlur={() => setIsPlaceholderFocused(false)}
-          onKeyDown={(e) => {
-            const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
-            if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
-              e.preventDefault();
-              handleAddTask();
-            }
-          }}
-        />
         <div className="flex flex-col gap-2">
           {todoTaskIds.map((id) => (
             <TaskComp
@@ -246,6 +231,21 @@ const CategorySection = ({
             </button>
           )}
         </div>
+        <div
+          data-focus-placeholder
+          data-focusable-key={buildFocusKey(categoryId, category.type, "Column")}
+          tabIndex={0}
+          className="absolute w-0 h-0 overflow-hidden outline-none"
+          onFocus={() => setIsPlaceholderFocused(true)}
+          onBlur={() => setIsPlaceholderFocused(false)}
+          onKeyDown={(e) => {
+            const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+            if (noModifiers && (e.code === "KeyO" || e.code === "KeyA")) {
+              e.preventDefault();
+              handleAddTask();
+            }
+          }}
+        />
       </div>
     </div>
   );
@@ -299,7 +299,7 @@ export const ProjectTaskPanel = ({
 
   if (embedded) {
     return (
-      <div data-focus-stacked className="flex flex-col gap-1">
+      <div data-focus-region-direction="column" className="flex flex-col gap-1">
         {categories.map((cat) => (
           <CategorySection
             key={cat.id}
@@ -320,7 +320,7 @@ export const ProjectTaskPanel = ({
           {project.title}
         </span>
       </div>
-      <div data-focus-stacked className="flex-1 overflow-y-auto px-3 pb-4">
+      <div data-focus-region-direction="column" className="flex-1 overflow-y-auto px-3 pb-4">
         {categories.map((cat) => (
           <CategorySection
             key={cat.id}

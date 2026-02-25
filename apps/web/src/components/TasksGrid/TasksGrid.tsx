@@ -19,7 +19,7 @@ export const TasksColumnGrid = ({
 }) => {
   return (
     <div
-      data-focus-region
+      data-focus-region-direction="row"
       className="grid max-h-full h-full"
       style={{
         gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
