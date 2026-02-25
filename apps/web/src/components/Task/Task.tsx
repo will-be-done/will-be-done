@@ -23,6 +23,7 @@ import { isInputElement } from "../../utils/isInputElement";
 import {
   getDOMSiblings,
   getDOMAdjacentColumns,
+  getDOMAdjacentStackedPlaceholder,
 } from "@/components/Focus/domNavigation.ts";
 import clsx from "clsx";
 import { RotateCw, CircleDashed } from "lucide-react";
@@ -346,13 +347,28 @@ export const TaskComp = ({
       }
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
-      if (isTask(card) && card.state === "done") return;
 
-      const [upKey, downKey] = getDOMSiblings(focusableItemKey);
+      const [upKey, downKey] = getDOMSiblings(focusableItemKey, { forMove: true });
 
-      const targetKey = isMoveUp ? upKey : downKey;
+      let targetKey = isMoveUp ? upKey : downKey;
+      let crossedBoundary = false;
+
+      if (targetKey) {
+        const currentColumn = document.querySelector(`[data-focusable-key="${focusableItemKey}"]`)?.closest("[data-focus-column]");
+        const targetColumn = document.querySelector(`[data-focusable-key="${targetKey}"]`)?.closest("[data-focus-column]");
+        crossedBoundary = currentColumn !== targetColumn;
+      } else {
+        // No valid sibling — fall back to adjacent section's placeholder
+        targetKey = getDOMAdjacentStackedPlaceholder(focusableItemKey, isMoveUp ? "up" : "down");
+        crossedBoundary = targetKey !== null;
+      }
+
       if (targetKey) {
         const { id, type } = parseColumnKey(targetKey);
+
+        const edge: Edge = crossedBoundary
+          ? isMoveUp ? "bottom" : "top"
+          : isMoveUp ? "top" : "bottom";
 
         dispatch(
           appSlice.handleDrop(
@@ -360,7 +376,7 @@ export const TaskComp = ({
             type,
             cardWrapper.id,
             cardWrapper.type,
-            isMoveUp ? "top" : "bottom",
+            edge,
           ),
         );
 
@@ -611,6 +627,7 @@ export const TaskComp = ({
       {closestEdge == "top" && <DropTaskIndicator direction="top" />}
       <div
         data-focusable-key={focusableItemKey}
+        data-ignore-drop={isTask(card) && card.state === "done" ? true : undefined}
         tabIndex={0}
         className={clsx(
           `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
