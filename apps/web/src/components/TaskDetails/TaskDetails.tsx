@@ -8,6 +8,9 @@ import {
   Hash,
   CalendarDays,
   Clock,
+  RefreshCw,
+  Pencil,
+  X as XIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -19,10 +22,12 @@ import {
   dailyListsProjectionsSlice,
   isTask,
   cardsTasksSlice,
+  cardsTaskTemplatesSlice,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CheckboxComp } from "@/components/Task/Task.tsx";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
+import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
 import TextareaAutosize from "react-textarea-autosize";
 
@@ -32,8 +37,14 @@ let savedPosition: { x: number; y: number } | null = null;
 const PANEL_W = 288; // w-72
 
 function defaultPosition(): { x: number; y: number } {
-  const x = Math.max(0, Math.min(window.innerWidth - PANEL_W, window.innerWidth - PANEL_W - 16));
-  const y = Math.max(0, Math.min(window.innerHeight - 100, window.innerHeight - 450 - 16));
+  const x = Math.max(
+    0,
+    Math.min(window.innerWidth - PANEL_W, window.innerWidth - PANEL_W - 16),
+  );
+  const y = Math.max(
+    0,
+    Math.min(window.innerHeight - 100, window.innerHeight - 450 - 16),
+  );
   return { x, y };
 }
 
@@ -206,9 +217,20 @@ function TaskDetailsBody({
     [taskId],
   );
 
+  const taskTemplateId = isTask(card) ? (card.templateId ?? null) : null;
+  const template = useSyncSelector(
+    () => cardsTaskTemplatesSlice.byId(taskTemplateId ?? ""),
+    [taskTemplateId],
+  );
+  const ruleText = useSyncSelector(
+    () => cardsTaskTemplatesSlice.ruleText(taskTemplateId ?? ""),
+    [taskTemplateId],
+  );
+
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
   const editingTitle = titleDraft ?? card.title;
   const [isMoveProjectModalOpen, setIsMoveProjectModalOpen] = useState(false);
+  const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
 
   const saveTitle = useCallback(() => {
     if (titleDraft !== null) {
@@ -238,13 +260,45 @@ function TaskDetailsBody({
     el.selectionStart = el.value.length;
   }, []);
 
+  const handleRemoveRepeat = useCallback(() => {
+    if (!isTask(card) || !card.templateId) return;
+    if (
+      window.confirm(
+        "Remove repeat template? This will unlink all generated tasks.",
+      )
+    ) {
+      dispatch(cardsTaskTemplatesSlice.delete([card.templateId]));
+    }
+  }, [card, dispatch]);
+
+  const handleRepeatConfirm = useCallback(
+    (ruleString: string) => {
+      setIsRepeatModalOpen(false);
+      if (!isTask(card)) return;
+      if (card.templateId) {
+        dispatch(
+          cardsTaskTemplatesSlice.update(card.templateId, {
+            repeatRule: ruleString,
+          }),
+        );
+      } else {
+        dispatch(
+          cardsTaskTemplatesSlice.createFromTask(card, {
+            repeatRule: ruleString,
+          }),
+        );
+      }
+    },
+    [card, dispatch],
+  );
+
   if (!isTask(card)) return null;
 
   return (
     <div className="px-3 py-3 space-y-3">
       {/* Title row: checkbox + title */}
       <div className="flex items-start gap-2">
-        <div className="mt-0.5 shrink-0">
+        <div className="shrink-0">
           <CheckboxComp
             checked={card.state === "done"}
             onChange={() => dispatch(cardsTasksSlice.toggleState(taskId))}
@@ -353,6 +407,38 @@ function TaskDetailsBody({
             {format(new Date(card.lastToggledAt), "MMM d, yyyy, h:mm a")}
           </DetailRow>
         )}
+
+        <DetailRow
+          icon={<RefreshCw className="h-3 w-3 shrink-0" />}
+          label="Repeat"
+        >
+          {taskTemplateId ? (
+            <span className="flex items-center gap-1">
+              <span className="italic">{ruleText || "custom"}</span>
+              <button
+                onClick={() => setIsRepeatModalOpen(true)}
+                title="Edit repeat"
+                className="cursor-pointer text-content-tinted hover:text-content transition-colors"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+              <button
+                onClick={handleRemoveRepeat}
+                title="Remove repeat"
+                className="cursor-pointer text-content-tinted hover:text-content transition-colors"
+              >
+                <XIcon className="h-3 w-3" />
+              </button>
+            </span>
+          ) : (
+            <button
+              className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors italic text-content-tinted"
+              onClick={() => setIsRepeatModalOpen(true)}
+            >
+              Make repeating
+            </button>
+          )}
+        </DetailRow>
       </div>
 
       {isMoveProjectModalOpen && (
@@ -363,6 +449,14 @@ function TaskDetailsBody({
             setIsMoveProjectModalOpen(false);
           }}
           exceptProjectId={project.id}
+        />
+      )}
+
+      {isRepeatModalOpen && (
+        <RepeatModal
+          initialRule={template?.repeatRule}
+          onConfirm={handleRepeatConfirm}
+          onCancel={() => setIsRepeatModalOpen(false)}
         />
       )}
     </div>
