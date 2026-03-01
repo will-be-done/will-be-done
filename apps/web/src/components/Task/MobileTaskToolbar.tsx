@@ -19,6 +19,7 @@ export const MobileTaskToolbar = () => {
 
   const handleDelete = () => {
     if (!focusKey || !parsed) return;
+    if (!confirm("Delete this task?")) return;
     const [upKey, downKey] = getDOMSiblings(focusKey as string);
     dispatch(appSlice.delete(parsed.id, parsed.type));
     if (downKey) {
@@ -107,7 +108,7 @@ const ToolbarButton = ({
       onPress();
     }}
     className={cn(
-      "group flex flex-1 flex-col items-center justify-center gap-1 py-2",
+      "group flex flex-1 flex-col items-center justify-center gap-1 py-2 cursor-pointer",
       "transition-colors duration-100 active:bg-white/5",
     )}
     style={{ color: "oklch(92% 0.01 260)" }}
