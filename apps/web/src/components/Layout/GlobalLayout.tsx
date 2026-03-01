@@ -1,3 +1,5 @@
+import { MobileTaskToolbar } from "@/components/Task/MobileTaskToolbar.tsx";
+
 export const GlobalLayout = ({ children }: { children?: React.ReactNode }) => {
   return (
     <div className="relative w-full h-screen bg-surface overflow-hidden flex antialiased">
@@ -19,6 +21,8 @@ export const GlobalLayout = ({ children }: { children?: React.ReactNode }) => {
       <div className="relative w-full h-full flex">
         {children}
       </div>
+
+      <MobileTaskToolbar />
     </div>
   );
 };
