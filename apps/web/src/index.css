@@ -78,6 +78,12 @@
   /* Gradient orb colors (for background effects) */
   --color-orb-blue: oklch(54.6% 0.215 263 / 0.08);
   --color-orb-indigo: oklch(58.5% 0.204 277 / 0.06);
+
+  /* Task detail panel - orange */
+  --color-task-panel: oklch(26.6% 0.079 36.3);
+  --color-task-panel-ring: oklch(70.5% 0.213 41.2 / 0.3);
+  --color-task-panel-divider: oklch(70.5% 0.213 41.2 / 0.2);
+  --color-task-panel-hover: oklch(70.5% 0.213 41.2 / 0.15);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/
@@ -196,6 +202,7 @@
 /*     @apply bg-background text-foreground; */
 /*   } */
 /* } */
+
 
 :root {
   --sidebar: hsl(0 0% 98%);

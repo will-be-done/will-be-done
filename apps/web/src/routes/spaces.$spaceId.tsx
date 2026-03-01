@@ -2,6 +2,7 @@ import { GlobalListener } from "@/components/GlobalListener/GlobalListener.tsx";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { KeyPressedCtxProvider } from "@/components/GlobalListener/KeyPressedCtxProvider.tsx";
 import { Outlet, redirect, createFileRoute, useRouterState } from "@tanstack/react-router";
+import { TaskDetails } from "@/components/TaskDetails/TaskDetails.tsx";
 import { DBProvider, useDispatch } from "@will-be-done/hyperdb";
 import { initDbStore } from "@/store/load.ts";
 import { authUtils, isDemoMode } from "@/lib/auth";
@@ -40,6 +41,7 @@ function RouteComponent() {
             <ResetFocusOnNavigate />
 
             <Outlet />
+            <TaskDetails />
           </KeyPressedCtxProvider>
         </ThemeProvider>
       </DBProvider>
