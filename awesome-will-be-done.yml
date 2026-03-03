@@ -1,0 +1,13 @@
+# https://github.com/awesome-selfhosted/awesome-selfhosted-data/new/master/software
+name: Will Be Done
+description: Local-first task manager with weekly timeline view, Kanban boards, vim keybindings, and real-time cross-device sync — full database in the browser, instant actions, works fully offline.
+website_url: https://will-be-done.app
+source_code_url: https://github.com/will-be-done/will-be-done
+demo_url: https://demo.will-be-done.app
+licenses:
+  - AGPL-3.0
+tags:
+  - Task Management & To-do Lists
+  - Project Management
+platforms:
+  - Docker
