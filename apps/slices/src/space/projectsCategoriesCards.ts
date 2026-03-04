@@ -61,9 +61,9 @@ export const projectCategoryCardsSlice = {
       })
       .map((card) => card.id);
   }),
-  childrenIds: selector(function* (
+  children: selector(function* (
     projectCategoryId: string,
-  ): GenReturn<string[]> {
+  ): GenReturn<(Task | TaskTemplate)[]> {
     // TODO: use merge sort
     const tasks = yield* runQuery(
       selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
@@ -79,18 +79,30 @@ export const projectCategoryCardsSlice = {
 
     const allCards = [...tasks, ...templates];
 
-    return allCards
-      .sort((a, b) => {
-        if (a.orderToken > b.orderToken) {
-          return 1;
-        }
-        if (a.orderToken < b.orderToken) {
-          return -1;
-        }
+    return allCards.sort((a, b) => {
+      if (a.orderToken > b.orderToken) {
+        return 1;
+      }
+      if (a.orderToken < b.orderToken) {
+        return -1;
+      }
 
-        return 0;
-      })
-      .map((card) => card.id);
+      return 0;
+    });
+  }),
+  childrenIdsWithTypes: selector(function* (
+    projectCategoryId: string,
+  ): GenReturn<{ id: string; type: "task" | "template" }[]> {
+    return (yield* projectCategoryCardsSlice.children(projectCategoryId)).map(
+      (card) => ({ id: card.id, type: card.type }),
+    );
+  }),
+  childrenIds: selector(function* (
+    projectCategoryId: string,
+  ): GenReturn<string[]> {
+    return (yield* projectCategoryCardsSlice.children(projectCategoryId)).map(
+      (card) => card.id,
+    );
   }),
 
   doneChildrenIds: selector(function* (

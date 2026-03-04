@@ -23,7 +23,10 @@ import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
 import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
 import { projectCategoriesSlice } from "./projectsCategories";
-import { isTaskProjection } from "./dailyListsProjections";
+import {
+  dailyListsProjectionsSlice,
+  isTaskProjection,
+} from "./dailyListsProjections";
 
 // Type definitions
 export const taskType = "task";
@@ -49,7 +52,7 @@ export const defaultTask: Task = {
   type: taskType,
   projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
   id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
-  title: "default task kek",
+  title: "default task",
   state: "todo",
   orderToken: "",
   lastToggledAt: 0,
@@ -85,6 +88,9 @@ export const cardsTasksSlice = {
 
     return tasks[0];
   }),
+  exists: selector(function* (id: string): GenReturn<boolean> {
+    return !!(yield* cardsTasksSlice.byId(id));
+  }),
   byIdOrDefault: selector(function* (id: string): GenReturn<Task> {
     return (yield* cardsTasksSlice.byId(id)) || defaultTask;
   }),
@@ -107,6 +113,7 @@ export const cardsTasksSlice = {
   // actions
   delete: action(function* (ids: string[]): GenReturn<void> {
     yield* deleteRows(tasksTable, ids);
+    yield* dailyListsProjectionsSlice.delete(ids);
   }),
   update: action(function* (id: string, task: Partial<Task>): GenReturn<void> {
     const taskInState = yield* cardsTasksSlice.byId(id);
@@ -260,8 +267,8 @@ export const cardsTasksSlice = {
       lastToggledAt: Date.now(),
       horizon: taskTemplate.horizon,
       createdAt: taskTemplate.createdAt,
-      templateId: taskTemplate.id,
-      templateDate: taskTemplate.lastGeneratedAt,
+      templateId: null,
+      templateDate: null,
     };
     yield* insert(tasksTable, [newTask]);
 

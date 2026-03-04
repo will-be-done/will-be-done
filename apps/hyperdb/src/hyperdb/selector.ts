@@ -94,6 +94,12 @@ const isGenerator = (fn: unknown): fn is Generator<unknown, unknown, unknown> =>
   fn instanceof GeneratorFunction;
 
 export function selector<TReturn, TParams extends any[]>(
+  fn: SelectorGeneratorFn<TReturn, TParams>,
+): SelectorGeneratorFn<TReturn, TParams>;
+export function selector<TReturn, TParams extends any[]>(
+  fn: SelectorFn<TReturn, TParams>,
+): SelectorGeneratorFn<TReturn, TParams>;
+export function selector<TReturn, TParams extends any[]>(
   fn: SelectorGeneratorFn<TReturn, TParams> | SelectorFn<TReturn, TParams>,
 ): SelectorGeneratorFn<TReturn, TParams> {
   return (...args: TParams) => {

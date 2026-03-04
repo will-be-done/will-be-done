@@ -19,6 +19,19 @@ export type CardWrapper = Task | TaskTemplate | TaskProjection;
 export type CardWrapperType = CardWrapper["type"];
 
 export const cardsSlice = {
+  byId: selector(function* (id: string): GenReturn<CardWrapper | undefined> {
+    const tasks = yield* cardsTasksSlice.byId(id);
+    if (tasks) return tasks;
+
+    const templates = yield* cardsTaskTemplatesSlice.byId(id);
+    if (templates) return templates;
+
+    return undefined;
+  }),
+  exists: selector(function* (id: string): GenReturn<boolean> {
+    return !!(yield* cardsSlice.byId(id));
+  }),
+
   createSiblingCard: action(function* (
     taskBox: Task | TaskTemplate | TaskProjection,
     position: "before" | "after",
