@@ -9,12 +9,12 @@ import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types"
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import {
   appSlice,
+  AnyModelType,
+  projectCategoriesSlice,
   dailyListType,
-  projectCategoryType,
   projectType,
   taskType,
   projectionType,
-  AnyModelType,
 } from "@will-be-done/slices/space";
 import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
 import { FocusKey, focusSlice } from "@/store/focusSlice.ts";
@@ -206,7 +206,7 @@ export function GlobalListener() {
             projectionType,
             taskType,
             dailyListType,
-            projectCategoryType,
+            projectCategoriesSlice.projectCategoryType,
             projectType,
           ];
 

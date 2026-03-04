@@ -129,7 +129,7 @@ const CategorySection = ({
 
   const handleDelete = () => {
     if (confirm(`Delete category "${category.title}"?`)) {
-      dispatch(projectCategoriesSlice.delete([categoryId]));
+      dispatch(projectCategoriesSlice.deleteCategories([categoryId]));
     }
   };
 

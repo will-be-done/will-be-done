@@ -3,10 +3,10 @@ import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
-  DailyList,
   dailyListsSlice,
   dailyListsProjectionsSlice,
   projectsSlice,
+  type DailyList,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";

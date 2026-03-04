@@ -25,12 +25,13 @@ import {
   projectCategoryCardsSlice,
   projectCategoriesSlice,
   dailyListsProjectionsSlice,
-  isTask,
-  isTaskTemplate,
   cardsTasksSlice,
   cardsTaskTemplatesSlice,
-  TaskTemplate,
   cardsSlice,
+  type Task,
+  type TaskTemplate,
+  isTask,
+  isTaskTemplate,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CheckboxComp } from "@/components/Task/Task.tsx";
@@ -306,7 +307,7 @@ function TaskBody({
   isEditingTitle,
   setIsEditingTitle,
 }: {
-  card: import("@will-be-done/slices/space").Task;
+  card: Task;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
 }) {
@@ -351,7 +352,7 @@ function TaskBody({
     setIsEditingTitle,
     onSave: useCallback(
       (trimmed: string) =>
-        dispatch(cardsTasksSlice.update(taskId, { title: trimmed })),
+        dispatch(cardsTasksSlice.updateTask(taskId, { title: trimmed })),
       [dispatch, taskId],
     ),
   });
@@ -363,7 +364,7 @@ function TaskBody({
         "Remove repeat template? This will unlink all generated tasks.",
       )
     ) {
-      dispatch(cardsTaskTemplatesSlice.delete([card.templateId]));
+      dispatch(cardsTaskTemplatesSlice.deleteTemplates([card.templateId]));
     }
   }, [card.templateId, dispatch]);
 
@@ -372,7 +373,7 @@ function TaskBody({
       setIsRepeatModalOpen(false);
       if (card.templateId) {
         dispatch(
-          cardsTaskTemplatesSlice.update(card.templateId, {
+          cardsTaskTemplatesSlice.updateTemplate(card.templateId, {
             repeatRule: ruleString,
           }),
         );
@@ -453,7 +454,7 @@ function TaskBody({
             value={card.projectCategoryId}
             onChange={(e) =>
               dispatch(
-                cardsTasksSlice.update(taskId, {
+                cardsTasksSlice.updateTask(taskId, {
                   projectCategoryId: e.target.value,
                 }),
               )
@@ -606,7 +607,7 @@ function TemplateBody({
     onSave: useCallback(
       (trimmed: string) =>
         dispatch(
-          cardsTaskTemplatesSlice.update(templateId, { title: trimmed }),
+          cardsTaskTemplatesSlice.updateTemplate(templateId, { title: trimmed }),
         ),
       [dispatch, templateId],
     ),
@@ -623,7 +624,7 @@ function TemplateBody({
       setIsRepeatModalOpen(false);
 
       dispatch(
-        cardsTaskTemplatesSlice.update(templateId, {
+        cardsTaskTemplatesSlice.updateTemplate(templateId, {
           repeatRule: ruleString,
         }),
       );
@@ -684,7 +685,7 @@ function TemplateBody({
             value={card.projectCategoryId}
             onChange={(e) =>
               dispatch(
-                cardsTaskTemplatesSlice.update(templateId, {
+                cardsTaskTemplatesSlice.updateTemplate(templateId, {
                   projectCategoryId: e.target.value,
                 }),
               )

@@ -14,19 +14,19 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { OrderableItem } from "./utils";
 import { generateOrderTokenPositioned } from "./utils";
-import { appSlice } from "./app";
-import { projectsAllSlice } from "./projectsAll";
-import { isTask, Task, cardsTasksSlice } from "./cardsTasks";
-import { isTaskTemplate, cardsTaskTemplatesSlice } from "./cardsTaskTemplates";
+import { appSlice } from ".";
+import { projectsAllSlice } from ".";
+import { cardsTasksSlice } from ".";
+import { isTask, Task } from "./cardsTasks";
+import { cardsTaskTemplatesSlice } from ".";
+import { isTaskTemplate } from "./cardsTaskTemplates";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
-import { projectCategoriesSlice } from "./projectsCategories";
-import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
-import { dailyListsSlice } from "./dailyLists";
-import {
-  dailyListsProjectionsSlice,
-  isTaskProjection,
-} from "./dailyListsProjections";
+import { projectCategoriesSlice } from ".";
+import { projectCategoryCardsSlice } from ".";
+import { dailyListsSlice } from ".";
+import { dailyListsProjectionsSlice } from ".";
+import { isTaskProjection } from "./dailyListsProjections";
 import { genUUIDV5 } from "../traits";
 import { startOfDay } from "date-fns";
 
@@ -63,7 +63,7 @@ export const projectsTable = table<Project>("projects").withIndexes({
 registerSpaceSyncableTable(projectsTable, projectType);
 
 // Selectors and actions
-const allIds = selector(function* () {
+export const allIds = selector(function* () {
   const projects = yield* runQuery(
     selectFrom(projectsTable, "byOrderToken").where((q) => q),
   );
@@ -71,7 +71,7 @@ const allIds = selector(function* () {
   return projects.map((p) => p.id);
 });
 
-const byId = selector(function* (id: string) {
+export const byId = selector(function* (id: string) {
   const projects = yield* runQuery(
     selectFrom(projectsTable, "byId")
       .where((q) => q.eq("id", id))
@@ -80,11 +80,11 @@ const byId = selector(function* (id: string) {
   return projects[0] as Project | undefined;
 });
 
-const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* (id: string) {
   return (yield* byId(id)) || defaultProject;
 });
 
-const canDrop = selector(function* (
+export const canDrop = selector(function* (
   projectId: string,
   dropItemId: string,
   dropModelType: AnyModelType,
@@ -108,11 +108,11 @@ const canDrop = selector(function* (
   return false;
 });
 
-const inboxProjectId = selector(function* () {
+export const inboxProjectId = selector(function* () {
   return yield* genUUIDV5(projectType, "inbox");
 });
 
-const overdueTasksCountExceptDailiesCount = selector(function* (
+export const overdueTasksCountExceptDailiesCount = selector(function* (
   projectId: string,
   exceptDailyListIds: string[],
   currentDate: Date,
@@ -177,7 +177,7 @@ const overdueTasksCountExceptDailiesCount = selector(function* (
   return overdueCount;
 });
 
-const notDoneTasksCountExceptDailiesCount = selector(function* (
+export const notDoneTasksCountExceptDailiesCount = selector(function* (
   projectId: string,
   exceptDailyListIds: string[],
 ): Generator<unknown, number, unknown> {
@@ -198,7 +198,7 @@ const notDoneTasksCountExceptDailiesCount = selector(function* (
   return finalChildrenIds.filter((id) => !exceptCardIds.has(id)).length;
 });
 
-const create = action(function* (
+export const create = action(function* (
   project: Partial<Project>,
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]
@@ -253,7 +253,7 @@ const create = action(function* (
   return newProject;
 });
 
-const createInboxIfNotExists = action(function* (): Generator<
+export const createInboxIfNotExists = action(function* (): Generator<
   unknown,
   Project,
   unknown
@@ -276,7 +276,7 @@ const createInboxIfNotExists = action(function* (): Generator<
   );
 });
 
-const updateProject = action(function* (
+export const updateProject = action(function* (
   id: string,
   project: Partial<Project>,
 ): Generator<unknown, void, unknown> {
@@ -286,16 +286,18 @@ const updateProject = action(function* (
   yield* update(projectsTable, [{ ...projectInState, ...project }]);
 });
 
-const deleteProjects = action(function* (
+export const deleteProjects = action(function* (
   ids: string[],
 ): Generator<unknown, void, unknown> {
   const projectCategories = yield* projectCategoriesSlice.byProjectIds(ids);
 
-  yield* projectCategoriesSlice.delete(projectCategories.map((c) => c.id));
+  yield* projectCategoriesSlice.deleteCategories(
+    projectCategories.map((c) => c.id),
+  );
   yield* deleteRows(projectsTable, ids);
 });
 
-const handleDrop = action(function* (
+export const handleDrop = action(function* (
   projectId: string,
   dropItemId: string,
   dropModelType: AnyModelType,
@@ -338,18 +340,18 @@ const handleDrop = action(function* (
 
     // Move task/template to this project
     if (isTask(dropItem)) {
-      yield* cardsTasksSlice.update(dropItem.id, {
+      yield* cardsTasksSlice.updateTask(dropItem.id, {
         projectCategoryId: category.id,
       });
     } else if (isTaskTemplate(dropItem)) {
-      yield* cardsTaskTemplatesSlice.update(dropItem.id, {
+      yield* cardsTaskTemplatesSlice.updateTemplate(dropItem.id, {
         projectCategoryId: category.id,
       });
     } else if (isTaskProjection(dropItem)) {
       // When dropping a projection onto a project, move the underlying task
       const task = yield* cardsTasksSlice.byId(dropItem.id);
       if (task) {
-        yield* cardsTasksSlice.update(task.id, {
+        yield* cardsTasksSlice.updateTask(task.id, {
           projectCategoryId: category.id,
         });
         // Keep the projection in the daily list
@@ -360,7 +362,7 @@ const handleDrop = action(function* (
   }
 });
 
-const createTask = action(function* (
+export const createTask = action(function* (
   projectId: string,
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]
@@ -385,7 +387,7 @@ const createTask = action(function* (
   );
 });
 
-const createTaskIfNotExists = action(function* (
+export const createTaskIfNotExists = action(function* (
   projectId: string,
   taskId: string,
   position:
@@ -402,9 +404,8 @@ const createTaskIfNotExists = action(function* (
   return yield* createTaskIfNotExists(projectId, taskId, position, taskAttrs);
 });
 
-// Slice (will be populated after all slices are defined to avoid circular dependencies)
-export const projectsSlice = {
-  // selectors
+// Local slice object for registerModelSlice (not exported)
+const projectsSlice = {
   allIds,
   byId,
   byIdOrDefault,
@@ -412,7 +413,6 @@ export const projectsSlice = {
   inboxProjectId,
   overdueTasksCountExceptDailiesCount,
   notDoneTasksCountExceptDailiesCount,
-  // actions
   createInboxIfNotExists,
   create,
   update: updateProject,

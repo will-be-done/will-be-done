@@ -1,5 +1,5 @@
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
-import { Backup, backupSlice } from "@will-be-done/slices/space";
+import { backupSlice, type Backup } from "@will-be-done/slices/space";
 import {
   getDOMSiblings,
 } from "@/components/Focus/domNavigation.ts";
@@ -159,7 +159,7 @@ const ProjectItem = function ProjectItemComp({
 
       const [upKey, downKey] = getDOMSiblings(focusItemKey);
 
-      dispatch(projectsSlice.delete([project.id]));
+      dispatch(projectsSlice.deleteProjects([project.id]));
 
       if (downKey) {
         dispatch(focusSlice.focusByKey(downKey));
@@ -315,7 +315,7 @@ const ProjectItem = function ProjectItemComp({
     }
 
     dispatch(
-      projectsSlice.update(project.id, {
+      projectsSlice.updateProject(project.id, {
         title: newTitle,
       }),
     );
@@ -326,7 +326,7 @@ const ProjectItem = function ProjectItemComp({
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice.delete([project.id]));
+      dispatch(projectsSlice.deleteProjects([project.id]));
     }
   };
 
@@ -369,7 +369,7 @@ const ProjectItem = function ProjectItemComp({
               className="h-[326px] rounded-lg shadow-md"
               onEmojiSelect={({ emoji }) => {
                 dispatch(
-                  projectsSlice.update(project.id, {
+                  projectsSlice.updateProject(project.id, {
                     icon: emoji,
                   }),
                 );

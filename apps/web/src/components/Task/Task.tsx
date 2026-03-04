@@ -31,14 +31,14 @@ import { cn } from "@/lib/utils";
 import {
   appSlice,
   cardsSlice,
-  isTask,
-  isTaskTemplate,
   projectCategoriesSlice,
-  Task,
   cardsTasksSlice,
   dailyListsProjectionsSlice,
-  CardWrapperType,
   AnyModelType,
+  type Task,
+  type CardWrapperType,
+  isTask,
+  isTaskTemplate,
 } from "@will-be-done/slices/space";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -275,7 +275,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        cardsTasksSlice.update(taskId, {
+        cardsTasksSlice.updateTask(taskId, {
           horizon: "week",
         }),
       );
@@ -283,7 +283,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        cardsTasksSlice.update(taskId, {
+        cardsTasksSlice.updateTask(taskId, {
           horizon: "month",
         }),
       );
@@ -291,7 +291,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        cardsTasksSlice.update(taskId, {
+        cardsTasksSlice.updateTask(taskId, {
           horizon: "year",
         }),
       );
@@ -299,7 +299,7 @@ export const TaskComp = ({
       e.preventDefault();
 
       dispatch(
-        cardsTasksSlice.update(taskId, {
+        cardsTasksSlice.updateTask(taskId, {
           horizon: "someday",
         }),
       );
@@ -404,7 +404,7 @@ export const TaskComp = ({
 
       const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
-      dispatch(appSlice.delete(cardWrapper.id, cardWrapper.type));
+      dispatch(appSlice.deleteModel(cardWrapper.id, cardWrapper.type));
 
       if (downKey) {
         dispatch(focusSlice.focusByKey(downKey));
@@ -580,7 +580,7 @@ export const TaskComp = ({
   useEffect(() => {
     if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
       dispatch(
-        cardsTasksSlice.update(taskId, {
+        cardsTasksSlice.updateTask(taskId, {
           title: editingTitle,
         }),
       );
@@ -590,7 +590,7 @@ export const TaskComp = ({
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
       dispatch(
-        cardsTasksSlice.update(taskId, {
+        cardsTasksSlice.updateTask(taskId, {
           title: editingTitle,
         }),
       );

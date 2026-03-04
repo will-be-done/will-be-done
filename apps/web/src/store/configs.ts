@@ -5,7 +5,7 @@ import {
   projectsSlice,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
-  Task,
+  type Task,
 } from "@will-be-done/slices/space";
 import { focusTable } from "./focusSlice";
 import { HyperDB, runSelector, syncDispatch } from "@will-be-done/hyperdb";

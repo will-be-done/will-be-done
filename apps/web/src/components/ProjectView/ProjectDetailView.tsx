@@ -59,14 +59,14 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice.delete([project.id]));
+      dispatch(projectsSlice.deleteProjects([project.id]));
     }
   };
 
   const handleTitleClick = () => {
     const newTitle = prompt("Enter new project title", project.title);
     if (newTitle == "" || newTitle == null) return;
-    dispatch(projectsSlice.update(project.id, { title: newTitle }));
+    dispatch(projectsSlice.updateProject(project.id, { title: newTitle }));
   };
 
   const isSmallScreen = useIsSmallScreen();
@@ -90,7 +90,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
                 <EmojiPicker
                   className="h-[326px] rounded-lg shadow-md"
                   onEmojiSelect={({ emoji }) => {
-                    dispatch(projectsSlice.update(project.id, { icon: emoji }));
+                    dispatch(projectsSlice.updateProject(project.id, { icon: emoji }));
                   }}
                 >
                   <EmojiPickerSearch />

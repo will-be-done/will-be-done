@@ -7,27 +7,21 @@ import {
   selector,
 } from "@will-be-done/hyperdb";
 import { getDMY } from "./utils";
-import { cardsTasksSlice, type Task, taskType } from "./cardsTasks";
-import {
-  cardsTaskTemplatesSlice,
-  type TaskTemplate,
-  taskTemplateType,
-} from "./cardsTaskTemplates";
-import { dailyListsSlice, dailyListType, type DailyList } from "./dailyLists";
-import { projectsAllSlice } from "./projectsAll";
-import { projectsSlice, projectType, type Project } from "./projects";
+import { cardsTasksSlice } from ".";
+import { type Task, taskType } from "./cardsTasks";
+import { cardsTaskTemplatesSlice } from ".";
+import { type TaskTemplate, taskTemplateType } from "./cardsTaskTemplates";
+import { dailyListsSlice } from ".";
+import { dailyListType, type DailyList } from "./dailyLists";
+import { projectsAllSlice } from ".";
+import { projectsSlice } from ".";
+import { projectType, type Project } from "./projects";
 import { AnyModel, appTypeTablesMap } from "./maps";
 import { registeredSpaceSyncableTables } from "./syncMap";
-import {
-  projectCategoriesSlice,
-  ProjectCategory,
-  projectCategoryType,
-} from "./projectsCategories";
-import {
-  dailyListsProjectionsSlice,
-  projectionType,
-  TaskProjection,
-} from "./dailyListsProjections";
+import { ProjectCategory, projectCategoryType } from "./projectsCategories";
+import { dailyListsProjectionsSlice } from ".";
+import { projectionType, TaskProjection } from "./dailyListsProjections";
+import { projectCategoriesSlice } from ".";
 
 interface CategoryBackup {
   id: string;
@@ -272,7 +266,7 @@ const getNewModels = action(function* (backup: Backup) {
   return models;
 });
 
-const loadBackup = selector(function* (backup: Backup) {
+export const loadBackup = selector(function* (backup: Backup) {
   for (const table of registeredSpaceSyncableTables) {
     const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
       (r) => r.id,
@@ -288,7 +282,7 @@ const loadBackup = selector(function* (backup: Backup) {
   }
 });
 
-const getBackup = selector(function* () {
+export const getBackup = selector(function* () {
   const tasks: Task[] = yield* cardsTasksSlice.all();
   const projects: Project[] = yield* projectsAllSlice.all();
   const taskTemplates: TaskTemplate[] = yield* cardsTaskTemplatesSlice.all();
@@ -365,8 +359,3 @@ const getBackup = selector(function* () {
     })),
   } satisfies Backup;
 });
-
-export const backupSlice = {
-  loadBackup,
-  getBackup,
-};

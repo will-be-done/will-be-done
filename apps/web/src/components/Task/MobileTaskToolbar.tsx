@@ -21,7 +21,7 @@ export const MobileTaskToolbar = () => {
     if (!focusKey || !parsed) return;
     if (!confirm("Delete this task?")) return;
     const [upKey, downKey] = getDOMSiblings(focusKey as string);
-    dispatch(appSlice.delete(parsed.id, parsed.type));
+    dispatch(appSlice.deleteModel(parsed.id, parsed.type));
     if (downKey) {
       dispatch(focusSlice.focusByKey(downKey));
     } else if (upKey) {

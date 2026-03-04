@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
-  Project,
   projectCategoriesSlice,
-  ProjectCategory,
+  type Project,
+  type ProjectCategory,
 } from "@will-be-done/slices/space";
 import {
   TasksColumn,
@@ -166,7 +166,7 @@ const ProjectTasksColumn = ({
               );
               if (!confirmed) return;
 
-              dispatch(projectCategoriesSlice.delete([category.id]));
+              dispatch(projectCategoriesSlice.deleteCategories([category.id]));
             }}
           >
             <TrashIcon className="rotate-180" />

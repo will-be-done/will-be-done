@@ -12,20 +12,15 @@ import {
 } from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
-import { appSlice } from "./app";
-import {
-  isTaskTemplate,
-  TaskTemplate,
-  cardsTaskTemplatesSlice,
-} from "./cardsTaskTemplates";
+import { appSlice } from ".";
+import { cardsTaskTemplatesSlice } from ".";
+import { isTaskTemplate, TaskTemplate } from "./cardsTaskTemplates";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
-import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
-import { projectCategoriesSlice } from "./projectsCategories";
-import {
-  dailyListsProjectionsSlice,
-  isTaskProjection,
-} from "./dailyListsProjections";
+import { projectCategoryCardsSlice } from ".";
+import { dailyListsProjectionsSlice } from ".";
+import { isTaskProjection } from "./dailyListsProjections";
+import { projectCategoriesSlice } from ".";
 
 // Type definitions
 export const taskType = "task";
@@ -77,7 +72,7 @@ export const tasksTable = table<Task>("tasks").withIndexes({
 registerSpaceSyncableTable(tasksTable, taskType);
 
 // Selectors and actions
-const byId = selector(function* (id: string) {
+export const byId = selector(function* (id: string) {
   const tasks = yield* runQuery(
     selectFrom(tasksTable, "byId")
       .where((q) => q.eq("id", id))
@@ -87,15 +82,15 @@ const byId = selector(function* (id: string) {
   return tasks[0] as Task | undefined;
 });
 
-const exists = selector(function* (id: string) {
+export const exists = selector(function* (id: string) {
   return !!(yield* byId(id));
 });
 
-const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* (id: string) {
   return (yield* byId(id)) || defaultTask;
 });
 
-const taskIdsOfTemplateId = selector(function* (ids: string[]) {
+export const taskIdsOfTemplateId = selector(function* (ids: string[]) {
   const tasks = yield* runQuery(
     selectFrom(tasksTable, "byTemplateId").where((q) =>
       ids.map((id) => q.eq("templateId", id)),
@@ -105,28 +100,28 @@ const taskIdsOfTemplateId = selector(function* (ids: string[]) {
   return tasks.map((t) => t.id);
 });
 
-const all = selector(function* () {
+export const all = selector(function* () {
   const tasks = yield* runQuery(
     selectFrom(tasksTable, "byCategoryIdOrderStates"),
   );
   return tasks;
 });
 
-const deleteTasks = action(function* (
+export const deleteTasks = action(function* (
   ids: string[],
 ): Generator<unknown, void, unknown> {
   yield* deleteRows(tasksTable, ids);
-  yield* dailyListsProjectionsSlice.delete(ids);
+  yield* dailyListsProjectionsSlice.deleteProjections(ids);
 });
 
-const updateTask = action(function* (id: string, task: Partial<Task>) {
+export const updateTask = action(function* (id: string, task: Partial<Task>) {
   const taskInState = yield* byId(id);
   if (!taskInState) throw new Error("Task not found");
 
   yield* update(tasksTable, [{ ...taskInState, ...task }]);
 });
 
-const createTask = action(function* (
+export const createTask = action(function* (
   task: Partial<Task> & { orderToken: string; projectCategoryId: string },
 ) {
   const id = task.id || uuidv7();
@@ -149,7 +144,7 @@ const createTask = action(function* (
   return newTask;
 });
 
-const canDrop = selector(function* (
+export const canDrop = selector(function* (
   taskId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -176,7 +171,7 @@ const canDrop = selector(function* (
   return isTask(model) || isTaskTemplate(model);
 });
 
-const handleDrop = action(function* (
+export const handleDrop = action(function* (
   taskId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -212,7 +207,7 @@ const handleDrop = action(function* (
       orderToken: orderToken,
     });
   } else if (isTaskTemplate(dropItem)) {
-    yield* cardsTaskTemplatesSlice.update(dropItem.id, {
+    yield* cardsTaskTemplatesSlice.updateTemplate(dropItem.id, {
       projectCategoryId: task.projectCategoryId,
       orderToken: orderToken,
     });
@@ -231,7 +226,7 @@ const handleDrop = action(function* (
   }
 });
 
-const moveToProject = action(function* (
+export const moveToProject = action(function* (
   taskId: string,
   projectId: string,
 ): Generator<unknown, void, unknown> {
@@ -249,7 +244,7 @@ const moveToProject = action(function* (
   ]);
 });
 
-const toggleState = action(function* (taskId: string) {
+export const toggleState = action(function* (taskId: string) {
   const task = yield* byId(taskId);
   if (!task) throw new Error("Task not found");
 
@@ -262,8 +257,8 @@ const toggleState = action(function* (taskId: string) {
   ]);
 });
 
-const createFromTemplate = action(function* (taskTemplate: TaskTemplate) {
-  yield* appSlice.delete(taskTemplate.id, taskTemplate.type);
+export const createFromTemplate = action(function* (taskTemplate: TaskTemplate) {
+  yield* appSlice.deleteModel(taskTemplate.id, taskTemplate.type);
 
   const newId = uuidv7();
   const newTask: Task = {
@@ -284,16 +279,16 @@ const createFromTemplate = action(function* (taskTemplate: TaskTemplate) {
   return newTask;
 });
 
-const deleteByIds = action(function* (ids: string[]) {
+export const deleteByIds = action(function* (ids: string[]) {
   yield* deleteTasks(ids);
 });
 
-const deleteById = action(function* (id: string) {
+export const deleteById = action(function* (id: string) {
   yield* deleteTasks([id]);
 });
 
-// Slice - imports are at the bottom to avoid circular dependency issues
-export const cardsTasksSlice = {
+// Local slice object for registerModelSlice (not exported)
+const cardsTasksSlice = {
   byId,
   exists,
   byIdOrDefault,

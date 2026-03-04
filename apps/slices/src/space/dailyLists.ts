@@ -10,17 +10,15 @@ import {
 } from "@will-be-done/hyperdb";
 import type { OrderableItem } from "./utils";
 import { getDMY } from "./utils";
-import { appSlice } from "./app";
-import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
-import {
-  dailyListsProjectionsSlice,
-  TaskProjection,
-  isTaskProjection,
-} from "./dailyListsProjections";
+import { appSlice } from ".";
+import { cardsTasksSlice } from ".";
+import { isTask, type Task } from "./cardsTasks";
+import { dailyListsProjectionsSlice } from ".";
+import { TaskProjection, isTaskProjection } from "./dailyListsProjections";
 import { AnyModelType } from "./maps";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
-import { projectsSlice } from "./projects";
+import { projectsSlice } from ".";
 import { genUUIDV5 } from "../traits";
 
 // Type definitions
@@ -49,7 +47,7 @@ export const dailyListsTable = table<DailyList>("daily_lists").withIndexes({
 registerSpaceSyncableTable(dailyListsTable, dailyListType);
 
 // Selectors and actions
-const allIds = selector(function* () {
+export const allIds = selector(function* () {
   const dailyLists = yield* runQuery(
     selectFrom(dailyListsTable, "byIds").where((q) => q),
   );
@@ -57,7 +55,7 @@ const allIds = selector(function* () {
   return dailyLists.map((p) => p.id);
 });
 
-const byId = selector(function* (id: string) {
+export const byId = selector(function* (id: string) {
   const dailyLists = yield* runQuery(
     selectFrom(dailyListsTable, "byId")
       .where((q) => q.eq("id", id))
@@ -66,7 +64,7 @@ const byId = selector(function* (id: string) {
   return dailyLists[0] as DailyList | undefined;
 });
 
-const byIds = selector(function* (ids: string[]) {
+export const byIds = selector(function* (ids: string[]) {
   const dailyLists = yield* runQuery(
     selectFrom(dailyListsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
@@ -75,11 +73,11 @@ const byIds = selector(function* (ids: string[]) {
   return dailyLists as DailyList[];
 });
 
-const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* (id: string) {
   return (yield* byId(id)) || defaultDailyList;
 });
 
-const byDate = selector(function* (date: string) {
+export const byDate = selector(function* (date: string) {
   const dailyLists = yield* runQuery(
     selectFrom(dailyListsTable, "byDate")
       .where((q) => q.eq("date", date))
@@ -88,23 +86,23 @@ const byDate = selector(function* (date: string) {
   return dailyLists[0] as DailyList | undefined;
 });
 
-const childrenIds = selector(function* (
+export const childrenIds = selector(function* (
   dailyListId: string,
 ): Generator<unknown, string[], unknown> {
   return yield* dailyListsProjectionsSlice.childrenIds(dailyListId);
 });
 
-const doneChildrenIds = selector(function* (
+export const doneChildrenIds = selector(function* (
   dailyListId: string,
 ): Generator<unknown, string[], unknown> {
   return yield* dailyListsProjectionsSlice.doneChildrenIds(dailyListId);
 });
 
-const taskIds = selector(function* (dailyListId: string) {
+export const taskIds = selector(function* (dailyListId: string) {
   return yield* childrenIds(dailyListId);
 });
 
-const allTaskIds = selector(function* (dailyListIds: string[]) {
+export const allTaskIds = selector(function* (dailyListIds: string[]) {
   const result = new Set<string>();
 
   for (const dailyListId of dailyListIds) {
@@ -115,12 +113,12 @@ const allTaskIds = selector(function* (dailyListIds: string[]) {
   return result;
 });
 
-const dateIdsMap = selector(function* () {
+export const dateIdsMap = selector(function* () {
   const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byIds"));
   return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id])) as Record<string, string>;
 });
 
-const idsByDates = selector(function* (dates: Date[]) {
+export const idsByDates = selector(function* (dates: Date[]) {
   const map = yield* dateIdsMap();
   return dates
     .map((date) => {
@@ -130,19 +128,19 @@ const idsByDates = selector(function* (dates: Date[]) {
     .filter((id) => id !== undefined) as string[];
 });
 
-const firstChild = selector(function* (
+export const firstChild = selector(function* (
   dailyListId: string,
 ): Generator<unknown, Task | undefined, unknown> {
   return yield* dailyListsProjectionsSlice.firstChild(dailyListId);
 });
 
-const lastChild = selector(function* (
+export const lastChild = selector(function* (
   dailyListId: string,
 ): Generator<unknown, Task | undefined, unknown> {
   return yield* dailyListsProjectionsSlice.lastChild(dailyListId);
 });
 
-const canDrop = selector(function* (
+export const canDrop = selector(function* (
   _dailyListId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -162,11 +160,11 @@ const canDrop = selector(function* (
   return false;
 });
 
-const getId = selector(function* (date: string) {
+export const getId = selector(function* (date: string) {
   return yield* genUUIDV5(dailyListType, date);
 });
 
-const create = action(function* (dailyList: { date: string }) {
+export const create = action(function* (dailyList: { date: string }) {
   const id = yield* getId(dailyList.date);
   const newDailyList: DailyList = {
     type: dailyListType,
@@ -178,7 +176,7 @@ const create = action(function* (dailyList: { date: string }) {
   return newDailyList;
 });
 
-const createIfNotPresent = action(function* (date: string) {
+export const createIfNotPresent = action(function* (date: string) {
   const existing = yield* byDate(date);
   if (existing) {
     return existing;
@@ -187,7 +185,7 @@ const createIfNotPresent = action(function* (date: string) {
   return yield* create({ date });
 });
 
-const createManyIfNotPresent = action(function* (dates: Date[]) {
+export const createManyIfNotPresent = action(function* (dates: Date[]) {
   const results: DailyList[] = [];
   for (const date of dates) {
     const dmy = getDMY(date);
@@ -197,11 +195,11 @@ const createManyIfNotPresent = action(function* (dates: Date[]) {
   return results;
 });
 
-const deleteDailyLists = action(function* (ids: string[]) {
+export const deleteDailyLists = action(function* (ids: string[]) {
   yield* deleteRows(dailyListsTable, ids);
 });
 
-const createTaskInList = action(function* (
+export const createTaskInList = action(function* (
   dailyListId: string,
   projectId: string,
   listPosition:
@@ -237,7 +235,7 @@ const createTaskInList = action(function* (
   return yield* cardsTasksSlice.byIdOrDefault(task.id);
 });
 
-const handleDrop = action(function* (
+export const handleDrop = action(function* (
   dailyListId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -262,8 +260,8 @@ const handleDrop = action(function* (
   );
 });
 
-// Slice
-export const dailyListsSlice = {
+// Local slice object for registerModelSlice (not exported)
+const dailyListsSlice = {
   allIds,
   byId,
   byIds,

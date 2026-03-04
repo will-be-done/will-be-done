@@ -11,11 +11,12 @@ import {
 } from "@will-be-done/hyperdb";
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
-import { cardsTasksSlice, type Task } from "./cardsTasks";
+import { cardsTasksSlice } from ".";
+import { type Task } from "./cardsTasks";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
-import { projectCategoriesSlice } from "./projectsCategories";
+import { projectCategoriesSlice } from ".";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -105,14 +106,14 @@ function createRuleFromString(ruleString: string): RRule {
 }
 
 // Selectors
-const allIds = selector(function* () {
+export const allIds = selector(function* () {
   const templates = yield* runQuery(
     selectFrom(taskTemplatesTable, "byIds").where((q) => q),
   );
   return templates.map((p) => p.id);
 });
 
-const byId = selector(function* (id: string) {
+export const byId = selector(function* (id: string) {
   const templates = yield* runQuery(
     selectFrom(taskTemplatesTable, "byId")
       .where((q) => q.eq("id", id))
@@ -121,7 +122,7 @@ const byId = selector(function* (id: string) {
   return templates[0] as TaskTemplate | undefined;
 });
 
-const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* (id: string) {
   const templates = yield* runQuery(
     selectFrom(taskTemplatesTable, "byId")
       .where((q) => q.eq("id", id))
@@ -130,29 +131,29 @@ const byIdOrDefault = selector(function* (id: string) {
   return (templates[0] as TaskTemplate | undefined) ?? defaultTaskTemplate;
 });
 
-const all = selector(function* () {
+export const all = selector(function* () {
   const templates = yield* runQuery(
     selectFrom(taskTemplatesTable, "byCategoryIdOrderStates"),
   );
   return templates;
 });
 
-const ids = selector(function* () {
+export const ids = selector(function* () {
   const templates = yield* all();
   return templates.map((t) => t.id);
 });
 
-const rule = selector(function* (id: string) {
+export const rule = selector(function* (id: string) {
   const template = yield* byIdOrDefault(id);
   return createRuleFromString(template.repeatRule || defaultRule);
 });
 
-const ruleText = selector(function* (id: string) {
+export const ruleText = selector(function* (id: string) {
   const r = yield* rule(id);
   return r.toText();
 });
 
-const newTasksInRange = selector(function* (fromDate: Date, toDate: Date) {
+export const newTasksInRange = selector(function* (fromDate: Date, toDate: Date) {
   const templates = yield* all();
   const newTasks: Task[] = [];
 
@@ -171,7 +172,7 @@ const newTasksInRange = selector(function* (fromDate: Date, toDate: Date) {
   return newTasks;
 });
 
-const newTasksToGenForTemplate = selector(function* (
+export const newTasksToGenForTemplate = selector(function* (
   templateId: string,
   toDate: Date,
 ) {
@@ -196,7 +197,7 @@ const newTasksToGenForTemplate = selector(function* (
   return newTasks;
 });
 
-const newTasksToGenForTemplates = selector(function* (toDate: Date) {
+export const newTasksToGenForTemplates = selector(function* (toDate: Date) {
   const templateIds = yield* ids();
   const newTasks: Task[] = [];
 
@@ -208,7 +209,7 @@ const newTasksToGenForTemplates = selector(function* (toDate: Date) {
   return newTasks;
 });
 
-const canDrop = selector(function* (
+export const canDrop = selector(function* (
   _taskTemplateId: string,
   _dropId: string,
   _dropModelType: string,
@@ -218,7 +219,7 @@ const canDrop = selector(function* (
 });
 
 // Actions
-const create = action(function* (
+export const create = action(function* (
   template: Partial<TaskTemplate> & {
     orderToken: string;
     projectCategoryId: string;
@@ -241,7 +242,7 @@ const create = action(function* (
   return newTemplate;
 });
 
-const updateTemplate = action(function* (
+export const updateTemplate = action(function* (
   id: string,
   template: Partial<TaskTemplate>,
 ) {
@@ -252,10 +253,10 @@ const updateTemplate = action(function* (
   return templateInState;
 });
 
-const deleteTemplates = action(function* (ids: string[]) {
+export const deleteTemplates = action(function* (ids: string[]) {
   const taskIds = yield* cardsTasksSlice.taskIdsOfTemplateId(ids);
   for (const tId of taskIds) {
-    yield* cardsTasksSlice.update(tId, {
+    yield* cardsTasksSlice.updateTask(tId, {
       templateId: undefined,
       templateDate: undefined,
     });
@@ -263,11 +264,11 @@ const deleteTemplates = action(function* (ids: string[]) {
   yield* deleteRows(taskTemplatesTable, ids);
 });
 
-const createFromTask = action(function* (
+export const createFromTask = action(function* (
   task: Task,
   data: Partial<TaskTemplate>,
 ) {
-  yield* cardsTasksSlice.delete([task.id]);
+  yield* cardsTasksSlice.deleteTasks([task.id]);
 
   const newId = uuidv7();
   const template: TaskTemplate = {
@@ -287,7 +288,7 @@ const createFromTask = action(function* (
   return template;
 });
 
-const handleDrop = action(function* (
+export const handleDrop = action(function* (
   _taskTemplateId: string,
   _dropId: string,
   _dropModelType: string,
@@ -296,14 +297,14 @@ const handleDrop = action(function* (
   yield* noop();
 });
 
-const cleanAll = action(function* () {
+export const cleanAll = action(function* () {
   const templates = yield* all();
   for (const template of templates) {
     yield* deleteRows(taskTemplatesTable, [template.id]);
   }
 });
 
-const moveTemplateToProject = action(function* (
+export const moveTemplateToProject = action(function* (
   templateId: string,
   projectId: string,
 ) {
@@ -318,8 +319,8 @@ const moveTemplateToProject = action(function* (
   });
 });
 
-// Slice
-export const cardsTaskTemplatesSlice = {
+// Local slice object for registerModelSlice (not exported)
+const cardsTaskTemplatesSlice = {
   allIds,
   byId,
   byIdOrDefault,

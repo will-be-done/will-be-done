@@ -1,6 +1,6 @@
 import { format, startOfWeek, addDays, subWeeks } from "date-fns";
 import { generateNKeysBetween } from "fractional-indexing-jittered";
-import { Backup } from "@will-be-done/slices/space";
+import { type Backup } from "@will-be-done/slices/space";
 
 const dmy = (date: Date) => format(date, "yyyy-MM-dd");
 

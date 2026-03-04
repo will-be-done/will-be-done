@@ -8,21 +8,20 @@ import {
   table,
   update,
 } from "@will-be-done/hyperdb";
-import {
-  generateOrderTokenPositioned,
-  OrderableItem,
-} from "./utils";
+import { generateOrderTokenPositioned, OrderableItem } from "./utils";
 import { isObjectType } from "../utils";
 import { registerModelSlice, AnyModelType } from "./maps";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { uuidv7 } from "uuidv7";
-import { defaultProject, Project, projectsSlice } from "./projects";
-import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
-import { Task, cardsTasksSlice, isTask } from "./cardsTasks";
+import { projectsSlice } from ".";
+import { defaultProject, Project } from "./projects";
+import { projectCategoryCardsSlice } from ".";
+import { cardsTasksSlice } from ".";
+import { Task, isTask } from "./cardsTasks";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
-import { appSlice } from "./app";
+import { appSlice } from ".";
 import { isTaskTemplate } from "./cardsTaskTemplates";
-import { cardsSlice } from "./cards";
+import { cardsSlice } from ".";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { isTaskProjection } from "./dailyListsProjections";
 import { genUUIDV5 } from "../traits";
@@ -62,7 +61,7 @@ export const defaultProjectCategory: ProjectCategory = {
   createdAt: 0,
 };
 
-const byId = selector(function* (id: string) {
+export const byId = selector(function* (id: string) {
   const tasks = yield* runQuery(
     selectFrom(projectCategoriesTable, "byId")
       .where((q) => q.eq("id", id))
@@ -72,22 +71,22 @@ const byId = selector(function* (id: string) {
   return tasks[0] as ProjectCategory | undefined;
 });
 
-const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* (id: string) {
   return (yield* byId(id)) || defaultProjectCategory;
 });
 
-const all = selector(function* () {
+export const all = selector(function* () {
   const tasks = yield* runQuery(
     selectFrom(projectCategoriesTable, "byProjectIdOrderToken"),
   );
   return tasks;
 });
 
-const inboxCategoryId = selector(function* () {
+export const inboxCategoryId = selector(function* () {
   return yield* genUUIDV5(projectCategoryType, "inbox");
 });
 
-const byProjectIds = selector(function* (projectIds: string[]) {
+export const byProjectIds = selector(function* (projectIds: string[]) {
   const categories = yield* runQuery(
     selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
       projectIds.map((id) => q.eq("projectId", id)),
@@ -96,11 +95,11 @@ const byProjectIds = selector(function* (projectIds: string[]) {
   return categories;
 });
 
-const byProjectId = selector(function* (projectId: string) {
+export const byProjectId = selector(function* (projectId: string) {
   return yield* byProjectIds([projectId]);
 });
 
-const projectOfCategory = selector(function* (
+export const projectOfCategory = selector(function* (
   categoryId: string,
 ): Generator<unknown, Project | undefined, unknown> {
   const category = yield* byId(categoryId);
@@ -109,7 +108,7 @@ const projectOfCategory = selector(function* (
   return yield* projectsSlice.byId(category.projectId);
 });
 
-const projectOfCategoryOrDefault = selector(function* (
+export const projectOfCategoryOrDefault = selector(function* (
   categoryId: string,
 ): Generator<unknown, Project, unknown> {
   const category = yield* byId(categoryId);
@@ -118,30 +117,28 @@ const projectOfCategoryOrDefault = selector(function* (
   return yield* projectsSlice.byIdOrDefault(category.projectId);
 });
 
-const firstChild = selector(function* (projectId: string) {
+export const firstChild = selector(function* (projectId: string) {
   return (yield* byProjectId(projectId))[0] as ProjectCategory | undefined;
 });
 
-const lastChild = selector(function* (projectId: string) {
+export const lastChild = selector(function* (projectId: string) {
   const result = yield* byProjectId(projectId);
   if (result.length === 0) return undefined as ProjectCategory | undefined;
 
   return result[result.length - 1] as ProjectCategory | undefined;
 });
 
-const updateCategory = action(function* (
+export const updateCategory = action(function* (
   categoryId: string,
   category: Partial<ProjectCategory>,
 ): Generator<unknown, void, unknown> {
   const categoryInState = yield* byId(categoryId);
   if (!categoryInState) throw new Error("Category not found");
 
-  yield* update(projectCategoriesTable, [
-    { ...categoryInState, ...category },
-  ]);
+  yield* update(projectCategoriesTable, [{ ...categoryInState, ...category }]);
 });
 
-const siblings = selector(function* (categoryId: string) {
+export const siblings = selector(function* (categoryId: string) {
   const item = yield* byId(categoryId);
   if (!item)
     return [undefined, undefined] as [
@@ -173,13 +170,11 @@ const siblings = selector(function* (categoryId: string) {
   ];
 });
 
-const moveLeft = action(function* (
+export const moveLeft = action(function* (
   categoryId: string,
 ): Generator<unknown, void, unknown> {
   const [up] = yield* siblings(categoryId);
-  const [up2] = up
-    ? yield* siblings(up?.id)
-    : [undefined, undefined];
+  const [up2] = up ? yield* siblings(up?.id) : [undefined, undefined];
 
   if (!up) return;
 
@@ -191,7 +186,7 @@ const moveLeft = action(function* (
   });
 });
 
-const moveRight = action(function* (
+export const moveRight = action(function* (
   categoryId: string,
 ): Generator<unknown, void, unknown> {
   const [_up, down] = yield* siblings(categoryId);
@@ -209,7 +204,7 @@ const moveRight = action(function* (
   });
 });
 
-const createCategory = action(function* (
+export const createCategory = action(function* (
   categoryDraft: Partial<ProjectCategory> & {
     projectId: string;
     title: string;
@@ -241,7 +236,7 @@ const createCategory = action(function* (
   return category;
 });
 
-const createTask = action(function* (
+export const createTask = action(function* (
   categoryId: string,
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]
@@ -262,7 +257,7 @@ const createTask = action(function* (
   });
 });
 
-const deleteCategories = action(function* (
+export const deleteCategories = action(function* (
   ids: string[],
 ): Generator<unknown, void, unknown> {
   const idsToDelete: string[] = [];
@@ -283,7 +278,7 @@ const deleteCategories = action(function* (
   yield* deleteRows(projectCategoriesTable, ids);
 });
 
-const handleDrop = action(function* (
+export const handleDrop = action(function* (
   categoryId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -292,8 +287,7 @@ const handleDrop = action(function* (
   const dropItem = yield* appSlice.byId(dropId, dropModelType);
   if (!dropItem) return;
 
-  const childrenIds =
-    yield* projectCategoryCardsSlice.childrenIds(categoryId);
+  const childrenIds = yield* projectCategoryCardsSlice.childrenIds(categoryId);
   let orderToken: string;
   if (childrenIds.length === 0) {
     orderToken = generateJitteredKeyBetween(null, null);
@@ -310,7 +304,7 @@ const handleDrop = action(function* (
   }
 
   if (isTask(dropItem)) {
-    yield* cardsTasksSlice.update(dropItem.id, {
+    yield* cardsTasksSlice.updateTask(dropItem.id, {
       projectCategoryId: categoryId,
       orderToken,
     });
@@ -318,7 +312,7 @@ const handleDrop = action(function* (
     // When dropping a projection onto a category, move the underlying task
     const task = yield* cardsTasksSlice.byId(dropItem.id);
     if (task) {
-      yield* cardsTasksSlice.update(task.id, {
+      yield* cardsTasksSlice.updateTask(task.id, {
         projectCategoryId: categoryId,
         orderToken,
       });
@@ -327,7 +321,7 @@ const handleDrop = action(function* (
   }
 });
 
-const canDrop = selector(function* (
+export const canDrop = selector(function* (
   _categoryId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -349,7 +343,7 @@ const canDrop = selector(function* (
   return false;
 });
 
-export const projectCategoriesSlice = {
+const projectCategoriesSlice = {
   byId,
   byIdOrDefault,
   all,

@@ -14,10 +14,11 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
-import { appSlice } from "./app";
-import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
-import { projectCategoryCardsSlice } from "./projectsCategoriesCards";
-import { dailyListsSlice } from "./dailyLists";
+import { appSlice } from ".";
+import { cardsTasksSlice } from ".";
+import { isTask, type Task } from "./cardsTasks";
+import { projectCategoryCardsSlice } from ".";
+import { dailyListsSlice } from ".";
 import { parse } from "date-fns";
 
 // Type definitions
@@ -57,14 +58,14 @@ export const taskProjectionsTable = table<TaskProjection>(
 registerSpaceSyncableTable(taskProjectionsTable, projectionType);
 
 // Selectors and actions
-const allIds = selector(function* () {
+export const allIds = selector(function* () {
   const projections = yield* runQuery(
     selectFrom(taskProjectionsTable, "byIds").where((q) => q),
   );
   return projections.map((p) => p.id);
 });
 
-const byId = selector(function* (id: string) {
+export const byId = selector(function* (id: string) {
   const projections = yield* runQuery(
     selectFrom(taskProjectionsTable, "byId")
       .where((q) => q.eq("id", id))
@@ -73,7 +74,7 @@ const byId = selector(function* (id: string) {
   return projections[0] as TaskProjection | undefined;
 });
 
-const byIds = selector(function* (ids: string[]) {
+export const byIds = selector(function* (ids: string[]) {
   const projections = yield* runQuery(
     selectFrom(taskProjectionsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
@@ -82,23 +83,23 @@ const byIds = selector(function* (ids: string[]) {
   return projections as TaskProjection[];
 });
 
-const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* (id: string) {
   return (yield* byId(id)) || defaultTaskProjection;
 });
 
 // Get projection for a task (since id = taskId, this is the same as byId)
-const byTaskId = selector(function* (taskId: string) {
+export const byTaskId = selector(function* (taskId: string) {
   return yield* byId(taskId);
 });
 
 // Check if a task has a projection (is in a daily list)
-const hasProjection = selector(function* (taskId: string) {
+export const hasProjection = selector(function* (taskId: string) {
   const projection = yield* byId(taskId);
   return projection !== undefined;
 });
 
 // Get all projections for a daily list
-const byDailyListId = selector(function* (dailyListId: string) {
+export const byDailyListId = selector(function* (dailyListId: string) {
   return (yield* runQuery(
     selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
       q.eq("dailyListId", dailyListId),
@@ -107,7 +108,7 @@ const byDailyListId = selector(function* (dailyListId: string) {
 });
 
 // Get all task ids in a specific daily list (non-done, ordered)
-const childrenIds = selector(function* (
+export const childrenIds = selector(function* (
   dailyListId: string,
 ): Generator<unknown, string[], unknown> {
   const projections = yield* byDailyListId(dailyListId);
@@ -123,7 +124,7 @@ const childrenIds = selector(function* (
   return result;
 });
 
-const getDateOfTask = selector(function* (
+export const getDateOfTask = selector(function* (
   taskId: string,
 ): Generator<unknown, Date | undefined, unknown> {
   const projection = yield* byTaskId(taskId);
@@ -136,7 +137,7 @@ const getDateOfTask = selector(function* (
 });
 
 // Get all done task ids in a daily list (sorted by lastToggledAt)
-const doneChildrenIds = selector(function* (
+export const doneChildrenIds = selector(function* (
   dailyListId: string,
 ): Generator<unknown, string[], unknown> {
   const projections = yield* byDailyListId(dailyListId);
@@ -155,7 +156,7 @@ const doneChildrenIds = selector(function* (
 });
 
 // Get first task in daily list
-const firstChild = selector(function* (
+export const firstChild = selector(function* (
   dailyListId: string,
 ): Generator<unknown, Task | undefined, unknown> {
   const ids = yield* childrenIds(dailyListId);
@@ -166,7 +167,7 @@ const firstChild = selector(function* (
 });
 
 // Get last task in daily list
-const lastChild = selector(function* (
+export const lastChild = selector(function* (
   dailyListId: string,
 ): Generator<unknown, Task | undefined, unknown> {
   const ids = yield* childrenIds(dailyListId);
@@ -177,7 +178,7 @@ const lastChild = selector(function* (
 });
 
 // Get siblings of a task within its daily list
-const siblings = selector(function* (taskId: string) {
+export const siblings = selector(function* (taskId: string) {
   const projection = yield* byTaskId(taskId);
   if (!projection)
     return [undefined, undefined] as [
@@ -202,7 +203,7 @@ const siblings = selector(function* (taskId: string) {
 });
 
 // Check if a projection can accept another model being dropped
-const canDrop = selector(function* (
+export const canDrop = selector(function* (
   projectionId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -234,7 +235,7 @@ const canDrop = selector(function* (
 });
 
 // Handle drop operations
-const handleDrop = action(function* (
+export const handleDrop = action(function* (
   projectionId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -282,11 +283,11 @@ const handleDrop = action(function* (
   }
 });
 
-const deleteProjections = action(function* (ids: string[]) {
+export const deleteProjections = action(function* (ids: string[]) {
   yield* deleteRows(taskProjectionsTable, ids);
 });
 
-const createProjection = action(function* (projection: {
+export const createProjection = action(function* (projection: {
   id: string; // This should be the task.id
   dailyListId: string;
   orderToken: string;
@@ -303,7 +304,7 @@ const createProjection = action(function* (projection: {
   return newProjection;
 });
 
-const updateProjection = action(function* (
+export const updateProjection = action(function* (
   id: string,
   projection: Partial<TaskProjection>,
 ): Generator<unknown, void, unknown> {
@@ -314,7 +315,7 @@ const updateProjection = action(function* (
 });
 
 // Create or update projection for a task
-const upsert = action(function* (projection: {
+export const upsert = action(function* (projection: {
   id: string;
   dailyListId: string;
   orderToken: string;
@@ -333,7 +334,7 @@ const upsert = action(function* (projection: {
 });
 
 // Create a sibling task in the daily list
-const createSibling = action(function* (
+export const createSibling = action(function* (
   taskId: string,
   position: "before" | "after",
   taskParams?: Partial<Task>,
@@ -367,12 +368,12 @@ const createSibling = action(function* (
 });
 
 // Remove task from daily list
-const removeFromDailyList = action(function* (taskId: string) {
+export const removeFromDailyList = action(function* (taskId: string) {
   yield* deleteProjections([taskId]);
 });
 
 // Add task to daily list
-const addToDailyList = action(function* (
+export const addToDailyList = action(function* (
   taskId: string,
   dailyListId: string,
   position:
@@ -411,34 +412,13 @@ const addToDailyList = action(function* (
   });
 });
 
-// Slice
-export const dailyListsProjectionsSlice = {
-  allIds,
-  byId,
-  byIds,
-  byIdOrDefault,
-  byTaskId,
-  hasProjection,
-  byDailyListId,
-  childrenIds,
-  getDateOfTask,
-  doneChildrenIds,
-  firstChild,
-  lastChild,
-  siblings,
-  canDrop,
-  handleDrop,
-  delete: deleteProjections,
-  create: createProjection,
-  update: updateProjection,
-  upsert,
-  createSibling,
-  removeFromDailyList,
-  addToDailyList,
-};
-
 registerModelSlice(
-  dailyListsProjectionsSlice,
+  {
+    byId,
+    delete: deleteProjections,
+    canDrop,
+    handleDrop,
+  },
   taskProjectionsTable,
   projectionType,
 );

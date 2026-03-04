@@ -2,12 +2,13 @@ import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useDispatch, useSyncSelector, useSelect } from "@will-be-done/hyperdb";
 import {
-  DailyList,
   dailyListsSlice,
   dailyListsProjectionsSlice,
   projectsSlice,
   appSlice,
+  type DailyList,
 } from "@will-be-done/slices/space";
+
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
@@ -144,127 +145,127 @@ const SingleDayColumn = ({
       data-column-model-type={dailyList.type}
       className="flex flex-col w-full mt-5"
     >
-        {/* Date header with navigation arrows */}
-        <div className="flex items-center justify-between mb-5">
-          <Link
-            to="/spaces/$spaceId/dates/$date"
-            params={{
-              date: format(previousDate, "yyyy-MM-dd"),
-              spaceId,
-            }}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-content-tinted hover:text-primary hover:bg-surface-elevated transition-colors"
-            aria-label="Previous day"
-          >
-            <ChevronLeft />
-          </Link>
-
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <div className="flex items-baseline gap-2.5 cursor-pointer transition-opacity select-none">
-                <span className="text-xs text-subheader">
-                  {format(dailyList.date, "dd MMM")}
-                </span>
-                <span
-                  className={cn("uppercase text-content text-3xl font-bold", {
-                    "text-accent": isToday,
-                  })}
-                >
-                  {format(dailyList.date, "EEEE")}
-                </span>
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="center">
-              <Calendar
-                mode="single"
-                selected={new Date(dailyList.date)}
-                onSelect={(date) => {
-                  if (date) {
-                    void navigate({
-                      to: "/spaces/$spaceId/dates/$date",
-                      params: {
-                        spaceId,
-                        date: format(date, "yyyy-MM-dd"),
-                      },
-                    });
-                    setCalendarOpen(false);
-                  }
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-
-          <Link
-            to="/spaces/$spaceId/dates/$date"
-            params={{
-              date: format(nextDate, "yyyy-MM-dd"),
-              spaceId,
-            }}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-content-tinted hover:text-primary hover:bg-surface-elevated transition-colors"
-            aria-label="Next day"
-          >
-            <ChevronRight />
-          </Link>
-        </div>
-
-        {/* Add task row at the top of the list */}
-        <button
-          type="button"
-          onClick={() => onTaskAdd(dailyList)}
-          className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 mb-3 transition-colors group cursor-pointer"
+      {/* Date header with navigation arrows */}
+      <div className="flex items-center justify-between mb-5">
+        <Link
+          to="/spaces/$spaceId/dates/$date"
+          params={{
+            date: format(previousDate, "yyyy-MM-dd"),
+            spaceId,
+          }}
+          className="w-8 h-8 flex items-center justify-center rounded-md text-content-tinted hover:text-primary hover:bg-surface-elevated transition-colors"
+          aria-label="Previous day"
         >
-          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 8 8"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M4 1v6M1 4h6"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </span>
-          <span>Add task</span>
-        </button>
+          <ChevronLeft />
+        </Link>
 
-        <div
-          ref={scrollableRef}
-          className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <div className="flex items-baseline gap-2.5 cursor-pointer transition-opacity select-none">
+              <span className="text-xs text-subheader">
+                {format(dailyList.date, "dd MMM")}
+              </span>
+              <span
+                className={cn("uppercase text-content text-3xl font-bold", {
+                  "text-accent": isToday,
+                })}
+              >
+                {format(dailyList.date, "EEEE")}
+              </span>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="center">
+            <Calendar
+              mode="single"
+              selected={new Date(dailyList.date)}
+              onSelect={(date) => {
+                if (date) {
+                  void navigate({
+                    to: "/spaces/$spaceId/dates/$date",
+                    params: {
+                      spaceId,
+                      date: format(date, "yyyy-MM-dd"),
+                    },
+                  });
+                  setCalendarOpen(false);
+                }
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Link
+          to="/spaces/$spaceId/dates/$date"
+          params={{
+            date: format(nextDate, "yyyy-MM-dd"),
+            spaceId,
+          }}
+          className="w-8 h-8 flex items-center justify-center rounded-md text-content-tinted hover:text-primary hover:bg-surface-elevated transition-colors"
+          aria-label="Next day"
         >
-          {taskIds.map((id) => (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType="projection"
-              alwaysShowProject
-              displayLastScheduleTime
-              centerScheduleDate
-            />
-          ))}
+          <ChevronRight />
+        </Link>
+      </div>
 
-          {doneTaskIds.map((id) => (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType="projection"
-              alwaysShowProject
-              displayLastScheduleTime
-              centerScheduleDate
+      {/* Add task row at the top of the list */}
+      <button
+        type="button"
+        onClick={() => onTaskAdd(dailyList)}
+        className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 mb-3 transition-colors group cursor-pointer"
+      >
+        <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+          <svg
+            width="8"
+            height="8"
+            viewBox="0 0 8 8"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M4 1v6M1 4h6"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
             />
-          ))}
+          </svg>
+        </span>
+        <span>Add task</span>
+      </button>
 
-          {/* {taskIds.length === 0 && doneTaskIds.length === 0 && ( */}
-          {/*   <div className="text-content-tinted text-sm text-center py-8"> */}
-          {/*     No tasks for this day */}
-          {/*   </div> */}
-          {/* )} */}
-        </div>
+      <div
+        ref={scrollableRef}
+        className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
+      >
+        {taskIds.map((id) => (
+          <TaskComp
+            key={id}
+            taskId={id}
+            cardWrapperId={id}
+            cardWrapperType="projection"
+            alwaysShowProject
+            displayLastScheduleTime
+            centerScheduleDate
+          />
+        ))}
+
+        {doneTaskIds.map((id) => (
+          <TaskComp
+            key={id}
+            taskId={id}
+            cardWrapperId={id}
+            cardWrapperType="projection"
+            alwaysShowProject
+            displayLastScheduleTime
+            centerScheduleDate
+          />
+        ))}
+
+        {/* {taskIds.length === 0 && doneTaskIds.length === 0 && ( */}
+        {/*   <div className="text-content-tinted text-sm text-center py-8"> */}
+        {/*     No tasks for this day */}
+        {/*   </div> */}
+        {/* )} */}
+      </div>
     </div>
   );
 };

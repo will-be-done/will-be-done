@@ -3,13 +3,16 @@ import { defaultTask } from "./cardsTasks";
 import { AnyModel, AnyModelType, appTypeSlicesMap } from "./maps";
 
 // Selectors and actions
-const byId = selector(function* (id: string, modelType: AnyModelType) {
+export const byId = selector(function* (id: string, modelType: AnyModelType) {
   const slice = appTypeSlicesMap[modelType];
   if (!slice) throw new Error(`Unknown model type: ${modelType}`);
   return (yield* slice.byId(id)) as AnyModel | undefined;
 });
 
-const byIdOrDefault = selector(function* (id: string, modelType: AnyModelType) {
+export const byIdOrDefault = selector(function* (
+  id: string,
+  modelType: AnyModelType,
+) {
   const entity = yield* byId(id, modelType);
   if (!entity) {
     return defaultTask as AnyModel;
@@ -18,7 +21,7 @@ const byIdOrDefault = selector(function* (id: string, modelType: AnyModelType) {
   return entity;
 });
 
-const canDrop = selector(function* (
+export const canDrop = selector(function* (
   id: string,
   modelType: AnyModelType,
   dropId: string,
@@ -33,7 +36,7 @@ const canDrop = selector(function* (
   return yield* slice.canDrop(id, dropId, dropModelType);
 });
 
-const handleDrop = action(function* (
+export const handleDrop = action(function* (
   id: string,
   modelType: AnyModelType,
   dropId: string,
@@ -49,7 +52,7 @@ const handleDrop = action(function* (
   yield* slice.handleDrop(id, dropId, dropModelType, edge);
 });
 
-const deleteModel = action(function* (
+export const deleteModel = action(function* (
   id: string,
   modelType: AnyModelType,
 ): Generator<unknown, void, unknown> {
@@ -61,12 +64,3 @@ const deleteModel = action(function* (
 
   yield* slice.delete([id]);
 });
-
-// Slice
-export const appSlice = {
-  byId,
-  byIdOrDefault,
-  canDrop,
-  handleDrop,
-  delete: deleteModel,
-};
