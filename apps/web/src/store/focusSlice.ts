@@ -178,6 +178,7 @@ export const focusSlice = {
     yield* update(focusTable, [updatedState]);
 
     if (skipElFocus) return;
+    console.log("focus", key);
 
     setTimeout(() => {
       const elements = document.querySelectorAll<HTMLElement>(

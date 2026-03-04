@@ -33,8 +33,8 @@ const ProjectTasksColumn = ({
 }) => {
   const dispatch = useDispatch();
 
-  const todoTaskIds = useSyncSelector(
-    () => projectCategoryCardsSlice.childrenIds(category.id),
+  const cardsWithTypes = useSyncSelector(
+    () => projectCategoryCardsSlice.childrenIdsWithTypes(category.id),
     [category.id],
   );
   const doneTaskIds = useSyncSelector(
@@ -43,7 +43,7 @@ const ProjectTasksColumn = ({
   );
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
   const isHidden =
-    isHiddenClicked || (doneTaskIds.length == 0 && todoTaskIds.length == 0);
+    isHiddenClicked || (doneTaskIds.length == 0 && cardsWithTypes.length == 0);
   const handleAddClick = () => {
     if (isHidden) {
       setIsHiddenClicked(false);
@@ -193,15 +193,15 @@ const ProjectTasksColumn = ({
     >
       <div className="flex flex-col gap-4 w-full py-4">
         {(exceptTaskIds
-          ? todoTaskIds.filter((id) => !exceptTaskIds.has(id))
+          ? cardsWithTypes.filter(({ id }) => !exceptTaskIds.has(id))
           : []
-        ).map((id) => {
+        ).map(({ id, type }) => {
           return (
             <TaskComp
               key={id}
               taskId={id}
               cardWrapperId={id}
-              cardWrapperType="task"
+              cardWrapperType={type}
               displayedUnderProjectId={project.id}
               displayLastScheduleTime
             />

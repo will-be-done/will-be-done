@@ -67,9 +67,9 @@ const CategorySection = ({
     [categoryId],
   );
 
-  const todoTaskIds = useSyncSelector(
-    () => projectCategoryCardsSlice.childrenIds(categoryId),
-    [categoryId],
+  const cardsWithTypes = useSyncSelector(
+    () => projectCategoryCardsSlice.childrenIdsWithTypes(category.id),
+    [category.id],
   );
 
   const doneTaskIds = useSyncSelector(
@@ -91,7 +91,12 @@ const CategorySection = ({
         const data = source.data;
         if (!isModelDNDData(data)) return false;
         return select(
-          appSlice.canDrop(categoryId, category.type, data.modelId, data.modelType),
+          appSlice.canDrop(
+            categoryId,
+            category.type,
+            data.modelId,
+            data.modelType,
+          ),
         );
       },
       getIsSticky: () => true,
@@ -131,9 +136,14 @@ const CategorySection = ({
   return (
     <div className="mb-5">
       {/* Category header */}
-      <div className={cn("flex items-center gap-1 mb-2 px-1 rounded-md transition-all", {
-        "ring-2 ring-accent": isDndOver || isPlaceholderFocused,
-      })}>
+      <div
+        className={cn(
+          "flex items-center gap-1 mb-2 px-1 rounded-md transition-all",
+          {
+            "ring-2 ring-accent": isDndOver || isPlaceholderFocused,
+          },
+        )}
+      >
         <button
           type="button"
           onClick={handleTitleClick}
@@ -201,12 +211,12 @@ const CategorySection = ({
         className="relative"
       >
         <div className="flex flex-col gap-2">
-          {todoTaskIds.map((id) => (
+          {cardsWithTypes.map(({ id, type }) => (
             <TaskComp
               key={id}
               taskId={id}
               cardWrapperId={id}
-              cardWrapperType="task"
+              cardWrapperType={type}
               displayedUnderProjectId={projectId}
               displayLastScheduleTime
             />
@@ -233,7 +243,11 @@ const CategorySection = ({
         </div>
         <div
           data-focus-placeholder
-          data-focusable-key={buildFocusKey(categoryId, category.type, "Column")}
+          data-focusable-key={buildFocusKey(
+            categoryId,
+            category.type,
+            "Column",
+          )}
           tabIndex={0}
           className="absolute w-0 h-0 overflow-hidden outline-none"
           onFocus={() => setIsPlaceholderFocused(true)}
@@ -320,7 +334,10 @@ export const ProjectTaskPanel = ({
           {project.title}
         </span>
       </div>
-      <div data-focus-region-direction="column" className="flex-1 overflow-y-auto px-3 pb-4">
+      <div
+        data-focus-region-direction="column"
+        className="flex-1 overflow-y-auto px-3 pb-4"
+      >
         {categories.map((cat) => (
           <CategorySection
             key={cat.id}

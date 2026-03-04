@@ -11,18 +11,26 @@ import {
   RefreshCw,
   Pencil,
   X as XIcon,
+  FileOutput,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { focusSlice, parseColumnKey } from "@/store/focusSlice.ts";
+import {
+  buildFocusKey,
+  focusSlice,
+  parseColumnKey,
+} from "@/store/focusSlice.ts";
 import {
   projectCategoryCardsSlice,
   projectCategoriesSlice,
   dailyListsProjectionsSlice,
   isTask,
+  isTaskTemplate,
   cardsTasksSlice,
   cardsTaskTemplatesSlice,
+  TaskTemplate,
+  cardsSlice,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CheckboxComp } from "@/components/Task/Task.tsx";
@@ -30,6 +38,7 @@ import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
 import TextareaAutosize from "react-textarea-autosize";
+import { AnimatePresence, motion } from "motion/react";
 
 // ─── Persistent position (survives task switches) ─────────────────────────────
 let savedPosition: { x: number; y: number } | null = null;
@@ -57,16 +66,22 @@ export function TaskDetails() {
   // MoveModal has focus disabled.
   const focusKey = useSyncSelector(() => focusSlice.getFocusKey(), []);
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
-  const isTaskFocused =
-    parsed?.type === "task" || parsed?.type === "projection";
-  const taskId = isTaskFocused ? parsed.id : null;
-  const isVisible = !!taskId;
+  const isCardFocused =
+    parsed?.type === "task" ||
+    parsed?.type === "projection" ||
+    parsed?.type === "template";
+  const cardId = isCardFocused ? parsed.id : null;
+  const isVisible = !!cardId;
+  const exists = useSyncSelector(
+    () => cardsSlice.exists(cardId || ""),
+    [cardId],
+  );
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const isEditingTitle = editingTaskId === taskId;
+  const isEditingTitle = editingTaskId === cardId;
   const setIsEditingTitle = useCallback(
-    (v: boolean) => setEditingTaskId(v ? taskId : null),
-    [taskId],
+    (v: boolean) => setEditingTaskId(v ? cardId : null),
+    [cardId],
   );
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
@@ -141,48 +156,56 @@ export function TaskDetails() {
     startPositionRef.current = position;
   };
 
-  if (!isVisible || !taskId) return null;
+  if (!exists) return null;
 
   return (
-    <div
-      className="hidden sm:block fixed z-50 w-72"
-      style={{ left: position.x, top: position.y }}
-    >
-      <div className="rounded-xl ring-1 ring-task-panel-ring bg-task-panel overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.75)]">
-        {/* Drag bar */}
-        <div
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing select-none",
-            !isCollapsed && "border-b border-task-panel-divider",
-          )}
-          onPointerDown={handleDragBarPointerDown}
+    <AnimatePresence>
+      {isVisible && cardId && (
+        <motion.div
+          initial={{ opacity: 0, y: 8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.97 }}
+          transition={{ duration: 0.18, ease: "easeOut" }}
+          className="hidden sm:block fixed z-50 w-72"
+          style={{ left: position.x, top: position.y }}
         >
-          <GripHorizontal className="h-3.5 w-3.5 text-content-tinted shrink-0" />
-          <span className="text-content-tinted text-xs font-medium flex-1">
-            Task Details
-          </span>
-          <button
-            className="cursor-pointer text-content-tinted hover:text-content transition-colors shrink-0"
-            onClick={() => setIsCollapsed((c) => !c)}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            {isCollapsed ? (
-              <ChevronDown className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronUp className="h-3.5 w-3.5" />
-            )}
-          </button>
-        </div>
+          <div className="rounded-xl ring-1 ring-task-panel-ring bg-task-panel overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.75)]">
+            {/* Drag bar */}
+            <div
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing select-none",
+                !isCollapsed && "border-b border-task-panel-divider",
+              )}
+              onPointerDown={handleDragBarPointerDown}
+            >
+              <GripHorizontal className="h-3.5 w-3.5 text-content-tinted shrink-0" />
+              <span className="text-content-tinted text-xs font-medium flex-1">
+                Task Details
+              </span>
+              <button
+                className="cursor-pointer text-content-tinted hover:text-content transition-colors shrink-0"
+                onClick={() => setIsCollapsed((c) => !c)}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                {isCollapsed ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
 
-        {!isCollapsed && (
-          <TaskDetailsBody
-            taskId={taskId}
-            isEditingTitle={isEditingTitle}
-            setIsEditingTitle={setIsEditingTitle}
-          />
-        )}
-      </div>
-    </div>
+            {!isCollapsed && (
+              <TaskDetailsBody
+                taskId={cardId}
+                isEditingTitle={isEditingTitle}
+                setIsEditingTitle={setIsEditingTitle}
+              />
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -197,51 +220,58 @@ function TaskDetailsBody({
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
 }) {
-  const dispatch = useDispatch();
-
   const card = useSyncSelector(
-    () => projectCategoryCardsSlice.byIdOrDefault(taskId),
-    [taskId],
-  );
-  const project = useSyncSelector(
-    () =>
-      projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
-    [card.projectCategoryId],
-  );
-  const projectCategories = useSyncSelector(
-    () => projectCategoriesSlice.byProjectId(project.id),
-    [project.id],
-  );
-  const scheduleDate = useSyncSelector(
-    () => dailyListsProjectionsSlice.getDateOfTask(taskId),
+    () => projectCategoryCardsSlice.byId(taskId),
     [taskId],
   );
 
-  const taskTemplateId = isTask(card) ? (card.templateId ?? null) : null;
-  const template = useSyncSelector(
-    () => cardsTaskTemplatesSlice.byId(taskTemplateId ?? ""),
-    [taskTemplateId],
-  );
-  const ruleText = useSyncSelector(
-    () => cardsTaskTemplatesSlice.ruleText(taskTemplateId ?? ""),
-    [taskTemplateId],
-  );
+  if (isTask(card)) {
+    return (
+      <TaskBody
+        card={card}
+        isEditingTitle={isEditingTitle}
+        setIsEditingTitle={setIsEditingTitle}
+      />
+    );
+  }
 
+  if (isTaskTemplate(card)) {
+    return (
+      <TemplateBody
+        card={card}
+        isEditingTitle={isEditingTitle}
+        setIsEditingTitle={setIsEditingTitle}
+      />
+    );
+  }
+
+  return null;
+}
+
+// ─── Shared title editing ─────────────────────────────────────────────────────
+
+function useTitleEditing({
+  title,
+  setIsEditingTitle,
+  onSave,
+}: {
+  title: string;
+  setIsEditingTitle: (v: boolean) => void;
+  onSave: (trimmed: string) => void;
+}) {
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
-  const editingTitle = titleDraft ?? card.title;
-  const [isMoveProjectModalOpen, setIsMoveProjectModalOpen] = useState(false);
-  const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
+  const editingTitle = titleDraft ?? title;
 
   const saveTitle = useCallback(() => {
     if (titleDraft !== null) {
       const trimmed = titleDraft.trim();
-      if (trimmed && trimmed !== card.title) {
-        dispatch(cardsTasksSlice.update(taskId, { title: trimmed }));
+      if (trimmed && trimmed !== title) {
+        onSave(trimmed);
       }
       setTitleDraft(null);
     }
     setIsEditingTitle(false);
-  }, [card.title, dispatch, titleDraft, setIsEditingTitle, taskId]);
+  }, [title, titleDraft, setIsEditingTitle, onSave]);
 
   const handleTitleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -260,8 +290,74 @@ function TaskDetailsBody({
     el.selectionStart = el.value.length;
   }, []);
 
+  return {
+    editingTitle,
+    setTitleDraft,
+    saveTitle,
+    handleTitleKeyDown,
+    textareaRef,
+  };
+}
+
+// ─── Task body ────────────────────────────────────────────────────────────────
+
+function TaskBody({
+  card,
+  isEditingTitle,
+  setIsEditingTitle,
+}: {
+  card: import("@will-be-done/slices/space").Task;
+  isEditingTitle: boolean;
+  setIsEditingTitle: (v: boolean) => void;
+}) {
+  const dispatch = useDispatch();
+  const taskId = card.id;
+
+  const project = useSyncSelector(
+    () =>
+      projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
+    [card.projectCategoryId],
+  );
+  const projectCategories = useSyncSelector(
+    () => projectCategoriesSlice.byProjectId(project.id),
+    [project.id],
+  );
+  const scheduleDate = useSyncSelector(
+    () => dailyListsProjectionsSlice.getDateOfTask(taskId),
+    [taskId],
+  );
+
+  const taskTemplateId = card.templateId ?? null;
+  const template = useSyncSelector(
+    () => cardsTaskTemplatesSlice.byId(taskTemplateId ?? ""),
+    [taskTemplateId],
+  );
+  const ruleText = useSyncSelector(
+    () => cardsTaskTemplatesSlice.ruleText(taskTemplateId ?? ""),
+    [taskTemplateId],
+  );
+
+  const [isMoveProjectModalOpen, setIsMoveProjectModalOpen] = useState(false);
+  const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
+
+  const {
+    editingTitle,
+    setTitleDraft,
+    saveTitle,
+    handleTitleKeyDown,
+    textareaRef,
+  } = useTitleEditing({
+    title: card.title,
+    setIsEditingTitle,
+    onSave: useCallback(
+      (trimmed: string) =>
+        dispatch(cardsTasksSlice.update(taskId, { title: trimmed })),
+      [dispatch, taskId],
+    ),
+  });
+
   const handleRemoveRepeat = useCallback(() => {
-    if (!isTask(card) || !card.templateId) return;
+    if (!card.templateId) return;
     if (
       window.confirm(
         "Remove repeat template? This will unlink all generated tasks.",
@@ -269,12 +365,11 @@ function TaskDetailsBody({
     ) {
       dispatch(cardsTaskTemplatesSlice.delete([card.templateId]));
     }
-  }, [card, dispatch]);
+  }, [card.templateId, dispatch]);
 
   const handleRepeatConfirm = useCallback(
     (ruleString: string) => {
       setIsRepeatModalOpen(false);
-      if (!isTask(card)) return;
       if (card.templateId) {
         dispatch(
           cardsTaskTemplatesSlice.update(card.templateId, {
@@ -282,17 +377,21 @@ function TaskDetailsBody({
           }),
         );
       } else {
-        dispatch(
+        const template = dispatch(
           cardsTaskTemplatesSlice.createFromTask(card, {
             repeatRule: ruleString,
           }),
+        );
+
+        console.log("template created", template);
+
+        dispatch(
+          focusSlice.focusByKey(buildFocusKey(template.id, template.type)),
         );
       }
     },
     [card, dispatch],
   );
-
-  if (!isTask(card)) return null;
 
   return (
     <div className="px-3 py-3 space-y-3">
@@ -463,6 +562,203 @@ function TaskDetailsBody({
   );
 }
 
+// ─── Template body ────────────────────────────────────────────────────────────
+
+function TemplateBody({
+  card,
+  isEditingTitle,
+  setIsEditingTitle,
+}: {
+  card: TaskTemplate;
+  isEditingTitle: boolean;
+  setIsEditingTitle: (v: boolean) => void;
+}) {
+  const dispatch = useDispatch();
+  const templateId = card.id;
+
+  const project = useSyncSelector(
+    () =>
+      projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
+    [card.projectCategoryId],
+  );
+  const projectCategories = useSyncSelector(
+    () => projectCategoriesSlice.byProjectId(project.id),
+    [project.id],
+  );
+
+  const ruleText = useSyncSelector(
+    () => cardsTaskTemplatesSlice.ruleText(templateId),
+    [templateId],
+  );
+
+  const [isMoveProjectModalOpen, setIsMoveProjectModalOpen] = useState(false);
+  const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
+
+  const {
+    editingTitle,
+    setTitleDraft,
+    saveTitle,
+    handleTitleKeyDown,
+    textareaRef,
+  } = useTitleEditing({
+    title: card.title,
+    setIsEditingTitle,
+    onSave: useCallback(
+      (trimmed: string) =>
+        dispatch(
+          cardsTaskTemplatesSlice.update(templateId, { title: trimmed }),
+        ),
+      [dispatch, templateId],
+    ),
+  });
+
+  const handleConvertToTask = useCallback(() => {
+    const task = dispatch(cardsTasksSlice.createFromTemplate(card));
+
+    dispatch(focusSlice.focusByKey(buildFocusKey(task.id, task.type)));
+  }, [card, dispatch]);
+
+  const handleRepeatConfirm = useCallback(
+    (ruleString: string) => {
+      setIsRepeatModalOpen(false);
+
+      dispatch(
+        cardsTaskTemplatesSlice.update(templateId, {
+          repeatRule: ruleString,
+        }),
+      );
+    },
+    [dispatch, templateId],
+  );
+
+  return (
+    <div className="px-3 py-3 space-y-3">
+      {/* Title row */}
+      <div className="flex items-start gap-2">
+        <RefreshCw
+          className="h-4 w-4 text-accent shrink-0 mt-0.5"
+          strokeWidth={2.5}
+        />
+
+        {isEditingTitle ? (
+          <TextareaAutosize
+            ref={textareaRef}
+            value={editingTitle}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={handleTitleKeyDown}
+            onBlur={saveTitle}
+            className="flex-1 bg-transparent resize-none focus:outline-none text-sm font-medium text-content leading-snug"
+          />
+        ) : (
+          <div
+            className="flex-1 text-sm font-medium leading-snug cursor-text select-none text-content"
+            onDoubleClick={() => setIsEditingTitle(true)}
+            title="Double-click to edit"
+          >
+            {card.title || (
+              <span className="italic text-content-tinted">Untitled</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Detail rows */}
+      <div className="space-y-2 text-xs">
+        <DetailRow
+          icon={<Folder className="h-3 w-3 shrink-0" />}
+          label="Project"
+        >
+          <button
+            className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left"
+            onClick={() => setIsMoveProjectModalOpen(true)}
+          >
+            {project.icon || "🟡"} {project.title}
+          </button>
+        </DetailRow>
+
+        <DetailRow
+          icon={<Hash className="h-3 w-3 shrink-0" />}
+          label="Category"
+        >
+          <select
+            value={card.projectCategoryId}
+            onChange={(e) =>
+              dispatch(
+                cardsTaskTemplatesSlice.update(templateId, {
+                  projectCategoryId: e.target.value,
+                }),
+              )
+            }
+            className="bg-transparent text-content text-xs focus:outline-none cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors"
+          >
+            {projectCategories.map((cat) => (
+              <option
+                key={cat.id}
+                value={cat.id}
+                className="bg-panel text-content"
+              >
+                {cat.title}
+              </option>
+            ))}
+          </select>
+        </DetailRow>
+
+        <DetailRow
+          icon={<RefreshCw className="h-3 w-3 shrink-0" />}
+          label="Repeat"
+        >
+          <button
+            className="cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left italic"
+            onClick={() => setIsRepeatModalOpen(true)}
+          >
+            {ruleText || "custom"}
+          </button>
+        </DetailRow>
+
+        <DetailRow
+          icon={<CalendarDays className="h-3 w-3 shrink-0" />}
+          label="Created"
+        >
+          {format(new Date(card.createdAt), "MMM d, yyyy, h:mm a")}
+        </DetailRow>
+      </div>
+
+      {/* Convert to task button */}
+      <button
+        onClick={handleConvertToTask}
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-content-tinted border border-border hover:bg-task-panel-hover hover:text-content transition-colors cursor-pointer"
+      >
+        <FileOutput className="h-3 w-3" />
+        Convert to task
+      </button>
+
+      {isMoveProjectModalOpen && (
+        <MoveModal
+          setIsOpen={setIsMoveProjectModalOpen}
+          handleMove={(projectId) => {
+            dispatch(
+              cardsTaskTemplatesSlice.moveTemplateToProject(
+                templateId,
+                projectId,
+              ),
+            );
+            setIsMoveProjectModalOpen(false);
+          }}
+          exceptProjectId={project.id}
+        />
+      )}
+
+      {isRepeatModalOpen && (
+        <RepeatModal
+          initialRule={card.repeatRule}
+          onConfirm={handleRepeatConfirm}
+          onCancel={() => setIsRepeatModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Shared row ───────────────────────────────────────────────────────────────
 
 function DetailRow({
@@ -477,7 +773,7 @@ function DetailRow({
   return (
     <div className="flex items-start gap-2">
       <span className="text-content-tinted mt-0.5">{icon}</span>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex">
         <span className="text-content-tinted mr-1">{label}: </span>
         <span className="text-content">{children}</span>
       </div>
