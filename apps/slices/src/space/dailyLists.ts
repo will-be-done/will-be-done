@@ -8,7 +8,7 @@ import {
   selector,
   table,
 } from "@will-be-done/hyperdb";
-import type { GenReturn, OrderableItem } from "./utils";
+import type { OrderableItem } from "./utils";
 import { getDMY } from "./utils";
 import { appSlice } from "./app";
 import { isTask, cardsTasksSlice, type Task } from "./cardsTasks";
@@ -48,205 +48,242 @@ export const dailyListsTable = table<DailyList>("daily_lists").withIndexes({
 });
 registerSpaceSyncableTable(dailyListsTable, dailyListType);
 
+// Selectors and actions
+const allIds = selector(function* () {
+  const dailyLists = yield* runQuery(
+    selectFrom(dailyListsTable, "byIds").where((q) => q),
+  );
+
+  return dailyLists.map((p) => p.id);
+});
+
+const byId = selector(function* (id: string) {
+  const dailyLists = yield* runQuery(
+    selectFrom(dailyListsTable, "byId")
+      .where((q) => q.eq("id", id))
+      .limit(1),
+  );
+  return dailyLists[0] as DailyList | undefined;
+});
+
+const byIds = selector(function* (ids: string[]) {
+  const dailyLists = yield* runQuery(
+    selectFrom(dailyListsTable, "byId").where((q) =>
+      ids.map((id) => q.eq("id", id)),
+    ),
+  );
+  return dailyLists as DailyList[];
+});
+
+const byIdOrDefault = selector(function* (id: string) {
+  return (yield* byId(id)) || defaultDailyList;
+});
+
+const byDate = selector(function* (date: string) {
+  const dailyLists = yield* runQuery(
+    selectFrom(dailyListsTable, "byDate")
+      .where((q) => q.eq("date", date))
+      .limit(1),
+  );
+  return dailyLists[0] as DailyList | undefined;
+});
+
+const childrenIds = selector(function* (
+  dailyListId: string,
+): Generator<unknown, string[], unknown> {
+  return yield* dailyListsProjectionsSlice.childrenIds(dailyListId);
+});
+
+const doneChildrenIds = selector(function* (
+  dailyListId: string,
+): Generator<unknown, string[], unknown> {
+  return yield* dailyListsProjectionsSlice.doneChildrenIds(dailyListId);
+});
+
+const taskIds = selector(function* (dailyListId: string) {
+  return yield* childrenIds(dailyListId);
+});
+
+const allTaskIds = selector(function* (dailyListIds: string[]) {
+  const result = new Set<string>();
+
+  for (const dailyListId of dailyListIds) {
+    const ids = yield* taskIds(dailyListId);
+    ids.forEach((id) => result.add(id));
+  }
+
+  return result;
+});
+
+const dateIdsMap = selector(function* () {
+  const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byIds"));
+  return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id])) as Record<string, string>;
+});
+
+const idsByDates = selector(function* (dates: Date[]) {
+  const map = yield* dateIdsMap();
+  return dates
+    .map((date) => {
+      const dmy = getDMY(date);
+      return map[dmy];
+    })
+    .filter((id) => id !== undefined) as string[];
+});
+
+const firstChild = selector(function* (
+  dailyListId: string,
+): Generator<unknown, Task | undefined, unknown> {
+  return yield* dailyListsProjectionsSlice.firstChild(dailyListId);
+});
+
+const lastChild = selector(function* (
+  dailyListId: string,
+): Generator<unknown, Task | undefined, unknown> {
+  return yield* dailyListsProjectionsSlice.lastChild(dailyListId);
+});
+
+const canDrop = selector(function* (
+  _dailyListId: string,
+  dropId: string,
+  dropModelType: AnyModelType,
+): Generator<unknown, boolean, unknown> {
+  const model = yield* appSlice.byId(dropId, dropModelType);
+  if (!model) return false;
+
+  if (isTask(model)) {
+    return model.state === "todo";
+  }
+
+  if (isTaskProjection(model)) {
+    const task = yield* cardsTasksSlice.byId(model.id);
+    return task !== undefined && task.state === "todo";
+  }
+
+  return false;
+});
+
+const getId = selector(function* (date: string) {
+  return yield* genUUIDV5(dailyListType, date);
+});
+
+const create = action(function* (dailyList: { date: string }) {
+  const id = yield* getId(dailyList.date);
+  const newDailyList: DailyList = {
+    type: dailyListType,
+    id,
+    date: dailyList.date,
+  };
+
+  yield* insert(dailyListsTable, [newDailyList]);
+  return newDailyList;
+});
+
+const createIfNotPresent = action(function* (date: string) {
+  const existing = yield* byDate(date);
+  if (existing) {
+    return existing;
+  }
+
+  return yield* create({ date });
+});
+
+const createManyIfNotPresent = action(function* (dates: Date[]) {
+  const results: DailyList[] = [];
+  for (const date of dates) {
+    const dmy = getDMY(date);
+    const dailyList = yield* createIfNotPresent(dmy);
+    results.push(dailyList);
+  }
+  return results;
+});
+
+const deleteDailyLists = action(function* (ids: string[]) {
+  yield* deleteRows(dailyListsTable, ids);
+});
+
+const createTaskInList = action(function* (
+  dailyListId: string,
+  projectId: string,
+  listPosition:
+    | [OrderableItem | undefined, OrderableItem | undefined]
+    | "append"
+    | "prepend",
+  categoryPosition:
+    | [OrderableItem | undefined, OrderableItem | undefined]
+    | "append"
+    | "prepend",
+): Generator<unknown, Task, unknown> {
+  const task = yield* projectsSlice.createTask(projectId, categoryPosition);
+
+  let position:
+    | "append"
+    | "prepend"
+    | [TaskProjection | undefined, TaskProjection | undefined];
+  if (listPosition === "append" || listPosition === "prepend") {
+    position = listPosition;
+  } else {
+    position = [
+      listPosition[0] as TaskProjection | undefined,
+      listPosition[1] as TaskProjection | undefined,
+    ];
+  }
+
+  yield* dailyListsProjectionsSlice.addToDailyList(
+    task.id,
+    dailyListId,
+    position,
+  );
+
+  return yield* cardsTasksSlice.byIdOrDefault(task.id);
+});
+
+const handleDrop = action(function* (
+  dailyListId: string,
+  dropId: string,
+  dropModelType: AnyModelType,
+  edge: "top" | "bottom",
+): Generator<unknown, void, unknown> {
+  const drop = yield* appSlice.byId(dropId, dropModelType);
+  if (!drop) return;
+
+  let taskId: string;
+  if (isTask(drop)) {
+    taskId = drop.id;
+  } else if (isTaskProjection(drop)) {
+    taskId = drop.id; // projection.id is the same as task.id
+  } else {
+    return;
+  }
+
+  yield* dailyListsProjectionsSlice.addToDailyList(
+    taskId,
+    dailyListId,
+    edge === "top" ? "prepend" : "append",
+  );
+});
+
 // Slice
 export const dailyListsSlice = {
-  // selectors
-  allIds: selector(function* (): GenReturn<string[]> {
-    const dailyLists = yield* runQuery(
-      selectFrom(dailyListsTable, "byIds").where((q) => q),
-    );
-
-    return dailyLists.map((p) => p.id);
-  }),
-  byId: selector(function* (id: string): GenReturn<DailyList | undefined> {
-    const dailyLists = yield* runQuery(
-      selectFrom(dailyListsTable, "byId")
-        .where((q) => q.eq("id", id))
-        .limit(1),
-    );
-    return dailyLists[0];
-  }),
-  byIds: selector(function* (ids: string[]): GenReturn<DailyList[]> {
-    const dailyLists = yield* runQuery(
-      selectFrom(dailyListsTable, "byId").where((q) =>
-        ids.map((id) => q.eq("id", id)),
-      ),
-    );
-    return dailyLists;
-  }),
-  byIdOrDefault: selector(function* (id: string): GenReturn<DailyList> {
-    return (yield* dailyListsSlice.byId(id)) || defaultDailyList;
-  }),
-  byDate: selector(function* (date: string): GenReturn<DailyList | undefined> {
-    const dailyLists = yield* runQuery(
-      selectFrom(dailyListsTable, "byDate")
-        .where((q) => q.eq("date", date))
-        .limit(1),
-    );
-    return dailyLists[0];
-  }),
-  childrenIds: selector(function* (dailyListId: string): GenReturn<string[]> {
-    return yield* dailyListsProjectionsSlice.childrenIds(dailyListId);
-  }),
-  doneChildrenIds: selector(function* (
-    dailyListId: string,
-  ): GenReturn<string[]> {
-    return yield* dailyListsProjectionsSlice.doneChildrenIds(dailyListId);
-  }),
-  taskIds: selector(function* (dailyListId: string): GenReturn<string[]> {
-    return yield* dailyListsSlice.childrenIds(dailyListId);
-  }),
-  allTaskIds: selector(function* (
-    dailyListIds: string[],
-  ): GenReturn<Set<string>> {
-    const allTaskIds = new Set<string>();
-
-    for (const dailyListId of dailyListIds) {
-      const taskIds = yield* dailyListsSlice.taskIds(dailyListId);
-      taskIds.forEach((id) => allTaskIds.add(id));
-    }
-
-    return allTaskIds;
-  }),
-  // TODO: use hash index
-  dateIdsMap: selector(function* (): GenReturn<Record<string, string>> {
-    const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byIds"));
-    return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id]));
-  }),
-  idsByDates: selector(function* (dates: Date[]): GenReturn<string[]> {
-    const dateIdsMap = yield* dailyListsSlice.dateIdsMap();
-    return dates
-      .map((date) => {
-        const dmy = getDMY(date);
-        return dateIdsMap[dmy];
-      })
-      .filter((id) => id !== undefined);
-  }),
-  firstChild: selector(function* (
-    dailyListId: string,
-  ): GenReturn<Task | undefined> {
-    return yield* dailyListsProjectionsSlice.firstChild(dailyListId);
-  }),
-  lastChild: selector(function* (
-    dailyListId: string,
-  ): GenReturn<Task | undefined> {
-    return yield* dailyListsProjectionsSlice.lastChild(dailyListId);
-  }),
-  canDrop: selector(function* (
-    dailyListId: string,
-    dropId: string,
-    dropModelType: AnyModelType,
-  ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(dropId, dropModelType);
-    if (!model) return false;
-
-    if (isTask(model)) {
-      return model.state === "todo";
-    }
-
-    if (isTaskProjection(model)) {
-      const task = yield* cardsTasksSlice.byId(model.id);
-      return task !== undefined && task.state === "todo";
-    }
-
-    return false;
-  }),
-  getId: selector(function* (date: string): GenReturn<string> {
-    return yield* genUUIDV5(dailyListType, date);
-  }),
-
-  // actions
-  create: action(function* (dailyList: { date: string }): GenReturn<DailyList> {
-    const id = yield* dailyListsSlice.getId(dailyList.date);
-    const newDailyList: DailyList = {
-      type: dailyListType,
-      id,
-      date: dailyList.date,
-    };
-
-    yield* insert(dailyListsTable, [newDailyList]);
-    return newDailyList;
-  }),
-  createIfNotPresent: action(function* (date: string): GenReturn<DailyList> {
-    const existing = yield* dailyListsSlice.byDate(date);
-    if (existing) {
-      return existing;
-    }
-
-    return yield* dailyListsSlice.create({ date });
-  }),
-  createManyIfNotPresent: action(function* (
-    dates: Date[],
-  ): GenReturn<DailyList[]> {
-    const results: DailyList[] = [];
-    for (const date of dates) {
-      const dmy = getDMY(date);
-      const dailyList = yield* dailyListsSlice.createIfNotPresent(dmy);
-      results.push(dailyList);
-    }
-    return results;
-  }),
-  delete: action(function* (ids: string[]): GenReturn<void> {
-    yield* deleteRows(dailyListsTable, ids);
-  }),
-  createTaskInList: action(function* (
-    dailyListId: string,
-    projectId: string,
-    listPosition:
-      | [OrderableItem | undefined, OrderableItem | undefined]
-      | "append"
-      | "prepend",
-    categoryPosition:
-      | [OrderableItem | undefined, OrderableItem | undefined]
-      | "append"
-      | "prepend",
-  ): GenReturn<Task> {
-    const task = yield* projectsSlice.createTask(projectId, categoryPosition);
-
-    let position:
-      | "append"
-      | "prepend"
-      | [TaskProjection | undefined, TaskProjection | undefined];
-    if (listPosition === "append" || listPosition === "prepend") {
-      position = listPosition;
-    } else {
-      position = [
-        listPosition[0] as TaskProjection | undefined,
-        listPosition[1] as TaskProjection | undefined,
-      ];
-    }
-
-    yield* dailyListsProjectionsSlice.addToDailyList(
-      task.id,
-      dailyListId,
-      position,
-    );
-
-    return yield* cardsTasksSlice.byIdOrDefault(task.id);
-  }),
-  handleDrop: action(function* (
-    dailyListId: string,
-    dropId: string,
-    dropModelType: AnyModelType,
-    edge: "top" | "bottom",
-  ): GenReturn<void> {
-    const drop = yield* appSlice.byId(dropId, dropModelType);
-    if (!drop) return;
-
-    let taskId: string;
-    if (isTask(drop)) {
-      taskId = drop.id;
-    } else if (isTaskProjection(drop)) {
-      taskId = drop.id; // projection.id is the same as task.id
-    } else {
-      return;
-    }
-
-    yield* dailyListsProjectionsSlice.addToDailyList(
-      taskId,
-      dailyListId,
-      edge === "top" ? "prepend" : "append",
-    );
-  }),
+  allIds,
+  byId,
+  byIds,
+  byIdOrDefault,
+  byDate,
+  childrenIds,
+  doneChildrenIds,
+  taskIds,
+  allTaskIds,
+  dateIdsMap,
+  idsByDates,
+  firstChild,
+  lastChild,
+  canDrop,
+  getId,
+  create,
+  createIfNotPresent,
+  createManyIfNotPresent,
+  delete: deleteDailyLists,
+  createTaskInList,
+  handleDrop,
 };
 registerModelSlice(dailyListsSlice, dailyListsTable, dailyListType);
