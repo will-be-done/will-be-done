@@ -10,7 +10,7 @@ import {
 } from "@will-be-done/slices/space";
 
 import { cn } from "@/lib/utils.ts";
-import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -297,7 +297,7 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
         ),
       );
 
-      dispatch(focusSlice.editByKey(buildFocusKey(task.id, "projection")));
+      useFocusStore.getState().editByKey(buildFocusKey(task.id, "projection"));
     },
     [dispatch, inboxId],
   );

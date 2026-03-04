@@ -2,12 +2,12 @@ import { GlobalListener } from "@/components/GlobalListener/GlobalListener.tsx";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { KeyPressedCtxProvider } from "@/components/GlobalListener/KeyPressedCtxProvider.tsx";
 import { Outlet, redirect, createFileRoute, useRouterState } from "@tanstack/react-router";
-import { TaskDetails } from "@/components/TaskDetails/TaskDetails.tsx";
-import { DBProvider, useDispatch } from "@will-be-done/hyperdb";
+import { CardDetails } from "@/components/CardDetails/CardDetails.tsx";
+import { DBProvider } from "@will-be-done/hyperdb";
 import { initDbStore } from "@/store/load.ts";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
-import { focusSlice } from "@/store/focusSlice.ts";
+import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/spaces/$spaceId")({
@@ -41,7 +41,7 @@ function RouteComponent() {
             <ResetFocusOnNavigate />
 
             <Outlet />
-            <TaskDetails />
+            <CardDetails />
           </KeyPressedCtxProvider>
         </ThemeProvider>
       </DBProvider>
@@ -50,11 +50,10 @@ function RouteComponent() {
 }
 
 function ResetFocusOnNavigate() {
-  const dispatch = useDispatch();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
-    dispatch(focusSlice.resetFocus());
+    useFocusStore.getState().resetFocus();
   }, [pathname]);
 
   return null;

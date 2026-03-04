@@ -1,13 +1,5 @@
 import { shouldNeverHappen } from "@/utils.ts";
-import {
-  action,
-  insert,
-  runQuery,
-  selectFrom,
-  selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+import { create } from "zustand";
 
 export type FocusKey = string & { __brand: never };
 
@@ -59,197 +51,70 @@ export const parseColumnKey = (
   };
 };
 
-export type FocusState = {
-  id: string;
+interface FocusState {
   focusItemKey: FocusKey | null;
   editItemKey: FocusKey | null;
   isFocusDisabled: boolean;
-};
+}
 
-export const focusTable = table<FocusState>("focus").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-});
+interface FocusActions {
+  disableFocus: () => void;
+  enableFocus: () => void;
+  focusByKey: (key: FocusKey, skipElFocus?: boolean) => void;
+  editByKey: (key: FocusKey) => void;
+  resetFocus: () => void;
+  resetEdit: () => void;
+}
 
-const FOCUS_STATE_ID = "Focus-state";
-
-// Create the initial state
-const initialFocusState: FocusState = {
-  id: FOCUS_STATE_ID,
+export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
   focusItemKey: null,
   editItemKey: null,
   isFocusDisabled: false,
-};
 
-const getFocusState = selector(function* () {
-  const states = yield* runQuery(
-    selectFrom(focusTable, "byId")
-      .where((q) => q.eq("id", FOCUS_STATE_ID))
-      .limit(1),
-  );
+  disableFocus: () => set({ isFocusDisabled: true }),
+  enableFocus: () => set({ isFocusDisabled: false }),
 
-  if (states[0] === undefined) {
-    yield* insert(focusTable, [initialFocusState]);
-    return initialFocusState;
-  }
+  focusByKey: (key: FocusKey, skipElFocus = false) => {
+    if (get().focusItemKey === key) return;
 
-  return states[0] as FocusState;
-});
+    set({ focusItemKey: key, editItemKey: null });
 
-const getFocusKey = selector(function* () {
-  const state = yield* getFocusState();
-  return state.focusItemKey;
-});
+    if (skipElFocus) return;
 
-const getFocusedModelId = selector(function* () {
-  const key = yield* getFocusKey();
-  if (!key) return undefined as string | undefined;
-  return parseColumnKey(key).id;
-});
+    setTimeout(() => {
+      const elements = document.querySelectorAll<HTMLElement>(
+        '[data-focusable-key="' + key + '"]',
+      );
 
-const getEditKey = selector(function* () {
-  const state = yield* getFocusState();
-  return state.editItemKey;
-});
+      if (!elements.length) {
+        shouldNeverHappen("focusable element not found", { key });
+        return;
+      }
 
-const isFocusDisabled = selector(function* () {
-  const state = yield* getFocusState();
-  return state.isFocusDisabled;
-});
+      if (elements.length > 1) {
+        shouldNeverHappen("focusable element > 1", { key, elements });
+        return;
+      }
 
-const isFocused = selector(function* (key: FocusKey) {
-  const state = yield* getFocusState();
-  if (state.isFocusDisabled) return false;
-  return state.focusItemKey === key;
-});
+      const el = elements[0];
 
-const isEditing = selector(function* (key: FocusKey) {
-  const state = yield* getFocusState();
-  if (state.isFocusDisabled) return false;
-  return state.editItemKey === key;
-});
+      if (el) {
+        el.focus();
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "center",
+        });
+      }
+    }, 0);
+  },
 
-const isSomethingEditing = selector(function* () {
-  const state = yield* getFocusState();
-  if (state.isFocusDisabled) return false;
-  return !!state.editItemKey;
-});
+  editByKey: (key: FocusKey) => {
+    if (get().editItemKey === key) return;
 
-const isSomethingFocused = selector(function* () {
-  const state = yield* getFocusState();
-  if (state.isFocusDisabled) return false;
-  return !!state.focusItemKey;
-});
+    set({ focusItemKey: key, editItemKey: key });
+  },
 
-const disableFocus = action(function* () {
-  const currentState = yield* getFocusState();
-  const updatedState: FocusState = {
-    ...currentState,
-    isFocusDisabled: true,
-  };
-  yield* update(focusTable, [updatedState]);
-});
-
-const enableFocus = action(function* () {
-  const currentState = yield* getFocusState();
-  const updatedState: FocusState = {
-    ...currentState,
-    isFocusDisabled: false,
-  };
-  yield* update(focusTable, [updatedState]);
-});
-
-const focusByKey = action(function* (key: FocusKey, skipElFocus = false) {
-  const currentState = yield* getFocusState();
-
-  if (currentState.focusItemKey === key) return;
-
-  const updatedState: FocusState = {
-    ...currentState,
-    focusItemKey: key,
-    editItemKey: null,
-  };
-
-  yield* update(focusTable, [updatedState]);
-
-  if (skipElFocus) return;
-  console.log("focus", key);
-
-  setTimeout(() => {
-    const elements = document.querySelectorAll<HTMLElement>(
-      '[data-focusable-key="' + key + '"]',
-    );
-
-    if (!elements.length) {
-      shouldNeverHappen("focusable element not found", { key });
-      return;
-    }
-
-    if (elements.length > 1) {
-      shouldNeverHappen("focusable element > 1", { key, elements });
-      return;
-    }
-
-    const el = elements[0];
-
-    if (el) {
-      el.focus();
-      el.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "center",
-      });
-    }
-  }, 0);
-});
-
-const editByKey = action(function* (key: FocusKey) {
-  const currentState = yield* getFocusState();
-
-  if (currentState.editItemKey === key) return;
-
-  yield* focusByKey(key, true);
-
-  const updatedState: FocusState = {
-    ...currentState,
-    focusItemKey: key,
-    editItemKey: key,
-  };
-
-  yield* update(focusTable, [updatedState]);
-});
-
-const resetFocus = action(function* () {
-  const currentState = yield* getFocusState();
-  const updatedState: FocusState = {
-    ...currentState,
-    focusItemKey: null,
-    editItemKey: null,
-  };
-  yield* update(focusTable, [updatedState]);
-});
-
-const resetEdit = action(function* () {
-  const currentState = yield* getFocusState();
-  const updatedState: FocusState = {
-    ...currentState,
-    editItemKey: null,
-  };
-  yield* update(focusTable, [updatedState]);
-});
-
-export const focusSlice = {
-  getFocusKey,
-  getFocusedModelId,
-  getEditKey,
-  isFocusDisabled,
-  isFocused,
-  isEditing,
-  isSomethingEditing,
-  isSomethingFocused,
-  disableFocus,
-  enableFocus,
-  focusByKey,
-  editByKey,
-  resetFocus,
-  resetEdit,
-};
+  resetFocus: () => set({ focusItemKey: null, editItemKey: null }),
+  resetEdit: () => set({ editItemKey: null }),
+}));

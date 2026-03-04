@@ -7,7 +7,7 @@ import {
   projectCategoryCardsSlice,
 } from "@will-be-done/slices/space";
 import { TaskComp } from "@/components/Task/Task.tsx";
-import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { cn } from "@/lib/utils.ts";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
@@ -124,7 +124,7 @@ const CategorySection = ({
     const task = dispatch(
       projectCategoriesSlice.createTask(categoryId, "prepend"),
     );
-    dispatch(focusSlice.editByKey(buildFocusKey(task.id, "task")));
+    useFocusStore.getState().editByKey(buildFocusKey(task.id, "task"));
   };
 
   const handleDelete = () => {

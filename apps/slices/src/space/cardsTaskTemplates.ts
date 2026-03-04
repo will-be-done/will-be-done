@@ -12,7 +12,7 @@ import {
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
 import { cardsTasksSlice } from ".";
-import { type Task } from "./cardsTasks";
+import { type Task, tasksTable } from "./cardsTasks";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
@@ -61,14 +61,14 @@ export const taskTemplatesTable = table<TaskTemplate>(
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
-function generateTaskId(taskTemplateId: string, date: Date): string {
+const getId = selector(function* (taskTemplateId: string, date: Date) {
   return taskTemplateId + "_" + date.getTime();
-}
+});
 
-function templateToTask(tmpl: TaskTemplate, date: Date): Task {
+const templateToTask = selector(function* (tmpl: TaskTemplate, date: Date) {
   return {
     type: "task",
-    id: generateTaskId(tmpl.id, date),
+    id: yield* getId(tmpl.id, date),
     title: tmpl.title,
     state: "todo",
     projectCategoryId: tmpl.projectCategoryId,
@@ -78,8 +78,8 @@ function templateToTask(tmpl: TaskTemplate, date: Date): Task {
     createdAt: date.getTime(),
     templateId: tmpl.id,
     templateDate: date.getTime(),
-  };
-}
+  } satisfies Task;
+});
 
 // RRule utility functions
 function toUTC(date: Date): Date {
@@ -153,7 +153,10 @@ export const ruleText = selector(function* (id: string) {
   return r.toText();
 });
 
-export const newTasksInRange = selector(function* (fromDate: Date, toDate: Date) {
+export const newTasksInRange = selector(function* (
+  fromDate: Date,
+  toDate: Date,
+) {
   const templates = yield* all();
   const newTasks: Task[] = [];
 
@@ -161,10 +164,10 @@ export const newTasksInRange = selector(function* (fromDate: Date, toDate: Date)
     const r = yield* rule(template.id);
     const dates = r.between(fromDate, toDate);
     for (const date of dates) {
-      const taskId = generateTaskId(template.id, date);
+      const taskId = yield* getId(template.id, date);
       const existingTask = yield* cardsTasksSlice.byId(taskId);
       if (!existingTask) {
-        newTasks.push(templateToTask(template, date));
+        newTasks.push(yield* templateToTask(template, date));
       }
     }
   }
@@ -187,10 +190,10 @@ export const newTasksToGenForTemplate = selector(function* (
     toUTC(toDate),
   );
   for (const date of dates) {
-    const taskId = generateTaskId(template.id, date);
+    const taskId = yield* getId(template.id, date);
     const existingTask = yield* cardsTasksSlice.byId(taskId);
     if (!existingTask) {
-      newTasks.push(templateToTask(template, date));
+      newTasks.push(yield* templateToTask(template, date));
     }
   }
 
@@ -257,8 +260,8 @@ export const deleteTemplates = action(function* (ids: string[]) {
   const taskIds = yield* cardsTasksSlice.taskIdsOfTemplateId(ids);
   for (const tId of taskIds) {
     yield* cardsTasksSlice.updateTask(tId, {
-      templateId: undefined,
-      templateDate: undefined,
+      templateId: null,
+      templateDate: null,
     });
   }
   yield* deleteRows(taskTemplatesTable, ids);
@@ -295,6 +298,22 @@ export const handleDrop = action(function* (
   _edge: "top" | "bottom",
 ) {
   yield* noop();
+});
+
+export const generateTasksFromTemplates = action(function* () {
+  const toDate = new Date();
+  const newTasks = yield* newTasksToGenForTemplates(toDate);
+
+  for (const task of newTasks) {
+    yield* insert(tasksTable, [task]);
+  }
+
+  const templateIdsToUpdate = new Set(
+    newTasks.filter((t) => t.templateId).map((t) => t.templateId!),
+  );
+  for (const templateId of templateIdsToUpdate) {
+    yield* updateTemplate(templateId, { lastGeneratedAt: toDate.getTime() });
+  }
 });
 
 export const cleanAll = action(function* () {
@@ -339,6 +358,7 @@ const cardsTaskTemplatesSlice = {
   handleDrop,
   cleanAll,
   moveTemplateToProject,
+  generateTasksFromTemplates,
 };
 
 registerModelSlice(

@@ -43,7 +43,7 @@ import {
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   buildFocusKey,
-  focusSlice,
+  useFocusStore,
   parseColumnKey,
 } from "@/store/focusSlice.ts";
 import { Checkbox } from "@base-ui-components/react/checkbox";
@@ -196,7 +196,7 @@ export const TaskComp = ({
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
 
-      dispatch(focusSlice.resetEdit());
+      useFocusStore.getState().resetEdit();
 
       // if (e.key === "Enter") {
       //   task.setTitle(editingTitle);
@@ -209,13 +209,11 @@ export const TaskComp = ({
     }
   };
 
-  const isFocused = useSyncSelector(
-    () => focusSlice.isFocused(focusableItemKey),
-    [focusableItemKey],
+  const isFocused = useFocusStore(
+    (s) => !s.isFocusDisabled && s.focusItemKey === focusableItemKey,
   );
-  const isEditing = useSyncSelector(
-    () => focusSlice.isEditing(focusableItemKey),
-    [focusableItemKey],
+  const isEditing = useFocusStore(
+    (s) => !s.isFocusDisabled && s.editItemKey === focusableItemKey,
   );
   const select = useSelect();
 
@@ -240,15 +238,16 @@ export const TaskComp = ({
     const downTask = downModel && select(cardsSlice.taskOfModel(downModel));
 
     if (downTask && downTask.state === taskState) {
-      dispatch(focusSlice.focusByKey(downKey!));
+      useFocusStore.getState().focusByKey(downKey!);
     } else if (upTask && upTask.state === taskState) {
-      dispatch(focusSlice.focusByKey(upKey!));
+      useFocusStore.getState().focusByKey(upKey!);
     }
   }, [dispatch, focusableItemKey, isFocused, card, select, taskId]);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    const isSomethingEditing = select(focusSlice.isSomethingEditing());
-    const isFocusDisabled = select(focusSlice.isFocusDisabled());
+    const focusState = useFocusStore.getState();
+    const isSomethingEditing = !focusState.isFocusDisabled && !!focusState.editItemKey;
+    const isFocusDisabled = focusState.isFocusDisabled;
 
     if (isSomethingEditing) return;
     if (!isFocused) return;
@@ -407,16 +406,16 @@ export const TaskComp = ({
       dispatch(appSlice.deleteModel(cardWrapper.id, cardWrapper.type));
 
       if (downKey) {
-        dispatch(focusSlice.focusByKey(downKey));
+        useFocusStore.getState().focusByKey(downKey);
       } else if (upKey) {
-        dispatch(focusSlice.focusByKey(upKey));
+        useFocusStore.getState().focusByKey(upKey);
       } else {
-        dispatch(focusSlice.resetFocus());
+        useFocusStore.getState().resetFocus();
       }
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
-      dispatch(focusSlice.editByKey(focusableItemKey));
+      useFocusStore.getState().editByKey(focusableItemKey);
     } else if (isAddAfter || isAddBefore) {
       if (isTask(card) && card.state === "done") return;
 
@@ -430,7 +429,7 @@ export const TaskComp = ({
             newTaskParams,
           ),
         );
-        dispatch(focusSlice.editByKey(buildFocusKey(newBox.id, newBox.type)));
+        useFocusStore.getState().editByKey(buildFocusKey(newBox.id, newBox.type));
         // setTimeout(() => {
         // }, 100);
       });
@@ -640,9 +639,9 @@ export const TaskComp = ({
               : "ring-ring text-content hover:ring-ring-hover",
         )}
         style={{}}
-        onClick={() => dispatch(focusSlice.focusByKey(focusableItemKey, true))}
+        onClick={() => useFocusStore.getState().focusByKey(focusableItemKey, true)}
         onDoubleClick={() => {
-          dispatch(focusSlice.editByKey(focusableItemKey));
+          useFocusStore.getState().editByKey(focusableItemKey);
         }}
         ref={ref}
       >

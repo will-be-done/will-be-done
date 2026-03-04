@@ -1,6 +1,6 @@
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useDispatch } from "@will-be-done/hyperdb";
 import { Trash2, Info, RotateCw } from "lucide-react";
-import { focusSlice, parseColumnKey } from "@/store/focusSlice.ts";
+import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import { appSlice } from "@will-be-done/slices/space";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
@@ -11,7 +11,7 @@ const CARD_TYPES = new Set(["task", "template", "projection"]);
 export const MobileTaskToolbar = () => {
   const isMobile = useIsMobile();
   const dispatch = useDispatch();
-  const focusKey = useSyncSelector(() => focusSlice.getFocusKey(), []);
+  const focusKey = useFocusStore((s) => s.focusItemKey);
 
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
   const isCardFocused = parsed != null && CARD_TYPES.has(parsed.type);
@@ -23,11 +23,11 @@ export const MobileTaskToolbar = () => {
     const [upKey, downKey] = getDOMSiblings(focusKey as string);
     dispatch(appSlice.deleteModel(parsed.id, parsed.type));
     if (downKey) {
-      dispatch(focusSlice.focusByKey(downKey));
+      useFocusStore.getState().focusByKey(downKey);
     } else if (upKey) {
-      dispatch(focusSlice.focusByKey(upKey));
+      useFocusStore.getState().focusByKey(upKey);
     } else {
-      dispatch(focusSlice.resetFocus());
+      useFocusStore.getState().resetFocus();
     }
   };
 

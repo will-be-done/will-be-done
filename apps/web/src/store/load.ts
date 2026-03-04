@@ -36,7 +36,6 @@ import {
   LeaderElector,
 } from "broadcast-channel";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
-import { focusTable } from "./focusSlice.ts";
 import { trpcClient } from "@/lib/trpc.ts";
 import { State } from "@/utils/State.ts";
 import { AutoBackuper } from "./autoBackup.ts";
@@ -148,7 +147,7 @@ export const initDbStore = async (
 
     const syncSubDb = new SubscribableDB(syncDB);
     syncSubDb.afterInsert(function* (db, table, traits, ops) {
-      if (table === changesTable || table === focusTable) return;
+      if (table === changesTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
@@ -169,7 +168,6 @@ export const initDbStore = async (
     });
     syncSubDb.afterUpdate(function* (db, table, traits, ops) {
       if (table === changesTable) return;
-      if (table === changesTable || table === focusTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
@@ -191,7 +189,6 @@ export const initDbStore = async (
     });
     syncSubDb.afterDelete(function* (db, table, traits, ops) {
       if (table === changesTable) return;
-      if (table === changesTable || table === focusTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
@@ -246,7 +243,7 @@ export const initDbStore = async (
 
     syncSubDb.subscribe((ops, traits) => {
       ops = ops.filter(
-        (op) => op.table !== changesTable && op.table !== focusTable,
+        (op) => op.table !== changesTable,
       );
       if (ops.length === 0) return;
 

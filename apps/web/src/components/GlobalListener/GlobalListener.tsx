@@ -17,7 +17,7 @@ import {
   projectionType,
 } from "@will-be-done/slices/space";
 import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
-import { FocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { FocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   getDOMSiblings,
   getDOMColumnSiblingFirstItems,
@@ -29,11 +29,10 @@ export function GlobalListener() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isSomethingFocused = select(db, focusSlice.isSomethingFocused());
+      const focusState = useFocusStore.getState();
+      const isSomethingFocused = !focusState.isFocusDisabled && !!focusState.focusItemKey;
 
-      const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
-
-      if (isFocusDisabled || e.defaultPrevented) return;
+      if (focusState.isFocusDisabled || e.defaultPrevented) return;
 
       const activeElement =
         e.target instanceof Element ? e.target : document.activeElement;
@@ -69,7 +68,7 @@ export function GlobalListener() {
       }
 
       if (e.code === "Escape" && !isSomethingFocused) {
-        dispatch(focusSlice.resetFocus());
+        useFocusStore.getState().resetFocus();
 
         return;
       }
@@ -77,13 +76,13 @@ export function GlobalListener() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [db, dispatch]);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
+      const focusState = useFocusStore.getState();
 
-      if (isFocusDisabled || e.defaultPrevented) return;
+      if (focusState.isFocusDisabled || e.defaultPrevented) return;
 
       const activeElement =
         e.target instanceof Element ? e.target : document.activeElement;
@@ -93,35 +92,6 @@ export function GlobalListener() {
 
       // If it's an input, return early
       if (isInput) return;
-
-      // const setFocus = (Focus: FocusItem) => {
-      //   Focus.Focus();
-      //
-      //   const elements = document.querySelectorAll<HTMLElement>(
-      //     '[data-focusable-key="' + Focus.key + '"]',
-      //   );
-      //
-      //   if (!elements.length) {
-      //     shouldNeverHappen("focusable element not found", { Focus });
-      //     return;
-      //   }
-      //
-      //   if (elements.length > 1) {
-      //     shouldNeverHappen("focusable element > 1", { Focus });
-      //     return;
-      //   }
-      //
-      //   const el = elements[0];
-      //   if (el) {
-      //     el.Focus();
-      //
-      //     el.scrollIntoView({
-      //       behavior: "smooth",
-      //       block: "center",
-      //       inline: "center",
-      //     });
-      //   }
-      // };
 
       const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
       const isUp = (e.code === "ArrowUp" || e.code == "KeyK") && noModifiers;
@@ -133,7 +103,7 @@ export function GlobalListener() {
       const isRight =
         e.code === "ArrowRight" || (e.code == "KeyL" && noModifiers);
 
-      const focusItemKey = select(db, focusSlice.getFocusKey());
+      const focusItemKey = useFocusStore.getState().focusItemKey;
       if (focusItemKey && (isUp || isDown)) {
         e.preventDefault();
 
@@ -142,11 +112,11 @@ export function GlobalListener() {
         if (isUp) {
           if (!up) return;
 
-          dispatch(focusSlice.focusByKey(up));
+          useFocusStore.getState().focusByKey(up);
         } else if (isDown) {
           if (!down) return;
 
-          dispatch(focusSlice.focusByKey(down));
+          useFocusStore.getState().focusByKey(down);
         }
       } else if (focusItemKey && (isLeft || isRight)) {
         e.preventDefault();
@@ -156,11 +126,11 @@ export function GlobalListener() {
         if (isLeft) {
           if (!left) return;
 
-          dispatch(focusSlice.focusByKey(left));
+          useFocusStore.getState().focusByKey(left);
         } else if (isRight) {
           if (!right) return;
 
-          dispatch(focusSlice.focusByKey(right));
+          useFocusStore.getState().focusByKey(right);
         }
       }
     };
@@ -175,7 +145,7 @@ export function GlobalListener() {
         const focusableKey = focusedElement.getAttribute("data-focusable-key");
 
         if (focusableKey) {
-          dispatch(focusSlice.focusByKey(focusableKey as FocusKey, true));
+          useFocusStore.getState().focusByKey(focusableKey as FocusKey, true);
         }
       }
     };
@@ -186,7 +156,7 @@ export function GlobalListener() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [db, dispatch]);
+  }, []);
 
   useEffect(() => {
     return combine(

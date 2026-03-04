@@ -1,5 +1,5 @@
 import { TaskComp } from "../Task/Task.tsx";
-import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -53,7 +53,7 @@ const ProjectTasksColumn = ({
       projectCategoriesSlice.createTask(category.id, "prepend"),
     );
 
-    dispatch(focusSlice.editByKey(buildFocusKey(task.id, task.type)));
+    useFocusStore.getState().editByKey(buildFocusKey(task.id, task.type));
   };
   const handleHideClick = () => setIsHiddenClicked((v) => !v);
 

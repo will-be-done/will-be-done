@@ -30,7 +30,7 @@ import {
   useSyncSelector,
 } from "@will-be-done/hyperdb";
 import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
-import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
   EmojiPicker,
@@ -119,15 +119,14 @@ const ProjectItem = function ProjectItemComp({
   const ref = useRef<HTMLDivElement>(null);
   const linkRef = useRef<HTMLAnchorElement>(null);
 
-  const isFocused = useSyncSelector(
-    () => focusSlice.isFocused(focusItemKey),
-    [focusItemKey],
+  const isFocused = useFocusStore(
+    (s) => !s.isFocusDisabled && s.focusItemKey === focusItemKey,
   );
 
   const dispatch = useDispatch();
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
-    const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
+    const { isFocusDisabled } = useFocusStore.getState();
 
     if (
       isFocused &&
@@ -136,13 +135,13 @@ const ProjectItem = function ProjectItemComp({
       !isFocusDisabled &&
       !e.defaultPrevented
     ) {
-      dispatch(focusSlice.resetFocus());
+      useFocusStore.getState().resetFocus();
     }
   });
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (!isFocused) return;
-    const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
+    const { isFocusDisabled } = useFocusStore.getState();
 
     if (isFocusDisabled || e.defaultPrevented) return;
     const activeElement =
@@ -162,16 +161,16 @@ const ProjectItem = function ProjectItemComp({
       dispatch(projectsSlice.deleteProjects([project.id]));
 
       if (downKey) {
-        dispatch(focusSlice.focusByKey(downKey));
+        useFocusStore.getState().focusByKey(downKey);
       } else if (upKey) {
-        dispatch(focusSlice.focusByKey(upKey));
+        useFocusStore.getState().focusByKey(upKey);
       } else {
-        dispatch(focusSlice.resetFocus());
+        useFocusStore.getState().resetFocus();
       }
     } else if (e.code === "KeyI" && noModifiers) {
       e.preventDefault();
 
-      dispatch(focusSlice.editByKey(focusItemKey));
+      useFocusStore.getState().editByKey(focusItemKey);
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 

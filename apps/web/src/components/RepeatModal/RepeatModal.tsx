@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { RRule, Options as RRuleOptions } from "rrule";
-import { RefreshCw, CalendarIcon } from "lucide-react";
+import { RefreshCw, CalendarIcon, Timer } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useDispatch } from "@will-be-done/hyperdb";
-import { focusSlice } from "@/store/focusSlice.ts";
+import { useFocusStore } from "@/store/focusSlice.ts";
 import { useUnmount } from "../../utils";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
@@ -35,7 +34,7 @@ function InlinePopoverContent({
   );
 }
 
-type FreqMode = "daily" | "weekly" | "monthly" | "yearly";
+type FreqMode = "minutely" | "daily" | "weekly" | "monthly" | "yearly";
 type EndMode = "never" | "count" | "date";
 
 interface ModalState {
@@ -59,12 +58,13 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 const FREQ_ABBREV: Record<FreqMode, string> = {
-  daily: "d.", weekly: "w.", monthly: "m.", yearly: "y.",
+  minutely: "min.", daily: "d.", weekly: "w.", monthly: "m.", yearly: "y.",
 };
 
 function todayISO() { return format(new Date(), "yyyy-MM-dd"); }
 
 function freqFromRRule(freq: number): FreqMode {
+  if (freq === RRule.MINUTELY) return "minutely";
   if (freq === RRule.WEEKLY)  return "weekly";
   if (freq === RRule.MONTHLY) return "monthly";
   if (freq === RRule.YEARLY)  return "yearly";
@@ -101,7 +101,7 @@ function parseRule(ruleString?: string): ModalState {
 
 function buildRRule(state: ModalState): RRule {
   const freqMap: Record<FreqMode, number> = {
-    daily: RRule.DAILY, weekly: RRule.WEEKLY, monthly: RRule.MONTHLY, yearly: RRule.YEARLY,
+    minutely: RRule.MINUTELY, daily: RRule.DAILY, weekly: RRule.WEEKLY, monthly: RRule.MONTHLY, yearly: RRule.YEARLY,
   };
   const opts: Partial<RRuleOptions> = { freq: freqMap[state.freq], interval: state.interval };
   if (state.freq === "weekly" && state.weekdays.length > 0)
@@ -186,13 +186,12 @@ export interface RepeatModalProps {
 }
 
 export function RepeatModal({ initialRule, onConfirm, onCancel }: RepeatModalProps) {
-  const dispatch = useDispatch();
   const [state, setState] = useState<ModalState>(() => parseRule(initialRule));
   const [calendarOpen, setCalendarOpen] = useState(false);
   // Controlled so we can toggle it from both the button and RadioRow clicks
 
-  useEffect(() => { dispatch(focusSlice.disableFocus()); }, [dispatch]);
-  useUnmount(() => { dispatch(focusSlice.enableFocus()); });
+  useEffect(() => { useFocusStore.getState().disableFocus(); }, []);
+  useUnmount(() => { useFocusStore.getState().enableFocus(); });
 
   const rule      = useMemo(() => buildRRule(state), [state]);
   const ruleText  = useMemo(() => rule.toText(), [rule]);
@@ -210,10 +209,11 @@ export function RepeatModal({ initialRule, onConfirm, onCancel }: RepeatModalPro
     }));
 
   const freqOptions: { value: FreqMode; label: string }[] = [
-    { value: "daily",   label: "Daily"   },
-    { value: "weekly",  label: "Weekly"  },
-    { value: "monthly", label: "Monthly" },
-    { value: "yearly",  label: "Yearly"  },
+    { value: "minutely", label: "Minutely" },
+    { value: "daily",    label: "Daily"    },
+    { value: "weekly",   label: "Weekly"   },
+    { value: "monthly",  label: "Monthly"  },
+    { value: "yearly",   label: "Yearly"   },
   ];
 
   const selectedUntilDate = useMemo(() => {
@@ -289,6 +289,17 @@ export function RepeatModal({ initialRule, onConfirm, onCancel }: RepeatModalPro
 
               {/* Freq-specific — min-height keeps End section stable */}
               <div className="min-h-[72px]">
+
+                {/* Minutely: hint */}
+                {state.freq === "minutely" && (
+                  <div>
+                    <SectionLabel>Interval</SectionLabel>
+                    <div className="flex items-center gap-2.5 text-sm text-content-tinted-2">
+                      <Timer className="h-4 w-4 text-accent/70" />
+                      <span>Repeats every {state.interval} minute{state.interval !== 1 ? "s" : ""}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Weekly: day toggles */}
                 {state.freq === "weekly" && (
