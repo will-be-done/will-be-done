@@ -6,13 +6,14 @@
   "private": true,
   "scripts": {
     "dev": "bun run src/start.ts",
-    "ts": "tsc -b",
+    "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20260304.1"
   },
   "peerDependencies": {
     "typescript": "^5"

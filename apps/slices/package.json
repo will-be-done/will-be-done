@@ -13,7 +13,7 @@
     "./traits": "./src/traits/index.ts"
   },
   "scripts": {
-    "ts": "tsc -b",
+    "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260304.1",
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
     "globals": "^16.5.0",

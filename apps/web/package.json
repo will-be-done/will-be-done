@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,html,css,scss,yaml,yml}\"",
-    "build": "tsc -b && vite build",
-    "ts": "ts -b",
+    "build": "tsgo -b && vite build",
+    "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",
@@ -81,6 +81,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@typescript/native-preview": "^7.0.0-dev.20260304.1",
     "@vitejs/plugin-react": "^5.1.1",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9.39.1",
