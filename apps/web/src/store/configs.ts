@@ -2,12 +2,12 @@ import { changesTable, syncStateTable } from "@will-be-done/slices/common";
 import {
   backupSlice,
   cardsTasksSlice,
+  cardsTaskTemplatesSlice,
   projectsSlice,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
-  Task,
+  type Task,
 } from "@will-be-done/slices/space";
-import { focusTable } from "./focusSlice";
 import { HyperDB, runSelector, syncDispatch } from "@will-be-done/hyperdb";
 import {
   registeredUserSyncableTableNameMap,
@@ -27,11 +27,16 @@ export const spaceDBConfig = (dbId: string) => {
       changesTable,
       syncStateTable,
     ],
-    inmemDBTables: [...registeredSpaceSyncableTables, changesTable, focusTable],
+    inmemDBTables: [...registeredSpaceSyncableTables, changesTable],
     syncableDBTables: registeredSpaceSyncableTables,
     tableNameMap: registeredSpaceSyncableTableNameMap,
     afterInit: (db: HyperDB) => {
       syncDispatch(db, projectsSlice.createInboxIfNotExists());
+
+      syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      setInterval(() => {
+        syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      }, 60 * 1000);
     },
   } satisfies SyncConfig;
 };
@@ -53,6 +58,11 @@ export const demoSpaceDBConfig = () => {
       if (tasks.length === 0) {
         syncDispatch(db, backupSlice.loadBackup(generateDemoBackup()));
       }
+
+      syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      setInterval(() => {
+        syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      }, 60 * 1000);
     },
   } satisfies SyncConfig;
 };

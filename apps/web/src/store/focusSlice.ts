@@ -1,13 +1,5 @@
 import { shouldNeverHappen } from "@/utils.ts";
-import {
-  action,
-  insert,
-  runQuery,
-  selectFrom,
-  selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+import { create } from "zustand";
 
 export type FocusKey = string & { __brand: never };
 
@@ -59,123 +51,33 @@ export const parseColumnKey = (
   };
 };
 
-export type FocusState = {
-  id: string;
+interface FocusState {
   focusItemKey: FocusKey | null;
   editItemKey: FocusKey | null;
   isFocusDisabled: boolean;
-};
+}
 
-export const focusTable = table<FocusState>("focus").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-});
+interface FocusActions {
+  disableFocus: () => void;
+  enableFocus: () => void;
+  focusByKey: (key: FocusKey, skipElFocus?: boolean) => void;
+  editByKey: (key: FocusKey) => void;
+  resetFocus: () => void;
+  resetEdit: () => void;
+}
 
-const FOCUS_STATE_ID = "Focus-state";
-
-// Create the initial state
-const initialFocusState: FocusState = {
-  id: FOCUS_STATE_ID,
+export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
   focusItemKey: null,
   editItemKey: null,
   isFocusDisabled: false,
-};
 
-type GenReturn<T> = Generator<unknown, T, unknown>;
+  disableFocus: () => set({ isFocusDisabled: true }),
+  enableFocus: () => set({ isFocusDisabled: false }),
 
-const getFocusState = selector(function* (): GenReturn<FocusState> {
-  const states = yield* runQuery(
-    selectFrom(focusTable, "byId")
-      .where((q) => q.eq("id", FOCUS_STATE_ID))
-      .limit(1),
-  );
+  focusByKey: (key: FocusKey, skipElFocus = false) => {
+    if (get().focusItemKey === key) return;
 
-  if (states[0] === undefined) {
-    yield* insert(focusTable, [initialFocusState]);
-    return initialFocusState;
-  }
-
-  return states[0];
-});
-
-export const focusSlice = {
-  getFocusKey: selector(function* (): GenReturn<FocusKey | null> {
-    const state = yield* getFocusState();
-    return state.focusItemKey;
-  }),
-
-  getFocusedModelId: selector(function* (): GenReturn<string | undefined> {
-    const key = yield* focusSlice.getFocusKey();
-    if (!key) return undefined;
-    return parseColumnKey(key).id;
-  }),
-
-  getEditKey: selector(function* (): GenReturn<FocusKey | null> {
-    const state = yield* getFocusState();
-    return state.editItemKey;
-  }),
-
-  isFocusDisabled: selector(function* (): GenReturn<boolean> {
-    const state = yield* getFocusState();
-    return state.isFocusDisabled;
-  }),
-
-  isFocused: selector(function* (key: FocusKey): GenReturn<boolean> {
-    const state = yield* getFocusState();
-    if (state.isFocusDisabled) return false;
-    return state.focusItemKey === key;
-  }),
-
-  isEditing: selector(function* (key: FocusKey): GenReturn<boolean> {
-    const state = yield* getFocusState();
-    if (state.isFocusDisabled) return false;
-    return state.editItemKey === key;
-  }),
-
-  isSomethingEditing: selector(function* (): GenReturn<boolean> {
-    const state = yield* getFocusState();
-    if (state.isFocusDisabled) return false;
-    return !!state.editItemKey;
-  }),
-
-  isSomethingFocused: selector(function* (): GenReturn<boolean> {
-    const state = yield* getFocusState();
-    if (state.isFocusDisabled) return false;
-    return !!state.focusItemKey;
-  }),
-
-  disableFocus: action(function* (): GenReturn<void> {
-    const currentState = yield* getFocusState();
-    const updatedState: FocusState = {
-      ...currentState,
-      isFocusDisabled: true,
-    };
-    yield* update(focusTable, [updatedState]);
-  }),
-
-  enableFocus: action(function* (): GenReturn<void> {
-    const currentState = yield* getFocusState();
-    const updatedState: FocusState = {
-      ...currentState,
-      isFocusDisabled: false,
-    };
-    yield* update(focusTable, [updatedState]);
-  }),
-
-  focusByKey: action(function* (
-    key: FocusKey,
-    skipElFocus = false,
-  ): GenReturn<void> {
-    const currentState = yield* getFocusState();
-
-    if (currentState.focusItemKey === key) return;
-
-    const updatedState: FocusState = {
-      ...currentState,
-      focusItemKey: key,
-      editItemKey: null,
-    };
-
-    yield* update(focusTable, [updatedState]);
+    set({ focusItemKey: key, editItemKey: null });
 
     if (skipElFocus) return;
 
@@ -205,40 +107,14 @@ export const focusSlice = {
         });
       }
     }, 0);
-  }),
+  },
 
-  editByKey: action(function* (key: FocusKey): GenReturn<void> {
-    const currentState = yield* getFocusState();
+  editByKey: (key: FocusKey) => {
+    if (get().editItemKey === key) return;
 
-    if (currentState.editItemKey === key) return;
+    set({ focusItemKey: key, editItemKey: key });
+  },
 
-    yield* focusSlice.focusByKey(key, true);
-
-    const updatedState: FocusState = {
-      ...currentState,
-      focusItemKey: key,
-      editItemKey: key,
-    };
-
-    yield* update(focusTable, [updatedState]);
-  }),
-
-  resetFocus: action(function* (): GenReturn<void> {
-    const currentState = yield* getFocusState();
-    const updatedState: FocusState = {
-      ...currentState,
-      focusItemKey: null,
-      editItemKey: null,
-    };
-    yield* update(focusTable, [updatedState]);
-  }),
-
-  resetEdit: action(function* (): GenReturn<void> {
-    const currentState = yield* getFocusState();
-    const updatedState: FocusState = {
-      ...currentState,
-      editItemKey: null,
-    };
-    yield* update(focusTable, [updatedState]);
-  }),
-};
+  resetFocus: () => set({ focusItemKey: null, editItemKey: null }),
+  resetEdit: () => set({ editItemKey: null }),
+}));

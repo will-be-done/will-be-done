@@ -9,7 +9,6 @@ import {
   update,
 } from "@will-be-done/hyperdb";
 import { uuidv7 } from "uuidv7";
-import type { GenReturn } from "@will-be-done/slices";
 import { registerUserSyncableTable } from "./syncMap";
 
 export const spacesTableType = "space";
@@ -26,69 +25,70 @@ export const spacesTable = table<Space>("spaces").withIndexes({
   byIds: { cols: ["id"], type: "btree" },
 });
 
+const getSpaceById = selector(function* (id: string) {
+  const spaces = yield* runQuery(
+    selectFrom(spacesTable, "byId")
+      .where((q) => q.eq("id", id))
+      .limit(1),
+  );
+  return spaces[0] as Space | undefined;
+});
+
+const listSpaces = selector(function* () {
+  const spaces = yield* runQuery(selectFrom(spacesTable, "byIds"));
+  return spaces as Space[];
+});
+
+const createSpace = action(function* (name: string) {
+  const spaceId = uuidv7();
+  const now = new Date().toISOString();
+  const space: Space = {
+    id: spaceId,
+    type: spacesTableType,
+    name,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  yield* insert(spacesTable, [space]);
+
+  return space;
+});
+
+const updateSpace = action(function* (id: string, name: string) {
+  const space = yield* getSpaceById(id);
+  if (!space) {
+    return null as Space | null;
+  }
+
+  const updatedSpace: Space = {
+    ...space,
+    name,
+    updatedAt: new Date().toISOString(),
+  };
+
+  yield* update(spacesTable, [updatedSpace]);
+
+  return updatedSpace as Space | null;
+});
+
+const deleteSpace = action(function* (id: string) {
+  const space = yield* getSpaceById(id);
+  if (!space) {
+    return false;
+  }
+
+  yield* deleteRows(spacesTable, [id]);
+
+  return true;
+});
+
 export const spaceSlice = {
-  // Selectors
-  getSpaceById: selector(function* (id: string): GenReturn<Space | undefined> {
-    const spaces = yield* runQuery(
-      selectFrom(spacesTable, "byId")
-        .where((q) => q.eq("id", id))
-        .limit(1),
-    );
-    return spaces[0];
-  }),
-
-  listSpaces: selector(function* (): GenReturn<Space[]> {
-    const spaces = yield* runQuery(selectFrom(spacesTable, "byIds"));
-    return spaces;
-  }),
-
-  // Actions
-  createSpace: action(function* (name: string): GenReturn<Space> {
-    const spaceId = uuidv7();
-    const now = new Date().toISOString();
-    const space: Space = {
-      id: spaceId,
-      type: spacesTableType,
-      name,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    yield* insert(spacesTable, [space]);
-
-    return space;
-  }),
-
-  updateSpace: action(function* (
-    id: string,
-    name: string,
-  ): GenReturn<Space | null> {
-    const space = yield* spaceSlice.getSpaceById(id);
-    if (!space) {
-      return null;
-    }
-
-    const updatedSpace: Space = {
-      ...space,
-      name,
-      updatedAt: new Date().toISOString(),
-    };
-
-    yield* update(spacesTable, [updatedSpace]);
-
-    return updatedSpace;
-  }),
-
-  deleteSpace: action(function* (id: string): GenReturn<boolean> {
-    const space = yield* spaceSlice.getSpaceById(id);
-    if (!space) {
-      return false;
-    }
-
-    yield* deleteRows(spacesTable, [id]);
-
-    return true;
-  }),
+  getSpaceById,
+  listSpaces,
+  createSpace,
+  updateSpace,
+  deleteSpace,
 };
 
 registerUserSyncableTable(spacesTable, spacesTableType);

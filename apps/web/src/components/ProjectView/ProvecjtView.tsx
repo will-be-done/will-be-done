@@ -1,5 +1,5 @@
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
-import { Backup, backupSlice } from "@will-be-done/slices/space";
+import { backupSlice, type Backup } from "@will-be-done/slices/space";
 import {
   getDOMSiblings,
 } from "@/components/Focus/domNavigation.ts";
@@ -30,7 +30,7 @@ import {
   useSyncSelector,
 } from "@will-be-done/hyperdb";
 import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
-import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
   EmojiPicker,
@@ -119,15 +119,14 @@ const ProjectItem = function ProjectItemComp({
   const ref = useRef<HTMLDivElement>(null);
   const linkRef = useRef<HTMLAnchorElement>(null);
 
-  const isFocused = useSyncSelector(
-    () => focusSlice.isFocused(focusItemKey),
-    [focusItemKey],
+  const isFocused = useFocusStore(
+    (s) => !s.isFocusDisabled && s.focusItemKey === focusItemKey,
   );
 
   const dispatch = useDispatch();
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
-    const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
+    const { isFocusDisabled } = useFocusStore.getState();
 
     if (
       isFocused &&
@@ -136,13 +135,13 @@ const ProjectItem = function ProjectItemComp({
       !isFocusDisabled &&
       !e.defaultPrevented
     ) {
-      dispatch(focusSlice.resetFocus());
+      useFocusStore.getState().resetFocus();
     }
   });
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (!isFocused) return;
-    const isFocusDisabled = select(db, focusSlice.isFocusDisabled());
+    const { isFocusDisabled } = useFocusStore.getState();
 
     if (isFocusDisabled || e.defaultPrevented) return;
     const activeElement =
@@ -159,19 +158,19 @@ const ProjectItem = function ProjectItemComp({
 
       const [upKey, downKey] = getDOMSiblings(focusItemKey);
 
-      dispatch(projectsSlice.delete([project.id]));
+      dispatch(projectsSlice.deleteProjects([project.id]));
 
       if (downKey) {
-        dispatch(focusSlice.focusByKey(downKey));
+        useFocusStore.getState().focusByKey(downKey);
       } else if (upKey) {
-        dispatch(focusSlice.focusByKey(upKey));
+        useFocusStore.getState().focusByKey(upKey);
       } else {
-        dispatch(focusSlice.resetFocus());
+        useFocusStore.getState().resetFocus();
       }
     } else if (e.code === "KeyI" && noModifiers) {
       e.preventDefault();
 
-      dispatch(focusSlice.editByKey(focusItemKey));
+      useFocusStore.getState().editByKey(focusItemKey);
     } else if (isAddAfter || isAddBefore) {
       e.preventDefault();
 
@@ -315,7 +314,7 @@ const ProjectItem = function ProjectItemComp({
     }
 
     dispatch(
-      projectsSlice.update(project.id, {
+      projectsSlice.updateProject(project.id, {
         title: newTitle,
       }),
     );
@@ -326,7 +325,7 @@ const ProjectItem = function ProjectItemComp({
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice.delete([project.id]));
+      dispatch(projectsSlice.deleteProjects([project.id]));
     }
   };
 
@@ -369,7 +368,7 @@ const ProjectItem = function ProjectItemComp({
               className="h-[326px] rounded-lg shadow-md"
               onEmojiSelect={({ emoji }) => {
                 dispatch(
-                  projectsSlice.update(project.id, {
+                  projectsSlice.updateProject(project.id, {
                     icon: emoji,
                   }),
                 );

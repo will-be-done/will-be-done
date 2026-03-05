@@ -78,6 +78,24 @@
   /* Gradient orb colors (for background effects) */
   --color-orb-blue: oklch(54.6% 0.215 263 / 0.08);
   --color-orb-indigo: oklch(58.5% 0.204 277 / 0.06);
+
+  /* Task detail panel - orange */
+  --color-task-panel: oklch(26.6% 0.079 36.3);
+  --color-task-panel-ring: oklch(70.5% 0.213 41.2 / 0.3);
+  --color-task-panel-divider: oklch(70.5% 0.213 41.2 / 0.2);
+  --color-task-panel-hover: oklch(70.5% 0.213 41.2 / 0.15);
+
+  /* Dialog / modal */
+  --color-dialog-bg: oklch(13% 0.025 260);
+  --color-dialog-sidebar: oklch(10.5% 0.02 260);
+  --color-dialog-border: oklch(100% 0 none / 0.07);
+  --color-dialog-item-active: oklch(23% 0.055 250);
+
+  /* General input/border */
+  --color-border: oklch(100% 0 none / 0.18);
+
+  /* Secondary content text — between content-tinted and content-tinted-2 */
+  --color-content-secondary: var(--color-slate-400);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/
@@ -196,6 +214,7 @@
 /*     @apply bg-background text-foreground; */
 /*   } */
 /* } */
+
 
 :root {
   --sidebar: hsl(0 0% 98%);

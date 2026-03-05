@@ -1,11 +1,14 @@
 import { GlobalListener } from "@/components/GlobalListener/GlobalListener.tsx";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { KeyPressedCtxProvider } from "@/components/GlobalListener/KeyPressedCtxProvider.tsx";
-import { Outlet, redirect, createFileRoute } from "@tanstack/react-router";
+import { Outlet, redirect, createFileRoute, useRouterState } from "@tanstack/react-router";
+import { CardDetails } from "@/components/CardDetails/CardDetails.tsx";
 import { DBProvider } from "@will-be-done/hyperdb";
 import { initDbStore } from "@/store/load.ts";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
+import { useFocusStore } from "@/store/focusSlice.ts";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/spaces/$spaceId")({
   component: RouteComponent,
@@ -35,11 +38,23 @@ function RouteComponent() {
         <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
           <KeyPressedCtxProvider>
             <GlobalListener />
+            <ResetFocusOnNavigate />
 
             <Outlet />
+            <CardDetails />
           </KeyPressedCtxProvider>
         </ThemeProvider>
       </DBProvider>
     </>
   );
+}
+
+function ResetFocusOnNavigate() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    useFocusStore.getState().resetFocus();
+  }, [pathname]);
+
+  return null;
 }

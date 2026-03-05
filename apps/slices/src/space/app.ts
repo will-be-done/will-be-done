@@ -1,74 +1,66 @@
 import { action, selector } from "@will-be-done/hyperdb";
-import type { GenReturn } from "./utils";
 import { defaultTask } from "./cardsTasks";
 import { AnyModel, AnyModelType, appTypeSlicesMap } from "./maps";
 
-// Slice
-export const appSlice = {
-  // selectors
-  byId: selector(function* (
-    id: string,
-    modelType: AnyModelType,
-  ): GenReturn<AnyModel | undefined> {
-    const slice = appTypeSlicesMap[modelType];
-    if (!slice) throw new Error(`Unknown model type: ${modelType}`);
-    return yield* slice.byId(id);
-  }),
+// Selectors and actions
+export const byId = selector(function* (id: string, modelType: AnyModelType) {
+  const slice = appTypeSlicesMap[modelType];
+  if (!slice) throw new Error(`Unknown model type: ${modelType}`);
+  return (yield* slice.byId(id)) as AnyModel | undefined;
+});
 
-  byIdOrDefault: selector(function* (
-    id: string,
-    modelType: AnyModelType,
-  ): GenReturn<AnyModel> {
-    const entity = yield* appSlice.byId(id, modelType);
-    if (!entity) {
-      return defaultTask;
-    }
+export const byIdOrDefault = selector(function* (
+  id: string,
+  modelType: AnyModelType,
+) {
+  const entity = yield* byId(id, modelType);
+  if (!entity) {
+    return defaultTask as AnyModel;
+  }
 
-    return entity;
-  }),
+  return entity;
+});
 
-  canDrop: selector(function* (
-    id: string,
-    modelType: AnyModelType,
-    dropId: string,
-    dropModelType: AnyModelType,
-  ): GenReturn<boolean> {
-    const model = yield* appSlice.byId(id, modelType);
-    if (!model) return false;
+export const canDrop = selector(function* (
+  id: string,
+  modelType: AnyModelType,
+  dropId: string,
+  dropModelType: AnyModelType,
+) {
+  const model = yield* byId(id, modelType);
+  if (!model) return false;
 
-    const slice = appTypeSlicesMap[model.type];
-    if (!slice) throw new Error(`Unknown model type: ${model.type}`);
+  const slice = appTypeSlicesMap[model.type];
+  if (!slice) throw new Error(`Unknown model type: ${model.type}`);
 
-    return yield* slice.canDrop(id, dropId, dropModelType);
-  }),
+  return yield* slice.canDrop(id, dropId, dropModelType);
+});
 
-  // actions
-  handleDrop: action(function* (
-    id: string,
-    modelType: AnyModelType,
-    dropId: string,
-    dropModelType: AnyModelType,
-    edge: "top" | "bottom",
-  ): GenReturn<void> {
-    const model = yield* appSlice.byId(id, modelType);
-    if (!model) return;
+export const handleDrop = action(function* (
+  id: string,
+  modelType: AnyModelType,
+  dropId: string,
+  dropModelType: AnyModelType,
+  edge: "top" | "bottom",
+): Generator<unknown, void, unknown> {
+  const model = yield* byId(id, modelType);
+  if (!model) return;
 
-    const slice = appTypeSlicesMap[model.type];
-    if (!slice) throw new Error(`Unknown model type: ${model.type}`);
+  const slice = appTypeSlicesMap[model.type];
+  if (!slice) throw new Error(`Unknown model type: ${model.type}`);
 
-    yield* slice.handleDrop(id, dropId, dropModelType, edge);
-  }),
+  yield* slice.handleDrop(id, dropId, dropModelType, edge);
+});
 
-  delete: action(function* (
-    id: string,
-    modelType: AnyModelType,
-  ): GenReturn<void> {
-    const model = yield* appSlice.byId(id, modelType);
-    if (!model) return;
+export const deleteModel = action(function* (
+  id: string,
+  modelType: AnyModelType,
+): Generator<unknown, void, unknown> {
+  const model = yield* byId(id, modelType);
+  if (!model) return;
 
-    const slice = appTypeSlicesMap[model.type];
-    if (!slice) throw new Error(`Unknown model type: ${model.type}`);
+  const slice = appTypeSlicesMap[model.type];
+  if (!slice) throw new Error(`Unknown model type: ${model.type}`);
 
-    yield* slice.delete([id]);
-  }),
-};
+  yield* slice.delete([id]);
+});

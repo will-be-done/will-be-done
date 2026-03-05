@@ -3,13 +3,13 @@ import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
-  DailyList,
   dailyListsSlice,
   dailyListsProjectionsSlice,
   projectsSlice,
+  type DailyList,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { buildFocusKey, focusSlice } from "@/store/focusSlice.ts";
+import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
@@ -177,7 +177,7 @@ const BoardView = ({
         ),
       );
 
-      dispatch(focusSlice.editByKey(buildFocusKey(task.id, "projection")));
+      useFocusStore.getState().editByKey(buildFocusKey(task.id, "projection"));
     },
     [dispatch, inboxId],
   );

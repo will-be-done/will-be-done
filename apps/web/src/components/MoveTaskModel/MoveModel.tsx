@@ -7,8 +7,8 @@ import {
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
-import { focusSlice } from "@/store/focusSlice.ts";
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useFocusStore } from "@/store/focusSlice.ts";
+import { useSyncSelector } from "@will-be-done/hyperdb";
 import { projectsAllSlice } from "@will-be-done/slices/space";
 
 export const MoveModal = ({
@@ -54,15 +54,14 @@ export const MoveModal = ({
     }
   };
 
-  const dispatch = useDispatch();
   useEffect(() => {
-    dispatch(focusSlice.disableFocus());
+    useFocusStore.getState().disableFocus();
 
     inputRef.current?.focus();
-  }, [dispatch]);
+  }, []);
 
   useUnmount(() => {
-    dispatch(focusSlice.enableFocus());
+    useFocusStore.getState().enableFocus();
   });
 
   return (

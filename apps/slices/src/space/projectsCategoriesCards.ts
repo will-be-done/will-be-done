@@ -1,176 +1,184 @@
 import { runQuery, selector, selectFrom, action } from "@will-be-done/hyperdb";
-import { generateKeyPositionedBetween, GenReturn } from "./utils";
-import { dailyListsSlice } from "./dailyLists";
-import { defaultTask, Task, cardsTasksSlice, tasksTable } from "./cardsTasks";
-import {
-  TaskTemplate,
-  cardsTaskTemplatesSlice,
-  taskTemplatesTable,
-} from "./cardsTaskTemplates";
+import { generateKeyPositionedBetween } from "./utils";
+import { dailyListsSlice } from ".";
+import { cardsTasksSlice } from ".";
+import { defaultTask, Task, tasksTable } from "./cardsTasks";
+import { cardsTaskTemplatesSlice } from ".";
+import { TaskTemplate, taskTemplatesTable } from "./cardsTaskTemplates";
 
 export type Card = Task | TaskTemplate;
 
 // TODO: check if all items renamed to card
 
-export const projectCategoryCardsSlice = {
-  firstChild: selector(function* (projectCategoryId: string): GenReturn<Card> {
-    const ids = yield* projectCategoryCardsSlice.childrenIds(projectCategoryId);
-    if (ids.length === 0) return defaultTask;
+export const firstChild = selector(function* (
+  projectCategoryId: string,
+): Generator<unknown, Card, unknown> {
+  const ids = yield* childrenIds(projectCategoryId);
+  if (ids.length === 0) return defaultTask;
 
-    return yield* projectCategoryCardsSlice.byIdOrDefault(ids[0]);
-  }),
-  lastChild: selector(function* (projectCategoryId: string): GenReturn<Card> {
-    const ids = yield* projectCategoryCardsSlice.childrenIds(projectCategoryId);
-    if (ids.length === 0) return defaultTask;
+  return yield* byIdOrDefault(ids[0]);
+});
 
-    return yield* projectCategoryCardsSlice.byIdOrDefault(ids[ids.length - 1]);
-  }),
+export const lastChild = selector(function* (
+  projectCategoryId: string,
+): Generator<unknown, Card, unknown> {
+  const ids = yield* childrenIds(projectCategoryId);
+  if (ids.length === 0) return defaultTask;
 
-  childrenIdsExceptDailies: selector(function* (
-    projectCategoryId: string,
-    exceptDailyListIds: string[],
-  ): GenReturn<string[]> {
-    // TODO: use merge sort
-    const exceptTaskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
-    const tasks = yield* runQuery(
-      selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
-        q.eq("projectCategoryId", projectCategoryId).eq("state", "todo"),
-      ),
-    );
+  return yield* byIdOrDefault(ids[ids.length - 1]);
+});
 
-    const finalTasks = tasks.filter((task) => !exceptTaskIds.has(task.id));
+export const childrenIdsExceptDailies = selector(function* (
+  projectCategoryId: string,
+  exceptDailyListIds: string[],
+): Generator<unknown, string[], unknown> {
+  // TODO: use merge sort
+  const exceptTaskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
+  const tasks = yield* runQuery(
+    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+      q.eq("projectCategoryId", projectCategoryId).eq("state", "todo"),
+    ),
+  );
 
-    const templates = yield* runQuery(
-      selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
-        q.eq("projectCategoryId", projectCategoryId),
-      ),
-    );
+  const finalTasks = tasks.filter((task) => !exceptTaskIds.has(task.id));
 
-    const allCards = [...finalTasks, ...templates];
+  const templates = yield* runQuery(
+    selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
+      q.eq("projectCategoryId", projectCategoryId),
+    ),
+  );
 
-    return allCards
-      .sort((a, b) => {
-        if (a.orderToken > b.orderToken) {
-          return 1;
-        }
-        if (a.orderToken < b.orderToken) {
-          return -1;
-        }
+  const allCards = [...finalTasks, ...templates];
 
-        return 0;
-      })
-      .map((card) => card.id);
-  }),
-  childrenIds: selector(function* (
-    projectCategoryId: string,
-  ): GenReturn<string[]> {
-    // TODO: use merge sort
-    const tasks = yield* runQuery(
-      selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
-        q.eq("projectCategoryId", projectCategoryId).eq("state", "todo"),
-      ),
-    );
+  return allCards
+    .sort((a, b) => {
+      if (a.orderToken > b.orderToken) {
+        return 1;
+      }
+      if (a.orderToken < b.orderToken) {
+        return -1;
+      }
 
-    const templates = yield* runQuery(
-      selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
-        q.eq("projectCategoryId", projectCategoryId),
-      ),
-    );
+      return 0;
+    })
+    .map((card) => card.id);
+});
 
-    const allCards = [...tasks, ...templates];
+export const children = selector(function* (projectCategoryId: string) {
+  // TODO: use merge sort
+  const tasks = yield* runQuery(
+    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+      q.eq("projectCategoryId", projectCategoryId).eq("state", "todo"),
+    ),
+  );
 
-    return allCards
-      .sort((a, b) => {
-        if (a.orderToken > b.orderToken) {
-          return 1;
-        }
-        if (a.orderToken < b.orderToken) {
-          return -1;
-        }
+  const templates = yield* runQuery(
+    selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
+      q.eq("projectCategoryId", projectCategoryId),
+    ),
+  );
 
-        return 0;
-      })
-      .map((card) => card.id);
-  }),
+  const allCards = [...tasks, ...templates];
 
-  doneChildrenIds: selector(function* (
-    projectCategoryId: string,
-  ): GenReturn<string[]> {
-    const tasks = yield* runQuery(
-      selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
-        q.eq("projectCategoryId", projectCategoryId).eq("state", "done"),
-      ),
-    );
+  return allCards.sort((a, b) => {
+    if (a.orderToken > b.orderToken) {
+      return 1;
+    }
+    if (a.orderToken < b.orderToken) {
+      return -1;
+    }
 
-    return tasks
-      .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
-      .map((p) => p.id);
-  }),
-  doneChildrenIdsExceptDailies: selector(function* (
-    projectCategoryId: string,
-    exceptDailyListIds: string[],
-  ): GenReturn<string[]> {
-    const exceptTaskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
+    return 0;
+  }) as (Task | TaskTemplate)[];
+});
 
-    const taskIds =
-      yield* projectCategoryCardsSlice.doneChildrenIds(projectCategoryId);
+export const childrenIdsWithTypes = selector(function* (
+  projectCategoryId: string,
+) {
+  return (yield* children(projectCategoryId)).map((card) => ({
+    id: card.id,
+    type: card.type as "task" | "template",
+  }));
+});
 
-    return taskIds.filter((id) => !exceptTaskIds.has(id));
-  }),
-  byId: selector(function* (id: string): GenReturn<Card | undefined> {
-    const task = yield* cardsTasksSlice.byId(id);
-    if (task) return task;
+export const childrenIds = selector(function* (projectCategoryId: string) {
+  return (yield* children(projectCategoryId)).map((card) => card.id);
+});
 
-    const template = yield* cardsTaskTemplatesSlice.byId(id);
-    if (template) return template;
+export const doneChildrenIds = selector(function* (projectCategoryId: string) {
+  const tasks = yield* runQuery(
+    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+      q.eq("projectCategoryId", projectCategoryId).eq("state", "done"),
+    ),
+  );
 
-    return undefined;
-  }),
-  byIdOrDefault: selector(function* (id: string): GenReturn<Card> {
-    return (yield* projectCategoryCardsSlice.byId(id)) || defaultTask;
-  }),
+  return tasks
+    .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
+    .map((p) => p.id);
+});
 
-  siblings: selector(function* (
-    cardId: string,
-  ): GenReturn<[Card | undefined, Card | undefined]> {
-    const card = yield* projectCategoryCardsSlice.byIdOrDefault(cardId);
-    if (!card) return [undefined, undefined];
+export const doneChildrenIdsExceptDailies = selector(function* (
+  projectCategoryId: string,
+  exceptDailyListIds: string[],
+): Generator<unknown, string[], unknown> {
+  const exceptTaskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
 
-    const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
-      card.projectCategoryId,
-    );
-    const index = childrenIds.findIndex((id) => id === cardId);
+  const taskIds = yield* doneChildrenIds(projectCategoryId);
 
-    const beforeId = index > 0 ? childrenIds[index - 1] : undefined;
-    const afterId =
-      index < childrenIds.length - 1 ? childrenIds[index + 1] : undefined;
+  return taskIds.filter((id) => !exceptTaskIds.has(id));
+});
 
-    const before = beforeId
-      ? yield* projectCategoryCardsSlice.byIdOrDefault(beforeId)
-      : undefined;
-    const after = afterId
-      ? yield* projectCategoryCardsSlice.byIdOrDefault(afterId)
-      : undefined;
+export const byId = selector(function* (
+  id: string,
+): Generator<unknown, Card | undefined, unknown> {
+  const task = yield* cardsTasksSlice.byId(id);
+  if (task) return task;
 
-    return [before, after];
-  }),
+  const template = yield* cardsTaskTemplatesSlice.byId(id);
+  if (template) return template;
 
-  createSiblingTask: action(function* (
-    cardId: string,
-    position: "before" | "after",
-    taskParams?: Partial<Task>,
-  ): GenReturn<Task> {
-    const card = yield* projectCategoryCardsSlice.byIdOrDefault(cardId);
-    if (!card) throw new Error("Card not found");
+  return undefined;
+});
 
-    return yield* cardsTasksSlice.createTask({
-      projectCategoryId: card.projectCategoryId,
-      orderToken: generateKeyPositionedBetween(
-        card,
-        yield* projectCategoryCardsSlice.siblings(cardId),
-        position,
-      ),
-      ...taskParams,
-    });
-  }),
-};
+export const byIdOrDefault = selector(function* (
+  id: string,
+): Generator<unknown, Card, unknown> {
+  return (yield* byId(id)) || defaultTask;
+});
+
+export const siblings = selector(function* (
+  cardId: string,
+): Generator<unknown, [Card | undefined, Card | undefined], unknown> {
+  const card = yield* byIdOrDefault(cardId);
+  if (!card) return [undefined, undefined];
+
+  const ids = yield* childrenIds(card.projectCategoryId);
+  const index = ids.findIndex((id) => id === cardId);
+
+  const beforeId = index > 0 ? ids[index - 1] : undefined;
+  const afterId = index < ids.length - 1 ? ids[index + 1] : undefined;
+
+  const before = beforeId ? yield* byIdOrDefault(beforeId) : undefined;
+  const after = afterId ? yield* byIdOrDefault(afterId) : undefined;
+
+  return [before, after];
+});
+
+export const createSiblingTask = action(function* (
+  cardId: string,
+  position: "before" | "after",
+  taskParams?: Partial<Task>,
+) {
+  const card = yield* byIdOrDefault(cardId);
+  if (!card) throw new Error("Card not found");
+
+  return yield* cardsTasksSlice.createTask({
+    projectCategoryId: card.projectCategoryId,
+    orderToken: generateKeyPositionedBetween(
+      card,
+      yield* siblings(cardId),
+      position,
+    ),
+    ...taskParams,
+  });
+});
