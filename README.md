@@ -1,4 +1,4 @@
-You have 100 tasks. What are you doing this week?
+# You have 100 tasks. What are you doing this week?
 
 Most task managers are great at collecting tasks — and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
 
