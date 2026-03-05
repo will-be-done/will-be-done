@@ -1,5 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { Image } from 'astro:assets';
+import punishmentImg from '../assets/punishment.png';
+import badDayImg from '../assets/bad_day2.png';
+import weekImg from '../assets/week2.png';
+import phoneImg from '../assets/phone.png';
+import projectImg from '../assets/project2.png';
 
 const APP_URL = import.meta.env.PUBLIC_APP_URL ?? 'https://app.will-be-done.app';
 
@@ -34,68 +40,28 @@ const logoPath =
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-12 lg:grid-cols-2">
             <div>
-              <div class="mb-6 inline-flex flex-wrap items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1.5 ring-1 ring-blue-500/20">
-                <span class="text-[12px] font-medium tracking-wide text-blue-300">Open Source</span>
-                <span class="text-blue-400/50">·</span>
-                <span class="text-[12px] font-medium tracking-wide text-blue-300">Self Hosted</span>
-                <span class="text-blue-400/50">·</span>
-                <span class="text-[12px] font-medium tracking-wide text-blue-300">Local-First</span>
-              </div>
-
-              <h1 class="mb-5 font-bold tracking-tight text-white">
-                <span class="block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 mb-3">Open source task management</span>
-                <span class="block text-4xl md:text-5xl lg:text-[50px] leading-[1.1]">Actually instant.<br />Actually offline.</span>
+              <h1 class="mb-5 font-bold tracking-tight text-4xl md:text-5xl lg:text-[50px] leading-[1.1]">
+                <span class="text-blue-400">100 tasks.</span><br />
+                <span class="text-white">What are you doing this week?</span>
               </h1>
 
-              <p class="mb-8 max-w-lg text-[17px] leading-relaxed text-slate-400">
-                Most task managers store your data on the server — which means spinners,
-                latency, and a broken app when connectivity drops. Will Be Done keeps a
-                full database copy in your browser. Every action is instant, it works when
-                your server is down, and changes sync in real-time across all your devices
-                and tabs.
+              <p class="mb-8 max-w-md text-[17px] leading-relaxed text-slate-400">
+                Task managers collect tasks — they don't help you plan your week. Will Be Done gives you a visual weekly timeline to stay focused.
               </p>
 
-              <div class="grid w-fit grid-cols-2 gap-3">
+              <div class="flex flex-col items-start gap-3">
                 <a
-                  href="https://github.com/will-be-done/will-be-done"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-5 py-3 text-[14px] font-medium text-slate-300 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.08] hover:text-white"
-                  data-ph-event="github_link_clicked"
+                  href={`${APP_URL}/signup`}
+                  class="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3.5 text-[15px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
+                  data-ph-event="signup_cta_clicked"
                   data-ph-section="hero"
                 >
-                  <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
+                  Plan Your First Week — Free
+                  <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
-                  View on GitHub
                 </a>
-                <a
-                  href="https://demo.will-be-done.app"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] px-5 py-3 text-[14px] font-medium text-blue-300 transition-all hover:border-blue-400/50 hover:bg-blue-500/[0.12] hover:text-blue-200"
-                  data-ph-event="demo_clicked"
-                  data-ph-section="hero"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
-                  </svg>
-                  Live Demo
-                </a>
-                <div class="flex flex-col gap-1.5 mt-3">
-                  <a
-                    href={`${APP_URL}/signup`}
-                    class="group inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
-                    data-ph-event="signup_cta_clicked"
-                    data-ph-section="hero"
-                  >
-                    Try Cloud Version
-                    <svg class="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </a>
-                  <span class="text-[12px]"><span class="text-slate-300">Free while in alpha</span> <span class="text-slate-500">· $2/mo after launch</span></span>
-                </div>
+                <span class="text-[13px] text-slate-500">Free while in alpha, then $10/mo</span>
               </div>
 
               <!-- Mobile video preview -->
@@ -226,9 +192,220 @@ const logoPath =
           </div>
         </div>
       </section>
+      
+      <!-- Built differently — header -->
+      <section aria-label="Why Will Be Done" class="relative border-white/[0.04] px-6 pt-20 pb-20">
+        <div class="mx-auto max-w-5xl text-center">
+          <h2 class="mb-3 text-3xl font-bold tracking-tight text-white md:text-5xl lg:text-[50px] leading-[1.1]">
+            Your task manager is working against you
+          </h2>
+          <p class="text-[15px] text-slate-500">Will Be Done doesn't.</p>
+        </div>
+      </section>
+
+      <!-- 3a. Week planning — stop drowning in scattered lists (amber, odd — text left) -->
+      <section class="relative px-6 py-8 md:py-12">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-10 lg:grid-cols-2">
+            <div>
+              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+              </div>
+              <h2 class="mb-3 text-xl font-bold tracking-tight text-white md:text-2xl">Stop guessing what to do today</h2>
+              <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                Your whole week fits on one screen — every day is a column. Drag tasks between days to rebalance on the fly. You always know what's on your plate today, tomorrow, and the rest of the week.
+              </p>
+            </div>
+            <div>
+              <Image
+                src={weekImg}
+                alt="Screenshot showing weekly timeline with day columns for planning your week at a glance"
+                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- No punishment for being human (image left, text right) -->
+      <section class="relative px-6 py-8 md:py-12">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-10 lg:grid-cols-2">
+            <div class="order-2 lg:order-1">
+              <Image
+                src={punishmentImg}
+                alt="Screenshot showing gentle yellow indicators for missed tasks instead of angry red overdue badges"
+                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                loading="lazy"
+              />
+            </div>
+            <div class="order-1 lg:order-2">
+              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
+                </svg>
+              </div>
+              <h2 class="mb-3 text-xl font-bold tracking-tight text-white md:text-2xl">No punishment for being human</h2>
+              <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                No angry red "OVERDUE" badges. Missed tasks get a gentle yellow nudge — not a panic attack. You stay in control, not in shame.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- One bad day won't break your week (text left, image right) -->
+      <section class="relative px-6 py-8 md:py-12">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-10 lg:grid-cols-2">
+            <div>
+              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 class="mb-3 text-xl font-bold tracking-tight text-white md:text-2xl">One bad day won't break your week</h2>
+              <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                Other apps dump yesterday's undone tasks onto today — burying you in guilt. Will Be Done plans by week, so skipping a day doesn't snowball into chaos. Your list stays clean.
+              </p>
+            </div>
+            <div>
+              <Image
+                src={badDayImg}
+                alt="Screenshot showing weekly planning that stays clean even when you skip a day"
+                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- Stop losing ideas in a flat list (image left, text right) -->
+      <section class="relative px-6 py-8 md:py-12">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-10 lg:grid-cols-2">
+            <div class="order-2 lg:order-1">
+              <Image
+                src={projectImg}
+                alt="Screenshot showing project kanban board with Week, Month, Ideas, and Someday columns"
+                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                loading="lazy"
+              />
+            </div>
+            <div class="order-1 lg:order-2">
+              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                </svg>
+              </div>
+              <h2 class="mb-3 text-xl font-bold tracking-tight text-white md:text-2xl">Stop losing ideas in a flat list</h2>
+              <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                Each project gets its own kanban board with columns you define — Week, Month, Ideas, Someday. Separate workspaces keep work and personal apart. Everything has a place, nothing falls through the cracks.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Plan on the go (green, odd — text left) -->
+      <section class="relative px-6 py-8 md:py-12">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-10 lg:grid-cols-2">
+            <div>
+              <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10 text-green-400">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 20.25h3" />
+                </svg>
+              </div>
+              <h2 class="mb-3 text-xl font-bold tracking-tight text-white md:text-2xl">Plan on the go</h2>
+              <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                Full mobile experience — not a shrunken desktop app. Capture tasks wherever you are, check off what's done, and plan your week from the bus, the couch, or the coffee line.
+              </p>
+            </div>
+            <div class="flex items-center justify-center">
+              <Image
+                src={phoneImg}
+                alt="Screenshot of Will Be Done mobile app showing full task management on phone"
+                class="w-1/2"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Remaining features as cards -->
+      <section aria-label="More features" class="relative px-6 py-8 md:py-12">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <!-- Rearrange your whole week instantly -->
+            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
+              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                </svg>
+              </div>
+              <h3 class="mb-1.5 text-[14px] font-medium text-white">Rearrange your whole week instantly</h3>
+              <p class="text-[13px] leading-relaxed text-slate-400">No lag, no spinners. Every drag, every click responds instantly. Keyboard-first with vim-style navigation.</p>
+            </div>
+
+            <!-- Plan your week on a plane -->
+            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
+              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+                </svg>
+              </div>
+              <h3 class="mb-1.5 text-[14px] font-medium text-white">Plan your week on a plane</h3>
+              <p class="text-[13px] leading-relaxed text-slate-400">The full app works offline with a complete database in your browser. Sync when you reconnect.</p>
+            </div>
+
+            <!-- Add on phone, see on laptop -->
+            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
+              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <h3 class="mb-1.5 text-[14px] font-medium text-white">Add on phone, see on laptop</h3>
+              <p class="text-[13px] leading-relaxed text-slate-400">Changes propagate instantly across all your devices — no manual refresh, no polling.</p>
+            </div>
+          </div>
+
+          <!-- Last two cards centered -->
+          <div class="mx-auto mt-4 grid gap-4 md:grid-cols-2 lg:max-w-[calc(66.666%+0.5rem)]">
+            <!-- See your whole week at a glance -->
+            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
+              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 class="mb-1.5 text-[14px] font-medium text-white">See your whole week at a glance</h3>
+              <p class="text-[13px] leading-relaxed text-slate-400">A visual weekly timeline where each day is a column. Drag tasks between days to rebalance your week.</p>
+            </div>
+
+            <!-- Your data, your server -->
+            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
+              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+              </div>
+              <h3 class="mb-1.5 text-[14px] font-medium text-white">Your data, your server</h3>
+              <p class="text-[13px] leading-relaxed text-slate-400">Open source and self-hostable with a single Docker command. No vendor lock-in — your tasks live on your hardware.</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- App Screenshots Carousel -->
-      <section aria-label="App screenshots" class="relative border-t border-white/[0.04] px-6 py-20 overflow-hidden">
+      <section aria-label="App screenshots" class="relative border-white/[0.04] px-6 py-20 overflow-hidden">
         <!-- Ambient glow behind carousel -->
         <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div class="h-[500px] w-[900px] rounded-full bg-blue-600/5 blur-[120px]"></div>
@@ -353,87 +530,6 @@ const logoPath =
       </section>
 
 
-      <!-- Built differently -->
-      <section aria-label="Why Will Be Done" class="relative border-t border-white/[0.04] px-6 py-20">
-        <div class="mx-auto max-w-5xl">
-          <p class="mb-2 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Built differently</p>
-          <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">
-            What most task managers get wrong
-          </h2>
-          <p class="mb-10 max-w-2xl text-[15px] leading-relaxed text-slate-400">
-            We researched every major self-hosted task manager before building this.
-            Most cut at least one important corner. Will Be Done doesn't. It designed to be local-first from the start.
-          </p>
-
-          <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <!-- True offline mode -->
-            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">True offline mode</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Open the app with no server, no internet. Not a cached skeleton — the full app, read and write, completely offline.</p>
-            </div>
-
-            <!-- Local-first database -->
-            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 5.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Local-first</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Your full database lives in the browser. Every action is instant — zero network round trips.</p>
-            </div>
-
-            <!-- Real-time cross-tab sync -->
-            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Rea-time cross-tab, cross-device sync</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Changes appear instantly across all tabs and devices. No polling. No refresh needed.</p>
-            </div>
-
-            <!-- Weekly planning view -->
-            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Weekly planning view</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Visual week-as-columns layout. Drag tasks between days. See your full week at a glance.</p>
-            </div>
-
-            <!-- Mobile support -->
-            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 20.25h3" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Mobile support</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Manage tasks from any device.</p>
-            </div>
-
-            <!-- One container, zero ops -->
-            <div class="rounded-xl bg-green-500/[0.04] p-5 ring-1 ring-green-500/[0.15] transition-colors hover:bg-green-500/[0.07] hover:ring-green-500/[0.25]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">One container, zero ops</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">SQLite, single Docker container, no Postgres, no Redis. Self-host in under 60 seconds.</p>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- Self-host section -->
       <section aria-label="Self-hosting" class="relative border-t border-white/[0.04] px-6 py-20">
@@ -521,170 +617,6 @@ const logoPath =
         </div>
       </section>
 
-      <!-- Features -->
-      <section aria-label="Features" class="relative border-t border-white/[0.04] px-6 py-20">
-        <div class="mx-auto max-w-5xl">
-          <h2 class="mb-12 text-2xl font-bold tracking-tight text-white md:text-3xl">Everything you need. Nothing held back.</h2>
-
-          <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <!-- Weekly timeline -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Weekly timeline</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">See your entire week as columns. Drag tasks between days.</p>
-            </div>
-
-            <!-- Drag & drop -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Drag &amp; drop</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Move tasks between days, projects, and categories.</p>
-            </div>
-
-            <!-- Kanban per project -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Kanban per project</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Week, Month, Ideas, Someday — organize your way.</p>
-            </div>
-
-            <!-- Multiple spaces -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Multiple spaces</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Separate workspaces for work, personal, and side projects.</p>
-            </div>
-
-            <!-- Offline first -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Offline first</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">App works fully when your server is offline. Opens in the browser, reads and writes locally, syncs when you reconnect.</p>
-            </div>
-
-            <!-- Vim keybindings -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Vim keybindings</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Navigate with j/k, quick actions with shortcuts.</p>
-            </div>
-
-            <!-- One Docker container -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">One Docker container</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Self-host with a single command. No complex setup.</p>
-            </div>
-
-            <!-- Instant sync -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Real-time sync</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Changes propagate instantly across all tabs and devices. No polling or manual refresh needed.</p>
-            </div>
-
-            <!-- Top tier performance -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Instant UI</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Local database means every action is immediate. No waiting for server round trips.</p>
-            </div>
-
-            <!-- Mobile ready -->
-            <div class="rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.04] transition-colors hover:bg-white/[0.03] hover:ring-white/[0.06]">
-              <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400">
-                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 20.25h3" />
-                </svg>
-              </div>
-              <h3 class="mb-1.5 text-[14px] font-medium text-white">Mobile ready</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Manage tasks on the go from any device.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Roadmap -->
-      <section aria-label="Roadmap" class="relative border-t border-white/[0.04] px-6 py-20">
-        <div class="mx-auto max-w-5xl">
-          <div class="mb-8 flex items-center gap-3">
-            <div class="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10">
-              <div class="h-1.5 w-1.5 rounded-full bg-amber-400"></div>
-            </div>
-            <h2 class="text-lg font-semibold text-white">Coming soon</h2>
-          </div>
-
-          <div class="grid gap-3 md:grid-cols-2">
-            <div class="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-3 ring-1 ring-white/[0.04]">
-              <svg class="h-4 w-4 flex-shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="text-[13px] text-slate-300">Task comments and attachments</span>
-            </div>
-            <div class="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-3 ring-1 ring-white/[0.04]">
-              <svg class="h-4 w-4 flex-shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="text-[13px] text-slate-300">Global search</span>
-            </div>
-            <div class="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-3 ring-1 ring-white/[0.04]">
-              <svg class="h-4 w-4 flex-shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="text-[13px] text-slate-300">More vim keybindings</span>
-            </div>
-            <div class="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-3 ring-1 ring-white/[0.04]">
-              <svg class="h-4 w-4 flex-shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="text-[13px] text-slate-300">Desktop app with global quick-add shortcut</span>
-            </div>
-            <div class="flex items-center gap-3 rounded-lg bg-white/[0.02] px-4 py-3 ring-1 ring-white/[0.04]">
-              <svg class="h-4 w-4 flex-shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="text-[13px] text-slate-300">API &amp; MCP integration</span>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- CTA -->
       <section aria-label="Call to action" class="relative border-t border-white/[0.04] px-6 py-20">
@@ -695,7 +627,7 @@ const logoPath =
                 Ready to own your tasks?
               </h2>
               <p class="mb-8 text-[15px] text-slate-400">
-                Try the cloud version free while in alpha — then just $2/mo. Or self-host with one Docker command. Your data, your rules.
+                Try the cloud version free while in alpha — then $10/mo. Or self-host with one Docker command. Your data, your rules.
               </p>
               <div class="flex flex-wrap justify-center gap-3">
                 <a
