@@ -209,7 +209,7 @@ export function RepeatModal({ initialRule, onConfirm, onCancel }: RepeatModalPro
     }));
 
   const freqOptions: { value: FreqMode; label: string }[] = [
-    { value: "minutely", label: "Minutely" },
+    ...(import.meta.env.DEV ? [{ value: "minutely" as const, label: "Minutely" }] : []),
     { value: "daily",    label: "Daily"    },
     { value: "weekly",   label: "Weekly"   },
     { value: "monthly",  label: "Monthly"  },

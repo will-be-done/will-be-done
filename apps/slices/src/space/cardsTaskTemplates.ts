@@ -11,12 +11,13 @@ import {
 } from "@will-be-done/hyperdb";
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
-import { cardsTasksSlice } from ".";
+import { cardsTasksSlice, taskType } from ".";
 import { type Task, tasksTable } from "./cardsTasks";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { projectCategoriesSlice } from ".";
+import { genUUIDV5 } from "../traits/";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -28,6 +29,7 @@ export type TaskTemplate = {
   orderToken: string;
   horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
+  repeatRuleDtStart: number;
   createdAt: number;
   lastGeneratedAt: number;
   projectCategoryId: string;
@@ -42,6 +44,7 @@ export const defaultTaskTemplate: TaskTemplate = {
   orderToken: "",
   horizon: "someday",
   repeatRule: "",
+  repeatRuleDtStart: 0,
   createdAt: 0,
   lastGeneratedAt: 0,
   projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
@@ -61,23 +64,25 @@ export const taskTemplatesTable = table<TaskTemplate>(
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
-const getId = selector(function* (taskTemplateId: string, date: Date) {
-  return taskTemplateId + "_" + date.getTime();
+const genTaskId = selector(function* (taskTemplateId: string, date: Date) {
+  const normalizedEpoch = fromUTC(date).getTime();
+  return yield* genUUIDV5(taskType, taskTemplateId + "_" + normalizedEpoch);
 });
 
 const templateToTask = selector(function* (tmpl: TaskTemplate, date: Date) {
+  const normalizedEpoch = fromUTC(date).getTime();
   return {
     type: "task",
-    id: yield* getId(tmpl.id, date),
+    id: yield* genTaskId(tmpl.id, date),
     title: tmpl.title,
     state: "todo",
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
-    lastToggledAt: date.getTime(),
+    lastToggledAt: normalizedEpoch,
     horizon: tmpl.horizon,
-    createdAt: date.getTime(),
+    createdAt: normalizedEpoch,
     templateId: tmpl.id,
-    templateDate: date.getTime(),
+    templateDate: normalizedEpoch,
   } satisfies Task;
 });
 
@@ -87,22 +92,26 @@ function toUTC(date: Date): Date {
   return new Date(date.getTime() - timezoneOffset);
 }
 
-function startOfDay(date: Date): Date {
-  const newDate = new Date(date);
-  newDate.setHours(0, 0, 0, 0);
-  return newDate;
+function fromUTC(date: Date): Date {
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() + timezoneOffset);
 }
 
 const defaultRule = "FREQ=DAILY;INTERVAL=1";
+const MAX_GENERATION_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks
+
+/** Get the dtstart epoch for a template, falling back to createdAt for legacy templates */
+function getTemplateDtStart(template: TaskTemplate): number {
+  return template.repeatRuleDtStart || template.createdAt;
+}
 
 function createRuleFromString(ruleString: string): RRule {
-  try {
-    return RRule.fromString(ruleString.trim());
-  } catch (err: unknown) {
-    console.log(err);
-    // Fallback to daily rule if parsing fails
-    return RRule.fromString(defaultRule);
-  }
+  return RRule.fromString(ruleString.trim());
+}
+
+function createRuleWithDtstart(ruleString: string, dtstart: Date): RRule {
+  const options = RRule.parseString(ruleString.trim());
+  return new RRule({ ...options, dtstart });
 }
 
 // Selectors
@@ -145,7 +154,7 @@ export const ids = selector(function* () {
 
 export const rule = selector(function* (id: string) {
   const template = yield* byIdOrDefault(id);
-  return createRuleFromString(template.repeatRule || defaultRule);
+  return createRuleFromString(template.repeatRule);
 });
 
 export const ruleText = selector(function* (id: string) {
@@ -161,10 +170,13 @@ export const newTasksInRange = selector(function* (
   const newTasks: Task[] = [];
 
   for (const template of templates) {
-    const r = yield* rule(template.id);
+    const r = createRuleWithDtstart(
+      template.repeatRule,
+      toUTC(new Date(getTemplateDtStart(template))),
+    );
     const dates = r.between(fromDate, toDate);
     for (const date of dates) {
-      const taskId = yield* getId(template.id, date);
+      const taskId = yield* genTaskId(template.id, date);
       const existingTask = yield* cardsTasksSlice.byId(taskId);
       if (!existingTask) {
         newTasks.push(yield* templateToTask(template, date));
@@ -182,15 +194,20 @@ export const newTasksToGenForTemplate = selector(function* (
   const template = yield* byId(templateId);
   if (!template) return [];
 
-  const r = yield* rule(templateId);
+  const r = createRuleWithDtstart(
+    template.repeatRule,
+    toUTC(new Date(getTemplateDtStart(template))),
+  );
   const newTasks: Task[] = [];
 
+  // Cap generation window to 2 weeks to avoid generating thousands of tasks
+  const earliestFrom = Math.max(template.lastGeneratedAt, toDate.getTime() - MAX_GENERATION_WINDOW_MS);
   const dates = r.between(
-    toUTC(new Date(template.lastGeneratedAt)),
+    toUTC(new Date(earliestFrom)),
     toUTC(toDate),
   );
   for (const date of dates) {
-    const taskId = yield* getId(template.id, date);
+    const taskId = yield* genTaskId(template.id, date);
     const existingTask = yield* cardsTasksSlice.byId(taskId);
     if (!existingTask) {
       newTasks.push(yield* templateToTask(template, date));
@@ -230,14 +247,16 @@ export const create = action(function* (
 ) {
   const id = template.id || uuidv7();
 
+  const now = Date.now();
   const newTemplate: TaskTemplate = {
     type: taskTemplateType,
     id,
     title: "New template",
     horizon: "week",
     repeatRule: defaultRule,
-    createdAt: Date.now(),
-    lastGeneratedAt: Date.now(),
+    repeatRuleDtStart: now,
+    createdAt: now,
+    lastGeneratedAt: now,
     ...template,
   };
 
@@ -274,6 +293,7 @@ export const createFromTask = action(function* (
   yield* cardsTasksSlice.deleteTasks([task.id]);
 
   const newId = uuidv7();
+  const now = Date.now();
   const template: TaskTemplate = {
     id: newId,
     type: taskTemplateType,
@@ -281,8 +301,9 @@ export const createFromTask = action(function* (
     orderToken: task.orderToken,
     createdAt: task.createdAt,
     repeatRule: defaultRule,
+    repeatRuleDtStart: now,
     horizon: task.horizon,
-    lastGeneratedAt: startOfDay(new Date(task.createdAt)).getTime() - 1,
+    lastGeneratedAt: now,
     projectCategoryId: task.projectCategoryId,
     ...data,
   };
@@ -302,6 +323,7 @@ export const handleDrop = action(function* (
 
 export const generateTasksFromTemplates = action(function* () {
   const toDate = new Date();
+
   const newTasks = yield* newTasksToGenForTemplates(toDate);
 
   for (const task of newTasks) {

@@ -75,6 +75,7 @@ interface TaskTemplateBackup {
   orderToken: string;
   horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
+  repeatRuleDtStart?: number;
   createdAt: number;
   lastGeneratedAt: number;
   projectCategoryId: string;
@@ -208,6 +209,7 @@ const getNewModels = action(function* (backup: Backup) {
       orderToken: templateBackup.orderToken,
       horizon: templateBackup.horizon,
       repeatRule: templateBackup.repeatRule,
+      repeatRuleDtStart: templateBackup.repeatRuleDtStart ?? templateBackup.createdAt,
       createdAt: templateBackup.createdAt,
       lastGeneratedAt: templateBackup.lastGeneratedAt,
       projectCategoryId: category.id,
@@ -353,6 +355,7 @@ export const getBackup = selector(function* () {
       orderToken: template.orderToken,
       horizon: template.horizon,
       repeatRule: template.repeatRule,
+      repeatRuleDtStart: template.repeatRuleDtStart,
       createdAt: template.createdAt,
       lastGeneratedAt: template.lastGeneratedAt,
       projectCategoryId: template.projectCategoryId,
