@@ -1,10 +1,8 @@
-This is my third attempt in 3 years to build the task manager I actually want to use.
-I already use it daily. Three things pushed me to build it rather than buy:
-own my data (self-hosted), a weekly planning view, and vim keybinds.
+You have 100 tasks. What are you doing this week?
 
-But the thing I'm most proud of is the architecture: Will Be Done is local-first.
-Your full database lives in the browser. Every action is instant. It works when
-your server is down. Changes sync in real-time across all tabs and devices.
+Most task managers are great at collecting tasks — and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
+
+This is my third attempt in 3 years to build the task manager I actually want to use. I already use it daily. Three things pushed me to build it rather than buy: own my data (self-hosted), a weekly planning view, and vim keybinds.
 
 Try the **live demo** (no sign-up) at [demo.will-be-done.app](https://demo.will-be-done.app)
 or the cloud version at [will-be-done.app](https://will-be-done.app/) before installing.
@@ -32,17 +30,26 @@ Then open http://localhost:3000 in your browser.
 
 ## Features
 
-1. Local-first architecture — full database in the browser, every action is instant, zero network round trips
-1. True offline mode — works with no server, no internet; full read/write, not a cached skeleton
-1. Real-time sync — changes propagate instantly across all tabs and devices, no polling
-1. Weekly timeline view — see multiple days as columns, plan your week visually
-1. Kanban boards per project — each project has categories (Week/Month/Ideas/Someday/etc)
-1. Everything drag & drop — move tasks between days, projects, categories
-1. Multiple spaces — separate workspaces for work/personal/side projects
-1. Vim keybindings — j/k navigation and keyboard shortcuts
-1. Mobile ready — first-class mobile UI
-1. Self-hosted — one Docker command, SQLite, no external dependencies
-1. Open source — AGPL license
+**Plan your week, not just your tasks**
+- Weekly timeline view — each day is a column, drag tasks between days to rebalance
+- No angry "OVERDUE" badges — missed tasks get a gentle nudge, not a guilt trip
+- One bad day doesn't snowball — weekly planning means skipping a day keeps your list clean
+- Kanban boards per project with categories you define (Week/Month/Ideas/Someday)
+- Multiple spaces — separate workspaces for work/personal/side projects
+
+**Fast enough that you forget it's a web app**
+- Local-first — full database in the browser, every action is instant, zero network round trips
+- True offline mode — full read/write with no server, not a cached skeleton
+- Real-time sync — changes propagate instantly across all tabs and devices
+
+**Built for people who live in their keyboard**
+- Vim keybindings — j/k navigation, drag with ctrl, quick-add with o/O
+- Everything drag & drop — tasks, days, projects, categories
+- Mobile ready — first-class mobile UI for when you're away from the keyboard
+
+**Your data, your rules**
+- Self-hosted — one Docker command, SQLite, no external dependencies
+- Open source — AGPL license
 
 ## Vim keybinds
 
