@@ -13,7 +13,9 @@ export default tseslint.config([
       ecmaVersion: 2020,
       globals: globals.browser,
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ["vitest.config.ts"],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },

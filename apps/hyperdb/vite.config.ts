@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     browser: {
-      provider: playwright(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      provider: playwright() as any,
       enabled: true,
       // at least one instance is required
       instances: [{ browser: "chromium" }],
