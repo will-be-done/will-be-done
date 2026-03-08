@@ -372,6 +372,25 @@ export const removeFromDailyList = action(function* (taskId: string) {
   yield* deleteProjections([taskId]);
 });
 
+// Create projection at the top of a daily list (ensures daily list exists)
+export const createProjectionInDailyList = action(function* (
+  taskId: string,
+  date: string,
+) {
+  const dailyList = yield* dailyListsSlice.createIfNotPresent(date);
+
+  const projections = yield* byDailyListId(dailyList.id);
+  const firstToken =
+    projections.length > 0 ? projections[0].orderToken : null;
+  const orderToken = generateJitteredKeyBetween(null, firstToken);
+
+  return yield* createProjection({
+    id: taskId,
+    dailyListId: dailyList.id,
+    orderToken,
+  });
+});
+
 // Add task to daily list
 export const addToDailyList = action(function* (
   taskId: string,

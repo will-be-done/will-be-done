@@ -228,10 +228,17 @@ export const TaskComp = ({
     if (!isFocused) return;
 
     const upModel = upKey
-      ? select(appSlice.byId(parseColumnKey(upKey).id, parseColumnKey(upKey).type))
+      ? select(
+          appSlice.byId(parseColumnKey(upKey).id, parseColumnKey(upKey).type),
+        )
       : undefined;
     const downModel = downKey
-      ? select(appSlice.byId(parseColumnKey(downKey).id, parseColumnKey(downKey).type))
+      ? select(
+          appSlice.byId(
+            parseColumnKey(downKey).id,
+            parseColumnKey(downKey).type,
+          ),
+        )
       : undefined;
 
     const upTask = upModel && select(cardsSlice.taskOfModel(upModel));
@@ -246,7 +253,8 @@ export const TaskComp = ({
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const focusState = useFocusStore.getState();
-    const isSomethingEditing = !focusState.isFocusDisabled && !!focusState.editItemKey;
+    const isSomethingEditing =
+      !focusState.isFocusDisabled && !!focusState.editItemKey;
     const isFocusDisabled = focusState.isFocusDisabled;
 
     if (isSomethingEditing) return;
@@ -347,18 +355,27 @@ export const TaskComp = ({
     } else if (isMoveUp || isMoveDown) {
       e.preventDefault();
 
-      const [upKey, downKey] = getDOMSiblings(focusableItemKey, { forMove: true });
+      const [upKey, downKey] = getDOMSiblings(focusableItemKey, {
+        forMove: true,
+      });
 
       let targetKey = isMoveUp ? upKey : downKey;
       let crossedBoundary = false;
 
       if (targetKey) {
-        const currentColumn = document.querySelector(`[data-focusable-key="${focusableItemKey}"]`)?.closest("[data-focus-column]");
-        const targetColumn = document.querySelector(`[data-focusable-key="${targetKey}"]`)?.closest("[data-focus-column]");
+        const currentColumn = document
+          .querySelector(`[data-focusable-key="${focusableItemKey}"]`)
+          ?.closest("[data-focus-column]");
+        const targetColumn = document
+          .querySelector(`[data-focusable-key="${targetKey}"]`)
+          ?.closest("[data-focus-column]");
         crossedBoundary = currentColumn !== targetColumn;
       } else {
         // No valid sibling — fall back to adjacent section's placeholder
-        targetKey = getDOMAdjacentStackedPlaceholder(focusableItemKey, isMoveUp ? "up" : "down");
+        targetKey = getDOMAdjacentStackedPlaceholder(
+          focusableItemKey,
+          isMoveUp ? "up" : "down",
+        );
         crossedBoundary = targetKey !== null;
       }
 
@@ -366,17 +383,15 @@ export const TaskComp = ({
         const { id, type } = parseColumnKey(targetKey);
 
         const edge: Edge = crossedBoundary
-          ? isMoveUp ? "bottom" : "top"
-          : isMoveUp ? "top" : "bottom";
+          ? isMoveUp
+            ? "bottom"
+            : "top"
+          : isMoveUp
+            ? "top"
+            : "bottom";
 
         dispatch(
-          appSlice.handleDrop(
-            id,
-            type,
-            cardWrapper.id,
-            cardWrapper.type,
-            edge,
-          ),
+          appSlice.handleDrop(id, type, cardWrapper.id, cardWrapper.type, edge),
         );
 
         setTimeout(() => {
@@ -429,7 +444,9 @@ export const TaskComp = ({
             newTaskParams,
           ),
         );
-        useFocusStore.getState().editByKey(buildFocusKey(newBox.id, newBox.type));
+        useFocusStore
+          .getState()
+          .editByKey(buildFocusKey(newBox.id, newBox.type));
         // setTimeout(() => {
         // }, 100);
       });
@@ -626,7 +643,10 @@ export const TaskComp = ({
       {closestEdge == "top" && <DropTaskIndicator direction="top" />}
       <div
         data-focusable-key={focusableItemKey}
-        data-ignore-drop={isTask(card) && card.state === "done" ? true : undefined}
+        data-ignore-drop={
+          isTask(card) && card.state === "done" ? true : undefined
+        }
+        data-order-token={card.orderToken}
         tabIndex={0}
         className={clsx(
           `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
@@ -639,7 +659,9 @@ export const TaskComp = ({
               : "ring-ring text-content hover:ring-ring-hover",
         )}
         style={{}}
-        onClick={() => useFocusStore.getState().focusByKey(focusableItemKey, true)}
+        onClick={() =>
+          useFocusStore.getState().focusByKey(focusableItemKey, true)
+        }
         onDoubleClick={() => {
           useFocusStore.getState().editByKey(focusableItemKey);
         }}

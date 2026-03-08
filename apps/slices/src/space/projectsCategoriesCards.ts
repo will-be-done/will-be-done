@@ -1,5 +1,6 @@
 import { runQuery, selector, selectFrom, action } from "@will-be-done/hyperdb";
 import { generateKeyPositionedBetween } from "./utils";
+import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { dailyListsSlice } from ".";
 import { cardsTasksSlice } from ".";
 import { defaultTask, Task, tasksTable } from "./cardsTasks";
@@ -179,6 +180,26 @@ export const createSiblingTask = action(function* (
       yield* siblings(cardId),
       position,
     ),
+    ...taskParams,
+  });
+});
+
+export const createTaskCardAfter = action(function* (
+  cardId: string,
+  taskParams?: Partial<Task>,
+) {
+  const card = yield* byIdOrDefault(cardId);
+  if (!card) throw new Error("Card not found");
+
+  const [, after] = yield* siblings(cardId);
+  const orderToken = generateJitteredKeyBetween(
+    card.orderToken,
+    after?.orderToken || null,
+  );
+
+  return yield* cardsTasksSlice.createTask({
+    projectCategoryId: card.projectCategoryId,
+    orderToken,
     ...taskParams,
   });
 });

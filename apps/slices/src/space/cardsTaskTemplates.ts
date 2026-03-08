@@ -11,13 +11,19 @@ import {
 } from "@will-be-done/hyperdb";
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
-import { cardsTasksSlice, taskType } from ".";
-import { type Task, tasksTable } from "./cardsTasks";
+import {
+  cardsTasksSlice,
+  taskType,
+  dailyListsProjectionsSlice,
+  projectCategoriesSlice,
+  projectCategoryCardsSlice,
+} from ".";
+import { type Task } from "./cardsTasks";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
-import { projectCategoriesSlice } from ".";
 import { genUUIDV5 } from "../traits/";
+import { getDMY } from "./utils";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -201,11 +207,11 @@ export const newTasksToGenForTemplate = selector(function* (
   const newTasks: Task[] = [];
 
   // Cap generation window to 2 weeks to avoid generating thousands of tasks
-  const earliestFrom = Math.max(template.lastGeneratedAt, toDate.getTime() - MAX_GENERATION_WINDOW_MS);
-  const dates = r.between(
-    toUTC(new Date(earliestFrom)),
-    toUTC(toDate),
+  const earliestFrom = Math.max(
+    template.lastGeneratedAt,
+    toDate.getTime() - MAX_GENERATION_WINDOW_MS,
   );
+  const dates = r.between(toUTC(new Date(earliestFrom)), toUTC(toDate));
   for (const date of dates) {
     const taskId = yield* genTaskId(template.id, date);
     const existingTask = yield* cardsTasksSlice.byId(taskId);
@@ -327,11 +333,23 @@ export const generateTasksFromTemplates = action(function* () {
   const newTasks = yield* newTasksToGenForTemplates(toDate);
 
   for (const task of newTasks) {
-    yield* insert(tasksTable, [task]);
+    if (task.templateId === null) {
+      throw new Error("TemplateId is null");
+    }
+
+    // Create task card after the template card in the project category
+    yield* projectCategoryCardsSlice.createTaskCardAfter(task.templateId, {
+      ...task,
+    });
+
+    // Create projection at top of daily list for the task's date
+    const localDate = fromUTC(new Date(task.createdAt));
+    const dmy = getDMY(localDate);
+    yield* dailyListsProjectionsSlice.createProjectionInDailyList(task.id, dmy);
   }
 
   const templateIdsToUpdate = new Set(
-    newTasks.filter((t) => t.templateId).map((t) => t.templateId!),
+    newTasks.filter((t) => t.templateId !== null).map((t) => t.templateId!),
   );
   for (const templateId of templateIdsToUpdate) {
     yield* updateTemplate(templateId, { lastGeneratedAt: toDate.getTime() });

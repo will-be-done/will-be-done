@@ -242,9 +242,7 @@ export const initDbStore = async (
     );
 
     syncSubDb.subscribe((ops, traits) => {
-      ops = ops.filter(
-        (op) => op.table !== changesTable,
-      );
+      ops = ops.filter((op) => op.table !== changesTable);
       if (ops.length === 0) return;
 
       if (traits.some((t) => t.type === "skip-sync")) {
@@ -464,14 +462,18 @@ class Syncer {
       }
 
       // Use Promise.race between timeout, WebSocket notification, and local changes
-      const result = await Promise.race([
-        new Promise<"timeout">((resolve) =>
-          setTimeout(() => resolve("timeout"), 5000),
-        ),
+      await Promise.race([
+        // I disabled it for dev mode to reduce noise
+        ...(process.env.NODE_ENV === "development"
+          ? []
+          : [
+              new Promise<"timeout">((resolve) =>
+                setTimeout(() => resolve("timeout"), 5000),
+              ),
+            ]),
         this.wsNotification.newEmitted().then(() => "ws" as const),
         this.forceSyncNotification.newEmitted().then(() => "local" as const),
       ]);
-      console.log(`Sync triggered by: ${result}`);
     }
   }
 
@@ -493,8 +495,6 @@ class Syncer {
 
       return;
     }
-
-    console.log("new changes from server", serverChanges);
 
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const that = this;
@@ -603,8 +603,6 @@ class Syncer {
     if (changesets.length === 0) {
       return;
     }
-
-    console.log("sending changes to server", changesets, maxClock);
 
     await trpcClient.handleChanges.mutate({
       dbId: this.syncConfig.dbId,
