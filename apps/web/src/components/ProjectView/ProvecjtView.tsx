@@ -1,8 +1,5 @@
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
-import { backupSlice, type Backup } from "@will-be-done/slices/space";
-import {
-  getDOMSiblings,
-} from "@/components/Focus/domNavigation.ts";
+import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -533,69 +530,6 @@ export const ProjectView = ({
     }
   };
 
-  const isValidBackup = (data: unknown): data is Backup => {
-    if (!data || typeof data !== "object") return false;
-    const backup = data as Record<string, unknown>;
-    return (
-      Array.isArray(backup.tasks) &&
-      Array.isArray(backup.projects) &&
-      Array.isArray(backup.dailyLists)
-      // Array.isArray(backup.dailyListProjections)
-    );
-  };
-
-  const handleDownloadBackup = () => {
-    const backup = dispatch(backupSlice.getBackup());
-    const blob = new Blob([JSON.stringify(backup, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const now = new Date();
-    const dateStr = now.toISOString().replace(/[:.]/g, "-").split(".")[0];
-    a.download = `todo-backup-${dateStr}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleLoadBackup = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const result = event.target?.result;
-          if (typeof result !== "string") {
-            throw new Error("Failed to read file");
-          }
-          const parsedBackup = JSON.parse(result) as unknown;
-
-          // Validate backup structure
-          if (!isValidBackup(parsedBackup)) {
-            throw new Error("Invalid backup format");
-          }
-
-          dispatch(backupSlice.loadBackup(parsedBackup));
-        } catch (error) {
-          console.error("Failed to load backup:", error);
-          alert(
-            "Failed to load backup file. Please make sure it's a valid backup file.",
-          );
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
-
   if (!project) {
     return <div>Project not found</div>;
   }
@@ -619,24 +553,6 @@ export const ProjectView = ({
       >
         <div className="flex justify-center text-content-tinted my-3 mx-3 text-[13px] font-medium">
           Projects
-          <div className="ml-auto flex gap-2">
-            <button
-              type="button"
-              onClick={handleLoadBackup}
-              className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
-              title="Load backup"
-            >
-              L
-            </button>
-            <button
-              className="cursor-pointer text-content-tinted hover:text-primary transition-colors"
-              type="button"
-              onClick={handleDownloadBackup}
-              title="Download backup"
-            >
-              D
-            </button>
-          </div>
         </div>
         <div className="h-full overflow-y-auto flex flex-col gap-1 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
           <ProjectItem

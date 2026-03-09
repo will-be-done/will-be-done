@@ -46,6 +46,14 @@ function DataSection() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const confirmed = window.confirm(
+      "This will replace all existing data in this space. Continue?",
+    );
+    if (!confirmed) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
     setImporting(true);
     setImportError(null);
     setImportSuccess(false);
