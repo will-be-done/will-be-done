@@ -34,6 +34,7 @@ interface CategoryBackup {
 interface TaskBackup {
   id: string;
   title: string;
+  content?: string;
   state: "todo" | "done";
   projectCategoryId: string;
   orderToken: string;
@@ -158,6 +159,7 @@ const getNewModels = action(function* (backup: Backup) {
       type: taskType,
       id: taskBackup.id,
       title: taskBackup.title,
+      content: taskBackup.content,
       state: taskBackup.state,
       projectCategoryId: taskBackup.projectCategoryId,
       orderToken: taskBackup.orderToken,
