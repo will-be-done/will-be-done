@@ -7,6 +7,8 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { Link } from "@tanstack/react-router";
 import { isDemoMode } from "@/lib/auth";
+import { useSpaceSettingsStore } from "@/components/SpaceSettings/spaceSettingsStore.ts";
+import { SpaceSettingsModal } from "@/components/SpaceSettings/SpaceSettingsModal.tsx";
 
 export const LayoutWithSidebar = ({
   children,
@@ -15,8 +17,10 @@ export const LayoutWithSidebar = ({
 }) => {
   const sidebarWidth = useSidebarStore((s) => s.width);
   const setSidebarWidth = useSidebarStore((s) => s.setWidth);
+  const { open, spaceName, closeSettings } = useSpaceSettingsStore();
 
   return (
+    <>
     <SidebarProvider
       defaultOpen={true}
       className="min-h-0 h-full w-full"
@@ -43,5 +47,12 @@ export const LayoutWithSidebar = ({
         </div>
       </SidebarInset>
     </SidebarProvider>
+
+    <SpaceSettingsModal
+      open={open}
+      onClose={closeSettings}
+      spaceName={spaceName}
+    />
+    </>
   );
 };

@@ -1,6 +1,7 @@
 import { useSyncSelector, useDispatch } from "@will-be-done/hyperdb";
 import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
 import { SidebarProjectItem } from "./SidebarProjectItem.tsx";
+import { SpaceBlock } from "./SpaceBlock.tsx";
 import {
   Sidebar,
   SidebarHeader,
@@ -263,6 +264,8 @@ export const AppSidebar = () => {
           + Add Project
         </button>
       </div>
+
+      <SpaceBlock />
     </Sidebar>
   );
 };

@@ -4,6 +4,7 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { Pencil, Plus, Trash2, LogOut } from "lucide-react";
 import { initDbStore } from "@/store/load";
@@ -101,6 +102,12 @@ function SpacePageComponent() {
   const spaces = useSyncSelector(() => spaceSlice.listSpaces(), []);
   const dispatch = useDispatch();
 
+  useEffect(() => {
+    authUtils.setSpaceNames(
+      spaces.map((s) => ({ spaceId: s.id, name: s.name })),
+    );
+  }, [spaces]);
+
   const handleSignOut = () => {
     authUtils.signOut();
     void navigate({ to: "/login" });
@@ -110,7 +117,8 @@ function SpacePageComponent() {
     const name = window.prompt("Enter space name:");
     if (!name?.trim()) return;
 
-    dispatch(spaceSlice.createSpace(name));
+    const space = dispatch(spaceSlice.createSpace(name));
+    authUtils.setSpaceNames([{ spaceId: space.id, name: space.name }]);
   };
 
   const handleUpdateSpace = (
@@ -124,6 +132,7 @@ function SpacePageComponent() {
     const name = window.prompt("Enter new space name:", currentName);
     if (name?.trim() && name !== currentName) {
       dispatch(spaceSlice.updateSpace(spaceId, name));
+      authUtils.setSpaceNames([{ spaceId, name }]);
     }
   };
 
