@@ -42,37 +42,39 @@ function DataSection() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    void (async () => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    const confirmed = window.confirm(
-      "This will replace all existing data in this space. Continue?",
-    );
-    if (!confirmed) {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-
-    setImporting(true);
-    setImportError(null);
-    setImportSuccess(false);
-
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text) as Parameters<
-        typeof backupSlice.loadBackup
-      >[0];
-      dispatch(backupSlice.loadBackup(parsed));
-      setImportSuccess(true);
-    } catch {
-      setImportError(
-        "Failed to parse backup file. Make sure it's a valid JSON backup.",
+      const confirmed = window.confirm(
+        "This will replace all existing data in this space. Continue?",
       );
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+      if (!confirmed) {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+
+      setImporting(true);
+      setImportError(null);
+      setImportSuccess(false);
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text) as Parameters<
+          typeof backupSlice.loadBackup
+        >[0];
+        dispatch(backupSlice.loadBackup(parsed));
+        setImportSuccess(true);
+      } catch {
+        setImportError(
+          "Failed to parse backup file. Make sure it's a valid JSON backup.",
+        );
+      } finally {
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    })();
   };
 
   return (

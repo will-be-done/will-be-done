@@ -11,4 +11,5 @@ export const useSpaceSettingsStore = create<SpaceSettingsStore>((set) => ({
   open: false,
   spaceName: "",
   closeSettings: () => set({ open: false, spaceName: "" }),
+  openSettings: (spaceName: string) => set({ open: true, spaceName }),
 }));
