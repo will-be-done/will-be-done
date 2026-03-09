@@ -10,6 +10,5 @@ type SpaceSettingsStore = {
 export const useSpaceSettingsStore = create<SpaceSettingsStore>((set) => ({
   open: false,
   spaceName: "",
-  openSettings: (spaceName) => set({ open: true, spaceName }),
-  closeSettings: () => set({ open: false }),
+  closeSettings: () => set({ open: false, spaceName: "" }),
 }));
