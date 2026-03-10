@@ -1,24 +1,9 @@
-import { Link } from "@tanstack/react-router";
+import { SpaceNavLinks } from "@/components/SpaceNavLinks.tsx";
 
 export const NavBar = ({ spaceId }: { spaceId: string }) => {
   return (
-    <div className="flex items-center px-3 h-8 text-content-tinted gap-4 text-[13px] bg-surface-elevated ring-1 ring-ring rounded-br-lg">
-      <Link
-        className="transition-colors hover:text-primary [&.active]:text-accent"
-        to="/spaces/$spaceId/dates"
-        params={{
-          spaceId,
-        }}
-      >
-        projects
-      </Link>
-      <Link
-        className="transition-colors hover:text-primary [&.active]:text-accent"
-        to="/spaces/$spaceId/timeline"
-        params={{ spaceId }}
-      >
-        timeline
-      </Link>
+    <div className="flex items-center gap-0.5 h-8 px-1.5 bg-surface-elevated ring-1 ring-ring rounded-br-lg">
+      <SpaceNavLinks spaceId={spaceId} />
     </div>
   );
 };

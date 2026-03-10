@@ -3,6 +3,7 @@ import { resetWsClient } from "./trpc";
 const AUTH_TOKEN_KEY = "auth_token";
 const USER_ID_KEY = "user_id";
 const LAST_USED_SPACE_ID_KEY = "space_id";
+const SPACE_NAMES_KEY = "space_names_map";
 
 export const authUtils = {
   getToken: (): string | null => {
@@ -44,6 +45,23 @@ export const authUtils = {
     resetWsClient();
   },
 
+  // It's a bit hacky, but it works for now
+  setSpaceNames: (spaces: { spaceId: string; name: string }[]): void => {
+    const map = JSON.parse(
+      localStorage.getItem(SPACE_NAMES_KEY) ?? "{}",
+    ) as Record<string, string>;
+    for (const { spaceId, name } of spaces) {
+      map[spaceId] = name;
+    }
+    localStorage.setItem(SPACE_NAMES_KEY, JSON.stringify(map));
+  },
+  getSpaceName: (spaceId: string): string | null => {
+    const map = JSON.parse(
+      localStorage.getItem(SPACE_NAMES_KEY) ?? "{}",
+    ) as Record<string, string>;
+    return map[spaceId] ?? null;
+  },
+
   isAuthenticated: (): boolean => {
     return (
       !!localStorage.getItem(AUTH_TOKEN_KEY) &&
@@ -52,6 +70,5 @@ export const authUtils = {
   },
 };
 
-export const isDemoMode = () =>
-  typeof window !== "undefined" &&
-  window.location.hostname === "demo.will-be-done.app";
+export const isDemoMode = () => true; // typeof window !== "undefined" &&
+// window.location.hostname === "demo.will-be-done.app";
