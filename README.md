@@ -1,6 +1,6 @@
 # You have 100 tasks. What are you doing this week?
 
-Most task managers are great at collecting tasks — and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
+Most task managers are great at collecting tasks - and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
 
 This is my third attempt in 3 years to build the task manager I actually want to use. I already use it daily. Three things pushed me to build it rather than buy: own my data (self-hosted), a weekly planning view, and vim keybinds.
 
@@ -38,25 +38,25 @@ Then open http://localhost:3000 in your browser.
 ## Features
 
 **Plan your week, not just your tasks**
-- Weekly timeline view — each day is a column, drag tasks between days to rebalance
-- No angry "OVERDUE" badges — missed tasks get a gentle nudge, not a guilt trip
-- One bad day doesn't snowball — weekly planning means skipping a day keeps your list clean
+- Weekly timeline view - each day is a column, drag tasks between days to rebalance
+- No angry "OVERDUE" badges - missed tasks get a gentle nudge, not a guilt trip
+- One bad day doesn't snowball - weekly planning means skipping a day keeps your list clean
 - Kanban boards per project with categories you define (Week/Month/Ideas/Someday)
-- Multiple spaces — separate workspaces for work/personal/side projects
+- Multiple spaces - separate workspaces for work/personal/side projects
 
 **Fast enough that you forget it's a web app**
-- Local-first — full database in the browser, every action is instant, zero network round trips
-- True offline mode — full read/write with no server, not a cached skeleton
-- Real-time sync — changes propagate instantly across all tabs and devices
+- Local-first - full database in the browser, every action is instant, zero network round trips
+- True offline mode - full read/write with no server, not a cached skeleton
+- Real-time sync - changes propagate instantly across all tabs and devices
 
 **Built for people who live in their keyboard**
-- Vim keybindings — j/k navigation, drag with ctrl, quick-add with o/O
-- Everything drag & drop — tasks, days, projects, categories
-- Mobile ready — first-class mobile UI for when you're away from the keyboard
+- Vim keybindings - j/k navigation, drag with ctrl, quick-add with o/O
+- Everything drag & drop - tasks, days, projects, categories
+- Mobile ready - first-class mobile UI for when you're away from the keyboard
 
 **Your data, your rules**
-- Self-hosted — one Docker command, SQLite, no external dependencies
-- Open source — AGPL license
+- Self-hosted - one Docker command, SQLite, no external dependencies
+- Open source - AGPL license
 
 ## Vim keybinds
 
@@ -76,36 +76,37 @@ Planned:
 1. `u`/`r` - undo/redo action
 1. `?` - change date
 
-## Coming soon
+## Current Roadmap
 
 From tasks perspective:
-1. Repeating tasks
-1. Task details
-1. Task comments and attachments
-1. Global search
-1. Checklist inside task
-
-From projects perspective:
-1. Themes per project(custom background of project and custom color of project tasks)
-
-From daily columns perspective:
-1. Calendar integration
+- [x] Repeating tasks
+- [ ] Task details. Tast body with markdown support
+- [ ] Task comments and attachments
+- [ ] Checklist inside task
 
 From api perspective:
-1. API & MCP integration
+- [ ] API & MCP integration
+- [ ] CalDAV integration
 
 UI/UX:
-1. Multi selection of tasks
-1. Global command palette
-1. More vim keybindings
-1. Global themes.
-1. Undo/redo action
-1. DnD for project columns
-1. I18n
+- [ ] Themes per project(custom background of project and custom color of project tasks)
+- [ ] Multi selection of tasks
+- [ ] Global command palette
+- [ ] More vim keybindings
+- [ ] Global themes.
+- [ ] Undo/redo action
+- [ ] DnD for project columns
+- [ ] I18n
 
 Others:
-1. Desktop app with global quick-add shortcut
-1. Migrator from popular task managers
+- [ ] Migrator from popular task managers: Todoist / TickTick / Microsoft To Do
+- [ ] e2e encryption
+- [ ] Global search
+
+Separate apps:
+- [ ] Desktop app with global quick add, notifications support
+- [ ] Mobile app with notifications and widgets support
+- [ ] Chrome extension for quick add
 
 ## Features that are not planning for now
 
