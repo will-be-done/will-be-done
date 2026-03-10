@@ -34,6 +34,7 @@ interface CategoryBackup {
 interface TaskBackup {
   id: string;
   title: string;
+  content?: string;
   state: "todo" | "done";
   projectCategoryId: string;
   orderToken: string;
@@ -156,6 +157,7 @@ const getNewModels = action(function* (backup: Backup) {
       type: taskType,
       id: taskBackup.id,
       title: taskBackup.title,
+      content: taskBackup.content,
       state: taskBackup.state,
       projectCategoryId: taskBackup.projectCategoryId,
       orderToken: taskBackup.orderToken,
@@ -205,7 +207,8 @@ const getNewModels = action(function* (backup: Backup) {
       title: templateBackup.title,
       orderToken: templateBackup.orderToken,
       repeatRule: templateBackup.repeatRule,
-      repeatRuleDtStart: templateBackup.repeatRuleDtStart ?? templateBackup.createdAt,
+      repeatRuleDtStart:
+        templateBackup.repeatRuleDtStart ?? templateBackup.createdAt,
       createdAt: templateBackup.createdAt,
       lastGeneratedAt: templateBackup.lastGeneratedAt,
       projectCategoryId: category.id,
@@ -325,6 +328,7 @@ export const getBackup = selector(function* () {
       templateId: task.templateId,
       templateDate: task.templateDate,
       projectCategoryId: task.projectCategoryId,
+      content: task.content || "",
     })),
     projects: projects.map((project) => ({
       id: project.id,

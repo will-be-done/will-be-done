@@ -30,6 +30,7 @@ export type Task = {
   type: typeof taskType;
   id: string;
   title: string;
+  content?: string;
   state: TaskState;
   projectCategoryId: string;
   orderToken: string;
