@@ -49,3 +49,6 @@ export type { CardWrapper, CardWrapperType } from "./cards";
 
 // backup
 export type { Backup } from "./backup";
+
+// importer
+export { parseTickTickCSV } from "./importer/ticktick";
