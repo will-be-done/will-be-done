@@ -113,9 +113,16 @@ function toDateString(isoStr: string): string {
  */
 export function parseTickTickCSV(csv: string): Backup {
   const allRows = parseCSV(csv);
+
+  // Validate that this is actually a TickTick CSV export
+  if ((allRows[3]?.[0] ?? "") !== "Folder Name") {
+    throw new Error("Unrecognised file format – not a TickTick CSV export.");
+  }
+
   const dataRows = allRows.slice(4); // skip 3 metadata rows + 1 header row
 
   // Collect unique (folder, list) pairs, preserving insertion order
+  const seenCatKeysSet = new Set<string>();
   const seenCatKeys: string[] = [];
 
   for (const row of dataRows) {
@@ -123,7 +130,10 @@ export function parseTickTickCSV(csv: string): Backup {
     const list = row[COL_LIST] ?? "";
     const catKey = `${folder}::${list}`;
 
-    if (!seenCatKeys.includes(catKey)) seenCatKeys.push(catKey);
+    if (!seenCatKeysSet.has(catKey)) {
+      seenCatKeysSet.add(catKey);
+      seenCatKeys.push(catKey);
+    }
   }
 
   // Each (folder, list) pair → one Project titled "Folder/List"
@@ -238,7 +248,7 @@ export function parseTickTickCSV(csv: string): Backup {
       tasks.push({
         id: taskId,
         title,
-        content: content || undefined,
+        content: content || "",
         state: isActive ? "todo" : "done",
         projectCategoryId: category.id,
         orderToken,

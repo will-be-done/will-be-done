@@ -211,7 +211,8 @@ const getNewModels = action(function* (backup: Backup) {
       orderToken: templateBackup.orderToken,
       horizon: templateBackup.horizon,
       repeatRule: templateBackup.repeatRule,
-      repeatRuleDtStart: templateBackup.repeatRuleDtStart ?? templateBackup.createdAt,
+      repeatRuleDtStart:
+        templateBackup.repeatRuleDtStart ?? templateBackup.createdAt,
       createdAt: templateBackup.createdAt,
       lastGeneratedAt: templateBackup.lastGeneratedAt,
       projectCategoryId: category.id,
@@ -332,6 +333,7 @@ export const getBackup = selector(function* () {
       templateId: task.templateId,
       templateDate: task.templateDate,
       projectCategoryId: task.projectCategoryId,
+      content: task.content || "",
     })),
     projects: projects.map((project) => ({
       id: project.id,
