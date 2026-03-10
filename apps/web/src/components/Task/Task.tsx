@@ -278,39 +278,7 @@ export const TaskComp = ({
     const isMoveRight =
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
 
-    if (e.code === "Digit1" && noModifiers) {
-      e.preventDefault();
-
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          horizon: "week",
-        }),
-      );
-    } else if (e.code === "Digit2" && noModifiers) {
-      e.preventDefault();
-
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          horizon: "month",
-        }),
-      );
-    } else if (e.code === "Digit3" && noModifiers) {
-      e.preventDefault();
-
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          horizon: "year",
-        }),
-      );
-    } else if (e.code === "Digit4" && noModifiers) {
-      e.preventDefault();
-
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          horizon: "someday",
-        }),
-      );
-    } else if (e.code === "Space" && noModifiers) {
+    if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
       handleTick();

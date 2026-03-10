@@ -34,7 +34,6 @@ export type Task = {
   projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
-  horizon: "week" | "month" | "year" | "someday";
   createdAt: number;
   templateId: string | null;
   templateDate: number | null;
@@ -51,7 +50,6 @@ export const defaultTask: Task = {
   orderToken: "",
   lastToggledAt: 0,
   createdAt: 0,
-  horizon: "someday",
   templateId: null,
   templateDate: null,
 };
@@ -133,7 +131,6 @@ export const createTask = action(function* (
     state: "todo",
     lastToggledAt: Date.now(),
     createdAt: Date.now(),
-    horizon: "week",
     templateId: null,
     templateDate: null,
     ...task,
@@ -269,7 +266,6 @@ export const createFromTemplate = action(function* (taskTemplate: TaskTemplate) 
     type: taskType,
     orderToken: taskTemplate.orderToken,
     lastToggledAt: Date.now(),
-    horizon: taskTemplate.horizon,
     createdAt: taskTemplate.createdAt,
     templateId: null,
     templateDate: null,

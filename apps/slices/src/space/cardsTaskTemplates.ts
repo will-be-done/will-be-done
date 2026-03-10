@@ -33,7 +33,6 @@ export type TaskTemplate = {
   id: string;
   title: string;
   orderToken: string;
-  horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
   repeatRuleDtStart: number;
   createdAt: number;
@@ -48,7 +47,6 @@ export const defaultTaskTemplate: TaskTemplate = {
   id: "default-template-id",
   title: "default template",
   orderToken: "",
-  horizon: "someday",
   repeatRule: "",
   repeatRuleDtStart: 0,
   createdAt: 0,
@@ -85,7 +83,6 @@ const templateToTask = selector(function* (tmpl: TaskTemplate, date: Date) {
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
     lastToggledAt: normalizedEpoch,
-    horizon: tmpl.horizon,
     createdAt: normalizedEpoch,
     templateId: tmpl.id,
     templateDate: normalizedEpoch,
@@ -258,7 +255,6 @@ export const create = action(function* (
     type: taskTemplateType,
     id,
     title: "New template",
-    horizon: "week",
     repeatRule: defaultRule,
     repeatRuleDtStart: now,
     createdAt: now,
@@ -308,7 +304,6 @@ export const createFromTask = action(function* (
     createdAt: task.createdAt,
     repeatRule: defaultRule,
     repeatRuleDtStart: now,
-    horizon: task.horizon,
     lastGeneratedAt: now,
     projectCategoryId: task.projectCategoryId,
     ...data,

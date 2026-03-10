@@ -39,7 +39,6 @@ interface TaskBackup {
   orderToken: string;
   lastToggledAt: number;
   createdAt: number;
-  horizon?: "week" | "month" | "year" | "someday";
   templateId: string | null;
   templateDate: number | null;
   // Legacy fields for backwards compatibility (when loading old backups)
@@ -73,7 +72,6 @@ interface TaskTemplateBackup {
   id: string;
   title: string;
   orderToken: string;
-  horizon: "week" | "month" | "year" | "someday";
   repeatRule: string;
   repeatRuleDtStart?: number;
   createdAt: number;
@@ -163,7 +161,6 @@ const getNewModels = action(function* (backup: Backup) {
       orderToken: taskBackup.orderToken,
       lastToggledAt: taskBackup.lastToggledAt,
       createdAt: taskBackup.createdAt,
-      horizon: taskBackup.horizon || "someday",
       templateId: taskBackup.templateId || null,
       templateDate: taskBackup.templateDate || null,
     };
@@ -207,7 +204,6 @@ const getNewModels = action(function* (backup: Backup) {
       id: templateBackup.id,
       title: templateBackup.title,
       orderToken: templateBackup.orderToken,
-      horizon: templateBackup.horizon,
       repeatRule: templateBackup.repeatRule,
       repeatRuleDtStart: templateBackup.repeatRuleDtStart ?? templateBackup.createdAt,
       createdAt: templateBackup.createdAt,
@@ -326,7 +322,6 @@ export const getBackup = selector(function* () {
       orderToken: task.orderToken,
       lastToggledAt: task.lastToggledAt,
       createdAt: task.createdAt,
-      horizon: task.horizon,
       templateId: task.templateId,
       templateDate: task.templateDate,
       projectCategoryId: task.projectCategoryId,
@@ -353,7 +348,6 @@ export const getBackup = selector(function* () {
       id: template.id,
       title: template.title,
       orderToken: template.orderToken,
-      horizon: template.horizon,
       repeatRule: template.repeatRule,
       repeatRuleDtStart: template.repeatRuleDtStart,
       createdAt: template.createdAt,
