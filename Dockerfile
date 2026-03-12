@@ -17,7 +17,7 @@ COPY . .
 # Build the application using Bun
 # Assumes your build script is named "build" in package.json
 WORKDIR /app/apps/web
-RUN bun run build
+RUN bunx vite build
 WORKDIR /app
 
 # Stage 2: Create Bun runtime image

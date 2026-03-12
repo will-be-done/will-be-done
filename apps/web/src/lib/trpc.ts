@@ -9,7 +9,7 @@ import {
   createTRPCContext,
   createTRPCOptionsProxy,
 } from "@trpc/tanstack-react-query";
-import { AppRouter } from "@will-be-done/api";
+import type { AppRouter } from "@will-be-done/api";
 import { authUtils } from "./auth";
 import { queryClient } from "./query";
 
