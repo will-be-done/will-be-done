@@ -204,7 +204,6 @@ describe("parseTickTickCSV", () => {
     expect(template.repeatRuleDtStart).toBe(
       new Date("2024-01-01T09:00:00+0000").getTime(),
     );
-    expect(template.horizon).toBe("someday");
   });
 
   it("imports completed recurring task as a done Task (not a template)", () => {

@@ -186,7 +186,6 @@ The application uses a hierarchical structure: **Project → ProjectCategory →
      projectCategoryId: string,  // Parent category (replaces projectId + taskGroupId)
      orderToken: string,
      lastToggledAt: number,
-     horizon: "week" | "month" | "year" | "someday",
      createdAt: number,
      templateId: string | null,
      templateDate: number | null

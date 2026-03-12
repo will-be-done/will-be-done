@@ -235,7 +235,6 @@ export function parseTickTickCSV(csv: string): Backup {
         id: uuidv7(),
         title,
         orderToken,
-        horizon: "someday",
         repeatRule: repeat,
         repeatRuleDtStart: startDateStr ? parseEpoch(startDateStr) : createdAt,
         createdAt,
@@ -254,7 +253,6 @@ export function parseTickTickCSV(csv: string): Backup {
         orderToken,
         lastToggledAt,
         createdAt,
-        horizon: "someday",
         templateId: null,
         templateDate: null,
       });
