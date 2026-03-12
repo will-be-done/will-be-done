@@ -492,7 +492,6 @@ export const ProjectView = ({
   selectedProjectId: string;
 }) => {
   // const [selectedProjectId, setSelectedProjectId] = useState(inboxId);
-  // const taskHorizons = useFilterStore(useShallow((state) => state.horizons));
 
   const dispatch = useDispatch();
   const project = useSyncSelector(

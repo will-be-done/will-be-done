@@ -66,7 +66,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       id: "template-tz-test",
       title: "Daily test template",
       orderToken: "a",
-      horizon: "week",
+
       repeatRule: "RRULE:FREQ=DAILY;INTERVAL=1",
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
@@ -109,7 +109,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       id: "template-drift-test",
       title: "Daily drift test",
       orderToken: "a",
-      horizon: "week",
+
       repeatRule: "RRULE:FREQ=DAILY;INTERVAL=1",
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
@@ -151,7 +151,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       id: "template-minutely-drift",
       title: "Minutely drift test",
       orderToken: "a",
-      horizon: "week",
+
       repeatRule: "RRULE:FREQ=MINUTELY;INTERVAL=1",
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
@@ -196,7 +196,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       id: "template-cap-test",
       title: "Every 10 min template",
       orderToken: "a",
-      horizon: "week",
+
       repeatRule: "RRULE:FREQ=MINUTELY;INTERVAL=10",
       repeatRuleDtStart: oneYearAgo,
       createdAt: oneYearAgo,
@@ -232,7 +232,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       id: "template-minutely-tz",
       title: "Minutely test",
       orderToken: "a",
-      horizon: "week",
+
       repeatRule: "RRULE:FREQ=MINUTELY;INTERVAL=1;COUNT=5",
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
