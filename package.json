@@ -9,13 +9,17 @@
   ],
   "engines": {},
   "scripts": {
-    "dev:client": "bun --cwd apps/web run dev",
-    "dev:server": "bun --cwd apps/api run dev",
+    "dev:client": "bun run --cwd apps/web dev",
+    "dev:server": "bun run --cwd apps/api dev",
     "ts": "bun run --filter='@will-be-done/web' ts && bun run --filter='@will-be-done/slices' ts && bun run --filter='@will-be-done/api' ts",
     "lint": "bun run --filter='@will-be-done/web' lint && bun run --filter='@will-be-done/slices' lint && bun run --filter='@will-be-done/api' lint",
-    "test": "bun run --filter='@will-be-done/api' test && bun run --filter='@will-be-done/hyperdb' test"
+    "test": "bun run --filter='@will-be-done/api' test && bun run --filter='@will-be-done/hyperdb' test",
+    "all": "bun run scripts/dev-all.ts"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@types/blessed": "^0.1.27",
+    "blessed": "^0.1.81"
+  },
   "overrides": {
     "zod-validation-error": "^4.0.0"
   }

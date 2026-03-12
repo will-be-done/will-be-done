@@ -13,13 +13,15 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@typescript/native-preview": "^7.0.0-dev.20260304.1"
+    "@typescript/native-preview": "^7.0.0-dev.20260304.1",
+    "vitest": "^4.1.0"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.703.0",
+    "@doist/todoist-api-typescript": "^6.10.0",
     "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.4.0",
     "@fastify/static": "^8.3.0",
@@ -31,6 +33,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.6.2",
+    "fractional-indexing-jittered": "^1.0.0",
     "uuidv7": "^1.1.0",
     "ws": "^8.19.0",
     "zod": "^4.1.13"

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "6g8c237Rvp8F3FRW",
+    "userId": "21703811",
+    "projectId": "6g8c22Vm9R2VXRR4",
+    "addedAt": "2026-03-12T16:07:17.022000Z",
+    "updatedAt": "2026-03-12T16:07:17.620975Z",
+    "archivedAt": null,
+    "name": "sectoin 1",
+    "sectionOrder": 1,
+    "isArchived": false,
+    "isDeleted": false,
+    "isCollapsed": false,
+    "url": "https://app.todoist.com/app/section/sectoin-1-6g8c237Rvp8F3FRW"
+  },
+  {
+    "id": "6g8c23qX46r8QV9W",
+    "userId": "21703811",
+    "projectId": "6g8c22Vm9R2VXRR4",
+    "addedAt": "2026-03-12T16:07:25.030200Z",
+    "updatedAt": "2026-03-12T16:07:25.858061Z",
+    "archivedAt": null,
+    "name": "section 2",
+    "sectionOrder": 2,
+    "isArchived": false,
+    "isDeleted": false,
+    "isCollapsed": false,
+    "url": "https://app.todoist.com/app/section/section-2-6g8c23qX46r8QV9W"
+  },
+  {
+    "id": "6g8c246vgGCcCFp4",
+    "userId": "21703811",
+    "projectId": "6g8c22Vm9R2VXRR4",
+    "addedAt": "2026-03-12T16:07:27.095900Z",
+    "updatedAt": "2026-03-12T16:07:28.325856Z",
+    "archivedAt": null,
+    "name": "section 3",
+    "sectionOrder": 3,
+    "isArchived": false,
+    "isDeleted": false,
+    "isCollapsed": false,
+    "url": "https://app.todoist.com/app/section/section-3-6g8c246vgGCcCFp4"
+  }
+]

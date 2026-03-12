@@ -39,9 +39,9 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
 
       {/* Panel */}
       <div className="fixed inset-0 flex items-center justify-center p-3 sm:p-6">
-        <DialogPanel className="w-full max-w-[680px] flex flex-col max-h-[90vh] overflow-hidden rounded-2xl bg-dialog-bg ring-1 ring-dialog-border shadow-[0_32px_80px_rgba(0,0,0,0.85)]">
+        <DialogPanel className="w-full max-w-[680px] flex flex-col h-[min(90vh,520px)] rounded-2xl bg-dialog-bg ring-1 ring-dialog-border shadow-[0_32px_80px_rgba(0,0,0,0.85)]">
           {/* Header row: title + space name + close */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-0">
+          <div className="flex items-center justify-between px-6 pt-5 pb-0 flex-shrink-0">
             <div className="flex items-baseline gap-2">
               <h2 className="text-[14px] font-semibold text-content">
                 Settings
@@ -59,7 +59,7 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
           </div>
 
           {/* Top tab nav */}
-          <div className="flex gap-1 overflow-x-auto px-4 pt-4 pb-0 scrollbar-none">
+          <div className="flex gap-1 overflow-x-auto px-4 pt-4 pb-0 scrollbar-none flex-shrink-0">
             {SECTIONS.map((s) => (
               <button
                 key={s.id}
@@ -80,9 +80,9 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
           </div>
 
           {/* Divider */}
-          <div className="mx-0 mt-3 h-px bg-dialog-border" />
+          <div className="mx-0 mt-3 h-px bg-dialog-border flex-shrink-0" />
 
-          {/* Content — flex-1 so it fills remaining height, scrollable */}
+          {/* Content — fills remaining height, scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {activeSection === "data" && <BackupSection />}
             {activeSection === "import" && <ImportSection />}
