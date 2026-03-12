@@ -9,7 +9,7 @@
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "vitest run"
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { todoistRecurrenceToRRule, buildBackup } from "./importTodoist";
 import type {
   Task as TodoistTask,
@@ -44,7 +44,10 @@ describe("todoistRecurrenceToRRule", () => {
 // buildBackup with real fixtures
 // ---------------------------------------------------------------------------
 
-const projects = projectsFixture as unknown as (PersonalProject | WorkspaceProject)[];
+const projects = projectsFixture as unknown as (
+  | PersonalProject
+  | WorkspaceProject
+)[];
 const sections = sectionsFixture as unknown as TodoistSection[];
 const allTasks = [
   ...activeTasksFixture,
@@ -127,7 +130,8 @@ describe("buildBackup", () => {
         activeTasksFixture
           .filter(
             (t) =>
-              !t.checked && !(t.due?.isRecurring && todoistRecurrenceToRRule(t.due?.string)),
+              !t.checked &&
+              !(t.due?.isRecurring && todoistRecurrenceToRRule(t.due?.string)),
           )
           .map((t) => t.content),
       );
@@ -175,8 +179,8 @@ describe("buildBackup", () => {
   describe("recurring tasks", () => {
     it("creates a TaskTemplate for 'every day' recurring task", () => {
       expect(backup.taskTemplates.length).toBeGreaterThanOrEqual(1);
-      const tpl = backup.taskTemplates.find((t) =>
-        t.repeatRule === "FREQ=DAILY;INTERVAL=1",
+      const tpl = backup.taskTemplates.find(
+        (t) => t.repeatRule === "FREQ=DAILY;INTERVAL=1",
       );
       expect(tpl).toBeDefined();
     });

@@ -327,7 +327,6 @@ export function buildBackup(
             id: uuidv7(),
             title: t.content,
             orderToken,
-            horizon: "someday",
             repeatRule: rrule,
             repeatRuleDtStart: dtStart,
             createdAt,
@@ -349,7 +348,6 @@ export function buildBackup(
         orderToken,
         lastToggledAt: t.completedAt ? parseEpoch(t.completedAt) : createdAt,
         createdAt,
-        horizon: "someday",
         templateId: null,
         templateDate: null,
       });
