@@ -244,7 +244,7 @@ const appRouter = router({
       );
       return result;
     }),
-  importTodoist: publicProcedure
+  importTodoist: protectedProcedure
     .input(z.object({ apiToken: z.string().min(1) }))
     .mutation(async (opts) => {
       return importFromTodoist(opts.input.apiToken);

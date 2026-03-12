@@ -393,8 +393,15 @@ export async function importFromTodoist(apiToken: string): Promise<Backup> {
       fetchAllCompletedTasks(api),
     ]);
 
+  const seenIds = new Set(activeTasks.map((t) => t.id));
+  const completedUniq = completedTasks.filter((t) => {
+    if (seenIds.has(t.id)) return false;
+    seenIds.add(t.id);
+    return true;
+  });
+
   return buildBackup(todoistProjects, todoistSections, [
     ...activeTasks,
-    ...completedTasks,
+    ...completedUniq,
   ]);
 }
