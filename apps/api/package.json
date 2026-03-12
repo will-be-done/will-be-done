@@ -9,11 +9,12 @@
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "bun test"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@typescript/native-preview": "^7.0.0-dev.20260304.1"
+    "@typescript/native-preview": "^7.0.0-dev.20260304.1",
+    "vitest": "^4.1.0"
   },
   "peerDependencies": {
     "typescript": "^5"

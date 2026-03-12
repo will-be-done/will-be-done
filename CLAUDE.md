@@ -375,6 +375,9 @@ The system tracks three types of changes:
 - Use Zod for all API input validation
 - Follow TanStack Router conventions for routing
 
+### TypeScript:
+- **Never use `any`** — use proper types, `unknown`, or generics instead
+
 ### Performance:
 - Indexes are critical for query performance
 - Use hash indexes for equality lookups

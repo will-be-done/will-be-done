@@ -31,6 +31,7 @@ import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getEnvConfig } from "./env";
 import { getCaptchaConfig } from "./captcha/types";
 import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
+import { importFromTodoist } from "./todoist/importTodoist";
 
 dotenv.config();
 
@@ -243,6 +244,11 @@ const appRouter = router({
       );
       return result;
     }),
+  importTodoist: publicProcedure
+    .input(z.object({ apiToken: z.string().min(1) }))
+    .mutation(async (opts) => {
+      return importFromTodoist(opts.input.apiToken);
+    }),
   login: publicProcedure
     .input(
       z.object({
@@ -325,7 +331,8 @@ server.setNotFoundHandler((request, reply) => {
 const start = async () => {
   try {
     console.log("Starting server...");
-    await server.listen({ port: 3000, host: "0.0.0.0" });
+    const port = parseInt(process.env.PORT || "3000", 10);
+    await server.listen({ port, host: "0.0.0.0" });
     console.log("Server started");
 
     // Initialize backup system in a worker
