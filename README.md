@@ -1,8 +1,11 @@
+
+**Note on AI:** I’ve been developing this project for a year. This is my third attempt; the first two failed because the technology for fast, offline-first apps wasn't ready. This time, I created my own method for local-first development and built a database that works for both the frontend and backend. I have over 10 years of experience as a developer and 4 years specializing in offline-first apps. Building these reliably requires specific expertise. I use Claude Code to help, but I review every line of code manually to ensure quality.
+
 # Will Be Done
 
 Most task managers are great at collecting tasks - and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
 
-This is my third attempt in 3 years to build the task manager I actually want to use. I already use it daily. Three things pushed me to build it rather than buy: own my data (self-hosted), a weekly planning view, and vim keybinds.
+This is my third attempt in 3 years to build the task manager I actually want to use. I already use it daily. Things pushed me to build it: own my data (self-hosted), a weekly planning view, instant sync, offline support and vim keybinds.
 
 Try the **live demo** (no sign-up) at [demo.will-be-done.app](https://demo.will-be-done.app)
 or the cloud version at [will-be-done.app](https://will-be-done.app/) before installing.
