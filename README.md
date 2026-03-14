@@ -83,7 +83,7 @@ Then open http://localhost:3000 in your browser.
 - Everything drag & drop - tasks, days, projects, categories
 - Mobile ready - first-class mobile UI for when you're away from the keyboard
 
-**Your data, your rules**
+**It's your data**
 - Self-hosted - one Docker command, SQLite, no external dependencies
 - Open source - AGPL license
 
@@ -128,7 +128,7 @@ UI/UX:
 - [ ] I18n
 
 Others:
-- [ ] Migrator from popular task managers: Todoist / TickTick / Microsoft To Do
+- [s] Migrator from popular task managers: Todoist / TickTick
 - [ ] e2e encryption
 - [ ] Global search
 
