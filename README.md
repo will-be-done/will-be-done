@@ -7,19 +7,48 @@ This is my third attempt in 3 years to build the task manager I actually want to
 Try the **live demo** (no sign-up) at [demo.will-be-done.app](https://demo.will-be-done.app)
 or the cloud version at [will-be-done.app](https://will-be-done.app/) before installing.
 
-
-
-<img width="1200" height="1992" alt="timeline" src="https://github.com/user-attachments/assets/7d9f606e-1203-4dce-a82b-9b39ce631a99" />
-
-<hr>
-
-<img width="1200"  alt="project" src="https://github.com/user-attachments/assets/4f9f5973-e1ba-4d03-af28-5f04f5891ed8" />
-
-<hr>
-
-<img width="1920" height="1920" alt="459_1x_shots_so" src="https://github.com/user-attachments/assets/36d60659-8725-49cc-807b-79cfa21b88ce" />
-
-
+<table>
+  <tr>
+    <th>Project</th>
+    <th>Timeline</th>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img
+        src="https://github.com/user-attachments/assets/4f9f5973-e1ba-4d03-af28-5f04f5891ed8"
+        alt="project"
+        width="100%"
+      />
+    </td>
+    <td width="50%">
+      <img
+        src="https://github.com/user-attachments/assets/7d9f606e-1203-4dce-a82b-9b39ce631a99"
+        alt="timeline"
+        width="100%"
+      />
+    </td>
+  </tr>
+  <tr>
+    <th>Today</th>
+    <th>Mobile</th>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img
+        src="https://github.com/user-attachments/assets/effaffd0-4d59-4631-a785-af0b459030c5"
+        alt="459_1x_shots_so"
+        width="100%"
+      />
+    </td>
+    <td width="50%">
+      <img
+        src="https://github.com/user-attachments/assets/36d60659-8725-49cc-807b-79cfa21b88ce"
+        alt="459_1x_shots_so"
+        width="100%"
+      />
+    </td>
+  </tr>
+</table>
 
 ## Installation
 
