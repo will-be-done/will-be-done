@@ -131,7 +131,7 @@ UI/UX:
 - [ ] I18n
 
 Others:
-- [s] Migrator from popular task managers: Todoist / TickTick
+- [x] Migrator from popular task managers: Todoist / TickTick
 - [ ] e2e encryption
 - [ ] Global search
 
