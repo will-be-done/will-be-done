@@ -68,24 +68,32 @@ export const taskTemplatesTable = table<TaskTemplate>(
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
-const genTaskId = selector(function* (taskTemplateId: string, date: Date) {
-  const normalizedEpoch = fromUTC(date).getTime();
-  return yield* genUUIDV5(taskType, taskTemplateId + "_" + normalizedEpoch);
+const genTaskId = selector(function* (
+  taskTemplateId: string,
+  date: Date,
+  normalized: boolean,
+) {
+  const epoch = getDateEpoch(date, normalized);
+  return yield* genUUIDV5(taskType, taskTemplateId + "_" + epoch);
 });
 
-const templateToTask = selector(function* (tmpl: TaskTemplate, date: Date) {
-  const normalizedEpoch = fromUTC(date).getTime();
+const templateToTask = selector(function* (
+  tmpl: TaskTemplate,
+  date: Date,
+  normalized: boolean,
+) {
+  const epoch = getDateEpoch(date, normalized);
   return {
     type: "task",
-    id: yield* genTaskId(tmpl.id, date),
+    id: yield* genTaskId(tmpl.id, date, normalized),
     title: tmpl.title,
     state: "todo",
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
-    lastToggledAt: normalizedEpoch,
-    createdAt: normalizedEpoch,
+    lastToggledAt: epoch,
+    createdAt: epoch,
     templateId: tmpl.id,
-    templateDate: normalizedEpoch,
+    templateDate: epoch,
   } satisfies Task;
 });
 
@@ -115,6 +123,34 @@ function createRuleFromString(ruleString: string): RRule {
 function createRuleWithDtstart(ruleString: string, dtstart: Date): RRule {
   const options = RRule.parseString(ruleString.trim());
   return new RRule({ ...options, dtstart });
+}
+
+/** Returns true for DAILY, WEEKLY, MONTHLY, YEARLY frequencies */
+function isDailyOrCoarser(ruleString: string): boolean {
+  const options = RRule.parseString(ruleString.trim());
+  return options.freq !== undefined && options.freq <= RRule.DAILY;
+}
+
+/**
+ * For daily-or-coarser rules, normalize dtstart to midnight in the abstract
+ * RRule space so that occurrences fall at day start (00:00 local).
+ */
+function getEffectiveDtstart(template: TaskTemplate): Date {
+  const dtstart = toUTC(new Date(getTemplateDtStart(template)));
+  if (isDailyOrCoarser(template.repeatRule)) {
+    dtstart.setUTCHours(0, 0, 0, 0);
+  }
+  return dtstart;
+}
+
+/**
+ * Get a deterministic epoch from an RRule date.
+ * For daily+ rules (normalized to midnight): date.getTime() is already
+ * identical across timezones because normalization produces the same abstract date.
+ * For sub-daily rules: fromUTC restores the original UTC epoch via toUTC/fromUTC symmetry.
+ */
+function getDateEpoch(date: Date, normalized: boolean): number {
+  return normalized ? date.getTime() : fromUTC(date).getTime();
 }
 
 // Selectors
@@ -173,16 +209,17 @@ export const newTasksInRange = selector(function* (
   const newTasks: Task[] = [];
 
   for (const template of templates) {
+    const normalized = isDailyOrCoarser(template.repeatRule);
     const r = createRuleWithDtstart(
       template.repeatRule,
-      toUTC(new Date(getTemplateDtStart(template))),
+      getEffectiveDtstart(template),
     );
     const dates = r.between(fromDate, toDate);
     for (const date of dates) {
-      const taskId = yield* genTaskId(template.id, date);
+      const taskId = yield* genTaskId(template.id, date, normalized);
       const existingTask = yield* cardsTasksSlice.byId(taskId);
       if (!existingTask) {
-        newTasks.push(yield* templateToTask(template, date));
+        newTasks.push(yield* templateToTask(template, date, normalized));
       }
     }
   }
@@ -197,10 +234,9 @@ export const newTasksToGenForTemplate = selector(function* (
   const template = yield* byId(templateId);
   if (!template) return [];
 
-  const r = createRuleWithDtstart(
-    template.repeatRule,
-    toUTC(new Date(getTemplateDtStart(template))),
-  );
+  const shouldNormalize = isDailyOrCoarser(template.repeatRule);
+  const effectiveDtstart = getEffectiveDtstart(template);
+  const r = createRuleWithDtstart(template.repeatRule, effectiveDtstart);
   const newTasks: Task[] = [];
 
   // Cap generation window to 2 weeks to avoid generating thousands of tasks
@@ -208,12 +244,33 @@ export const newTasksToGenForTemplate = selector(function* (
     template.lastGeneratedAt,
     toDate.getTime() - MAX_GENERATION_WINDOW_MS,
   );
-  const dates = r.between(toUTC(new Date(earliestFrom)), toUTC(toDate));
+
+  let fromDateShifted = toUTC(new Date(earliestFrom));
+  const toDateShifted = toUTC(toDate);
+
+  if (shouldNormalize) {
+    // For daily+ rules with midnight-normalized dtstart, floor fromDateShifted
+    // to midnight in abstract space. This ensures today's midnight occurrence
+    // is within the between() window even if lastGeneratedAt was set after
+    // midnight (e.g. from a previous run or pre-migration code).
+    fromDateShifted = new Date(fromDateShifted);
+    fromDateShifted.setUTCHours(0, 0, 0, 0);
+    // Don't go before the effective dtstart
+    if (fromDateShifted < effectiveDtstart) {
+      fromDateShifted = new Date(effectiveDtstart.getTime());
+    }
+  }
+
+  // Use inc=true for normalized rules so midnight boundary occurrences are included
+  const dates = shouldNormalize
+    ? r.between(fromDateShifted, toDateShifted, true)
+    : r.between(fromDateShifted, toDateShifted);
+
   for (const date of dates) {
-    const taskId = yield* genTaskId(template.id, date);
+    const taskId = yield* genTaskId(template.id, date, shouldNormalize);
     const existingTask = yield* cardsTasksSlice.byId(taskId);
     if (!existingTask) {
-      newTasks.push(yield* templateToTask(template, date));
+      newTasks.push(yield* templateToTask(template, date, shouldNormalize));
     }
   }
 
