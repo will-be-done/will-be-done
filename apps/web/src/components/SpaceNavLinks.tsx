@@ -24,7 +24,7 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
   });
 
   return (
-    <>
+    <div className="flex gap-0.5 items-center h-8 px-1.5 ring-1 ring-ring rounded-lg desktop-macos:ml-20 desktop-macos:py-2 mt-2">
       <Link
         to="/spaces/$spaceId/dates"
         params={{ spaceId }}
@@ -39,6 +39,6 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
       >
         timeline
       </Link>
-    </>
+    </div>
   );
 };

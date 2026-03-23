@@ -30,7 +30,7 @@ export const NavPanel = ({
 
   return (
     <div className="top-0 fixed m-auto left-0 right-0 max-w-xl z-40">
-      <div className="bg-surface-elevated w-full mx-5 rounded-b-lg text-[13px] text-content flex items-center relative h-8 stroke-content ring-1 ring-ring">
+      <div className="bg-surface-elevated w-full mx-5 rounded-b-lg text-[13px] text-content flex items-center relative h-10 stroke-content ring-1 ring-ring">
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 h-full">
           <Link
             to="/spaces/$spaceId/timeline/$date"

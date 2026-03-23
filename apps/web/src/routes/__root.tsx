@@ -12,6 +12,7 @@ function RouteComponent() {
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         <HeadContent />
+        <div className="desktop-drag-region" />
         <Outlet />
 
         {/* <TanStackRouterDevtools position="bottom-right" /> */}

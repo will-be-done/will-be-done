@@ -163,7 +163,7 @@ const NavStrip = () => {
   const spaceId = Route.useParams().spaceId;
 
   return (
-    <div className="hidden md:flex items-center gap-0.5 h-8 px-1.5 -ml-2 ring-1 ring-ring rounded-br-lg mb-3">
+    <div className="hidden md:flex -ml-2 mb-3">
       <SpaceNavLinks spaceId={spaceId} />
     </div>
   );

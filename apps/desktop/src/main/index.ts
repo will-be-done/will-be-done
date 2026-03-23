@@ -9,7 +9,13 @@ const Store =
   (ElectronStore as unknown as { default: typeof ElectronStore }).default || ElectronStore
 const store = new Store<{ serverUrl?: string }>()
 
+const DEFAULT_SERVER = 'https://app.will-be-done.app'
+
 let mainWindow: BrowserWindow | null = null
+
+function getServerUrl(): string {
+  return (store.get('serverUrl2') as string | undefined) || DEFAULT_SERVER
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -37,28 +43,14 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  const savedUrl = store.get('serverUrl') as string | undefined
-  if (savedUrl) {
-    loadServerUrl(savedUrl)
+  // In dev, load the web app's Vite dev server; in prod, load the saved server URL
+  if (is.dev) {
+    mainWindow.loadURL('http://localhost:5173')
   } else {
-    loadRendererUI()
+    mainWindow.loadURL(getServerUrl())
   }
 
   buildMenu()
-}
-
-function loadRendererUI(): void {
-  if (!mainWindow) return
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-}
-
-function loadServerUrl(url: string): void {
-  if (!mainWindow) return
-  mainWindow.loadURL(url)
 }
 
 function buildMenu(): void {
@@ -81,19 +73,6 @@ function buildMenu(): void {
           }
         ]
       : []),
-    {
-      label: 'Server',
-      submenu: [
-        {
-          label: 'Change Server',
-          accelerator: 'CmdOrCtrl+Shift+S',
-          click: (): void => {
-            store.delete('serverUrl')
-            loadRendererUI()
-          }
-        }
-      ]
-    },
     {
       label: 'Edit',
       submenu: [
@@ -136,12 +115,6 @@ function buildMenu(): void {
   Menu.setApplicationMenu(menu)
 }
 
-// // Allow loading external sites that may have certificate issues (e.g. custom CAs, mismatched CN)
-// app.on('certificate-error', (event, _webContents, _url, _error, _certificate, callback) => {
-//   event.preventDefault()
-//   callback(true)
-// })
-
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.willbedone')
 
@@ -149,18 +122,16 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // IPC: get/set server URL, reload window to new server
   ipcMain.handle('get-server-url', () => {
-    return store.get('serverUrl') || null
+    return getServerUrl()
   })
 
   ipcMain.handle('set-server-url', (_event, url: string) => {
     store.set('serverUrl', url)
-    loadServerUrl(url)
-  })
-
-  ipcMain.handle('clear-server-url', () => {
-    store.delete('serverUrl')
-    loadRendererUI()
+    if (!is.dev && mainWindow) {
+      mainWindow.loadURL(url)
+    }
   })
 
   createWindow()
