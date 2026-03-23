@@ -18,9 +18,7 @@ export const GlobalLayout = ({ children }: { children?: React.ReactNode }) => {
       />
 
       {/* Content */}
-      <div className="relative w-full h-full flex">
-        {children}
-      </div>
+      <div className="relative w-full h-full flex">{children}</div>
 
       <MobileTaskToolbar />
     </div>

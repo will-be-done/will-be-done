@@ -163,7 +163,7 @@ const NavStrip = () => {
   const spaceId = Route.useParams().spaceId;
 
   return (
-    <div className="hidden md:flex -ml-2 mb-3">
+    <div className="hidden sm:flex desktop-macos:flex -ml-2 mb-3 [app-region:drag] ">
       <SpaceNavLinks spaceId={spaceId} />
     </div>
   );
@@ -191,7 +191,7 @@ export const AppSidebar = () => {
       className="[&_[data-slot=sidebar-container]]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-surface-elevated [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-ring"
     >
       <SidebarRail />
-      <SidebarHeader className="px-2 pt-3 md:pt-0 pb-0 gap-0">
+      <SidebarHeader className="px-2 pt-3 md:pt-0 desktop-macos:pt-0 pb-0 gap-0">
         <NavStrip />
         {/* Today + Inbox */}
         <div className="grid grid-cols-2 gap-1.5">

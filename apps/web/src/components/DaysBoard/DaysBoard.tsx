@@ -13,7 +13,7 @@ import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
-import { useCurrentDMY, useDaysPreferences, useHiddenDays } from "./hooks.tsx";
+import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
 import { ProjectView } from "../ProjectView/ProvecjtView.tsx";
 import {
   TasksColumn,
@@ -162,7 +162,6 @@ const BoardView = ({
   dailyListsIds: string[];
   selectedProjectId: string;
 }) => {
-  const daysToShow = useDaysPreferences((state) => state.daysWindow);
   const dispatch = useDispatch();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
 
@@ -262,13 +261,9 @@ const BoardView = ({
         >
           {/* <ScrollArea.Root style={{ height: `${100 - height}%` }}> */}
           {/*   <ScrollArea.Viewport className="h-full overscroll-contain rounded-md w-full pr-4 pl-1"> */}
-          <TasksColumnGrid columnsCount={daysToShow}>
+          <TasksColumnGrid columnsCount={7}>
             {dailyListsIds.map((id) => (
-              <ColumnView
-                dailyListId={id}
-                onTaskAdd={handleAddTask}
-                key={id}
-              />
+              <ColumnView dailyListId={id} onTaskAdd={handleAddTask} key={id} />
             ))}
           </TasksColumnGrid>
           {/* </ScrollArea.Viewport> */}
@@ -284,21 +279,18 @@ const BoardView = ({
             selectedDate={selectedDate}
             selectedProjectId={selectedProjectId}
           />
-          <div className="absolute left-0 top-0">
-            <NavBar spaceId={spaceId} />
-          </div>
-          {!isDemoMode() && (
-            <div className="absolute right-0 top-0">
-              <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4">
-                <Link
-                  className="transition-colors hover:text-primary"
-                  to="/spaces"
-                >
-                  spaces
-                </Link>
-              </div>
-            </div>
-          )}
+          {/* {!isDemoMode() && ( */}
+          {/*   <div className="absolute right-0 top-0"> */}
+          {/*     <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4"> */}
+          {/*       <Link */}
+          {/*         className="transition-colors hover:text-primary" */}
+          {/*         to="/spaces" */}
+          {/*       > */}
+          {/*         spaces */}
+          {/*       </Link> */}
+          {/*     </div> */}
+          {/*   </div> */}
+          {/* )} */}
           {/* </ScrollArea.Root> */}
         </div>
         <div
@@ -331,8 +323,6 @@ export const Board = ({
   selectedDate: Date;
   selectedProjectId: string;
 }) => {
-  const daysToShow = useDaysPreferences((state) => state.daysWindow);
-
   const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
   const previousDate = useMemo(() => subDays(selectedDate, 1), [selectedDate]);
   const nextDate = useMemo(() => addDays(selectedDate, 1), [selectedDate]);
@@ -341,8 +331,8 @@ export const Board = ({
     () =>
       Array.from({ length: 7 }, (_, i) => {
         return addDays(startingDate, i);
-      }).filter((_, i) => i < daysToShow),
-    [startingDate, daysToShow],
+      }),
+    [startingDate],
   );
 
   const dailyListsIds = useSyncSelector(
