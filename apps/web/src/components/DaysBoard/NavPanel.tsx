@@ -31,9 +31,9 @@ export const NavPanel = ({
         <NavBar spaceId={spaceId} />
       </div>
 
-      <div className="top-0 fixed m-auto left-0 right-0 max-w-60 z-40 [app-region:no-drag]">
-        <div className="bg-surface-elevated mx-5 rounded-b-lg text-[13px] text-content flex items-center relative h-10 stroke-content ring-1 ring-ring">
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 h-full shrink-0">
+      <div className="top-0 fixed right-0 min-[650px]:left-0 min-[650px]:m-auto min-[650px]:max-w-60 z-40 [app-region:no-drag]">
+        <div className="bg-surface-elevated rounded-bl-lg min-[650px]:rounded-b-lg text-[13px] text-content flex items-center justify-center h-10 stroke-content ring-1 ring-ring px-3">
+          <div className="flex items-center gap-2 h-full shrink-0">
             <Link
               to="/spaces/$spaceId/timeline/$date"
               params={{
