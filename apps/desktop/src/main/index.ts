@@ -15,6 +15,8 @@ import ElectronStore from 'electron-store'
 
 app.setName('Will Be Done')
 
+const serverUrlKey = 'serverUrl'
+
 // electron-store v11 is ESM; electron-vite compiles main as CJS, so default export may be wrapped
 const Store =
   (ElectronStore as unknown as { default: typeof ElectronStore }).default || ElectronStore
@@ -26,7 +28,7 @@ let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
 
 function getServerUrl(): string {
-  return (store.get('serverUrl2') as string | undefined) || DEFAULT_SERVER
+  return (store.get(serverUrlKey) as string | undefined) || DEFAULT_SERVER
 }
 
 function createWindow(): void {
@@ -226,7 +228,7 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('set-server-url', (_event, url: string) => {
-    store.set('serverUrl', url)
+    store.set(serverUrlKey, url)
     if (!is.dev && mainWindow) {
       mainWindow.loadURL(url)
     }

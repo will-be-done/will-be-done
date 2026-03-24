@@ -28,7 +28,7 @@ export const LayoutWithSidebar = ({
         <AppSidebar />
         <SidebarInset className="min-h-0 bg-transparent">
           <div className="relative h-full">
-            <SidebarTrigger className="absolute left-2 top-2 z-20 text-content-tinted hover:text-primary backdrop-blur-md cursor-pointer desktop-macos:data-[open=false]:ml-20 desktop-macos:top-2.5 [app-region:nodrag]" />
+            <SidebarTrigger className="absolute left-2 top-2 z-20 text-content-tinted hover:text-primary backdrop-blur-md cursor-pointer desktop-macos:data-[open=false]:ml-20 desktop-macos:top-2.5 [app-region:no-drag]" />
             {children}
             {/* {!isDemoMode() && ( */}
             {/*   <div className="absolute right-0 top-0"> */}
