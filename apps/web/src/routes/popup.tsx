@@ -16,9 +16,9 @@ function PopupComponent() {
     initialSpaceId ? "" : "No space selected. Open the main app first.",
   );
   const inputRef = useRef<HTMLInputElement>(null);
-  const storeRef = useRef<Awaited<
-    ReturnType<typeof initPopupStore>
-  > | null>(null);
+  const storeRef = useRef<Awaited<ReturnType<typeof initPopupStore>> | null>(
+    null,
+  );
   const initRef = useRef(false);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ function PopupComponent() {
   // Listen for popup-show IPC to reset state when the window is re-shown
   useEffect(() => {
     const cleanup = window.desktopApi?.onPopupShow(() => {
-      setTitle("");
+      // setTitle("");
       setStatus("idle");
       setErrorMsg("");
       // Focus input on next frame after the window becomes visible
@@ -76,6 +76,8 @@ function PopupComponent() {
       setErrorMsg("Failed to create task.");
       setTimeout(() => setStatus("idle"), 2000);
     }
+
+    setTitle("");
   }, [title, hidePopup]);
 
   const handleKeyDown = useCallback(

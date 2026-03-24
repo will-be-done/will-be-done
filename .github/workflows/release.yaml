@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
-  pull_request:
 
 permissions:
   contents: write
@@ -16,7 +15,6 @@ env:
 
 jobs:
   validate-tag:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.extract.outputs.version }}
@@ -103,7 +101,7 @@ jobs:
           EOF
 
   build-desktop:
-    if: always()
+    needs: validate-tag
     strategy:
       fail-fast: false
       matrix:
@@ -146,19 +144,4 @@ jobs:
         working-directory: apps/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_FOR_PULL_REQUEST: ${{ matrix.platform == 'mac' && 'true' || '' }}
-        run: npx electron-builder --publish ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
-
-      - name: Upload build artifacts
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.platform }}
-          path: |
-            apps/desktop/dist/*.exe
-            apps/desktop/dist/*.dmg
-            apps/desktop/dist/*.AppImage
-            apps/desktop/dist/*.snap
-            apps/desktop/dist/*.deb
-            apps/desktop/dist/*.rpm
-            apps/desktop/dist/*.zip
+        run: npx electron-builder --publish always

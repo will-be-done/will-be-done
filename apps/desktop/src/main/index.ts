@@ -10,6 +10,7 @@ import {
 } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import ElectronStore from 'electron-store'
 
@@ -236,6 +237,9 @@ app.whenReady().then(() => {
 
   createWindow()
   initPopupWindow()
+
+  // Check for updates (downloads and notifies user when ready)
+  autoUpdater.checkForUpdatesAndNotify()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
