@@ -138,6 +138,10 @@ jobs:
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
 
+      - name: Build electron-vite app
+        working-directory: apps/desktop
+        run: npx electron-vite build
+
       - name: Build desktop app
         working-directory: apps/desktop
         env:
