@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils.ts";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import invariant from "tiny-invariant";
+import { promptDialog } from "@/components/ui/prompt-dialog";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -112,8 +113,8 @@ const CategorySection = ({
     return doneTaskIds.slice(0, 3);
   }, [doneTaskIds, isShowMore]);
 
-  const handleTitleClick = () => {
-    const newTitle = prompt("Section name", category.title);
+  const handleTitleClick = async () => {
+    const newTitle = await promptDialog("Section name", category.title);
     if (newTitle == null || newTitle === "") return;
     dispatch(
       projectCategoriesSlice.updateCategory(categoryId, { title: newTitle }),
@@ -146,7 +147,7 @@ const CategorySection = ({
       >
         <button
           type="button"
-          onClick={handleTitleClick}
+          onClick={() => void handleTitleClick()}
           className="text-xs uppercase text-subheader font-semibold flex-1 min-w-0 text-left hover:text-primary transition-colors cursor-pointer truncate py-0.5"
         >
           {category.title || <span className="opacity-40">Untitled</span>}
@@ -303,8 +304,8 @@ export const ProjectTaskPanel = ({
     [projectId],
   );
 
-  const handleAddSection = () => {
-    const title = prompt("Section name");
+  const handleAddSection = async () => {
+    const title = await promptDialog("Section name");
     if (!title) return;
     dispatch(
       projectCategoriesSlice.createCategory({ projectId, title }, "append"),
@@ -321,7 +322,7 @@ export const ProjectTaskPanel = ({
             projectId={projectId}
           />
         ))}
-        <AddSectionButton onClick={handleAddSection} />
+        <AddSectionButton onClick={() => void handleAddSection()} />
       </div>
     );
   }
@@ -345,7 +346,7 @@ export const ProjectTaskPanel = ({
             projectId={projectId}
           />
         ))}
-        <AddSectionButton onClick={handleAddSection} />
+        <AddSectionButton onClick={() => void handleAddSection()} />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { HeadContent, Outlet, createRootRoute } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TRPCProvider, trpcClient } from "@/lib/trpc";
 import { queryClient } from "@/lib/query";
+import { PromptDialogHost } from "@/components/ui/prompt-dialog";
 
 export const Route = createRootRoute({
   component: RouteComponent,
@@ -13,6 +14,7 @@ function RouteComponent() {
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         <HeadContent />
         <Outlet />
+        <PromptDialogHost />
 
         {/* <TanStackRouterDevtools position="bottom-right" /> */}
       </TRPCProvider>

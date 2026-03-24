@@ -1,0 +1,4 @@
+provider: github
+owner: will-be-done
+repo: will-be-done
+updaterCacheDirName: will-be-done-updater

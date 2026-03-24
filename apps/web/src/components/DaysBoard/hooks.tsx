@@ -33,32 +33,6 @@ export const useCurrentDate = () => {
   return date;
 };
 
-export const useDaysPreferences = create<DaysPreferences>()(
-  persist(
-    (set) => ({
-      daysWindow: 7,
-      daysShift: 0,
-      setDaysWindow: (value: number) => {
-        set({ daysWindow: value });
-      },
-      setDaysShift: (value: number) => {
-        set({ daysShift: value });
-      },
-    }),
-    {
-      name: "days-preferences",
-      storage: createJSONStorage(() => localStorage),
-    },
-  ),
-);
-
-export type DaysPreferences = {
-  daysWindow: number;
-  daysShift: number;
-
-  setDaysWindow: (value: number) => void;
-  setDaysShift: (value: number) => void;
-};
 
 export type HiddenDays = {
   hiddenDays: Record<string, boolean>;

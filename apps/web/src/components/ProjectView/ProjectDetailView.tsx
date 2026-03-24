@@ -13,6 +13,7 @@ import {
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
 import { useMemo, useState, useEffect } from "react";
+import { promptDialog } from "@/components/ui/prompt-dialog";
 
 const DeleteIcon = () => (
   <svg
@@ -63,8 +64,8 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
     }
   };
 
-  const handleTitleClick = () => {
-    const newTitle = prompt("Enter new project title", project.title);
+  const handleTitleClick = async () => {
+    const newTitle = await promptDialog("Enter new project title", project.title);
     if (newTitle == "" || newTitle == null) return;
     dispatch(projectsSlice.updateProject(project.id, { title: newTitle }));
   };
@@ -73,8 +74,9 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden">
+      <div className="[app-region:drag] pointer-events-none absolute top-0 left-0 right-0 z-0 h-4" />
       {/* Header */}
-      <div className="sm:flex-shrink-0 w-full pt-5 mb-6">
+      <div className="sm:flex-shrink-0 w-full pt-11 sm:pt-5 mb-6">
         <div className="max-w-lg mx-auto px-4">
           <div className="flex items-start gap-3">
             <Popover>
@@ -90,7 +92,9 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
                 <EmojiPicker
                   className="h-[326px] rounded-lg shadow-md"
                   onEmojiSelect={({ emoji }) => {
-                    dispatch(projectsSlice.updateProject(project.id, { icon: emoji }));
+                    dispatch(
+                      projectsSlice.updateProject(project.id, { icon: emoji }),
+                    );
                   }}
                 >
                   <EmojiPickerSearch />
@@ -101,7 +105,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
 
             <button
               type="button"
-              onClick={handleTitleClick}
+              onClick={() => void handleTitleClick()}
               className="flex-1 min-w-0 text-left cursor-pointer"
             >
               <h1 className="text-3xl font-bold text-content leading-tight hover:text-primary transition-colors">

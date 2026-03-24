@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-const MIN_WIDTH = 180;
+const MIN_WIDTH = 230;
 const MAX_WIDTH = 480;
 const DEFAULT_WIDTH = 256;
 

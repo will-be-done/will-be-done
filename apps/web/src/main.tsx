@@ -32,6 +32,14 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// Detect Electron desktop app
+if (window.desktopApi) {
+  document.documentElement.classList.add("is-desktop-app");
+  if (navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Macintosh")) {
+    document.documentElement.classList.add("is-macos");
+  }
+}
+
 // Render the app
 const rootElement = document.getElementById("root");
 if (rootElement && !rootElement.innerHTML) {

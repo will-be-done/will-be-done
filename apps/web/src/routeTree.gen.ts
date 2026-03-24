@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SpacesRouteImport } from './routes/spaces'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as PopupRouteImport } from './routes/popup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SpacesIndexRouteImport } from './routes/spaces.index'
@@ -31,6 +32,11 @@ const SpacesRoute = SpacesRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PopupRoute = PopupRouteImport.update({
+  id: '/popup',
+  path: '/popup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -96,6 +102,7 @@ const SpacesSpaceIdDatesDateRoute = SpacesSpaceIdDatesDateRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/popup': typeof PopupRoute
   '/signup': typeof SignupRoute
   '/spaces': typeof SpacesRouteWithChildren
   '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
@@ -111,6 +118,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/popup': typeof PopupRoute
   '/signup': typeof SignupRoute
   '/spaces': typeof SpacesIndexRoute
   '/spaces/$spaceId': typeof SpacesSpaceIdIndexRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/popup': typeof PopupRoute
   '/signup': typeof SignupRoute
   '/spaces': typeof SpacesRouteWithChildren
   '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/popup'
     | '/signup'
     | '/spaces'
     | '/spaces/$spaceId'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/popup'
     | '/signup'
     | '/spaces'
     | '/spaces/$spaceId'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/login'
+    | '/popup'
     | '/signup'
     | '/spaces'
     | '/spaces/$spaceId'
@@ -186,6 +198,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  PopupRoute: typeof PopupRoute
   SignupRoute: typeof SignupRoute
   SpacesRoute: typeof SpacesRouteWithChildren
 }
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/popup': {
+      id: '/popup'
+      path: '/popup'
+      fullPath: '/popup'
+      preLoaderRoute: typeof PopupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -326,6 +346,7 @@ const SpacesRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  PopupRoute: PopupRoute,
   SignupRoute: SignupRoute,
   SpacesRoute: SpacesRouteWithChildren,
 }

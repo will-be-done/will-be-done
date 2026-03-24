@@ -249,6 +249,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+@custom-variant desktop-macos (&:where(.is-desktop-app.is-macos *));
+
 /* @layer base { */
 /*   * { */
 /*     @apply border-border outline-ring/50; */
@@ -257,3 +259,20 @@
 /*     @apply bg-background text-foreground; */
 /*   } */
 /* } */
+
+/* Desktop app window drag region — pass-through for clicks, draggable for window moves */
+.desktop-drag-region {
+  display: none;
+}
+
+.is-desktop-app .desktop-drag-region {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  z-index: 9999;
+  app-region: drag;
+  pointer-events: none;
+}
