@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { authUtils, isDemoMode } from "@/lib/auth";
+import { promptDialog } from "@/components/ui/prompt-dialog";
 import { Pencil, Plus, Trash2, LogOut } from "lucide-react";
 import { initDbStore } from "@/store/load";
 import {
@@ -113,15 +114,15 @@ function SpacePageComponent() {
     void navigate({ to: "/login" });
   };
 
-  const handleCreateSpace = () => {
-    const name = window.prompt("Enter space name:");
+  const handleCreateSpace = async () => {
+    const name = await promptDialog("Enter space name:");
     if (!name?.trim()) return;
 
     const space = dispatch(spaceSlice.createSpace(name));
     authUtils.setSpaceNames([{ spaceId: space.id, name: space.name }]);
   };
 
-  const handleUpdateSpace = (
+  const handleUpdateSpace = async (
     spaceId: string,
     currentName: string,
     e: React.MouseEvent,
@@ -129,7 +130,7 @@ function SpacePageComponent() {
     e.preventDefault();
     e.stopPropagation();
 
-    const name = window.prompt("Enter new space name:", currentName);
+    const name = await promptDialog("Enter new space name:", currentName);
     if (name?.trim() && name !== currentName) {
       dispatch(spaceSlice.updateSpace(spaceId, name));
       authUtils.setSpaceNames([{ spaceId, name }]);

@@ -21,6 +21,7 @@ import {
   PencilIcon,
   TrashIcon,
 } from "@/components/ui/icons.tsx";
+import { promptDialog } from "@/components/ui/prompt-dialog";
 
 const ProjectTasksColumn = ({
   project,
@@ -90,8 +91,8 @@ const ProjectTasksColumn = ({
             className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
             title="Add column to the left"
-            onClick={() => {
-              const title = prompt("Enter new name");
+            onClick={async () => {
+              const title = await promptDialog("Enter new name");
               if (!title) return;
 
               const [left, _right] = dispatch(
@@ -115,8 +116,8 @@ const ProjectTasksColumn = ({
             className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
             title="Add column to the right"
-            onClick={() => {
-              const title = prompt("Enter new name");
+            onClick={async () => {
+              const title = await promptDialog("Enter new name");
               if (!title) return;
 
               const [_left, right] = dispatch(
@@ -175,8 +176,8 @@ const ProjectTasksColumn = ({
             className="hidden group-hover:block cursor-pointer text-white mb-6"
             type="button"
             title="Edit column name"
-            onClick={() => {
-              const newTitle = prompt("Enter new title", category.title);
+            onClick={async () => {
+              const newTitle = await promptDialog("Enter new title", category.title);
               if (!newTitle) return;
 
               dispatch(

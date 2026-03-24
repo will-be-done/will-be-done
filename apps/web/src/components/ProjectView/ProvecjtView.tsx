@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/emoji-picker.tsx";
 import { Popover } from "@/components/ui/popover.tsx";
 import { useCurrentDate } from "../DaysBoard/hooks.tsx";
+import { promptDialog } from "@/components/ui/prompt-dialog";
 
 const ProjectDragPreview = function TaskPrimitiveComponent({
   title,
@@ -303,8 +304,8 @@ const ProjectItem = function ProjectItemComp({
   //   [project.id, exceptDailyListIds, currentDate],
   // );
 
-  const handleEditClick = () => {
-    const newTitle = prompt("Enter new project title", project.title);
+  const handleEditClick = async () => {
+    const newTitle = await promptDialog("Enter new project title", project.title);
 
     if (newTitle == "" || newTitle == null) {
       return;
@@ -521,8 +522,8 @@ export const ProjectView = ({
     [],
   );
 
-  const handleAddProjectClick = () => {
-    const title = prompt("Enter project title");
+  const handleAddProjectClick = async () => {
+    const title = await promptDialog("Enter project title");
 
     if (title) {
       dispatch(projectsSlice.create({ title }, "append"));

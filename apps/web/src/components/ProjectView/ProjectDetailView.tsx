@@ -13,6 +13,7 @@ import {
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
 import { useMemo, useState, useEffect } from "react";
+import { promptDialog } from "@/components/ui/prompt-dialog";
 
 const DeleteIcon = () => (
   <svg
@@ -63,8 +64,8 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
     }
   };
 
-  const handleTitleClick = () => {
-    const newTitle = prompt("Enter new project title", project.title);
+  const handleTitleClick = async () => {
+    const newTitle = await promptDialog("Enter new project title", project.title);
     if (newTitle == "" || newTitle == null) return;
     dispatch(projectsSlice.updateProject(project.id, { title: newTitle }));
   };

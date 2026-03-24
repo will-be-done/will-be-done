@@ -14,6 +14,7 @@ import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { format } from "date-fns";
 import { useCurrentDate } from "@/components/DaysBoard/hooks.tsx";
 import { cn } from "@/lib/utils.ts";
+import { promptDialog } from "@/components/ui/prompt-dialog";
 
 const CalendarIcon = () => (
   <svg
@@ -177,8 +178,8 @@ export const AppSidebar = () => {
     [],
   );
 
-  const handleAddProjectClick = () => {
-    const title = prompt("Enter project title");
+  const handleAddProjectClick = async () => {
+    const title = await promptDialog("Enter project title");
     if (title) {
       dispatch(projectsSlice.create({ title }, "append"));
     }
