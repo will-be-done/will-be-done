@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: desktop
+appId: app.will-be-done
+productName: Will Be Done
 directories:
   buildResources: build
 files:
@@ -12,16 +12,16 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: desktop
+  executableName: will-be-done
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  identity: null
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
@@ -33,13 +33,14 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
-  category: Utility
+  maintainer: will-be-done.app
+  category: Office
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: will-be-done
+  repo: will-be-done
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

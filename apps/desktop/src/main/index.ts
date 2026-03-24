@@ -1,8 +1,19 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, globalShortcut, screen } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  Menu,
+  globalShortcut,
+  screen,
+  nativeImage
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import ElectronStore from 'electron-store'
+
+app.setName('Will Be Done')
 
 // electron-store v11 is ESM; electron-vite compiles main as CJS, so default export may be wrapped
 const Store =
@@ -26,9 +37,10 @@ function createWindow(): void {
     minHeight: 400,
     show: false,
     autoHideMenuBar: false,
+    backgroundColor: '#0a0a0f',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -144,18 +156,18 @@ function buildMenu(): void {
           }
         ]
       : []),
-    // {
-    //   label: 'Edit',
-    //   submenu: [
-    //     { role: 'undo' },
-    //     { role: 'redo' },
-    //     { type: 'separator' },
-    //     { role: 'cut' },
-    //     { role: 'copy' },
-    //     { role: 'paste' },
-    //     { role: 'selectAll' }
-    //   ]
-    // },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
     {
       label: 'View',
       submenu: [
@@ -188,6 +200,11 @@ function buildMenu(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.will-be-done')
+
+  // Set dock icon on macOS (needed for dev mode)
+  if (process.platform === 'darwin') {
+    app.dock?.setIcon(nativeImage.createFromPath(icon))
+  }
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
