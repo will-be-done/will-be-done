@@ -4,9 +4,10 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 env:
@@ -15,6 +16,7 @@ env:
 
 jobs:
   validate-tag:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.extract.outputs.version }}
@@ -99,3 +101,46 @@ jobs:
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate-tag.outputs.version }}
           \`\`\`
           EOF
+
+  build-desktop:
+    if: always()
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+          - os: ubuntu-latest
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install snapcraft (Linux only)
+        if: matrix.platform == 'linux'
+        run: sudo snap install snapcraft --classic
+
+      - name: Install rpm tools (Linux only)
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Build desktop app
+        working-directory: apps/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+        run: npx electron-builder --publish ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}

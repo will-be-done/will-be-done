@@ -33,6 +33,7 @@ linux:
     - AppImage
     - snap
     - deb
+    - rpm
   maintainer: will-be-done.app
   category: Office
 appImage:
