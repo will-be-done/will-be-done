@@ -8,10 +8,13 @@ export const Route = createFileRoute("/popup")({
 
 function PopupComponent() {
   const [title, setTitle] = useState("");
+  const [initialSpaceId] = useState(() => getPopupSpaceId());
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
-  >("idle");
-  const [errorMsg, setErrorMsg] = useState("");
+  >(initialSpaceId ? "idle" : "error");
+  const [errorMsg, setErrorMsg] = useState(
+    initialSpaceId ? "" : "No space selected. Open the main app first.",
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const storeRef = useRef<Awaited<
     ReturnType<typeof initPopupStore>
@@ -19,17 +22,10 @@ function PopupComponent() {
   const initRef = useRef(false);
 
   useEffect(() => {
-    if (initRef.current) return;
+    if (initRef.current || !initialSpaceId) return;
     initRef.current = true;
 
-    const spaceId = getPopupSpaceId();
-    if (!spaceId) {
-      setStatus("error");
-      setErrorMsg("No space selected. Open the main app first.");
-      return;
-    }
-
-    initPopupStore(spaceId)
+    initPopupStore(initialSpaceId)
       .then((store) => {
         storeRef.current = store;
       })
@@ -38,7 +34,7 @@ function PopupComponent() {
         setStatus("error");
         setErrorMsg("Failed to initialize. Try again.");
       });
-  }, []);
+  }, [initialSpaceId]);
 
   // Listen for popup-show IPC to reset state when the window is re-shown
   useEffect(() => {

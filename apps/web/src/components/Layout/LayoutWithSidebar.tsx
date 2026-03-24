@@ -5,8 +5,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar.tsx";
-import { Link } from "@tanstack/react-router";
-import { isDemoMode } from "@/lib/auth";
 import { useSpaceSettingsStore } from "@/components/SpaceSettings/spaceSettingsStore.ts";
 import { SpaceSettingsModal } from "@/components/SpaceSettings/SpaceSettingsModal.tsx";
 

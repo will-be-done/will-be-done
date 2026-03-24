@@ -218,7 +218,7 @@ export const AppSidebar = () => {
       <div className="flex items-center justify-center pb-3 pt-2 border-t border-ring/40">
         <button
           type="button"
-          onClick={handleAddProjectClick}
+          onClick={() => void handleAddProjectClick()}
           className="cursor-pointer text-[12px] text-content-tinted/60 hover:text-accent transition-colors"
         >
           + Add Project

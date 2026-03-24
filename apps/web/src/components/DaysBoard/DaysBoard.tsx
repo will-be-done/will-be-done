@@ -23,8 +23,6 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
-import { NavBar } from "../NavBar/NavBar.tsx";
-import { isDemoMode } from "@/lib/auth.ts";
 
 const ColumnView = ({
   dailyListId,

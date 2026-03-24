@@ -91,23 +91,25 @@ const ProjectTasksColumn = ({
             className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
             title="Add column to the left"
-            onClick={async () => {
-              const title = await promptDialog("Enter new name");
-              if (!title) return;
+            onClick={() => {
+              void (async () => {
+                const title = await promptDialog("Enter new name");
+                if (!title) return;
 
-              const [left, _right] = dispatch(
-                projectCategoriesSlice.siblings(category.id),
-              );
+                const [left, _right] = dispatch(
+                  projectCategoriesSlice.siblings(category.id),
+                );
 
-              dispatch(
-                projectCategoriesSlice.createCategory(
-                  {
-                    projectId: category.projectId,
-                    title,
-                  },
-                  [left, category],
-                ),
-              );
+                dispatch(
+                  projectCategoriesSlice.createCategory(
+                    {
+                      projectId: category.projectId,
+                      title,
+                    },
+                    [left, category],
+                  ),
+                );
+              })();
             }}
           >
             <AddLeftIcon />
@@ -116,23 +118,25 @@ const ProjectTasksColumn = ({
             className="hidden group-hover:block cursor-pointer text-white mb-2"
             type="button"
             title="Add column to the right"
-            onClick={async () => {
-              const title = await promptDialog("Enter new name");
-              if (!title) return;
+            onClick={() => {
+              void (async () => {
+                const title = await promptDialog("Enter new name");
+                if (!title) return;
 
-              const [_left, right] = dispatch(
-                projectCategoriesSlice.siblings(category.id),
-              );
+                const [_left, right] = dispatch(
+                  projectCategoriesSlice.siblings(category.id),
+                );
 
-              dispatch(
-                projectCategoriesSlice.createCategory(
-                  {
-                    projectId: category.projectId,
-                    title,
-                  },
-                  [category, right],
-                ),
-              );
+                dispatch(
+                  projectCategoriesSlice.createCategory(
+                    {
+                      projectId: category.projectId,
+                      title,
+                    },
+                    [category, right],
+                  ),
+                );
+              })();
             }}
           >
             <AddRightIcon />
@@ -176,15 +180,17 @@ const ProjectTasksColumn = ({
             className="hidden group-hover:block cursor-pointer text-white mb-6"
             type="button"
             title="Edit column name"
-            onClick={async () => {
-              const newTitle = await promptDialog("Enter new title", category.title);
-              if (!newTitle) return;
+            onClick={() => {
+              void (async () => {
+                const newTitle = await promptDialog("Enter new title", category.title);
+                if (!newTitle) return;
 
-              dispatch(
-                projectCategoriesSlice.updateCategory(category.id, {
-                  title: newTitle,
-                }),
-              );
+                dispatch(
+                  projectCategoriesSlice.updateCategory(category.id, {
+                    title: newTitle,
+                  }),
+                );
+              })();
             }}
           >
             <PencilIcon className="rotate-180" />

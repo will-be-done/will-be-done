@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { usePrevious } from "@/utils";
 
 type PromptRequest = {
   title: string;
@@ -41,8 +42,6 @@ export function promptDialog(
 export function PromptDialogHost() {
   const [request, setRequest] = useState<PromptRequest | null>(null);
   const [value, setValue] = useState("");
-  // Keep a snapshot of the title so it doesn't disappear during close animation
-  const [displayTitle, setDisplayTitle] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,20 +51,19 @@ export function PromptDialogHost() {
     };
   }, []);
 
-  useEffect(() => {
-    if (request) {
-      setValue(request.defaultValue ?? "");
-      setDisplayTitle(request.title);
-    }
-  }, [request]);
+  // Keep a snapshot of the title so it doesn't disappear during close animation
+  const prevRequest = usePrevious(request);
+  const displayTitle = (request ?? prevRequest)?.title ?? "";
 
   const handleConfirm = useCallback(() => {
     request?.resolve(value);
+    setValue("");
     setRequest(null);
   }, [request, value]);
 
   const handleCancel = useCallback(() => {
     request?.resolve(null);
+    setValue("");
     setRequest(null);
   }, [request]);
 
@@ -80,6 +78,7 @@ export function PromptDialogHost() {
         className="bg-popover backdrop-blur-xl ring-1 ring-ring border-none sm:max-w-sm gap-5 [&>button]:text-content-tinted"
         onOpenAutoFocus={(e) => {
           e.preventDefault();
+          setValue(request?.defaultValue ?? "");
           requestAnimationFrame(() => inputRef.current?.select());
         }}
       >

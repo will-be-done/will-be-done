@@ -147,7 +147,7 @@ const CategorySection = ({
       >
         <button
           type="button"
-          onClick={handleTitleClick}
+          onClick={() => void handleTitleClick()}
           className="text-xs uppercase text-subheader font-semibold flex-1 min-w-0 text-left hover:text-primary transition-colors cursor-pointer truncate py-0.5"
         >
           {category.title || <span className="opacity-40">Untitled</span>}
@@ -322,7 +322,7 @@ export const ProjectTaskPanel = ({
             projectId={projectId}
           />
         ))}
-        <AddSectionButton onClick={handleAddSection} />
+        <AddSectionButton onClick={() => void handleAddSection()} />
       </div>
     );
   }
@@ -346,7 +346,7 @@ export const ProjectTaskPanel = ({
             projectId={projectId}
           />
         ))}
-        <AddSectionButton onClick={handleAddSection} />
+        <AddSectionButton onClick={() => void handleAddSection()} />
       </div>
     </div>
   );

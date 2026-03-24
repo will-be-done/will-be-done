@@ -411,7 +411,7 @@ const ProjectItem = function ProjectItemComp({
           )}
         >
           <button
-            onClick={handleEditClick}
+            onClick={() => void handleEditClick()}
             type="button"
             className="cursor-pointer flex justify-center items-center"
           >
@@ -574,7 +574,7 @@ export const ProjectView = ({
         <div className="flex text-center items-center justify-center pb-3 pt-2 border-t border-ring">
           <button
             type="button"
-            onClick={handleAddProjectClick}
+            onClick={() => void handleAddProjectClick()}
             className="cursor-pointer text-[13px] text-content-tinted hover:text-accent transition-colors"
           >
             + Add Project

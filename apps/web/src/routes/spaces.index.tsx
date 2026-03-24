@@ -187,7 +187,7 @@ function SpacePageComponent() {
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={handleCreateSpace}
+                onClick={() => void handleCreateSpace()}
                 className="group flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
               >
                 <Plus className="h-4 w-4" />
@@ -224,7 +224,7 @@ function SpacePageComponent() {
                     <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         onClick={(e) =>
-                          handleUpdateSpace(space.id, space.name, e)
+                          void handleUpdateSpace(space.id, space.name, e)
                         }
                         className="cursor-pointer rounded-md p-1 text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-blue-400"
                         aria-label="Edit space"
@@ -285,7 +285,7 @@ function SpacePageComponent() {
                 Create your first space to start organizing your tasks
               </p>
               <button
-                onClick={handleCreateSpace}
+                onClick={() => void handleCreateSpace()}
                 className="group flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
               >
                 <Plus className="h-4 w-4" />

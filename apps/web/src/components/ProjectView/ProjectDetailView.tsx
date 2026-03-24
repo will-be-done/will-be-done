@@ -105,7 +105,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
 
             <button
               type="button"
-              onClick={handleTitleClick}
+              onClick={() => void handleTitleClick()}
               className="flex-1 min-w-0 text-left cursor-pointer"
             >
               <h1 className="text-3xl font-bold text-content leading-tight hover:text-primary transition-colors">

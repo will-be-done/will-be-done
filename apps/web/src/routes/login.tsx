@@ -102,7 +102,7 @@ function ServerIndicator() {
 
   useEffect(() => {
     // Pre-fill the input with the stored server URL for editing
-    window.desktopApi?.getServerUrl().then((url) => {
+    void window.desktopApi?.getServerUrl().then((url) => {
       setInputUrl(url);
     });
   }, []);
