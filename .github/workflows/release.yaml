@@ -148,3 +148,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_FOR_PULL_REQUEST: ${{ matrix.platform == 'mac' && 'true' || '' }}
         run: npx electron-builder --publish ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+
+      - name: Upload build artifacts
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: |
+            apps/desktop/dist/*.exe
+            apps/desktop/dist/*.dmg
+            apps/desktop/dist/*.AppImage
+            apps/desktop/dist/*.snap
+            apps/desktop/dist/*.deb
+            apps/desktop/dist/*.rpm
+            apps/desktop/dist/*.zip
