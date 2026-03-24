@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, globalShortcut, screen } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -12,6 +12,7 @@ const store = new Store<{ serverUrl?: string }>()
 const DEFAULT_SERVER = 'https://app.will-be-done.app'
 
 let mainWindow: BrowserWindow | null = null
+let popupWindow: BrowserWindow | null = null
 
 function getServerUrl(): string {
   return (store.get('serverUrl2') as string | undefined) || DEFAULT_SERVER
@@ -53,6 +54,76 @@ function createWindow(): void {
   buildMenu()
 }
 
+const POPUP_WIDTH = 500
+const POPUP_HEIGHT = 160
+
+function initPopupWindow(): void {
+  popupWindow = new BrowserWindow({
+    width: POPUP_WIDTH,
+    height: POPUP_HEIGHT,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    show: false,
+    // NSPanel-like behavior: appears on the current Space without activating
+    // the app or switching desktops (like Spotlight/Alfred)
+    ...(process.platform === 'darwin' ? { type: 'panel' as const } : { alwaysOnTop: true }),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  popupWindow.setVisibleOnAllWorkspaces(true, { skipTransformProcessType: true })
+  popupWindow.setAlwaysOnTop(true, 'pop-up-menu')
+
+  const popupUrl = is.dev ? 'http://localhost:5173/popup' : `${getServerUrl()}/popup`
+  popupWindow.loadURL(popupUrl)
+
+  popupWindow.on('blur', () => {
+    hidePopup()
+  })
+
+  // If the window is somehow destroyed, recreate it
+  popupWindow.on('closed', () => {
+    popupWindow = null
+  })
+}
+
+function showPopup(): void {
+  if (!popupWindow || popupWindow.isDestroyed()) {
+    initPopupWindow()
+    // First open: wait for ready-to-show
+    popupWindow!.on('ready-to-show', () => {
+      positionAndShowPopup()
+    })
+    return
+  }
+
+  positionAndShowPopup()
+}
+
+function positionAndShowPopup(): void {
+  if (!popupWindow || popupWindow.isDestroyed()) return
+
+  const cursorPoint = screen.getCursorScreenPoint()
+  const activeDisplay = screen.getDisplayNearestPoint(cursorPoint)
+  const { x: dx, y: dy, width: dw, height: dh } = activeDisplay.workArea
+
+  popupWindow.setPosition(Math.round(dx + dw / 2 - POPUP_WIDTH / 2), Math.round(dy + dh / 3))
+
+  popupWindow.webContents.send('popup-show')
+  popupWindow.showInactive()
+  popupWindow.focus()
+}
+
+function hidePopup(): void {
+  if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
+    popupWindow.hide()
+  }
+}
+
 function buildMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
@@ -60,8 +131,8 @@ function buildMenu(): void {
           {
             label: app.name,
             submenu: [
-              { role: 'about' as const },
-              { type: 'separator' as const },
+              // { role: 'about' as const },
+              // { type: 'separator' as const },
               { role: 'services' as const },
               { type: 'separator' as const },
               { role: 'hide' as const },
@@ -73,25 +144,25 @@ function buildMenu(): void {
           }
         ]
       : []),
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' }
-      ]
-    },
+    // {
+    //   label: 'Edit',
+    //   submenu: [
+    //     { role: 'undo' },
+    //     { role: 'redo' },
+    //     { type: 'separator' },
+    //     { role: 'cut' },
+    //     { role: 'copy' },
+    //     { role: 'paste' },
+    //     { role: 'selectAll' }
+    //   ]
+    // },
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
+        // { role: 'reload' },
+        // { role: 'forceReload' },
+        // { role: 'toggleDevTools' },
+        // { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },
@@ -116,10 +187,20 @@ function buildMenu(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.willbedone')
+  electronApp.setAppUserModelId('app.will-be-done')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+
+  // IPC: close/hide popup window
+  ipcMain.on('close-popup', () => {
+    hidePopup()
+  })
+
+  // Global shortcut for quick-add task
+  globalShortcut.register('CmdOrCtrl+Shift+A', () => {
+    showPopup()
   })
 
   // IPC: get/set server URL, reload window to new server
@@ -135,10 +216,15 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+  initPopupWindow()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 app.on('window-all-closed', () => {

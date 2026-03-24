@@ -3,7 +3,13 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   getServerUrl: (): Promise<string> => ipcRenderer.invoke('get-server-url'),
-  setServerUrl: (url: string): Promise<void> => ipcRenderer.invoke('set-server-url', url)
+  setServerUrl: (url: string): Promise<void> => ipcRenderer.invoke('set-server-url', url),
+  closePopup: (): void => ipcRenderer.send('close-popup'),
+  onPopupShow: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('popup-show', listener)
+    return () => ipcRenderer.removeListener('popup-show', listener)
+  }
 }
 
 if (process.contextIsolated) {
