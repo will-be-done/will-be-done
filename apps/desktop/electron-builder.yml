@@ -39,6 +39,9 @@ linux:
     - rpm
   maintainer: will-be-done.app
   category: Office
+snap:
+  publish:
+    - github
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
