@@ -16,6 +16,39 @@ import ElectronStore from 'electron-store'
 
 app.setName('Will Be Done')
 
+if (is.dev) {
+  app.setName('Will Be Done Dev')
+}
+
+if (is.dev) {
+  // Let's make separate app data folder for development
+  // It will allow to run both production and development versions of the app
+  // at the same time + fix potential syncing issue(cause dev version points to dev server)
+  app.setPath('userData', `${app.getPath('userData')}-dev`)
+}
+
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!is.dev) {
+  if (!gotTheLock) {
+    app.quit()
+  } else {
+    app.on('second-instance', () => {
+      // Someone tried to run a second instance, we should focus our window.
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore()
+
+        mainWindow.focus()
+      }
+    })
+
+    // Note: Windows only
+    if (process.platform === 'win32') {
+      app.setAppUserModelId(app.name)
+    }
+  }
+}
+
 const serverUrlKey = 'serverUrl'
 
 // electron-store v11 is ESM; electron-vite compiles main as CJS, so default export may be wrapped
@@ -202,7 +235,7 @@ function buildMenu(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('app.will-be-done')
+  electronApp.setAppUserModelId(app.name)
 
   // Set dock icon on macOS (needed for dev mode)
   if (process.platform === 'darwin') {
