@@ -16,7 +16,9 @@ import ElectronStore from 'electron-store'
 
 app.setName('Will Be Done')
 
-const gotTheLock = app.requestSingleInstanceLock()
+if (is.dev) {
+  app.setName('Will Be Done Dev')
+}
 
 if (is.dev) {
   // Let's make separate app data folder for development
@@ -24,6 +26,8 @@ if (is.dev) {
   // at the same time + fix potential syncing issue(cause dev version points to dev server)
   app.setPath('userData', `${app.getPath('userData')}-dev`)
 }
+
+const gotTheLock = app.requestSingleInstanceLock()
 
 if (!is.dev) {
   if (!gotTheLock) {
@@ -231,7 +235,7 @@ function buildMenu(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('app.will-be-done')
+  electronApp.setAppUserModelId(app.name)
 
   // Set dock icon on macOS (needed for dev mode)
   if (process.platform === 'darwin') {
