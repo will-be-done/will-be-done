@@ -42,6 +42,8 @@ linux:
 snap:
   publish:
     - github
+  maintainer: will-be-done.app
+  category: Office
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
