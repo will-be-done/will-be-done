@@ -31,7 +31,7 @@ const Project = ({ id }: { id: string }) => {
 
 const SortedProjects = () => {
   const projects = useAsyncSelector(() => getAllProjects(), []);
-  const projectIds = projects?.map((p) => p.id) ?? [];
+  const projectIds = projects?.map((p) => p.id).slice(0, 10) ?? [];
 
   console.log("projects", projects);
   return (

@@ -46,6 +46,8 @@ export function useAsyncSelector<TReturn>(
 
     const run = async () => {
       const cmds: SelectRangeCmd[] = [];
+      // TODO: we can detetect if CachedDB has already cached value in range,
+      // and don't spawn async/await promise that may dramatically improve performance
       const value = await runSelectorAsync(db, genRef.current, cmds);
       if (!cancelled) {
         selectRangeCmdsRef.current = cmds;
@@ -118,9 +120,7 @@ export function useAsyncSelect() {
   const db = useDB();
 
   return useCallback(
-    <TReturn>(
-      gen: Generator<unknown, TReturn, unknown>,
-    ): Promise<TReturn> => {
+    <TReturn>(gen: Generator<unknown, TReturn, unknown>): Promise<TReturn> => {
       return runSelectorAsync(db, () => gen);
     },
     [db],
