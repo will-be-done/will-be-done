@@ -1,7 +1,7 @@
-import { insert } from "./hyperdb/action";
+import { asyncDispatch, insert } from "./hyperdb/action";
+import { execAsync, type HyperDB } from "./hyperdb/db";
 import { selectFrom } from "./hyperdb/query";
 import { runQuery, selector } from "./hyperdb/selector";
-import { SubscribableDB } from "./hyperdb/subscribable-db";
 import { table } from "./hyperdb/table";
 
 export type Project = {
@@ -43,7 +43,7 @@ export const getById = selector(function* (id: string) {
 
 export function* insertMillion() {
   const projects: Project[] = [];
-  for (let i = 0; i < 1000000; i++) {
+  for (let i = 0; i < 1000; i++) {
     const id = Math.random().toString(36).slice(2);
     projects.push({
       id: id,
@@ -58,10 +58,10 @@ export function* insertMillion() {
   console.log("new", yield* getFirst10ProjectsIds());
 }
 
-export const create = (db: SubscribableDB, project: Project) => {
-  db.insert(projectsTable, [project]);
+export const create = (db: HyperDB, project: Project) => {
+  return asyncDispatch(db, insert(projectsTable, [project]));
 };
 
-export const update = (db: SubscribableDB, project: Project) => {
-  db.update(projectsTable, [project]);
+export const update = async (db: HyperDB, project: Project) => {
+  await execAsync(db.update(projectsTable, [project]));
 };

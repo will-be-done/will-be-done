@@ -23,7 +23,7 @@ export type PartialScanOptions<T extends Row = Row> = {
 
 const noopType = "noop";
 const selectRangeType = "selectRange";
-type SelectRangeCmd = {
+export type SelectRangeCmd = {
   type: typeof selectRangeType;
   table: TableDefinition<any>;
   index: string;
@@ -117,7 +117,7 @@ export function selector<TReturn, TParams extends any[]>(
 }
 
 // TODO: maybe range tree instead?
-const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
+export const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
   for (const cmd of cmds) {
     for (const bound of cmd.bounds) {
       for (const op of ops) {
