@@ -2,14 +2,15 @@ import { useCallback, useState } from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
-import { useSyncSelector } from "./react/hooks";
-import { create, getById, insertMillion, update } from "./db";
+import { useAsyncSelector, useAsyncDispatch } from "./react/hooks";
+import { create, getAllProjects, getById, insertMillion, update } from "./db";
 import { useDB } from "./react/context";
-import { syncDispatch } from "./hyperdb/action";
 
 const Project = ({ id }: { id: string }) => {
-  const project = useSyncSelector(() => getById(id), [id]);
+  const project = useAsyncSelector(() => getById(id), [id]);
   const db = useDB();
+
+  if (!project) return <div>Loading...</div>;
 
   return (
     <div>
@@ -29,8 +30,10 @@ const Project = ({ id }: { id: string }) => {
 };
 
 const SortedProjects = () => {
-  const projectIds: string[] = [];
+  const projects = useAsyncSelector(() => getAllProjects(), []);
+  const projectIds = projects?.map((p) => p.id) ?? [];
 
+  console.log("projects", projects);
   return (
     <div>
       {projectIds.map((id) => (
@@ -43,10 +46,11 @@ const SortedProjects = () => {
 function App() {
   const [count, setCount] = useState(0);
   const db = useDB();
+  const dispatch = useAsyncDispatch();
 
   const insert = useCallback(() => {
-    syncDispatch(db, insertMillion());
-  }, [db]);
+    dispatch(insertMillion());
+  }, [dispatch]);
 
   const updateProject = useCallback(() => {
     update(db, {
