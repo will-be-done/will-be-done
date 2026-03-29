@@ -14,7 +14,7 @@ export const WrapApp = ({ children }: { children: React.ReactNode }) => {
   const [db, setDB] = useState<SubscribableDB | null>(null);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       const primaryDriver = await initWasmIDBAsync();
       const primary = new DB(primaryDriver);
 

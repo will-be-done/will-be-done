@@ -17,7 +17,7 @@ const Project = ({ id }: { id: string }) => {
       <h2>{project.title}</h2>
       <button
         onClick={() => {
-          update(db, {
+          void update(db, {
             ...project,
             title: "Project " + Math.random().toString(36).slice(2),
           });
@@ -49,11 +49,11 @@ function App() {
   const dispatch = useAsyncDispatch();
 
   const insert = useCallback(() => {
-    dispatch(insertMillion());
+    void dispatch(insertMillion());
   }, [dispatch]);
 
   const updateProject = useCallback(() => {
-    update(db, {
+    void update(db, {
       id: "2",
       title: "Project 1" + Math.random().toString(36).slice(2),
       orderToken: "1",
@@ -77,7 +77,7 @@ function App() {
       <button
         onClick={() => {
           const id = Math.random().toString(36).slice(2);
-          create(db, {
+          void create(db, {
             id: id,
             title: "Project " + id,
             orderToken: id,
