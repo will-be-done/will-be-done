@@ -1,5 +1,10 @@
+import { useState } from "react";
 import { useSyncSelector, useDispatch } from "@will-be-done/hyperdb";
-import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
+import {
+  backupSlice,
+  projectsAllSlice,
+  projectsSlice,
+} from "@will-be-done/slices/space";
 import { SidebarProjectItem } from "./SidebarProjectItem.tsx";
 import { SpaceBlock } from "./SpaceBlock.tsx";
 import {
@@ -15,6 +20,15 @@ import { format } from "date-fns";
 import { useCurrentDate } from "@/components/DaysBoard/hooks.tsx";
 import { cn } from "@/lib/utils.ts";
 import { promptDialog } from "@/components/ui/prompt-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog.tsx";
+import { generateTestBackup } from "@/lib/generateTestData.ts";
 
 const CalendarIcon = () => (
   <svg
@@ -225,7 +239,130 @@ export const AppSidebar = () => {
         </button>
       </div>
 
+      {import.meta.env.DEV && <GenerateTestDataButton />}
+
       <SpaceBlock />
     </Sidebar>
+  );
+};
+
+const GenerateTestDataButton = () => {
+  const dispatch = useDispatch();
+  const [open, setOpen] = useState(false);
+  const [projects, setProjects] = useState("5");
+  const [categories, setCategories] = useState("3");
+  const [done, setDone] = useState("10");
+  const [todo, setTodo] = useState("10");
+
+  const handleGenerate = () => {
+    const n = parseInt(projects, 10) || 0;
+    const m = parseInt(categories, 10) || 0;
+    const k = parseInt(done, 10) || 0;
+    const l = parseInt(todo, 10) || 0;
+
+    const backup = generateTestBackup(n, m, k, l);
+    dispatch(backupSlice.loadBackup(backup));
+    setOpen(false);
+  };
+
+  const inputClass =
+    "w-full rounded-md border border-ring bg-surface px-3 py-2 text-sm text-content placeholder:text-content-tinted/50 outline-none transition-shadow focus:ring-2 focus:ring-accent/40 focus:border-accent/60";
+
+  return (
+    <>
+      <div className="flex items-center justify-center pb-2">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="cursor-pointer text-[11px] text-content-tinted/40 hover:text-accent transition-colors"
+        >
+          [DEV] Generate Test Data
+        </button>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-popover backdrop-blur-xl ring-1 ring-ring border-none sm:max-w-sm gap-5 [&>button]:text-content-tinted">
+          <DialogHeader>
+            <DialogTitle className="text-[15px] font-semibold text-content">
+              Generate Test Data
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-content-tinted">
+              This will replace all existing data in this space.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleGenerate();
+            }}
+            className="flex flex-col gap-3"
+          >
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] text-content-tinted">Projects</span>
+              <input
+                type="number"
+                min="0"
+                value={projects}
+                onChange={(e) => setProjects(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] text-content-tinted">
+                Categories per project
+              </span>
+              <input
+                type="number"
+                min="0"
+                value={categories}
+                onChange={(e) => setCategories(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] text-content-tinted">
+                Done tasks per category
+              </span>
+              <input
+                type="number"
+                min="0"
+                value={done}
+                onChange={(e) => setDone(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[12px] text-content-tinted">
+                Todo tasks per category
+              </span>
+              <input
+                type="number"
+                min="0"
+                value={todo}
+                onChange={(e) => setTodo(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+
+            <DialogFooter className="mt-2">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="cursor-pointer rounded-md px-3.5 py-1.5 text-[13px] font-medium text-content-tinted transition-colors hover:text-content hover:bg-white/[0.05]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="cursor-pointer rounded-md bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-accent/85"
+              >
+                Generate
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

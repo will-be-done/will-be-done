@@ -3,27 +3,28 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 import { SubscribableDB } from "./hyperdb/subscribable-db.ts";
-// import { InmemDriver } from "./hyperdb/drivers/InmemDriver.ts";
-import { DB } from "./hyperdb/db.ts";
+import { DB, execAsync } from "./hyperdb/db.ts";
 import { projectsTable } from "./db.ts";
 import { DBProvider } from "./react/context.ts";
-// import workletURL from "sql.js/dist/sql-wasm.wasm?url";
-// import initSqlJs from "sql.js/dist/sql-wasm.js";
-// import { SqlDriver } from "./hyperdb/drivers/SqlDriver.ts";
 import { BptreeInmemDriver } from "./hyperdb/drivers/bptree-inmem-driver.ts";
+import { CachedDB } from "./hyperdb/cachedDB.ts";
+import { initWasmIDBAsync } from "./hyperdb/initWaSqlite.ts";
 
 export const WrapApp = ({ children }: { children: React.ReactNode }) => {
   const [db, setDB] = useState<SubscribableDB | null>(null);
 
   useEffect(() => {
-    // (async () => {
-    //   const SQL = await initSqlJs({ locateFile: (file) => workletURL });
-    //   const driver = new SqlDriver(new SQL.Database());
-    //
-    //   setDB(new SubscribableDB(new DB(driver, [projectsTable])));
-    //   console.log("SQL", SQL);
-    // })();
-    setDB(new SubscribableDB(new DB(new BptreeInmemDriver(), [projectsTable])));
+    void (async () => {
+      const primaryDriver = await initWasmIDBAsync();
+      const primary = new DB(primaryDriver);
+
+      const cache = new DB(new BptreeInmemDriver());
+      const cachedDB = new CachedDB(primary, cache);
+
+      await execAsync(cachedDB.loadTables([projectsTable]));
+
+      setDB(new SubscribableDB(cachedDB));
+    })();
   }, []);
 
   return db && <DBProvider value={db}>{children}</DBProvider>;
