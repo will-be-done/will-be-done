@@ -43,29 +43,35 @@ export function useAsyncSelector<TReturn>(
 
   useEffect(() => {
     let cancelled = false;
+    let generation = 0;
 
     const run = async () => {
+      const myGen = ++generation;
       const cmds: SelectRangeCmd[] = [];
       // TODO: we can detetect if CachedDB has already cached value in range,
       // and don't spawn async/await promise that may dramatically improve performance
       const value = await runSelectorAsync(db, genRef.current, cmds);
-      if (!cancelled) {
+      if (!cancelled && myGen === generation) {
         selectRangeCmdsRef.current = cmds;
         setResult(value);
       }
     };
 
-    run();
+    void run();
 
     const unsubscribe = db.subscribe((ops) => {
-      if (!isNeedToRerunRange(selectRangeCmdsRef.current, ops)) {
+      // Only skip if we already have cmds AND they don't need rerun
+      if (
+        selectRangeCmdsRef.current.length > 0 &&
+        !isNeedToRerunRange(selectRangeCmdsRef.current, ops)
+      ) {
         if (debugKey) {
           console.log("async selector no need to rerun", debugKey, ops);
         }
         return;
       }
 
-      run();
+      void run();
 
       if (debugKey) {
         console.log("async selector callback", debugKey);

@@ -421,7 +421,7 @@ export class CachedDB implements HyperDB {
     this.primaryWriteQueue.push(fn);
     if (!this.processingQueue) {
       this.processingQueue = true;
-      setTimeout(() => this.flushPrimaryWrites(), 1000);
+      setTimeout(() => void this.flushPrimaryWrites(), 1000);
     }
   }
 
