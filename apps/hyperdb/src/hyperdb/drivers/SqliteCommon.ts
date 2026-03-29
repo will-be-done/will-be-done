@@ -29,18 +29,77 @@ export function buildWhereClause(
   const indexDef = tableDef.indexes[indexName];
   if (!indexDef) throw new Error(`Index ${indexName} not found`);
 
+  // Normalize clauses: convert gte+lte with same values to eq (effective equality)
+  const normalizedClauses = clauses.map((clause) => {
+    if (!clause.gte || !clause.lte) return clause;
+    if (clause.gt || clause.lt || clause.eq) return clause;
+
+    const gteMap = new Map(
+      clause.gte.map(({ col, val }) => [String(col), val]),
+    );
+    const lteMap = new Map(
+      clause.lte.map(({ col, val }) => [String(col), val]),
+    );
+
+    // Check all gte columns have matching lte with same value
+    if (gteMap.size !== lteMap.size) return clause;
+
+    const eqPairs: { col: string; val: Value }[] = [];
+    for (const [col, val] of gteMap) {
+      if (lteMap.get(col) !== val) return clause;
+      eqPairs.push({ col, val });
+    }
+
+    return { eq: eqPairs };
+  });
+
   // Check if all clauses are equality-only (each clause only has eq, no other operators)
-  const allEqualityOnly = clauses.every(
+  const allEqualityOnly = normalizedClauses.every(
     (clause) => clause.eq && clause.eq.length > 0,
   );
 
-  if (allEqualityOnly && clauses.length > 0) {
-    // Debug logging
+  if (allEqualityOnly && normalizedClauses.length > 0) {
+    // Check if all clauses have the same columns (for tuple IN optimization)
+    const firstCols = normalizedClauses[0]
+      .eq!.map(({ col }) => String(col))
+      .sort()
+      .join(",");
+    const allSameCols = normalizedClauses.every(
+      (clause) =>
+        clause
+          .eq!.map(({ col }) => String(col))
+          .sort()
+          .join(",") === firstCols,
+    );
 
-    // Optimize for IN clause when all conditions are equality
+    if (allSameCols && normalizedClauses[0].eq!.length > 1) {
+      // Use tuple IN (VALUES ...) for multi-column equality with same columns
+      const cols = normalizedClauses[0].eq!.map(({ col }) => String(col));
+      const columnPaths = cols.map(
+        (col) => `json_extract(data, '$.${col}')`,
+      );
+      const params: any[] = [];
+      const valueTuples: string[] = [];
+
+      for (const clause of normalizedClauses) {
+        const colToVal = new Map(
+          clause.eq!.map(({ col, val }) => [String(col), val]),
+        );
+        const placeholders = cols.map(() => "?").join(", ");
+        valueTuples.push(`(${placeholders})`);
+        for (const col of cols) {
+          params.push(colToVal.get(col));
+        }
+      }
+
+      const whereClause = `WHERE (${columnPaths.join(", ")}) IN (VALUES ${valueTuples.join(", ")})`;
+      return { where: whereClause, params };
+    }
+
+    // Single-column equality: use simple IN clause
     const columnValueMap = new Map<string, Value[]>();
 
-    for (const clause of clauses) {
+    for (const clause of normalizedClauses) {
       if (clause.eq) {
         for (const { col, val } of clause.eq) {
           const colKey = String(col);

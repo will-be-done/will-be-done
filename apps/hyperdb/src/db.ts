@@ -11,13 +11,15 @@ export type Project = {
   orderToken: string;
 };
 export const projectsTable = table<Project>("projects").withIndexes({
-  ids: { cols: ["id"], type: "hash" },
+  byId: { cols: ["id"], type: "hash" },
   ordered: { cols: ["orderToken"], type: "btree" },
 });
 
-export const getAllProjects = selector(function* () {
+export const get100Projects = selector(function* () {
   const tasks = yield* runQuery(
-    selectFrom(projectsTable, "ordered").where((q) => q),
+    selectFrom(projectsTable, "ordered")
+      .where((q) => q)
+      .limit(10),
   );
 
   return tasks;
@@ -35,7 +37,7 @@ export const getFirst10ProjectsIds = selector(function* () {
 
 export const getById = selector(function* (id: string) {
   const tasks = yield* runQuery(
-    selectFrom(projectsTable, "ids").where((q) => q.eq("id", id)),
+    selectFrom(projectsTable, "byId").where((q) => q.eq("id", id)),
   );
 
   return tasks[0];
@@ -43,7 +45,7 @@ export const getById = selector(function* (id: string) {
 
 export function* insertMillion() {
   const projects: Project[] = [];
-  for (let i = 0; i < 1000; i++) {
+  for (let i = 0; i < 10000; i++) {
     const id = Math.random().toString(36).slice(2);
     projects.push({
       id: id,

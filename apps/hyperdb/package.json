@@ -17,6 +17,7 @@
   "dependencies": {
     "@types/sql.js": "^1.4.9",
     "await-lock": "^3.0.0",
+    "comlink": "^4.4.2",
     "es": "^0.8.0",
     "es-toolkit": "^1.42.0",
     "lexicodec": "^0.0.6",

@@ -201,7 +201,7 @@ export class DBTx implements HyperDBTx {
     if (this.isFinished.val) {
       throw new Error("Transaction is finished");
     }
-    
+
     this.txCounter.val--;
     if (this.txCounter.val !== 0) return;
 

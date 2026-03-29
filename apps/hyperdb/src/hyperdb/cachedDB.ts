@@ -6,23 +6,29 @@ import {
   type SelectOptions,
   type Trait,
   type Row,
-  execAsync,
 } from "./db";
 import { convertWhereToBound } from "./bounds";
 import type { TableDefinition, ExtractSchema, ExtractIndexes } from "./table";
 import type { DBCmd } from "./generators";
+
+export type AfterScanCallback = (
+  db: HyperDB,
+  table: TableDefinition,
+  indexName: string,
+  clauses: WhereClause[],
+  selectOptions: SelectOptions | undefined,
+  results: Row[],
+) => Generator<DBCmd, void>;
+
 import {
   type NormalizedInterval,
   tupleScanToNormalized,
   mergeInterval,
   subtractIntervals,
   intervalToWhereClause,
+  recordToTuple,
 } from "./intervals";
-
-type PendingOp =
-  | { type: "insert"; table: TableDefinition; records: Row[] }
-  | { type: "update"; table: TableDefinition; records: Row[] }
-  | { type: "delete"; table: TableDefinition; ids: string[] };
+import { compareTuple as compareTuples } from "./drivers/tuple";
 
 /**
  * Populate hash key caches for all hash indexes on a table from loaded records.
@@ -69,7 +75,12 @@ function* cachedHashScan<
   const eqVal = clauses[0]?.eq?.[0]?.val;
   if (eqVal === undefined) {
     // Fallback: not a simple eq lookup, just query primary
-    return yield* primary.intervalScan(table, indexName, clauses, selectOptions);
+    return yield* primary.intervalScan(
+      table,
+      indexName,
+      clauses,
+      selectOptions,
+    );
   }
 
   const hashKeyStr = String(eqVal);
@@ -81,7 +92,12 @@ function* cachedHashScan<
   }
 
   // Query primary
-  const results = yield* primary.intervalScan(table, indexName, clauses, selectOptions);
+  const results = yield* primary.intervalScan(
+    table,
+    indexName,
+    clauses,
+    selectOptions,
+  );
   if (results.length > 0) {
     yield* cache.update(table, results);
   }
@@ -139,7 +155,12 @@ function* cachedIntervalScan<
 
   if (uncovered.length === 0) {
     // Fully covered — serve from cache
-    const results = yield* cache.intervalScan(table, indexName, clauses, selectOptions);
+    const results = yield* cache.intervalScan(
+      table,
+      indexName,
+      clauses,
+      selectOptions,
+    );
     // Populate hash key caches from returned results
     if (results.length > 0) {
       populateHashKeysFromRecords(table, results as Row[], cachedHashKeys);
@@ -147,40 +168,115 @@ function* cachedIntervalScan<
     return results;
   }
 
-  // Query primary ONLY for uncovered intervals
-  for (const interval of uncovered) {
-    const whereClause = intervalToWhereClause(interval, baseCols);
-    const clauseArray =
-      Object.keys(whereClause).length > 0 ? [whereClause] : clauses;
-
-    // No limit on partial queries — we want to fully cache each uncovered range
-    const results: ExtractSchema<TTable>[] = yield* primary.intervalScan(
+  // When a limit is set, the cache may already have enough rows to satisfy
+  // the query even if the tail of the range is uncovered. Check this before
+  // hitting primary — but only if all returned rows fall before the first
+  // uncovered gap (so we know no missing rows could appear earlier).
+  if (selectOptions?.limit != null) {
+    const cacheResults = yield* cache.intervalScan(
       table,
       indexName,
-      clauseArray,
+      clauses,
+      selectOptions,
     );
-
-    if (results.length > 0) {
-      // Use update (delete+insert) to avoid duplicates — cache may already
-      // have some of these records from deferred writes
-      yield* cache.update(table, results);
-
-      // Populate hash key caches for all hash indexes on this table
-      populateHashKeysFromRecords(table, results as Row[], cachedHashKeys);
+    if (cacheResults.length >= selectOptions.limit) {
+      const lastRow = cacheResults[cacheResults.length - 1] as Row;
+      const lastResultTuple = recordToTuple(lastRow, indexCols);
+      const firstGap = uncovered[0];
+      const cmp = compareTuples(lastResultTuple, firstGap.lower);
+      if (
+        cmp < 0 ||
+        (cmp === 0 && !firstGap.lowerInclusive)
+      ) {
+        // All limit rows come from the cached portion, before any gap
+        populateHashKeysFromRecords(
+          table,
+          cacheResults as Row[],
+          cachedHashKeys,
+        );
+        return cacheResults;
+      }
     }
   }
 
-  // Compute the actual loaded intervals (broadened to baseCols level)
-  // by converting each uncovered interval's WhereClause back through the pipeline
-  let current = cached;
+  // Build a single batch of WHERE clauses for all uncovered intervals
+  const batchClauses: WhereClause[] = [];
   for (const interval of uncovered) {
     const whereClause = intervalToWhereClause(interval, baseCols);
-    const clauseArray =
-      Object.keys(whereClause).length > 0 ? [whereClause] : clauses;
-    const bounds = convertWhereToBound(baseCols, clauseArray);
-    for (const b of bounds) {
-      const loadedInterval = tupleScanToNormalized(b, indexColCount);
-      current = mergeInterval(current, loadedInterval);
+    if (Object.keys(whereClause).length > 0) {
+      batchClauses.push(whereClause);
+    }
+  }
+  // If no valid clauses were produced, fall back to original clauses
+  const queryClauses = batchClauses.length > 0 ? batchClauses : clauses;
+
+  // Single query for all uncovered intervals (DB executes as OR)
+  const results: ExtractSchema<TTable>[] = yield* primary.intervalScan(
+    table,
+    indexName,
+    queryClauses,
+    selectOptions,
+  );
+
+  if (results.length > 0) {
+    // Use update (delete+insert) to avoid duplicates — cache may already
+    // have some of these records from deferred writes
+    yield* cache.update(table, results);
+
+    // Populate hash key caches for all hash indexes on this table
+    populateHashKeysFromRecords(table, results as Row[], cachedHashKeys);
+  }
+
+  // Determine whether we fetched everything or hit the limit
+  const hasLimit = selectOptions?.limit != null;
+  const gotFullResults =
+    !hasLimit || results.length < selectOptions!.limit!;
+
+  // Merge uncovered intervals into the cached set
+  let current = cached;
+  if (gotFullResults) {
+    // Full fetch — mark entire uncovered intervals as cached
+    for (const interval of uncovered) {
+      const whereClause = intervalToWhereClause(interval, baseCols);
+      const clauseArray =
+        Object.keys(whereClause).length > 0 ? [whereClause] : clauses;
+      const bounds = convertWhereToBound(baseCols, clauseArray);
+      for (const b of bounds) {
+        const loadedInterval = tupleScanToNormalized(b, indexColCount);
+        current = mergeInterval(current, loadedInterval);
+      }
+    }
+  } else if (results.length > 0) {
+    // Partial fetch — only mark as cached up to the last returned row
+    const lastRow = results[results.length - 1] as Row;
+    const lastTuple = recordToTuple(lastRow, indexCols);
+
+    for (const interval of uncovered) {
+      // Skip intervals that start after our last result
+      if (compareTuples(interval.lower, lastTuple) > 0) break;
+
+      const cmpUpper = compareTuples(interval.upper, lastTuple);
+      if (cmpUpper <= 0) {
+        // Fully covered — merge entire interval
+        const whereClause = intervalToWhereClause(interval, baseCols);
+        const clauseArray =
+          Object.keys(whereClause).length > 0 ? [whereClause] : clauses;
+        const bounds = convertWhereToBound(baseCols, clauseArray);
+        for (const b of bounds) {
+          const loadedInterval = tupleScanToNormalized(b, indexColCount);
+          current = mergeInterval(current, loadedInterval);
+        }
+      } else {
+        // Partially covered — merge up to lastTuple
+        const actualInterval: NormalizedInterval = {
+          lower: interval.lower,
+          lowerInclusive: interval.lowerInclusive,
+          upper: lastTuple,
+          upperInclusive: true,
+        };
+        current = mergeInterval(current, actualInterval);
+        break; // Remaining intervals cannot be covered
+      }
     }
   }
   cachedIntervals.set(key, current);
@@ -217,10 +313,10 @@ class CachedDBTx implements HyperDBTx {
   private txIntervals: Map<string, NormalizedInterval[]>;
   private parentHashKeys: Map<string, Set<string>>;
   private txHashKeys: Map<string, Set<string>>;
-  private pendingOps: PendingOp[];
-  private enqueuePrimary: (fn: () => Promise<void>) => void;
   private traits: Trait[];
   private isOutermost: boolean;
+  private cachedDB: CachedDB;
+  private afterScanSubscribers: AfterScanCallback[];
 
   constructor(
     primaryDB: HyperDB,
@@ -229,10 +325,10 @@ class CachedDBTx implements HyperDBTx {
     txIntervals: Map<string, NormalizedInterval[]>,
     parentHashKeys: Map<string, Set<string>>,
     txHashKeys: Map<string, Set<string>>,
-    pendingOps: PendingOp[],
-    enqueuePrimary: (fn: () => Promise<void>) => void,
     traits: Trait[] = [],
     isOutermost = true,
+    cachedDB?: CachedDB,
+    afterScanSubscribers: AfterScanCallback[] = [],
   ) {
     this.primaryDB = primaryDB;
     this.cacheTx = cacheTx;
@@ -240,10 +336,10 @@ class CachedDBTx implements HyperDBTx {
     this.txIntervals = txIntervals;
     this.parentHashKeys = parentHashKeys;
     this.txHashKeys = txHashKeys;
-    this.pendingOps = pendingOps;
-    this.enqueuePrimary = enqueuePrimary;
     this.traits = traits;
     this.isOutermost = isOutermost;
+    this.cachedDB = cachedDB!;
+    this.afterScanSubscribers = afterScanSubscribers;
   }
 
   *intervalScan<
@@ -256,8 +352,9 @@ class CachedDBTx implements HyperDBTx {
     selectOptions?: SelectOptions,
   ): Generator<DBCmd, ExtractSchema<TTable>[]> {
     const indexConfig = table.indexes[indexName as string];
+    let results: ExtractSchema<TTable>[];
     if (indexConfig?.type === "hash") {
-      return yield* cachedHashScan(
+      results = yield* cachedHashScan(
         this.primaryDB,
         this.cacheTx,
         this.txHashKeys,
@@ -266,17 +363,31 @@ class CachedDBTx implements HyperDBTx {
         clauses,
         selectOptions,
       );
+    } else {
+      results = yield* cachedIntervalScan(
+        this.primaryDB,
+        this.cacheTx,
+        this.txIntervals,
+        this.txHashKeys,
+        table,
+        indexName,
+        clauses,
+        selectOptions,
+      );
     }
-    return yield* cachedIntervalScan(
-      this.primaryDB,
-      this.cacheTx,
-      this.txIntervals,
-      this.txHashKeys,
-      table,
-      indexName,
-      clauses,
-      selectOptions,
-    );
+
+    for (const cb of this.afterScanSubscribers) {
+      yield* cb(
+        this,
+        table,
+        indexName as string,
+        clauses,
+        selectOptions,
+        results as Row[],
+      );
+    }
+
+    return results;
   }
 
   *insert<TTable extends TableDefinition>(
@@ -284,7 +395,6 @@ class CachedDBTx implements HyperDBTx {
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
     yield* this.cacheTx.insert(table, records);
-    this.pendingOps.push({ type: "insert", table, records: records as Row[] });
   }
 
   *update<TTable extends TableDefinition>(
@@ -292,7 +402,6 @@ class CachedDBTx implements HyperDBTx {
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
     yield* this.cacheTx.update(table, records);
-    this.pendingOps.push({ type: "update", table, records: records as Row[] });
   }
 
   *delete<TTable extends TableDefinition>(
@@ -300,7 +409,6 @@ class CachedDBTx implements HyperDBTx {
     ids: string[],
   ): Generator<DBCmd, void> {
     yield* this.cacheTx.delete(table, ids);
-    this.pendingOps.push({ type: "delete", table, ids });
   }
 
   *loadTables(): Generator<DBCmd, void> {
@@ -316,10 +424,10 @@ class CachedDBTx implements HyperDBTx {
       this.txIntervals,
       this.parentHashKeys,
       this.txHashKeys,
-      this.pendingOps,
-      this.enqueuePrimary,
       this.traits,
       false,
+      this.cachedDB,
+      this.afterScanSubscribers,
     );
   }
 
@@ -342,38 +450,11 @@ class CachedDBTx implements HyperDBTx {
         }
       }
 
-      // Schedule primary tx replay in background (non-blocking)
-      const ops = [...this.pendingOps];
-      const primaryDB = this.primaryDB;
-      this.enqueuePrimary(async () => {
-        const tx = await execAsync(primaryDB.beginTx());
-        try {
-          for (const op of ops) {
-            switch (op.type) {
-              case "insert":
-                await execAsync(tx.insert(op.table, op.records));
-                break;
-              case "update":
-                await execAsync(tx.update(op.table, op.records));
-                break;
-              case "delete":
-                await execAsync(tx.delete(op.table, op.ids));
-                break;
-            }
-          }
-          await execAsync(tx.commit());
-        } catch (e) {
-          console.error("CachedDB: primary tx replay failed", e);
-          await execAsync(tx.rollback());
-        }
-      });
     }
   }
 
   *rollback(): Generator<DBCmd, void> {
     yield* this.cacheTx.rollback();
-    // pendingOps and txIntervals are discarded — parent remains unchanged
-    this.pendingOps.length = 0;
   }
 
   withTraits(...traits: Trait[]): HyperDBTx {
@@ -384,10 +465,10 @@ class CachedDBTx implements HyperDBTx {
       this.txIntervals,
       this.parentHashKeys,
       this.txHashKeys,
-      this.pendingOps,
-      this.enqueuePrimary,
       [...this.traits, ...traits],
       this.isOutermost,
+      this.cachedDB,
+      this.afterScanSubscribers,
     );
   }
 
@@ -401,40 +482,32 @@ export class CachedDB implements HyperDB {
   private cache: HyperDB;
   private cachedIntervals: Map<string, NormalizedInterval[]>;
   private cachedHashKeys: Map<string, Set<string>>;
-  private primaryWriteQueue: (() => Promise<void>)[] = [];
-  private processingQueue = false;
+  afterScanSubscribers: AfterScanCallback[] = [];
 
   constructor(
     primary: HyperDB,
     cache: HyperDB,
     cachedIntervals?: Map<string, NormalizedInterval[]>,
     cachedHashKeys?: Map<string, Set<string>>,
+    afterScanSubscribers?: AfterScanCallback[],
   ) {
     this.primary = primary;
     this.cache = cache;
     this.cachedIntervals = cachedIntervals ?? new Map();
     this.cachedHashKeys = cachedHashKeys ?? new Map();
-  }
-
-  /** Enqueue an async operation against the primary DB, processed via setTimeout(0). */
-  enqueuePrimaryWrite(fn: () => Promise<void>) {
-    this.primaryWriteQueue.push(fn);
-    if (!this.processingQueue) {
-      this.processingQueue = true;
-      setTimeout(() => void this.flushPrimaryWrites(), 1000);
+    if (afterScanSubscribers) {
+      this.afterScanSubscribers = afterScanSubscribers;
     }
   }
 
-  private async flushPrimaryWrites() {
-    while (this.primaryWriteQueue.length > 0) {
-      const fn = this.primaryWriteQueue.shift()!;
-      try {
-        await fn();
-      } catch (e) {
-        console.error("CachedDB: primary write failed", e);
-      }
-    }
-    this.processingQueue = false;
+  afterScan(cb: AfterScanCallback): () => void {
+    this.afterScanSubscribers.push(cb);
+
+    return () => {
+      this.afterScanSubscribers = this.afterScanSubscribers.filter(
+        (s) => s !== cb,
+      );
+    };
   }
 
   *intervalScan<
@@ -447,8 +520,9 @@ export class CachedDB implements HyperDB {
     selectOptions?: SelectOptions,
   ): Generator<DBCmd, ExtractSchema<TTable>[]> {
     const indexConfig = table.indexes[indexName as string];
+    let results: ExtractSchema<TTable>[];
     if (indexConfig?.type === "hash") {
-      return yield* cachedHashScan(
+      results = yield* cachedHashScan(
         this.primary,
         this.cache,
         this.cachedHashKeys,
@@ -457,17 +531,31 @@ export class CachedDB implements HyperDB {
         clauses,
         selectOptions,
       );
+    } else {
+      results = yield* cachedIntervalScan(
+        this.primary,
+        this.cache,
+        this.cachedIntervals,
+        this.cachedHashKeys,
+        table,
+        indexName,
+        clauses,
+        selectOptions,
+      );
     }
-    return yield* cachedIntervalScan(
-      this.primary,
-      this.cache,
-      this.cachedIntervals,
-      this.cachedHashKeys,
-      table,
-      indexName,
-      clauses,
-      selectOptions,
-    );
+
+    for (const cb of this.afterScanSubscribers) {
+      yield* cb(
+        this,
+        table,
+        indexName as string,
+        clauses,
+        selectOptions,
+        results as Row[],
+      );
+    }
+
+    return results;
   }
 
   *insert<TTable extends TableDefinition>(
@@ -475,9 +563,6 @@ export class CachedDB implements HyperDB {
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
     yield* this.cache.insert(table, records);
-    this.enqueuePrimaryWrite(() =>
-      execAsync(this.primary.insert(table, records)),
-    );
   }
 
   *update<TTable extends TableDefinition>(
@@ -485,9 +570,6 @@ export class CachedDB implements HyperDB {
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
     yield* this.cache.update(table, records);
-    this.enqueuePrimaryWrite(() =>
-      execAsync(this.primary.update(table, records)),
-    );
   }
 
   *delete<TTable extends TableDefinition>(
@@ -495,7 +577,6 @@ export class CachedDB implements HyperDB {
     ids: string[],
   ): Generator<DBCmd, void> {
     yield* this.cache.delete(table, ids);
-    this.enqueuePrimaryWrite(() => execAsync(this.primary.delete(table, ids)));
   }
 
   *loadTables(tables: TableDefinition<any, any>[]): Generator<DBCmd, void> {
@@ -513,7 +594,9 @@ export class CachedDB implements HyperDB {
       this.cachedHashKeys,
       cloneHashKeys(this.cachedHashKeys),
       [],
-      (fn) => this.enqueuePrimaryWrite(fn),
+      true,
+      this,
+      this.afterScanSubscribers,
     );
   }
 
@@ -523,6 +606,7 @@ export class CachedDB implements HyperDB {
       this.cache.withTraits(...traits),
       this.cachedIntervals,
       this.cachedHashKeys,
+      this.afterScanSubscribers,
     );
   }
 

@@ -27,7 +27,6 @@ export type Change = {
 };
 export const changesTable = table<Change>("changes").withIndexes({
   byId: { cols: ["id"], type: "hash" },
-  byEntityId: { cols: ["entityId"], type: "hash" },
   byEntityIdAndTableName: { cols: ["entityId", "tableName"], type: "btree" },
   byUpdatedAt: { cols: ["updatedAt"], type: "btree" },
 });
@@ -241,6 +240,13 @@ const mergeChangesAction = action(function* (
       throw new Error("Unknown table: " + changeset.tableName);
     }
 
+    const currentRows = yield* runQuery(
+      selectFrom(table, "byId").where((q) =>
+        changeset.data.map((c) => q.eq("id", c.change.entityId)),
+      ),
+    );
+    const currentRowsMap = new Map(currentRows.map((r) => [r.id, r]));
+
     const currentChanges = yield* runQuery(
       selectFrom(changesTable, "byEntityIdAndTableName").where((q) =>
         changeset.data.map((c) =>
@@ -254,17 +260,7 @@ const mergeChangesAction = action(function* (
       currentChanges.map((c) => [c.entityId, c as Change]),
     );
 
-    const currentRows = yield* runQuery(
-      selectFrom(table, "byId").where((q) =>
-        changeset.data.map((c) => q.eq("id", c.change.entityId)),
-      ),
-    );
-    const currentRowsMap = new Map(currentRows.map((r) => [r.id, r]));
-
-    for (const {
-      change: incomingChange,
-      row: incomingRow,
-    } of changeset.data) {
+    for (const { change: incomingChange, row: incomingRow } of changeset.data) {
       const currentChanges = currentChangesMap.get(incomingChange.entityId);
       const currentRow = currentRowsMap.get(incomingChange.entityId);
 
@@ -316,6 +312,12 @@ const mergeChangesAction = action(function* (
       });
     }
 
+    console.log(
+      "insert, update, delete",
+      toInsertRows,
+      toUpdateRows,
+      toDeleteRows,
+    );
     yield* insert(table, toInsertRows);
     yield* update(table, toUpdateRows);
     yield* deleteRows(table, toDeleteRows);

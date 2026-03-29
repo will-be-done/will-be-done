@@ -3,7 +3,7 @@ import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
 import "./App.css";
 import { useAsyncSelector, useAsyncDispatch } from "./react/hooks";
-import { create, getAllProjects, getById, insertMillion, update } from "./db";
+import { create, get100Projects, getById, insertMillion, update } from "./db";
 import { useDB } from "./react/context";
 
 const Project = ({ id }: { id: string }) => {
@@ -30,7 +30,7 @@ const Project = ({ id }: { id: string }) => {
 };
 
 const SortedProjects = () => {
-  const projects = useAsyncSelector(() => getAllProjects(), []);
+  const projects = useAsyncSelector(() => get100Projects(), []);
   const projectIds = projects?.map((p) => p.id).slice(0, 10) ?? [];
 
   console.log("projects", projects);
@@ -61,7 +61,7 @@ function App() {
     });
   }, [db]);
 
-  const [isHidden, setIsHidden] = useState(false);
+  const [isHidden, setIsHidden] = useState(true);
 
   return (
     <>

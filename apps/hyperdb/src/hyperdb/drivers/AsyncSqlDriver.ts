@@ -155,6 +155,7 @@ function* performAsyncScanOperation(
     const orderClause = buildOrderClause(indexName, table, tableDefinitions);
     const sql = buildSelectSQL(table, where, orderClause, selectOptions);
 
+    console.time("intervalScan" + sql);
     const result: unknown[] = [];
 
     try {
@@ -170,6 +171,8 @@ function* performAsyncScanOperation(
     } catch (error) {
       throw new Error(`Scan failed for index ${indexName}: ${error}`);
     }
+
+    console.timeEnd("intervalScan" + sql);
 
     return result;
   });
