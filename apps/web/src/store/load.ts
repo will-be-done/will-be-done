@@ -11,6 +11,7 @@ import {
   runQuery,
   runSelectorAsync,
   selectFrom,
+  type Op,
   SubscribableDB,
   syncDispatch,
   TableDefinition,
@@ -203,25 +204,20 @@ export const initDbStore = async (
       },
     );
 
-    syncSubDb.subscribe((ops, traits) => {
-      ops = ops.filter((op) => op.table !== changesTable);
-      if (ops.length === 0) return;
+    const pendingPersistBatches = new State<Op[][]>([]);
 
-      if (traits.some((t) => t.type === "skip-sync")) {
-        return;
-      }
+    const persistBatch = async (ops: Op[]) => {
+      type RowType = Record<string, string | number | boolean | null> & {
+        id: string;
+      };
+      const changesByTable = new Map<
+        string,
+        Array<{ row?: RowType; change: Change }>
+      >();
 
-      void (async () => {
-        // Map to collect changes grouped by table name
-        type RowType = Record<string, string | number | boolean | null> & {
-          id: string;
-        };
-        const changesByTable = new Map<
-          string,
-          Array<{ row?: RowType; change: Change }>
-        >();
-
-        const tx = await execAsync(asyncDB.beginTx());
+      const tx = await execAsync(asyncDB.beginTx());
+      let committed = false;
+      try {
         for (const op of ops) {
           if (op.table == changesTable) continue;
 
@@ -263,7 +259,6 @@ export const initDbStore = async (
             );
           }
 
-          // Collect the change if one was created
           if (change) {
             const tableName = op.table.tableName;
             if (!changesByTable.has(tableName)) {
@@ -276,19 +271,54 @@ export const initDbStore = async (
         }
 
         await execAsync(tx.commit());
+        committed = true;
+      } finally {
+        if (!committed) {
+          await execAsync(tx.rollback());
+        }
+      }
 
-        const changeset: ChangesetArrayType = [];
-        for (const [tableName, data] of changesByTable) {
-          changeset.push({ tableName, data });
+      const changeset: ChangesetArrayType = [];
+      for (const [tableName, data] of changesByTable) {
+        changeset.push({ tableName, data });
+      }
+
+      if (changeset.length > 0) {
+        void bc.postMessage({ changeset } satisfies ChangePersistedEvent);
+      }
+
+      syncer.forceSync();
+    };
+
+    void (async () => {
+      while (true) {
+        const queuedBatches = pendingPersistBatches.get();
+        pendingPersistBatches.set([]);
+
+        for (const ops of queuedBatches) {
+          try {
+            await persistBatch(ops);
+          } catch (error) {
+            console.error("Failed to persist local changes", error);
+          }
         }
 
-        if (changeset.length > 0) {
-          void bc.postMessage({ changeset } satisfies ChangePersistedEvent);
-        }
+        await pendingPersistBatches.when((queue) => queue.length > 0);
+      }
+    })();
 
-        // Notify syncer that local changes are persisted to trigger immediate sync
-        syncer.forceSync();
-      })();
+    syncSubDb.subscribe((ops, traits) => {
+      ops = ops.filter((op) => op.table !== changesTable);
+      if (ops.length === 0) return;
+
+      if (traits.some((t) => t.type === "skip-sync")) {
+        return;
+      }
+
+      pendingPersistBatches.modify((queue) => {
+        queue.push([...ops]);
+        return queue;
+      });
     });
 
     bc.onmessage = async (ev) => {
@@ -367,7 +397,7 @@ class Syncer {
    * Called when local changes are persisted to trigger immediate sync
    */
   forceSync() {
-    this.forceSyncNotification.set(0);
+    this.forceSyncNotification.modify((version) => version + 1);
   }
 
   private cleanupWebSocket() {
@@ -387,12 +417,12 @@ class Syncer {
       {
         onData: () => {
           console.log("WebSocket notification received");
-          this.wsNotification.set(0);
+          this.wsNotification.modify((version) => version + 1);
         },
         onError: (err) => {
           console.error("WebSocket subscription error:", err);
           // On error, emit to allow sync loop to continue
-          this.wsNotification.set(0);
+          this.wsNotification.modify((version) => version + 1);
         },
       },
     );
@@ -424,6 +454,8 @@ class Syncer {
       }
 
       // Use Promise.race between timeout, WebSocket notification, and local changes
+      const wsVersion = this.wsNotification.get();
+      const forceSyncVersion = this.forceSyncNotification.get();
       await Promise.race([
         // I disabled it for dev mode to reduce noise
         ...(process.env.NODE_ENV === "development"
@@ -433,8 +465,12 @@ class Syncer {
                 setTimeout(() => resolve("timeout"), 5000),
               ),
             ]),
-        this.wsNotification.newEmitted().then(() => "ws" as const),
-        this.forceSyncNotification.newEmitted().then(() => "local" as const),
+        this.wsNotification
+          .when((version) => version > wsVersion)
+          .then(() => "ws" as const),
+        this.forceSyncNotification
+          .when((version) => version > forceSyncVersion)
+          .then(() => "local" as const),
       ]);
     }
   }
