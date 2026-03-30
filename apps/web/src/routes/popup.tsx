@@ -11,7 +11,7 @@ function PopupComponent() {
   const [spaceId, setSpaceId] = useState<string | null>(() => getPopupSpaceId());
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
-  >(spaceId ? "idle" : "error");
+  >(spaceId ? "loading" : "error");
   const [errorMsg, setErrorMsg] = useState(
     spaceId ? "" : "No space selected. Open the main app first.",
   );
@@ -23,9 +23,6 @@ function PopupComponent() {
 
   useEffect(() => {
     if (!spaceId || initializedSpaceIdRef.current === spaceId) return;
-
-    setStatus("loading");
-    setErrorMsg("");
 
     initPopupStore(spaceId)
       .then((store) => {
