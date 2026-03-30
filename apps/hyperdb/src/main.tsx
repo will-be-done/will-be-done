@@ -3,6 +3,7 @@ import {
   changesTable,
   type Change,
   type ChangesetArrayType,
+  type BatchOp,
 } from "@will-be-done/slices/common";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -10,6 +11,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { SubscribableDB } from "./hyperdb/subscribable-db.ts";
 import { DB, execAsync, syncDispatch, asyncDispatch } from "./hyperdb";
+import type { TableDefinition } from "./hyperdb/table.ts";
 import { noop } from "./hyperdb/generators";
 import { projectsTable } from "./db.ts";
 import { DBProvider } from "./react/context.ts";
@@ -181,59 +183,68 @@ export const WrapApp = ({ children }: { children: React.ReactNode }) => {
             Array<{ row?: RowType; change: Change }>
           >();
 
-          const tx = await execAsync(primary.beginTx());
+          // Group data operations by table and type for batching
+          const insertsByTable = new Map<TableDefinition, RowType[]>();
+          const updatesByTable = new Map<TableDefinition, RowType[]>();
+          const deletesByTable = new Map<TableDefinition, string[]>();
+
           for (const op of ops) {
             if (op.table == changesTable) continue;
 
-            let change: Change | undefined;
-
             if (op.type === "insert") {
-              await execAsync(tx.insert(op.table, [op.newValue]));
-              change = await asyncDispatch(
-                tx,
-                changesSlice.insertChangeFromInsert(
-                  op.table,
-                  op.newValue,
-                  clientId,
-                  clockA,
-                ),
-              );
+              if (!insertsByTable.has(op.table))
+                insertsByTable.set(op.table, []);
+              insertsByTable.get(op.table)!.push(op.newValue);
             } else if (op.type === "update") {
-              await execAsync(tx.update(op.table, [op.newValue]));
-              change = await asyncDispatch(
-                tx,
-                changesSlice.insertChangeFromUpdate(
-                  op.table,
-                  op.oldValue,
-                  op.newValue,
-                  clientId,
-                  clockA,
-                ),
-              );
+              if (!updatesByTable.has(op.table))
+                updatesByTable.set(op.table, []);
+              updatesByTable.get(op.table)!.push(op.newValue);
             } else if (op.type === "delete") {
-              await execAsync(tx.delete(op.table, [op.oldValue.id]));
-              change = await asyncDispatch(
-                tx,
-                changesSlice.insertChangeFromDelete(
-                  op.table,
-                  op.oldValue,
-                  clientId,
-                  clockA,
-                ),
-              );
-            }
-
-            // Collect the change if one was created
-            if (change) {
-              const tableName = op.table.tableName;
-              if (!changesByTable.has(tableName)) {
-                changesByTable.set(tableName, []);
-              }
-
-              const row = op.type === "delete" ? undefined : op.newValue;
-              changesByTable.get(tableName)!.push({ row, change });
+              if (!deletesByTable.has(op.table))
+                deletesByTable.set(op.table, []);
+              deletesByTable.get(op.table)!.push(op.oldValue.id);
             }
           }
+
+          const tx = await execAsync(primary.beginTx());
+
+          // Batch insert/update/delete per table
+          for (const [table, records] of insertsByTable) {
+            await execAsync(tx.insert(table, records));
+          }
+          for (const [table, records] of updatesByTable) {
+            await execAsync(tx.update(table, records));
+          }
+          for (const [table, ids] of deletesByTable) {
+            await execAsync(tx.delete(table, ids));
+          }
+
+          // Batch change tracking — single query + single insert
+          const batchOps: BatchOp[] = ops
+            .filter((op) => op.table != changesTable)
+            .map((op) => ({
+              type: op.type,
+              tableDef: op.table,
+              newValue: op.type === "delete" ? undefined : op.newValue,
+              oldValue: op.type === "insert" ? undefined : op.oldValue,
+            }));
+
+          const allChanges = await asyncDispatch(
+            tx,
+            changesSlice.batchInsertChanges(batchOps, clientId, clockA),
+          );
+
+          // Collect changes grouped by table for broadcast
+          allChanges.forEach((change, i) => {
+            if (!change) return;
+            const op = batchOps[i];
+            const tableName = change.tableName;
+            if (!changesByTable.has(tableName)) {
+              changesByTable.set(tableName, []);
+            }
+            const row = op.type === "delete" ? undefined : op.newValue;
+            changesByTable.get(tableName)!.push({ row, change });
+          });
 
           await execAsync(tx.commit());
 

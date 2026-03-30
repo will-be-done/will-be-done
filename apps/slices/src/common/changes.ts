@@ -222,6 +222,128 @@ const insertChangeFromDelete = action(function* (
   return deletedChange;
 });
 
+export type BatchOp = {
+  type: "insert" | "update" | "delete";
+  tableDef: TableDefinition;
+  newValue?: Row;
+  oldValue?: Row;
+};
+
+const batchInsertChanges = action(function* (
+  ops: BatchOp[],
+  clientId: string,
+  nextClock: () => string,
+) {
+  // Collect entityId+tableName pairs that need existing change lookups (updates and deletes)
+  const lookupOps = ops.filter((op) => op.type === "update" || op.type === "delete");
+
+  // Batch-fetch existing changes for update/delete ops
+  const existingChangesMap = new Map<string, Change>();
+  if (lookupOps.length > 0) {
+    const existingChanges = yield* runQuery(
+      selectFrom(changesTable, "byEntityIdAndTableName").where((q) =>
+        lookupOps.map((op) => {
+          const entityId = op.oldValue!.id;
+          return q.eq("entityId", entityId).eq("tableName", op.tableDef.tableName);
+        }),
+      ),
+    );
+    for (const c of existingChanges) {
+      existingChangesMap.set(`${c.tableName}:${c.entityId}`, c as Change);
+    }
+  }
+
+  const results: (Change | undefined)[] = [];
+  const toInsert: Change[] = [];
+
+  for (const op of ops) {
+    if (op.type === "insert") {
+      const row = op.newValue!;
+      const createdAt = nextClock();
+      const changes: Record<string, string> = {};
+      for (const col of Object.keys(row)) {
+        changes[col] = createdAt;
+      }
+      const newChange: Change = {
+        id: `${op.tableDef.tableName}:${row.id}`,
+        entityId: row.id,
+        tableName: op.tableDef.tableName,
+        deletedAt: null,
+        clientId,
+        changes,
+        createdAt,
+        updatedAt: createdAt,
+      };
+      toInsert.push(newChange);
+      results.push(newChange);
+    } else if (op.type === "update") {
+      const oldRow = op.oldValue!;
+      const newRow = op.newValue!;
+      if (oldRow.id !== newRow.id) {
+        throw new Error("Cannot update row with different id");
+      }
+      const updatedAt = nextClock();
+      const existing = existingChangesMap.get(`${op.tableDef.tableName}:${oldRow.id}`);
+      const change: Change = existing || {
+        id: `${op.tableDef.tableName}:${oldRow.id}`,
+        entityId: oldRow.id,
+        tableName: op.tableDef.tableName,
+        createdAt: updatedAt,
+        updatedAt,
+        deletedAt: null,
+        clientId,
+        changes: {},
+      };
+      const changedCols: Record<string, string> = { ...change.changes };
+      let hasChanges = false;
+      for (const col of uniq([...Object.keys(oldRow), ...Object.keys(newRow)])) {
+        if (!isEqual(oldRow[col], newRow[col])) {
+          changedCols[col] = updatedAt;
+          hasChanges = true;
+        }
+      }
+      if (hasChanges || Object.keys(change.changes).length > 0) {
+        const newChange: Change = {
+          ...change,
+          changes: changedCols,
+          updatedAt,
+        };
+        toInsert.push(newChange);
+        results.push(newChange);
+      } else {
+        results.push(undefined);
+      }
+    } else if (op.type === "delete") {
+      const row = op.oldValue!;
+      const deletedAt = nextClock();
+      const existing = existingChangesMap.get(`${op.tableDef.tableName}:${row.id}`);
+      const change: Change = existing || {
+        id: `${op.tableDef.tableName}:${row.id}`,
+        entityId: row.id,
+        tableName: op.tableDef.tableName,
+        createdAt: deletedAt,
+        updatedAt: deletedAt,
+        deletedAt: null,
+        clientId,
+        changes: {},
+      };
+      const deletedChange: Change = {
+        ...change,
+        deletedAt,
+        updatedAt: deletedAt,
+      };
+      toInsert.push(deletedChange);
+      results.push(deletedChange);
+    }
+  }
+
+  if (toInsert.length > 0) {
+    yield* insert(changesTable, toInsert);
+  }
+
+  return results;
+});
+
 const mergeChangesAction = action(function* (
   input: ChangesetArrayType,
   nextClock: () => string,
@@ -335,6 +457,7 @@ export const changesSlice = {
   insertChangeFromInsert,
   insertChangeFromUpdate,
   insertChangeFromDelete,
+  batchInsertChanges,
   mergeChanges: mergeChangesAction,
 };
 
