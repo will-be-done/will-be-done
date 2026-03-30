@@ -276,8 +276,10 @@ function positionAndShowPopup(): void {
 
   popupWindow.setPosition(Math.round(dx + dw / 2 - POPUP_WIDTH / 2), Math.round(dy + dh / 3))
 
+  popupWindow.show()
+  popupWindow.focus()
+  popupWindow.webContents.focus()
   popupWindow.webContents.send('popup-show')
-  popupWindow.showInactive()
 }
 
 function hidePopup(): void {
