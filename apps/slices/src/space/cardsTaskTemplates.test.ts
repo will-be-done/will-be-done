@@ -12,6 +12,7 @@ import { tasksTable, type Task } from "./cardsTasks";
 import {
   taskTemplatesTable,
   type TaskTemplate,
+  newTasksInRange,
   newTasksToGenForTemplate,
 } from "./cardsTaskTemplates";
 import { dbIdTrait } from "@/traits";
@@ -43,6 +44,16 @@ function getNewTasks(db: DB, templateId: string, toDate: Date): Task[] {
     db,
     function* () {
       return yield* newTasksToGenForTemplate(templateId, toDate);
+    },
+    [],
+  );
+}
+
+function getNewTasksInRange(db: DB, fromDate: Date, toDate: Date): Task[] {
+  return runSelector<Task[]>(
+    db,
+    function* () {
+      return yield* newTasksInRange(fromDate, toDate);
     },
     [],
   );
@@ -332,6 +343,38 @@ describe("cardsTaskTemplates timezone consistency", () => {
     const taskDate = new Date(tasksBefore[0].templateDate!);
     expect(taskDate.getUTCDate()).toBe(1); // March 1
     expect(taskDate.getUTCHours()).toBe(0);
+  });
+
+  it("finds daily tasks in a real-time range that crosses local midnight", () => {
+    const createdAtEpoch = new Date("2026-03-01T10:00:00Z").getTime();
+
+    const template: TaskTemplate = {
+      type: "template",
+      id: "template-range-local-midnight",
+      title: "Daily range midnight test",
+      orderToken: "a",
+      repeatRule: "RRULE:FREQ=DAILY;INTERVAL=1",
+      repeatRuleDtStart: createdAtEpoch,
+      createdAt: createdAtEpoch,
+      lastGeneratedAt: createdAtEpoch,
+      projectCategoryId: "cat-1",
+    };
+
+    // UTC+3 client asking for 23:00 Mar 1 -> 01:00 Mar 2 local time.
+    // In real UTC that's 20:00 -> 22:00 on March 1. The range crosses
+    // local midnight, so it should include the Mar 2 daily occurrence.
+    const db = createDB(-180);
+    insertTemplate(db, template);
+    const tasks = getNewTasksInRange(
+      db,
+      new Date("2026-03-01T20:00:00Z"),
+      new Date("2026-03-01T22:00:00Z"),
+    );
+    vi.restoreAllMocks();
+
+    expect(tasks).toHaveLength(1);
+    const taskDate = new Date(tasks[0].templateDate!);
+    expect(taskDate.toISOString()).toBe("2026-03-02T00:00:00.000Z");
   });
 
   it("generates tasks with the SAME IDs for MINUTELY rule across timezones", () => {
