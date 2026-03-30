@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useAsyncDispatch, useAsyncSelector } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
   dailyListsProjectionsSlice,
@@ -24,46 +24,33 @@ import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 
-const ColumnView = ({
-  dailyListId,
+const ColumnViewComp = ({
+  dailyList,
+  taskIds,
+  doneTaskIds,
   onTaskAdd,
 }: {
-  dailyListId: string;
+  dailyList: DailyList;
+  taskIds: string[];
+  doneTaskIds: string[];
   onTaskAdd: (dailyList: DailyList) => void;
 }) => {
-  const dailyList = useSyncSelector(
-    () => dailyListsSlice.byIdOrDefault(dailyListId),
-    [dailyListId],
-  );
   const currentDate = useCurrentDMY();
-  const isToday = useMemo(() => {
-    return currentDate === dailyList.date;
-  }, [currentDate, dailyList.date]);
-
-  const taskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.childrenIds(dailyListId),
-    [dailyListId],
-  );
-
-  const doneTaskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.doneChildrenIds(dailyListId),
-    [dailyListId],
-  );
-
-  // const [isHiddenClicked, setIsHiddenClicked] = useState(false);
 
   const isManuallyHidden = useHiddenDays(
-    (state) => state.hiddenDays[dailyListId],
+    (state) => state.hiddenDays[dailyList.id],
   );
   const setIsHidden = useHiddenDays((state) => state.setIsHidden);
   const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
+
+  const isToday = currentDate === dailyList.date;
   const isHidden =
     isManuallyHidden || (taskIds.length == 0 && doneTaskIds.length == 0);
-  const handleHideClick = () => toggleIsHidden(dailyListId);
+  const handleHideClick = () => toggleIsHidden(dailyList.id);
 
   const handleAddClick = () => {
     if (isHidden) {
-      setIsHidden(dailyListId, false);
+      setIsHidden(dailyList.id, false);
     }
 
     onTaskAdd(dailyList);
@@ -120,6 +107,40 @@ const ColumnView = ({
   );
 };
 
+const ColumnView = ({
+  dailyListId,
+  onTaskAdd,
+}: {
+  dailyListId: string;
+  onTaskAdd: (dailyList: DailyList) => void;
+}) => {
+  const dailyListResult = useAsyncSelector(
+    () => dailyListsSlice.byIdOrDefault(dailyListId),
+    [dailyListId],
+  );
+
+  const taskIdsResult = useAsyncSelector(
+    () => dailyListsProjectionsSlice.childrenIds(dailyListId),
+    [dailyListId],
+  );
+
+  const doneTaskIdsResult = useAsyncSelector(
+    () => dailyListsProjectionsSlice.doneChildrenIds(dailyListId),
+    [dailyListId],
+  );
+
+  if (dailyListResult.isPending || taskIdsResult.isPending || doneTaskIdsResult.isPending) return null;
+
+  return (
+    <ColumnViewComp
+      dailyList={dailyListResult.data!}
+      taskIds={taskIdsResult.data!}
+      doneTaskIds={doneTaskIdsResult.data!}
+      onTaskAdd={onTaskAdd}
+    />
+  );
+};
+
 type ProjectsViewSize = {
   projectsViewHeight: number;
   projectsViewHidden: boolean;
@@ -147,37 +168,22 @@ const useProjectsViewSize = create<ProjectsViewSize>()(
   ),
 );
 
-const BoardView = ({
+const BoardViewComp = ({
+  inboxId,
   previousDate,
   nextDate,
   selectedDate,
   dailyListsIds,
   selectedProjectId,
 }: {
+  inboxId: string;
   previousDate: Date;
   nextDate: Date;
   selectedDate: Date;
   dailyListsIds: string[];
   selectedProjectId: string;
 }) => {
-  const dispatch = useDispatch();
-  const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
-
-  const handleAddTask = useCallback(
-    (dailyList: DailyList) => {
-      const task = dispatch(
-        dailyListsSlice.createTaskInList(
-          dailyList.id,
-          inboxId,
-          "prepend",
-          "prepend",
-        ),
-      );
-
-      useFocusStore.getState().editByKey(buildFocusKey(task.id, "projection"));
-    },
-    [dispatch, inboxId],
-  );
+  const dispatch = useAsyncDispatch();
 
   const {
     projectsViewHeight,
@@ -188,31 +194,9 @@ const BoardView = ({
   // const [projectsViewHeight, setProjectsViewHeight] = useState(20);
   // const [projectsViewHidden, setProjectsViewHidden] = useState(false);
 
-  const handleProjectsResize = (deltaX: number) => {
-    const containerHeight = window.innerHeight;
-    const deltaPercentage = (deltaX / containerHeight) * 100;
-    const newHeight = Math.max(
-      10,
-      Math.min(80, projectsViewHeight - deltaPercentage),
-    );
-    setProjectsViewHeight(newHeight);
-  };
-
-  const handleHideClick = () => {
-    setProjectsViewHidden(!projectsViewHidden);
-  };
-
   const spaceId = Route.useParams().spaceId;
 
-  // const navigate = useNavigate();
-  // const handleSignOutClick = () => {
-  //   authUtils.signOut();
-  //
-  //   void navigate({ to: "/login" });
-  // };
-
   const ProjectLink = useCallback(
-    // eslint-disable-next-line react-x/no-nested-component-definitions
     ({
       children,
       projectId,
@@ -243,6 +227,43 @@ const BoardView = ({
     },
     [selectedDate, spaceId],
   );
+
+  const handleAddTask = useCallback(
+    (dailyList: DailyList) => {
+      void dispatch(
+        dailyListsSlice.createTaskInList(
+          dailyList.id,
+          inboxId,
+          "prepend",
+          "prepend",
+        ),
+      ).then((task) => {
+        useFocusStore.getState().editByKey(buildFocusKey(task.id, "projection"));
+      });
+    },
+    [dispatch, inboxId],
+  );
+
+  const handleProjectsResize = (deltaX: number) => {
+    const containerHeight = window.innerHeight;
+    const deltaPercentage = (deltaX / containerHeight) * 100;
+    const newHeight = Math.max(
+      10,
+      Math.min(80, projectsViewHeight - deltaPercentage),
+    );
+    setProjectsViewHeight(newHeight);
+  };
+
+  const handleHideClick = () => {
+    setProjectsViewHidden(!projectsViewHidden);
+  };
+
+  // const navigate = useNavigate();
+  // const handleSignOutClick = () => {
+  //   authUtils.signOut();
+  //
+  //   void navigate({ to: "/login" });
+  // };
 
   console.log("projectId", selectedProjectId);
 
@@ -314,6 +335,59 @@ const BoardView = ({
   );
 };
 
+const BoardView = ({
+  previousDate,
+  nextDate,
+  selectedDate,
+  dailyListsIds,
+  selectedProjectId,
+}: {
+  previousDate: Date;
+  nextDate: Date;
+  selectedDate: Date;
+  dailyListsIds: string[];
+  selectedProjectId: string;
+}) => {
+  const inboxIdResult = useAsyncSelector(() => projectsSlice.inboxProjectId(), []);
+
+  if (inboxIdResult.isPending) return null;
+
+  return (
+    <BoardViewComp
+      inboxId={inboxIdResult.data!}
+      previousDate={previousDate}
+      nextDate={nextDate}
+      selectedDate={selectedDate}
+      dailyListsIds={dailyListsIds}
+      selectedProjectId={selectedProjectId}
+    />
+  );
+};
+
+const BoardComp = ({
+  dailyListsIds,
+  selectedDate,
+  selectedProjectId,
+  previousDate,
+  nextDate,
+}: {
+  dailyListsIds: string[];
+  selectedDate: Date;
+  selectedProjectId: string;
+  previousDate: Date;
+  nextDate: Date;
+}) => {
+  return (
+    <BoardView
+      previousDate={previousDate}
+      nextDate={nextDate}
+      selectedDate={selectedDate}
+      dailyListsIds={dailyListsIds}
+      selectedProjectId={selectedProjectId}
+    />
+  );
+};
+
 export const Board = ({
   selectedDate,
   selectedProjectId,
@@ -333,23 +407,25 @@ export const Board = ({
     [startingDate],
   );
 
-  const dailyListsIds = useSyncSelector(
+  const dailyListsIdsResult = useAsyncSelector(
     () => dailyListsSlice.idsByDates(weekDays),
     [weekDays],
   );
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
 
   useEffect(() => {
-    dispatch(dailyListsSlice.createManyIfNotPresent(weekDays));
+    void dispatch(dailyListsSlice.createManyIfNotPresent(weekDays));
   }, [dispatch, weekDays]);
 
+  if (dailyListsIdsResult.isPending) return null;
+
   return (
-    <BoardView
+    <BoardComp
+      dailyListsIds={dailyListsIdsResult.data!}
+      selectedDate={selectedDate}
+      selectedProjectId={selectedProjectId}
       previousDate={previousDate}
       nextDate={nextDate}
-      selectedDate={selectedDate}
-      dailyListsIds={dailyListsIds}
-      selectedProjectId={selectedProjectId}
     />
   );
 };

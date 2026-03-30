@@ -7,10 +7,10 @@ import { create, get100Projects, getById, insertMillion, update } from "./db";
 import { useDB } from "./react/context";
 
 const Project = ({ id }: { id: string }) => {
-  const project = useAsyncSelector(() => getById(id), [id]);
+  const { isPending, data: project } = useAsyncSelector(() => getById(id), [id]);
   const db = useDB();
 
-  if (!project) return <div>Loading...</div>;
+  if (isPending || !project) return <div>Loading...</div>;
 
   return (
     <div>
@@ -30,7 +30,7 @@ const Project = ({ id }: { id: string }) => {
 };
 
 const SortedProjects = () => {
-  const projects = useAsyncSelector(() => get100Projects(), []);
+  const { data: projects } = useAsyncSelector(() => get100Projects(), []);
   const projectIds = projects?.map((p) => p.id).slice(0, 10) ?? [];
 
   console.log("projects", projects);

@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useDispatch, useSyncSelector, useSelect } from "@will-be-done/hyperdb";
+import { useAsyncDispatch, useAsyncSelector, useSelect } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
   dailyListsProjectionsSlice,
@@ -63,13 +63,17 @@ const ChevronRight = () => (
   </svg>
 );
 
-const SingleDayColumn = ({
-  dailyListId,
+const SingleDayColumnComp = ({
+  dailyList,
+  taskIds,
+  doneTaskIds,
   onTaskAdd,
   previousDate,
   nextDate,
 }: {
-  dailyListId: string;
+  dailyList: DailyList;
+  taskIds: string[];
+  doneTaskIds: string[];
   onTaskAdd: (dailyList: DailyList) => void;
   previousDate: Date;
   nextDate: Date;
@@ -77,24 +81,8 @@ const SingleDayColumn = ({
   const spaceId = Route.useParams().spaceId;
   const navigate = useNavigate();
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const dailyList = useSyncSelector(
-    () => dailyListsSlice.byIdOrDefault(dailyListId),
-    [dailyListId],
-  );
+
   const currentDate = useCurrentDMY();
-  const isToday = useMemo(() => {
-    return currentDate === dailyList.date;
-  }, [currentDate, dailyList.date]);
-
-  const taskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.childrenIds(dailyListId),
-    [dailyListId],
-  );
-
-  const doneTaskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.doneChildrenIds(dailyListId),
-    [dailyListId],
-  );
 
   const select = useSelect();
   const columnRef = useRef<HTMLDivElement>(null);
@@ -135,7 +123,9 @@ const SingleDayColumn = ({
         canScroll: ({ source }) => isModelDNDData(source.data),
       }),
     );
-  }, [dailyList.id, dailyList.type, select]);
+  }, [dailyList, select]);
+
+  const isToday = currentDate === dailyList.date;
 
   return (
     <div
@@ -271,34 +261,69 @@ const SingleDayColumn = ({
   );
 };
 
-export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
-  const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
+const SingleDayColumn = ({
+  dailyListId,
+  onTaskAdd,
+  previousDate,
+  nextDate,
+}: {
+  dailyListId: string;
+  onTaskAdd: (dailyList: DailyList) => void;
+  previousDate: Date;
+  nextDate: Date;
+}) => {
+  const dailyListResult = useAsyncSelector(
+    () => dailyListsSlice.byIdOrDefault(dailyListId),
+    [dailyListId],
+  );
+  const taskIdsResult = useAsyncSelector(
+    () => dailyListsProjectionsSlice.childrenIds(dailyListId),
+    [dailyListId],
+  );
+  const doneTaskIdsResult = useAsyncSelector(
+    () => dailyListsProjectionsSlice.doneChildrenIds(dailyListId),
+    [dailyListId],
+  );
+
+  if (dailyListResult.isPending || taskIdsResult.isPending || doneTaskIdsResult.isPending) return null;
+
+  return (
+    <SingleDayColumnComp
+      dailyList={dailyListResult.data!}
+      taskIds={taskIdsResult.data!}
+      doneTaskIds={doneTaskIdsResult.data!}
+      onTaskAdd={onTaskAdd}
+      previousDate={previousDate}
+      nextDate={nextDate}
+    />
+  );
+};
+
+const DateViewComp = ({
+  dailyListsIds,
+  inboxId,
+  selectedDate,
+}: {
+  dailyListsIds: string[];
+  inboxId: string;
+  selectedDate: Date;
+}) => {
   const previousDate = useMemo(() => subDays(selectedDate, 1), [selectedDate]);
   const nextDate = useMemo(() => addDays(selectedDate, 1), [selectedDate]);
-
-  const dailyListsIds = useSyncSelector(
-    () => dailyListsSlice.idsByDates([startingDate]),
-    [startingDate],
-  );
-  const dispatch = useDispatch();
-  const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
-
-  useEffect(() => {
-    dispatch(dailyListsSlice.createManyIfNotPresent([startingDate]));
-  }, [dispatch, startingDate]);
+  const dispatch = useAsyncDispatch();
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      const task = dispatch(
+      void dispatch(
         dailyListsSlice.createTaskInList(
           dailyList.id,
           inboxId,
           "prepend",
           "prepend",
         ),
-      );
-
-      useFocusStore.getState().editByKey(buildFocusKey(task.id, "projection"));
+      ).then((task) => {
+        useFocusStore.getState().editByKey(buildFocusKey(task.id, "projection"));
+      });
     },
     [dispatch, inboxId],
   );
@@ -316,5 +341,30 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
         )}
       </div>
     </div>
+  );
+};
+
+export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
+  const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
+
+  const dailyListsIdsResult = useAsyncSelector(
+    () => dailyListsSlice.idsByDates([startingDate]),
+    [startingDate],
+  );
+  const dispatch = useAsyncDispatch();
+  const inboxIdResult = useAsyncSelector(() => projectsSlice.inboxProjectId(), []);
+
+  useEffect(() => {
+    void dispatch(dailyListsSlice.createManyIfNotPresent([startingDate]));
+  }, [dispatch, startingDate]);
+
+  if (dailyListsIdsResult.isPending || inboxIdResult.isPending) return null;
+
+  return (
+    <DateViewComp
+      dailyListsIds={dailyListsIdsResult.data!}
+      inboxId={inboxIdResult.data!}
+      selectedDate={selectedDate}
+    />
   );
 };

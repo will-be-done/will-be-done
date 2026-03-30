@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { ChevronDown, ChevronUp, GripHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSyncSelector } from "@will-be-done/hyperdb";
+import { useAsyncSelector } from "@will-be-done/hyperdb";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import {
   projectCategoryCardsSlice,
   cardsSlice,
   isTask,
   isTaskTemplate,
+  type Task,
+  type TaskTemplate,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { AnimatePresence, motion } from "motion/react";
@@ -43,10 +45,11 @@ export function CardDetails() {
     parsed?.type === "projection" ||
     parsed?.type === "template";
   const cardId = isCardFocused ? parsed.id : null;
-  const isVisible = useSyncSelector(
+  const isVisibleResult = useAsyncSelector(
     () => cardsSlice.exists(cardId || ""),
     [cardId],
   );
+  const isVisible = isVisibleResult.isPending ? false : isVisibleResult.data!;
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const isEditingTitle = editingTaskId === cardId;
@@ -181,7 +184,7 @@ export function CardDetails() {
 // ─── Body dispatcher ──────────────────────────────────────────────────────────
 
 function CardDetailsBody({
-  cardId: cardId,
+  cardId,
   isEditingTitle,
   setIsEditingTitle,
 }: {
@@ -189,11 +192,33 @@ function CardDetailsBody({
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
 }) {
-  const card = useSyncSelector(
+  const cardResult = useAsyncSelector(
     () => projectCategoryCardsSlice.byId(cardId),
     [cardId],
   );
 
+  if (cardResult.isPending) return null;
+
+  return (
+    <CardDetailsBodyComp
+      cardId={cardId}
+      card={cardResult.data!}
+      isEditingTitle={isEditingTitle}
+      setIsEditingTitle={setIsEditingTitle}
+    />
+  );
+}
+
+function CardDetailsBodyComp({
+  card,
+  isEditingTitle,
+  setIsEditingTitle,
+}: {
+  cardId: string;
+  card: Task | TaskTemplate;
+  isEditingTitle: boolean;
+  setIsEditingTitle: (v: boolean) => void;
+}) {
   if (isTask(card)) {
     return (
       <TaskBody

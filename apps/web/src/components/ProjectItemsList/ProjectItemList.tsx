@@ -1,7 +1,7 @@
 import { TaskComp } from "../Task/Task.tsx";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { useMemo, useState } from "react";
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useAsyncDispatch, useAsyncSelector } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
   projectCategoriesSlice,
@@ -12,7 +12,7 @@ import {
   TasksColumn,
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
-import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
+import { projectCategoryCardsSlice, type CardWrapperType } from "@will-be-done/slices/space";
 import {
   AddLeftIcon,
   AddRightIcon,
@@ -32,32 +32,44 @@ const ProjectTasksColumn = ({
   category: ProjectCategory;
   exceptTaskIds?: Set<string>;
 }) => {
-  const dispatch = useDispatch();
-
-  const cardsWithTypes = useSyncSelector(
+  const cardsWithTypesResult = useAsyncSelector(
     () => projectCategoryCardsSlice.childrenIdsWithTypes(category.id),
     [category.id],
   );
-  const doneTaskIds = useSyncSelector(
+  const doneTaskIdsResult = useAsyncSelector(
     () => projectCategoryCardsSlice.doneChildrenIds(category.id),
     [category.id],
   );
+
+  if (cardsWithTypesResult.isPending || doneTaskIdsResult.isPending) return null;
+
+  return (
+    <ProjectTasksColumnComp
+      project={project}
+      category={category}
+      exceptTaskIds={exceptTaskIds}
+      cardsWithTypes={cardsWithTypesResult.data!}
+      doneTaskIds={doneTaskIdsResult.data!}
+    />
+  );
+};
+
+const ProjectTasksColumnComp = ({
+  project,
+  category,
+  exceptTaskIds,
+  cardsWithTypes,
+  doneTaskIds,
+}: {
+  project: Project;
+  category: ProjectCategory;
+  exceptTaskIds?: Set<string>;
+  cardsWithTypes: { id: string; type: CardWrapperType }[];
+  doneTaskIds: string[];
+}) => {
+  const dispatch = useAsyncDispatch();
+
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
-  const isHidden =
-    isHiddenClicked || (doneTaskIds.length == 0 && cardsWithTypes.length == 0);
-  const handleAddClick = () => {
-    if (isHidden) {
-      setIsHiddenClicked(false);
-    }
-
-    const task = dispatch(
-      projectCategoriesSlice.createTask(category.id, "prepend"),
-    );
-
-    useFocusStore.getState().editByKey(buildFocusKey(task.id, task.type));
-  };
-  const handleHideClick = () => setIsHiddenClicked((v) => !v);
-
   const [isShowMore, setIsShowMore] = useState(false);
 
   const finalDoneIds = useMemo(() => {
@@ -70,6 +82,21 @@ const ProjectTasksColumn = ({
 
     return exceptTaskIds ? ids.filter((id) => !exceptTaskIds.has(id)) : ids;
   }, [doneTaskIds, exceptTaskIds, isShowMore]);
+
+  const isHidden =
+    isHiddenClicked || (doneTaskIds.length == 0 && cardsWithTypes.length == 0);
+  const handleAddClick = () => {
+    if (isHidden) {
+      setIsHiddenClicked(false);
+    }
+
+    void dispatch(
+      projectCategoriesSlice.createTask(category.id, "prepend"),
+    ).then((task) => {
+      useFocusStore.getState().editByKey(buildFocusKey(task.id, task.type));
+    });
+  };
+  const handleHideClick = () => setIsHiddenClicked((v) => !v);
 
   return (
     <TasksColumn
@@ -96,19 +123,19 @@ const ProjectTasksColumn = ({
                 const title = await promptDialog("Enter new name");
                 if (!title) return;
 
-                const [left, _right] = dispatch(
+                void dispatch(
                   projectCategoriesSlice.siblings(category.id),
-                );
-
-                dispatch(
-                  projectCategoriesSlice.createCategory(
-                    {
-                      projectId: category.projectId,
-                      title,
-                    },
-                    [left, category],
-                  ),
-                );
+                ).then(([left, _right]) => {
+                  void dispatch(
+                    projectCategoriesSlice.createCategory(
+                      {
+                        projectId: category.projectId,
+                        title,
+                      },
+                      [left, category],
+                    ),
+                  );
+                });
               })();
             }}
           >
@@ -123,19 +150,19 @@ const ProjectTasksColumn = ({
                 const title = await promptDialog("Enter new name");
                 if (!title) return;
 
-                const [_left, right] = dispatch(
+                void dispatch(
                   projectCategoriesSlice.siblings(category.id),
-                );
-
-                dispatch(
-                  projectCategoriesSlice.createCategory(
-                    {
-                      projectId: category.projectId,
-                      title,
-                    },
-                    [category, right],
-                  ),
-                );
+                ).then(([_left, right]) => {
+                  void dispatch(
+                    projectCategoriesSlice.createCategory(
+                      {
+                        projectId: category.projectId,
+                        title,
+                      },
+                      [category, right],
+                    ),
+                  );
+                });
               })();
             }}
           >
@@ -146,7 +173,7 @@ const ProjectTasksColumn = ({
             type="button"
             title="Move column to the left"
             onClick={() => {
-              dispatch(projectCategoriesSlice.moveLeft(category.id));
+              void dispatch(projectCategoriesSlice.moveLeft(category.id));
             }}
           >
             <MoveLeftIcon className="rotate-180" />
@@ -156,7 +183,7 @@ const ProjectTasksColumn = ({
             type="button"
             title="Move column to the right"
             onClick={() => {
-              dispatch(projectCategoriesSlice.moveRight(category.id));
+              void dispatch(projectCategoriesSlice.moveRight(category.id));
             }}
           >
             <MoveRightIcon className="rotate-180" />
@@ -171,7 +198,7 @@ const ProjectTasksColumn = ({
               );
               if (!confirmed) return;
 
-              dispatch(projectCategoriesSlice.deleteCategories([category.id]));
+              void dispatch(projectCategoriesSlice.deleteCategories([category.id]));
             }}
           >
             <TrashIcon className="rotate-180" />
@@ -185,7 +212,7 @@ const ProjectTasksColumn = ({
                 const newTitle = await promptDialog("Enter new title", category.title);
                 if (!newTitle) return;
 
-                dispatch(
+                void dispatch(
                   projectCategoriesSlice.updateCategory(category.id, {
                     title: newTitle,
                   }),
@@ -247,15 +274,37 @@ export const ProjectItemsList = ({
   project: Project;
   exceptDailyListIds?: string[];
 }) => {
-  const categories = useSyncSelector(
+  const categoriesResult = useAsyncSelector(
     () => projectCategoriesSlice.byProjectId(project.id),
     [project.id],
   );
-  const exceptTaskIds = useSyncSelector(
+  const exceptTaskIdsResult = useAsyncSelector(
     () => dailyListsSlice.allTaskIds(exceptDailyListIds ?? []),
     [exceptDailyListIds],
   );
 
+  if (categoriesResult.isPending || exceptTaskIdsResult.isPending) return null;
+
+  return (
+    <ProjectItemsListComp
+      project={project}
+      exceptDailyListIds={exceptDailyListIds}
+      categories={categoriesResult.data!}
+      exceptTaskIds={exceptTaskIdsResult.data!}
+    />
+  );
+};
+
+const ProjectItemsListComp = ({
+  project,
+  categories,
+  exceptTaskIds,
+}: {
+  project: Project;
+  exceptDailyListIds?: string[];
+  categories: ProjectCategory[];
+  exceptTaskIds: Set<string>;
+}) => {
   return (
     <>
       <TasksColumnGrid columnsCount={categories.length}>

@@ -8,8 +8,8 @@ import {
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
 import { useFocusStore } from "@/store/focusSlice.ts";
-import { useSyncSelector } from "@will-be-done/hyperdb";
-import { projectsAllSlice } from "@will-be-done/slices/space";
+import { useAsyncSelector } from "@will-be-done/hyperdb";
+import { projectsAllSlice, type Project } from "@will-be-done/slices/space";
 
 export const MoveModal = ({
   setIsOpen,
@@ -20,10 +20,34 @@ export const MoveModal = ({
   handleMove: (projectId: string) => void;
   exceptProjectId: string;
 }) => {
+  const allProjectsResult = useAsyncSelector(() => projectsAllSlice.allSorted(), []);
+
+  if (allProjectsResult.isPending) return null;
+
+  return (
+    <MoveModalComp
+      setIsOpen={setIsOpen}
+      handleMove={handleMove}
+      exceptProjectId={exceptProjectId}
+      allProjects={allProjectsResult.data!}
+    />
+  );
+};
+
+const MoveModalComp = ({
+  setIsOpen,
+  handleMove,
+  exceptProjectId,
+  allProjects,
+}: {
+  setIsOpen: (val: boolean) => void;
+  handleMove: (projectId: string) => void;
+  exceptProjectId: string;
+  allProjects: Project[];
+}) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const allProjects = useSyncSelector(() => projectsAllSlice.allSorted(), []);
 
   const projects = useMemo(() => {
     return allProjects
@@ -37,6 +61,16 @@ export const MoveModal = ({
     setSelectedIndex(0);
     setSearchQuery(data);
   }, []);
+
+  useEffect(() => {
+    useFocusStore.getState().disableFocus();
+
+    inputRef.current?.focus();
+  }, []);
+
+  useUnmount(() => {
+    useFocusStore.getState().enableFocus();
+  });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown" || (e.ctrlKey && e.code === "KeyJ")) {
@@ -53,16 +87,6 @@ export const MoveModal = ({
       handleMove(projects[selectedIndex].id);
     }
   };
-
-  useEffect(() => {
-    useFocusStore.getState().disableFocus();
-
-    inputRef.current?.focus();
-  }, []);
-
-  useUnmount(() => {
-    useFocusStore.getState().enableFocus();
-  });
 
   return (
     <Dialog

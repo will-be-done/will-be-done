@@ -238,6 +238,7 @@ class AsyncSqlDriverTx implements DBDriverTX {
     yield* unwrapCb(async () => {
       await this.queryLock.acquireAsync();
     });
+    console.log("running tx insert", tableName, values);
 
     try {
       if (this.committed || this.rolledback) {
@@ -250,6 +251,7 @@ class AsyncSqlDriverTx implements DBDriverTX {
         values,
       );
     } finally {
+      console.log("running tx insert done", tableName, values);
       this.queryLock.release();
     }
   }

@@ -11,7 +11,7 @@ import {
 import { isRowInRange } from "./drivers/tuple";
 import type { SelectQuery } from "./query";
 import { convertWhereToBound } from "./bounds";
-import { isGetCurrentTraitsCmd } from "./action";
+import { isGetCurrentTraitsCmd, globalLock } from "./action";
 
 export type PartialScanOptions<T extends Row = Row> = {
   lte?: Partial<T>[];
@@ -117,7 +117,10 @@ export function selector<TReturn, TParams extends any[]>(
 }
 
 // TODO: maybe range tree instead?
-export const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean => {
+export const isNeedToRerunRange = (
+  cmds: SelectRangeCmd[],
+  ops: Op[],
+): boolean => {
   for (const cmd of cmds) {
     for (const bound of cmd.bounds) {
       for (const op of ops) {
@@ -211,40 +214,52 @@ export async function runSelectorAsync<TReturn>(
   gen: () => Generator<unknown, TReturn, unknown>,
   selectRangeCmds: SelectRangeCmd[] = [],
 ): Promise<TReturn> {
-  const currentGen = gen();
-  let result = currentGen.next();
+  // console.log("acquire read lock");
+  // await globalLock.acquireAsync();
 
-  selectRangeCmds.splice(0, selectRangeCmds.length);
+  // console.log("RUNNING SELECTOR", gen);
+  try {
+    const currentGen = gen();
+    let result = currentGen.next();
 
-  while (!result.done) {
-    if (isSelectRangeCmd(result.value)) {
-      selectRangeCmds.push(result.value);
-      const val = result.value;
+    selectRangeCmds.splice(0, selectRangeCmds.length);
 
-      const { table, index, selectQuery } = val;
+    while (!result.done) {
+      if (isSelectRangeCmd(result.value)) {
+        selectRangeCmds.push(result.value);
+        const val = result.value;
 
-      try {
-        result = currentGen.next(
-          await execAsync(
-            db.intervalScan(table, index, selectQuery.where, {
-              limit: selectQuery.limit,
-            }),
-          ),
-        );
-      } catch (error) {
-        console.error("error happened for cmd", result.value);
-        throw error;
+        const { table, index, selectQuery } = val;
+
+        try {
+          // console.log("interval scan", table, index, selectQuery.where);
+          result = currentGen.next(
+            await execAsync(
+              db.intervalScan(table, index, selectQuery.where, {
+                limit: selectQuery.limit,
+              }),
+            ),
+          );
+          // console.log("interval scan done", table, index, selectQuery.where);
+        } catch (error) {
+          // console.error("error happened for cmd", result.value);
+          throw error;
+        }
+      } else if (isGetCurrentTraitsCmd(result.value)) {
+        result = currentGen.next(db.getTraits());
+      } else if (isNoopCmd(result.value)) {
+        result = currentGen.next();
+      } else {
+        result = currentGen.next();
       }
-    } else if (isGetCurrentTraitsCmd(result.value)) {
-      result = currentGen.next(db.getTraits());
-    } else if (isNoopCmd(result.value)) {
-      result = currentGen.next();
-    } else {
-      result = currentGen.next();
     }
-  }
 
-  return result.value as TReturn;
+    return result.value as TReturn;
+  } finally {
+    // console.log("release read lock");
+    // console.log("RUNNING FINISHED", gen);
+    // globalLock.release();
+  }
 }
 
 // TODO: issues:

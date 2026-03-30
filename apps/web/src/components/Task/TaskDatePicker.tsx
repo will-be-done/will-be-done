@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import { useDispatch } from "@will-be-done/hyperdb";
+import { useAsyncDispatch } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
   dailyListsProjectionsSlice,
@@ -26,7 +26,7 @@ export function TaskDatePicker({
   trigger,
 }: TaskDatePickerProps) {
   const [open, setOpen] = useState(false);
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
 
   const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
@@ -34,12 +34,17 @@ export function TaskDatePicker({
     // Format date to "yyyy-MM-dd" using getDMY utility
     const dateString = getDMY(date);
 
-    // Create daily list if it doesn't exist
-    const dailyList = dispatch(dailyListsSlice.createIfNotPresent(dateString));
-
-    // Add task to the daily list
-    dispatch(
-      dailyListsProjectionsSlice.addToDailyList(taskId, dailyList.id, "append"),
+    // Create daily list if it doesn't exist, then add task to it
+    void dispatch(dailyListsSlice.createIfNotPresent(dateString)).then(
+      (dailyList) => {
+        void dispatch(
+          dailyListsProjectionsSlice.addToDailyList(
+            taskId,
+            dailyList.id,
+            "append",
+          ),
+        );
+      },
     );
 
     // Close popover
@@ -47,7 +52,7 @@ export function TaskDatePicker({
   };
 
   const handleClearDate = () => {
-    dispatch(dailyListsProjectionsSlice.removeFromDailyList(taskId));
+    void dispatch(dailyListsProjectionsSlice.removeFromDailyList(taskId));
     setOpen(false);
   };
 

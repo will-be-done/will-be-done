@@ -1,6 +1,6 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { useSyncSelector, useDB, select } from "@will-be-done/hyperdb";
-import { projectsSlice } from "@will-be-done/slices/space";
+import { useAsyncSelector, useDB, select } from "@will-be-done/hyperdb";
+import { projectsSlice, type Project } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useCurrentDate } from "../DaysBoard/hooks.tsx";
@@ -61,23 +61,19 @@ const DragPreview = ({
 );
 
 export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
-  const spaceId = Route.useParams().spaceId;
-  const db = useDB();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const currentDate = useCurrentDate();
 
-  const project = useSyncSelector(
+  const projectResult = useAsyncSelector(
     () => projectsSlice.byIdOrDefault(projectId),
     [projectId],
   );
 
-  const currentDate = useCurrentDate();
-
-  const notDoneCount = useSyncSelector(
+  const notDoneCountResult = useAsyncSelector(
     () => projectsSlice.notDoneTasksCountExceptDailiesCount(projectId, []),
     [projectId],
   );
 
-  const overdueCount = useSyncSelector(
+  const overdueCountResult = useAsyncSelector(
     () =>
       projectsSlice.overdueTasksCountExceptDailiesCount(
         projectId,
@@ -86,6 +82,33 @@ export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
       ),
     [projectId, currentDate],
   );
+
+  if (projectResult.isPending || notDoneCountResult.isPending || overdueCountResult.isPending) return null;
+
+  return (
+    <SidebarProjectItemComp
+      projectId={projectId}
+      project={projectResult.data!}
+      notDoneCount={notDoneCountResult.data!}
+      overdueCount={overdueCountResult.data!}
+    />
+  );
+};
+
+const SidebarProjectItemComp = ({
+  projectId,
+  project,
+  notDoneCount,
+  overdueCount,
+}: {
+  projectId: string;
+  project: Project;
+  notDoneCount: number;
+  overdueCount: number;
+}) => {
+  const spaceId = Route.useParams().spaceId;
+  const db = useDB();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const isActive = useRouterState({
     select: (s) =>

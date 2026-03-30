@@ -8,7 +8,11 @@ import {
   registeredSpaceSyncableTables,
   type Task,
 } from "@will-be-done/slices/space";
-import { HyperDB, runSelector, syncDispatch } from "@will-be-done/hyperdb";
+import {
+  asyncDispatch,
+  HyperDB,
+  runSelectorAsync,
+} from "@will-be-done/hyperdb";
 import {
   registeredUserSyncableTableNameMap,
   registeredUserSyncableTables,
@@ -27,15 +31,19 @@ export const spaceDBConfig = (dbId: string) => {
       changesTable,
       syncStateTable,
     ],
-    inmemDBTables: [...registeredSpaceSyncableTables, changesTable],
-    syncableDBTables: registeredSpaceSyncableTables,
     tableNameMap: registeredSpaceSyncableTableNameMap,
-    afterInit: (db: HyperDB) => {
-      syncDispatch(db, projectsSlice.createInboxIfNotExists());
+    afterInit: async (db: HyperDB) => {
+      await asyncDispatch(db, projectsSlice.createInboxIfNotExists());
 
-      syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      await asyncDispatch(
+        db,
+        cardsTaskTemplatesSlice.generateTasksFromTemplates(),
+      );
       setInterval(() => {
-        syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+        void asyncDispatch(
+          db,
+          cardsTaskTemplatesSlice.generateTasksFromTemplates(),
+        );
       }, 60 * 1000);
     },
   } satisfies SyncConfig;
@@ -46,22 +54,24 @@ export const demoSpaceDBConfig = () => {
     ...spaceDBConfig(demoDbId),
     disableSync: true,
     afterInit: async (db: HyperDB) => {
-      syncDispatch(db, projectsSlice.createInboxIfNotExists());
-      const tasks = runSelector<Task[]>(
-        db,
-        function* () {
-          return yield* cardsTasksSlice.all();
-        },
-        [],
-      );
+      await asyncDispatch(db, projectsSlice.createInboxIfNotExists());
+      const tasks = await runSelectorAsync<Task[]>(db, function* () {
+        return yield* cardsTasksSlice.all();
+      });
 
       if (tasks.length === 0) {
-        syncDispatch(db, backupSlice.loadBackup(generateDemoBackup()));
+        await asyncDispatch(db, backupSlice.loadBackup(generateDemoBackup()));
       }
 
-      syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      await asyncDispatch(
+        db,
+        cardsTaskTemplatesSlice.generateTasksFromTemplates(),
+      );
       setInterval(() => {
-        syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+        void asyncDispatch(
+          db,
+          cardsTaskTemplatesSlice.generateTasksFromTemplates(),
+        );
       }, 60 * 1000);
     },
   } satisfies SyncConfig;
@@ -76,8 +86,6 @@ export const userDBConfig = (dbId: string) => {
       changesTable,
       syncStateTable,
     ],
-    inmemDBTables: [...registeredUserSyncableTables, changesTable],
-    syncableDBTables: registeredUserSyncableTables,
     tableNameMap: registeredUserSyncableTableNameMap,
     afterInit: () => {},
   } satisfies SyncConfig;

@@ -1,18 +1,18 @@
 import { useState, useRef } from "react";
-import { useDispatch } from "@will-be-done/hyperdb";
+import { useAsyncDispatch } from "@will-be-done/hyperdb";
 import { backupSlice } from "@will-be-done/slices/space";
 import { Download, Upload, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 
 export function BackupSection() {
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
 
-  const handleExport = () => {
-    const backup = dispatch(backupSlice.getBackup());
+  const handleExport = async () => {
+    const backup = await dispatch(backupSlice.getBackup());
     const json = JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -46,7 +46,7 @@ export function BackupSection() {
         const parsed = JSON.parse(text) as Parameters<
           typeof backupSlice.loadBackup
         >[0];
-        dispatch(backupSlice.loadBackup(parsed));
+        void dispatch(backupSlice.loadBackup(parsed));
         setImportSuccess(true);
       } catch {
         setImportError(
@@ -65,7 +65,7 @@ export function BackupSection() {
       <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/8 p-4">
         <div>
           <button
-            onClick={handleExport}
+            onClick={() => void handleExport()}
             className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 transition-all hover:bg-white/10 hover:ring-white/20 whitespace-nowrap"
           >
             <Download className="h-3.5 w-3.5 flex-shrink-0" />

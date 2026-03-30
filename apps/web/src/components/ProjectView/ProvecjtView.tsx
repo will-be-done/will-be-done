@@ -23,10 +23,10 @@ import { isInputElement } from "@/utils/isInputElement.ts";
 import {
   select,
   useDB,
-  useDispatch,
-  useSyncSelector,
+  useAsyncDispatch,
+  useAsyncSelector,
 } from "@will-be-done/hyperdb";
-import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
+import { projectsAllSlice, projectsSlice, type Project } from "@will-be-done/slices/space";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
@@ -86,17 +86,21 @@ const DropProjectIndicator = function DropProjectIndicatorComp({
   );
 };
 
-const ProjectItem = function ProjectItemComp({
-  projectId,
+const ProjectItemComp = function ProjectItemComp({
+  project,
+  overdueTasksCount,
+  notDoneTasksCount,
+  inboxProjectId,
   // onProjectClick,
   isSelected,
-  exceptDailyListIds,
   projectLink: ProjectLink,
 }: {
-  projectId: string;
+  project: Project;
+  overdueTasksCount: number;
+  notDoneTasksCount: number;
+  inboxProjectId: string;
   // onProjectClick: (projectId: string) => void;
   isSelected: boolean;
-  exceptDailyListIds: string[];
   projectLink: React.ComponentType<
     React.PropsWithChildren<{
       projectId: string;
@@ -106,10 +110,6 @@ const ProjectItem = function ProjectItemComp({
   >;
 }) {
   const db = useDB();
-  const project = useSyncSelector(
-    () => projectsSlice.byIdOrDefault(projectId),
-    [projectId],
-  );
   const focusItemKey = buildFocusKey(project.id, project.type, "ProjectItem");
   const [closestEdge, setClosestEdge] = useState<Edge | "whole" | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
@@ -121,7 +121,7 @@ const ProjectItem = function ProjectItemComp({
     (s) => !s.isFocusDisabled && s.focusItemKey === focusItemKey,
   );
 
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
     const { isFocusDisabled } = useFocusStore.getState();
@@ -156,7 +156,7 @@ const ProjectItem = function ProjectItemComp({
 
       const [upKey, downKey] = getDOMSiblings(focusItemKey);
 
-      dispatch(projectsSlice.deleteProjects([project.id]));
+      void dispatch(projectsSlice.deleteProjects([project.id]));
 
       if (downKey) {
         useFocusStore.getState().focusByKey(downKey);
@@ -272,37 +272,7 @@ const ProjectItem = function ProjectItemComp({
         },
       }),
     );
-  }, [db, project.id, project.type]);
-
-  const currentDate = useCurrentDate();
-
-  const overdueTasksCount = useSyncSelector(
-    () =>
-      projectsSlice.overdueTasksCountExceptDailiesCount(
-        project.id,
-        exceptDailyListIds,
-        currentDate,
-      ),
-    [project.id, exceptDailyListIds, currentDate],
-  );
-  const notDoneTasksCount = useSyncSelector(
-    () =>
-      projectsSlice.notDoneTasksCountExceptDailiesCount(
-        project.id,
-        exceptDailyListIds,
-      ),
-    [project.id, exceptDailyListIds],
-  );
-  //
-  // const overdueTasksCount = useSyncSelector(
-  //   () =>
-  //     projectItemsSlice2.overdueTaskCountExceptDailiesCount(
-  //       project.id,
-  //       exceptDailyListIds,
-  //       currentDate,
-  //     ),
-  //   [project.id, exceptDailyListIds, currentDate],
-  // );
+  }, [db, project]);
 
   const handleEditClick = async () => {
     const newTitle = await promptDialog("Enter new project title", project.title);
@@ -311,7 +281,7 @@ const ProjectItem = function ProjectItemComp({
       return;
     }
 
-    dispatch(
+    void dispatch(
       projectsSlice.updateProject(project.id, {
         title: newTitle,
       }),
@@ -323,14 +293,9 @@ const ProjectItem = function ProjectItemComp({
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice.deleteProjects([project.id]));
+      void dispatch(projectsSlice.deleteProjects([project.id]));
     }
   };
-
-  const inboxProjectId = useSyncSelector(
-    () => projectsSlice.inboxProjectId(),
-    [],
-  );
 
   return (
     <div className="relative">
@@ -365,7 +330,7 @@ const ProjectItem = function ProjectItemComp({
             <EmojiPicker
               className="h-[326px] rounded-lg shadow-md"
               onEmojiSelect={({ emoji }) => {
-                dispatch(
+                void dispatch(
                   projectsSlice.updateProject(project.id, {
                     icon: emoji,
                   }),
@@ -475,12 +440,77 @@ const ProjectItem = function ProjectItemComp({
   );
 };
 
-export const ProjectView = ({
+const ProjectItem = function ProjectItem({
+  projectId,
+  isSelected,
+  exceptDailyListIds,
+  projectLink,
+}: {
+  projectId: string;
+  isSelected: boolean;
+  exceptDailyListIds: string[];
+  projectLink: React.ComponentType<
+    React.PropsWithChildren<{
+      projectId: string;
+      className?: string;
+      ref?: React.Ref<HTMLAnchorElement>;
+    }>
+  >;
+}) {
+  const currentDate = useCurrentDate();
+
+  const projectResult = useAsyncSelector(
+    () => projectsSlice.byIdOrDefault(projectId),
+    [projectId],
+  );
+  const overdueTasksCountResult = useAsyncSelector(
+    () =>
+      projectsSlice.overdueTasksCountExceptDailiesCount(
+        projectId,
+        exceptDailyListIds,
+        currentDate,
+      ),
+    [projectId, exceptDailyListIds, currentDate],
+  );
+  const notDoneTasksCountResult = useAsyncSelector(
+    () =>
+      projectsSlice.notDoneTasksCountExceptDailiesCount(
+        projectId,
+        exceptDailyListIds,
+      ),
+    [projectId, exceptDailyListIds],
+  );
+  const inboxProjectIdResult = useAsyncSelector(
+    () => projectsSlice.inboxProjectId(),
+    [],
+  );
+
+  if (projectResult.isPending || overdueTasksCountResult.isPending || notDoneTasksCountResult.isPending || inboxProjectIdResult.isPending) return null;
+
+  return (
+    <ProjectItemComp
+      project={projectResult.data!}
+      overdueTasksCount={overdueTasksCountResult.data!}
+      notDoneTasksCount={notDoneTasksCountResult.data!}
+      inboxProjectId={inboxProjectIdResult.data!}
+      isSelected={isSelected}
+      projectLink={projectLink}
+    />
+  );
+};
+
+const ProjectViewComp = ({
+  project,
+  inboxProjectId,
+  projectIdsWithoutInbox,
   exceptDailyListIds,
   marginTop,
   projectLink,
   selectedProjectId,
 }: {
+  project: Project | undefined;
+  inboxProjectId: Project;
+  projectIdsWithoutInbox: string[];
   exceptDailyListIds: string[];
   marginTop?: boolean;
   projectLink: React.ComponentType<
@@ -492,41 +522,13 @@ export const ProjectView = ({
   >;
   selectedProjectId: string;
 }) => {
-  // const [selectedProjectId, setSelectedProjectId] = useState(inboxId);
-
-  const dispatch = useDispatch();
-  const project = useSyncSelector(
-    function* () {
-      if (selectedProjectId == "inbox") {
-        return yield* projectsAllSlice.inbox();
-      }
-
-      return yield* projectsSlice.byIdOrDefault(selectedProjectId);
-    },
-    [selectedProjectId],
-  );
-
-  // const taskIds = useSyncSelector(
-  //   () =>
-  //     dailyListsSlice2.allTaskIdsExceptDailies(
-  //       project.id,
-  //       exceptDailyListIds,
-  //       // idsToAlwaysInclude,
-  //     ),
-  //   [exceptDailyListIds, project.id],
-  // );
-
-  const inboxProjectId = useSyncSelector(() => projectsAllSlice.inbox(), []);
-  const projectIdsWithoutInbox = useSyncSelector(
-    () => projectsAllSlice.childrenIdsWithoutInbox(),
-    [],
-  );
+  const dispatch = useAsyncDispatch();
 
   const handleAddProjectClick = async () => {
     const title = await promptDialog("Enter project title");
 
     if (title) {
-      dispatch(projectsSlice.create({ title }, "append"));
+      void dispatch(projectsSlice.create({ title }, "append"));
     }
   };
 
@@ -582,5 +584,64 @@ export const ProjectView = ({
         </div>
       </div>
     </div>
+  );
+};
+
+export const ProjectView = ({
+  exceptDailyListIds,
+  marginTop,
+  projectLink,
+  selectedProjectId,
+}: {
+  exceptDailyListIds: string[];
+  marginTop?: boolean;
+  projectLink: React.ComponentType<
+    React.PropsWithChildren<{
+      projectId: string;
+      className?: string;
+      ref?: React.Ref<HTMLAnchorElement>;
+    }>
+  >;
+  selectedProjectId: string;
+}) => {
+  const projectResult = useAsyncSelector(
+    function* () {
+      if (selectedProjectId == "inbox") {
+        return yield* projectsAllSlice.inbox();
+      }
+
+      return yield* projectsSlice.byIdOrDefault(selectedProjectId);
+    },
+    [selectedProjectId],
+  );
+
+  // const taskIds = useSyncSelector(
+  //   () =>
+  //     dailyListsSlice2.allTaskIdsExceptDailies(
+  //       project.id,
+  //       exceptDailyListIds,
+  //       // idsToAlwaysInclude,
+  //     ),
+  //   [exceptDailyListIds, project.id],
+  // );
+
+  const inboxProjectIdResult = useAsyncSelector(() => projectsAllSlice.inbox(), []);
+  const projectIdsWithoutInboxResult = useAsyncSelector(
+    () => projectsAllSlice.childrenIdsWithoutInbox(),
+    [],
+  );
+
+  if (projectResult.isPending || inboxProjectIdResult.isPending || projectIdsWithoutInboxResult.isPending) return null;
+
+  return (
+    <ProjectViewComp
+      project={projectResult.data!}
+      inboxProjectId={inboxProjectIdResult.data!}
+      projectIdsWithoutInbox={projectIdsWithoutInboxResult.data!}
+      exceptDailyListIds={exceptDailyListIds}
+      marginTop={marginTop}
+      projectLink={projectLink}
+      selectedProjectId={selectedProjectId}
+    />
   );
 };

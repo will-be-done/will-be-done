@@ -8,7 +8,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useAsyncDispatch, useAsyncSelector } from "@will-be-done/hyperdb";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   projectCategoriesSlice,
@@ -16,6 +16,9 @@ import {
   cardsTasksSlice,
   cardsTaskTemplatesSlice,
   type Task,
+  type Project,
+  type ProjectCategory,
+  type TaskTemplate,
 } from "@will-be-done/slices/space";
 import { CheckboxComp } from "@/components/Task/Task.tsx";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
@@ -38,32 +41,70 @@ export function TaskBody({
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
 }) {
-  const dispatch = useDispatch();
   const taskId = task.id;
 
-  const project = useSyncSelector(
+  const projectResult = useAsyncSelector(
     () =>
       projectCategoriesSlice.projectOfCategoryOrDefault(task.projectCategoryId),
     [task.projectCategoryId],
   );
-  const projectCategories = useSyncSelector(
-    () => projectCategoriesSlice.byProjectId(project.id),
-    [project.id],
+  const projectId = projectResult.data?.id ?? "";
+  const projectCategoriesResult = useAsyncSelector(
+    () => projectCategoriesSlice.byProjectId(projectId),
+    [projectId],
   );
-  const scheduleDate = useSyncSelector(
+  const scheduleDateResult = useAsyncSelector(
     () => dailyListsProjectionsSlice.getDateOfTask(taskId),
     [taskId],
   );
-
   const taskTemplateId = task.templateId ?? null;
-  const template = useSyncSelector(
+  const templateResult = useAsyncSelector(
     () => cardsTaskTemplatesSlice.byId(taskTemplateId ?? ""),
     [taskTemplateId],
   );
-  const ruleText = useSyncSelector(
+  const ruleTextResult = useAsyncSelector(
     () => cardsTaskTemplatesSlice.ruleText(taskTemplateId ?? ""),
     [taskTemplateId],
   );
+
+  if (projectResult.isPending || projectCategoriesResult.isPending || scheduleDateResult.isPending || templateResult.isPending || ruleTextResult.isPending) return null;
+
+  return (
+    <TaskBodyComp
+      task={task}
+      isEditingTitle={isEditingTitle}
+      setIsEditingTitle={setIsEditingTitle}
+      project={projectResult.data!}
+      projectCategories={projectCategoriesResult.data!}
+      scheduleDate={scheduleDateResult.data}
+      template={templateResult.data}
+      ruleText={ruleTextResult.data}
+    />
+  );
+}
+
+function TaskBodyComp({
+  task,
+  isEditingTitle,
+  setIsEditingTitle,
+  project,
+  projectCategories,
+  scheduleDate,
+  template,
+  ruleText,
+}: {
+  task: Task;
+  isEditingTitle: boolean;
+  setIsEditingTitle: (v: boolean) => void;
+  project: Project;
+  projectCategories: ProjectCategory[];
+  scheduleDate: Date | undefined;
+  template: TaskTemplate | undefined;
+  ruleText: string | undefined;
+}) {
+  const dispatch = useAsyncDispatch();
+  const taskId = task.id;
+  const taskTemplateId = task.templateId ?? null;
 
   const [isMoveProjectModalOpen, setIsMoveProjectModalOpen] = useState(false);
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
@@ -79,7 +120,7 @@ export function TaskBody({
     setIsEditingTitle,
     onSave: useCallback(
       (trimmed: string) =>
-        dispatch(cardsTasksSlice.updateTask(taskId, { title: trimmed })),
+        void dispatch(cardsTasksSlice.updateTask(taskId, { title: trimmed })),
       [dispatch, taskId],
     ),
   });
@@ -91,7 +132,7 @@ export function TaskBody({
         "Remove repeat template? This will unlink all generated tasks.",
       )
     ) {
-      dispatch(cardsTaskTemplatesSlice.deleteTemplates([task.templateId]));
+      void dispatch(cardsTaskTemplatesSlice.deleteTemplates([task.templateId]));
     }
   }, [task.templateId, dispatch]);
 
@@ -99,23 +140,23 @@ export function TaskBody({
     (ruleString: string) => {
       setIsRepeatModalOpen(false);
       if (task.templateId) {
-        dispatch(
+        void dispatch(
           cardsTaskTemplatesSlice.updateTemplate(task.templateId, {
             repeatRule: ruleString,
           }),
         );
       } else {
-        const template = dispatch(
+        void dispatch(
           cardsTaskTemplatesSlice.createFromTask(task, {
             repeatRule: ruleString,
           }),
-        );
+        ).then((tmpl) => {
+          console.log("template created", tmpl);
 
-        console.log("template created", template);
-
-        useFocusStore
-          .getState()
-          .focusByKey(buildFocusKey(template.id, template.type));
+          useFocusStore
+            .getState()
+            .focusByKey(buildFocusKey(tmpl.id, tmpl.type));
+        });
       }
     },
     [task, dispatch],
@@ -127,7 +168,7 @@ export function TaskBody({
         icon={
           <CheckboxComp
             checked={task.state === "done"}
-            onChange={() => dispatch(cardsTasksSlice.toggleState(taskId))}
+            onChange={() => void dispatch(cardsTasksSlice.toggleState(taskId))}
           />
         }
         isEditing={isEditingTitle}
@@ -155,7 +196,7 @@ export function TaskBody({
           projectCategoryId={task.projectCategoryId}
           projectCategories={projectCategories}
           onChange={(categoryId) =>
-            dispatch(
+            void dispatch(
               cardsTasksSlice.updateTask(taskId, {
                 projectCategoryId: categoryId,
               }),
@@ -238,7 +279,7 @@ export function TaskBody({
         <MoveModal
           setIsOpen={setIsMoveProjectModalOpen}
           handleMove={(projectId) => {
-            dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
+            void dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
             setIsMoveProjectModalOpen(false);
           }}
           exceptProjectId={project.id}

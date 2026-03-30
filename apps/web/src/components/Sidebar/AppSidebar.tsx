@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSyncSelector, useDispatch } from "@will-be-done/hyperdb";
+import { useAsyncSelector, useAsyncDispatch } from "@will-be-done/hyperdb";
 import {
   backupSlice,
   projectsAllSlice,
@@ -131,14 +131,15 @@ const TodayNavItem = () => {
   );
 };
 
-const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
+const InboxNavItemComp = ({
+  inboxId,
+  notDoneCount,
+}: {
+  inboxId: string;
+  notDoneCount: number;
+}) => {
   const spaceId = Route.useParams().spaceId;
   const closeMobile = useCloseMobileOnNav();
-
-  const notDoneCount = useSyncSelector(
-    () => projectsSlice.notDoneTasksCountExceptDailiesCount(inboxId, []),
-    [inboxId],
-  );
 
   const isActive = useRouterState({
     select: (s) =>
@@ -174,6 +175,19 @@ const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
   );
 };
 
+const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
+  const notDoneCountResult = useAsyncSelector(
+    () => projectsSlice.notDoneTasksCountExceptDailiesCount(inboxId, []),
+    [inboxId],
+  );
+
+  if (notDoneCountResult.isPending) return null;
+
+  return (
+    <InboxNavItemComp inboxId={inboxId} notDoneCount={notDoneCountResult.data!} />
+  );
+};
+
 const NavStrip = () => {
   const spaceId = Route.useParams().spaceId;
 
@@ -184,18 +198,19 @@ const NavStrip = () => {
   );
 };
 
-export const AppSidebar = () => {
-  const dispatch = useDispatch();
-  const inbox = useSyncSelector(() => projectsAllSlice.inbox(), []);
-  const projectIdsWithoutInbox = useSyncSelector(
-    () => projectsAllSlice.childrenIdsWithoutInbox(),
-    [],
-  );
+const AppSidebarComp = ({
+  inbox,
+  projectIdsWithoutInbox,
+}: {
+  inbox: { id: string };
+  projectIdsWithoutInbox: string[];
+}) => {
+  const dispatch = useAsyncDispatch();
 
   const handleAddProjectClick = async () => {
     const title = await promptDialog("Enter project title");
     if (title) {
-      dispatch(projectsSlice.create({ title }, "append"));
+      void dispatch(projectsSlice.create({ title }, "append"));
     }
   };
 
@@ -246,8 +261,25 @@ export const AppSidebar = () => {
   );
 };
 
+export const AppSidebar = () => {
+  const inboxResult = useAsyncSelector(() => projectsAllSlice.inbox(), []);
+  const projectIdsWithoutInboxResult = useAsyncSelector(
+    () => projectsAllSlice.childrenIdsWithoutInbox(),
+    [],
+  );
+
+  if (inboxResult.isPending || projectIdsWithoutInboxResult.isPending) return null;
+
+  return (
+    <AppSidebarComp
+      inbox={inboxResult.data!}
+      projectIdsWithoutInbox={projectIdsWithoutInboxResult.data!}
+    />
+  );
+};
+
 const GenerateTestDataButton = () => {
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState("5");
   const [categories, setCategories] = useState("3");
@@ -261,7 +293,7 @@ const GenerateTestDataButton = () => {
     const l = parseInt(todo, 10) || 0;
 
     const backup = generateTestBackup(n, m, k, l);
-    dispatch(backupSlice.loadBackup(backup));
+    void dispatch(backupSlice.loadBackup(backup));
     setOpen(false);
   };
 

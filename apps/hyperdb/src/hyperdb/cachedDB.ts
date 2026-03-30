@@ -10,6 +10,7 @@ import {
 import { convertWhereToBound } from "./bounds";
 import type { TableDefinition, ExtractSchema, ExtractIndexes } from "./table";
 import type { DBCmd } from "./generators";
+import { unwrapCb } from "./generators.ts";
 
 export type AfterScanCallback = (
   db: HyperDB,
@@ -29,6 +30,7 @@ import {
   recordToTuple,
 } from "./intervals";
 import { compareTuple as compareTuples } from "./drivers/tuple";
+import AwaitLock from "await-lock";
 
 /**
  * Populate hash key caches for all hash indexes on a table from loaded records.
@@ -184,10 +186,7 @@ function* cachedIntervalScan<
       const lastResultTuple = recordToTuple(lastRow, indexCols);
       const firstGap = uncovered[0];
       const cmp = compareTuples(lastResultTuple, firstGap.lower);
-      if (
-        cmp < 0 ||
-        (cmp === 0 && !firstGap.lowerInclusive)
-      ) {
+      if (cmp < 0 || (cmp === 0 && !firstGap.lowerInclusive)) {
         // All limit rows come from the cached portion, before any gap
         populateHashKeysFromRecords(
           table,
@@ -229,8 +228,7 @@ function* cachedIntervalScan<
 
   // Determine whether we fetched everything or hit the limit
   const hasLimit = selectOptions?.limit != null;
-  const gotFullResults =
-    !hasLimit || results.length < selectOptions!.limit!;
+  const gotFullResults = !hasLimit || results.length < selectOptions!.limit!;
 
   // Merge uncovered intervals into the cached set
   let current = cached;
@@ -317,6 +315,8 @@ class CachedDBTx implements HyperDBTx {
   private isOutermost: boolean;
   private cachedDB: CachedDB;
   private afterScanSubscribers: AfterScanCallback[];
+  private onFinish: () => void;
+  private queryLock = new AwaitLock();
 
   constructor(
     primaryDB: HyperDB,
@@ -329,6 +329,7 @@ class CachedDBTx implements HyperDBTx {
     isOutermost = true,
     cachedDB?: CachedDB,
     afterScanSubscribers: AfterScanCallback[] = [],
+    onFinish: () => void = () => {},
   ) {
     this.primaryDB = primaryDB;
     this.cacheTx = cacheTx;
@@ -340,6 +341,7 @@ class CachedDBTx implements HyperDBTx {
     this.isOutermost = isOutermost;
     this.cachedDB = cachedDB!;
     this.afterScanSubscribers = afterScanSubscribers;
+    this.onFinish = onFinish;
   }
 
   *intervalScan<
@@ -351,6 +353,11 @@ class CachedDBTx implements HyperDBTx {
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<DBCmd, ExtractSchema<TTable>[]> {
+    // yield* unwrapCb(async () => {
+    //   await this.queryLock.acquireAsync();
+    // });
+
+    // try {
     const indexConfig = table.indexes[indexName as string];
     let results: ExtractSchema<TTable>[];
     if (indexConfig?.type === "hash") {
@@ -388,27 +395,54 @@ class CachedDBTx implements HyperDBTx {
     }
 
     return results;
+    // } finally {
+    //   this.queryLock.release();
+    // }
   }
 
   *insert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
+    // yield* unwrapCb(async () => {
+    //   await this.queryLock.acquireAsync();
+    // });
+
+    // try {
     yield* this.cacheTx.insert(table, records);
+    // } finally {
+    //   this.queryLock.release();
+    // }
   }
 
   *update<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
+    // yield* unwrapCb(async () => {
+    //   await this.queryLock.acquireAsync();
+    // });
+
+    // try {
     yield* this.cacheTx.update(table, records);
+    // } finally {
+    //   this.queryLock.release();
+    // }
   }
 
   *delete<TTable extends TableDefinition>(
     table: TTable,
     ids: string[],
   ): Generator<DBCmd, void> {
+    // yield* unwrapCb(async () => {
+    //   await this.queryLock.acquireAsync();
+    // });
+
+    // try {
     yield* this.cacheTx.delete(table, ids);
+    // } finally {
+    //   this.queryLock.release();
+    // }
   }
 
   *loadTables(): Generator<DBCmd, void> {
@@ -428,6 +462,7 @@ class CachedDBTx implements HyperDBTx {
       false,
       this.cachedDB,
       this.afterScanSubscribers,
+      () => {},
     );
   }
 
@@ -449,12 +484,14 @@ class CachedDBTx implements HyperDBTx {
           this.parentHashKeys.set(key, new Set(value));
         }
       }
-
     }
+
+    this.onFinish();
   }
 
   *rollback(): Generator<DBCmd, void> {
     yield* this.cacheTx.rollback();
+    this.onFinish();
   }
 
   withTraits(...traits: Trait[]): HyperDBTx {
@@ -469,6 +506,7 @@ class CachedDBTx implements HyperDBTx {
       this.isOutermost,
       this.cachedDB,
       this.afterScanSubscribers,
+      this.onFinish,
     );
   }
 
@@ -483,6 +521,7 @@ export class CachedDB implements HyperDB {
   private cachedIntervals: Map<string, NormalizedInterval[]>;
   private cachedHashKeys: Map<string, Set<string>>;
   afterScanSubscribers: AfterScanCallback[] = [];
+  lock = new AwaitLock();
 
   constructor(
     primary: HyperDB,
@@ -519,72 +558,122 @@ export class CachedDB implements HyperDB {
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<DBCmd, ExtractSchema<TTable>[]> {
-    const indexConfig = table.indexes[indexName as string];
-    let results: ExtractSchema<TTable>[];
-    if (indexConfig?.type === "hash") {
-      results = yield* cachedHashScan(
-        this.primary,
-        this.cache,
-        this.cachedHashKeys,
-        table,
-        indexName,
-        clauses,
-        selectOptions,
-      );
-    } else {
-      results = yield* cachedIntervalScan(
-        this.primary,
-        this.cache,
-        this.cachedIntervals,
-        this.cachedHashKeys,
-        table,
-        indexName,
-        clauses,
-        selectOptions,
-      );
+    const skipLock = this.getTraits().some((t) => t.type === "skip-lock");
+
+    if (!skipLock) {
+      yield* unwrapCb(async () => {
+        await this.lock.acquireAsync();
+      });
     }
 
-    for (const cb of this.afterScanSubscribers) {
-      yield* cb(
-        this,
-        table,
-        indexName as string,
-        clauses,
-        selectOptions,
-        results as Row[],
-      );
-    }
+    try {
+      const indexConfig = table.indexes[indexName as string];
+      let results: ExtractSchema<TTable>[];
+      if (indexConfig?.type === "hash") {
+        results = yield* cachedHashScan(
+          this.primary,
+          this.cache,
+          this.cachedHashKeys,
+          table,
+          indexName,
+          clauses,
+          selectOptions,
+        );
+      } else {
+        results = yield* cachedIntervalScan(
+          this.primary,
+          this.cache,
+          this.cachedIntervals,
+          this.cachedHashKeys,
+          table,
+          indexName,
+          clauses,
+          selectOptions,
+        );
+      }
 
-    return results;
+      for (const cb of this.afterScanSubscribers) {
+        yield* cb(
+          this.withTraits({ type: "skip-lock" }),
+          table,
+          indexName as string,
+          clauses,
+          selectOptions,
+          results as Row[],
+        );
+      }
+
+      return results;
+    } finally {
+      if (!skipLock) {
+        this.lock.release();
+      }
+    }
   }
 
   *insert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
+    // yield* unwrapCb(async () => {
+    //   await this.lock.acquireAsync();
+    // });
+
+    // try {
     yield* this.cache.insert(table, records);
+    // } finally {
+    //   this.lock.release();
+    // }
   }
 
   *update<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
+    // yield* unwrapCb(async () => {
+    //   await this.lock.acquireAsync();
+    // });
+
+    // try {
     yield* this.cache.update(table, records);
+    // } finally {
+    //   this.lock.release();
+    // }
   }
 
   *delete<TTable extends TableDefinition>(
     table: TTable,
     ids: string[],
   ): Generator<DBCmd, void> {
+    // yield* unwrapCb(async () => {
+    //   await this.lock.acquireAsync();
+    // });
+
+    // try {
     yield* this.cache.delete(table, ids);
+    // } finally {
+    //   this.lock.release();
+    // }
   }
 
   *loadTables(tables: TableDefinition<any, any>[]): Generator<DBCmd, void> {
-    yield* this.primary.loadTables(tables);
-    yield* this.cache.loadTables(tables);
+    yield* unwrapCb(async () => {
+      await this.lock.acquireAsync();
+    });
+
+    try {
+      yield* this.primary.loadTables(tables);
+      yield* this.cache.loadTables(tables);
+    } finally {
+      this.lock.release();
+    }
   }
 
   *beginTx(): Generator<DBCmd, HyperDBTx> {
+    yield* unwrapCb(async () => {
+      await this.lock.acquireAsync();
+    });
+
     const cacheTx = yield* this.cache.beginTx();
     return new CachedDBTx(
       this.primary,
@@ -597,6 +686,9 @@ export class CachedDB implements HyperDB {
       true,
       this,
       this.afterScanSubscribers,
+      () => {
+        this.lock.release();
+      },
     );
   }
 

@@ -2,15 +2,12 @@ import { nanoid } from "nanoid";
 import {
   asyncDispatch,
   BptreeInmemDriver,
+  CachedDB,
   DB,
   deleteRows,
   execAsync,
-  execSync,
   HyperDB,
   insert,
-  runQuery,
-  runSelectorAsync,
-  selectFrom,
   SubscribableDB,
   syncDispatch,
   TableDefinition,
@@ -22,8 +19,10 @@ import {
   Change,
   ChangesetArrayType,
   syncSlice,
+  BatchOp,
 } from "@will-be-done/slices/common";
 import { dbIdTrait } from "@will-be-done/slices/traits";
+import { tasksTable, taskProjectionsTable } from "@will-be-done/slices/space";
 import { initAsyncDriver } from "./asyncDriver";
 import {
   BroadcastChannel,
@@ -39,8 +38,6 @@ export interface SyncConfig {
   dbId: string;
   dbType: "user" | "space";
   persistDBTables: TableDefinition[];
-  inmemDBTables: TableDefinition[];
-  syncableDBTables: TableDefinition[];
   tableNameMap: Record<string, TableDefinition>;
   afterInit: (db: HyperDB) => void | Promise<void>;
   disableSync?: boolean;
@@ -77,7 +74,6 @@ const getClientId = (dbName: string) => {
   return newId;
 };
 
-
 const lock = new AwaitLock();
 const initedDbs: Record<string, SubscribableDB> = {};
 export const initDbStore = async (
@@ -91,23 +87,48 @@ export const initDbStore = async (
       return initedDbs[dbName];
     }
     const asyncDriver = await initAsyncDriver(dbName);
-    const asyncDB = new DB(
+    const primary = new DB(
       asyncDriver,
       [],
       [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
     );
-
-    await execAsync(asyncDB.loadTables(syncConfig.persistDBTables));
-
-    const syncDB = new DB(
+    const cache = new DB(
       new BptreeInmemDriver(),
       [],
       [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
     );
+    const cachedDB = new CachedDB(primary, cache);
+    await execAsync(cachedDB.loadTables(syncConfig.persistDBTables));
 
-    execSync(syncDB.loadTables(syncConfig.inmemDBTables));
+    cachedDB.afterScan(
+      function* (db, table, _indexName, _clauses, _selectOptions, results) {
+        if (table === changesTable) return;
+        if (results.length === 0) return;
 
-    const syncSubDb = new SubscribableDB(syncDB);
+        yield* db.intervalScan(
+          changesTable,
+          "byEntityIdAndTableName",
+          results.map((r) => ({
+            eq: [
+              { col: "entityId", val: r.id },
+              { col: "tableName", val: table.tableName },
+            ],
+          })),
+        );
+
+        if (table === tasksTable) {
+          yield* db.intervalScan(
+            taskProjectionsTable,
+            "byIds",
+            results.map((r) => ({
+              eq: [{ col: "id", val: r.id }],
+            })),
+          );
+        }
+      },
+    );
+
+    const syncSubDb = new SubscribableDB(cachedDB);
     syncSubDb.afterInsert(function* (db, table, traits, ops) {
       if (table === changesTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
@@ -173,25 +194,16 @@ export const initDbStore = async (
     const clientId = getClientId(dbName);
     const nextClock = initClock(clientId);
 
-    for (const table of syncConfig.syncableDBTables) {
-      const res = await runSelectorAsync(asyncDB, function* () {
-        return yield* runQuery(selectFrom(table, "byIds"));
-      });
-
-      // no need to broadcast to sub db
-      execSync(syncDB.insert(table, res));
-    }
-
     const bc = new BroadcastChannel(`changes-${getClientId(dbName)}`);
 
     // Create syncer early so we can reference it in the subscribe callback
     const syncer = new Syncer(
-      asyncDB,
+      primary,
       getClientId(dbName),
       syncConfig,
       nextClock,
       (e) => {
-        syncDispatch(
+        void asyncDispatch(
           syncSubDb.withTraits({ type: "skip-sync" }),
           changesSlice.mergeChanges(
             e.changeset,
@@ -212,7 +224,6 @@ export const initDbStore = async (
       }
 
       void (async () => {
-        // Map to collect changes grouped by table name
         type RowType = Record<string, string | number | boolean | null> & {
           id: string;
         };
@@ -221,59 +232,73 @@ export const initDbStore = async (
           Array<{ row?: RowType; change: Change }>
         >();
 
-        const tx = await execAsync(asyncDB.beginTx());
-        for (const op of ops) {
-          if (op.table == changesTable) continue;
+        // Group data operations by table and type for batching
+        const insertsByTable = new Map<TableDefinition, RowType[]>();
+        const updatesByTable = new Map<TableDefinition, RowType[]>();
+        const deletesByTable = new Map<TableDefinition, string[]>();
 
-          let change: Change | undefined;
+        for (const op of ops) {
+          if (op.table === changesTable) continue;
 
           if (op.type === "insert") {
-            await execAsync(tx.insert(op.table, [op.newValue]));
-            change = await asyncDispatch(
-              tx,
-              changesSlice.insertChangeFromInsert(
-                op.table,
-                op.newValue,
-                getClientId(dbName),
-                nextClock,
-              ),
-            );
+            if (!insertsByTable.has(op.table)) insertsByTable.set(op.table, []);
+            insertsByTable.get(op.table)!.push(op.newValue);
           } else if (op.type === "update") {
-            await execAsync(tx.update(op.table, [op.newValue]));
-            change = await asyncDispatch(
-              tx,
-              changesSlice.insertChangeFromUpdate(
-                op.table,
-                op.oldValue,
-                op.newValue,
-                getClientId(dbName),
-                nextClock,
-              ),
-            );
+            if (!updatesByTable.has(op.table)) updatesByTable.set(op.table, []);
+            updatesByTable.get(op.table)!.push(op.newValue);
           } else if (op.type === "delete") {
-            await execAsync(tx.delete(op.table, [op.oldValue.id]));
-            change = await asyncDispatch(
-              tx,
-              changesSlice.insertChangeFromDelete(
-                op.table,
-                op.oldValue,
-                getClientId(dbName),
-                nextClock,
-              ),
-            );
-          }
-
-          // Collect the change if one was created
-          if (change) {
-            const tableName = op.table.tableName;
-            if (!changesByTable.has(tableName)) {
-              changesByTable.set(tableName, []);
-            }
-
-            const row = op.type === "delete" ? undefined : op.newValue;
-            changesByTable.get(tableName)!.push({ row, change });
+            if (!deletesByTable.has(op.table)) deletesByTable.set(op.table, []);
+            deletesByTable.get(op.table)!.push(op.oldValue.id);
           }
         }
+
+        const tx = await execAsync(primary.beginTx());
+
+        console.log("start persistent tx update");
+        // Batch insert/update/delete per table
+        for (const [table, records] of insertsByTable) {
+          await execAsync(tx.insert(table, records));
+        }
+        console.log("done persistent tx update");
+        for (const [table, records] of updatesByTable) {
+          await execAsync(tx.update(table, records));
+        }
+        for (const [table, ids] of deletesByTable) {
+          await execAsync(tx.delete(table, ids));
+        }
+
+        // Batch change tracking
+        const batchOps: BatchOp[] = ops
+          .filter((op) => op.table !== changesTable)
+          .map((op) => ({
+            type: op.type,
+            tableDef: op.table,
+            newValue: op.type === "delete" ? undefined : op.newValue,
+            oldValue: op.type === "insert" ? undefined : op.oldValue,
+          }));
+
+        console.log("start batch insert changes");
+        const allChanges = await asyncDispatch(
+          tx,
+          changesSlice.batchInsertChanges(
+            batchOps,
+            getClientId(dbName),
+            nextClock,
+          ),
+        );
+        console.log("done batch insert changes");
+
+        // Collect changes grouped by table for broadcast
+        allChanges.forEach((change, i) => {
+          if (!change) return;
+          const op = batchOps[i];
+          const tableName = change.tableName;
+          if (!changesByTable.has(tableName)) {
+            changesByTable.set(tableName, []);
+          }
+          const row = op.type === "delete" ? undefined : op.newValue;
+          changesByTable.get(tableName)!.push({ row, change });
+        });
 
         await execAsync(tx.commit());
 

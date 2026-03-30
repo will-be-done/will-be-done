@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { useAsyncDispatch, useSelect, useAsyncSelector } from "@will-be-done/hyperdb";
 import {
   appSlice,
   projectsSlice,
   projectCategoriesSlice,
   projectCategoryCardsSlice,
+  type ProjectCategory,
+  type CardWrapperType,
 } from "@will-be-done/slices/space";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
@@ -50,34 +52,24 @@ const TrashIcon = () => (
   </svg>
 );
 
-const CategorySection = ({
+const CategorySectionComp = ({
   categoryId,
   projectId,
+  category,
+  cardsWithTypes,
+  doneTaskIds,
 }: {
   categoryId: string;
   projectId: string;
+  category: ProjectCategory;
+  cardsWithTypes: { id: string; type: CardWrapperType }[];
+  doneTaskIds: string[];
 }) => {
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
   const select = useSelect();
   const columnRef = useRef<HTMLDivElement>(null);
   const [isDndOver, setIsDndOver] = useState(false);
   const [isPlaceholderFocused, setIsPlaceholderFocused] = useState(false);
-
-  const category = useSyncSelector(
-    () => projectCategoriesSlice.byIdOrDefault(categoryId),
-    [categoryId],
-  );
-
-  const cardsWithTypes = useSyncSelector(
-    () => projectCategoryCardsSlice.childrenIdsWithTypes(category.id),
-    [category.id],
-  );
-
-  const doneTaskIds = useSyncSelector(
-    () => projectCategoryCardsSlice.doneChildrenIds(categoryId),
-    [categoryId],
-  );
-
   const [isShowMore, setIsShowMore] = useState(false);
 
   useEffect(() => {
@@ -106,7 +98,7 @@ const CategorySection = ({
       onDragStart: () => setIsDndOver(true),
       onDrop: () => setIsDndOver(false),
     });
-  }, [categoryId, category.type, select]);
+  }, [categoryId, category, select]);
 
   const visibleDoneIds = useMemo(() => {
     if (isShowMore) return doneTaskIds;
@@ -116,21 +108,22 @@ const CategorySection = ({
   const handleTitleClick = async () => {
     const newTitle = await promptDialog("Section name", category.title);
     if (newTitle == null || newTitle === "") return;
-    dispatch(
+    void dispatch(
       projectCategoriesSlice.updateCategory(categoryId, { title: newTitle }),
     );
   };
 
   const handleAddTask = () => {
-    const task = dispatch(
+    void dispatch(
       projectCategoriesSlice.createTask(categoryId, "prepend"),
-    );
-    useFocusStore.getState().editByKey(buildFocusKey(task.id, "task"));
+    ).then((task) => {
+      useFocusStore.getState().editByKey(buildFocusKey(task.id, "task"));
+    });
   };
 
   const handleDelete = () => {
     if (confirm(`Delete category "${category.title}"?`)) {
-      dispatch(projectCategoriesSlice.deleteCategories([categoryId]));
+      void dispatch(projectCategoriesSlice.deleteCategories([categoryId]));
     }
   };
 
@@ -157,7 +150,7 @@ const CategorySection = ({
           <button
             type="button"
             onClick={() =>
-              dispatch(projectCategoriesSlice.moveLeft(categoryId))
+              void dispatch(projectCategoriesSlice.moveLeft(categoryId))
             }
             className="w-5 h-5 flex items-center justify-center text-content-tinted hover:text-primary transition-colors cursor-pointer rounded"
             title="Move up"
@@ -167,7 +160,7 @@ const CategorySection = ({
           <button
             type="button"
             onClick={() =>
-              dispatch(projectCategoriesSlice.moveRight(categoryId))
+              void dispatch(projectCategoriesSlice.moveRight(categoryId))
             }
             className="w-5 h-5 flex items-center justify-center text-content-tinted hover:text-primary transition-colors cursor-pointer rounded"
             title="Move down"
@@ -266,6 +259,41 @@ const CategorySection = ({
   );
 };
 
+const CategorySection = ({
+  categoryId,
+  projectId,
+}: {
+  categoryId: string;
+  projectId: string;
+}) => {
+  const categoryResult = useAsyncSelector(
+    () => projectCategoriesSlice.byIdOrDefault(categoryId),
+    [categoryId],
+  );
+
+  const cardsWithTypesResult = useAsyncSelector(
+    () => projectCategoryCardsSlice.childrenIdsWithTypes(categoryId),
+    [categoryId],
+  );
+
+  const doneTaskIdsResult = useAsyncSelector(
+    () => projectCategoryCardsSlice.doneChildrenIds(categoryId),
+    [categoryId],
+  );
+
+  if (categoryResult.isPending || cardsWithTypesResult.isPending || doneTaskIdsResult.isPending) return null;
+
+  return (
+    <CategorySectionComp
+      categoryId={categoryId}
+      projectId={projectId}
+      category={categoryResult.data!}
+      cardsWithTypes={cardsWithTypesResult.data!}
+      doneTaskIds={doneTaskIdsResult.data!}
+    />
+  );
+};
+
 const AddSectionButton = ({ onClick }: { onClick: () => void }) => (
   <button
     type="button"
@@ -286,28 +314,23 @@ const AddSectionButton = ({ onClick }: { onClick: () => void }) => (
   </button>
 );
 
-export const ProjectTaskPanel = ({
+const ProjectTaskPanelComp = ({
   projectId,
-  embedded = false,
+  embedded,
+  project,
+  categories,
 }: {
   projectId: string;
-  embedded?: boolean;
+  embedded: boolean;
+  project: { icon: string; title: string };
+  categories: { id: string }[];
 }) => {
-  const dispatch = useDispatch();
-  const project = useSyncSelector(
-    () => projectsSlice.byIdOrDefault(projectId),
-    [projectId],
-  );
-
-  const categories = useSyncSelector(
-    () => projectCategoriesSlice.byProjectId(projectId),
-    [projectId],
-  );
+  const dispatch = useAsyncDispatch();
 
   const handleAddSection = async () => {
     const title = await promptDialog("Section name");
     if (!title) return;
-    dispatch(
+    void dispatch(
       projectCategoriesSlice.createCategory({ projectId, title }, "append"),
     );
   };
@@ -349,5 +372,34 @@ export const ProjectTaskPanel = ({
         <AddSectionButton onClick={() => void handleAddSection()} />
       </div>
     </div>
+  );
+};
+
+export const ProjectTaskPanel = ({
+  projectId,
+  embedded = false,
+}: {
+  projectId: string;
+  embedded?: boolean;
+}) => {
+  const projectResult = useAsyncSelector(
+    () => projectsSlice.byIdOrDefault(projectId),
+    [projectId],
+  );
+
+  const categoriesResult = useAsyncSelector(
+    () => projectCategoriesSlice.byProjectId(projectId),
+    [projectId],
+  );
+
+  if (projectResult.isPending || categoriesResult.isPending) return null;
+
+  return (
+    <ProjectTaskPanelComp
+      projectId={projectId}
+      embedded={embedded}
+      project={projectResult.data!}
+      categories={categoriesResult.data!}
+    />
   );
 };

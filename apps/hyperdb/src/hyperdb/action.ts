@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import AwaitLock from "await-lock";
 import { execAsync, execSync, type HyperDB, type Row, type Trait } from "./db";
 import { isSelectRangeCmd } from "./selector";
 import { type ExtractSchema, type TableDefinition } from "./table";
@@ -168,51 +169,71 @@ export function syncDispatch<TReturn>(
   return result.value as TReturn;
 }
 
+export const globalLock = new AwaitLock();
 export async function asyncDispatch<TReturn>(
   db: HyperDB,
   action: Generator<unknown, TReturn, unknown>,
 ): Promise<TReturn> {
   let result = action.next();
 
-  const tx = await execAsync(db.beginTx());
+  console.log("start acquiring lock lock");
+  // await globalLock.acquireAsync();
+  let wasLockReleased = false;
 
-  let isCommitted = false;
+  console.log("acquire write lock");
   try {
-    while (!result.done) {
-      if (isSelectRangeCmd(result.value)) {
-        const { table, index, selectQuery } = result.value;
+    const tx = await execAsync(db.beginTx());
 
-        result = action.next(
-          await execAsync(
-            tx.intervalScan(table, index, selectQuery.where, {
-              limit: selectQuery.limit,
-            }),
-          ),
-        );
-      } else if (isInsertActionCmd(result.value)) {
-        result = action.next(
-          await execAsync(tx.insert(result.value.table, result.value.values)),
-        );
-      } else if (isUpdateActionCmd(result.value)) {
-        result = action.next(
-          await execAsync(tx.update(result.value.table, result.value.values)),
-        );
-      } else if (isDeleteActionCmd(result.value)) {
-        result = action.next(
-          await execAsync(tx.delete(result.value.table, result.value.values)),
-        );
-      } else if (isGetCurrentTraitsCmd(result.value)) {
-        result = action.next(db.getTraits());
-      } else {
-        result = action.next();
+    let isCommitted = false;
+    try {
+      while (!result.done) {
+        if (isSelectRangeCmd(result.value)) {
+          const { table, index, selectQuery } = result.value;
+
+          result = action.next(
+            await execAsync(
+              tx.intervalScan(table, index, selectQuery.where, {
+                limit: selectQuery.limit,
+              }),
+            ),
+          );
+        } else if (isInsertActionCmd(result.value)) {
+          result = action.next(
+            await execAsync(tx.insert(result.value.table, result.value.values)),
+          );
+        } else if (isUpdateActionCmd(result.value)) {
+          result = action.next(
+            await execAsync(tx.update(result.value.table, result.value.values)),
+          );
+        } else if (isDeleteActionCmd(result.value)) {
+          result = action.next(
+            await execAsync(tx.delete(result.value.table, result.value.values)),
+          );
+        } else if (isGetCurrentTraitsCmd(result.value)) {
+          result = action.next(db.getTraits());
+        } else {
+          result = action.next();
+        }
+      }
+
+      console.log("release write lock before commit");
+      // globalLock.release();
+      wasLockReleased = true;
+
+      console.log("committing tx");
+      await execAsync(tx.commit());
+      console.log("committing tx done");
+
+      isCommitted = true;
+    } finally {
+      if (!isCommitted) {
+        await execAsync(tx.rollback());
       }
     }
-
-    await execAsync(tx.commit());
-    isCommitted = true;
   } finally {
-    if (!isCommitted) {
-      await execAsync(tx.rollback());
+    if (!wasLockReleased) {
+      console.log("release write lock finally");
+      // globalLock.release();
     }
   }
 

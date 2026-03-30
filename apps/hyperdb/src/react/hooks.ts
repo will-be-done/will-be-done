@@ -34,9 +34,12 @@ export function useAsyncSelector<TReturn>(
   gen: () => Generator<unknown, TReturn, unknown>,
   deps: DependencyList,
   debugKey?: string,
-): TReturn | undefined {
+): { isPending: boolean; data: TReturn | undefined } {
   const db = useDB();
-  const [result, setResult] = useState<TReturn | undefined>(undefined);
+  const [state, setState] = useState<{
+    isPending: boolean;
+    data: TReturn | undefined;
+  }>({ isPending: true, data: undefined });
   const selectRangeCmdsRef = useRef<SelectRangeCmd[]>([]);
   const genRef = useRef(gen);
   genRef.current = gen;
@@ -44,6 +47,8 @@ export function useAsyncSelector<TReturn>(
   useEffect(() => {
     let cancelled = false;
     let generation = 0;
+
+    setState((prev) => (prev.isPending ? prev : { isPending: true, data: prev.data }));
 
     const run = async () => {
       const myGen = ++generation;
@@ -53,7 +58,7 @@ export function useAsyncSelector<TReturn>(
       const value = await runSelectorAsync(db, genRef.current, cmds);
       if (!cancelled && myGen === generation) {
         selectRangeCmdsRef.current = cmds;
-        setResult(value);
+        setState({ isPending: false, data: value });
       }
     };
 
@@ -84,7 +89,7 @@ export function useAsyncSelector<TReturn>(
     };
   }, [db, ...(deps || [])]);
 
-  return result;
+  return state;
 }
 
 export function useDispatch() {

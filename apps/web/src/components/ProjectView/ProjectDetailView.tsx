@@ -1,5 +1,5 @@
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { projectsSlice } from "@will-be-done/slices/space";
+import { useAsyncDispatch, useAsyncSelector } from "@will-be-done/hyperdb";
+import { projectsSlice, type Project } from "@will-be-done/slices/space";
 import { ProjectTaskPanel } from "@/components/ProjectView/ProjectTaskPanel.tsx";
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 import {
@@ -48,29 +48,25 @@ function useIsSmallScreen() {
   return isSmall;
 }
 
-const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
-  const dispatch = useDispatch();
-  const project = useSyncSelector(
-    () => projectsSlice.byIdOrDefault(projectId),
-    [projectId],
-  );
+const ProjectDetailContentComp = ({ projectId, project }: { projectId: string; project: Project }) => {
+  const dispatch = useAsyncDispatch();
+
+  const isSmallScreen = useIsSmallScreen();
 
   const handleDeleteClick = () => {
     const shouldDelete = confirm(
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice.deleteProjects([project.id]));
+      void dispatch(projectsSlice.deleteProjects([project.id]));
     }
   };
 
   const handleTitleClick = async () => {
     const newTitle = await promptDialog("Enter new project title", project.title);
     if (newTitle == "" || newTitle == null) return;
-    dispatch(projectsSlice.updateProject(project.id, { title: newTitle }));
+    void dispatch(projectsSlice.updateProject(project.id, { title: newTitle }));
   };
-
-  const isSmallScreen = useIsSmallScreen();
 
   return (
     <div className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden">
@@ -92,7 +88,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
                 <EmojiPicker
                   className="h-[326px] rounded-lg shadow-md"
                   onEmojiSelect={({ emoji }) => {
-                    dispatch(
+                    void dispatch(
                       projectsSlice.updateProject(project.id, { icon: emoji }),
                     );
                   }}
@@ -143,14 +139,33 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   );
 };
 
-export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
-  const inboxProjectId = useSyncSelector(
-    () => projectsSlice.inboxProjectId(),
-    [],
+const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
+  const projectResult = useAsyncSelector(
+    () => projectsSlice.byIdOrDefault(projectId),
+    [projectId],
   );
+
+  if (projectResult.isPending) return null;
+  const project = projectResult.data!;
+
+  return <ProjectDetailContentComp projectId={projectId} project={project} />;
+};
+
+const ProjectDetailViewComp = ({ projectId, inboxProjectId }: { projectId: string; inboxProjectId: string }) => {
   const realProjectId = useMemo(() => {
     return projectId === "inbox" ? inboxProjectId : projectId;
   }, [projectId, inboxProjectId]);
 
   return <ProjectDetailContent projectId={realProjectId} />;
+};
+
+export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
+  const inboxProjectIdResult = useAsyncSelector(
+    () => projectsSlice.inboxProjectId(),
+    [],
+  );
+
+  if (inboxProjectIdResult.isPending) return null;
+
+  return <ProjectDetailViewComp projectId={projectId} inboxProjectId={inboxProjectIdResult.data!} />;
 };

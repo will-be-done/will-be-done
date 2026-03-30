@@ -11,10 +11,10 @@ import { Pencil, Plus, Trash2, LogOut } from "lucide-react";
 import { initDbStore } from "@/store/load";
 import {
   DBProvider,
-  useDispatch,
-  useSyncSelector,
+  useAsyncDispatch,
+  useAsyncSelector,
 } from "@will-be-done/hyperdb";
-import { spaceSlice } from "@will-be-done/slices/user";
+import { spaceSlice, type Space } from "@will-be-done/slices/user";
 import { userDBConfig } from "@/store/configs";
 
 export const Route = createFileRoute("/spaces/")({
@@ -98,10 +98,16 @@ function Logo({ size = 32 }: { size?: number }) {
 }
 
 function SpacePageComponent() {
-  const navigate = useNavigate();
+  const spacesResult = useAsyncSelector(() => spaceSlice.listSpaces(), []);
 
-  const spaces = useSyncSelector(() => spaceSlice.listSpaces(), []);
-  const dispatch = useDispatch();
+  if (spacesResult.isPending) return null;
+
+  return <SpacePageContent spaces={spacesResult.data!} />;
+}
+
+function SpacePageContent({ spaces }: { spaces: Space[] }) {
+  const navigate = useNavigate();
+  const dispatch = useAsyncDispatch();
 
   useEffect(() => {
     authUtils.setSpaceNames(
@@ -118,8 +124,9 @@ function SpacePageComponent() {
     const name = await promptDialog("Enter space name:");
     if (!name?.trim()) return;
 
-    const space = dispatch(spaceSlice.createSpace(name));
-    authUtils.setSpaceNames([{ spaceId: space.id, name: space.name }]);
+    void dispatch(spaceSlice.createSpace(name)).then((space) => {
+      authUtils.setSpaceNames([{ spaceId: space.id, name: space.name }]);
+    });
   };
 
   const handleUpdateSpace = async (
@@ -132,7 +139,7 @@ function SpacePageComponent() {
 
     const name = await promptDialog("Enter new space name:", currentName);
     if (name?.trim() && name !== currentName) {
-      dispatch(spaceSlice.updateSpace(spaceId, name));
+      void dispatch(spaceSlice.updateSpace(spaceId, name));
       authUtils.setSpaceNames([{ spaceId, name }]);
     }
   };
@@ -151,7 +158,7 @@ function SpacePageComponent() {
 
     if (!ok) return;
 
-    dispatch(spaceSlice.deleteSpace(spaceId));
+    void dispatch(spaceSlice.deleteSpace(spaceId));
   };
 
   return (

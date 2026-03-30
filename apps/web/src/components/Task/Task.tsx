@@ -13,7 +13,7 @@ import {
   type Edge,
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import ReactDOM, { unstable_batchedUpdates } from "react-dom";
+import ReactDOM from "react-dom";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
 import { usePrevious, useUnmount } from "../../utils";
@@ -36,11 +36,15 @@ import {
   dailyListsProjectionsSlice,
   AnyModelType,
   type Task,
+  type TaskTemplate,
   type CardWrapperType,
+  type CardWrapper,
+  type Project,
+  type ProjectCategory,
   isTask,
   isTaskTemplate,
 } from "@will-be-done/slices/space";
-import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { useAsyncDispatch, useSelect, useAsyncSelector } from "@will-be-done/hyperdb";
 import {
   buildFocusKey,
   useFocusStore,
@@ -155,41 +159,90 @@ export const TaskComp = ({
   displayLastScheduleTime?: boolean;
   centerScheduleDate?: boolean;
 }) => {
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
 
   // TODO: remove card wrapper
-  const card = useSyncSelector(
+  const cardResult = useAsyncSelector(
     () => projectCategoryCardsSlice.byIdOrDefault(taskId),
     [taskId],
   );
-  const category = useSyncSelector(
-    () => projectCategoriesSlice.byIdOrDefault(card.projectCategoryId),
-    [card.projectCategoryId],
+  const categoryId = cardResult.data?.projectCategoryId ?? "";
+  const categoryResult = useAsyncSelector(
+    () => projectCategoriesSlice.byIdOrDefault(categoryId),
+    [categoryId],
   );
-  const cardWrapper = useSyncSelector(
+  const cardWrapperResult = useAsyncSelector(
     () => cardsSlice.cardWrapperIdOrDefault(cardWrapperId, cardWrapperType),
     [cardWrapperId, cardWrapperType],
   );
-  const project = useSyncSelector(
+  const projectResult = useAsyncSelector(
     () =>
-      projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
-    [card.projectCategoryId],
+      projectCategoriesSlice.projectOfCategoryOrDefault(categoryId),
+    [categoryId],
   );
-  const lastScheduleTime = useSyncSelector(
+  const lastScheduleTimeResult = useAsyncSelector(
     () => dailyListsProjectionsSlice.getDateOfTask(taskId),
     [taskId],
   );
-  const date = useCurrentDate();
-  const shouldHighlightTime =
-    lastScheduleTime &&
-    startOfDay(date) > lastScheduleTime &&
-    isTask(card) &&
-    card.state === "todo";
 
-  const [editingTitle, setEditingTitle] = useState<string>(card.title);
+  if (cardResult.isPending || categoryResult.isPending || cardWrapperResult.isPending || projectResult.isPending || lastScheduleTimeResult.isPending) return null;
+
+  return (
+    <TaskCompInner
+      taskId={taskId}
+      cardWrapperId={cardWrapperId}
+      cardWrapperType={cardWrapperType}
+      displayedUnderProjectId={displayedUnderProjectId}
+      alwaysShowProject={alwaysShowProject}
+      newTaskParams={newTaskParams}
+      displayLastScheduleTime={displayLastScheduleTime}
+      centerScheduleDate={centerScheduleDate}
+      card={cardResult.data!}
+      category={categoryResult.data!}
+      cardWrapper={cardWrapperResult.data!}
+      project={projectResult.data!}
+      lastScheduleTime={lastScheduleTimeResult.data!}
+      dispatch={dispatch}
+    />
+  );
+};
+
+const TaskCompInner = ({
+  taskId,
+  displayedUnderProjectId,
+  alwaysShowProject,
+  newTaskParams,
+  displayLastScheduleTime,
+  centerScheduleDate,
+  card,
+  category,
+  cardWrapper,
+  project,
+  lastScheduleTime,
+  dispatch,
+}: {
+  taskId: string;
+  cardWrapperId: string;
+  cardWrapperType: CardWrapperType;
+  displayedUnderProjectId?: string;
+  alwaysShowProject?: boolean;
+  newTaskParams?: Partial<Task>;
+  displayLastScheduleTime?: boolean;
+  centerScheduleDate?: boolean;
+  card: Task | TaskTemplate;
+  category: ProjectCategory;
+  cardWrapper: CardWrapper;
+  project: Project;
+  lastScheduleTime: Date | undefined;
+  dispatch: <TReturn>(action: Generator<unknown, TReturn, unknown>) => Promise<TReturn>;
+}) => {
+  const date = useCurrentDate();
+
+  const [editingTitle, setEditingTitle] = useState<string>(card.title ?? "");
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+
   const focusableItemKey = buildFocusKey(cardWrapper.id, cardWrapper.type);
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
@@ -197,15 +250,6 @@ export const TaskComp = ({
       e.preventDefault();
 
       useFocusStore.getState().resetEdit();
-
-      // if (e.key === "Enter") {
-      //   task.setTitle(editingTitle);
-      //   const siblings = taskBox.siblings;
-      //   const list = taskBox.listRef.current;
-      //   const newItem = list.createChild([taskBox, siblings[1]], listItem);
-      //
-      //   currentProjectionState.setFocusedItemId(newItem.id);
-      // }
     }
   };
 
@@ -223,7 +267,7 @@ export const TaskComp = ({
     const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
     const taskState = card.state;
-    dispatch(cardsTasksSlice.toggleState(taskId));
+    void dispatch(cardsTasksSlice.toggleState(taskId));
 
     if (!isFocused) return;
 
@@ -296,7 +340,7 @@ export const TaskComp = ({
 
       const targetColumnModel = isMoveLeft ? leftColumnModel : rightColumnModel;
       if (targetColumnModel) {
-        dispatch(
+        void dispatch(
           appSlice.handleDrop(
             targetColumnModel.id,
             targetColumnModel.type as AnyModelType,
@@ -358,7 +402,7 @@ export const TaskComp = ({
             ? "top"
             : "bottom";
 
-        dispatch(
+        void dispatch(
           appSlice.handleDrop(id, type, cardWrapper.id, cardWrapper.type, edge),
         );
 
@@ -386,7 +430,7 @@ export const TaskComp = ({
 
       const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
-      dispatch(appSlice.deleteModel(cardWrapper.id, cardWrapper.type));
+      void dispatch(appSlice.deleteModel(cardWrapper.id, cardWrapper.type));
 
       if (downKey) {
         useFocusStore.getState().focusByKey(downKey);
@@ -404,42 +448,25 @@ export const TaskComp = ({
 
       e.preventDefault();
 
-      unstable_batchedUpdates(() => {
-        const newBox = dispatch(
-          cardsSlice.createSiblingCard(
-            cardWrapper,
-            isAddAfter ? "after" : "before",
-            newTaskParams,
-          ),
-        );
+      void dispatch(
+        cardsSlice.createSiblingCard(
+          cardWrapper,
+          isAddAfter ? "after" : "before",
+          newTaskParams,
+        ),
+      ).then((newBox) => {
         useFocusStore
           .getState()
           .editByKey(buildFocusKey(newBox.id, newBox.type));
-        // setTimeout(() => {
-        // }, 100);
       });
 
       return;
     }
   });
 
-  // useGlobalListener("mousedown", (e: MouseEvent) => {
-  //   const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
-  //
-  //   if (
-  //     isFocused &&
-  //     ref.current &&
-  //     !ref.current.contains(e.target as Node) &&
-  //     !isFocusDisabled &&
-  //     !e.defaultPrevented
-  //   ) {
-  //     focusSlice.resetFocus(store);
-  //   }
-  // });
-
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
-    dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
+    void dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
   };
 
   const ref = useRef<HTMLDivElement | null>(null);
@@ -542,28 +569,15 @@ export const TaskComp = ({
     el.selectionStart = el.value.length;
   }, []);
 
-  // useEffect(() => {
-  //   if (isFocused) {
-  //     const el = ref.current;
-  //     if (!el) return;
-  //
-  //     // el.scrollIntoView({
-  //     //   behavior: "smooth",
-  //     //   block: "center",
-  //     //   inline: "center",
-  //     // });
-  //   }
-  // }, [isFocused]);
-
   const prevIsEditing = usePrevious(isEditing);
-  const taskTitle = card.title;
+  const taskTitle = card.title ?? "";
   useEffect(() => {
     setEditingTitle(taskTitle);
   }, [taskTitle]);
 
   useEffect(() => {
     if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
-      dispatch(
+      void dispatch(
         cardsTasksSlice.updateTask(taskId, {
           title: editingTitle,
         }),
@@ -573,7 +587,7 @@ export const TaskComp = ({
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
-      dispatch(
+      void dispatch(
         cardsTasksSlice.updateTask(taskId, {
           title: editingTitle,
         }),
@@ -581,30 +595,11 @@ export const TaskComp = ({
     }
   });
 
-  // const [isHidden, setIsHidden] = useState(false);
-  // const isSelfDragging = dragId === taskBox.id;
-  // useEffect(() => {
-  //   const id = setTimeout(() => {
-  //     setIsHidden(
-  //       (dndState?.type === "dragging" || dndState?.type === "preview") &&
-  //         !isSelfDragging,
-  //     );
-  //   }, 40);
-  //
-  //   return () => {
-  //     clearTimeout(id);
-  //   };
-  // }, [dndState, isHidden, isSelfDragging]);
-  //
-  // console.log(
-  //   "isSelfDragging",
-  //   "dndState",
-  //   dndState.type,
-  //   "isSelfDragging",
-  //   isSelfDragging,
-  // );
-  //
-  // console.log("isHidden", isHidden);
+  const shouldHighlightTime =
+    lastScheduleTime &&
+    startOfDay(date) > lastScheduleTime &&
+    isTask(card) &&
+    card.state === "todo";
 
   return (
     <div className="relative">

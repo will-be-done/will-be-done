@@ -16,7 +16,7 @@ import {
   taskType,
   projectionType,
 } from "@will-be-done/slices/space";
-import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
+import { select, useDB, useAsyncDispatch } from "@will-be-done/hyperdb";
 import { FocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   getDOMSiblings,
@@ -24,7 +24,7 @@ import {
 } from "@/components/Focus/domNavigation.ts";
 
 export function GlobalListener() {
-  const dispatch = useDispatch();
+  const dispatch = useAsyncDispatch();
   const db = useDB();
 
   useEffect(() => {
@@ -230,7 +230,7 @@ export function GlobalListener() {
             return;
           }
 
-          dispatch(
+          void dispatch(
             appSlice.handleDrop(
               targetItemInfo[1].id,
               targetItemInfo[1].type,
