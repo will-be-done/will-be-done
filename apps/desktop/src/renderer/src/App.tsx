@@ -56,13 +56,20 @@ function isValidUrl(str: string): boolean {
 }
 
 function App(): React.JSX.Element {
+  const params = new URLSearchParams(window.location.search)
+  const recoveryMode = params.get('mode') === 'recovery'
+  const failedUrl = params.get('failedUrl')
   const [url, setUrl] = useState('https://app.will-be-done.app')
   const [error, setError] = useState('')
   const [connecting, setConnecting] = useState(false)
+  const [resetting, setResetting] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     setLoaded(true)
+    void window.desktopApi?.getServerUrl().then((storedUrl) => {
+      setUrl(storedUrl)
+    })
   }, [])
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -77,10 +84,32 @@ function App(): React.JSX.Element {
 
     setConnecting(true)
     try {
-      await window.api.setServerUrl(trimmed)
-    } catch {
-      setError('Failed to connect. Please check the URL and try again.')
+      const checkResult = await window.desktopApi?.checkServerUrl(trimmed)
+      if (checkResult && !checkResult.ok) {
+        setError(checkResult.error || 'Failed to verify the server.')
+        return
+      }
+
+      await window.desktopApi?.setServerUrl(trimmed)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to connect. Please check the URL and try again.')
+    } finally {
       setConnecting(false)
+    }
+  }
+
+  const handleReset = async (): Promise<void> => {
+    setResetting(true)
+    setError('')
+    try {
+      await window.desktopApi?.resetServerUrl()
+      const defaultUrl = await window.desktopApi?.getServerUrl()
+      if (defaultUrl) {
+        setUrl(defaultUrl)
+      }
+    } catch {
+      setError('Failed to reset the server URL.')
+      setResetting(false)
     }
   }
 
@@ -103,11 +132,25 @@ function App(): React.JSX.Element {
           <header className="brand">
             <Logo size={52} />
             <h1 className="brand__title">Will Be Done</h1>
-            <p className="brand__subtitle">Connect to your server to get started</p>
+            <p className="brand__subtitle">
+              {recoveryMode ? 'The configured server could not be reached' : 'Connect to your server to get started'}
+            </p>
           </header>
 
           {/* Form card */}
           <div className="card">
+            {recoveryMode && (
+              <div className="error-msg" style={{ marginBottom: 16 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>
+                  Failed to load {failedUrl || 'the configured server'}. Update the URL below or reset it.
+                </span>
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="form">
               <div className="field">
                 <label htmlFor="server-url" className="field__label">
@@ -193,6 +236,18 @@ function App(): React.JSX.Element {
                   </span>
                 )}
               </button>
+
+              {recoveryMode && (
+                <button
+                  type="button"
+                  disabled={resetting}
+                  className="btn-connect"
+                  style={{ marginTop: 12, background: 'rgba(255,255,255,0.08)', color: '#d6def5' }}
+                  onClick={() => void handleReset()}
+                >
+                  <span className="btn-connect__inner">{resetting ? 'Resetting...' : 'Reset Server URL'}</span>
+                </button>
+              )}
             </form>
           </div>
 

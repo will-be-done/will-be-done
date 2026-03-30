@@ -94,16 +94,21 @@ function isElectron(): boolean {
 
 function ServerIndicator() {
   const [inputUrl, setInputUrl] = useState("");
+  const [displayHost, setDisplayHost] = useState(window.location.host);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // Show the actual host we're connected to
-  const displayHost = window.location.host;
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     // Pre-fill the input with the stored server URL for editing
     void window.desktopApi?.getServerUrl().then((url) => {
       setInputUrl(url);
+      try {
+        setDisplayHost(new URL(url).host);
+      } catch {
+        setDisplayHost(url);
+      }
     });
   }, []);
 
@@ -113,14 +118,31 @@ function ServerIndicator() {
     try {
       new URL(trimmed);
     } catch {
+      setError("Please enter a valid URL.");
       return;
     }
+
     setSaving(true);
-    await window.desktopApi?.setServerUrl(trimmed);
-    setSaving(false);
-    setOpen(false);
-    // Reload so the app reconnects to the new server
-    window.location.reload();
+    setError("");
+
+    try {
+      await window.desktopApi?.setServerUrl(trimmed);
+      setOpen(false);
+      window.location.reload();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to reconnect to this server.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setResetting(true);
+    await window.desktopApi?.resetServerUrl();
   };
 
   return (
@@ -162,19 +184,34 @@ function ServerIndicator() {
           <input
             type="url"
             value={inputUrl}
-            onChange={(e) => setInputUrl(e.target.value)}
+            onChange={(e) => {
+              setInputUrl(e.target.value);
+              setError("");
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") void handleSave();
             }}
             className="block w-full rounded-md bg-white/[0.05] px-3 py-2 text-[13px] text-white placeholder-slate-500 ring-1 ring-white/[0.08] transition-all focus:bg-white/[0.07] focus:outline-none focus:ring-blue-500/50"
             placeholder="https://app.will-be-done.app"
           />
+          {error && (
+            <div className="rounded-md bg-red-500/10 px-3 py-2 text-[12px] text-red-300 ring-1 ring-red-500/20">
+              {error}
+            </div>
+          )}
           <button
             onClick={() => void handleSave()}
             disabled={saving}
             className="w-full cursor-pointer rounded-md bg-blue-500 px-3 py-2 text-[13px] font-semibold text-white transition-all hover:bg-blue-400 disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save & Reconnect"}
+          </button>
+          <button
+            onClick={() => void handleReset()}
+            disabled={resetting}
+            className="w-full cursor-pointer rounded-md bg-white/[0.06] px-3 py-2 text-[13px] font-semibold text-slate-200 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.1] disabled:opacity-50"
+          >
+            {resetting ? "Resetting..." : "Reset Server URL"}
           </button>
         </div>
       </PopoverContent>
