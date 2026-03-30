@@ -68,24 +68,28 @@ export const taskTemplatesTable = table<TaskTemplate>(
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
-const genTaskId = selector(function* (taskTemplateId: string, date: Date) {
-  const normalizedEpoch = fromUTC(date).getTime();
-  return yield* genUUIDV5(taskType, taskTemplateId + "_" + normalizedEpoch);
+const genTaskId = selector(function* (
+  taskTemplateId: string,
+  epoch: number,
+) {
+  return yield* genUUIDV5(taskType, taskTemplateId + "_" + epoch);
 });
 
-const templateToTask = selector(function* (tmpl: TaskTemplate, date: Date) {
-  const normalizedEpoch = fromUTC(date).getTime();
+const templateToTask = selector(function* (
+  tmpl: TaskTemplate,
+  epoch: number,
+) {
   return {
     type: "task",
-    id: yield* genTaskId(tmpl.id, date),
+    id: yield* genTaskId(tmpl.id, epoch),
     title: tmpl.title,
     state: "todo",
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
-    lastToggledAt: normalizedEpoch,
-    createdAt: normalizedEpoch,
+    lastToggledAt: epoch,
+    createdAt: epoch,
     templateId: tmpl.id,
-    templateDate: normalizedEpoch,
+    templateDate: epoch,
   } satisfies Task;
 });
 
@@ -103,6 +107,22 @@ function fromUTC(date: Date): Date {
 const defaultRule = "FREQ=DAILY;INTERVAL=1";
 const MAX_GENERATION_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks
 
+type RecurrenceRange = {
+  from: Date;
+  to: Date;
+};
+
+type RecurrencePolicy = {
+  dtstart: Date;
+  inclusiveBetween: boolean;
+  canonicalizeRange: (fromDate: Date, toDate: Date) => RecurrenceRange;
+  canonicalizeGenerationRange: (
+    fromDate: Date,
+    toDate: Date,
+  ) => RecurrenceRange;
+  occurrenceEpoch: (date: Date) => number;
+};
+
 /** Get the dtstart epoch for a template, falling back to createdAt for legacy templates */
 function getTemplateDtStart(template: TaskTemplate): number {
   return template.repeatRuleDtStart || template.createdAt;
@@ -115,6 +135,63 @@ function createRuleFromString(ruleString: string): RRule {
 function createRuleWithDtstart(ruleString: string, dtstart: Date): RRule {
   const options = RRule.parseString(ruleString.trim());
   return new RRule({ ...options, dtstart });
+}
+
+/** Returns true for DAILY, WEEKLY, MONTHLY, YEARLY frequencies */
+function isDailyOrCoarser(ruleString: string): boolean {
+  const options = RRule.parseString(ruleString.trim());
+  return options.freq !== undefined && options.freq <= RRule.DAILY;
+}
+
+function startOfAbstractDay(date: Date): Date {
+  const dayStart = new Date(date);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  return dayStart;
+}
+
+/**
+ * Builds a single recurrence policy so dtstart, query windows, and task IDs all
+ * use the same time model.
+ */
+function buildRecurrencePolicy(template: TaskTemplate): RecurrencePolicy {
+  const baseDtstart = toUTC(new Date(getTemplateDtStart(template)));
+
+  if (isDailyOrCoarser(template.repeatRule)) {
+    const dtstart = startOfAbstractDay(baseDtstart);
+
+    return {
+      dtstart,
+      inclusiveBetween: true,
+      canonicalizeRange: (fromDate: Date, toDate: Date) => {
+        const from = toUTC(new Date(fromDate));
+        const to = toUTC(new Date(toDate));
+        return { from, to };
+      },
+      canonicalizeGenerationRange: (fromDate: Date, toDate: Date) => {
+        const from = startOfAbstractDay(toUTC(new Date(fromDate)));
+        const to = toUTC(new Date(toDate));
+        return {
+          from: from < dtstart ? new Date(dtstart.getTime()) : from,
+          to,
+        };
+      },
+      occurrenceEpoch: (date: Date) => date.getTime(),
+    };
+  }
+
+  return {
+    dtstart: baseDtstart,
+    inclusiveBetween: false,
+    canonicalizeRange: (fromDate: Date, toDate: Date) => ({
+      from: toUTC(new Date(fromDate)),
+      to: toUTC(new Date(toDate)),
+    }),
+    canonicalizeGenerationRange: (fromDate: Date, toDate: Date) => ({
+      from: toUTC(new Date(fromDate)),
+      to: toUTC(new Date(toDate)),
+    }),
+    occurrenceEpoch: (date: Date) => fromUTC(date).getTime(),
+  };
 }
 
 // Selectors
@@ -173,16 +250,16 @@ export const newTasksInRange = selector(function* (
   const newTasks: Task[] = [];
 
   for (const template of templates) {
-    const r = createRuleWithDtstart(
-      template.repeatRule,
-      toUTC(new Date(getTemplateDtStart(template))),
-    );
-    const dates = r.between(fromDate, toDate);
+    const policy = buildRecurrencePolicy(template);
+    const r = createRuleWithDtstart(template.repeatRule, policy.dtstart);
+    const range = policy.canonicalizeRange(fromDate, toDate);
+    const dates = r.between(range.from, range.to, policy.inclusiveBetween);
     for (const date of dates) {
-      const taskId = yield* genTaskId(template.id, date);
+      const epoch = policy.occurrenceEpoch(date);
+      const taskId = yield* genTaskId(template.id, epoch);
       const existingTask = yield* cardsTasksSlice.byId(taskId);
       if (!existingTask) {
-        newTasks.push(yield* templateToTask(template, date));
+        newTasks.push(yield* templateToTask(template, epoch));
       }
     }
   }
@@ -197,10 +274,8 @@ export const newTasksToGenForTemplate = selector(function* (
   const template = yield* byId(templateId);
   if (!template) return [];
 
-  const r = createRuleWithDtstart(
-    template.repeatRule,
-    toUTC(new Date(getTemplateDtStart(template))),
-  );
+  const policy = buildRecurrencePolicy(template);
+  const r = createRuleWithDtstart(template.repeatRule, policy.dtstart);
   const newTasks: Task[] = [];
 
   // Cap generation window to 2 weeks to avoid generating thousands of tasks
@@ -208,12 +283,19 @@ export const newTasksToGenForTemplate = selector(function* (
     template.lastGeneratedAt,
     toDate.getTime() - MAX_GENERATION_WINDOW_MS,
   );
-  const dates = r.between(toUTC(new Date(earliestFrom)), toUTC(toDate));
+
+  const range = policy.canonicalizeGenerationRange(
+    new Date(earliestFrom),
+    toDate,
+  );
+  const dates = r.between(range.from, range.to, policy.inclusiveBetween);
+
   for (const date of dates) {
-    const taskId = yield* genTaskId(template.id, date);
+    const epoch = policy.occurrenceEpoch(date);
+    const taskId = yield* genTaskId(template.id, epoch);
     const existingTask = yield* cardsTasksSlice.byId(taskId);
     if (!existingTask) {
-      newTasks.push(yield* templateToTask(template, date));
+      newTasks.push(yield* templateToTask(template, epoch));
     }
   }
 
