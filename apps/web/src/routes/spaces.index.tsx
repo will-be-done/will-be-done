@@ -175,7 +175,7 @@ function SpacePageComponent() {
       <div className="relative px-6 py-8">
         <div className="mx-auto max-w-5xl">
           {/* Header */}
-          <div className="mb-10 flex items-center justify-between  desktop-macos:mt-4">
+          <div className="mb-10 flex items-center justify-between desktop-macos:mt-4">
             <div className="flex items-center gap-3">
               <Logo size={36} />
               <div>
