@@ -726,17 +726,17 @@ export class BptreeInmemDriverTx implements DBDriverTX {
 
 export class BptreeInmemDriver implements DBDriver {
   tblDatas: Map<TableName, TableData> = new Map();
-  private isInTransaction = false;
+  // private isInTransaction = false;
 
   constructor() {}
 
   *beginTx(): Generator<DBCmd, DBDriverTX> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
-    this.isInTransaction = true;
+    // if (this.isInTransaction) {
+    //   throw new Error("can't run while transaction is in progress");
+    // }
+    // this.isInTransaction = true;
 
-    return new BptreeInmemDriverTx(this, () => (this.isInTransaction = false));
+    return new BptreeInmemDriverTx(this, () => {});
   }
 
   *loadTables(
@@ -798,9 +798,9 @@ export class BptreeInmemDriver implements DBDriver {
   }
 
   *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
+    // if (this.isInTransaction) {
+    //   throw new Error("can't run while transaction is in progress");
+    // }
 
     const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
@@ -811,9 +811,9 @@ export class BptreeInmemDriver implements DBDriver {
   }
 
   *insert(tableName: string, values: Row[]): Generator<DBCmd, void> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
+    // if (this.isInTransaction) {
+    //   throw new Error("can't run while transaction is in progress");
+    // }
 
     const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
@@ -824,9 +824,9 @@ export class BptreeInmemDriver implements DBDriver {
   }
 
   *delete(tableName: string, ids: string[]): Generator<DBCmd, void> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
+    // if (this.isInTransaction) {
+    //   throw new Error("can't run while transaction is in progress");
+    // }
 
     const tblData = this.tblDatas.get(tableName);
     if (!tblData) {
@@ -842,9 +842,9 @@ export class BptreeInmemDriver implements DBDriver {
     clauses: WhereClause[],
     selectOptions: SelectOptions,
   ): Generator<DBCmd, Row[]> {
-    if (this.isInTransaction) {
-      throw new Error("can't run while transaction is in progress");
-    }
+    // if (this.isInTransaction) {
+    //   throw new Error("can't run while transaction is in progress");
+    // }
 
     const tableData = this.tblDatas.get(tableName);
     if (!tableData) {

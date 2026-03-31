@@ -46,6 +46,26 @@ export function encodingTypeOf(value: ScanValue): EncodingType {
 }
 
 export function compareValue(a: ScanValue, b: ScanValue): number {
+  // Fast path: identical references (common for MIN/MAX sentinels)
+  if (a === b) return 0;
+
+  // Fast path: both strings (most common case in real-world tuples)
+  if (typeof a === "string" && typeof b === "string") {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+
+  // Fast path: both numbers
+  if (typeof a === "number" && typeof b === "number") {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+
+  // Fast path: MIN/MAX sentinels
+  if ((a as unknown) === MIN) return (b as unknown) === MIN ? 0 : -1;
+  if ((a as unknown) === MAX) return (b as unknown) === MAX ? 0 : 1;
+  if ((b as unknown) === MIN) return 1;
+  if ((b as unknown) === MAX) return -1;
+
+  // Slow path: fall through to type dispatch
   const at = encodingTypeOf(a);
   const bt = encodingTypeOf(b);
   if (at === bt) {
@@ -56,22 +76,12 @@ export function compareValue(a: ScanValue, b: ScanValue): number {
     } else if (at === "string") {
       return compare(a as string, b as string);
     } else if (at === "virtual") {
-      if (a === MAX && b === MIN) return 1;
-      if (a === MIN && b === MAX) return -1;
+      if ((a as unknown) === MAX && (b as unknown) === MIN) return 1;
+      if ((a as unknown) === MIN && (b as unknown) === MAX) return -1;
       return 0;
     } else {
       throw new UnreachableError(at);
     }
-  }
-
-  if (b == MIN) {
-    return 1;
-  } else if (b == MAX) {
-    return -1;
-  } else if (a == MIN) {
-    return -1;
-  } else if (a == MAX) {
-    return 1;
   }
 
   return compare(encodingRank.indexOf(at), encodingRank.indexOf(bt));

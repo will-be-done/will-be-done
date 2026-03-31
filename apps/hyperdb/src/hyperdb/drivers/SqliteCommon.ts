@@ -75,9 +75,7 @@ export function buildWhereClause(
     if (allSameCols && normalizedClauses[0].eq!.length > 1) {
       // Use tuple IN (VALUES ...) for multi-column equality with same columns
       const cols = normalizedClauses[0].eq!.map(({ col }) => String(col));
-      const columnPaths = cols.map(
-        (col) => `json_extract(data, '$.${col}')`,
-      );
+      const columnPaths = cols.map((col) => `json_extract(data, '$.${col}')`);
       const params: any[] = [];
       const valueTuples: string[] = [];
 
@@ -238,7 +236,7 @@ export function buildSelectSQL(
     .trim()
     .replace(/\n+/g, " ");
 
-  console.log("%c" + sql, "color: #bada55");
+  // console.log("%c" + sql, "color: #bada55");
 
   return sql;
 }

@@ -176,11 +176,11 @@ export async function asyncDispatch<TReturn>(
 ): Promise<TReturn> {
   let result = action.next();
 
-  console.log("start acquiring lock lock");
+  // console.log("start acquiring lock lock");
   // await globalLock.acquireAsync();
   let wasLockReleased = false;
 
-  console.log("acquire write lock");
+  // console.log("acquire write lock");
   try {
     const tx = await execAsync(db.beginTx());
 
@@ -216,13 +216,13 @@ export async function asyncDispatch<TReturn>(
         }
       }
 
-      console.log("release write lock before commit");
+      // console.log("release write lock before commit");
       // globalLock.release();
       wasLockReleased = true;
 
-      console.log("committing tx");
+      // console.log("committing tx");
       await execAsync(tx.commit());
-      console.log("committing tx done");
+      // console.log("committing tx done");
 
       isCommitted = true;
     } finally {
@@ -232,7 +232,7 @@ export async function asyncDispatch<TReturn>(
     }
   } finally {
     if (!wasLockReleased) {
-      console.log("release write lock finally");
+      // console.log("release write lock finally");
       // globalLock.release();
     }
   }

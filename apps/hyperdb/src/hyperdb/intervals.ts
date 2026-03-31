@@ -83,23 +83,65 @@ export function mergeInterval(
   existing: NormalizedInterval[],
   newInterval: NormalizedInterval,
 ): NormalizedInterval[] {
-  const all = [...existing, newInterval];
-  all.sort((a, b) => {
-    const cmp = compareTuples(a.lower, b.lower);
-    if (cmp !== 0) return cmp;
-    return a.lowerInclusive && !b.lowerInclusive ? -1 : 0;
-  });
+  if (existing.length === 0) return [newInterval];
 
-  const merged: NormalizedInterval[] = [all[0]];
-  for (let i = 1; i < all.length; i++) {
-    const last = merged[merged.length - 1];
-    if (intervalsOverlapOrAdjacent(last, all[i])) {
-      merged[merged.length - 1] = mergeTwo(last, all[i]);
+  // Binary search for the first interval that could overlap with newInterval.
+  // We find the leftmost interval whose upper bound >= newInterval.lower.
+  let lo = 0;
+  let hi = existing.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    const cmp = compareTuples(existing[mid].upper, newInterval.lower);
+    if (cmp < 0) {
+      lo = mid + 1;
+    } else if (cmp === 0 && !existing[mid].upperInclusive && !newInterval.lowerInclusive) {
+      lo = mid + 1;
     } else {
-      merged.push(all[i]);
+      hi = mid;
     }
   }
-  return merged;
+  const overlapStart = lo;
+
+  // Find the last overlapping interval (upper scan).
+  lo = overlapStart;
+  hi = existing.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    const cmp = compareTuples(existing[mid].lower, newInterval.upper);
+    if (cmp > 0) {
+      hi = mid;
+    } else if (cmp === 0 && !existing[mid].lowerInclusive && !newInterval.upperInclusive) {
+      hi = mid;
+    } else {
+      lo = mid + 1;
+    }
+  }
+  const overlapEnd = lo; // exclusive
+
+  if (overlapStart === overlapEnd) {
+    // No overlaps — just insert at the right position
+    const result = new Array(existing.length + 1);
+    for (let i = 0; i < overlapStart; i++) result[i] = existing[i];
+    result[overlapStart] = newInterval;
+    for (let i = overlapStart; i < existing.length; i++) result[i + 1] = existing[i];
+    return result;
+  }
+
+  // Merge newInterval with all overlapping intervals
+  let merged = newInterval;
+  for (let i = overlapStart; i < overlapEnd; i++) {
+    merged = mergeTwo(merged, existing[i]);
+  }
+
+  // Build result: [before overlap] + [merged] + [after overlap]
+  const resultLen = overlapStart + 1 + (existing.length - overlapEnd);
+  const result = new Array(resultLen);
+  for (let i = 0; i < overlapStart; i++) result[i] = existing[i];
+  result[overlapStart] = merged;
+  for (let i = overlapEnd; i < existing.length; i++) {
+    result[overlapStart + 1 + (i - overlapEnd)] = existing[i];
+  }
+  return result;
 }
 
 export function isFullyCovered(
@@ -107,16 +149,40 @@ export function isFullyCovered(
   requested: NormalizedInterval[],
 ): boolean {
   for (const req of requested) {
-    let covered = false;
-    for (const c of cached) {
-      if (intervalContains(c, req)) {
-        covered = true;
-        break;
-      }
-    }
-    if (!covered) return false;
+    if (!isFullyCoveredByAny(cached, req)) return false;
   }
   return true;
+}
+
+/**
+ * Fast containment check using binary search on sorted, non-overlapping cached intervals.
+ * Returns true if `target` is fully contained by some cached interval.
+ * O(log n) instead of O(n) linear scan.
+ */
+export function isFullyCoveredByAny(
+  cached: NormalizedInterval[],
+  target: NormalizedInterval,
+): boolean {
+  if (cached.length === 0) return false;
+
+  // Binary search: find the rightmost interval whose lower <= target.lower
+  let lo = 0;
+  let hi = cached.length - 1;
+  let candidate = -1;
+
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const cmp = compareTuples(cached[mid].lower, target.lower);
+    if (cmp < 0 || (cmp === 0 && (cached[mid].lowerInclusive || !target.lowerInclusive))) {
+      candidate = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  if (candidate === -1) return false;
+  return intervalContains(cached[candidate], target);
 }
 
 export function tupleScanToNormalized(
