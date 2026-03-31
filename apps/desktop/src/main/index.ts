@@ -288,6 +288,22 @@ function hidePopup(): void {
   }
 }
 
+function reloadPopupWindow(): void {
+  const wasVisible = !!popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()
+
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    popupWindow.destroy()
+  }
+
+  initPopupWindow()
+
+  if (wasVisible && popupWindow && !popupWindow.isDestroyed()) {
+    popupWindow.once('ready-to-show', () => {
+      positionAndShowPopup()
+    })
+  }
+}
+
 function buildMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
@@ -396,11 +412,14 @@ app.whenReady().then(() => {
     if (mainWindow) {
       loadRemoteMainWindow(getServerUrl())
     }
+
+    reloadPopupWindow()
   })
 
   ipcMain.handle('reset-server-url', async () => {
     store.set(serverUrlKey, DEFAULT_SERVER)
     loadRemoteMainWindow(getServerUrl())
+    reloadPopupWindow()
   })
 
   createWindow()

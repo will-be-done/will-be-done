@@ -33,19 +33,21 @@ function RouteComponent() {
   const newStore = Route.useLoaderData();
 
   return (
-    <>
-      <DBProvider value={newStore}>
-        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-          <KeyPressedCtxProvider>
+    <DBProvider value={newStore}>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <KeyPressedCtxProvider>
+          <div className="relative h-full">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-10 [app-region:drag]" />
+
             <GlobalListener />
             <ResetFocusOnNavigate />
 
             <Outlet />
             <CardDetails />
-          </KeyPressedCtxProvider>
-        </ThemeProvider>
-      </DBProvider>
-    </>
+          </div>
+        </KeyPressedCtxProvider>
+      </ThemeProvider>
+    </DBProvider>
   );
 }
 
