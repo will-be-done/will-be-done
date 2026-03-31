@@ -51,5 +51,6 @@ publish:
   provider: github
   owner: will-be-done
   repo: will-be-done
+  releaseType: draft
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
