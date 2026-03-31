@@ -145,7 +145,6 @@ const SingleDayColumn = ({
       data-column-model-type={dailyList.type}
       className="flex flex-col w-full mt-6"
     >
-      <div className="[app-region:drag] pointer-events-none absolute top-0 left-0 right-0 z-0 h-4" />
       {/* Date header with navigation arrows */}
       <div className="flex items-center justify-between mb-5">
         <Link

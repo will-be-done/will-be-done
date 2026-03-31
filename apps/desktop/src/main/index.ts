@@ -59,6 +59,8 @@ const store = new Store<{ serverUrl?: string }>()
 const DEFAULT_SERVER = 'https://app.will-be-done.app'
 const LOCAL_SHELL_URL = 'http://localhost:5173'
 const SERVER_CHECK_TIMEOUT_MS = 5000
+const SERVER_CHECK_FILE = '631521eb-a436-4740-9db3-e6f1d72392fe.json'
+const SERVER_CHECK_NONCE = '4f2c9a71-f7bb-4a57-b9b9-6d433c9f5b2e'
 
 let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
@@ -86,7 +88,7 @@ function normalizeServerUrl(url: string): string {
 }
 
 function getServerCheckUrl(serverUrl: string): string {
-  return new URL('/check.json', `${serverUrl}/`).toString()
+  return new URL(`/${SERVER_CHECK_FILE}`, `${serverUrl}/`).toString()
 }
 
 async function checkServerUrl(
@@ -108,7 +110,7 @@ async function checkServerUrl(
     if (!response.ok) {
       const error =
         response.status === 404
-          ? `Could not load ${checkUrl}. This server is missing check.json.`
+          ? `Could not verify ${normalizedUrl}. The server did not respond with the expected Will Be Done check file.`
           : `Failed to load ${checkUrl}. Server responded with status ${response.status}.`
 
       return {
@@ -119,7 +121,24 @@ async function checkServerUrl(
       }
     }
 
-    await response.json()
+    let checkPayload: { nonce?: unknown }
+    try {
+      checkPayload = (await response.json()) as { nonce?: unknown }
+    } catch {
+      return {
+        ok: false,
+        serverUrl: normalizedUrl,
+        error: `Could not verify ${normalizedUrl}. The server check file did not return valid JSON.`
+      }
+    }
+
+    if (checkPayload.nonce !== SERVER_CHECK_NONCE) {
+      return {
+        ok: false,
+        serverUrl: normalizedUrl,
+        error: `Could not verify ${normalizedUrl}. The server check file did not contain the expected nonce.`
+      }
+    }
 
     return { ok: true, serverUrl: normalizedUrl }
   } catch (error) {
@@ -243,6 +262,7 @@ function initPopupWindow(): void {
 
   const popupUrl = `${getServerUrl()}/popup`
   popupWindow.loadURL(popupUrl)
+  const thisWindow = popupWindow
 
   popupWindow.on('blur', () => {
     hidePopup()
@@ -250,7 +270,9 @@ function initPopupWindow(): void {
 
   // If the window is somehow destroyed, recreate it
   popupWindow.on('closed', () => {
-    popupWindow = null
+    if (popupWindow === thisWindow) {
+      popupWindow = null
+    }
   })
 }
 
@@ -285,6 +307,22 @@ function positionAndShowPopup(): void {
 function hidePopup(): void {
   if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
     popupWindow.hide()
+  }
+}
+
+function reloadPopupWindow(): void {
+  const wasVisible = !!popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()
+
+  if (popupWindow && !popupWindow.isDestroyed()) {
+    popupWindow.destroy()
+  }
+
+  initPopupWindow()
+
+  if (wasVisible && popupWindow && !popupWindow.isDestroyed()) {
+    popupWindow.once('ready-to-show', () => {
+      positionAndShowPopup()
+    })
   }
 }
 
@@ -396,11 +434,14 @@ app.whenReady().then(() => {
     if (mainWindow) {
       loadRemoteMainWindow(getServerUrl())
     }
+
+    reloadPopupWindow()
   })
 
   ipcMain.handle('reset-server-url', async () => {
     store.set(serverUrlKey, DEFAULT_SERVER)
     loadRemoteMainWindow(getServerUrl())
+    reloadPopupWindow()
   })
 
   createWindow()

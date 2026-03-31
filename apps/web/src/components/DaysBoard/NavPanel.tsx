@@ -26,7 +26,7 @@ export const NavPanel = ({
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-40 h-10 [app-region:drag]">
+    <>
       <div className="absolute left-0 top-0 [app-region:no-drag]">
         <NavBar spaceId={spaceId} />
       </div>
@@ -112,6 +112,6 @@ export const NavPanel = ({
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };

@@ -178,7 +178,7 @@ const NavStrip = () => {
   const spaceId = Route.useParams().spaceId;
 
   return (
-    <div className="hidden sm:flex desktop-macos:flex -ml-2 mb-3 [app-region:drag] ">
+    <div className="hidden sm:flex desktop-macos:flex -ml-2 mb-3">
       <SpaceNavLinks spaceId={spaceId} />
     </div>
   );

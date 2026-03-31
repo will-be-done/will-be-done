@@ -156,6 +156,8 @@ function SpacePageComponent() {
 
   return (
     <div className="relative min-h-screen bg-[#0a0a0f] text-slate-100 antialiased">
+      <div className="absolute inset-x-0 top-0 z-50 h-10 [app-region:drag]" />
+
       {/* Gradient orbs */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-[400px] left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-blue-600/8 blur-[120px]" />
@@ -173,7 +175,7 @@ function SpacePageComponent() {
       <div className="relative px-6 py-8">
         <div className="mx-auto max-w-5xl">
           {/* Header */}
-          <div className="mb-10 flex items-center justify-between">
+          <div className="mb-10 flex items-center justify-between desktop-macos:mt-4">
             <div className="flex items-center gap-3">
               <Logo size={36} />
               <div>

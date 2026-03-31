@@ -5,6 +5,10 @@
   "main": "./out/main/index.js",
   "author": "quolpr",
   "homepage": "https://will-be-done.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/will-be-done/will-be-done.git"
+  },
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
