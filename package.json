@@ -14,7 +14,8 @@
     "ts": "bun run --filter='@will-be-done/web' ts && bun run --filter='@will-be-done/slices' ts && bun run --filter='@will-be-done/api' ts",
     "lint": "bun run --filter='@will-be-done/web' lint && bun run --filter='@will-be-done/slices' lint && bun run --filter='@will-be-done/api' lint",
     "test": "bun run --filter='@will-be-done/api' test && bun run --filter='@will-be-done/hyperdb' test",
-    "all": "bun run scripts/dev-all.ts"
+    "all": "bun run scripts/dev-all.ts",
+    "release:desktop": "bash scripts/release"
   },
   "devDependencies": {
     "@types/blessed": "^0.1.27",
