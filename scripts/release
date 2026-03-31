@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DESKTOP_PACKAGE_JSON="$ROOT_DIR/apps/desktop/package.json"
+
+cd "$ROOT_DIR"
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Working tree is not clean. Commit or stash your changes before creating a release."
+  exit 1
+fi
+
+read -r -p "Desktop version to release (x.y.z): " VERSION
+
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Version must match x.y.z"
+  exit 1
+fi
+
+TAG="v$VERSION"
+CURRENT_VERSION="$(node -p "require('$DESKTOP_PACKAGE_JSON').version")"
+
+if [[ "$CURRENT_VERSION" == "$VERSION" ]]; then
+  echo "apps/desktop/package.json is already at version $VERSION"
+  exit 1
+fi
+
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  echo "Tag $TAG already exists locally."
+  exit 1
+fi
+
+if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+  echo "Tag $TAG already exists on origin."
+  exit 1
+fi
+
+node -e "
+const fs = require('fs');
+const path = process.argv[1];
+const version = process.argv[2];
+const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+data.version = version;
+fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+" "$DESKTOP_PACKAGE_JSON" "$VERSION"
+
+git add apps/desktop/package.json
+git commit -m "chore: release $TAG"
+git tag "$TAG"
+git push origin HEAD
+git push origin "$TAG"
+
+echo "Released $TAG"

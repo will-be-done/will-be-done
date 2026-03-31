@@ -19,6 +19,9 @@ jobs:
     outputs:
       version: ${{ steps.extract.outputs.version }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Extract version from tag
         id: extract
         run: |
@@ -30,6 +33,15 @@ jobs:
           VERSION=${{ steps.extract.outputs.version }}
           if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Error: Tag must follow semantic versioning (v0.1.0)"
+            exit 1
+          fi
+
+      - name: Validate desktop package version
+        run: |
+          TAG_VERSION=${{ steps.extract.outputs.version }}
+          PACKAGE_VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          if [[ "$PACKAGE_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Error: apps/desktop/package.json version ($PACKAGE_VERSION) does not match tag version ($TAG_VERSION)"
             exit 1
           fi
 
