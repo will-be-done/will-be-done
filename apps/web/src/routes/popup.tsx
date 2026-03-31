@@ -8,40 +8,58 @@ export const Route = createFileRoute("/popup")({
 
 function PopupComponent() {
   const [title, setTitle] = useState("");
-  const [initialSpaceId] = useState(() => getPopupSpaceId());
+  const [spaceId, setSpaceId] = useState<string | null>(() => getPopupSpaceId());
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
-  >(initialSpaceId ? "idle" : "error");
+  >(spaceId ? "loading" : "error");
   const [errorMsg, setErrorMsg] = useState(
-    initialSpaceId ? "" : "No space selected. Open the main app first.",
+    spaceId ? "" : "No space selected. Open the main app first.",
   );
   const inputRef = useRef<HTMLInputElement>(null);
   const storeRef = useRef<Awaited<ReturnType<typeof initPopupStore>> | null>(
     null,
   );
-  const initRef = useRef(false);
+  const initializedSpaceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (initRef.current || !initialSpaceId) return;
-    initRef.current = true;
+    if (!spaceId || initializedSpaceIdRef.current === spaceId) return;
 
-    initPopupStore(initialSpaceId)
+    initPopupStore(spaceId)
       .then((store) => {
+        initializedSpaceIdRef.current = spaceId;
         storeRef.current = store;
+        setStatus("idle");
       })
       .catch((err) => {
         console.error("Failed to init popup store:", err);
+        initializedSpaceIdRef.current = null;
+        storeRef.current = null;
         setStatus("error");
         setErrorMsg("Failed to initialize. Try again.");
       });
-  }, [initialSpaceId]);
+  }, [spaceId]);
 
   // Listen for popup-show IPC to reset state when the window is re-shown
   useEffect(() => {
     const cleanup = window.desktopApi?.onPopupShow(() => {
-      // setTitle("");
-      setStatus("idle");
-      setErrorMsg("");
+      const nextSpaceId = getPopupSpaceId();
+      setSpaceId(nextSpaceId);
+      setTitle("");
+
+      if (!nextSpaceId) {
+        initializedSpaceIdRef.current = null;
+        storeRef.current = null;
+        setStatus("error");
+        setErrorMsg("No space selected. Open the main app first.");
+      } else if (initializedSpaceIdRef.current !== nextSpaceId) {
+        storeRef.current = null;
+        setStatus("loading");
+        setErrorMsg("");
+      } else {
+        setStatus("idle");
+        setErrorMsg("");
+      }
+
       // Focus input on next frame after the window becomes visible
       requestAnimationFrame(() => {
         inputRef.current?.focus();
