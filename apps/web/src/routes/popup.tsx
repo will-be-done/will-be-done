@@ -20,6 +20,11 @@ function PopupComponent() {
     null,
   );
   const initializedSpaceIdRef = useRef<string | null>(null);
+  const focusInput = useCallback(() => {
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, []);
 
   useEffect(() => {
     if (!spaceId || initializedSpaceIdRef.current === spaceId) return;
@@ -60,17 +65,20 @@ function PopupComponent() {
         setErrorMsg("");
       }
 
-      // Focus input on next frame after the window becomes visible
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-      });
+      // Re-showing the popup can happen after the route already mounted.
+      focusInput();
     });
     return () => cleanup?.();
-  }, []);
+  }, [focusInput]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    focusInput();
+  }, [focusInput]);
+
+  useEffect(() => {
+    window.addEventListener("focus", focusInput);
+    return () => window.removeEventListener("focus", focusInput);
+  }, [focusInput]);
 
   const hidePopup = useCallback(() => {
     if (window.desktopApi?.closePopup) {
