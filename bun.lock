@@ -41,7 +41,7 @@
     },
     "apps/desktop": {
       "name": "will-be-done",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "dependencies": {
         "@electron-toolkit/preload": "^3.0.2",
         "@electron-toolkit/utils": "^4.0.0",

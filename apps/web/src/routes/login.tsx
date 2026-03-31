@@ -128,7 +128,6 @@ function ServerIndicator() {
     try {
       await window.desktopApi?.setServerUrl(trimmed);
       setOpen(false);
-      window.location.reload();
     } catch (error) {
       setError(
         error instanceof Error
@@ -392,7 +391,7 @@ function LoginPage() {
             </Link>
           </p>
 
-          {window.location.host === "app.will-be-done.app" && (
+          {window.location.host === "app.will-be-done.app" && !isElectron() && (
             <div className="mt-8 flex justify-center">
               <a
                 href="https://will-be-done.app"

@@ -294,7 +294,8 @@ function SignupPage() {
             </Link>
           </p>
 
-          {window.location.host === "app.will-be-done.app" && (
+          {window.location.host === "app.will-be-done.app" &&
+            !(typeof window !== "undefined" && !!window.desktopApi) && (
             <div className="mt-8 flex justify-center">
               <a
                 href="https://will-be-done.app"

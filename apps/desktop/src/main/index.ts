@@ -57,7 +57,6 @@ const Store =
 const store = new Store<{ serverUrl?: string }>()
 
 const DEFAULT_SERVER = 'https://app.will-be-done.app'
-const LOCAL_SHELL_URL = 'http://localhost:5173'
 const SERVER_CHECK_TIMEOUT_MS = 5000
 const SERVER_CHECK_FILE = '631521eb-a436-4740-9db3-e6f1d72392fe.json'
 const SERVER_CHECK_NONCE = '4f2c9a71-f7bb-4a57-b9b9-6d433c9f5b2e'
@@ -66,10 +65,6 @@ let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
 
 function getServerUrl(): string {
-  if (is.dev) {
-    return LOCAL_SHELL_URL
-  }
-
   return (store.get(serverUrlKey) as string | undefined) || DEFAULT_SERVER
 }
 
@@ -431,17 +426,26 @@ app.whenReady().then(() => {
     }
 
     store.set(serverUrlKey, checkResult.serverUrl)
-    if (mainWindow) {
-      loadRemoteMainWindow(getServerUrl())
-    }
 
     reloadPopupWindow()
+
+    // Destroy and recreate the main window to cleanly navigate to the new server
+    // (avoids race conditions between the renderer's JS and loadURL)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.destroy()
+    }
+    createWindow()
   })
 
   ipcMain.handle('reset-server-url', async () => {
     store.set(serverUrlKey, DEFAULT_SERVER)
-    loadRemoteMainWindow(getServerUrl())
+
     reloadPopupWindow()
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.destroy()
+    }
+    createWindow()
   })
 
   createWindow()
