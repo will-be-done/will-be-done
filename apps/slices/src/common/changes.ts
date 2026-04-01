@@ -268,6 +268,55 @@ const mergeChangesAction = action(function* (
       const currentChanges = currentChangesMap.get(incomingChange.entityId);
       const currentRow = currentRowsMap.get(incomingChange.entityId);
 
+      // First-creator-wins: when both sides created the same entity,
+      // the earlier creator's values always take precedence
+      if (
+        currentChanges != null &&
+        currentRow != null &&
+        incomingRow != null &&
+        incomingChange.deletedAt == null
+      ) {
+        const currentCreatedFirst =
+          currentChanges.createdAt <= incomingChange.createdAt;
+
+        // Winner's fields overwrite loser's (spread winner second)
+        const winnerRow = currentCreatedFirst
+          ? currentRow
+          : (incomingRow as Row);
+        const loserRow = currentCreatedFirst
+          ? (incomingRow as Row)
+          : currentRow;
+        const winnerChanges = currentCreatedFirst
+          ? currentChanges.changes
+          : incomingChange.changes;
+        const loserChanges = currentCreatedFirst
+          ? incomingChange.changes
+          : currentChanges.changes;
+
+        const fcwMergedChanges = { ...loserChanges, ...winnerChanges };
+        const fcwMergedRow = { ...loserRow, ...winnerRow } as Row;
+
+        if (!currentCreatedFirst) {
+          toUpdateRows.push(fcwMergedRow);
+        }
+
+        const currentClock = nextClock();
+        allChanges.push({
+          id: `${table.tableName}:${incomingChange.entityId}`,
+          entityId: incomingChange.entityId,
+          tableName: table.tableName,
+          createdAt: currentCreatedFirst
+            ? currentChanges.createdAt
+            : incomingChange.createdAt,
+          updatedAt: currentClock,
+          deletedAt: null,
+          clientId: clientId,
+          changes: fcwMergedChanges,
+        });
+
+        continue; // Skip normal LWW merge
+      }
+
       const { mergedChanges, mergedRow } = mergeChanges(
         currentChanges?.changes ?? {},
         incomingChange.changes,
