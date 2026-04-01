@@ -96,6 +96,12 @@
 
   /* Secondary content text — between content-tinted and content-tinted-2 */
   --color-content-secondary: var(--color-slate-400);
+
+  /* Task nature colors — subtle tinted backgrounds for footer */
+  --color-nature-red: oklch(28% 0.06 15 / 0.8);
+  --color-nature-red-content: oklch(65% 0.06 15);
+  --color-nature-green: oklch(28% 0.05 155 / 0.8);
+  --color-nature-green-content: oklch(65% 0.05 155);
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/

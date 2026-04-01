@@ -40,6 +40,7 @@ interface TaskBackup {
   orderToken: string;
   lastToggledAt: number;
   createdAt: number;
+  nature?: "red" | "green" | "unknown";
   templateId: string | null;
   templateDate: number | null;
   // Legacy fields for backwards compatibility (when loading old backups)
@@ -163,6 +164,7 @@ const getNewModels = action(function* (backup: Backup) {
       orderToken: taskBackup.orderToken,
       lastToggledAt: taskBackup.lastToggledAt,
       createdAt: taskBackup.createdAt,
+      nature: taskBackup.nature || "unknown",
       templateId: taskBackup.templateId || null,
       templateDate: taskBackup.templateDate || null,
     };

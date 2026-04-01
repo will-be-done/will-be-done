@@ -278,7 +278,31 @@ export const TaskComp = ({
     const isMoveRight =
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
 
-    if (e.code === "Space" && noModifiers) {
+    if (e.code === "Digit1" && noModifiers) {
+      e.preventDefault();
+
+      dispatch(
+        cardsTasksSlice.updateTask(taskId, {
+          nature: "red",
+        }),
+      );
+    } else if (e.code === "Digit2" && noModifiers) {
+      e.preventDefault();
+
+      dispatch(
+        cardsTasksSlice.updateTask(taskId, {
+          nature: "green",
+        }),
+      );
+    } else if (e.code === "Digit3" && noModifiers) {
+      e.preventDefault();
+
+      dispatch(
+        cardsTasksSlice.updateTask(taskId, {
+          nature: "unknown",
+        }),
+      );
+    } else if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
       handleTick();
@@ -702,7 +726,11 @@ export const TaskComp = ({
                 : "flex items-center justify-between",
               isTask(card) && card.state === "done"
                 ? "bg-done-panel-tinted text-done-content"
-                : "bg-panel-tinted text-content-tinted",
+                : isTask(card) && card.nature === "red"
+                  ? "bg-nature-red text-nature-red-content"
+                  : isTask(card) && card.nature === "green"
+                    ? "bg-nature-green text-nature-green-content"
+                    : "bg-panel-tinted text-content-tinted",
             )}
           >
             <div>{category.title}</div>
@@ -723,7 +751,7 @@ export const TaskComp = ({
                         "hover:bg-black/5 dark:hover:bg-white/5",
                         shouldHighlightTime
                           ? "text-amber-400"
-                          : "text-content-tinted hover:text-content",
+                          : "hover:text-content",
                       )}
                       onClick={(e) => e.stopPropagation()}
                     >

@@ -26,6 +26,8 @@ import { projectCategoriesSlice } from ".";
 export const taskType = "task";
 type TaskState = "todo" | "done";
 
+export type TaskNature = "red" | "green" | "unknown";
+
 export type Task = {
   type: typeof taskType;
   id: string;
@@ -35,6 +37,7 @@ export type Task = {
   projectCategoryId: string;
   orderToken: string;
   lastToggledAt: number;
+  nature?: TaskNature;
   createdAt: number;
   templateId: string | null;
   templateDate: number | null;
@@ -51,6 +54,7 @@ export const defaultTask: Task = {
   orderToken: "",
   lastToggledAt: 0,
   createdAt: 0,
+  nature: "unknown",
   templateId: null,
   templateDate: null,
 };
@@ -135,6 +139,7 @@ export const createTask = action(function* (
     templateId: null,
     templateDate: null,
     ...task,
+    nature: task.nature ?? "unknown",
   };
 
   yield* insert(tasksTable, [newTask]);
@@ -267,6 +272,7 @@ export const createFromTemplate = action(function* (taskTemplate: TaskTemplate) 
     type: taskType,
     orderToken: taskTemplate.orderToken,
     lastToggledAt: Date.now(),
+    nature: "unknown",
     createdAt: taskTemplate.createdAt,
     templateId: null,
     templateDate: null,

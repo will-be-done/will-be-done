@@ -18,7 +18,7 @@ import {
   projectCategoriesSlice,
   projectCategoryCardsSlice,
 } from ".";
-import { type Task } from "./cardsTasks";
+import { type Task, type TaskNature } from "./cardsTasks";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
@@ -38,6 +38,7 @@ export type TaskTemplate = {
   createdAt: number;
   lastGeneratedAt: number;
   projectCategoryId: string;
+  nature?: TaskNature;
 };
 
 export const isTaskTemplate = isObjectType<TaskTemplate>(taskTemplateType);
@@ -87,6 +88,7 @@ const templateToTask = selector(function* (
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
     lastToggledAt: epoch,
+    nature: tmpl.nature,
     createdAt: epoch,
     templateId: tmpl.id,
     templateDate: epoch,
