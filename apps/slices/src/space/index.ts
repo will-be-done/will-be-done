@@ -21,7 +21,7 @@ export type { AnyModelType } from "./maps";
 // Direct re-exports of types, type guards, constants, tables, and default values
 
 // cardsTasks
-export type { Task } from "./cardsTasks";
+export type { Task, TaskNature } from "./cardsTasks";
 export { taskType, isTask, defaultTask, tasksTable } from "./cardsTasks";
 
 // cardsTaskTemplates
