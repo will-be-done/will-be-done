@@ -384,4 +384,66 @@ describe("first-creator-wins merge", () => {
     expect(row).toBeDefined();
     expect(row!.title).toBe("remote-title"); // inserted as-is
   });
+
+  it("normal update sync is not blocked by FCW guard (same createdAt)", () => {
+    resetClock();
+    const db = createDB();
+    const entityId = "entity-6";
+    const sharedCreatedAt = "0000000010-0001-client1";
+
+    // Both sides share the same entity with the same createdAt (synced earlier)
+    localCreate(
+      db,
+      { type: "task", id: entityId, title: "original", orderToken: "a", createdAt: 100 },
+      sharedCreatedAt,
+    );
+
+    // Remote sends an update (same createdAt, newer field timestamp)
+    const incoming: ChangesetArrayType = [
+      {
+        tableName: "testItems",
+        data: [
+          {
+            row: {
+              type: "task",
+              id: entityId,
+              title: "updated-by-remote",
+              orderToken: "a",
+              createdAt: 100,
+            },
+            change: {
+              id: `testItems:${entityId}`,
+              entityId,
+              tableName: "testItems",
+              createdAt: sharedCreatedAt, // same creation clock
+              updatedAt: "0000000020-0001-client1",
+              deletedAt: null,
+              clientId: "client1",
+              changes: {
+                type: sharedCreatedAt,
+                id: sharedCreatedAt,
+                title: "0000000020-0001-client1", // title updated later
+                orderToken: sharedCreatedAt,
+                createdAt: sharedCreatedAt,
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    syncDispatch(
+      db,
+      changesSlice.mergeChanges(
+        incoming,
+        makeClockFn("0000000030"),
+        "local",
+        registeredTables,
+      ),
+    );
+
+    const row = getRow(db, entityId);
+    expect(row).toBeDefined();
+    expect(row!.title).toBe("updated-by-remote"); // update must not be dropped
+  });
 });

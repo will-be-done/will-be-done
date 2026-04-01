@@ -274,7 +274,8 @@ const mergeChangesAction = action(function* (
         currentChanges != null &&
         currentRow != null &&
         incomingRow != null &&
-        incomingChange.deletedAt == null
+        incomingChange.deletedAt == null &&
+        currentChanges.createdAt !== incomingChange.createdAt
       ) {
         const currentCreatedFirst =
           currentChanges.createdAt <= incomingChange.createdAt;

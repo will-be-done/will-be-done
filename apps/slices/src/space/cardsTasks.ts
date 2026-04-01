@@ -272,7 +272,7 @@ export const createFromTemplate = action(function* (taskTemplate: TaskTemplate) 
     type: taskType,
     orderToken: taskTemplate.orderToken,
     lastToggledAt: Date.now(),
-    nature: "unknown",
+    nature: taskTemplate.nature ?? "unknown",
     createdAt: taskTemplate.createdAt,
     templateId: null,
     templateDate: null,
