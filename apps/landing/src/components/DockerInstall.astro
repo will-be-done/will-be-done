@@ -1,0 +1,124 @@
+---
+interface Props {
+  gridClass?: string;
+}
+
+const { gridClass = 'gap-8 lg:grid-cols-2 lg:gap-12 items-center' } = Astro.props;
+---
+
+<div class={`grid ${gridClass}`}>
+  <div>
+    <div class="mb-4 inline-flex items-center gap-2 rounded-lg bg-slate-800/50 px-3 py-1.5">
+      <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+      </svg>
+      <span class="text-[12px] font-medium text-slate-400">Self-hosted</span>
+    </div>
+
+    <h2 class="mb-4 text-2xl font-bold tracking-tight text-white md:text-3xl">
+      One command to own your data
+    </h2>
+
+    <p class="mb-6 text-[15px] leading-relaxed text-slate-400">
+      Run it on your own server. No external dependencies, no accounts, no tracking. Just a simple Docker container.
+    </p>
+
+    <ul class="space-y-3 text-[14px] text-slate-400">
+      <li class="flex items-center gap-3">
+        <div class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 shrink-0">
+          <svg class="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        SQLite database, easily backed up
+      </li>
+      <li class="flex items-center gap-3">
+        <div class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 shrink-0">
+          <svg class="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        Local-first: full database in the browser, works offline even when your homelab is not available
+      </li>
+      <li class="flex items-center gap-3">
+        <div class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 shrink-0">
+          <svg class="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        Multi-space support for work &amp; personal
+      </li>
+    </ul>
+  </div>
+
+  <div class="overflow-hidden rounded-xl bg-[#0d0d14] ring-1 ring-white/[0.08]">
+    <div class="flex items-center gap-2 bg-[#1a1a1f] px-3 py-2.5">
+      <div class="flex gap-1.5">
+        <div class="h-2.5 w-2.5 rounded-full bg-[#ff5f57]"></div>
+        <div class="h-2.5 w-2.5 rounded-full bg-[#febc2e]"></div>
+        <div class="h-2.5 w-2.5 rounded-full bg-[#28c840]"></div>
+      </div>
+      <span class="ml-2 text-[11px] text-slate-500">terminal</span>
+      <button
+        data-copy-docker-btn
+        aria-label="Copy Docker command"
+        title="Copy to clipboard"
+        class="ml-auto flex items-center gap-1.5 rounded px-1.5 py-1 text-slate-500 transition-colors duration-150 hover:text-slate-200 cursor-pointer"
+      >
+        <svg data-copy-icon class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+        <svg data-check-icon class="h-3.5 w-3.5 hidden text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+        <span data-copy-label class="text-[11px]">Copy</span>
+      </button>
+    </div>
+    <pre class="overflow-x-auto p-5 font-mono text-[13px] leading-relaxed"><code><span class="text-slate-500">$</span> <span class="text-slate-200">docker run -d \</span>
+  <span class="text-slate-400">-p 3000:3000 \</span>
+  <span class="text-slate-400">-v will_be_done:/var/lib/will-be-done \</span>
+  <span class="text-slate-400">--restart unless-stopped \</span>
+  <span class="text-blue-400">ghcr.io/will-be-done/will-be-done:latest</span>
+
+<span class="text-green-400">✓</span> <span class="text-slate-400">Running at</span> <span class="text-blue-300">http://localhost:3000</span></code></pre>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-copy-docker-btn]').forEach((btn) => {
+    const copyIcon = btn.querySelector<HTMLElement>('[data-copy-icon]')!;
+    const checkIcon = btn.querySelector<HTMLElement>('[data-check-icon]')!;
+    const label = btn.querySelector<HTMLElement>('[data-copy-label]')!;
+
+    const cmd = `docker run -d \\\n  -p 3000:3000 \\\n  -v will_be_done:/var/lib/will-be-done \\\n  --restart unless-stopped \\\n  ghcr.io/will-be-done/will-be-done:latest`;
+
+    let resetTimer: ReturnType<typeof setTimeout> | null = null;
+
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(cmd);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = cmd;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+
+      copyIcon.classList.add('hidden');
+      checkIcon.classList.remove('hidden');
+      label.textContent = 'Copied!';
+      window.posthog?.capture('docker_cmd_copied');
+
+      if (resetTimer) clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => {
+        copyIcon.classList.remove('hidden');
+        checkIcon.classList.add('hidden');
+        label.textContent = 'Copy';
+      }, 2000);
+    });
+  });
+</script>
