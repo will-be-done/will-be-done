@@ -67,6 +67,14 @@ docker run -d \
 
 Then open http://localhost:3000 in your browser.
 
+### macOS Desktop App
+
+If macOS blocks the app from opening, run:
+
+```bash
+sudo xattr -rd com.apple.quarantine "/Applications/Will Be Done.app"
+```
+
 ## Features
 
 **Plan your week, not just your tasks**
