@@ -358,8 +358,14 @@ function buildMenu(): void {
       submenu: [
         // { role: 'reload' },
         // { role: 'forceReload' },
-        // { role: 'toggleDevTools' },
-        // { type: 'separator' },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator: 'CommandOrControl+Alt+I',
+          click: () => {
+            BrowserWindow.getFocusedWindow()?.webContents.toggleDevTools()
+          }
+        },
+        { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },
@@ -403,11 +409,6 @@ app.whenReady().then(() => {
   // Global shortcut for quick-add task
   globalShortcut.register('CmdOrCtrl+Shift+A', () => {
     showPopup()
-  })
-
-  globalShortcut.register('CommandOrControl+Alt+I', () => {
-    const focusedWindow = BrowserWindow.getFocusedWindow()
-    focusedWindow?.webContents.toggleDevTools()
   })
 
   // IPC: get/set server URL, reload window to new server
