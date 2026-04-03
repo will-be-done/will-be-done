@@ -33,6 +33,7 @@ import {
   cardsSlice,
   projectCategoriesSlice,
   cardsTasksSlice,
+  cardsTaskTemplatesSlice,
   dailyListsProjectionsSlice,
   AnyModelType,
   type Task,
@@ -281,27 +282,27 @@ export const TaskComp = ({
     if (e.code === "Digit1" && noModifiers) {
       e.preventDefault();
 
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          nature: "red",
-        }),
-      );
+      if (isTask(card)) {
+        dispatch(cardsTasksSlice.updateTask(taskId, { nature: "red" }));
+      } else if (isTaskTemplate(card)) {
+        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "red" }));
+      }
     } else if (e.code === "Digit2" && noModifiers) {
       e.preventDefault();
 
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          nature: "green",
-        }),
-      );
+      if (isTask(card)) {
+        dispatch(cardsTasksSlice.updateTask(taskId, { nature: "green" }));
+      } else if (isTaskTemplate(card)) {
+        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "green" }));
+      }
     } else if (e.code === "Digit3" && noModifiers) {
       e.preventDefault();
 
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          nature: "unknown",
-        }),
-      );
+      if (isTask(card)) {
+        dispatch(cardsTasksSlice.updateTask(taskId, { nature: "unknown" }));
+      } else if (isTaskTemplate(card)) {
+        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "unknown" }));
+      }
     } else if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
@@ -726,9 +727,9 @@ export const TaskComp = ({
                 : "flex items-center justify-between",
               isTask(card) && card.state === "done"
                 ? "bg-done-panel-tinted text-done-content"
-                : isTask(card) && card.nature === "red"
+                : (isTask(card) || isTaskTemplate(card)) && card.nature === "red"
                   ? "bg-nature-red text-nature-red-content"
-                  : isTask(card) && card.nature === "green"
+                  : (isTask(card) || isTaskTemplate(card)) && card.nature === "green"
                     ? "bg-nature-green text-nature-green-content"
                     : "bg-panel-tinted text-content-tinted",
             )}
