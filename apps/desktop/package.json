@@ -1,6 +1,6 @@
 {
   "name": "will-be-done",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Task management app",
   "main": "./out/main/index.js",
   "author": "quolpr",
