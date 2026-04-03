@@ -125,7 +125,7 @@ UI/UX:
 - [ ] Multi selection of tasks
 - [ ] Global command palette
 - [ ] More vim keybindings
-- [ ] Global themes.
+- [ ] Global themes
 - [ ] Undo/redo action
 - [ ] DnD for project columns
 - [ ] I18n
@@ -136,9 +136,9 @@ Others:
 - [ ] Global search
 
 Separate apps:
-- [ ] Desktop app with global quick add, notifications support
+- [x] Desktop app with global quick add
 - [ ] Mobile app with notifications and widgets support
-- [ ] Chrome extension for quick add
+- [ ] Notifications on web, mobile, desktop apps
 
 ## Features that are not planning for now
 
