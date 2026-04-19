@@ -22,7 +22,11 @@ export const TasksColumnGrid = ({
   paddingLeft?: number;
 }) => {
   return (
-    <div className="relative max-h-full h-full overflow-x-clip">
+    <div
+      data-focus-region-direction="row"
+      className="relative max-h-full h-full overflow-x-clip"
+    >
+      {floatingColumn}
       <div
         className="max-h-full h-full overflow-x-auto"
         style={{
@@ -31,7 +35,6 @@ export const TasksColumnGrid = ({
         }}
       >
         <div
-          data-focus-region-direction="row"
           className="grid max-h-full h-full"
           style={{
             gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
@@ -41,7 +44,6 @@ export const TasksColumnGrid = ({
           {children}
         </div>
       </div>
-      {floatingColumn}
     </div>
   );
 };

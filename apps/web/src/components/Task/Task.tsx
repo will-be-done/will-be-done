@@ -40,6 +40,12 @@ import {
   type CardWrapperType,
   isTask,
   isTaskTemplate,
+  dailyListType,
+  projectionType,
+  projectCategoryType,
+  stashProjectionType,
+  stashType,
+  taskType,
 } from "@will-be-done/slices/space";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -133,6 +139,26 @@ export const DropTaskIndicator = ({
       )}
     ></div>
   );
+};
+
+const getFocusKeyForColumnMoveTarget = (
+  taskId: string,
+  targetColumnModelType: string,
+  fallbackKey: ReturnType<typeof buildFocusKey>,
+) => {
+  if (targetColumnModelType === stashType) {
+    return buildFocusKey(taskId, stashProjectionType);
+  }
+
+  if (targetColumnModelType === dailyListType) {
+    return buildFocusKey(taskId, projectionType);
+  }
+
+  if (targetColumnModelType === projectCategoryType) {
+    return buildFocusKey(taskId, taskType);
+  }
+
+  return fallbackKey;
 };
 
 // TODO: rename to project item
@@ -321,6 +347,12 @@ export const TaskComp = ({
 
       const targetColumnModel = isMoveLeft ? leftColumnModel : rightColumnModel;
       if (targetColumnModel) {
+        const targetFocusKey = getFocusKeyForColumnMoveTarget(
+          cardWrapper.id,
+          targetColumnModel.type,
+          focusableItemKey,
+        );
+
         dispatch(
           appSlice.handleDrop(
             targetColumnModel.id,
@@ -332,6 +364,11 @@ export const TaskComp = ({
         );
 
         setTimeout(() => {
+          if (targetFocusKey !== focusableItemKey) {
+            useFocusStore.getState().focusByKey(targetFocusKey);
+            return;
+          }
+
           const el = document.querySelector<HTMLElement>(
             `[data-focusable-key="${focusableItemKey}"]`,
           );
