@@ -309,7 +309,7 @@ const ProjectItem = function ProjectItemComp({
 
   const overdueTasksCount = useSyncSelector(
     () =>
-      projectsSlice.overdueTasksCountExceptDailiesCount(
+      projectsSlice.overdueTasksCountExceptDailiesAndStashCount(
         project.id,
         exceptDailyListIds,
         currentDate,
@@ -318,7 +318,7 @@ const ProjectItem = function ProjectItemComp({
   );
   const notDoneTasksCount = useSyncSelector(
     () =>
-      projectsSlice.notDoneTasksCountExceptDailiesCount(
+      projectsSlice.notDoneTasksCountExceptDailiesAndStashCount(
         project.id,
         exceptDailyListIds,
       ),
@@ -592,6 +592,7 @@ export const ProjectView = ({
         <ProjectItemsList
           project={project}
           exceptDailyListIds={exceptDailyListIds}
+          exceptStash
         />
       </div>
       <div

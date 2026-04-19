@@ -65,6 +65,10 @@ export const allIds = selector(function* () {
   return projections.map((p) => p.id);
 });
 
+export const allTaskIds = selector(function* () {
+  return new Set(yield* allIds());
+});
+
 export const byId = selector(function* (id: string) {
   const projections = yield* runQuery(
     selectFrom(stashProjectionsTable, "byId")
