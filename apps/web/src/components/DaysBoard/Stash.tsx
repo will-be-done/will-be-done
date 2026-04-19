@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   projectsSlice,
@@ -10,26 +10,12 @@ import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
-import { createJSONStorage, persist } from "zustand/middleware";
-import { create } from "zustand";
-
-export const useStashOpen = create<{
-  isOpen: boolean;
-  toggle: () => void;
-  setOpen: (v: boolean) => void;
-}>()(
-  persist(
-    (set) => ({
-      isOpen: false,
-      toggle: () => set((s) => ({ isOpen: !s.isOpen })),
-      setOpen: (v: boolean) => set({ isOpen: v }),
-    }),
-    {
-      name: "stash-open",
-      storage: createJSONStorage(() => localStorage),
-    },
-  ),
-);
+import { ResizableDivider } from "./ResizableDivider.tsx";
+import {
+  STASH_BUTTON_WIDTH,
+  useStashOpen,
+  useStashSize,
+} from "./StashStore.ts";
 
 const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
   const taskIds = useSyncSelector(
@@ -98,9 +84,12 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
 };
 
 export const FloatingStash = () => {
+  const rootRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
   const { isOpen, toggle } = useStashOpen();
+  const width = useStashSize((s) => s.width);
+  const setWidth = useStashSize((s) => s.setWidth);
 
   const handleAddTask = useCallback(() => {
     const task = dispatch(
@@ -112,49 +101,73 @@ export const FloatingStash = () => {
       .editByKey(buildFocusKey(task.id, "stashProjection"));
   }, [dispatch, inboxId]);
 
+  const handleResize = useCallback(
+    (clientX: number) => {
+      const rootLeft = rootRef.current?.getBoundingClientRect().left ?? 0;
+      setWidth(clientX - rootLeft);
+    },
+    [setWidth],
+  );
+
   return (
     <div
+      ref={rootRef}
       className={cn(
         "absolute left-0 top-0 h-full flex z-10",
         "transition-transform duration-200 ease-out",
       )}
       style={{
-        transform: isOpen ? "translateX(0)" : "translateX(calc(-100% + 32px))",
+        transform: isOpen
+          ? "translateX(0)"
+          : `translateX(calc(-100% + ${STASH_BUTTON_WIDTH}px))`,
       }}
     >
       <div
         className={cn(
-          "w-[400px] h-full bg-surface/95 backdrop-blur-sm",
+          "h-full bg-surface/95 backdrop-blur-sm",
           "border-r border-ring/20",
           "overflow-hidden",
         )}
+        style={{ width: `${width}px` }}
       >
         {isOpen && <StashColumnView onTaskAdd={handleAddTask} />}
       </div>
 
-      <button
-        type="button"
-        onClick={toggle}
+      <div
         className={cn(
           "flex items-center justify-center w-8 flex-shrink-0 h-full",
           "bg-panel-tinted/80 backdrop-blur-sm",
           "border-r border-ring/30",
-          "cursor-pointer transition-colors",
+          "relative transition-colors",
           "hover:bg-panel-tinted",
           isOpen && "border-l border-ring/30",
         )}
+        style={{ width: `${STASH_BUTTON_WIDTH}px` }}
       >
-        <span
-          className="text-xs font-bold uppercase tracking-widest text-content-tinted select-none"
-          style={{
-            writingMode: "vertical-rl",
-            textOrientation: "mixed",
-            transform: "rotate(180deg)",
-          }}
+        {isOpen && (
+          <ResizableDivider
+            orientation="vertical"
+            onResizePosition={handleResize}
+            className="left-0 top-0"
+          />
+        )}
+        <button
+          type="button"
+          onClick={toggle}
+          className="flex h-full w-full cursor-pointer items-center justify-center"
         >
-          stash
-        </span>
-      </button>
+          <span
+            className="text-xs font-bold uppercase tracking-widest text-content-tinted select-none"
+            style={{
+              writingMode: "vertical-rl",
+              textOrientation: "mixed",
+              transform: "rotate(180deg)",
+            }}
+          >
+            stash
+          </span>
+        </button>
+      </div>
     </div>
   );
 };

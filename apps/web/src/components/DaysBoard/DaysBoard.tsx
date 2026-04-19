@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
@@ -23,7 +23,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
-import { FloatingStash, useStashOpen } from "./Stash.tsx";
+import { FloatingStash } from "./Stash.tsx";
+import { getStashOpenWidth, useStashOpen, useStashSize } from "./StashStore.ts";
 
 const ColumnView = ({
   dailyListId,
@@ -161,9 +162,11 @@ const BoardView = ({
   dailyListsIds: string[];
   selectedProjectId: string;
 }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
   const dispatch = useDispatch();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
   const isStashOpen = useStashOpen((s) => s.isOpen);
+  const stashWidth = useStashSize((s) => s.width);
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
@@ -190,15 +193,21 @@ const BoardView = ({
   // const [projectsViewHeight, setProjectsViewHeight] = useState(20);
   // const [projectsViewHidden, setProjectsViewHidden] = useState(false);
 
-  const handleProjectsResize = (deltaX: number) => {
-    const containerHeight = window.innerHeight;
-    const deltaPercentage = (deltaX / containerHeight) * 100;
-    const newHeight = Math.max(
-      10,
-      Math.min(80, projectsViewHeight - deltaPercentage),
-    );
-    setProjectsViewHeight(newHeight);
-  };
+  const handleProjectsResize = useCallback(
+    (clientY: number) => {
+      const rootRect = rootRef.current?.getBoundingClientRect();
+      if (!rootRect) {
+        return;
+      }
+
+      const heightPercentage =
+        ((rootRect.bottom - clientY) / rootRect.height) * 100;
+
+      const newHeight = Math.max(10, Math.min(80, heightPercentage));
+      setProjectsViewHeight(newHeight);
+    },
+    [setProjectsViewHeight],
+  );
 
   const handleHideClick = () => {
     setProjectsViewHidden(!projectsViewHidden);
@@ -250,7 +259,7 @@ const BoardView = ({
 
   return (
     <>
-      <div className="flex flex-col w-full">
+      <div ref={rootRef} className="flex flex-col w-full">
         <div
           className="overflow-y-auto pt-10"
           style={{
@@ -264,7 +273,7 @@ const BoardView = ({
           <TasksColumnGrid
             columnsCount={7}
             floatingColumn={<FloatingStash />}
-            paddingLeft={isStashOpen ? 432 : 32}
+            paddingLeft={isStashOpen ? getStashOpenWidth(stashWidth) : 32}
           >
             {dailyListsIds.map((id) => (
               <ColumnView dailyListId={id} onTaskAdd={handleAddTask} key={id} />
@@ -304,7 +313,7 @@ const BoardView = ({
           }}
         >
           <ResizableDivider
-            onResize={handleProjectsResize}
+            onResizePosition={handleProjectsResize}
             onHideClick={handleHideClick}
             isHidden={projectsViewHidden}
           />
