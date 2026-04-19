@@ -45,9 +45,9 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
         <button
           type="button"
           onClick={onTaskAdd}
-          className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 transition-colors group cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 transition-colors group/stash-add cursor-pointer"
         >
-          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover/stash-add:opacity-100 transition-opacity">
             <svg
               width="8"
               height="8"
@@ -176,7 +176,9 @@ export const FloatingStash = () => {
           "border-r border-ring/30",
           "relative transition-colors",
           "hover:bg-panel-tinted",
-          isTaskOverButton && "bg-accent/10 ring-2 ring-accent ring-inset",
+          isTaskOverButton &&
+            !isOpen &&
+            "bg-accent/10 ring-2 ring-accent ring-inset",
           isOpen && "border-l border-ring/30",
         )}
         style={{ width: `${STASH_BUTTON_WIDTH}px` }}
