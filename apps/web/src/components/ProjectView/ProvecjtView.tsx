@@ -1,7 +1,7 @@
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
@@ -37,6 +37,37 @@ import {
 import { Popover } from "@/components/ui/popover.tsx";
 import { useCurrentDate } from "../DaysBoard/hooks.tsx";
 import { promptDialog } from "@/components/ui/prompt-dialog";
+import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { create } from "zustand";
+
+const MIN_PROJECTS_LIST_WIDTH = 240;
+const MAX_PROJECTS_LIST_WIDTH = 520;
+
+type ProjectsListSize = {
+  width: number;
+  setWidth: (value: number) => void;
+};
+
+const useProjectsListSize = create<ProjectsListSize>()(
+  persist(
+    (set) => ({
+      width: 320,
+      setWidth: (value: number) => {
+        set({
+          width: Math.max(
+            MIN_PROJECTS_LIST_WIDTH,
+            Math.min(MAX_PROJECTS_LIST_WIDTH, value),
+          ),
+        });
+      },
+    }),
+    {
+      name: "projects-list-size",
+      storage: createJSONStorage(() => localStorage),
+    },
+  ),
+);
 
 const ProjectDragPreview = function TaskPrimitiveComponent({
   title,
@@ -305,7 +336,10 @@ const ProjectItem = function ProjectItemComp({
   // );
 
   const handleEditClick = async () => {
-    const newTitle = await promptDialog("Enter new project title", project.title);
+    const newTitle = await promptDialog(
+      "Enter new project title",
+      project.title,
+    );
 
     if (newTitle == "" || newTitle == null) {
       return;
@@ -492,9 +526,12 @@ export const ProjectView = ({
   >;
   selectedProjectId: string;
 }) => {
+  const projectsListRef = useRef<HTMLDivElement>(null);
   // const [selectedProjectId, setSelectedProjectId] = useState(inboxId);
 
   const dispatch = useDispatch();
+  const projectsListWidth = useProjectsListSize((s) => s.width);
+  const setProjectsListWidth = useProjectsListSize((s) => s.setWidth);
   const project = useSyncSelector(
     function* () {
       if (selectedProjectId == "inbox") {
@@ -530,6 +567,16 @@ export const ProjectView = ({
     }
   };
 
+  const handleProjectsListResize = useCallback(
+    (clientX: number) => {
+      const rootRight =
+        projectsListRef.current?.getBoundingClientRect().right ??
+        window.innerWidth;
+      setProjectsListWidth(rootRight - clientX);
+    },
+    [setProjectsListWidth],
+  );
+
   if (!project) {
     return <div>Project not found</div>;
   }
@@ -548,9 +595,16 @@ export const ProjectView = ({
         />
       </div>
       <div
+        ref={projectsListRef}
         data-focus-column
-        className="w-80 h-full bg-surface-elevated ml-auto rounded-l-lg flex flex-col shrink-0 ring-1 ring-ring"
+        className="relative h-full bg-surface-elevated ml-auto flex flex-col shrink-0 ring-1 ring-ring"
+        style={{ width: `${projectsListWidth}px` }}
       >
+        <ResizableDivider
+          orientation="vertical"
+          onResizePosition={handleProjectsListResize}
+          className="left-0 top-0 "
+        />
         <div className="flex justify-center text-content-tinted my-3 mx-3 text-[13px] font-medium">
           Projects
         </div>

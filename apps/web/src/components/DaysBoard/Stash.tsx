@@ -1,11 +1,15 @@
-import { useCallback, useRef } from "react";
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
+import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
+  appSlice,
   projectsSlice,
   stashProjectionsSlice,
   STASH_ID,
   stashType,
 } from "@will-be-done/slices/space";
+import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
@@ -35,6 +39,7 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
       header={null}
       columnModelId={STASH_ID}
       columnModelType={stashType}
+      panelWidth={200}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4 min-h-full")}>
         <button
@@ -85,11 +90,42 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
 
 export const FloatingStash = () => {
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const dispatch = useDispatch();
+  const select = useSelect();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
   const { isOpen, toggle } = useStashOpen();
   const width = useStashSize((s) => s.width);
   const setWidth = useStashSize((s) => s.setWidth);
+  const [isTaskOverButton, setIsTaskOverButton] = useState(false);
+
+  useEffect(() => {
+    const element = buttonRef.current;
+    if (!element) return;
+
+    return combine(
+      dropTargetForElements({
+        element,
+        getData: (): DndModelData => ({
+          modelId: STASH_ID,
+          modelType: stashType,
+        }),
+        canDrop: ({ source }) => {
+          const data = source.data;
+          if (!isModelDNDData(data)) return false;
+
+          return select(
+            appSlice.canDrop(STASH_ID, stashType, data.modelId, data.modelType),
+          );
+        },
+        getIsSticky: () => true,
+        onDragEnter: () => setIsTaskOverButton(true),
+        onDragLeave: () => setIsTaskOverButton(false),
+        onDragStart: () => setIsTaskOverButton(true),
+        onDrop: () => setIsTaskOverButton(false),
+      }),
+    );
+  }, [select]);
 
   const handleAddTask = useCallback(() => {
     const task = dispatch(
@@ -140,6 +176,7 @@ export const FloatingStash = () => {
           "border-r border-ring/30",
           "relative transition-colors",
           "hover:bg-panel-tinted",
+          isTaskOverButton && "bg-accent/10 ring-2 ring-accent ring-inset",
           isOpen && "border-l border-ring/30",
         )}
         style={{ width: `${STASH_BUTTON_WIDTH}px` }}
@@ -152,9 +189,10 @@ export const FloatingStash = () => {
           />
         )}
         <button
+          ref={buttonRef}
           type="button"
           onClick={toggle}
-          className="flex h-full w-full cursor-pointer items-center justify-center"
+          className="flex h-full w-full cursor-pointer items-center justify-center focus:outline-none"
         >
           <span
             className="text-xs font-bold uppercase tracking-widest text-content-tinted select-none"
