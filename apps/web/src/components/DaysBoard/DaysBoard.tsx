@@ -23,6 +23,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
+import { FloatingStash, useStashOpen } from "./Stash.tsx";
 
 const ColumnView = ({
   dailyListId,
@@ -162,6 +163,7 @@ const BoardView = ({
 }) => {
   const dispatch = useDispatch();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
+  const isStashOpen = useStashOpen((s) => s.isOpen);
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
@@ -259,7 +261,11 @@ const BoardView = ({
         >
           {/* <ScrollArea.Root style={{ height: `${100 - height}%` }}> */}
           {/*   <ScrollArea.Viewport className="h-full overscroll-contain rounded-md w-full pr-4 pl-1"> */}
-          <TasksColumnGrid columnsCount={7}>
+          <TasksColumnGrid
+            columnsCount={7}
+            floatingColumn={<FloatingStash />}
+            paddingLeft={isStashOpen ? 432 : 32}
+          >
             {dailyListsIds.map((id) => (
               <ColumnView dailyListId={id} onTaskAdd={handleAddTask} key={id} />
             ))}
