@@ -94,6 +94,11 @@ export const FloatingStash = () => {
   const dispatch = useDispatch();
   const select = useSelect();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
+  const stashTaskIds = useSyncSelector(
+    () => stashProjectionsSlice.childrenIds(),
+    [],
+  );
+  const stashTaskCount = stashTaskIds.length;
   const { isOpen, toggle } = useStashOpen();
   const width = useStashSize((s) => s.width);
   const setWidth = useStashSize((s) => s.setWidth);
@@ -171,14 +176,7 @@ export const FloatingStash = () => {
 
       <div
         className={cn(
-          "flex items-center justify-center w-8 flex-shrink-0 h-full",
-          "bg-panel-tinted/80 backdrop-blur-sm",
-          "border-r border-ring/30",
-          "relative transition-colors",
-          "hover:bg-panel-tinted",
-          isTaskOverButton &&
-            !isOpen &&
-            "bg-accent/10 ring-2 ring-accent ring-inset",
+          "relative flex h-full w-8 flex-shrink-0 items-center justify-center",
           isOpen && "border-l border-ring/30",
         )}
         style={{ width: `${STASH_BUTTON_WIDTH}px` }}
@@ -194,8 +192,21 @@ export const FloatingStash = () => {
           ref={buttonRef}
           type="button"
           onClick={toggle}
-          className="flex h-full w-full cursor-pointer items-center justify-center focus:outline-none"
+          className={cn(
+            "relative flex w-full flex-col items-center justify-center px-0 py-3",
+            "cursor-pointer rounded-r-md border-r border-ring/30",
+            "bg-panel-tinted/80 backdrop-blur-sm transition-colors",
+            "hover:bg-panel-tinted focus:outline-none",
+            isTaskOverButton &&
+              !isOpen &&
+              "bg-accent/10 ring-2 ring-accent ring-inset",
+          )}
         >
+          {stashTaskCount > 0 && (
+            <span className="mb-2.5 flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-content-tinted/10 text-[11px] font-semibold tabular-nums text-content-tinted/60 leading-none select-none ">
+              {stashTaskCount}
+            </span>
+          )}
           <span
             className="text-xs font-bold uppercase tracking-widest text-content-tinted select-none"
             style={{

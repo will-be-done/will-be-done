@@ -87,6 +87,16 @@ const ColumnView = ({
           >
             {format(dailyList.date, "EEEE")}
           </div>
+          <span
+            className="flex items-center justify-center w-5 h-5 rounded-full bg-content-tinted/10 text-[11px] font-semibold tabular-nums text-content-tinted/60 leading-none self-center"
+            style={{
+              writingMode: "horizontal-tb",
+              textOrientation: "initial",
+              transform: "rotate(180deg)",
+            }}
+          >
+            {taskIds.length > 0 ? taskIds.length : ""}
+          </span>
         </>
       }
       columnModelId={dailyList.id}
