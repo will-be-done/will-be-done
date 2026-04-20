@@ -5,6 +5,7 @@ import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   dailyListsSlice,
   projectCategoriesSlice,
+  stashProjectionsSlice,
   type Project,
   type ProjectCategory,
 } from "@will-be-done/slices/space";
@@ -243,17 +244,29 @@ const ProjectTasksColumn = ({
 export const ProjectItemsList = ({
   project,
   exceptDailyListIds,
+  exceptStash = false,
 }: {
   project: Project;
   exceptDailyListIds?: string[];
+  exceptStash?: boolean;
 }) => {
   const categories = useSyncSelector(
     () => projectCategoriesSlice.byProjectId(project.id),
     [project.id],
   );
   const exceptTaskIds = useSyncSelector(
-    () => dailyListsSlice.allTaskIds(exceptDailyListIds ?? []),
-    [exceptDailyListIds],
+    function* () {
+      const dailyTaskIds = yield* dailyListsSlice.allTaskIds(
+        exceptDailyListIds ?? [],
+      );
+      if (!exceptStash) {
+        return dailyTaskIds;
+      }
+
+      const stashTaskIds = yield* stashProjectionsSlice.allTaskIds();
+      return new Set([...dailyTaskIds, ...stashTaskIds]);
+    },
+    [exceptDailyListIds, exceptStash],
   );
 
   return (

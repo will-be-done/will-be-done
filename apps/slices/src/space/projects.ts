@@ -26,6 +26,7 @@ import { projectCategoriesSlice } from ".";
 import { projectCategoryCardsSlice } from ".";
 import { dailyListsSlice } from ".";
 import { dailyListsProjectionsSlice } from ".";
+import { stashProjectionsSlice } from ".";
 import { isTaskProjection } from "./dailyListsProjections";
 import { genUUIDV5 } from "../traits";
 import { startOfDay } from "date-fns";
@@ -185,6 +186,90 @@ export const notDoneTasksCountExceptDailiesCount = selector(function* (
 
   const taskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
   const exceptCardIds: Set<string> = new Set(taskIds);
+
+  const finalChildrenIds: string[] = [];
+  for (const category of categories) {
+    const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
+      category.id,
+    );
+
+    finalChildrenIds.push(...childrenIds);
+  }
+
+  return finalChildrenIds.filter((id) => !exceptCardIds.has(id)).length;
+});
+
+export const overdueTasksCountExceptDailiesAndStashCount = selector(function* (
+  projectId: string,
+  exceptDailyListIds: string[],
+  currentDate: Date,
+): Generator<unknown, number, unknown> {
+  currentDate = startOfDay(currentDate);
+
+  const categories = yield* projectCategoriesSlice.byProjectId(projectId);
+
+  const taskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
+  const stashTaskIds = yield* stashProjectionsSlice.allTaskIds();
+  const exceptCardIds: Set<string> = new Set([...taskIds, ...stashTaskIds]);
+  const exceptDailyListSet = new Set(exceptDailyListIds);
+
+  const dailyListIdsToFetch = new Set<string>();
+  for (const category of categories) {
+    const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
+      category.id,
+    );
+
+    for (const taskId of childrenIds) {
+      if (exceptCardIds.has(taskId)) continue;
+
+      const projection = yield* dailyListsProjectionsSlice.byTaskId(taskId);
+      if (!projection) continue;
+      if (exceptDailyListSet.has(projection.dailyListId)) continue;
+
+      dailyListIdsToFetch.add(projection.dailyListId);
+    }
+  }
+
+  const dailyLists = yield* dailyListsSlice.byIds(
+    Array.from(dailyListIdsToFetch),
+  );
+  const dailyListMap = new Map(dailyLists.map((dl) => [dl.id, dl]));
+
+  let overdueCount = 0;
+  for (const category of categories) {
+    const childrenIds = yield* projectCategoryCardsSlice.childrenIds(
+      category.id,
+    );
+
+    for (const taskId of childrenIds) {
+      if (exceptCardIds.has(taskId)) continue;
+
+      const projection = yield* dailyListsProjectionsSlice.byTaskId(taskId);
+      if (!projection) continue;
+      if (exceptDailyListSet.has(projection.dailyListId)) continue;
+
+      const dailyList = dailyListMap.get(projection.dailyListId);
+      if (!dailyList) continue;
+
+      const listDate = new Date(dailyList.date);
+      if (listDate < currentDate) {
+        overdueCount++;
+      }
+    }
+  }
+
+  return overdueCount;
+});
+
+export const notDoneTasksCountExceptDailiesAndStashCount = selector(function* (
+  projectId: string,
+  exceptDailyListIds: string[],
+): Generator<unknown, number, unknown> {
+  const categories = yield* projectCategoriesSlice.byProjectId(projectId);
+
+  const taskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
+  const stashTaskIds = yield* stashProjectionsSlice.allTaskIds();
+  const exceptCardIds: Set<string> = new Set([...taskIds, ...stashTaskIds]);
 
   const finalChildrenIds: string[] = [];
   for (const category of categories) {
@@ -413,6 +498,8 @@ const projectsSlice = {
   inboxProjectId,
   overdueTasksCountExceptDailiesCount,
   notDoneTasksCountExceptDailiesCount,
+  overdueTasksCountExceptDailiesAndStashCount,
+  notDoneTasksCountExceptDailiesAndStashCount,
   createInboxIfNotExists,
   create,
   update: updateProject,

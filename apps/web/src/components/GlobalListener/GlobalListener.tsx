@@ -15,6 +15,8 @@ import {
   projectType,
   taskType,
   projectionType,
+  stashProjectionType,
+  stashType,
 } from "@will-be-done/slices/space";
 import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
 import { FocusKey, useFocusStore } from "@/store/focusSlice.ts";
@@ -173,8 +175,10 @@ export function GlobalListener() {
           }
 
           const targetImportanceOrder = [
+            stashProjectionType,
             projectionType,
             taskType,
+            stashType,
             dailyListType,
             projectCategoriesSlice.projectCategoryType,
             projectType,
@@ -188,7 +192,10 @@ export function GlobalListener() {
               db,
               appSlice.byId(t.data.modelId, t.data.modelType),
             );
-            if (!entity) return [] as const;
+            if (!entity) {
+              // Virtual models (e.g. stash) have no DB row — use DnD data directly
+              return [[t, { id: t.data.modelId, type: t.data.modelType }] as const];
+            }
             return [[t, entity] as const];
           });
 

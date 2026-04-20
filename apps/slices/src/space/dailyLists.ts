@@ -15,6 +15,8 @@ import { cardsTasksSlice } from ".";
 import { isTask, type Task } from "./cardsTasks";
 import { dailyListsProjectionsSlice } from ".";
 import { TaskProjection, isTaskProjection } from "./dailyListsProjections";
+import { isStashProjection } from "./stashProjections";
+import { stashProjectionsSlice } from ".";
 import { AnyModelType } from "./maps";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice } from "./maps";
@@ -157,6 +159,11 @@ export const canDrop = selector(function* (
     return task !== undefined && task.state === "todo";
   }
 
+  if (isStashProjection(model)) {
+    const task = yield* cardsTasksSlice.byId(model.id);
+    return task !== undefined && task.state === "todo";
+  }
+
   return false;
 });
 
@@ -245,10 +252,14 @@ export const handleDrop = action(function* (
   if (!drop) return;
 
   let taskId: string;
+  let shouldDeleteStashProjection = false;
   if (isTask(drop)) {
     taskId = drop.id;
   } else if (isTaskProjection(drop)) {
     taskId = drop.id; // projection.id is the same as task.id
+  } else if (isStashProjection(drop)) {
+    taskId = drop.id;
+    shouldDeleteStashProjection = true;
   } else {
     return;
   }
@@ -258,6 +269,10 @@ export const handleDrop = action(function* (
     dailyListId,
     edge === "top" ? "prepend" : "append",
   );
+
+  if (shouldDeleteStashProjection) {
+    yield* stashProjectionsSlice.deleteProjections([taskId]);
+  }
 });
 
 // Local slice object for registerModelSlice (not exported)

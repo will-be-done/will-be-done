@@ -13,20 +13,37 @@ import { buildFocusKey } from "@/store/focusSlice.ts";
 export const TasksColumnGrid = ({
   columnsCount,
   children,
+  floatingColumn,
+  paddingLeft,
 }: {
   columnsCount: number;
   children: React.ReactNode;
+  floatingColumn?: React.ReactNode;
+  paddingLeft?: number;
 }) => {
   return (
     <div
       data-focus-region-direction="row"
-      className="grid max-h-full h-full"
-      style={{
-        gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
-        gridTemplateRows: `1fr`,
-      }}
+      className="relative max-h-full h-full overflow-x-clip"
     >
-      {children}
+      {floatingColumn}
+      <div
+        className="max-h-full h-full overflow-x-auto"
+        style={{
+          paddingLeft: paddingLeft ? `${paddingLeft}px` : undefined,
+          transition: "padding-left 200ms ease-out",
+        }}
+      >
+        <div
+          className="grid max-h-full h-full"
+          style={{
+            gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
+            gridTemplateRows: `1fr`,
+          }}
+        >
+          {children}
+        </div>
+      </div>
     </div>
   );
 };
@@ -144,7 +161,7 @@ export const TasksColumn = ({
           </button>
         </div>
         <div
-          className={cn("w-full min-h-0 overflow-y-auto", {
+          className={cn("w-full min-h-0 flex-1 overflow-y-auto", {
             hidden: isHidden,
           })}
           ref={scrollableRef}

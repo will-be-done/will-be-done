@@ -8,8 +8,10 @@ import { AnyModel, appTypeSlicesMap } from "./maps";
 import { projectCategoryCardsSlice } from ".";
 import { dailyListsProjectionsSlice } from ".";
 import { isTaskProjection, TaskProjection } from "./dailyListsProjections";
+import { isStashProjection, StashProjection } from "./stashProjections";
+import { stashProjectionsSlice } from ".";
 
-export type CardWrapper = Task | TaskTemplate | TaskProjection;
+export type CardWrapper = Task | TaskTemplate | TaskProjection | StashProjection;
 export type CardWrapperType = CardWrapper["type"];
 
 export const byId = selector(function* (id: string) {
@@ -27,12 +29,18 @@ export const exists = selector(function* (id: string) {
 });
 
 export const createSiblingCard = action(function* (
-  taskBox: Task | TaskTemplate | TaskProjection,
+  taskBox: Task | TaskTemplate | TaskProjection | StashProjection,
   position: "before" | "after",
   taskParams?: Partial<Task>,
 ) {
   if (isTaskProjection(taskBox)) {
     return yield* dailyListsProjectionsSlice.createSibling(
+      taskBox.id,
+      position,
+      taskParams,
+    );
+  } else if (isStashProjection(taskBox)) {
+    return yield* stashProjectionsSlice.createSibling(
       taskBox.id,
       position,
       taskParams,
@@ -75,6 +83,10 @@ export const taskOfModel = selector(function* (model: AnyModel) {
     return yield* cardsTasksSlice.byId(model.id);
   }
 
+  if (isStashProjection(model)) {
+    return yield* cardsTasksSlice.byId(model.id);
+  }
+
   if (isTask(model)) {
     return model as Task;
   }
@@ -86,4 +98,5 @@ export const deleteByIds = action(function* (ids: string[]) {
   yield* cardsTasksSlice.deleteByIds(ids);
   yield* cardsTaskTemplatesSlice.deleteTemplates(ids);
   yield* dailyListsProjectionsSlice.deleteProjections(ids);
+  yield* stashProjectionsSlice.deleteProjections(ids);
 });

@@ -27,13 +27,19 @@ export const canDrop = selector(function* (
   dropId: string,
   dropModelType: AnyModelType,
 ) {
+  const slice = appTypeSlicesMap[modelType];
+  if (!slice) throw new Error(`Unknown model type: ${modelType}`);
+
   const model = yield* byId(id, modelType);
-  if (!model) return false;
+  if (!model) {
+    // For virtual models (e.g. stash) that have no DB row, use modelType directly
+    return yield* slice.canDrop(id, dropId, dropModelType);
+  }
 
-  const slice = appTypeSlicesMap[model.type];
-  if (!slice) throw new Error(`Unknown model type: ${model.type}`);
+  const modelSlice = appTypeSlicesMap[model.type];
+  if (!modelSlice) throw new Error(`Unknown model type: ${model.type}`);
 
-  return yield* slice.canDrop(id, dropId, dropModelType);
+  return yield* modelSlice.canDrop(id, dropId, dropModelType);
 });
 
 export const handleDrop = action(function* (
@@ -43,13 +49,20 @@ export const handleDrop = action(function* (
   dropModelType: AnyModelType,
   edge: "top" | "bottom",
 ): Generator<unknown, void, unknown> {
+  const slice = appTypeSlicesMap[modelType];
+  if (!slice) throw new Error(`Unknown model type: ${modelType}`);
+
   const model = yield* byId(id, modelType);
-  if (!model) return;
+  if (!model) {
+    // For virtual models (e.g. stash) that have no DB row, use modelType directly
+    yield* slice.handleDrop(id, dropId, dropModelType, edge);
+    return;
+  }
 
-  const slice = appTypeSlicesMap[model.type];
-  if (!slice) throw new Error(`Unknown model type: ${model.type}`);
+  const modelSlice = appTypeSlicesMap[model.type];
+  if (!modelSlice) throw new Error(`Unknown model type: ${model.type}`);
 
-  yield* slice.handleDrop(id, dropId, dropModelType, edge);
+  yield* modelSlice.handleDrop(id, dropId, dropModelType, edge);
 });
 
 export const deleteModel = action(function* (
