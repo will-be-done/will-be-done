@@ -18,6 +18,18 @@ docker run -d \
   ghcr.io/will-be-done/will-be-done:latest
 ```
 
+## Why build another task manager?
+
+My core idea is to build a task manager that will stay with me for the rest of my life. Because of that, one of my main requirements is that it stays fast even with a massive database. If I have 10k+ tasks saved over the years, it should still load quickly and feel instant.
+
+Another requirement is that it must be offline-first. I live in a country where the internet goes down pretty often, and I need my tasks to be available regardless of server status.
+
+I also don't want to share sensitive data with companies that build task managers. A self-hosted, local-first app gives me much more control over where my data lives.
+
+Finally, I wanted a clean API so I could connect things like an MCP server or create tasks via Telegram.
+
+I couldn't find an existing app that met all of these needs. Below is a table comparing the self-hosted apps I found in the Awesome Selfhosted GitHub list.
+
 ## Will Be Done - modern offline-first self-hosted TickTick/Todoist alternative
 
 Most task managers are great at collecting tasks - and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
