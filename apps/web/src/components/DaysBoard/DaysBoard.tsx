@@ -9,7 +9,10 @@ import {
   type DailyList,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import {
+  buildFocusKey,
+  useFocusStore,
+} from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
@@ -25,6 +28,7 @@ import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { FloatingStash } from "./Stash.tsx";
 import { getStashOpenWidth, useStashOpen, useStashSize } from "./StashStore.ts";
+import { CardDetails } from "@/components/CardDetails/CardDetails.tsx";
 
 const ColumnView = ({
   dailyListId,
@@ -268,8 +272,11 @@ const BoardView = ({
   console.log("projectId", selectedProjectId);
 
   return (
-    <>
-      <div ref={rootRef} className="flex flex-col w-full">
+    <div className="flex h-full w-full">
+      <div
+        ref={rootRef}
+        className="flex flex-col h-full flex-1 min-w-0"
+      >
         <div
           className="overflow-y-auto pt-10"
           style={{
@@ -278,8 +285,6 @@ const BoardView = ({
               : `${100 - projectsViewHeight}%`,
           }}
         >
-          {/* <ScrollArea.Root style={{ height: `${100 - height}%` }}> */}
-          {/*   <ScrollArea.Viewport className="h-full overscroll-contain rounded-md w-full pr-4 pl-1"> */}
           <TasksColumnGrid
             columnsCount={7}
             floatingColumn={<FloatingStash />}
@@ -289,32 +294,12 @@ const BoardView = ({
               <ColumnView dailyListId={id} onTaskAdd={handleAddTask} key={id} />
             ))}
           </TasksColumnGrid>
-          {/* </ScrollArea.Viewport> */}
-          {/* <ScrollArea.Scrollbar */}
-          {/*   className="m-2 flex  h-1 justify-center rounded bg-gray-200 opacity-0 transition-opacity delay-300 pointer-events-none data-[hovering]:opacity-100 data-[hovering]:delay-0 data-[hovering]:duration-75 data-[hovering]:pointer-events-auto data-[scrolling]:opacity-100 data-[scrolling]:delay-0 data-[scrolling]:duration-75 data-[scrolling]:pointer-events-auto" */}
-          {/*   orientation="horizontal" */}
-          {/* > */}
-          {/*   <ScrollArea.Thumb className="w-full rounded bg-gray-500" /> */}
-          {/* </ScrollArea.Scrollbar> */}
           <NavPanel
             previousDate={previousDate}
             nextDate={nextDate}
             selectedDate={selectedDate}
             selectedProjectId={selectedProjectId}
           />
-          {/* {!isDemoMode() && ( */}
-          {/*   <div className="absolute right-0 top-0"> */}
-          {/*     <div className="flex items-center rounded-bl-lg text-[13px] bg-surface-elevated ring-1 ring-ring text-content-tinted h-8 px-3 gap-4"> */}
-          {/*       <Link */}
-          {/*         className="transition-colors hover:text-primary" */}
-          {/*         to="/spaces" */}
-          {/*       > */}
-          {/*         spaces */}
-          {/*       </Link> */}
-          {/*     </div> */}
-          {/*   </div> */}
-          {/* )} */}
-          {/* </ScrollArea.Root> */}
         </div>
         <div
           className="w-full relative"
@@ -335,7 +320,9 @@ const BoardView = ({
           />
         </div>
       </div>
-    </>
+
+      <CardDetails />
+    </div>
   );
 };
 

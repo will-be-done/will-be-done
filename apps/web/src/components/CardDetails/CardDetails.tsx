@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { ChevronDown, ChevronUp, GripHorizontal } from "lucide-react";
+import { useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useSyncSelector } from "@will-be-done/hyperdb";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
@@ -10,32 +9,15 @@ import {
   isTaskTemplate,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
-import { AnimatePresence, motion } from "motion/react";
 import { TaskBody } from "./TaskBody.tsx";
 import { TemplateBody } from "./TemplateBody.tsx";
+import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
+import { useCardDetailsSize, useCardDetailsOpen } from "./CardDetailsStore.ts";
 
-// ─── Persistent position (survives task switches) ─────────────────────────────
-let savedPosition: { x: number; y: number } | null = null;
-
-const PANEL_W = 288; // w-72
-
-function defaultPosition(): { x: number; y: number } {
-  const x = Math.max(
-    0,
-    Math.min(window.innerWidth - PANEL_W, window.innerWidth - PANEL_W - 16),
-  );
-  const y = Math.max(
-    0,
-    Math.min(window.innerHeight - 100, window.innerHeight - 450 - 16),
-  );
-  return { x, y };
-}
-
-// ─── Main floating panel ──────────────────────────────────────────────────────
+// ─── Main sidebar panel ──────────────────────────────────────────────────────
 
 export function CardDetails() {
-  // Use getFocusKey (not isSomethingFocused) so panel stays visible while
-  // MoveModal has focus disabled.
+  const rootRef = useRef<HTMLDivElement>(null);
   const focusKey = useFocusStore((s) => s.focusItemKey);
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
   const isCardFocused =
@@ -44,7 +26,10 @@ export function CardDetails() {
     parsed?.type === "template";
   const cardId = isCardFocused ? parsed.id : null;
   const isVisible = useSyncSelector(
-    () => cardsSlice.exists(cardId || ""),
+    function* () {
+      if (!cardId) return false;
+      return yield* cardsSlice.exists(cardId);
+    },
     [cardId],
   );
 
@@ -54,65 +39,10 @@ export function CardDetails() {
     (v: boolean) => setEditingTaskId(v ? cardId : null),
     [cardId],
   );
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
-    if (!savedPosition) savedPosition = defaultPosition();
-    return savedPosition;
-  });
 
-  const isDraggingRef = useRef(false);
-  const startPointerRef = useRef({ x: 0, y: 0 });
-  const startPositionRef = useRef({ x: 0, y: 0 });
-
-  const clampPosition = useCallback(
-    (x: number, y: number) => ({
-      x: Math.max(0, Math.min(window.innerWidth - PANEL_W, x)),
-      y: Math.max(0, Math.min(window.innerHeight - 100, y)),
-    }),
-    [],
-  );
-
-  const updatePosition = useCallback((pos: { x: number; y: number }) => {
-    savedPosition = pos;
-    setPosition(pos);
-  }, []);
-
-  // Keep panel inside viewport on window resize
-  useEffect(() => {
-    const onResize = () => {
-      if (savedPosition) {
-        const clamped = clampPosition(savedPosition.x, savedPosition.y);
-        savedPosition = clamped;
-        setPosition(clamped);
-      }
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [clampPosition]);
-
-  // Document-level pointer tracking for drag
-  useEffect(() => {
-    const onPointerMove = (e: PointerEvent) => {
-      if (!isDraggingRef.current) return;
-      const dx = e.clientX - startPointerRef.current.x;
-      const dy = e.clientY - startPointerRef.current.y;
-      updatePosition(
-        clampPosition(
-          startPositionRef.current.x + dx,
-          startPositionRef.current.y + dy,
-        ),
-      );
-    };
-    const onPointerUp = () => {
-      isDraggingRef.current = false;
-    };
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    return () => {
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-    };
-  }, [clampPosition, updatePosition]);
+  const width = useCardDetailsSize((s) => s.width);
+  const setWidth = useCardDetailsSize((s) => s.setWidth);
+  const { isOpen: isPanelOpen, toggle } = useCardDetailsOpen();
 
   // Escape closes panel (not while editing title)
   useGlobalListener("keydown", (e: KeyboardEvent) => {
@@ -121,67 +51,108 @@ export function CardDetails() {
     }
   });
 
-  const handleDragBarPointerDown = (e: React.PointerEvent) => {
-    isDraggingRef.current = true;
-    startPointerRef.current = { x: e.clientX, y: e.clientY };
-    startPositionRef.current = position;
-  };
+  const handleResize = useCallback(
+    (clientX: number) => {
+      const rootRight =
+        rootRef.current?.getBoundingClientRect().right ?? window.innerWidth;
+      setWidth(rootRight - clientX);
+    },
+    [setWidth],
+  );
+
+  const hasCard = isVisible && !!cardId;
 
   return (
-    <AnimatePresence>
-      {isVisible && cardId && (
-        <motion.div
-          initial={{ opacity: 0, y: 8, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 8, scale: 0.97 }}
-          transition={{ duration: 0.18, ease: "easeOut" }}
-          className="hidden sm:block fixed z-50 w-72"
-          style={{ left: position.x, top: position.y }}
+    <div
+      ref={rootRef}
+      className={cn("relative h-full flex-shrink-0 z-1000")}
+      style={{
+        width: isPanelOpen ? `${width}px` : 0,
+        transition: "width 200ms ease-out",
+      }}
+    >
+      {/* Toggle button */}
+      <button
+        type="button"
+        onClick={toggle}
+        className="absolute top-1/2 -translate-y-1/2 z-10 w-3 h-6 bg-task-panel border border-task-panel-ring/40 border-r-0 rounded-l-md flex justify-center items-center cursor-pointer transition-colors hover:brightness-125 focus:outline-none"
+        style={{
+          right: isPanelOpen ? `${width}px` : 0,
+          transition: "right 200ms ease-out",
+        }}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width={3}
+          height={6}
+          fill="none"
+          className={cn("text-content-tinted", {
+            "rotate-180": isPanelOpen,
+          })}
         >
-          <div className="rounded-xl ring-1 ring-task-panel-ring bg-task-panel overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.75)]">
-            {/* Drag bar */}
-            <div
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing select-none",
-                !isCollapsed && "border-b border-task-panel-divider",
-              )}
-              onPointerDown={handleDragBarPointerDown}
-            >
-              <GripHorizontal className="h-3.5 w-3.5 text-content-tinted shrink-0" />
+          <path
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M2.167.5.5 2.737l1.667 2.237"
+          />
+        </svg>
+      </button>
+
+      {/* Panel content */}
+      <div
+        className={cn(
+          "absolute right-0 top-0 h-full",
+          "bg-task-panel/95 backdrop-blur-sm",
+          isPanelOpen && "border-l border-task-panel-ring/20",
+          "overflow-hidden",
+        )}
+        style={{
+          width: isPanelOpen ? `${width}px` : 0,
+          transition: "width 200ms ease-out",
+        }}
+      >
+        {isPanelOpen && (
+          <ResizableDivider
+            orientation="vertical"
+            onResizePosition={handleResize}
+            className="left-0 top-0"
+          />
+        )}
+        {isPanelOpen && (
+          <div
+            className="h-full overflow-y-auto"
+            style={{ width: `${width}px` }}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-task-panel-divider">
               <span className="text-content-tinted text-xs font-medium flex-1">
                 Card Details
               </span>
-              <button
-                className="cursor-pointer text-content-tinted hover:text-content transition-colors shrink-0"
-                onClick={() => setIsCollapsed((c) => !c)}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                {isCollapsed ? (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronUp className="h-3.5 w-3.5" />
-                )}
-              </button>
             </div>
 
-            {!isCollapsed && (
+            {hasCard && cardId ? (
               <CardDetailsBody
                 cardId={cardId}
                 isEditingTitle={isEditingTitle}
                 setIsEditingTitle={setIsEditingTitle}
               />
+            ) : (
+              <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
+                Select a task
+              </div>
             )}
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </div>
+    </div>
   );
 }
 
 // ─── Body dispatcher ──────────────────────────────────────────────────────────
 
 function CardDetailsBody({
-  cardId: cardId,
+  cardId,
   isEditingTitle,
   setIsEditingTitle,
 }: {

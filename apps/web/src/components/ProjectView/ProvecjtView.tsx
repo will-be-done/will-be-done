@@ -586,7 +586,7 @@ export const ProjectView = ({
       <div
         className={cn("overflow-y-auto ", {
           "mt-10": marginTop,
-          "mt-2": !marginTop,
+          "-mt-1 pt-1": !marginTop,
         })}
       >
         <ProjectItemsList
