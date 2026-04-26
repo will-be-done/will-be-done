@@ -103,7 +103,7 @@ export function CardDetails() {
       <div
         className={cn(
           "absolute right-0 top-0 h-full",
-          "bg-task-panel/95 backdrop-blur-sm",
+          "bg-task-panel/95 backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none",
           isPanelOpen && "border-l border-task-panel-ring/20",
           "overflow-hidden",
         )}

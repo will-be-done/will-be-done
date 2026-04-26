@@ -165,7 +165,7 @@ export const FloatingStash = () => {
     >
       <div
         className={cn(
-          "h-full bg-surface/95 backdrop-blur-sm",
+          "h-full bg-surface/95 backdrop-blur-sm safari:bg-surface safari:backdrop-blur-none",
           "border-r border-ring/20",
           "overflow-hidden",
         )}
@@ -195,7 +195,7 @@ export const FloatingStash = () => {
           className={cn(
             "relative flex w-full flex-col items-center justify-center px-0 py-3",
             "cursor-pointer rounded-r-md border-r border-ring/30",
-            "bg-panel-tinted/80 backdrop-blur-sm transition-colors",
+            "bg-panel-tinted/80 backdrop-blur-sm transition-colors safari:bg-panel-tinted-opaque safari:backdrop-blur-none",
             "hover:bg-panel-tinted focus:outline-none",
             isTaskOverButton &&
               !isOpen &&

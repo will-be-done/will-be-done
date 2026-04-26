@@ -36,6 +36,7 @@
   /* oklch(37.2% 0.045 257 / 0) */
   --color-panel: oklch(37.2% 0.045 257 / 0.8);
   --color-panel-tinted: oklch(27.9% 0.041 259 / 0.8);
+  --color-panel-tinted-opaque: oklch(27.9% 0.041 259);
   --color-panel-hover: oklch(38% 0.045 257 / 0.8);
 
   /* Done state - neutral gray, clearly different */
