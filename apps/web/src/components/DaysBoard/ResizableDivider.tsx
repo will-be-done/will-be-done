@@ -4,6 +4,8 @@ import { useCallback } from "react";
 interface ResizableDividerProps {
   onResize?: (deltaX: number) => void;
   onResizePosition?: (position: number, delta: number) => void;
+  onResizeStart?: () => void;
+  onResizeEnd?: () => void;
   isHidden?: boolean;
   onHideClick?: () => void;
   orientation?: "horizontal" | "vertical";
@@ -13,6 +15,8 @@ interface ResizableDividerProps {
 export const ResizableDivider = ({
   onResize,
   onResizePosition,
+  onResizeStart,
+  onResizeEnd,
   isHidden = false,
   onHideClick,
   orientation = "horizontal",
@@ -58,14 +62,16 @@ export const ResizableDivider = ({
         document.body.style.userSelect = "";
         window.removeEventListener("mousemove", onMouseMove);
         window.removeEventListener("mouseup", onMouseUp);
+        onResizeEnd?.();
       };
 
       document.body.style.cursor = isHorizontal ? "row-resize" : "col-resize";
       document.body.style.userSelect = "none";
+      onResizeStart?.();
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     },
-    [isHorizontal, onResize, onResizePosition],
+    [isHorizontal, onResize, onResizeEnd, onResizePosition, onResizeStart],
   );
 
   if (!isHorizontal) {
