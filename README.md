@@ -30,6 +30,21 @@ Finally, I wanted a clean API so I could connect things like an MCP server or cr
 
 I couldn't find an existing app that met all of these needs. Below is a table comparing the self-hosted apps I found in the Awesome Selfhosted GitHub list.
 
+|                                                                 | Will be done | Super Productivity | Donetick | Tududi | Vikunja | TaskTrove |
+| --------------------------------------------------------------- | ------------ | ------------------ | -------- | ------ | ------- | --------- |
+| Open-Source & Self Hosted                                       | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
+| Able to open when fully offline, functional offline             | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+| DnD tasks, projects. Tasks/projects reordering                  | ✅           | ✅                 | 🟥       | 🟥     | ✅      | ✅        |
+| Real time refresh, no need to refresh page when new task appear | ✅           | 🟥                 | ✅       | 🟥     | 🟥      | 🟥        |
+| Multi tab support                                               | ✅           | 🟥                 | ✅       | 🟨     | 🟨      | 🟨        |
+| API                                                             | 🟨 WIP       | 🟥                 | ✅       | ✅     | ✅      | ✅        |
+| Mobile version                                                  | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
+| Keybinds(vim preferred)                                         | ✅           | ✅ even vim!       | ✅ keybinds highlight are smart! | ✅ | ✅ even vim! | 🟨 |
+| Weekly planner                                                  | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+| Categories/columns inside projects                              | ✅           | ✅                 | 🟥       | 🟥     | ✅ kanban! | ✅ kanban! |
+| Desktop version with quick add global shortcut                  | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+| Local first                                                     | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+
 ## Will Be Done - modern offline-first self-hosted TickTick/Todoist alternative
 
 Most task managers are great at collecting tasks - and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
