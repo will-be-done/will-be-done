@@ -26,9 +26,9 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
-import { FloatingStash } from "./Stash.tsx";
 import { getStashOpenWidth, useStashOpen, useStashSize } from "./StashStore.ts";
 import { CardDetails } from "@/components/CardDetails/CardDetails.tsx";
+import { Stash } from "@/components/Stash/Stash.tsx";
 
 const ColumnView = ({
   dailyListId,
@@ -287,7 +287,7 @@ const BoardView = ({
         >
           <TasksColumnGrid
             columnsCount={7}
-            floatingColumn={<FloatingStash />}
+            floatingColumn={<Stash />}
             paddingLeft={isStashOpen ? getStashOpenWidth(stashWidth) : 32}
           >
             {dailyListsIds.map((id) => (
