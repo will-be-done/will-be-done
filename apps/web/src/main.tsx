@@ -51,6 +51,10 @@ if (isSafariBrowser) {
   document.documentElement.classList.add("is-safari");
 }
 
+if (/Firefox|FxiOS/i.test(navigator.userAgent)) {
+  document.documentElement.classList.add("is-firefox");
+}
+
 // Render the app
 const rootElement = document.getElementById("root");
 if (rootElement && !rootElement.innerHTML) {

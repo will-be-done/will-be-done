@@ -8,57 +8,32 @@ type BackgroundOrbsProps = {
 
 export function BackgroundOrbs({
   className,
-  topOrbFill = "var(--color-orb-blue)",
-  bottomOrbFill = "var(--color-orb-indigo)",
+  topOrbFill = "rgb(37 99 235 / 0.08)",
+  bottomOrbFill = "rgb(99 102 241 / 0.06)",
 }: BackgroundOrbsProps) {
-  return (
-    <div className={cn("pointer-events-none fixed inset-0 overflow-hidden", className)}>
-      <svg
-        aria-hidden="true"
-        className="absolute inset-0 h-full w-full"
-        preserveAspectRatio="none"
-        viewBox="0 0 1440 1024"
-      >
-        <defs>
-          <filter
-            id="background-orb-top-blur"
-            x="-35%"
-            y="-50%"
-            width="170%"
-            height="200%"
-            colorInterpolationFilters="sRGB"
-          >
-            <feGaussianBlur stdDeviation="60" />
-          </filter>
-          <filter
-            id="background-orb-bottom-blur"
-            x="-50%"
-            y="-50%"
-            width="200%"
-            height="200%"
-            colorInterpolationFilters="sRGB"
-          >
-            <feGaussianBlur stdDeviation="50" />
-          </filter>
-        </defs>
+  const isSafari =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("is-safari");
 
-        <ellipse
-          cx="720"
-          cy="0"
-          rx="400"
-          ry="400"
-          fill={topOrbFill}
-          filter="url(#background-orb-top-blur)"
-        />
-        <ellipse
-          cx="1540"
-          cy="1124"
-          rx="300"
-          ry="300"
-          fill={bottomOrbFill}
-          filter="url(#background-orb-bottom-blur)"
-        />
-      </svg>
+  if (isSafari) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-0 overflow-hidden",
+        className,
+      )}
+    >
+      <div
+        className="absolute -top-[400px] left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full blur-[120px]"
+        style={{ backgroundColor: topOrbFill }}
+      />
+      <div
+        className="absolute -bottom-[200px] -right-[200px] h-[600px] w-[600px] rounded-full blur-[100px]"
+        style={{ backgroundColor: bottomOrbFill }}
+      />
     </div>
   );
 }
