@@ -1,6 +1,8 @@
 import type { FocusKey } from "@/store/focusSlice.ts";
 import type { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 
+type VerticalEdge = Extract<Edge, "top" | "bottom">;
+
 /**
  * DOM attributes used for keyboard focus navigation:
  *
@@ -201,7 +203,7 @@ export const getDOMColumnSiblingDropTarget = (
   direction: "left" | "right",
 ): {
   targetKey: FocusKey;
-  edge: Edge;
+  edge: VerticalEdge;
   targetColumnModel: { id: string; type: string };
 } | null => {
   const el = document.querySelector(`[data-focusable-key="${key}"]`);
@@ -279,7 +281,7 @@ export const getDOMColumnSiblingDropTarget = (
   }
 
   const targetKey = closest.getAttribute("data-focusable-key") as FocusKey;
-  const edge: Edge = currentMidY <= closestMidY ? "top" : "bottom";
+  const edge: VerticalEdge = currentMidY <= closestMidY ? "top" : "bottom";
 
   return {
     targetKey,
