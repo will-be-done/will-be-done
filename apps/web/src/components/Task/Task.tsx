@@ -621,27 +621,38 @@ export const TaskComp = ({
 
   const prevIsEditing = usePrevious(isEditing);
   const taskTitle = card.title;
+  const saveEditedTitle = useCallback(() => {
+    if (isTask(card)) {
+      dispatch(
+        cardsTasksSlice.updateTask(taskId, {
+          title: editingTitle,
+        }),
+      );
+      return;
+    }
+
+    if (isTaskTemplate(card)) {
+      dispatch(
+        cardsTaskTemplatesSlice.updateTemplate(taskId, {
+          title: editingTitle,
+        }),
+      );
+    }
+  }, [card, dispatch, editingTitle, taskId]);
+
   useEffect(() => {
     setEditingTitle(taskTitle);
   }, [taskTitle]);
 
   useEffect(() => {
     if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          title: editingTitle,
-        }),
-      );
+      saveEditedTitle();
     }
-  }, [dispatch, editingTitle, isEditing, prevIsEditing, taskId, taskTitle]);
+  }, [editingTitle, isEditing, prevIsEditing, saveEditedTitle, taskTitle]);
 
   useUnmount(() => {
     if (editingTitle !== taskTitle) {
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          title: editingTitle,
-        }),
-      );
+      saveEditedTitle();
     }
   });
 
