@@ -1,6 +1,50 @@
 
 **Note on AI:** I’ve been developing this project for a year. This is my third attempt; the first two failed because the technology for fast, offline-first apps wasn't ready. This time, I created my own method for local-first development and built a database that works for both the frontend and backend. I have over 10 years of experience as a developer and 4 years specializing in offline-first apps. Building these reliably requires specific expertise. I use Claude Code to help, but I review every line of code manually to ensure quality.
 
+## Download & installation
+
+* [Download for Windows](https://github.com/will-be-done/will-be-done/releases) <br>
+* [Download for macOS](https://github.com/will-be-done/will-be-done/releases) <br>
+* [Download for Linux](https://github.com/will-be-done/will-be-done/releases)
+* For now, mobile users can install the PWA as a bookmark. Native mobile clients are coming soon.
+
+You should also run the Docker server. Here is the easiest way:
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -v will_be_done_storage:/var/lib/will-be-done \
+  --restart unless-stopped \
+  ghcr.io/will-be-done/will-be-done:latest
+```
+
+## Why build another task manager?
+
+My core idea is to build a task manager that will stay with me for the rest of my life. Because of that, one of my main requirements is that it stays fast even with a massive database. If I have 10k+ tasks saved over the years, it should still load quickly and feel instant.
+
+Another requirement is that it must be offline-first. I live in a country where the internet goes down pretty often, and I need my tasks to be available regardless of server status.
+
+I also don't want to share sensitive data with companies that build task managers. A self-hosted, local-first app gives me much more control over where my data lives.
+
+Finally, I wanted a clean API so I could connect things like an MCP server or create tasks via Telegram.
+
+I couldn't find an existing app that met all of these needs. Below is a table comparing the self-hosted apps I found in the Awesome Selfhosted GitHub list.
+
+|                                                                 | Will be done | Super Productivity | Donetick | Tududi | Vikunja | TaskTrove |
+| --------------------------------------------------------------- | ------------ | ------------------ | -------- | ------ | ------- | --------- |
+| Open-Source & Self Hosted                                       | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
+| Able to open when fully offline, functional offline             | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+| DnD tasks, projects. Tasks/projects reordering                  | ✅           | ✅                 | 🟥       | 🟥     | ✅      | ✅        |
+| Real time refresh, no need to refresh page when new task appear | ✅           | 🟥                 | ✅       | 🟥     | 🟥      | 🟥        |
+| Multi tab support                                               | ✅           | 🟥                 | ✅       | 🟨     | 🟨      | 🟨        |
+| API                                                             | 🟨 WIP       | 🟥                 | ✅       | ✅     | ✅      | ✅        |
+| Mobile version                                                  | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
+| Keybinds(vim preferred)                                         | ✅           | ✅ even vim!       | ✅ keybinds highlight are smart! | ✅ | ✅ even vim! | 🟨 |
+| Weekly planner                                                  | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+| Categories/columns inside projects                              | ✅           | ✅                 | 🟥       | 🟥     | ✅ kanban! | ✅ kanban! |
+| Desktop version with quick add global shortcut                  | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+| Local first                                                     | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
+
 ## Will Be Done - modern offline-first self-hosted TickTick/Todoist alternative
 
 Most task managers are great at collecting tasks - and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
@@ -153,4 +197,3 @@ Separate apps:
 1. Multi users per space/project
 1. Sharing tasks/projects/spaces
 1. No time schedules for tasks
-

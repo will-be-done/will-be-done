@@ -1,4 +1,7 @@
 import type { FocusKey } from "@/store/focusSlice.ts";
+import type { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
+
+type VerticalEdge = Extract<Edge, "top" | "bottom">;
 
 /**
  * DOM attributes used for keyboard focus navigation:
@@ -38,6 +41,11 @@ import type { FocusKey } from "@/store/focusSlice.ts";
 
 const REGION_SELECTOR = "[data-focus-region-direction]";
 
+const getRegionColumns = (region: ParentNode, regionEl?: Element | null) =>
+  Array.from(region.querySelectorAll("[data-focus-column]")).filter(
+    (col) => col.closest(REGION_SELECTOR) === (regionEl ?? null),
+  );
+
 // When direction="column", j/k overflows into the adjacent column at boundaries.
 // Returns the boundary item key of the adjacent column, or null if none.
 const getStackedBoundaryItem = (
@@ -49,9 +57,7 @@ const getStackedBoundaryItem = (
   if (!region) return null;
 
   // Only columns whose immediate region ancestor is this container
-  const allColumns = Array.from(
-    region.querySelectorAll("[data-focus-column]"),
-  ).filter((col) => col.closest(REGION_SELECTOR) === region);
+  const allColumns = getRegionColumns(region, region);
 
   const colIndex = allColumns.indexOf(column as HTMLElement);
   if (colIndex === -1) return null;
@@ -146,7 +152,10 @@ export const getDOMColumnSiblingFirstItems = (
 
   const region =
     currentColumn.closest('[data-focus-region-direction="row"]') ?? document;
-  const allColumns = Array.from(region.querySelectorAll("[data-focus-column]"));
+  const allColumns = getRegionColumns(
+    region,
+    region instanceof Element ? region : null,
+  );
   const colIndex = allColumns.indexOf(currentColumn as HTMLElement);
   if (colIndex === -1) return [null, null];
 
@@ -167,6 +176,7 @@ export const getDOMColumnSiblingFirstItems = (
         ? (placeholder.getAttribute("data-focusable-key") as FocusKey)
         : null;
     }
+
     let closest: Element = items[0]!;
     let closestDist = Infinity;
     for (const item of items) {
@@ -188,6 +198,101 @@ export const getDOMColumnSiblingFirstItems = (
   ];
 };
 
+export const getDOMColumnSiblingDropTarget = (
+  key: string,
+  direction: "left" | "right",
+): {
+  targetKey: FocusKey;
+  edge: VerticalEdge;
+  targetColumnModel: { id: string; type: string };
+} | null => {
+  const el = document.querySelector(`[data-focusable-key="${key}"]`);
+  if (!el) return null;
+
+  const currentColumn = el.closest("[data-focus-column]");
+  if (!currentColumn) return null;
+
+  const region =
+    currentColumn.closest('[data-focus-region-direction="row"]') ?? document;
+  const allColumns = getRegionColumns(
+    region,
+    region instanceof Element ? region : null,
+  );
+  const colIndex = allColumns.indexOf(currentColumn as HTMLElement);
+  if (colIndex === -1) return null;
+
+  const targetColumn =
+    direction === "left"
+      ? colIndex > 0
+        ? allColumns[colIndex - 1]!
+        : null
+      : colIndex < allColumns.length - 1
+        ? allColumns[colIndex + 1]!
+        : null;
+  if (!targetColumn) return null;
+
+  const targetColumnModelId = targetColumn.getAttribute("data-column-model-id");
+  const targetColumnModelType = targetColumn.getAttribute(
+    "data-column-model-type",
+  );
+  if (!targetColumnModelId || !targetColumnModelType) return null;
+
+  const currentRect = el.getBoundingClientRect();
+  const currentMidY = currentRect.top + currentRect.height / 2;
+  const items = Array.from(
+    targetColumn.querySelectorAll(
+      "[data-focusable-key]:not([data-focus-placeholder]):not([data-ignore-drop])",
+    ),
+  );
+
+  if (items.length === 0) {
+    const placeholder = targetColumn.querySelector(
+      "[data-focus-placeholder][data-focusable-key]",
+    );
+    const targetKey = placeholder?.getAttribute("data-focusable-key") as
+      | FocusKey
+      | undefined;
+
+    if (!targetKey) return null;
+
+    return {
+      targetKey,
+      edge: "top",
+      targetColumnModel: {
+        id: targetColumnModelId,
+        type: targetColumnModelType,
+      },
+    };
+  }
+
+  let closest: Element = items[0]!;
+  let closestMidY = 0;
+  let closestDist = Infinity;
+  for (const item of items) {
+    const rect = item.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const dist = Math.abs(midY - currentMidY);
+
+    if (dist < closestDist) {
+      closest = item;
+      closestMidY = midY;
+      closestDist = dist;
+    }
+  }
+
+  const targetKey = closest.getAttribute("data-focusable-key") as FocusKey;
+  const edge: VerticalEdge = currentMidY <= closestMidY ? "top" : "bottom";
+
+  return {
+    targetKey,
+    edge,
+    targetColumnModel: {
+      id: targetColumnModelId,
+      type: targetColumnModelType,
+    },
+  };
+};
+
 // Returns the placeholder key of the adjacent stacked section (up/down).
 // Used as a fallback drop target when no regular sibling is available for a move.
 export const getDOMAdjacentStackedPlaceholder = (
@@ -203,9 +308,7 @@ export const getDOMAdjacentStackedPlaceholder = (
   const region = column.closest('[data-focus-region-direction="column"]');
   if (!region) return null;
 
-  const allColumns = Array.from(
-    region.querySelectorAll("[data-focus-column]"),
-  ).filter((col) => col.closest(REGION_SELECTOR) === region);
+  const allColumns = getRegionColumns(region, region);
 
   const colIndex = allColumns.indexOf(column as HTMLElement);
   if (colIndex === -1) return null;
@@ -237,7 +340,10 @@ export const getDOMAdjacentColumns = (
 
   const region =
     currentColumn.closest('[data-focus-region-direction="row"]') ?? document;
-  const allColumns = Array.from(region.querySelectorAll("[data-focus-column]"));
+  const allColumns = getRegionColumns(
+    region,
+    region instanceof Element ? region : null,
+  );
   const colIndex = allColumns.indexOf(currentColumn as HTMLElement);
   if (colIndex === -1) return [null, null];
 

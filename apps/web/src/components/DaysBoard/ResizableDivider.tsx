@@ -4,6 +4,8 @@ import { useCallback } from "react";
 interface ResizableDividerProps {
   onResize?: (deltaX: number) => void;
   onResizePosition?: (position: number, delta: number) => void;
+  onResizeStart?: () => void;
+  onResizeEnd?: () => void;
   isHidden?: boolean;
   onHideClick?: () => void;
   orientation?: "horizontal" | "vertical";
@@ -13,6 +15,8 @@ interface ResizableDividerProps {
 export const ResizableDivider = ({
   onResize,
   onResizePosition,
+  onResizeStart,
+  onResizeEnd,
   isHidden = false,
   onHideClick,
   orientation = "horizontal",
@@ -23,7 +27,7 @@ export const ResizableDivider = ({
   const resizeHandleClassName = cn(
     "absolute z-20 border-0 bg-transparent p-0 transition-all ease-linear after:absolute after:bg-ring after:transition-colors after:ease-linear hover:after:bg-content-tinted/50",
     isHorizontal
-      ? "bottom-0 left-0 right-0 h-4 translate-y-1/2 cursor-row-resize after:left-0 after:right-0 after:top-1/2 after:h-[2px] after:-translate-y-1/2"
+      ? "left-0 right-0 top-0 h-4 -translate-y-1/2 cursor-row-resize after:left-0 after:right-0 after:top-1/2 after:h-[2px] after:-translate-y-1/2"
       : "inset-y-0 left-0 w-4 -translate-x-1/2 cursor-col-resize after:inset-y-0 after:left-1/2 after:w-[2px] after:-translate-x-1/2",
     className,
   );
@@ -58,14 +62,16 @@ export const ResizableDivider = ({
         document.body.style.userSelect = "";
         window.removeEventListener("mousemove", onMouseMove);
         window.removeEventListener("mouseup", onMouseUp);
+        onResizeEnd?.();
       };
 
       document.body.style.cursor = isHorizontal ? "row-resize" : "col-resize";
       document.body.style.userSelect = "none";
+      onResizeStart?.();
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     },
-    [isHorizontal, onResize, onResizePosition],
+    [isHorizontal, onResize, onResizeEnd, onResizePosition, onResizeStart],
   );
 
   if (!isHorizontal) {
@@ -87,12 +93,10 @@ export const ResizableDivider = ({
 
   return (
     <div
-      className={cn("h-[6px] flex items-center group relative w-full", {
-        "translate-y-[-6px]": isHidden,
-      })}
+      className="absolute left-0 right-0 top-0 z-30 h-0 w-full"
     >
       {onHideClick && (
-        <div className="absolute bottom-px left-0 right-0 z-30 flex justify-center items-end">
+        <div className="absolute left-0 right-0 top-0 z-30 flex -translate-y-full justify-center">
           <button
             type="button"
             className="w-6 h-3 bg-surface-elevated border border-ring border-b-0 rounded-t-md flex justify-center items-center cursor-pointer transition-colors"

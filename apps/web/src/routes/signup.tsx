@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { authUtils } from "@/lib/auth";
 import { useTRPC } from "@/lib/trpc";
 import { Turnstile } from "@marsidev/react-turnstile";
+import { BackgroundOrbs } from "@/components/Layout/BackgroundOrbs.tsx";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
@@ -27,7 +28,7 @@ function Logo({ size = 32 }: { size?: number }) {
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <div
-        className="absolute inset-0 rounded-[13%] bg-blue-500/30 blur-md"
+        className="absolute inset-0 rounded-[13%] bg-blue-500/30 blur-md safari:blur-sm"
         style={{ transform: "scale(1.15)" }}
       />
       <svg
@@ -120,10 +121,10 @@ function SignupPage() {
       <div className="absolute inset-x-0 top-0 z-50 h-10 [app-region:drag]" />
 
       {/* Gradient orbs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-[400px] left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-blue-600/8 blur-[120px]" />
-        <div className="absolute -bottom-[200px] -right-[200px] h-[600px] w-[600px] rounded-full bg-indigo-500/6 blur-[100px]" />
-      </div>
+      <BackgroundOrbs
+        topOrbFill="rgb(37 99 235 / 0.08)"
+        bottomOrbFill="rgb(99 102 241 / 0.06)"
+      />
 
       {/* Noise texture overlay */}
       <div
@@ -147,7 +148,7 @@ function SignupPage() {
           </div>
 
           {/* Form card */}
-          <div className="rounded-lg bg-white/[0.03] p-8 ring-1 ring-white/[0.06] backdrop-blur-sm">
+          <div className="rounded-lg bg-white/[0.03] p-8 ring-1 ring-white/[0.06] backdrop-blur-sm safari:bg-white/[0.08] safari:backdrop-blur-none">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label

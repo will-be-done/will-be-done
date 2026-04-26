@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/emoji-picker.tsx";
 import { useMemo, useState, useEffect } from "react";
 import { promptDialog } from "@/components/ui/prompt-dialog";
+import { Stash, useStashDesktopOffset } from "@/components/Stash/Stash.tsx";
 
 const DeleteIcon = () => (
   <svg
@@ -151,9 +152,23 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
     () => projectsSlice.inboxProjectId(),
     [],
   );
+  const stashOffset = useStashDesktopOffset();
   const realProjectId = useMemo(() => {
     return projectId === "inbox" ? inboxProjectId : projectId;
   }, [projectId, inboxProjectId]);
 
-  return <ProjectDetailContent projectId={realProjectId} />;
+  return (
+    <div className="relative h-full min-w-0 overflow-hidden">
+      <Stash />
+      <div
+        className="h-full min-w-0"
+        style={{
+          paddingLeft: stashOffset ? `${stashOffset}px` : undefined,
+          transition: "padding-left 200ms ease-out",
+        }}
+      >
+        <ProjectDetailContent projectId={realProjectId} />
+      </div>
+    </div>
+  );
 };

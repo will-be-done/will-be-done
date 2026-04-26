@@ -1,13 +1,11 @@
 import { MobileTaskToolbar } from "@/components/Task/MobileTaskToolbar.tsx";
+import { BackgroundOrbs } from "@/components/Layout/BackgroundOrbs.tsx";
 
 export const GlobalLayout = ({ children }: { children?: React.ReactNode }) => {
   return (
     <div className="relative w-full h-screen bg-surface overflow-hidden flex antialiased">
       {/* Gradient orbs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-[400px] left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-orb-blue blur-[120px]" />
-        <div className="absolute -bottom-[200px] -right-[200px] h-[600px] w-[600px] rounded-full bg-orb-indigo blur-[100px]" />
-      </div>
+      <BackgroundOrbs />
 
       {/* Noise texture overlay */}
       <div

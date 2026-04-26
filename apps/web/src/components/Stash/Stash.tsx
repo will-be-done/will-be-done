@@ -9,17 +9,19 @@ import {
   STASH_ID,
   stashType,
 } from "@will-be-done/slices/space";
+import { TaskComp } from "@/components/Task/Task.tsx";
+import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
+import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
-import { TaskComp } from "@/components/Task/Task.tsx";
-import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
-import { ResizableDivider } from "./ResizableDivider.tsx";
+import { ResizableDivider } from "../DaysBoard/ResizableDivider.tsx";
 import {
+  getStashOpenWidth,
   STASH_BUTTON_WIDTH,
   useStashOpen,
   useStashSize,
-} from "./StashStore.ts";
+} from "../DaysBoard/StashStore.ts";
 
 const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
   const taskIds = useSyncSelector(
@@ -88,7 +90,19 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
   );
 };
 
-export const FloatingStash = () => {
+export const useStashDesktopOffset = () => {
+  const isMobile = useIsMobile();
+  const isOpen = useStashOpen((s) => s.isOpen);
+  const width = useStashSize((s) => s.width);
+
+  if (isMobile) {
+    return 0;
+  }
+
+  return isOpen ? getStashOpenWidth(width) : STASH_BUTTON_WIDTH;
+};
+
+export const Stash = () => {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dispatch = useDispatch();
@@ -154,7 +168,7 @@ export const FloatingStash = () => {
     <div
       ref={rootRef}
       className={cn(
-        "absolute left-0 top-0 h-full flex z-10",
+        "absolute left-0 top-0 z-5 hidden h-full sm:flex",
         "transition-transform duration-200 ease-out",
       )}
       style={{
@@ -165,7 +179,7 @@ export const FloatingStash = () => {
     >
       <div
         className={cn(
-          "h-full bg-surface/95 backdrop-blur-sm",
+          "h-full bg-surface/95 backdrop-blur-sm safari:bg-surface safari:backdrop-blur-none",
           "border-r border-ring/20",
           "overflow-hidden",
         )}
@@ -195,7 +209,7 @@ export const FloatingStash = () => {
           className={cn(
             "relative flex w-full flex-col items-center justify-center px-0 py-3",
             "cursor-pointer rounded-r-md border-r border-ring/30",
-            "bg-panel-tinted/80 backdrop-blur-sm transition-colors",
+            "bg-panel-tinted/80 backdrop-blur-sm transition-colors safari:bg-panel-tinted-opaque safari:backdrop-blur-none",
             "hover:bg-panel-tinted focus:outline-none",
             isTaskOverButton &&
               !isOpen &&

@@ -26,6 +26,7 @@ import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
+import { Stash, useStashDesktopOffset } from "@/components/Stash/Stash.tsx";
 
 const ChevronLeft = () => (
   <svg
@@ -281,6 +282,7 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
   );
   const dispatch = useDispatch();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
+  const stashOffset = useStashDesktopOffset();
 
   useEffect(() => {
     dispatch(dailyListsSlice.createManyIfNotPresent([startingDate]));
@@ -303,16 +305,25 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
   );
 
   return (
-    <div className="overflow-y-auto h-full">
-      <div className="max-w-lg mx-auto px-4 py-4">
-        {dailyListsIds[0] && (
-          <SingleDayColumn
-            dailyListId={dailyListsIds[0]}
-            onTaskAdd={handleAddTask}
-            previousDate={previousDate}
-            nextDate={nextDate}
-          />
-        )}
+    <div className="relative h-full min-w-0 overflow-hidden">
+      <Stash />
+      <div
+        className="h-full min-w-0 overflow-y-auto"
+        style={{
+          paddingLeft: stashOffset ? `${stashOffset}px` : undefined,
+          transition: "padding-left 200ms ease-out",
+        }}
+      >
+        <div className="max-w-lg mx-auto px-4 py-4">
+          {dailyListsIds[0] && (
+            <SingleDayColumn
+              dailyListId={dailyListsIds[0]}
+              onTaskAdd={handleAddTask}
+              previousDate={previousDate}
+              nextDate={nextDate}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

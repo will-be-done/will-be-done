@@ -40,6 +40,21 @@ if (window.desktopApi) {
   }
 }
 
+const isSafariBrowser = (() => {
+  const { userAgent, vendor } = navigator;
+  return /Safari/i.test(userAgent)
+    && /Apple/i.test(vendor)
+    && !/Chrome|CriOS|Chromium|Edg|EdgiOS|OPR|OPiOS|Firefox|FxiOS|DuckDuckGo/i.test(userAgent);
+})();
+
+if (isSafariBrowser) {
+  document.documentElement.classList.add("is-safari");
+}
+
+if (/Firefox|FxiOS/i.test(navigator.userAgent)) {
+  document.documentElement.classList.add("is-firefox");
+}
+
 // Render the app
 const rootElement = document.getElementById("root");
 if (rootElement && !rootElement.innerHTML) {
