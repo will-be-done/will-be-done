@@ -223,7 +223,7 @@ export const AppSidebar = () => {
         </div>
       </SidebarHeader>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 flex flex-col py-1">
+      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 flex flex-col py-1 gap-1">
         {projectIdsWithoutInbox.map((id) => (
           <SidebarProjectItem key={id} projectId={id} />
         ))}
@@ -281,7 +281,7 @@ const GenerateTestDataButton = () => {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-popover backdrop-blur-xl ring-1 ring-ring border-none sm:max-w-sm gap-5 [&>button]:text-content-tinted">
+        <DialogContent className="bg-popover backdrop-blur-xl ring-1 ring-ring border-none gap-5 safari:bg-popover/95 safari:backdrop-blur-none sm:max-w-sm [&>button]:text-content-tinted">
           <DialogHeader>
             <DialogTitle className="text-[15px] font-semibold text-content">
               Generate Test Data

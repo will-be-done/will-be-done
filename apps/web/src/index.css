@@ -256,6 +256,7 @@
 }
 
 @custom-variant desktop-macos (&:where(.is-desktop-app.is-macos *));
+@custom-variant safari (&:where(.is-safari *));
 
 /* @layer base { */
 /*   * { */
