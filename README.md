@@ -1,6 +1,23 @@
 
 **Note on AI:** I’ve been developing this project for a year. This is my third attempt; the first two failed because the technology for fast, offline-first apps wasn't ready. This time, I created my own method for local-first development and built a database that works for both the frontend and backend. I have over 10 years of experience as a developer and 4 years specializing in offline-first apps. Building these reliably requires specific expertise. I use Claude Code to help, but I review every line of code manually to ensure quality.
 
+## Download & installation
+
+* [Download for Windows](https://github.com/will-be-done/will-be-done/releases) <br>
+* [Download for macOS](https://github.com/will-be-done/will-be-done/releases) <br>
+* [Download for Linux](https://github.com/will-be-done/will-be-done/releases)
+* For now, mobile users can install the PWA as a bookmark. Native mobile clients are coming soon.
+
+You should also run the Docker server. Here is the easiest way:
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -v will_be_done_storage:/var/lib/will-be-done \
+  --restart unless-stopped \
+  ghcr.io/will-be-done/will-be-done:latest
+```
+
 ## Will Be Done - modern offline-first self-hosted TickTick/Todoist alternative
 
 Most task managers are great at collecting tasks - and terrible at helping you plan your week. Will Be Done gives you a visual weekly timeline where each day is a column. Drag tasks between days. See what's realistic. Always know what to focus on.
@@ -153,4 +170,3 @@ Separate apps:
 1. Multi users per space/project
 1. Sharing tasks/projects/spaces
 1. No time schedules for tasks
-
