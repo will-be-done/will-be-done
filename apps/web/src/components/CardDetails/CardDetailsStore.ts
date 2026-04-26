@@ -1,7 +1,6 @@
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 
-export const CARD_DETAILS_BUTTON_WIDTH = 32;
 const DEFAULT_WIDTH = 288;
 const MIN_WIDTH = 240;
 const MAX_WIDTH = 380;

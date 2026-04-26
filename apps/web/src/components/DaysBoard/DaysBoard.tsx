@@ -9,10 +9,7 @@ import {
   type DailyList,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import {
-  buildFocusKey,
-  useFocusStore,
-} from "@/store/focusSlice.ts";
+import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
@@ -269,14 +266,9 @@ const BoardView = ({
     [selectedDate, spaceId],
   );
 
-  console.log("projectId", selectedProjectId);
-
   return (
     <div className="flex h-full w-full">
-      <div
-        ref={rootRef}
-        className="flex flex-col h-full flex-1 min-w-0"
-      >
+      <div ref={rootRef} className="flex flex-col h-full flex-1 min-w-0">
         <div
           className="overflow-y-auto pt-10"
           style={{
