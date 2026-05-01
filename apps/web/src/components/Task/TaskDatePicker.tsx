@@ -55,7 +55,7 @@ export function TaskDatePicker({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0"
+        className="z-[1100] w-auto p-0"
         align="end"
       >
         <div className="flex flex-col">

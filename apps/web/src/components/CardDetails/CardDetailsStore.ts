@@ -12,7 +12,7 @@ export const useCardDetailsOpen = create<{
 }>()(
   persist(
     (set) => ({
-      isOpen: true,
+      isOpen: false,
       toggle: () => set((s) => ({ isOpen: !s.isOpen })),
       setOpen: (v: boolean) => set({ isOpen: v }),
     }),

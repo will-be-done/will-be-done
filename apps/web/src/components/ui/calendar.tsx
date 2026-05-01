@@ -30,6 +30,8 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      fixedWeeks
+      weekStartsOn={1}
       className={cn(
         "group/calendar p-3 rounded-lg [--cell-size:--spacing(8)]",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
@@ -119,7 +121,7 @@ function Calendar({
           defaultClassNames.today,
         ),
         outside: cn(
-          "text-content-tinted-2 aria-selected:text-content-tinted-2",
+          "text-content-tinted/15 aria-selected:text-content-tinted/85",
           defaultClassNames.outside,
         ),
         disabled: cn(
@@ -215,8 +217,9 @@ function CalendarDayButton({
       data-range-start={modifiers.range_start}
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
+      data-outside={modifiers.outside}
       className={cn(
-        "relative text-calendar-day cursor-pointer data-[today=true]:text-content data-[selected-single=true]:bg-accent/20 data-[selected-single=true]:text-content data-[selected-single=true]:ring-1 data-[selected-single=true]:ring-accent data-[range-middle=true]:bg-accent/20 data-[range-middle=true]:text-content data-[range-start=true]:bg-accent/20 data-[range-start=true]:text-content data-[range-end=true]:bg-accent/20 data-[range-end=true]:text-content group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-panel-tinted hover:text-content flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
+        "relative text-calendar-day cursor-pointer data-[today=true]:text-content data-[outside=true]:text-content-tinted-2 data-[selected-single=true]:bg-accent/20 data-[selected-single=true]:text-content data-[selected-single=true]:ring-1 data-[selected-single=true]:ring-accent data-[range-middle=true]:bg-accent/20 data-[range-middle=true]:text-content data-[range-start=true]:bg-accent/20 data-[range-start=true]:text-content data-[range-end=true]:bg-accent/20 data-[range-end=true]:text-content group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-panel-tinted hover:text-content flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
         defaultClassNames.day,
         className,
       )}
@@ -229,6 +232,5 @@ function CalendarDayButton({
     </Button>
   );
 }
-
 
 export { Calendar, CalendarDayButton };
