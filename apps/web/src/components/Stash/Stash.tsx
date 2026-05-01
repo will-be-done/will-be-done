@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { ResizableDivider } from "../DaysBoard/ResizableDivider.tsx";
 import {
-  getStashOpenWidth,
   STASH_BUTTON_WIDTH,
   useStashOpen,
   useStashSize,
@@ -92,14 +91,12 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
 
 export const useStashDesktopOffset = () => {
   const isMobile = useIsMobile();
-  const isOpen = useStashOpen((s) => s.isOpen);
-  const width = useStashSize((s) => s.width);
 
   if (isMobile) {
     return 0;
   }
 
-  return isOpen ? getStashOpenWidth(width) : STASH_BUTTON_WIDTH;
+  return 0;
 };
 
 export const Stash = () => {
@@ -164,74 +161,72 @@ export const Stash = () => {
     [setWidth],
   );
 
-  return (
-    <div
-      ref={rootRef}
+  const stashButton = (
+    <button
+      ref={buttonRef}
+      type="button"
+      onClick={toggle}
       className={cn(
-        "absolute left-0 top-0 z-5 hidden h-full sm:flex",
-        "transition-transform duration-200 ease-out",
+        "relative flex w-full flex-col items-center justify-center px-0 py-3",
+        "cursor-pointer rounded-r-md border-r border-ring/30",
+        "bg-panel-tinted/80 backdrop-blur-sm transition-colors safari:bg-panel-tinted-opaque safari:backdrop-blur-none",
+        "hover:bg-panel-tinted focus:outline-none",
+        isTaskOverButton &&
+          !isOpen &&
+          "bg-accent/10 ring-2 ring-accent ring-inset",
       )}
-      style={{
-        transform: isOpen
-          ? "translateX(0)"
-          : `translateX(calc(-100% + ${STASH_BUTTON_WIDTH}px))`,
-      }}
     >
+      {stashTaskCount > 0 && (
+        <span className="mb-2.5 flex min-w-5 items-center justify-center rounded-full bg-content-tinted/10 px-1 text-[11px] font-semibold leading-none tabular-nums text-content-tinted/60 select-none h-5">
+          {stashTaskCount}
+        </span>
+      )}
+      <span
+        className="text-xs font-bold uppercase tracking-widest text-content-tinted select-none"
+        style={{
+          writingMode: "vertical-rl",
+          textOrientation: "mixed",
+          transform: "rotate(180deg)",
+        }}
+      >
+        stash
+      </span>
+    </button>
+  );
+
+  if (!isOpen) {
+    return (
+      <div
+        className="absolute left-0 top-1/2 z-5 hidden -translate-y-1/2 sm:block"
+        style={{ width: `${STASH_BUTTON_WIDTH}px` }}
+      >
+        {stashButton}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={rootRef} className="absolute left-0 top-0 z-5 hidden h-full sm:flex">
       <div
         className={cn(
           "h-full bg-surface/95 backdrop-blur-sm safari:bg-surface safari:backdrop-blur-none",
-          "border-r border-ring/20",
           "overflow-hidden",
         )}
         style={{ width: `${width}px` }}
       >
-        {isOpen && <StashColumnView onTaskAdd={handleAddTask} />}
+        <StashColumnView onTaskAdd={handleAddTask} />
       </div>
 
       <div
-        className={cn(
-          "relative flex h-full w-8 flex-shrink-0 items-center justify-center",
-          isOpen && "border-l border-ring/30",
-        )}
+        className="relative -ml-px flex h-full flex-shrink-0 items-center justify-center border-l border-ring/30"
         style={{ width: `${STASH_BUTTON_WIDTH}px` }}
       >
-        {isOpen && (
-          <ResizableDivider
-            orientation="vertical"
-            onResizePosition={handleResize}
-            className="left-0 top-0"
-          />
-        )}
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={toggle}
-          className={cn(
-            "relative flex w-full flex-col items-center justify-center px-0 py-3",
-            "cursor-pointer rounded-r-md border-r border-ring/30",
-            "bg-panel-tinted/80 backdrop-blur-sm transition-colors safari:bg-panel-tinted-opaque safari:backdrop-blur-none",
-            "hover:bg-panel-tinted focus:outline-none",
-            isTaskOverButton &&
-              !isOpen &&
-              "bg-accent/10 ring-2 ring-accent ring-inset",
-          )}
-        >
-          {stashTaskCount > 0 && (
-            <span className="mb-2.5 flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-content-tinted/10 text-[11px] font-semibold tabular-nums text-content-tinted/60 leading-none select-none ">
-              {stashTaskCount}
-            </span>
-          )}
-          <span
-            className="text-xs font-bold uppercase tracking-widest text-content-tinted select-none"
-            style={{
-              writingMode: "vertical-rl",
-              textOrientation: "mixed",
-              transform: "rotate(180deg)",
-            }}
-          >
-            stash
-          </span>
-        </button>
+        <ResizableDivider
+          orientation="vertical"
+          onResizePosition={handleResize}
+          className="left-0 top-0"
+        />
+        {stashButton}
       </div>
     </div>
   );
