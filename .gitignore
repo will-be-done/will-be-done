@@ -36,3 +36,7 @@ __screenshots__
 .env.production
 .envrc
 
+# Local signing certificates and private keys
+*.p12
+*.cer
+*.p8
