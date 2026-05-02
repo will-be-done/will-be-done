@@ -143,6 +143,7 @@ export const DropTaskIndicator = ({
 
 const getFocusKeyForColumnMoveTarget = (
   taskId: string,
+  sourceModelType: CardWrapperType,
   targetColumnModelType: string,
   fallbackKey: ReturnType<typeof buildFocusKey>,
 ) => {
@@ -154,7 +155,10 @@ const getFocusKeyForColumnMoveTarget = (
     return buildFocusKey(taskId, projectionType);
   }
 
-  if (targetColumnModelType === projectCategoryType) {
+  if (
+    targetColumnModelType === projectCategoryType &&
+    (sourceModelType === projectionType || sourceModelType === stashProjectionType)
+  ) {
     return buildFocusKey(taskId, taskType);
   }
 
@@ -297,6 +301,12 @@ export const TaskComp = ({
     const isAddAfter = noModifiers && (e.code === "KeyA" || e.code === "KeyO");
     const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
 
+    const isDeleteProjectionTask =
+      (e.metaKey || e.ctrlKey) &&
+      !e.shiftKey &&
+      e.code === "Space" &&
+      cardWrapper.type === projectionType;
+
     const isMoveUp = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyK");
     const isMoveDown =
       e.ctrlKey && (e.code === "ArrowDown" || e.code == "KeyJ");
@@ -329,6 +339,20 @@ export const TaskComp = ({
       } else if (isTaskTemplate(card)) {
         dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "unknown" }));
       }
+    } else if (isDeleteProjectionTask) {
+      e.preventDefault();
+
+      const [upKey, downKey] = getDOMSiblings(focusableItemKey);
+
+      dispatch(cardsTasksSlice.deleteTasks([taskId]));
+
+      if (downKey) {
+        useFocusStore.getState().focusByKey(downKey);
+      } else if (upKey) {
+        useFocusStore.getState().focusByKey(upKey);
+      } else {
+        useFocusStore.getState().resetFocus();
+      }
     } else if (e.code === "Space" && noModifiers) {
       e.preventDefault();
 
@@ -350,6 +374,7 @@ export const TaskComp = ({
       if (dropTarget) {
         const targetFocusKey = getFocusKeyForColumnMoveTarget(
           cardWrapper.id,
+          cardWrapper.type,
           dropTarget.targetColumnModel.type,
           focusableItemKey,
         );

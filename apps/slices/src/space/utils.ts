@@ -62,13 +62,13 @@ export function generateKeyPositionedBetween(
 
   if (position === "before") {
     return generateJitteredKeyBetween(
-      before?.orderToken || null,
+      before && before.orderToken < item.orderToken ? before.orderToken : null,
       item.orderToken,
     );
   } else {
     return generateJitteredKeyBetween(
       item.orderToken,
-      after?.orderToken || null,
+      after && after.orderToken > item.orderToken ? after.orderToken : null,
     );
   }
 }

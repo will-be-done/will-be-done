@@ -160,7 +160,7 @@ Planned:
 1. `u`/`r` - undo/redo action
 1. `?` - change date
 
-## Current Roadmap
+## Current Roadmap, v1.0 release
 
 From tasks perspective:
 - [x] Repeating tasks
@@ -170,26 +170,37 @@ From tasks perspective:
 
 From api perspective:
 - [ ] API & MCP integration
-- [ ] CalDAV integration
 
 UI/UX:
 - [ ] Themes per project(custom background of project and custom color of project tasks)
-- [ ] Multi selection of tasks
 - [ ] Global command palette
 - [ ] More vim keybindings
-- [ ] Global themes
 - [ ] Undo/redo action
-- [ ] DnD for project columns
-- [ ] I18n
 
 Others:
 - [x] Migrator from popular task managers: Todoist / TickTick
-- [ ] e2e encryption
 - [ ] Global search
 
 Separate apps:
 - [x] Desktop app with global quick add
-- [ ] Mobile app with notifications and widgets support
+- [ ] Mobile app(not PWA)
+
+## Next possible features
+
+From api perspective:
+- [ ] CalDAV integration
+
+UI/UX:
+- [ ] Multi selection of tasks
+- [ ] Global themes
+- [ ] DnD for project columns
+- [ ] I18n
+
+Others:
+- [ ] e2e encryption
+
+Separate apps:
+- [ ] Widgets support on mobile app
 - [ ] Notifications on web, mobile, desktop apps
 
 ## Features that are not planning for now

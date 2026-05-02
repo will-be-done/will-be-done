@@ -17,6 +17,7 @@ import { projectsSlice } from ".";
 import { defaultProject, Project } from "./projects";
 import { projectCategoryCardsSlice } from ".";
 import { cardsTasksSlice } from ".";
+import { cardsTaskTemplatesSlice } from ".";
 import { Task, isTask } from "./cardsTasks";
 import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { appSlice } from ".";
@@ -305,6 +306,11 @@ export const handleDrop = action(function* (
 
   if (isTask(dropItem)) {
     yield* cardsTasksSlice.updateTask(dropItem.id, {
+      projectCategoryId: categoryId,
+      orderToken,
+    });
+  } else if (isTaskTemplate(dropItem)) {
+    yield* cardsTaskTemplatesSlice.updateTemplate(dropItem.id, {
       projectCategoryId: categoryId,
       orderToken,
     });
