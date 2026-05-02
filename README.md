@@ -203,8 +203,6 @@ Separate apps:
 - [ ] Widgets support on mobile app
 - [ ] Notifications on web, mobile, desktop apps
 
-Separate apps:
-
 ## Features that are not planning for now
 
 1. Multi users per space/project
