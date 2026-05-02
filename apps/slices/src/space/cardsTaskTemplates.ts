@@ -12,18 +12,19 @@ import {
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
 import {
+  appSlice,
   cardsTasksSlice,
   taskType,
   dailyListsProjectionsSlice,
   projectCategoriesSlice,
   projectCategoryCardsSlice,
 } from ".";
-import { type Task, type TaskNature } from "./cardsTasks";
+import { isTask, type Task, type TaskNature } from "./cardsTasks";
 import { registerSpaceSyncableTable } from "./syncMap";
-import { registerModelSlice } from "./maps";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
+import { AnyModelType, registerModelSlice } from "./maps";
 import { genUUIDV5 } from "../traits/";
-import { getDMY } from "./utils";
+import { generateKeyPositionedBetween, getDMY } from "./utils";
+import { isTaskProjection } from "./dailyListsProjections";
 
 // Type definitions
 export const taskTemplateType = "template";
@@ -317,12 +318,26 @@ export const newTasksToGenForTemplates = selector(function* (toDate: Date) {
 });
 
 export const canDrop = selector(function* (
-  _taskTemplateId: string,
-  _dropId: string,
-  _dropModelType: string,
+  taskTemplateId: string,
+  dropId: string,
+  dropModelType: AnyModelType,
 ) {
-  yield* noop();
-  return false;
+  const template = yield* byId(taskTemplateId);
+  if (!template) return false;
+
+  const model = yield* appSlice.byId(dropId, dropModelType);
+  if (!model) return false;
+
+  if (isTask(model)) {
+    return model.state === "todo";
+  }
+
+  if (isTaskProjection(model)) {
+    const droppedTask = yield* cardsTasksSlice.byId(model.id);
+    return droppedTask !== undefined && droppedTask.state === "todo";
+  }
+
+  return isTaskTemplate(model);
 });
 
 // Actions
@@ -398,12 +413,44 @@ export const createFromTask = action(function* (
 });
 
 export const handleDrop = action(function* (
-  _taskTemplateId: string,
-  _dropId: string,
-  _dropModelType: string,
-  _edge: "top" | "bottom",
+  taskTemplateId: string,
+  dropId: string,
+  dropModelType: AnyModelType,
+  edge: "top" | "bottom",
 ) {
-  yield* noop();
+  if (!(yield* canDrop(taskTemplateId, dropId, dropModelType))) return;
+
+  const template = yield* byId(taskTemplateId);
+  if (!template) return;
+
+  const dropItem = yield* appSlice.byId(dropId, dropModelType);
+  if (!dropItem) return;
+
+  const orderToken = generateKeyPositionedBetween(
+    template,
+    yield* projectCategoryCardsSlice.siblings(taskTemplateId),
+    edge === "top" ? "before" : "after",
+  );
+
+  if (isTask(dropItem)) {
+    yield* cardsTasksSlice.updateTask(dropItem.id, {
+      projectCategoryId: template.projectCategoryId,
+      orderToken,
+    });
+  } else if (isTaskTemplate(dropItem)) {
+    yield* updateTemplate(dropItem.id, {
+      projectCategoryId: template.projectCategoryId,
+      orderToken,
+    });
+  } else if (isTaskProjection(dropItem)) {
+    const droppedTask = yield* cardsTasksSlice.byId(dropItem.id);
+    if (droppedTask) {
+      yield* cardsTasksSlice.updateTask(droppedTask.id, {
+        projectCategoryId: template.projectCategoryId,
+        orderToken,
+      });
+    }
+  }
 });
 
 export const generateTasksFromTemplates = action(function* () {

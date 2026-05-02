@@ -174,13 +174,13 @@ export const createSiblingTask = action(function* (
   if (!card) throw new Error("Card not found");
 
   return yield* cardsTasksSlice.createTask({
+    ...taskParams,
     projectCategoryId: card.projectCategoryId,
     orderToken: generateKeyPositionedBetween(
       card,
       yield* siblings(cardId),
       position,
     ),
-    ...taskParams,
   });
 });
 
@@ -198,8 +198,8 @@ export const createTaskCardAfter = action(function* (
   );
 
   return yield* cardsTasksSlice.createTask({
+    ...taskParams,
     projectCategoryId: card.projectCategoryId,
     orderToken,
-    ...taskParams,
   });
 });
