@@ -2,7 +2,6 @@ import { Folder, Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import TextareaAutosize from "react-textarea-autosize";
 import Markdown from "react-markdown";
-import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 
 const markdownComponents = {
@@ -64,45 +63,14 @@ const markdownComponents = {
 };
 
 function MarkdownWithBlankLines({ children }: { children: string }) {
-  const parts = children.split(/(\n{2,})/);
-  const segments = parts.reduce<{ key: string; offset: number; part: string }[]>(
-    (acc, part) => {
-      const previous = acc[acc.length - 1];
-      const offset = previous ? previous.offset + previous.part.length : 0;
-
-      return [...acc, { key: `${offset}:${part.length}`, offset, part }];
-    },
-    [],
-  );
-
   return (
-    <>
-      {segments.map(({ key, part }) => {
-        if (!part) return null;
-
-        if (/^\n{2,}$/.test(part)) {
-          return (
-            <span
-              key={key}
-              aria-hidden="true"
-              className="block"
-              style={{ height: `${Math.max(0, part.length - 2)}lh` }}
-            />
-          );
-        }
-
-        return (
-          <Markdown
-            key={key}
-            remarkPlugins={[remarkGfm, remarkBreaks]}
-            skipHtml
-            components={markdownComponents}
-          >
-            {part}
-          </Markdown>
-        );
-      })}
-    </>
+    <Markdown
+      remarkPlugins={[remarkGfm]}
+      skipHtml
+      components={markdownComponents}
+    >
+      {children}
+    </Markdown>
   );
 }
 
@@ -229,7 +197,9 @@ export function EditableMarkdownDescription({
           <MarkdownWithBlankLines>{description}</MarkdownWithBlankLines>
         </div>
       ) : (
-        <span className="text-xs italic text-content-tinted">Add a description</span>
+        <span className="text-xs italic text-content-tinted">
+          Add a description
+        </span>
       )}
     </div>
   );

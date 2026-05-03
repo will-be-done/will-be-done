@@ -63,7 +63,6 @@
     "react-markdown": "^10.1.0",
     "react-scan": "^0.4.3",
     "react-textarea-autosize": "^8.5.9",
-    "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "rrule": "^2.8.1",
     "rrule-temporal": "^1.2.5",

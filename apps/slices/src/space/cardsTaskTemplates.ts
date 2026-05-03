@@ -71,22 +71,16 @@ export const taskTemplatesTable = table<TaskTemplate>(
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
-const genTaskId = selector(function* (
-  taskTemplateId: string,
-  epoch: number,
-) {
+const genTaskId = selector(function* (taskTemplateId: string, epoch: number) {
   return yield* genUUIDV5(taskType, taskTemplateId + "_" + epoch);
 });
 
-const templateToTask = selector(function* (
-  tmpl: TaskTemplate,
-  epoch: number,
-) {
+const templateToTask = selector(function* (tmpl: TaskTemplate, epoch: number) {
   return {
     type: "task",
     id: yield* genTaskId(tmpl.id, epoch),
     title: tmpl.title,
-    content: tmpl.content,
+    content: "",
     state: "todo",
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
