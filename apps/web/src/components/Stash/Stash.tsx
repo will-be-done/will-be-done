@@ -12,8 +12,10 @@ import {
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
+import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import { cn } from "@/lib/utils.ts";
+import { isInputElement } from "@/utils/isInputElement.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { ResizableDivider } from "../DaysBoard/ResizableDivider.tsx";
 import {
@@ -114,6 +116,28 @@ export const Stash = () => {
   const width = useStashSize((s) => s.width);
   const setWidth = useStashSize((s) => s.setWidth);
   const [isTaskOverButton, setIsTaskOverButton] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useGlobalListener("keydown", (e: KeyboardEvent) => {
+    const focusState = useFocusStore.getState();
+    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
+
+    if (
+      e.code !== "KeyS" ||
+      !noModifiers ||
+      focusState.isFocusDisabled ||
+      !!focusState.editItemKey ||
+      e.defaultPrevented
+    ) {
+      return;
+    }
+
+    const target = e.target instanceof Element ? e.target : document.activeElement;
+    if (target && isInputElement(target)) return;
+
+    e.preventDefault();
+    toggle();
+  });
 
   useEffect(() => {
     const element = buttonRef.current;
@@ -161,6 +185,12 @@ export const Stash = () => {
     [setWidth],
   );
 
+  const panelWidth = isOpen ? width : 0;
+  const rootWidth = panelWidth + STASH_BUTTON_WIDTH;
+  const widthTransitionClass = isResizing
+    ? "transition-none"
+    : "transition-[width] duration-300 ease-out";
+
   const stashButton = (
     <button
       ref={buttonRef}
@@ -194,38 +224,50 @@ export const Stash = () => {
     </button>
   );
 
-  if (!isOpen) {
-    return (
-      <div
-        className="absolute left-0 top-1/2 z-5 hidden -translate-y-1/2 sm:block"
-        style={{ width: `${STASH_BUTTON_WIDTH}px` }}
-      >
-        {stashButton}
-      </div>
-    );
-  }
-
   return (
-    <div ref={rootRef} className="absolute left-0 top-0 z-5 hidden h-full sm:flex">
+    <div
+      ref={rootRef}
+      className={cn(
+        "absolute left-0 top-0 z-5 hidden h-full sm:flex",
+        widthTransitionClass,
+      )}
+      style={{ width: `${rootWidth}px` }}
+    >
       <div
         className={cn(
+          widthTransitionClass,
           "h-full bg-surface/95 backdrop-blur-sm safari:bg-surface safari:backdrop-blur-none",
           "overflow-hidden",
         )}
-        style={{ width: `${width}px` }}
+        style={{ width: `${panelWidth}px` }}
       >
-        <StashColumnView onTaskAdd={handleAddTask} />
+        <div
+          aria-hidden={!isOpen}
+          className={cn(
+            "h-full overflow-y-auto transition-[transform,opacity] duration-300 ease-out",
+            isOpen
+              ? "translate-x-0 opacity-100"
+              : "-translate-x-6 opacity-0 pointer-events-none",
+          )}
+          style={{ width: `${width}px` }}
+        >
+          <StashColumnView onTaskAdd={handleAddTask} />
+        </div>
       </div>
 
       <div
         className="relative -ml-px flex h-full flex-shrink-0 items-center justify-center border-l border-ring/30"
         style={{ width: `${STASH_BUTTON_WIDTH}px` }}
       >
-        <ResizableDivider
-          orientation="vertical"
-          onResizePosition={handleResize}
-          className="left-0 top-0"
-        />
+        {isOpen && (
+          <ResizableDivider
+            orientation="vertical"
+            onResizePosition={handleResize}
+            onResizeStart={() => setIsResizing(true)}
+            onResizeEnd={() => setIsResizing(false)}
+            className="left-0 top-0"
+          />
+        )}
         {stashButton}
       </div>
     </div>

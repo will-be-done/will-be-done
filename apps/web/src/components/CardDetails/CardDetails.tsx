@@ -12,6 +12,7 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { TaskBody } from "./TaskBody.tsx";
 import { TemplateBody } from "./TemplateBody.tsx";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
+import { isInputElement } from "@/utils/isInputElement.ts";
 import {
   useCardDetailsSize,
   useCardDetailsOpen,
@@ -78,6 +79,22 @@ export function CardDetails() {
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Escape" && isVisible && !isEditingAnyField) {
       useFocusStore.getState().resetFocus();
+      return;
+    }
+
+    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
+    if (
+      e.code === "KeyT" &&
+      noModifiers &&
+      !isEditingAnyField &&
+      !e.defaultPrevented
+    ) {
+      const target =
+        e.target instanceof Element ? e.target : document.activeElement;
+      if (target && isInputElement(target)) return;
+
+      e.preventDefault();
+      toggle();
     }
   });
 
