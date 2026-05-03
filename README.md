@@ -40,7 +40,7 @@ After comparing several options from the Awesome Selfhosted list, I found that S
 | Able to open when fully offline, functional offline             | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
 | DnD tasks, projects. Tasks/projects reordering                  | ✅           | ✅                 | 🟥       | 🟥     | ✅      | ✅        |
 | Real time refresh, no need to refresh page when new task appear | ✅           | ✅ (with SuperSync)                | ✅       | 🟥     | 🟥      | 🟥        |
-| Multi tab support                                               | ✅           | ✅ (with SuperSync)                 | ✅       | 🟨     | 🟨      | 🟨        |
+| Multi tab support                                               | ✅           | 🟥                 | ✅       | 🟨     | 🟨      | 🟨        |
 | API                                                             | 🟨 WIP       | ✅ (with SuperSync)                 | ✅       | ✅     | ✅      | ✅        |
 | Mobile version                                                  | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
 | Keybinds(vim preferred)                                         | ✅           | ✅ even vim!       | ✅ keybinds highlight are smart! | ✅ | ✅ even vim! | 🟨 |
