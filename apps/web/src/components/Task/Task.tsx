@@ -58,6 +58,10 @@ import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
+import {
+  useCardDetailsEditRequest,
+  useCardDetailsOpen,
+} from "@/components/CardDetails/CardDetailsStore.ts";
 
 export function CheckboxComp({
   checked,
@@ -226,6 +230,7 @@ export const TaskComp = ({
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
 
       useFocusStore.getState().resetEdit();
 
@@ -488,6 +493,11 @@ export const TaskComp = ({
       e.preventDefault();
 
       useFocusStore.getState().editByKey(focusableItemKey);
+    } else if (e.code === "KeyE" && noModifiers) {
+      e.preventDefault();
+
+      useCardDetailsOpen.getState().setOpen(true);
+      useCardDetailsEditRequest.getState().editDescription(cardWrapper.id);
     } else if (isAddAfter || isAddBefore) {
       if (isTask(card) && card.state === "done") return;
 

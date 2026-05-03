@@ -21,22 +21,27 @@ import { CheckboxComp } from "@/components/Task/Task.tsx";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
-import { useTitleEditing } from "./hooks.ts";
+import { useDescriptionEditing, useTitleEditing } from "./hooks.ts";
 import {
   EditableTitle,
   DetailRow,
   ProjectDetailRow,
   CategoryDetailRow,
+  EditableMarkdownDescription,
 } from "./shared.tsx";
 
 export function TaskBody({
   task,
   isEditingTitle,
   setIsEditingTitle,
+  isEditingDescription,
+  setIsEditingDescription,
 }: {
   task: Task;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
+  isEditingDescription: boolean;
+  setIsEditingDescription: (v: boolean) => void;
 }) {
   const dispatch = useDispatch();
   const taskId = task.id;
@@ -80,6 +85,21 @@ export function TaskBody({
     onSave: useCallback(
       (trimmed: string) =>
         dispatch(cardsTasksSlice.updateTask(taskId, { title: trimmed })),
+      [dispatch, taskId],
+    ),
+  });
+
+  const {
+    editingDescription,
+    setDescriptionDraft,
+    saveDescription,
+    handleDescriptionKeyDown,
+    textareaRef: descriptionTextareaRef,
+  } = useDescriptionEditing({
+    description: task.content ?? "",
+    setIsEditingDescription,
+    onSave: useCallback(
+      (content: string) => dispatch(cardsTasksSlice.updateTask(taskId, { content })),
       [dispatch, taskId],
     ),
   });
@@ -222,6 +242,19 @@ export function TaskBody({
             </span>
           </DetailRow>
         )}
+
+        <div className="pt-1">
+          <EditableMarkdownDescription
+            isEditing={isEditingDescription}
+            editingDescription={editingDescription}
+            description={task.content ?? ""}
+            setDescriptionDraft={setDescriptionDraft}
+            handleDescriptionKeyDown={handleDescriptionKeyDown}
+            textareaRef={descriptionTextareaRef}
+            saveDescription={saveDescription}
+            setIsEditingDescription={setIsEditingDescription}
+          />
+        </div>
       </div>
 
       {!taskTemplateId && (

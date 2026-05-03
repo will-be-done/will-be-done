@@ -1,6 +1,110 @@
 import { Folder, Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import TextareaAutosize from "react-textarea-autosize";
+import Markdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
+
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="mb-2 text-base font-semibold leading-6 text-content">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="mb-2 text-sm font-semibold leading-6 text-content">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="mb-1 text-xs font-semibold leading-5 tracking-wide text-content">
+      {children}
+    </h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="whitespace-pre-wrap text-content [&:not(:last-child)]:mb-2">
+      {children}
+    </p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="list-disc space-y-1 pl-4 text-content">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="list-decimal space-y-1 pl-4 text-content">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="text-content">{children}</li>
+  ),
+  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-accent underline underline-offset-2"
+    >
+      {children}
+    </a>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code className="rounded bg-task-panel-hover px-1 py-0.5 font-mono text-[11px] text-content">
+      {children}
+    </code>
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre className="overflow-x-auto rounded-md bg-task-panel-hover px-2 py-1.5 font-mono text-[11px] text-content">
+      {children}
+    </pre>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-l-2 border-task-panel-ring/40 pl-3 text-content-tinted">
+      {children}
+    </blockquote>
+  ),
+  br: () => <br />,
+};
+
+function MarkdownWithBlankLines({ children }: { children: string }) {
+  const parts = children.split(/(\n{2,})/);
+  const segments = parts.reduce<{ key: string; offset: number; part: string }[]>(
+    (acc, part) => {
+      const previous = acc[acc.length - 1];
+      const offset = previous ? previous.offset + previous.part.length : 0;
+
+      return [...acc, { key: `${offset}:${part.length}`, offset, part }];
+    },
+    [],
+  );
+
+  return (
+    <>
+      {segments.map(({ key, part }) => {
+        if (!part) return null;
+
+        if (/^\n{2,}$/.test(part)) {
+          return (
+            <span
+              key={key}
+              aria-hidden="true"
+              className="block"
+              style={{ height: `${Math.max(0, part.length - 2)}lh` }}
+            />
+          );
+        }
+
+        return (
+          <Markdown
+            key={key}
+            remarkPlugins={[remarkGfm, remarkBreaks]}
+            skipHtml
+            components={markdownComponents}
+          >
+            {part}
+          </Markdown>
+        );
+      })}
+    </>
+  );
+}
 
 // ─── EditableTitle ────────────────────────────────────────────────────────────
 
@@ -72,9 +176,61 @@ export function DetailRow({
     <div className="flex items-start gap-2">
       <span className="text-content-tinted mt-0.5">{icon}</span>
       <div className="flex-1 min-w-0 flex">
-        <span className="text-content-tinted mr-1">{label}: </span>
-        <span className="text-content">{children}</span>
+        <span className="text-content-tinted mr-1 shrink-0">{label}: </span>
+        <div className="min-w-0 flex-1 text-content">{children}</div>
       </div>
+    </div>
+  );
+}
+
+export function EditableMarkdownDescription({
+  isEditing,
+  editingDescription,
+  description,
+  setDescriptionDraft,
+  handleDescriptionKeyDown,
+  textareaRef,
+  saveDescription,
+  setIsEditingDescription,
+}: {
+  isEditing: boolean;
+  editingDescription: string;
+  description: string;
+  setDescriptionDraft: (v: string) => void;
+  handleDescriptionKeyDown: (e: React.KeyboardEvent) => void;
+  textareaRef: (el: HTMLTextAreaElement | null) => void;
+  saveDescription: () => void;
+  setIsEditingDescription: (v: boolean) => void;
+}) {
+  if (isEditing) {
+    return (
+      <TextareaAutosize
+        ref={textareaRef}
+        value={editingDescription}
+        onChange={(e) => setDescriptionDraft(e.target.value)}
+        onKeyDown={handleDescriptionKeyDown}
+        onBlur={saveDescription}
+        minRows={4}
+        className="w-full rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content resize-none focus:outline-none focus:ring-1 focus:ring-accent"
+        placeholder="Write a description in markdown..."
+        aria-label="Edit task description"
+      />
+    );
+  }
+
+  return (
+    <div
+      className="rounded-md px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
+      onDoubleClick={() => setIsEditingDescription(true)}
+      title="Double-click to edit"
+    >
+      {description ? (
+        <div className="text-xs leading-5 text-content">
+          <MarkdownWithBlankLines>{description}</MarkdownWithBlankLines>
+        </div>
+      ) : (
+        <span className="text-xs italic text-content-tinted">Add a description</span>
+      )}
     </div>
   );
 }

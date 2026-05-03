@@ -26,9 +26,11 @@ export function useTitleEditing({
   const handleTitleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      e.stopPropagation();
       saveTitle();
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       setTitleDraft(null);
       setIsEditingTitle(false);
     }
@@ -41,4 +43,59 @@ export function useTitleEditing({
   }, []);
 
   return { editingTitle, setTitleDraft, saveTitle, handleTitleKeyDown, textareaRef };
+}
+
+export function useDescriptionEditing({
+  description,
+  setIsEditingDescription,
+  onSave,
+}: {
+  description: string;
+  setIsEditingDescription: (v: boolean) => void;
+  onSave: (nextDescription: string) => void;
+}) {
+  const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
+  const editingDescription = descriptionDraft ?? description;
+
+  const saveDescription = useCallback(() => {
+    if (descriptionDraft !== null) {
+      const normalized = descriptionDraft.trim()
+        ? descriptionDraft.trimEnd()
+        : "";
+
+      if (normalized !== description) {
+        onSave(normalized);
+      }
+
+      setDescriptionDraft(null);
+    }
+
+    setIsEditingDescription(false);
+  }, [description, descriptionDraft, onSave, setIsEditingDescription]);
+
+  const handleDescriptionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      saveDescription();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      saveDescription();
+    }
+  };
+
+  const textareaRef = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.focus();
+    el.selectionStart = el.value.length;
+  }, []);
+
+  return {
+    editingDescription,
+    setDescriptionDraft,
+    saveDescription,
+    handleDescriptionKeyDown,
+    textareaRef,
+  };
 }

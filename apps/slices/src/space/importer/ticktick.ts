@@ -234,6 +234,7 @@ export function parseTickTickCSV(csv: string): Backup {
       taskTemplates.push({
         id: uuidv7(),
         title,
+        content: content || "",
         orderToken,
         repeatRule: repeat,
         repeatRuleDtStart: startDateStr ? parseEpoch(startDateStr) : createdAt,

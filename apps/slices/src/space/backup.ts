@@ -73,6 +73,7 @@ interface DailyListProjectionBackup {
 interface TaskTemplateBackup {
   id: string;
   title: string;
+  content?: string;
   orderToken: string;
   repeatRule: string;
   repeatRuleDtStart?: number;
@@ -207,6 +208,7 @@ const getNewModels = action(function* (backup: Backup) {
       type: taskTemplateType,
       id: templateBackup.id,
       title: templateBackup.title,
+      content: templateBackup.content,
       orderToken: templateBackup.orderToken,
       repeatRule: templateBackup.repeatRule,
       repeatRuleDtStart:
@@ -353,6 +355,7 @@ export const getBackup = selector(function* () {
     taskTemplates: taskTemplates.map((template) => ({
       id: template.id,
       title: template.title,
+      content: template.content || "",
       orderToken: template.orderToken,
       repeatRule: template.repeatRule,
       repeatRuleDtStart: template.repeatRuleDtStart,

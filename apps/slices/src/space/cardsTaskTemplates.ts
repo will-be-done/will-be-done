@@ -33,6 +33,7 @@ export type TaskTemplate = {
   type: typeof taskTemplateType;
   id: string;
   title: string;
+  content?: string;
   orderToken: string;
   repeatRule: string;
   repeatRuleDtStart: number;
@@ -85,6 +86,7 @@ const templateToTask = selector(function* (
     type: "task",
     id: yield* genTaskId(tmpl.id, epoch),
     title: tmpl.title,
+    content: tmpl.content,
     state: "todo",
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
@@ -399,6 +401,7 @@ export const createFromTask = action(function* (
     id: newId,
     type: taskTemplateType,
     title: task.title,
+    content: task.content,
     orderToken: task.orderToken,
     createdAt: task.createdAt,
     repeatRule: defaultRule,

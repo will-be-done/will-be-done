@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useSyncSelector } from "@will-be-done/hyperdb";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
@@ -12,7 +12,11 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { TaskBody } from "./TaskBody.tsx";
 import { TemplateBody } from "./TemplateBody.tsx";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
-import { useCardDetailsSize, useCardDetailsOpen } from "./CardDetailsStore.ts";
+import {
+  useCardDetailsSize,
+  useCardDetailsOpen,
+  useCardDetailsEditRequest,
+} from "./CardDetailsStore.ts";
 
 // ─── Main sidebar panel ──────────────────────────────────────────────────────
 
@@ -34,20 +38,45 @@ export function CardDetails() {
     [cardId],
   );
 
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const isEditingTitle = editingTaskId === cardId;
+  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
+  const titleFieldKey = cardId ? `${cardId}:title` : null;
+  const descriptionFieldKey = cardId ? `${cardId}:description` : null;
+  const isEditingTitle = editingFieldKey === titleFieldKey;
+  const isEditingDescription = editingFieldKey === descriptionFieldKey;
+  const isEditingAnyField =
+    !!cardId && editingFieldKey?.startsWith(`${cardId}:`) === true;
+
+  useEffect(() => {
+    setEditingFieldKey(null);
+  }, [cardId]);
+
   const setIsEditingTitle = useCallback(
-    (v: boolean) => setEditingTaskId(v ? cardId : null),
+    (v: boolean) => setEditingFieldKey(v && cardId ? `${cardId}:title` : null),
+    [cardId],
+  );
+  const setIsEditingDescription = useCallback(
+    (v: boolean) =>
+      setEditingFieldKey(v && cardId ? `${cardId}:description` : null),
     [cardId],
   );
 
   const width = useCardDetailsSize((s) => s.width);
   const setWidth = useCardDetailsSize((s) => s.setWidth);
   const { isOpen: isPanelOpen, toggle } = useCardDetailsOpen();
+  const editRequest = useCardDetailsEditRequest((s) => s.request);
+
+  useEffect(() => {
+    if (!cardId || editRequest?.cardId !== cardId) return;
+
+    if (editRequest.field === "description") {
+      setEditingFieldKey(`${cardId}:description`);
+      useCardDetailsEditRequest.getState().clearRequest();
+    }
+  }, [cardId, editRequest]);
 
   // Escape closes panel (not while editing title)
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Escape" && isVisible && !isEditingTitle) {
+    if (e.key === "Escape" && isVisible && !isEditingAnyField) {
       useFocusStore.getState().resetFocus();
     }
   });
@@ -152,6 +181,8 @@ export function CardDetails() {
               cardId={cardId}
               isEditingTitle={isEditingTitle}
               setIsEditingTitle={setIsEditingTitle}
+              isEditingDescription={isEditingDescription}
+              setIsEditingDescription={setIsEditingDescription}
             />
           ) : (
             <div className="flex items-center justify-center h-32 text-content-tinted/50 text-sm">
@@ -170,10 +201,14 @@ function CardDetailsBody({
   cardId,
   isEditingTitle,
   setIsEditingTitle,
+  isEditingDescription,
+  setIsEditingDescription,
 }: {
   cardId: string;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
+  isEditingDescription: boolean;
+  setIsEditingDescription: (v: boolean) => void;
 }) {
   const card = useSyncSelector(
     () => projectCategoryCardsSlice.byId(cardId),
@@ -186,6 +221,8 @@ function CardDetailsBody({
         task={card}
         isEditingTitle={isEditingTitle}
         setIsEditingTitle={setIsEditingTitle}
+        isEditingDescription={isEditingDescription}
+        setIsEditingDescription={setIsEditingDescription}
       />
     );
   }
@@ -196,6 +233,8 @@ function CardDetailsBody({
         template={card}
         isEditingTitle={isEditingTitle}
         setIsEditingTitle={setIsEditingTitle}
+        isEditingDescription={isEditingDescription}
+        setIsEditingDescription={setIsEditingDescription}
       />
     );
   }
