@@ -140,6 +140,12 @@ Then open http://localhost:3000 in your browser.
 
 ## Vim keybinds
 
+Global:
+1. `s` - toggle stash
+1. `t` - toggle task details panel
+1. `v` - toggle project view
+1. `z` - zen mode: close stash, task details, and project view
+
 When you focused on task
 1. `i`, `enter` - insert mode. You can edit the task. `esc` - exit insert mode.
 1. `j`, `k` - move between tasks up and down
@@ -151,6 +157,7 @@ When you focused on task
 1. `space` - toggle task state
 1. `m` - move task to other project
 1. `d` - delete task
+1. `e` - edit task description
 
 Planned:
 1. `u`/`r` - undo/redo action
@@ -160,7 +167,7 @@ Planned:
 
 From tasks perspective:
 - [x] Repeating tasks
-- [ ] Task details. Tast body with markdown support
+- [x] Task details. Tast body with markdown support
 - [ ] Task comments and attachments
 - [ ] Checklist inside task
 

@@ -42,3 +42,20 @@ export const useCardDetailsSize = create<{
     },
   ),
 );
+
+export const useCardDetailsEditRequest = create<{
+  request: { cardId: string; field: "description"; nonce: number } | null;
+  editDescription: (cardId: string) => void;
+  clearRequest: () => void;
+}>()((set) => ({
+  request: null,
+  editDescription: (cardId: string) =>
+    set({
+      request: {
+        cardId,
+        field: "description",
+        nonce: Date.now(),
+      },
+    }),
+  clearRequest: () => set({ request: null }),
+}));

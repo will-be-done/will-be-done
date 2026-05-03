@@ -11,12 +11,13 @@ import {
 } from "@will-be-done/slices/space";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
-import { useTitleEditing } from "./hooks.ts";
+import { useDescriptionEditing, useTitleEditing } from "./hooks.ts";
 import {
   EditableTitle,
   DetailRow,
   ProjectDetailRow,
   CategoryDetailRow,
+  EditableMarkdownDescription,
 } from "./shared.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 
@@ -24,10 +25,14 @@ export function TemplateBody({
   template,
   isEditingTitle,
   setIsEditingTitle,
+  isEditingDescription,
+  setIsEditingDescription,
 }: {
   template: TaskTemplate;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
+  isEditingDescription: boolean;
+  setIsEditingDescription: (v: boolean) => void;
 }) {
   const dispatch = useDispatch();
   const templateId = template.id;
@@ -66,6 +71,24 @@ export function TemplateBody({
           cardsTaskTemplatesSlice.updateTemplate(templateId, {
             title: trimmed,
           }),
+        ),
+      [dispatch, templateId],
+    ),
+  });
+
+  const {
+    editingDescription,
+    setDescriptionDraft,
+    saveDescription,
+    handleDescriptionKeyDown,
+    textareaRef: descriptionTextareaRef,
+  } = useDescriptionEditing({
+    description: template.content ?? "",
+    setIsEditingDescription,
+    onSave: useCallback(
+      (content: string) =>
+        dispatch(
+          cardsTaskTemplatesSlice.updateTemplate(templateId, { content }),
         ),
       [dispatch, templateId],
     ),
@@ -143,6 +166,19 @@ export function TemplateBody({
         >
           {format(new Date(template.createdAt), "MMM d, yyyy, h:mm a")}
         </DetailRow>
+
+        <div className="pt-1">
+          <EditableMarkdownDescription
+            isEditing={isEditingDescription}
+            editingDescription={editingDescription}
+            description={template.content ?? ""}
+            setDescriptionDraft={setDescriptionDraft}
+            handleDescriptionKeyDown={handleDescriptionKeyDown}
+            textareaRef={descriptionTextareaRef}
+            saveDescription={saveDescription}
+            setIsEditingDescription={setIsEditingDescription}
+          />
+        </div>
       </div>
 
       <button

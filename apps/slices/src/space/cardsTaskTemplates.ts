@@ -33,6 +33,7 @@ export type TaskTemplate = {
   type: typeof taskTemplateType;
   id: string;
   title: string;
+  content?: string;
   orderToken: string;
   repeatRule: string;
   repeatRuleDtStart: number;
@@ -70,21 +71,16 @@ export const taskTemplatesTable = table<TaskTemplate>(
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
-const genTaskId = selector(function* (
-  taskTemplateId: string,
-  epoch: number,
-) {
+const genTaskId = selector(function* (taskTemplateId: string, epoch: number) {
   return yield* genUUIDV5(taskType, taskTemplateId + "_" + epoch);
 });
 
-const templateToTask = selector(function* (
-  tmpl: TaskTemplate,
-  epoch: number,
-) {
+const templateToTask = selector(function* (tmpl: TaskTemplate, epoch: number) {
   return {
     type: "task",
     id: yield* genTaskId(tmpl.id, epoch),
     title: tmpl.title,
+    content: "",
     state: "todo",
     projectCategoryId: tmpl.projectCategoryId,
     orderToken: tmpl.orderToken,
@@ -399,6 +395,7 @@ export const createFromTask = action(function* (
     id: newId,
     type: taskTemplateType,
     title: task.title,
+    content: task.content,
     orderToken: task.orderToken,
     createdAt: task.createdAt,
     repeatRule: defaultRule,

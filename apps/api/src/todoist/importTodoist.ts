@@ -326,6 +326,7 @@ export function buildBackup(
           taskTemplates.push({
             id: uuidv7(),
             title: t.content,
+            content: t.description || "",
             orderToken,
             repeatRule: rrule,
             repeatRuleDtStart: dtStart,

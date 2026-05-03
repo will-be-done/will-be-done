@@ -260,7 +260,9 @@ export const toggleState = action(function* (taskId: string) {
   ]);
 });
 
-export const createFromTemplate = action(function* (taskTemplate: TaskTemplate) {
+export const createFromTemplate = action(function* (
+  taskTemplate: TaskTemplate,
+) {
   yield* appSlice.deleteModel(taskTemplate.id, taskTemplate.type);
 
   const newId = uuidv7();
@@ -274,6 +276,7 @@ export const createFromTemplate = action(function* (taskTemplate: TaskTemplate) 
     lastToggledAt: Date.now(),
     nature: taskTemplate.nature ?? "unknown",
     createdAt: taskTemplate.createdAt,
+    content: taskTemplate.content,
     templateId: null,
     templateDate: null,
   };
