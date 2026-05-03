@@ -26,18 +26,22 @@ Another requirement is that it must be offline-first. I live in a country where 
 
 I also don't want to share sensitive data with companies that build task managers. A self-hosted, local-first app gives me much more control over where my data lives.
 
-Finally, I wanted a clean API so I could connect things like an MCP server or create tasks via Telegram.
+Also, I wanted a clean API so I could connect things like an MCP server or create tasks via Telegram.
 
-I couldn't find an existing app that met all of these needs. Below is a table comparing the self-hosted apps I found in the Awesome Selfhosted GitHub list.
+Finally, I am building this to be a highly opinionated tool focused on ergonomics. I’ve found that mainstream solutions, including paid apps like TickTick and Todoist - don't quite fit my workflow. I wanted to experiment with features that are often missing elsewhere: native Vim keybindings, a week-view timeline that maximizes vertical space, and a "task suggestion" panel.
+
+I am also implementing a "Stash" feature - a persistent, focused task list accessible from any page. Despite these power-user features, the goal is to keep the interface minimal and deeply visual customizable, allowing for project-specific backgrounds and color schemes(WIP).
+
+After comparing several options from the Awesome Selfhosted list, I found that Super Productivity came the closest to meeting my needs. However, it still lacks the specific ergonomic features and visual flexibility I want for my "rest of my life" task manager.
 
 |                                                                 | Will be done | Super Productivity | Donetick | Tududi | Vikunja | TaskTrove |
 | --------------------------------------------------------------- | ------------ | ------------------ | -------- | ------ | ------- | --------- |
 | Open-Source & Self Hosted                                       | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
 | Able to open when fully offline, functional offline             | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
 | DnD tasks, projects. Tasks/projects reordering                  | ✅           | ✅                 | 🟥       | 🟥     | ✅      | ✅        |
-| Real time refresh, no need to refresh page when new task appear | ✅           | 🟥                 | ✅       | 🟥     | 🟥      | 🟥        |
-| Multi tab support                                               | ✅           | 🟥                 | ✅       | 🟨     | 🟨      | 🟨        |
-| API                                                             | 🟨 WIP       | 🟥                 | ✅       | ✅     | ✅      | ✅        |
+| Real time refresh, no need to refresh page when new task appear | ✅           | ✅ (with SuperSync)                | ✅       | 🟥     | 🟥      | 🟥        |
+| Multi tab support                                               | ✅           | ✅ (with SuperSync)                 | ✅       | 🟨     | 🟨      | 🟨        |
+| API                                                             | 🟨 WIP       | ✅ (with SuperSync)                 | ✅       | ✅     | ✅      | ✅        |
 | Mobile version                                                  | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
 | Keybinds(vim preferred)                                         | ✅           | ✅ even vim!       | ✅ keybinds highlight are smart! | ✅ | ✅ even vim! | 🟨 |
 | Weekly planner                                                  | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
