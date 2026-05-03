@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
@@ -26,6 +26,9 @@ import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { getStashOpenWidth, useStashOpen, useStashSize } from "./StashStore.ts";
 import { CardDetails } from "@/components/CardDetails/CardDetails.tsx";
 import { Stash } from "@/components/Stash/Stash.tsx";
+import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
+import { isInputElement } from "@/utils/isInputElement.ts";
+import { useCardDetailsOpen } from "@/components/CardDetails/CardDetailsStore.ts";
 
 const ColumnView = ({
   dailyListId,
@@ -177,7 +180,10 @@ const BoardView = ({
   const dispatch = useDispatch();
   const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
   const isStashOpen = useStashOpen((s) => s.isOpen);
+  const setStashOpen = useStashOpen((s) => s.setOpen);
   const stashWidth = useStashSize((s) => s.width);
+  const setCardDetailsOpen = useCardDetailsOpen((s) => s.setOpen);
+  const [isProjectsResizing, setIsProjectsResizing] = useState(false);
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
@@ -223,6 +229,37 @@ const BoardView = ({
   const handleHideClick = () => {
     setProjectsViewHidden(!projectsViewHidden);
   };
+
+  useGlobalListener("keydown", (e: KeyboardEvent) => {
+    const focusState = useFocusStore.getState();
+    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
+
+    if (
+      !noModifiers ||
+      focusState.isFocusDisabled ||
+      !!focusState.editItemKey ||
+      e.defaultPrevented
+    ) {
+      return;
+    }
+
+    const target = e.target instanceof Element ? e.target : document.activeElement;
+    if (target && isInputElement(target)) return;
+
+    if (e.code === "KeyV") {
+      e.preventDefault();
+      setProjectsViewHidden(!projectsViewHidden);
+    } else if (e.code === "KeyZ") {
+      e.preventDefault();
+      setStashOpen(false);
+      setCardDetailsOpen(false);
+      setProjectsViewHidden(true);
+    }
+  });
+
+  const heightTransitionClass = isProjectsResizing
+    ? "transition-none"
+    : "transition-[height] duration-300 ease-out";
 
   const spaceId = Route.useParams().spaceId;
 
@@ -270,7 +307,7 @@ const BoardView = ({
     <div className="flex h-full w-full">
       <div ref={rootRef} className="flex flex-col h-full flex-1 min-w-0">
         <div
-          className="overflow-y-auto pt-10"
+          className={cn("overflow-y-auto pt-10", heightTransitionClass)}
           style={{
             height: projectsViewHidden
               ? "100%"
@@ -294,22 +331,36 @@ const BoardView = ({
           />
         </div>
         <div
-          className="w-full relative"
+          className={cn("w-full relative", heightTransitionClass)}
           style={{
             height: projectsViewHidden ? "0" : `${projectsViewHeight}%`,
           }}
         >
           <ResizableDivider
             onResizePosition={handleProjectsResize}
+            onResizeStart={() => setIsProjectsResizing(true)}
+            onResizeEnd={() => setIsProjectsResizing(false)}
             onHideClick={handleHideClick}
             isHidden={projectsViewHidden}
           />
 
-          <ProjectView
-            exceptDailyListIds={dailyListsIds}
-            selectedProjectId={selectedProjectId}
-            projectLink={ProjectLink}
-          />
+          <div className="absolute inset-0 overflow-hidden">
+            <div
+              aria-hidden={projectsViewHidden}
+              className={cn(
+                "h-full transition-transform duration-300 ease-out",
+                projectsViewHidden
+                  ? "translate-y-6 pointer-events-none"
+                  : "translate-y-0",
+              )}
+            >
+              <ProjectView
+                exceptDailyListIds={dailyListsIds}
+                selectedProjectId={selectedProjectId}
+                projectLink={ProjectLink}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

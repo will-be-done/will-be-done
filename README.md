@@ -139,6 +139,8 @@ Then open http://localhost:3000 in your browser.
 Global:
 1. `s` - toggle stash
 1. `t` - toggle task details panel
+1. `v` - toggle project view
+1. `z` - zen mode: close stash, task details, and project view
 
 When you focused on task
 1. `i`, `enter` - insert mode. You can edit the task. `esc` - exit insert mode.

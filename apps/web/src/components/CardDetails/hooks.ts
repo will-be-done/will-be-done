@@ -31,8 +31,7 @@ export function useTitleEditing({
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      setTitleDraft(null);
-      setIsEditingTitle(false);
+      saveTitle();
     }
   };
 

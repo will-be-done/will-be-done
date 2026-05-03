@@ -244,10 +244,8 @@ export const Stash = () => {
         <div
           aria-hidden={!isOpen}
           className={cn(
-            "h-full overflow-y-auto transition-[transform,opacity] duration-300 ease-out",
-            isOpen
-              ? "translate-x-0 opacity-100"
-              : "-translate-x-6 opacity-0 pointer-events-none",
+            "h-full overflow-y-auto transition-transform duration-300 ease-out",
+            isOpen ? "translate-x-0" : "-translate-x-6 pointer-events-none",
           )}
           style={{ width: `${width}px` }}
         >
