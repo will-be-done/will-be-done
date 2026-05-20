@@ -39,6 +39,7 @@ document.addEventListener("visibilitychange", () => {
   // https://github.com/trpc/trpc/issues/4078
   if (document.visibilityState === "visible") {
     wsClient?.connection?.ws?.dispatchEvent(new CloseEvent("close"));
+    wsClient?.connection?.ws.close();
   }
 });
 
