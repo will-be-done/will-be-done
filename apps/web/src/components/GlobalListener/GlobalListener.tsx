@@ -15,6 +15,7 @@ import {
   projectType,
   taskType,
   taskTemplateType,
+  checklistItemType,
   projectionType,
   stashProjectionType,
   stashType,
@@ -176,6 +177,7 @@ export function GlobalListener() {
           }
 
           const targetImportanceOrder = [
+            checklistItemType,
             stashProjectionType,
             projectionType,
             taskType,

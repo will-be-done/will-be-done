@@ -26,7 +26,7 @@ import {
   getDOMSiblings,
 } from "@/components/Focus/domNavigation.ts";
 import clsx from "clsx";
-import { RotateCw, CircleDashed } from "lucide-react";
+import { RotateCw, CircleDashed, GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   appSlice,
@@ -34,12 +34,16 @@ import {
   projectCategoriesSlice,
   cardsTasksSlice,
   cardsTaskTemplatesSlice,
+  checklistItemsSlice,
   dailyListsProjectionsSlice,
   AnyModelType,
   type Task,
+  type ChecklistItem,
+  type ChecklistParentType,
   type CardWrapperType,
   isTask,
   isTaskTemplate,
+  checklistItemType,
   dailyListType,
   projectionType,
   projectCategoryType,
@@ -107,6 +111,197 @@ type State =
 const idleState: State = { type: "idle" };
 const draggingState: State = { type: "dragging" };
 
+const DropChecklistIndicator = ({
+  direction,
+}: {
+  direction: "top" | "bottom";
+}) => {
+  return (
+    <div
+      className={clsx(
+        "pointer-events-none absolute left-0 right-0 z-10 h-[2px] bg-accent",
+        direction === "top" ? "top-0" : "bottom-0",
+      )}
+    />
+  );
+};
+
+const ChecklistItemComp = ({ item }: { item: ChecklistItem }) => {
+  const dispatch = useDispatch();
+  const select = useSelect();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const dragHandleRef = useRef<HTMLButtonElement | null>(null);
+  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+
+  useEffect(() => {
+    const rowElement = rowRef.current;
+    const dragHandleElement = dragHandleRef.current;
+    invariant(rowElement);
+    invariant(dragHandleElement);
+
+    return combine(
+      draggable({
+        element: dragHandleElement,
+        getInitialData: (): DndModelData => ({
+          modelId: item.id,
+          modelType: checklistItemType,
+        }),
+      }),
+      dropTargetForElements({
+        element: rowElement,
+        canDrop: ({ source }) => {
+          const data = source.data;
+          if (!isModelDNDData(data)) return false;
+
+          return select(
+            appSlice.canDrop(
+              item.id,
+              checklistItemType,
+              data.modelId,
+              data.modelType,
+            ),
+          );
+        },
+        getIsSticky: () => true,
+        getData: ({ input, element }) => {
+          const data: DndModelData = {
+            modelId: item.id,
+            modelType: checklistItemType,
+          };
+
+          return attachClosestEdge(data, {
+            input,
+            element,
+            allowedEdges: ["top", "bottom"],
+          });
+        },
+        onDragEnter: (args) => {
+          if (isModelDNDData(args.source.data)) {
+            setClosestEdge(extractClosestEdge(args.self.data));
+          }
+        },
+        onDrag: (args) => {
+          if (isModelDNDData(args.source.data)) {
+            setClosestEdge(extractClosestEdge(args.self.data));
+          }
+        },
+        onDragLeave: () => setClosestEdge(null),
+        onDrop: () => setClosestEdge(null),
+      }),
+    );
+  }, [item.id, select]);
+
+  return (
+    <div className="relative">
+      {closestEdge === "top" && <DropChecklistIndicator direction="top" />}
+      <div
+        ref={rowRef}
+        className="group/checklist-item flex min-h-7 items-start gap-1.5 px-2 py-1 text-xs text-content"
+      >
+        <button
+          ref={dragHandleRef}
+          className="mt-0.5 flex h-3.5 w-3.5 shrink-0 cursor-grab items-center justify-center text-content-tinted opacity-0 transition-opacity hover:opacity-100 active:cursor-grabbing group-hover/checklist-item:opacity-100 focus-visible:opacity-100"
+          aria-label="Drag checklist item"
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <CheckboxComp
+          checked={item.state === "done"}
+          onChange={() => dispatch(checklistItemsSlice.toggleState(item.id))}
+        />
+        <TextareaAutosize
+          value={item.content}
+          onChange={(e) =>
+            dispatch(
+              checklistItemsSlice.updateItem(item.id, {
+                content: e.target.value,
+              }),
+            )
+          }
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            "min-h-4 flex-1 resize-none bg-transparent leading-4 focus:outline-none",
+            item.state === "done" && "text-content-tinted line-through",
+          )}
+          aria-label="Checklist item"
+        />
+      </div>
+      {closestEdge === "bottom" && (
+        <DropChecklistIndicator direction="bottom" />
+      )}
+    </div>
+  );
+};
+
+const ChecklistItems = ({
+  parentId,
+  parentType,
+  visible,
+}: {
+  parentId: string;
+  parentType: ChecklistParentType;
+  visible: boolean;
+}) => {
+  const dispatch = useDispatch();
+  const [content, setContent] = useState("");
+  const items = useSyncSelector(
+    () => checklistItemsSlice.children(parentId, parentType),
+    [parentId, parentType],
+  );
+
+  const createItem = () => {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+
+    dispatch(
+      checklistItemsSlice.createItem({
+        parentId,
+        parentType,
+        content: trimmed,
+      }),
+    );
+    setContent("");
+  };
+
+  if (!visible && items.length === 0) return null;
+
+  return (
+    <div className="border-t border-ring px-0 pt-2">
+      {items.map((item) => (
+        <ChecklistItemComp key={item.id} item={item} />
+      ))}
+      {visible && (
+        <div className="flex min-h-5 items-center gap-1.5 px-2 pt-2 pb-1 text-xs">
+          <Plus className="h-3.5 w-3.5 shrink-0 text-content-tinted" />
+          <input
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                createItem();
+              }
+            }}
+            onBlur={createItem}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Add checklist item"
+            className="min-w-0 flex-1 bg-transparent text-xs text-content placeholder:text-content-tinted focus:outline-none"
+            aria-label="Add checklist item"
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TaskPrimitive = ({
   title,
   style,
@@ -161,7 +356,8 @@ const getFocusKeyForColumnMoveTarget = (
 
   if (
     targetColumnModelType === projectCategoryType &&
-    (sourceModelType === projectionType || sourceModelType === stashProjectionType)
+    (sourceModelType === projectionType ||
+      sourceModelType === stashProjectionType)
   ) {
     return buildFocusKey(taskId, taskType);
   }
@@ -326,7 +522,9 @@ export const TaskComp = ({
       if (isTask(card)) {
         dispatch(cardsTasksSlice.updateTask(taskId, { nature: "red" }));
       } else if (isTaskTemplate(card)) {
-        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "red" }));
+        dispatch(
+          cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "red" }),
+        );
       }
     } else if (e.code === "Digit2" && noModifiers) {
       e.preventDefault();
@@ -334,7 +532,9 @@ export const TaskComp = ({
       if (isTask(card)) {
         dispatch(cardsTasksSlice.updateTask(taskId, { nature: "green" }));
       } else if (isTaskTemplate(card)) {
-        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "green" }));
+        dispatch(
+          cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "green" }),
+        );
       }
     } else if (e.code === "Digit3" && noModifiers) {
       e.preventDefault();
@@ -342,7 +542,9 @@ export const TaskComp = ({
       if (isTask(card)) {
         dispatch(cardsTasksSlice.updateTask(taskId, { nature: "unknown" }));
       } else if (isTaskTemplate(card)) {
-        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "unknown" }));
+        dispatch(
+          cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "unknown" }),
+        );
       }
     } else if (isDeleteProjectionTask) {
       e.preventDefault();
@@ -747,15 +949,10 @@ export const TaskComp = ({
       >
         {/* {!isSelfDragging && ( */}
         <>
-          <div className="absolute top-2 right-2 flex gap-1">
-            {isTaskTemplate(card) && <CircleDashed className="h-3 w-3" />}
-            {isTask(card) && card.templateId && (
-              <RotateCw className="h-3 w-3" />
-            )}
-          </div>
           <div
             className={clsx(
-              "flex items-start gap-1.5 px-2 pt-2 font-medium pb-3 rounded-t-lg ",
+              isFocused ? "pb-1" : "pb-3",
+
               isFocused
                 ? isTask(card) && card.state === "done"
                   ? "bg-done-panel"
@@ -765,43 +962,65 @@ export const TaskComp = ({
                   : "bg-panel hover:bg-panel-hover",
             )}
           >
-            {isEditing ? (
-              <>
-                {isTask(card) && (
-                  <div className="flex items-center justify-end ">
-                    <CheckboxComp
-                      checked={card.state === "done"}
-                      onChange={handleTick}
-                    />
+            <div className="absolute top-2 right-2 flex gap-1">
+              {isTaskTemplate(card) && <CircleDashed className="h-3 w-3" />}
+              {isTask(card) && card.templateId && (
+                <RotateCw className="h-3 w-3" />
+              )}
+            </div>
+            <div
+              className={clsx(
+                "flex items-start gap-1.5 px-2 pt-2 font-medium rounded-t-lg ",
+              )}
+            >
+              {isEditing ? (
+                <>
+                  {isTask(card) && (
+                    <div className="flex items-center justify-end ">
+                      <CheckboxComp
+                        checked={card.state === "done"}
+                        onChange={handleTick}
+                      />
+                    </div>
+                  )}
+                  <TextareaAutosize
+                    ref={handleRef}
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onKeyDown={(e) => handleInputKeyDown(e)}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-transparent resize-none focus:outline-none"
+                    aria-label="Edit task title"
+                  />
+                </>
+              ) : (
+                <>
+                  {isTask(card) && (
+                    <div className="flex justify-end">
+                      <CheckboxComp
+                        checked={card.state === "done"}
+                        onChange={handleTick}
+                      />
+                    </div>
+                  )}
+                  <div
+                    className={cn("min-h-5", {
+                      "line-through": isTask(card) && card.state === "done",
+                    })}
+                  >
+                    {card.title}
                   </div>
-                )}
-                <TextareaAutosize
-                  ref={handleRef}
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={(e) => handleInputKeyDown(e)}
-                  className="w-full bg-transparent resize-none focus:outline-none"
-                  aria-label="Edit task title"
-                />
-              </>
-            ) : (
-              <>
-                {isTask(card) && (
-                  <div className="flex justify-end">
-                    <CheckboxComp
-                      checked={card.state === "done"}
-                      onChange={handleTick}
-                    />
-                  </div>
-                )}
-                <div
-                  className={cn("min-h-5", {
-                    "line-through": isTask(card) && card.state === "done",
-                  })}
-                >
-                  {card.title}
-                </div>
-              </>
+                </>
+              )}
+            </div>
+            {(isTask(card) || isTaskTemplate(card)) && (
+              <ChecklistItems
+                parentId={card.id}
+                parentType={card.type}
+                visible={isFocused || isEditing}
+              />
             )}
           </div>
           <div
@@ -812,9 +1031,11 @@ export const TaskComp = ({
                 : "flex items-center justify-between",
               isTask(card) && card.state === "done"
                 ? "bg-done-panel-tinted text-done-content"
-                : (isTask(card) || isTaskTemplate(card)) && card.nature === "red"
+                : (isTask(card) || isTaskTemplate(card)) &&
+                    card.nature === "red"
                   ? "bg-nature-red text-nature-red-content"
-                  : (isTask(card) || isTaskTemplate(card)) && card.nature === "green"
+                  : (isTask(card) || isTaskTemplate(card)) &&
+                      card.nature === "green"
                     ? "bg-nature-green text-nature-green-content"
                     : "bg-panel-tinted text-content-tinted",
             )}

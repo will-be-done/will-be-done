@@ -15,6 +15,7 @@ export * as projectsAllSlice from "./projectsAll";
 export * as dailyListsSlice from "./dailyLists";
 export * as dailyListsProjectionsSlice from "./dailyListsProjections";
 export * as stashProjectionsSlice from "./stashProjections";
+export * as checklistItemsSlice from "./checklistItems";
 export * as backupSlice from "./backup";
 
 export type { AnyModelType } from "./maps";
@@ -48,6 +49,10 @@ export { projectionType, isTaskProjection, defaultTaskProjection, taskProjection
 // stashProjections
 export type { StashProjection } from "./stashProjections";
 export { stashProjectionType, isStashProjection, defaultStashProjection, stashProjectionsTable, stashType, STASH_ID } from "./stashProjections";
+
+// checklistItems
+export type { ChecklistItem, ChecklistItemState, ChecklistParentType } from "./checklistItems";
+export { checklistItemType, isChecklistItem, defaultChecklistItem, checklistItemsTable } from "./checklistItems";
 
 // cards
 export type { CardWrapper, CardWrapperType } from "./cards";

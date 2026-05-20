@@ -15,6 +15,7 @@ import {
   appSlice,
   cardsTasksSlice,
   taskType,
+  checklistItemsSlice,
   dailyListsProjectionsSlice,
   projectCategoriesSlice,
   projectCategoryCardsSlice,
@@ -333,6 +334,17 @@ export const canDrop = selector(function* (
     return droppedTask !== undefined && droppedTask.state === "todo";
   }
 
+  if (
+    yield* checklistItemsSlice.canDropOnParent(
+      taskTemplateId,
+      taskTemplateType,
+      dropId,
+      dropModelType,
+    )
+  ) {
+    return true;
+  }
+
   return isTaskTemplate(model);
 });
 
@@ -380,6 +392,7 @@ export const deleteTemplates = action(function* (ids: string[]) {
       templateDate: null,
     });
   }
+  yield* checklistItemsSlice.deleteForParents(ids, taskTemplateType);
   yield* deleteRows(taskTemplatesTable, ids);
 });
 
@@ -387,9 +400,15 @@ export const createFromTask = action(function* (
   task: Task,
   data: Partial<TaskTemplate>,
 ) {
+  const newId = uuidv7();
+  yield* checklistItemsSlice.copyItems(
+    task.id,
+    taskType,
+    newId,
+    taskTemplateType,
+  );
   yield* cardsTasksSlice.deleteTasks([task.id]);
 
-  const newId = uuidv7();
   const now = Date.now();
   const template: TaskTemplate = {
     id: newId,
@@ -447,6 +466,21 @@ export const handleDrop = action(function* (
         orderToken,
       });
     }
+  } else if (
+    yield* checklistItemsSlice.canDropOnParent(
+      taskTemplateId,
+      taskTemplateType,
+      dropId,
+      dropModelType,
+    )
+  ) {
+    yield* checklistItemsSlice.handleDropOnParent(
+      taskTemplateId,
+      taskTemplateType,
+      dropId,
+      dropModelType,
+      edge,
+    );
   }
 });
 
@@ -464,6 +498,12 @@ export const generateTasksFromTemplates = action(function* () {
     yield* projectCategoryCardsSlice.createTaskCardAfter(task.templateId, {
       ...task,
     });
+    yield* checklistItemsSlice.copyItems(
+      task.templateId,
+      taskTemplateType,
+      task.id,
+      taskType,
+    );
 
     // Create projection at top of daily list for the task's date
     const localDate = fromUTC(new Date(task.createdAt));
