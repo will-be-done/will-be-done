@@ -168,21 +168,16 @@ Planned:
 From tasks perspective:
 - [x] Repeating tasks
 - [x] Task details. Tast body with markdown support
-- [ ] Task comments and attachments
 - [ ] Checklist inside task
 
 From api perspective:
 - [ ] API & MCP integration
 
 UI/UX:
-- [ ] Themes per project(custom background of project and custom color of project tasks)
-- [ ] Global command palette
-- [ ] More vim keybindings
 - [ ] Undo/redo action
 
 Others:
 - [x] Migrator from popular task managers: Todoist / TickTick
-- [ ] Global search
 
 Separate apps:
 - [x] Desktop app with global quick add
@@ -190,17 +185,25 @@ Separate apps:
 
 ## Next possible features
 
+From tasks perspective:
+- [ ] Task comments
+- [ ] Task attachments
+
 From api perspective:
 - [ ] CalDAV integration
 
 UI/UX:
+- [ ] Themes per project(custom background of project and custom color of project tasks)
+- [ ] Global command palette
 - [ ] Multi selection of tasks
 - [ ] Global themes
 - [ ] DnD for project columns
 - [ ] I18n
-
+- [ ] More vim keybindings
+      
 Others:
 - [ ] e2e encryption
+- [ ] Global search
 
 Separate apps:
 - [ ] Widgets support on mobile app
