@@ -78,9 +78,34 @@ const getClientId = (dbName: string) => {
   return newId;
 };
 
-
 const lock = new AwaitLock();
 const initedDbs: Record<string, SubscribableDB> = {};
+const SYNC_POLL_INTERVAL_MS = 5000;
+const SYNC_REQUEST_TIMEOUT_MS = 30_000;
+
+class SyncRequestTimeoutError extends Error {
+  constructor(label: string) {
+    super(`${label} timed out after ${SYNC_REQUEST_TIMEOUT_MS}ms`);
+    this.name = "SyncRequestTimeoutError";
+  }
+}
+
+const withSyncRequestTimeout = async <T>(
+  label: string,
+  run: (signal: AbortSignal) => Promise<T>,
+): Promise<T> => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => {
+    controller.abort(new SyncRequestTimeoutError(label));
+  }, SYNC_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await run(controller.signal);
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
+
 export const initDbStore = async (
   syncConfig: SyncConfig,
 ): Promise<SubscribableDB> => {
@@ -367,6 +392,9 @@ class Syncer {
   // State-based sync triggers - emit to wake up the sync loop
   private wsNotification = new State<number>(0);
   private forceSyncNotification = new State<number>(0);
+  private wakeSyncLoop = () => {
+    this.forceSync();
+  };
 
   constructor(
     private persistentDB: HyperDB,
@@ -379,6 +407,14 @@ class Syncer {
     this.syncConfig = syncConfig;
     this.electionChannel = new BroadcastChannel("election-" + clientId);
     this.elector = createLeaderElection(this.electionChannel);
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        this.wakeSyncLoop();
+      }
+    });
+    window.addEventListener("online", this.wakeSyncLoop);
+    window.addEventListener("focus", this.wakeSyncLoop);
   }
 
   startLoop() {
@@ -427,7 +463,7 @@ class Syncer {
       },
     );
 
-    this.wsUnsubscribe = subscription.unsubscribe;
+    this.wsUnsubscribe = () => subscription.unsubscribe();
   }
 
   async run() {
@@ -453,26 +489,49 @@ class Syncer {
         console.error(e);
       }
 
-      // Use Promise.race between timeout, WebSocket notification, and local changes
-      const wsVersion = this.wsNotification.get();
-      const forceSyncVersion = this.forceSyncNotification.get();
-      await Promise.race([
-        // I disabled it for dev mode to reduce noise
-        ...(process.env.NODE_ENV === "development"
-          ? []
-          : [
-              new Promise<"timeout">((resolve) =>
-                setTimeout(() => resolve("timeout"), 5000),
-              ),
-            ]),
-        this.wsNotification
-          .when((version) => version > wsVersion)
-          .then(() => "ws" as const),
-        this.forceSyncNotification
-          .when((version) => version > forceSyncVersion)
-          .then(() => "local" as const),
-      ]);
+      await this.waitForNextSyncTrigger();
     }
+  }
+
+  private async waitForNextSyncTrigger() {
+    const wsVersion = this.wsNotification.get();
+    const forceSyncVersion = this.forceSyncNotification.get();
+
+    return new Promise<"timeout" | "ws" | "local">((resolve) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let unsubscribeWs = () => {};
+      let unsubscribeForceSync = () => {};
+      let settled = false;
+
+      const finish = (reason: "timeout" | "ws" | "local") => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+        }
+        unsubscribeWs();
+        unsubscribeForceSync();
+        resolve(reason);
+      };
+
+      unsubscribeWs = this.wsNotification.subscribe((version) => {
+        if (version > wsVersion) {
+          finish("ws");
+        }
+      });
+      unsubscribeForceSync = this.forceSyncNotification.subscribe((version) => {
+        if (version > forceSyncVersion) {
+          finish("local");
+        }
+      });
+
+      // I disabled it for dev mode to reduce noise
+      if (process.env.NODE_ENV !== "development") {
+        timeoutId = setTimeout(() => finish("timeout"), SYNC_POLL_INTERVAL_MS);
+      }
+    });
   }
 
   private async getAndApplyChanges() {
@@ -480,11 +539,18 @@ class Syncer {
       this.persistentDB,
       syncSlice.getOrDefault(),
     );
-    const serverChanges = await trpcClient.getChangesAfter.query({
-      lastServerUpdatedAt: syncState.lastServerAppliedClock,
-      dbId: this.syncConfig.dbId,
-      dbType: this.syncConfig.dbType,
-    });
+    const serverChanges = await withSyncRequestTimeout(
+      "getChangesAfter",
+      (signal) =>
+        trpcClient.getChangesAfter.query(
+          {
+            lastServerUpdatedAt: syncState.lastServerAppliedClock,
+            dbId: this.syncConfig.dbId,
+            dbType: this.syncConfig.dbType,
+          },
+          { signal },
+        ),
+    );
     // TODO: make server to not return changes of current client, otherwise
     // it will ruin real time editing experience.
 
@@ -602,11 +668,16 @@ class Syncer {
       return;
     }
 
-    await trpcClient.handleChanges.mutate({
-      dbId: this.syncConfig.dbId,
-      dbType: this.syncConfig.dbType,
-      changeset: changesets,
-    });
+    await withSyncRequestTimeout("handleChanges", (signal) =>
+      trpcClient.handleChanges.mutate(
+        {
+          dbId: this.syncConfig.dbId,
+          dbType: this.syncConfig.dbType,
+          changeset: changesets,
+        },
+        { signal },
+      ),
+    );
     await asyncDispatch(
       this.persistentDB,
       syncSlice.update({ lastSentClock: maxClock }),
