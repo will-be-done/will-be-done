@@ -19,7 +19,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { CheckboxComp, ChecklistItems } from "./Checklist";
 import { TaskDropdownMenu } from "./DropdownMenu";
 import { taskFloatingIconGroupClassName } from "./styles";
-import { usePrevious, useUnmount } from "../../utils";
+import { useUnmount } from "../../utils";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
@@ -206,31 +206,23 @@ export const TaskComp = ({
     startOfDay(date) > lastScheduleTime &&
     isTask(card) &&
     card.state === "todo";
+  const taskTitle = card.title;
 
-  const [editingTitle, setEditingTitle] = useState<string>(card.title);
+  const [editingTitle, setEditingTitle] = useState<string>(taskTitle);
+  const [draftSourceTitle, setDraftSourceTitle] = useState<string>(taskTitle);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const titleSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const lastSavedTitleRef = useRef(card.title);
+  const shouldPlaceTitleCaretAtEndRef = useRef(false);
   const focusableItemKey = buildFocusKey(cardWrapper.id, cardWrapper.type);
-
-  const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-
-      useFocusStore.getState().resetEdit();
-
-      // if (e.key === "Enter") {
-      //   task.setTitle(editingTitle);
-      //   const siblings = taskBox.siblings;
-      //   const list = taskBox.listRef.current;
-      //   const newItem = list.createChild([taskBox, siblings[1]], listItem);
-      //
-      //   currentProjectionState.setFocusedItemId(newItem.id);
-      // }
-    }
-  };
 
   const isFocused = useFocusStore(
     (s) => !s.isFocusDisabled && s.focusItemKey === focusableItemKey,
@@ -239,6 +231,11 @@ export const TaskComp = ({
     (s) => !s.isFocusDisabled && s.editItemKey === focusableItemKey,
   );
   const select = useSelect();
+
+  if (draftSourceTitle !== taskTitle) {
+    setDraftSourceTitle(taskTitle);
+    setEditingTitle(taskTitle);
+  }
 
   const handleTick = useCallback(() => {
     if (!isTask(card)) return;
@@ -410,6 +407,17 @@ export const TaskComp = ({
     focusChecklistItemInput(item.id);
   }, [card, dispatch, focusableItemKey]);
 
+  const handleOpenMoveModal = useCallback(() => {
+    // NOTE: this is needed to restore Focus back correctly after modal close
+    ref.current?.focus();
+    setIsMoveModalOpen(true);
+  }, []);
+
+  const handleOpenDatePicker = useCallback(() => {
+    ref.current?.focus();
+    setIsDatePickerOpen(true);
+  }, []);
+
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const focusState = useFocusStore.getState();
     const isSomethingEditing =
@@ -419,6 +427,7 @@ export const TaskComp = ({
     if (isSomethingEditing) return;
     if (!isFocused) return;
     if (isActionsOpen) return;
+    if (isDatePickerOpen) return;
     if (isFocusDisabled || e.defaultPrevented) return;
 
     const target =
@@ -443,6 +452,7 @@ export const TaskComp = ({
       e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
     const isMoveRight =
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
+    const isChangeDate = !e.ctrlKey && !e.metaKey && !e.altKey && e.key === "?";
 
     if (e.code === "Digit1" && noModifiers) {
       e.preventDefault();
@@ -495,9 +505,11 @@ export const TaskComp = ({
     } else if (e.code === "KeyM" && noModifiers) {
       e.preventDefault();
 
-      // NOTE: this is needed to restore Focus back correctly after modal close
-      ref.current?.focus();
-      setIsMoveModalOpen(true);
+      handleOpenMoveModal();
+    } else if (isChangeDate && isTask(card)) {
+      e.preventDefault();
+
+      handleOpenDatePicker();
     } else if (e.code === "KeyC" && noModifiers) {
       e.preventDefault();
 
@@ -522,7 +534,9 @@ export const TaskComp = ({
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
       e.preventDefault();
 
+      shouldPlaceTitleCaretAtEndRef.current = true;
       useFocusStore.getState().editByKey(focusableItemKey);
+      titleTextareaRef.current?.focus();
     } else if (e.code === "KeyE" && noModifiers) {
       e.preventDefault();
 
@@ -568,10 +582,15 @@ export const TaskComp = ({
 
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
-    dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
-  };
 
-  const ref = useRef<HTMLDivElement | null>(null);
+    if (isTask(card)) {
+      dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
+    } else if (isTaskTemplate(card)) {
+      dispatch(
+        cardsTaskTemplatesSlice.moveTemplateToProject(taskId, projectId),
+      );
+    }
+  };
 
   const suspendCardDragForInput = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -586,16 +605,12 @@ export const TaskComp = ({
   );
 
   const restoreCardDrag = useCallback(() => {
-    if (isEditing) return;
-
     ref.current?.setAttribute("draggable", "true");
-  }, [isEditing]);
+  }, []);
 
   useEffect(() => {
     const element = ref.current;
     invariant(element);
-
-    if (isEditing) return;
 
     return combine(
       draggable({
@@ -680,13 +695,15 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [dispatch, isEditing, select, cardWrapper.id, cardWrapper.type]);
+  }, [dispatch, select, cardWrapper.id, cardWrapper.type]);
 
-  const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
-    if (!el) return;
-    el.focus();
+  const focusTitleTextarea = useCallback(() => {
+    const textarea = titleTextareaRef.current;
+    if (!textarea) return;
 
-    el.selectionStart = el.value.length;
+    textarea.focus();
+    const end = textarea.value.length;
+    textarea.setSelectionRange(end, end);
   }, []);
 
   // useEffect(() => {
@@ -702,38 +719,112 @@ export const TaskComp = ({
   //   }
   // }, [isFocused]);
 
-  const prevIsEditing = usePrevious(isEditing);
-  const taskTitle = card.title;
-  const saveEditedTitle = useCallback(() => {
-    if (isTask(card)) {
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          title: editingTitle,
-        }),
-      );
+  const clearTitleSaveTimeout = useCallback(() => {
+    if (!titleSaveTimeoutRef.current) return;
+
+    clearTimeout(titleSaveTimeoutRef.current);
+    titleSaveTimeoutRef.current = null;
+  }, []);
+
+  const saveEditedTitle = useCallback(
+    (title = editingTitle) => {
+      if (title === taskTitle || title === lastSavedTitleRef.current) return;
+
+      lastSavedTitleRef.current = title;
+
+      if (isTask(card)) {
+        dispatch(
+          cardsTasksSlice.updateTask(taskId, {
+            title,
+          }),
+        );
+        return;
+      }
+
+      if (isTaskTemplate(card)) {
+        dispatch(
+          cardsTaskTemplatesSlice.updateTemplate(taskId, {
+            title,
+          }),
+        );
+      }
+    },
+    [card, dispatch, editingTitle, taskId, taskTitle],
+  );
+
+  const flushEditedTitle = useCallback(() => {
+    clearTitleSaveTimeout();
+    saveEditedTitle();
+  }, [clearTitleSaveTimeout, saveEditedTitle]);
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+
+      flushEditedTitle();
+      useFocusStore.getState().resetEdit();
+      e.currentTarget.blur();
+      ref.current?.focus();
+
+      // if (e.key === "Enter") {
+      //   task.setTitle(editingTitle);
+      //   const siblings = taskBox.siblings;
+      //   const list = taskBox.listRef.current;
+      //   const newItem = list.createChild([taskBox, siblings[1]], listItem);
+      //
+      //   currentProjectionState.setFocusedItemId(newItem.id);
+      // }
+    }
+  };
+
+  const handleTitleFocus = useCallback(() => {
+    useFocusStore.getState().editByKey(focusableItemKey);
+  }, [focusableItemKey]);
+
+  const handleTitleBlur = useCallback(() => {
+    flushEditedTitle();
+    useFocusStore.getState().resetEdit();
+  }, [flushEditedTitle]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const textarea = titleTextareaRef.current;
+    const isTitleAlreadyFocused = document.activeElement === textarea;
+
+    if (isTitleAlreadyFocused && !shouldPlaceTitleCaretAtEndRef.current) {
       return;
     }
 
-    if (isTaskTemplate(card)) {
-      dispatch(
-        cardsTaskTemplatesSlice.updateTemplate(taskId, {
-          title: editingTitle,
-        }),
-      );
-    }
-  }, [card, dispatch, editingTitle, taskId]);
+    window.requestAnimationFrame(() => {
+      shouldPlaceTitleCaretAtEndRef.current = false;
+      focusTitleTextarea();
+    });
+  }, [focusTitleTextarea, isEditing]);
 
   useEffect(() => {
-    setEditingTitle(taskTitle);
+    lastSavedTitleRef.current = taskTitle;
   }, [taskTitle]);
 
   useEffect(() => {
-    if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
-      saveEditedTitle();
+    if (editingTitle === taskTitle) {
+      clearTitleSaveTimeout();
+      return;
     }
-  }, [editingTitle, isEditing, prevIsEditing, saveEditedTitle, taskTitle]);
+
+    clearTitleSaveTimeout();
+    titleSaveTimeoutRef.current = setTimeout(() => {
+      titleSaveTimeoutRef.current = null;
+      saveEditedTitle();
+    }, 500);
+
+    return clearTitleSaveTimeout;
+  }, [clearTitleSaveTimeout, editingTitle, saveEditedTitle, taskTitle]);
 
   useUnmount(() => {
+    clearTitleSaveTimeout();
+
     if (editingTitle !== taskTitle) {
       saveEditedTitle();
     }
@@ -791,9 +882,6 @@ export const TaskComp = ({
         onPointerDownCapture={suspendCardDragForInput}
         onPointerUpCapture={restoreCardDrag}
         onPointerCancelCapture={restoreCardDrag}
-        onDoubleClick={() => {
-          useFocusStore.getState().editByKey(focusableItemKey);
-        }}
         ref={ref}
       >
         {/* {!isSelfDragging && ( */}
@@ -830,8 +918,12 @@ export const TaskComp = ({
                   isFocused={isFocused}
                   isOpen={isActionsOpen}
                   isDone={isTask(card) && card.state === "done"}
+                  canMarkDone={isTask(card)}
                   canAddChecklistItem={isTask(card) || isTaskTemplate(card)}
                   onOpenChange={setIsActionsOpen}
+                  onMarkDone={handleTick}
+                  onMoveToProject={handleOpenMoveModal}
+                  onChangeDate={handleOpenDatePicker}
                   onAddChecklistItem={handleAddChecklistItem}
                   onMoveUp={() => handleMoveStacked("up")}
                   onMoveDown={() => handleMoveStacked("down")}
@@ -839,6 +931,22 @@ export const TaskComp = ({
                   onMoveRight={() => handleMoveColumn("right")}
                   onDelete={handleDelete}
                 />
+                {isTask(card) && !displayLastScheduleTime && (
+                  <TaskDatePicker
+                    taskId={taskId}
+                    currentDate={lastScheduleTime}
+                    open={isDatePickerOpen}
+                    onOpenChange={setIsDatePickerOpen}
+                    trigger={
+                      <button
+                        type="button"
+                        className="absolute right-0 top-0 h-5 w-5 opacity-0 pointer-events-none"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                      />
+                    }
+                  />
+                )}
               </div>
             </div>
             <div
@@ -846,47 +954,37 @@ export const TaskComp = ({
                 "flex items-start gap-1.5 rounded-t-lg px-2 pt-2 font-medium pr-6",
               )}
             >
-              {isEditing ? (
-                <>
-                  {isTask(card) && (
-                    <div className="flex items-center justify-end ">
-                      <CheckboxComp
-                        checked={card.state === "done"}
-                        onChange={handleTick}
-                      />
-                    </div>
-                  )}
-                  <TextareaAutosize
-                    ref={handleRef}
-                    value={editingTitle}
-                    onChange={(e) => setEditingTitle(e.target.value)}
-                    onKeyDown={(e) => handleInputKeyDown(e)}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-transparent resize-none focus:outline-none"
-                    aria-label="Edit task title"
+              {isTask(card) && (
+                <div className="flex justify-end">
+                  <CheckboxComp
+                    checked={card.state === "done"}
+                    onChange={handleTick}
                   />
-                </>
-              ) : (
-                <>
-                  {isTask(card) && (
-                    <div className="flex justify-end">
-                      <CheckboxComp
-                        checked={card.state === "done"}
-                        onChange={handleTick}
-                      />
-                    </div>
-                  )}
-                  <div
-                    className={cn("min-h-5", {
-                      "line-through": isTask(card) && card.state === "done",
-                    })}
-                  >
-                    {card.title}
-                  </div>
-                </>
+                </div>
               )}
+              <TextareaAutosize
+                ref={titleTextareaRef}
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                onKeyDown={handleInputKeyDown}
+                onFocus={handleTitleFocus}
+                onBlur={handleTitleBlur}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                tabIndex={isFocused ? 0 : -1}
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
+                data-gramm="false"
+                data-gramm_editor="false"
+                data-enable-grammarly="false"
+                className={cn(
+                  "min-h-5 w-full resize-none bg-transparent focus:outline-none",
+                  isTask(card) && card.state === "done" && "line-through",
+                )}
+                aria-label="Edit task title"
+              />
             </div>
             {(isTask(card) || isTaskTemplate(card)) && (
               <ChecklistItems
@@ -925,6 +1023,8 @@ export const TaskComp = ({
                 <TaskDatePicker
                   taskId={taskId}
                   currentDate={lastScheduleTime}
+                  open={isDatePickerOpen}
+                  onOpenChange={setIsDatePickerOpen}
                   trigger={
                     <button
                       className={cn(
@@ -934,7 +1034,10 @@ export const TaskComp = ({
                           ? "text-amber-400"
                           : "hover:text-content",
                       )}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDatePicker();
+                      }}
                     >
                       <svg
                         width="10"
@@ -984,9 +1087,7 @@ export const TaskComp = ({
                     ? "text-right justify-self-end"
                     : "text-right",
                 )}
-                onClick={() => {
-                  setIsMoveModalOpen(true);
-                }}
+                onClick={handleOpenMoveModal}
               >
                 {project.icon || "🟡"} {project.title}
               </button>

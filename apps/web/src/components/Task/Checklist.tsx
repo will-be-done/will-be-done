@@ -13,7 +13,7 @@ import {
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import TextareaAutosize from "react-textarea-autosize";
 import clsx from "clsx";
-import { GripVertical, Plus } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   appSlice,
@@ -253,6 +253,12 @@ const ChecklistItemComp = ({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+          data-gramm="false"
+          data-gramm_editor="false"
+          data-enable-grammarly="false"
           className={cn(
             "min-h-4 flex-1 resize-none bg-transparent pt-0.5 leading-4 focus:outline-none",
             item.state === "done" && "text-content-tinted line-through",

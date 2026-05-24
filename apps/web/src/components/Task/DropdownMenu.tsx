@@ -3,6 +3,9 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Calendar,
+  CircleCheck,
+  FolderOpen,
   ListPlus,
   MoreHorizontal,
   Trash2,
@@ -24,8 +27,12 @@ export const TaskDropdownMenu = ({
   isFocused,
   isOpen,
   isDone,
+  canMarkDone,
   canAddChecklistItem,
   onOpenChange,
+  onMarkDone,
+  onMoveToProject,
+  onChangeDate,
   onAddChecklistItem,
   onMoveUp,
   onMoveDown,
@@ -36,8 +43,12 @@ export const TaskDropdownMenu = ({
   isFocused: boolean;
   isOpen: boolean;
   isDone: boolean;
+  canMarkDone: boolean;
   canAddChecklistItem: boolean;
   onOpenChange: (open: boolean) => void;
+  onMarkDone: () => void;
+  onMoveToProject: () => void;
+  onChangeDate: () => void;
   onAddChecklistItem: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -70,6 +81,21 @@ export const TaskDropdownMenu = ({
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={onMarkDone} disabled={!canMarkDone}>
+            <CircleCheck />
+            {isDone ? "Mark as todo" : "Mark as done"}
+            <DropdownMenuShortcut>Space</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onMoveToProject}>
+            <FolderOpen />
+            Move to project
+            <DropdownMenuShortcut>m</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onChangeDate} disabled={!canMarkDone}>
+            <Calendar />
+            Change date
+            <DropdownMenuShortcut>?</DropdownMenuShortcut>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={onAddChecklistItem}
             disabled={!canAddChecklistItem}
