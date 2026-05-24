@@ -77,10 +77,7 @@ const DropChecklistIndicator = ({
   );
 };
 
-const focusChecklistItem = (
-  itemId: string,
-  options?: { caret?: "end" },
-) => {
+const focusChecklistItem = (itemId: string, options?: { caret?: "end" }) => {
   window.requestAnimationFrame(() => {
     const item = document.querySelector<HTMLElement>(
       `[data-checklist-item-id="${CSS.escape(itemId)}"]`,
@@ -105,6 +102,18 @@ const focusTaskFromChecklist = (focusableItemKey: TaskFocusKey) => {
 
   focusStore.focusByKey(focusableItemKey, true);
   focusStore.resetEdit();
+};
+
+const focusTaskElementFromChecklist = (focusableItemKey: TaskFocusKey) => {
+  focusTaskFromChecklist(focusableItemKey);
+
+  window.requestAnimationFrame(() => {
+    document
+      .querySelector<HTMLElement>(
+        `[data-focusable-key="${CSS.escape(focusableItemKey)}"]`,
+      )
+      ?.focus();
+  });
 };
 
 const ChecklistItemComp = ({
@@ -215,6 +224,11 @@ const ChecklistItemComp = ({
                 checklistItemsSlice.createItemAfter(item.id),
               );
               focusChecklistItem(newItem.id);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+
+              focusTaskElementFromChecklist(focusableItemKey);
             } else if (
               e.key === "Backspace" &&
               e.currentTarget.value.length === 0
@@ -285,7 +299,7 @@ export const ChecklistItems = ({
     setContent("");
   };
 
-  if (!visible && items.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <div className="border-t border-ring px-0 pt-2">
@@ -296,28 +310,28 @@ export const ChecklistItems = ({
           focusableItemKey={focusableItemKey}
         />
       ))}
-      {visible && (
-        <div className="flex min-h-5 items-center gap-1.5 px-2 pt-2 pb-1 text-xs">
-          <Plus className="h-3.5 w-3.5 shrink-0 text-content-tinted" />
-          <input
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                createItem();
-              }
-            }}
-            onBlur={createItem}
-            onFocus={() => focusTaskFromChecklist(focusableItemKey)}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            placeholder="Add checklist item"
-            className="min-w-0 flex-1 bg-transparent text-xs text-content placeholder:text-content-tinted focus:outline-none"
-            aria-label="Add checklist item"
-          />
-        </div>
-      )}
+      {/* {visible && ( */}
+      {/*   <div className="flex min-h-5 items-center gap-1.5 px-2 pt-2 pb-1 text-xs"> */}
+      {/*     <Plus className="h-3.5 w-3.5 shrink-0 text-content-tinted" /> */}
+      {/*     <input */}
+      {/*       value={content} */}
+      {/*       onChange={(e) => setContent(e.target.value)} */}
+      {/*       onKeyDown={(e) => { */}
+      {/*         if (e.key === "Enter") { */}
+      {/*           e.preventDefault(); */}
+      {/*           createItem(); */}
+      {/*         } */}
+      {/*       }} */}
+      {/*       onBlur={createItem} */}
+      {/*       onFocus={() => focusTaskFromChecklist(focusableItemKey)} */}
+      {/*       onClick={(e) => e.stopPropagation()} */}
+      {/*       onDoubleClick={(e) => e.stopPropagation()} */}
+      {/*       placeholder="Add checklist item" */}
+      {/*       className="min-w-0 flex-1 bg-transparent text-xs text-content placeholder:text-content-tinted focus:outline-none" */}
+      {/*       aria-label="Add checklist item" */}
+      {/*     /> */}
+      {/*   </div> */}
+      {/* )} */}
     </div>
   );
 };
