@@ -35,8 +35,7 @@ export type ChecklistItem = {
   checkedAt: number | null;
 };
 
-export const isChecklistItem =
-  isObjectType<ChecklistItem>(checklistItemType);
+export const isChecklistItem = isObjectType<ChecklistItem>(checklistItemType);
 
 export const defaultChecklistItem: ChecklistItem = {
   type: checklistItemType,
@@ -203,6 +202,10 @@ export const updateItem = action(function* (
   yield* update(checklistItemsTable, [{ ...itemInState, ...item }]);
 });
 
+export const updateContent = action(function* (id: string, content: string) {
+  yield* updateItem(id, { content });
+});
+
 export const toggleState = action(function* (id: string) {
   const item = yield* byId(id);
   if (!item) throw new Error("Checklist item not found");
@@ -302,8 +305,14 @@ export const handleDrop = action(function* (
   const [before, after] = yield* siblings(itemId);
   const orderToken =
     edge === "top"
-      ? generateJitteredKeyBetween(before?.orderToken || null, target.orderToken)
-      : generateJitteredKeyBetween(target.orderToken, after?.orderToken || null);
+      ? generateJitteredKeyBetween(
+          before?.orderToken || null,
+          target.orderToken,
+        )
+      : generateJitteredKeyBetween(
+          target.orderToken,
+          after?.orderToken || null,
+        );
 
   yield* updateItem(dropped.id, {
     parentId: target.parentId,

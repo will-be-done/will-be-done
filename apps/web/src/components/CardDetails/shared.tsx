@@ -80,7 +80,6 @@ export function EditableTitle({
   icon,
   isEditing,
   editingTitle,
-  title,
   titleClassName,
   setTitleDraft,
   handleTitleKeyDown,
@@ -91,7 +90,6 @@ export function EditableTitle({
   icon: React.ReactNode;
   isEditing: boolean;
   editingTitle: string;
-  title: string;
   titleClassName?: string;
   setTitleDraft: (v: string) => void;
   handleTitleKeyDown: (e: React.KeyboardEvent) => void;
@@ -102,29 +100,25 @@ export function EditableTitle({
   return (
     <div className="flex items-start gap-2 whitespace-break-spaces [overflow-wrap:anywhere] ">
       <div className="shrink-0">{icon}</div>
-      {isEditing ? (
-        <TextareaAutosize
-          ref={textareaRef}
-          value={editingTitle}
-          onChange={(e) => setTitleDraft(e.target.value)}
-          onKeyDown={handleTitleKeyDown}
-          onBlur={saveTitle}
-          className="flex-1 bg-transparent resize-none focus:outline-none text-sm font-medium text-content leading-snug"
-        />
-      ) : (
-        <div
-          className={cn(
-            "flex-1 text-sm font-medium leading-snug cursor-text select-none",
-            titleClassName ?? "text-content",
-          )}
-          onDoubleClick={() => setIsEditingTitle(true)}
-          title="Double-click to edit"
-        >
-          {title || (
-            <span className="italic text-content-tinted">Untitled</span>
-          )}
-        </div>
-      )}
+      <TextareaAutosize
+        ref={isEditing ? textareaRef : undefined}
+        value={editingTitle}
+        onChange={(e) => setTitleDraft(e.target.value)}
+        onKeyDown={handleTitleKeyDown}
+        onFocus={() => setIsEditingTitle(true)}
+        onBlur={saveTitle}
+        placeholder="Untitled"
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
+        data-gramm="false"
+        data-gramm_editor="false"
+        data-enable-grammarly="false"
+        className={cn(
+          "flex-1 resize-none bg-transparent text-sm font-medium leading-snug focus:outline-none placeholder:italic placeholder:text-content-tinted",
+          titleClassName ?? "text-content",
+        )}
+      />
     </div>
   );
 }

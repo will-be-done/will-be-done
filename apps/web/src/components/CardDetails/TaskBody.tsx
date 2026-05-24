@@ -99,7 +99,8 @@ export function TaskBody({
     description: task.content ?? "",
     setIsEditingDescription,
     onSave: useCallback(
-      (content: string) => dispatch(cardsTasksSlice.updateTask(taskId, { content })),
+      (content: string) =>
+        dispatch(cardsTasksSlice.updateTask(taskId, { content })),
       [dispatch, taskId],
     ),
   });
@@ -152,7 +153,6 @@ export function TaskBody({
         }
         isEditing={isEditingTitle}
         editingTitle={editingTitle}
-        title={task.title}
         titleClassName={
           task.state === "done"
             ? "line-through text-content-tinted"

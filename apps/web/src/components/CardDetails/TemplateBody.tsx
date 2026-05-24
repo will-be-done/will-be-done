@@ -122,7 +122,6 @@ export function TemplateBody({
         }
         isEditing={isEditingTitle}
         editingTitle={editingTitle}
-        title={template.title}
         setTitleDraft={setTitleDraft}
         handleTitleKeyDown={handleTitleKeyDown}
         textareaRef={textareaRef}

@@ -19,10 +19,10 @@ import TextareaAutosize from "react-textarea-autosize";
 import { CheckboxComp, ChecklistItems } from "./Checklist";
 import { TaskDropdownMenu } from "./DropdownMenu";
 import { taskFloatingIconGroupClassName } from "./styles";
-import { useUnmount } from "../../utils";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
+import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
 import {
   getDOMAdjacentStackedPlaceholder,
   getDOMColumnSiblingDropTarget,
@@ -208,8 +208,6 @@ export const TaskComp = ({
     card.state === "todo";
   const taskTitle = card.title;
 
-  const [editingTitle, setEditingTitle] = useState<string>(taskTitle);
-  const [draftSourceTitle, setDraftSourceTitle] = useState<string>(taskTitle);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -217,10 +215,6 @@ export const TaskComp = ({
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const titleSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const lastSavedTitleRef = useRef(card.title);
   const shouldPlaceTitleCaretAtEndRef = useRef(false);
   const focusableItemKey = buildFocusKey(cardWrapper.id, cardWrapper.type);
 
@@ -232,10 +226,36 @@ export const TaskComp = ({
   );
   const select = useSelect();
 
-  if (draftSourceTitle !== taskTitle) {
-    setDraftSourceTitle(taskTitle);
-    setEditingTitle(taskTitle);
-  }
+  const persistTaskTitle = useCallback(
+    (title: string) => {
+      if (isTask(card)) {
+        dispatch(
+          cardsTasksSlice.updateTask(taskId, {
+            title,
+          }),
+        );
+        return;
+      }
+
+      if (isTaskTemplate(card)) {
+        dispatch(
+          cardsTaskTemplatesSlice.updateTemplate(taskId, {
+            title,
+          }),
+        );
+      }
+    },
+    [card, dispatch, taskId],
+  );
+
+  const {
+    draft: editingTitle,
+    setDraft: setEditingTitle,
+    flush: flushEditedTitle,
+  } = useDebouncedPersistedDraft({
+    value: taskTitle,
+    persist: persistTaskTitle,
+  });
 
   const handleTick = useCallback(() => {
     if (!isTask(card)) return;
@@ -719,44 +739,6 @@ export const TaskComp = ({
   //   }
   // }, [isFocused]);
 
-  const clearTitleSaveTimeout = useCallback(() => {
-    if (!titleSaveTimeoutRef.current) return;
-
-    clearTimeout(titleSaveTimeoutRef.current);
-    titleSaveTimeoutRef.current = null;
-  }, []);
-
-  const saveEditedTitle = useCallback(
-    (title = editingTitle) => {
-      if (title === taskTitle || title === lastSavedTitleRef.current) return;
-
-      lastSavedTitleRef.current = title;
-
-      if (isTask(card)) {
-        dispatch(
-          cardsTasksSlice.updateTask(taskId, {
-            title,
-          }),
-        );
-        return;
-      }
-
-      if (isTaskTemplate(card)) {
-        dispatch(
-          cardsTaskTemplatesSlice.updateTemplate(taskId, {
-            title,
-          }),
-        );
-      }
-    },
-    [card, dispatch, editingTitle, taskId, taskTitle],
-  );
-
-  const flushEditedTitle = useCallback(() => {
-    clearTitleSaveTimeout();
-    saveEditedTitle();
-  }, [clearTitleSaveTimeout, saveEditedTitle]);
-
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
       e.preventDefault();
@@ -802,33 +784,6 @@ export const TaskComp = ({
       focusTitleTextarea();
     });
   }, [focusTitleTextarea, isEditing]);
-
-  useEffect(() => {
-    lastSavedTitleRef.current = taskTitle;
-  }, [taskTitle]);
-
-  useEffect(() => {
-    if (editingTitle === taskTitle) {
-      clearTitleSaveTimeout();
-      return;
-    }
-
-    clearTitleSaveTimeout();
-    titleSaveTimeoutRef.current = setTimeout(() => {
-      titleSaveTimeoutRef.current = null;
-      saveEditedTitle();
-    }, 500);
-
-    return clearTitleSaveTimeout;
-  }, [clearTitleSaveTimeout, editingTitle, saveEditedTitle, taskTitle]);
-
-  useUnmount(() => {
-    clearTitleSaveTimeout();
-
-    if (editingTitle !== taskTitle) {
-      saveEditedTitle();
-    }
-  });
 
   // const [isHidden, setIsHidden] = useState(false);
   // const isSelfDragging = dragId === taskBox.id;

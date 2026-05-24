@@ -1,4 +1,10 @@
-import { type ComponentProps, useEffect, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import invariant from "tiny-invariant";
 import { Checkbox } from "@base-ui-components/react/checkbox";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -25,6 +31,7 @@ import {
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
+import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
 
 export function CheckboxComp({
   checked,
@@ -128,6 +135,20 @@ const ChecklistItemComp = ({
   const rowRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLButtonElement | null>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+  const persistContent = useCallback(
+    (content: string) => {
+      dispatch(checklistItemsSlice.updateContent(item.id, content));
+    },
+    [dispatch, item.id],
+  );
+  const {
+    draft: content,
+    setDraft: setContent,
+    flush: flushContent,
+  } = useDebouncedPersistedDraft({
+    value: item.content,
+    persist: persistContent,
+  });
 
   useEffect(() => {
     const rowElement = rowRef.current;
@@ -207,18 +228,13 @@ const ChecklistItemComp = ({
           onChange={() => dispatch(checklistItemsSlice.toggleState(item.id))}
         />
         <TextareaAutosize
-          value={item.content}
-          onChange={(e) =>
-            dispatch(
-              checklistItemsSlice.updateItem(item.id, {
-                content: e.target.value,
-              }),
-            )
-          }
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               e.stopPropagation();
+              flushContent();
 
               const newItem = dispatch(
                 checklistItemsSlice.createItemAfter(item.id),
@@ -227,6 +243,7 @@ const ChecklistItemComp = ({
             } else if (e.key === "Escape") {
               e.preventDefault();
               e.stopPropagation();
+              flushContent();
 
               focusTaskElementFromChecklist(focusableItemKey);
             } else if (
@@ -249,6 +266,7 @@ const ChecklistItemComp = ({
             }
           }}
           onFocus={() => focusTaskFromChecklist(focusableItemKey)}
+          onBlur={() => flushContent()}
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
