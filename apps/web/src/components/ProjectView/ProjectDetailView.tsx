@@ -163,8 +163,9 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
       <div
         className="h-full min-w-0"
         style={{
-          paddingLeft: stashOffset ? `${stashOffset}px` : undefined,
-          transition: "padding-left 200ms ease-out",
+          marginLeft: stashOffset ? `${stashOffset}px` : undefined,
+          width: stashOffset ? `calc(100% - ${stashOffset}px)` : undefined,
+          transition: "margin-left 200ms ease-out, width 200ms ease-out",
         }}
       >
         <ProjectDetailContent projectId={realProjectId} />

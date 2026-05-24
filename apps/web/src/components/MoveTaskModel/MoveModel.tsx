@@ -67,12 +67,12 @@ export const MoveModal = ({
   return (
     <Dialog
       static
-      className="relative z-50"
+      className="relative z-[10000]"
       open
       onClose={() => setIsOpen(false)}
       onKeyDown={handleKeyDown}
     >
-      <div className="fixed inset-0 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
         <DialogPanel className="mx-auto flex h-[70vh] w-full max-w-3xl flex-col rounded-lg bg-popover p-5 ring-1 ring-ring backdrop-blur-xl">
           <DialogTitle
             className="mb-3 border-b border-ring pb-3 text-lg font-medium leading-6 text-primary"
