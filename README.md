@@ -168,7 +168,7 @@ Planned:
 From tasks perspective:
 - [x] Repeating tasks
 - [x] Task details. Tast body with markdown support
-- [ ] Checklist inside task
+- [x] Checklist inside task
 
 From api perspective:
 - [ ] API & MCP integration
