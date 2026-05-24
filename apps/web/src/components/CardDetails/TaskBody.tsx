@@ -17,7 +17,7 @@ import {
   cardsTaskTemplatesSlice,
   type Task,
 } from "@will-be-done/slices/space";
-import { CheckboxComp } from "@/components/Task/Task.tsx";
+import { CheckboxComp } from "@/components/Task/Checklist";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";

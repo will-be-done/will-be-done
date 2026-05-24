@@ -173,6 +173,26 @@ export const createItem = action(function* (
   return newItem;
 });
 
+export const createItemAfter = action(function* (
+  itemId: string,
+  item?: Partial<ChecklistItem>,
+) {
+  const currentItem = yield* byId(itemId);
+  if (!currentItem) throw new Error("Checklist item not found");
+
+  const [, after] = yield* siblings(itemId);
+
+  return yield* createItem({
+    ...item,
+    parentId: currentItem.parentId,
+    parentType: currentItem.parentType,
+    orderToken: generateJitteredKeyBetween(
+      currentItem.orderToken,
+      after?.orderToken || null,
+    ),
+  });
+});
+
 export const updateItem = action(function* (
   id: string,
   item: Partial<ChecklistItem>,
@@ -335,6 +355,7 @@ const checklistItemsSlice = {
   siblings,
   canDrop,
   createItem,
+  createItemAfter,
   update: updateItem,
   toggleState,
   delete: deleteItems,

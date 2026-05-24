@@ -16,6 +16,7 @@ import {
 import ReactDOM, { unstable_batchedUpdates } from "react-dom";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import TextareaAutosize from "react-textarea-autosize";
+import { CheckboxComp, ChecklistItems } from "./Checklist";
 import { usePrevious, useUnmount } from "../../utils";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
@@ -26,7 +27,7 @@ import {
   getDOMSiblings,
 } from "@/components/Focus/domNavigation.ts";
 import clsx from "clsx";
-import { RotateCw, CircleDashed, GripVertical, Plus } from "lucide-react";
+import { RotateCw, CircleDashed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   appSlice,
@@ -34,16 +35,12 @@ import {
   projectCategoriesSlice,
   cardsTasksSlice,
   cardsTaskTemplatesSlice,
-  checklistItemsSlice,
   dailyListsProjectionsSlice,
   AnyModelType,
   type Task,
-  type ChecklistItem,
-  type ChecklistParentType,
   type CardWrapperType,
   isTask,
   isTaskTemplate,
-  checklistItemType,
   dailyListType,
   projectionType,
   projectCategoryType,
@@ -57,7 +54,6 @@ import {
   useFocusStore,
   parseColumnKey,
 } from "@/store/focusSlice.ts";
-import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { format, startOfDay } from "date-fns";
@@ -67,42 +63,6 @@ import {
   useCardDetailsOpen,
 } from "@/components/CardDetails/CardDetailsStore.ts";
 
-export function CheckboxComp({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <Checkbox.Root
-      defaultChecked
-      className="flex size-4 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring mt-0.5 transition-all hover:ring-ring-hover data-[checked]:bg-input-checked data-[checked]:ring-input-checked"
-      tabIndex={-1}
-      checked={checked}
-      onCheckedChange={onChange}
-    >
-      <Checkbox.Indicator className="flex text-white data-[unchecked]:hidden">
-        <CheckIcon className="size-2.5" />
-      </Checkbox.Indicator>
-    </Checkbox.Root>
-  );
-}
-
-function CheckIcon(props: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      fill="currentcolor"
-      width="10"
-      height="10"
-      viewBox="0 0 10 10"
-      {...props}
-    >
-      <path d="M9.1603 1.12218C9.50684 1.34873 9.60427 1.81354 9.37792 2.16038L5.13603 8.66012C5.01614 8.8438 4.82192 8.96576 4.60451 8.99384C4.3871 9.02194 4.1683 8.95335 4.00574 8.80615L1.24664 6.30769C0.939709 6.02975 0.916013 5.55541 1.19372 5.24822C1.47142 4.94102 1.94536 4.91731 2.2523 5.19524L4.36085 7.10461L8.12299 1.33999C8.34934 0.993152 8.81376 0.895638 9.1603 1.12218Z" />
-    </svg>
-  );
-}
-
 type State =
   | { type: "idle" }
   | { type: "preview"; container: HTMLElement; rect: DOMRect }
@@ -110,197 +70,6 @@ type State =
 
 const idleState: State = { type: "idle" };
 const draggingState: State = { type: "dragging" };
-
-const DropChecklistIndicator = ({
-  direction,
-}: {
-  direction: "top" | "bottom";
-}) => {
-  return (
-    <div
-      className={clsx(
-        "pointer-events-none absolute left-0 right-0 z-10 h-[2px] bg-accent",
-        direction === "top" ? "top-0" : "bottom-0",
-      )}
-    />
-  );
-};
-
-const ChecklistItemComp = ({ item }: { item: ChecklistItem }) => {
-  const dispatch = useDispatch();
-  const select = useSelect();
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const dragHandleRef = useRef<HTMLButtonElement | null>(null);
-  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
-
-  useEffect(() => {
-    const rowElement = rowRef.current;
-    const dragHandleElement = dragHandleRef.current;
-    invariant(rowElement);
-    invariant(dragHandleElement);
-
-    return combine(
-      draggable({
-        element: dragHandleElement,
-        getInitialData: (): DndModelData => ({
-          modelId: item.id,
-          modelType: checklistItemType,
-        }),
-      }),
-      dropTargetForElements({
-        element: rowElement,
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return select(
-            appSlice.canDrop(
-              item.id,
-              checklistItemType,
-              data.modelId,
-              data.modelType,
-            ),
-          );
-        },
-        getIsSticky: () => true,
-        getData: ({ input, element }) => {
-          const data: DndModelData = {
-            modelId: item.id,
-            modelType: checklistItemType,
-          };
-
-          return attachClosestEdge(data, {
-            input,
-            element,
-            allowedEdges: ["top", "bottom"],
-          });
-        },
-        onDragEnter: (args) => {
-          if (isModelDNDData(args.source.data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
-        onDrag: (args) => {
-          if (isModelDNDData(args.source.data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
-        onDragLeave: () => setClosestEdge(null),
-        onDrop: () => setClosestEdge(null),
-      }),
-    );
-  }, [item.id, select]);
-
-  return (
-    <div className="relative">
-      {closestEdge === "top" && <DropChecklistIndicator direction="top" />}
-      <div
-        ref={rowRef}
-        className="group/checklist-item flex min-h-7 items-start gap-1.5 px-2 py-1 text-xs text-content"
-      >
-        <button
-          ref={dragHandleRef}
-          className="mt-0.5 flex h-3.5 w-3.5 shrink-0 cursor-grab items-center justify-center text-content-tinted opacity-0 transition-opacity hover:opacity-100 active:cursor-grabbing group-hover/checklist-item:opacity-100 focus-visible:opacity-100"
-          aria-label="Drag checklist item"
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </button>
-        <CheckboxComp
-          checked={item.state === "done"}
-          onChange={() => dispatch(checklistItemsSlice.toggleState(item.id))}
-        />
-        <TextareaAutosize
-          value={item.content}
-          onChange={(e) =>
-            dispatch(
-              checklistItemsSlice.updateItem(item.id, {
-                content: e.target.value,
-              }),
-            )
-          }
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          className={cn(
-            "min-h-4 flex-1 resize-none bg-transparent leading-4 focus:outline-none",
-            item.state === "done" && "text-content-tinted line-through",
-          )}
-          aria-label="Checklist item"
-        />
-      </div>
-      {closestEdge === "bottom" && (
-        <DropChecklistIndicator direction="bottom" />
-      )}
-    </div>
-  );
-};
-
-const ChecklistItems = ({
-  parentId,
-  parentType,
-  visible,
-}: {
-  parentId: string;
-  parentType: ChecklistParentType;
-  visible: boolean;
-}) => {
-  const dispatch = useDispatch();
-  const [content, setContent] = useState("");
-  const items = useSyncSelector(
-    () => checklistItemsSlice.children(parentId, parentType),
-    [parentId, parentType],
-  );
-
-  const createItem = () => {
-    const trimmed = content.trim();
-    if (!trimmed) return;
-
-    dispatch(
-      checklistItemsSlice.createItem({
-        parentId,
-        parentType,
-        content: trimmed,
-      }),
-    );
-    setContent("");
-  };
-
-  if (!visible && items.length === 0) return null;
-
-  return (
-    <div className="border-t border-ring px-0 pt-2">
-      {items.map((item) => (
-        <ChecklistItemComp key={item.id} item={item} />
-      ))}
-      {visible && (
-        <div className="flex min-h-5 items-center gap-1.5 px-2 pt-2 pb-1 text-xs">
-          <Plus className="h-3.5 w-3.5 shrink-0 text-content-tinted" />
-          <input
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                createItem();
-              }
-            }}
-            onBlur={createItem}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="Add checklist item"
-            className="min-w-0 flex-1 bg-transparent text-xs text-content placeholder:text-content-tinted focus:outline-none"
-            aria-label="Add checklist item"
-          />
-        </div>
-      )}
-    </div>
-  );
-};
 
 const TaskPrimitive = ({
   title,
@@ -745,6 +514,24 @@ export const TaskComp = ({
 
   const ref = useRef<HTMLDivElement | null>(null);
 
+  const suspendCardDragForInput = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const target =
+        event.target instanceof Element ? event.target : document.activeElement;
+
+      if (!target || !isInputElement(target)) return;
+
+      ref.current?.setAttribute("draggable", "false");
+    },
+    [],
+  );
+
+  const restoreCardDrag = useCallback(() => {
+    if (isEditing) return;
+
+    ref.current?.setAttribute("draggable", "true");
+  }, [isEditing]);
+
   useEffect(() => {
     const element = ref.current;
     invariant(element);
@@ -942,6 +729,9 @@ export const TaskComp = ({
         onClick={() =>
           useFocusStore.getState().focusByKey(focusableItemKey, true)
         }
+        onPointerDownCapture={suspendCardDragForInput}
+        onPointerUpCapture={restoreCardDrag}
+        onPointerCancelCapture={restoreCardDrag}
         onDoubleClick={() => {
           useFocusStore.getState().editByKey(focusableItemKey);
         }}
@@ -1020,6 +810,7 @@ export const TaskComp = ({
                 parentId={card.id}
                 parentType={card.type}
                 visible={isFocused || isEditing}
+                focusableItemKey={focusableItemKey}
               />
             )}
           </div>
