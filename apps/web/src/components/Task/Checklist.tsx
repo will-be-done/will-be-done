@@ -12,6 +12,8 @@ import {
   draggable,
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
+import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
 import {
   attachClosestEdge,
   type Edge,
@@ -29,6 +31,7 @@ import {
   type ChecklistParentType,
 } from "@will-be-done/slices/space";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
+import { createElementDragPreview } from "@/lib/dnd/dragPreview";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
 import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
@@ -78,7 +81,9 @@ const DropChecklistIndicator = ({
     <div
       className={clsx(
         "pointer-events-none absolute left-0 right-0 z-10 h-[2px] bg-accent",
-        direction === "top" ? "top-0" : "bottom-0",
+        direction === "top"
+          ? "top-0 -translate-y-1/2"
+          : "bottom-0 translate-y-1/2",
       )}
     />
   );
@@ -126,9 +131,11 @@ const focusTaskElementFromChecklist = (focusableItemKey: TaskFocusKey) => {
 const ChecklistItemComp = ({
   item,
   focusableItemKey,
+  onItemsRemoved,
 }: {
   item: ChecklistItem;
   focusableItemKey: TaskFocusKey;
+  onItemsRemoved: () => void;
 }) => {
   const dispatch = useDispatch();
   const select = useSelect();
@@ -137,9 +144,11 @@ const ChecklistItemComp = ({
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const persistContent = useCallback(
     (content: string) => {
+      if (!select(checklistItemsSlice.byId(item.id))) return;
+
       dispatch(checklistItemsSlice.updateContent(item.id, content));
     },
-    [dispatch, item.id],
+    [dispatch, item.id, select],
   );
   const {
     draft: content,
@@ -163,6 +172,28 @@ const ChecklistItemComp = ({
           modelId: item.id,
           modelType: checklistItemType,
         }),
+        onGenerateDragPreview: ({ location, nativeSetDragImage }) => {
+          const rect = rowElement.getBoundingClientRect();
+
+          setCustomNativeDragPreview({
+            nativeSetDragImage,
+            getOffset: preserveOffsetOnSource({
+              element: rowElement,
+              input: location.current.input,
+            }),
+            render({ container }) {
+              const preview = createElementDragPreview({
+                source: rowElement,
+                rect,
+              });
+              container.appendChild(preview);
+
+              return () => {
+                preview.remove();
+              };
+            },
+          });
+        },
       }),
       dropTargetForElements({
         element: rowElement,
@@ -256,12 +287,15 @@ const ChecklistItemComp = ({
               const [before, after] = select(
                 checklistItemsSlice.siblings(item.id),
               );
+              flushContent();
               dispatch(checklistItemsSlice.deleteItems([item.id]));
 
               if (before) {
                 focusChecklistItem(before.id, { caret: "end" });
               } else if (after) {
                 focusChecklistItem(after.id, { caret: "end" });
+              } else {
+                onItemsRemoved();
               }
             }
           }}
@@ -296,11 +330,13 @@ export const ChecklistItems = ({
   parentType,
   visible,
   focusableItemKey,
+  onItemsRemoved,
 }: {
   parentId: string;
   parentType: ChecklistParentType;
   visible: boolean;
   focusableItemKey: TaskFocusKey;
+  onItemsRemoved: () => void;
 }) => {
   const dispatch = useDispatch();
   const [content, setContent] = useState("");
@@ -332,6 +368,7 @@ export const ChecklistItems = ({
           key={item.id}
           item={item}
           focusableItemKey={focusableItemKey}
+          onItemsRemoved={onItemsRemoved}
         />
       ))}
       {/* {visible && ( */}

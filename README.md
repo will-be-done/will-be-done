@@ -158,10 +158,11 @@ When you focused on task
 1. `m` - move task to other project
 1. `d` - delete task
 1. `e` - edit task description
+1. `?` - change date
+1. `a` - open action menu
 
 Planned:
 1. `u`/`r` - undo/redo action
-1. `?` - change date
 
 ## Current Roadmap, v1.0 release
 

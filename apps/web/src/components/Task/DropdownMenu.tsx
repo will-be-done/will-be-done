@@ -1,3 +1,4 @@
+import { useRef, type KeyboardEvent } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -8,6 +9,7 @@ import {
   FolderOpen,
   ListPlus,
   MoreHorizontal,
+  Plus,
   Trash2,
 } from "lucide-react";
 
@@ -33,12 +35,16 @@ export const TaskDropdownMenu = ({
   onMarkDone,
   onMoveToProject,
   onChangeDate,
+  onAddTaskAfter,
+  onAddTaskBefore,
   onAddChecklistItem,
   onMoveUp,
   onMoveDown,
   onMoveLeft,
   onMoveRight,
   onDelete,
+  onShortcutKeyDown,
+  onCloseAutoFocus,
 }: {
   isFocused: boolean;
   isOpen: boolean;
@@ -49,13 +55,24 @@ export const TaskDropdownMenu = ({
   onMarkDone: () => void;
   onMoveToProject: () => void;
   onChangeDate: () => void;
+  onAddTaskAfter: () => void;
+  onAddTaskBefore: () => void;
   onAddChecklistItem: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onMoveLeft: () => void;
   onMoveRight: () => void;
   onDelete: () => void;
+  onShortcutKeyDown?: (event: KeyboardEvent) => boolean | void;
+  onCloseAutoFocus?: (event: Event) => void;
 }) => {
+  const shouldSkipNextCloseAutoFocusRef = useRef(false);
+
+  const handleShortcutKeyDown = (event: KeyboardEvent) => {
+    shouldSkipNextCloseAutoFocusRef.current =
+      onShortcutKeyDown?.(event) ?? false;
+  };
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -76,9 +93,18 @@ export const TaskDropdownMenu = ({
       <DropdownMenuContent
         align="end"
         sideOffset={6}
-        className="min-w-52"
+        className="min-w-52 bg-task-dropdown shadow-2xl ring-0 backdrop-blur-none"
         onClick={(e) => e.stopPropagation()}
-        onCloseAutoFocus={(e) => e.preventDefault()}
+        onKeyDownCapture={handleShortcutKeyDown}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          if (shouldSkipNextCloseAutoFocusRef.current) {
+            shouldSkipNextCloseAutoFocusRef.current = false;
+            return;
+          }
+
+          onCloseAutoFocus?.(e);
+        }}
       >
         <DropdownMenuGroup>
           <DropdownMenuItem onSelect={onMarkDone} disabled={!canMarkDone}>
@@ -86,23 +112,61 @@ export const TaskDropdownMenu = ({
             {isDone ? "Mark as todo" : "Mark as done"}
             <DropdownMenuShortcut>Space</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onMoveToProject}>
+          <DropdownMenuItem
+            onSelect={() => {
+              shouldSkipNextCloseAutoFocusRef.current = true;
+              onMoveToProject();
+            }}
+          >
             <FolderOpen />
             Move to project
             <DropdownMenuShortcut>m</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onChangeDate} disabled={!canMarkDone}>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              shouldSkipNextCloseAutoFocusRef.current = true;
+              onOpenChange(false);
+              window.setTimeout(onChangeDate, 0);
+            }}
+            disabled={!canMarkDone}
+          >
             <Calendar />
             Change date
             <DropdownMenuShortcut>?</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onSelect={onAddChecklistItem}
+            onSelect={() => {
+              shouldSkipNextCloseAutoFocusRef.current = true;
+              onAddChecklistItem();
+            }}
             disabled={!canAddChecklistItem}
           >
             <ListPlus />
             Add checklist item
             <DropdownMenuShortcut>c</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              shouldSkipNextCloseAutoFocusRef.current = true;
+              onAddTaskAfter();
+            }}
+            disabled={isDone}
+          >
+            <Plus />
+            Add task after
+            <DropdownMenuShortcut>o</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              shouldSkipNextCloseAutoFocusRef.current = true;
+              onAddTaskBefore();
+            }}
+            disabled={isDone}
+          >
+            <Plus />
+            Add task before
+            <DropdownMenuShortcut>O</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

@@ -33,14 +33,12 @@ function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          "bg-popover text-content z-50 min-w-40 overflow-hidden rounded-md shadow-lg ring-1 ring-ring backdrop-blur-xl data-[state=open]:[&>div]:animate-in data-[state=closed]:[&>div]:animate-out data-[state=closed]:[&>div]:zoom-out-95 data-[state=open]:[&>div]:zoom-in-95 data-[side=bottom]:[&>div]:slide-in-from-top-2 data-[side=left]:[&>div]:slide-in-from-right-2 data-[side=right]:[&>div]:slide-in-from-left-2 data-[side=top]:[&>div]:slide-in-from-bottom-2",
+          "bg-popover text-content z-50 min-w-40 origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md shadow-lg ring-1 ring-ring backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-75 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           className,
         )}
         {...props}
       >
-        <div className="origin-(--radix-dropdown-menu-content-transform-origin) p-1">
-          {children}
-        </div>
+        <div className="p-1">{children}</div>
       </DropdownMenuPrimitive.Content>
     </DropdownMenuPrimitive.Portal>
   );
@@ -215,14 +213,12 @@ function DropdownMenuSubContent({
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
-        "bg-popover text-content z-50 min-w-40 overflow-hidden rounded-md shadow-lg ring-1 ring-ring backdrop-blur-xl data-[state=open]:[&>div]:animate-in data-[state=closed]:[&>div]:animate-out data-[state=closed]:[&>div]:zoom-out-95 data-[state=open]:[&>div]:zoom-in-95 data-[side=bottom]:[&>div]:slide-in-from-top-2 data-[side=left]:[&>div]:slide-in-from-right-2 data-[side=right]:[&>div]:slide-in-from-left-2 data-[side=top]:[&>div]:slide-in-from-bottom-2",
+        "bg-popover text-content z-50 min-w-40 origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md shadow-lg ring-1 ring-ring backdrop-blur-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-75 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
         className,
       )}
       {...props}
     >
-      <div className="origin-(--radix-dropdown-menu-content-transform-origin) p-1">
-        {children}
-      </div>
+      <div className="p-1">{children}</div>
     </DropdownMenuPrimitive.SubContent>
   );
 }

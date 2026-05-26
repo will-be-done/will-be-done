@@ -20,6 +20,7 @@ interface TaskDatePickerProps {
   trigger: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 export function TaskDatePicker({
@@ -28,6 +29,7 @@ export function TaskDatePicker({
   trigger,
   open,
   onOpenChange,
+  onCloseAutoFocus,
 }: TaskDatePickerProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isOpen = open ?? uncontrolledOpen;
@@ -63,6 +65,7 @@ export function TaskDatePicker({
       <PopoverContent
         className="z-[1100] w-auto p-0"
         align="end"
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="flex flex-col">
           <Calendar
