@@ -47,9 +47,8 @@ export function useTitleEditing({
   };
 
   const textareaRef = useCallback((el: HTMLTextAreaElement | null) => {
-    if (!el) return;
+    if (!el || document.activeElement === el) return;
     el.focus();
-    el.selectionStart = el.value.length;
   }, []);
 
   return {

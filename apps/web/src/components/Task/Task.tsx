@@ -875,6 +875,9 @@ export const TaskComp = ({
         onPointerDownCapture={suspendCardDragForInput}
         onPointerUpCapture={restoreCardDrag}
         onPointerCancelCapture={restoreCardDrag}
+        onDoubleClick={() => {
+          useFocusStore.getState().editByKey(focusableItemKey);
+        }}
         ref={ref}
       >
         {/* {!isSelfDragging && ( */}
@@ -962,29 +965,38 @@ export const TaskComp = ({
                   />
                 </div>
               )}
-              <TextareaAutosize
-                ref={titleTextareaRef}
-                value={editingTitle}
-                onChange={(e) => setEditingTitle(e.target.value)}
-                onKeyDown={handleInputKeyDown}
-                onFocus={handleTitleFocus}
-                onBlur={handleTitleBlur}
-                onPointerDown={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-                tabIndex={isFocused ? 0 : -1}
-                spellCheck={false}
-                autoCorrect="off"
-                autoCapitalize="off"
-                data-gramm="false"
-                data-gramm_editor="false"
-                data-enable-grammarly="false"
-                className={cn(
-                  "min-h-5 w-full resize-none bg-transparent focus:outline-none",
-                  isTask(card) && card.state === "done" && "line-through",
-                )}
-                aria-label="Edit task title"
-              />
+              {isEditing ? (
+                <TextareaAutosize
+                  ref={titleTextareaRef}
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                  onFocus={handleTitleFocus}
+                  onBlur={handleTitleBlur}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  spellCheck={false}
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  data-gramm="false"
+                  data-gramm_editor="false"
+                  data-enable-grammarly="false"
+                  className={cn(
+                    "min-h-5 w-full resize-none bg-transparent focus:outline-none",
+                    isTask(card) && card.state === "done" && "line-through",
+                  )}
+                  aria-label="Edit task title"
+                />
+              ) : (
+                <div
+                  className={cn("min-h-5 cursor-default", {
+                    "line-through": isTask(card) && card.state === "done",
+                  })}
+                >
+                  {card.title}
+                </div>
+              )}
             </div>
             {(isTask(card) || isTaskTemplate(card)) && (
               <ChecklistItems
