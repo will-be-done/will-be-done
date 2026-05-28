@@ -178,7 +178,6 @@ export function TemplateBody({
 
         <div className="pt-1">
           <EditableDescription
-            isEditing={isEditingDescription}
             editingDescription={editingDescription}
             setDescriptionDraft={setDescriptionDraft}
             handleDescriptionKeyDown={handleDescriptionKeyDown}

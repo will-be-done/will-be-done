@@ -22,7 +22,7 @@ import {
   PencilIcon,
   TrashIcon,
 } from "@/components/ui/icons.tsx";
-import { promptDialog } from "@/components/ui/prompt-dialog";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 
 const ProjectTasksColumn = ({
   project,

@@ -19,7 +19,7 @@ import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { format } from "date-fns";
 import { useCurrentDate } from "@/components/DaysBoard/hooks.tsx";
 import { cn } from "@/lib/utils.ts";
-import { promptDialog } from "@/components/ui/prompt-dialog";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import {
   Dialog,
   DialogContent,

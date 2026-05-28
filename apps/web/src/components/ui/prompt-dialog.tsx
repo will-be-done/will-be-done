@@ -8,32 +8,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { usePrevious } from "@/utils";
-
-type PromptRequest = {
-  title: string;
-  defaultValue?: string;
-  resolve: (value: string | null) => void;
-};
-
-let mountedSetter: ((req: PromptRequest | null) => void) | null = null;
-
-/**
- * Imperative prompt dialog — drop-in replacement for `window.prompt()`.
- *
- * Returns the entered string, or `null` if the user cancelled.
- */
-export function promptDialog(
-  title: string,
-  defaultValue?: string,
-): Promise<string | null> {
-  return new Promise((resolve) => {
-    if (!mountedSetter) {
-      resolve(window.prompt(title, defaultValue));
-      return;
-    }
-    mountedSetter({ title, defaultValue, resolve });
-  });
-}
+import {
+  mountPromptDialog,
+  type PromptRequest,
+} from "@/components/ui/prompt-dialog-service";
 
 /**
  * Mount this once at the app root (e.g. in __root.tsx) so that `promptDialog()`
@@ -45,10 +23,7 @@ export function PromptDialogHost() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    mountedSetter = setRequest;
-    return () => {
-      mountedSetter = null;
-    };
+    return mountPromptDialog(setRequest);
   }, []);
 
   // Keep a snapshot of the title so it doesn't disappear during close animation

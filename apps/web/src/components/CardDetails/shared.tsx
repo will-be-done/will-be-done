@@ -74,7 +74,6 @@ export function DetailRow({
 }
 
 export function EditableDescription({
-  isEditing,
   editingDescription,
   setDescriptionDraft,
   handleDescriptionKeyDown,
@@ -82,7 +81,6 @@ export function EditableDescription({
   saveDescription,
   setIsEditingDescription,
 }: {
-  isEditing: boolean;
   editingDescription: string;
   setDescriptionDraft: (v: string) => void;
   handleDescriptionKeyDown: (

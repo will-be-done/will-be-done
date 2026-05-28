@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils.ts";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import invariant from "tiny-invariant";
-import { promptDialog } from "@/components/ui/prompt-dialog";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">

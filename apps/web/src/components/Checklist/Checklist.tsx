@@ -423,6 +423,7 @@ export const ChecklistItems = ({
     [parentId, parentType],
   );
   const isParentDropTargetEnabled = items.length === 0;
+  const activeClosestEdge = isParentDropTargetEnabled ? closestEdge : null;
 
   const createItem = () => {
     const item = dispatch(
@@ -436,10 +437,7 @@ export const ChecklistItems = ({
   };
 
   useEffect(() => {
-    if (!isParentDropTargetEnabled) {
-      setClosestEdge(null);
-      return;
-    }
+    if (!isParentDropTargetEnabled) return;
 
     const containerElement = containerRef.current;
     if (!containerElement) return;
@@ -490,7 +488,7 @@ export const ChecklistItems = ({
       data-checklist-container
       className={cn("relative border-t border-ring px-0 pt-2", className)}
     >
-      {isParentDropTargetEnabled && closestEdge === "top" && (
+      {activeClosestEdge === "top" && (
         <DropChecklistIndicator direction="top" />
       )}
       {items.map((item) => (
@@ -516,7 +514,7 @@ export const ChecklistItems = ({
           Add checklist item
         </button>
       )}
-      {isParentDropTargetEnabled && closestEdge === "bottom" && (
+      {activeClosestEdge === "bottom" && (
         <DropChecklistIndicator direction="bottom" />
       )}
     </div>

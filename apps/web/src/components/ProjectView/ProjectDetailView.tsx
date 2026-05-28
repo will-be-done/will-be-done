@@ -13,8 +13,9 @@ import {
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
 import { useMemo, useState, useEffect } from "react";
-import { promptDialog } from "@/components/ui/prompt-dialog";
-import { Stash, useStashDesktopOffset } from "@/components/Stash/Stash.tsx";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
+import { Stash } from "@/components/Stash/Stash.tsx";
+import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
 
 const DeleteIcon = () => (
   <svg
