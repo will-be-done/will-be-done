@@ -28,6 +28,7 @@ export function useDebouncedPersistedDraft<T>({
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (!isEqual(draftSource, value)) {
+    // Incoming source changes intentionally replace any unpersisted local draft.
     setDraftSource(value);
     setDraftState(value);
   }

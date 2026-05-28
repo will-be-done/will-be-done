@@ -17,7 +17,7 @@ import {
   DetailRow,
   ProjectDetailRow,
   CategoryDetailRow,
-  EditableMarkdownDescription,
+  EditableDescription,
 } from "./shared.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { ChecklistItems } from "@/components/Checklist/Checklist";
@@ -85,6 +85,7 @@ export function TemplateBody({
     textareaRef: descriptionTextareaRef,
   } = useDescriptionEditing({
     description: template.content ?? "",
+    isEditingDescription,
     setIsEditingDescription,
     onSave: useCallback(
       (content: string) =>
@@ -176,10 +177,9 @@ export function TemplateBody({
         />
 
         <div className="pt-1">
-          <EditableMarkdownDescription
+          <EditableDescription
             isEditing={isEditingDescription}
             editingDescription={editingDescription}
-            description={template.content ?? ""}
             setDescriptionDraft={setDescriptionDraft}
             handleDescriptionKeyDown={handleDescriptionKeyDown}
             textareaRef={descriptionTextareaRef}

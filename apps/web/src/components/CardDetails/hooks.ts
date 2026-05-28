@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
 
 export function useTitleEditing({
@@ -62,13 +62,17 @@ export function useTitleEditing({
 
 export function useDescriptionEditing({
   description,
+  isEditingDescription,
   setIsEditingDescription,
   onSave,
 }: {
   description: string;
+  isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
   onSave: (nextDescription: string) => void;
 }) {
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   const {
     draft: editingDescription,
     setDraft: setDescriptionDraft,
@@ -83,7 +87,9 @@ export function useDescriptionEditing({
     setIsEditingDescription(false);
   }, [flushDescription, setIsEditingDescription]);
 
-  const handleDescriptionKeyDown = (e: React.KeyboardEvent) => {
+  const handleDescriptionKeyDown = (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => {
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
@@ -91,15 +97,30 @@ export function useDescriptionEditing({
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
+      const textarea = e.currentTarget;
       saveDescription();
+      textarea.blur();
+      window.requestAnimationFrame(() => {
+        if (document.activeElement === textarea) {
+          textarea.blur();
+        }
+      });
     }
   };
 
   const textareaRef = useCallback((el: HTMLTextAreaElement | null) => {
-    if (!el) return;
-    el.focus();
-    el.selectionStart = el.value.length;
+    descriptionTextareaRef.current = el;
   }, []);
+
+  useEffect(() => {
+    if (!isEditingDescription) return;
+
+    const textarea = descriptionTextareaRef.current;
+    if (!textarea || document.activeElement === textarea) return;
+
+    textarea.focus();
+    textarea.selectionStart = textarea.value.length;
+  }, [isEditingDescription]);
 
   return {
     editingDescription,

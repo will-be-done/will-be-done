@@ -60,7 +60,6 @@
     "react": "^19.2.0",
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.0",
-    "react-markdown": "^10.1.0",
     "react-scan": "^0.4.3",
     "react-textarea-autosize": "^8.5.9",
     "remark-gfm": "^4.0.1",

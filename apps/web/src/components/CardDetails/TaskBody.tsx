@@ -30,7 +30,7 @@ import {
   DetailRow,
   ProjectDetailRow,
   CategoryDetailRow,
-  EditableMarkdownDescription,
+  EditableDescription,
 } from "./shared.tsx";
 
 export function TaskBody({
@@ -100,6 +100,7 @@ export function TaskBody({
     textareaRef: descriptionTextareaRef,
   } = useDescriptionEditing({
     description: task.content ?? "",
+    isEditingDescription,
     setIsEditingDescription,
     onSave: useCallback(
       (content: string) =>
@@ -255,10 +256,9 @@ export function TaskBody({
         />
 
         <div className="pt-1">
-          <EditableMarkdownDescription
+          <EditableDescription
             isEditing={isEditingDescription}
             editingDescription={editingDescription}
-            description={task.content ?? ""}
             setDescriptionDraft={setDescriptionDraft}
             handleDescriptionKeyDown={handleDescriptionKeyDown}
             textareaRef={descriptionTextareaRef}
