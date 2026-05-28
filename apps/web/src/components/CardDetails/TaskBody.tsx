@@ -17,7 +17,10 @@ import {
   cardsTaskTemplatesSlice,
   type Task,
 } from "@will-be-done/slices/space";
-import { CheckboxComp } from "@/components/Task/Checklist";
+import {
+  CheckboxComp,
+  ChecklistItems,
+} from "@/components/Checklist/Checklist";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
@@ -242,6 +245,14 @@ export function TaskBody({
             </span>
           </DetailRow>
         )}
+
+        <ChecklistItems
+          parentId={taskId}
+          parentType={task.type}
+          editTrigger="always"
+          showAddItem
+          className="border-task-panel-divider"
+        />
 
         <div className="pt-1">
           <EditableMarkdownDescription

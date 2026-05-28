@@ -13,7 +13,7 @@ const defaultIsEqual = <T>(left: T, right: T) => Object.is(left, right);
 export function useDebouncedPersistedDraft<T>({
   value,
   persist,
-  delay = 500,
+  delay = 200,
   isEqual = defaultIsEqual<T>,
 }: {
   value: T;

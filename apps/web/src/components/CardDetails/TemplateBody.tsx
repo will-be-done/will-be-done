@@ -20,6 +20,7 @@ import {
   EditableMarkdownDescription,
 } from "./shared.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
+import { ChecklistItems } from "@/components/Checklist/Checklist";
 
 export function TemplateBody({
   template,
@@ -165,6 +166,14 @@ export function TemplateBody({
         >
           {format(new Date(template.createdAt), "MMM d, yyyy, h:mm a")}
         </DetailRow>
+
+        <ChecklistItems
+          parentId={templateId}
+          parentType={template.type}
+          editTrigger="always"
+          showAddItem
+          className="border-task-panel-divider"
+        />
 
         <div className="pt-1">
           <EditableMarkdownDescription

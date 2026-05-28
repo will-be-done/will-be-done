@@ -17,7 +17,11 @@ import { unstable_batchedUpdates } from "react-dom";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { createElementDragPreview } from "@/lib/dnd/dragPreview";
 import TextareaAutosize from "react-textarea-autosize";
-import { CheckboxComp, ChecklistItems } from "./Checklist";
+import {
+  CheckboxComp,
+  ChecklistItems,
+} from "@/components/Checklist/Checklist";
+import { focusChecklistItem } from "@/components/Checklist/focus";
 import { TaskDropdownMenu } from "./DropdownMenu";
 import { taskFloatingIconGroupClassName } from "./styles";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
@@ -106,24 +110,6 @@ const getFocusKeyForColumnMoveTarget = (
   }
 
   return fallbackKey;
-};
-
-const focusChecklistItemInput = (itemId: string, attempts = 8) => {
-  window.requestAnimationFrame(() => {
-    const item = document.querySelector<HTMLElement>(
-      `[data-checklist-item-id="${CSS.escape(itemId)}"]`,
-    );
-    const textarea = item?.querySelector<HTMLTextAreaElement>("textarea");
-
-    if (textarea) {
-      textarea.focus();
-      return;
-    }
-
-    if (attempts > 0) {
-      focusChecklistItemInput(itemId, attempts - 1);
-    }
-  });
 };
 
 // TODO: rename to project item
@@ -405,7 +391,7 @@ export const TaskComp = ({
       }),
     );
 
-    focusChecklistItemInput(item.id);
+    focusChecklistItem(item.id, { root: ref.current });
   }, [card, dispatch, focusableItemKey]);
 
   const handleAddSiblingTask = useCallback(
@@ -1004,6 +990,7 @@ export const TaskComp = ({
                 parentType={card.type}
                 visible={isFocused || isEditing}
                 focusableItemKey={focusableItemKey}
+                editTrigger="doubleClick"
                 onItemsRemoved={handleChecklistItemsRemoved}
               />
             )}
