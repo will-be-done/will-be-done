@@ -1,5 +1,5 @@
 
-**Note on AI:** I’ve been developing this project for a year. This is my third attempt; the first two failed because the technology for fast, offline-first apps wasn't ready. This time, I created my own method for local-first development and built a database that works for both the frontend and backend. I have over 10 years of experience as a developer and 4 years specializing in offline-first apps. Building these reliably requires specific expertise. I use Claude Code to help, but I review every line of code manually to ensure quality.
+**Note on AI ussage:** I’ve been developing this project for a year+, and this is my third attempt in three yeas; the first two failed because the technology for fast, offline-first apps wasn't ready. This time, I created my own method for local-first development and built a database that works for both the frontend and backend, so I can write one code for both of them. Also, I have over 10 years of experience as a developer and 4 years specializing in offline-first apps. Building these reliably requires specific expertise. I use Claude Code to help, but I review every line of code manually to ensure quality.
 
 ## Download & installation
 
@@ -30,7 +30,9 @@ Also, I wanted a clean API so I could connect things like an MCP server or creat
 
 Finally, I am building this to be a highly opinionated tool focused on ergonomics. I’ve found that mainstream solutions, including paid apps like TickTick and Todoist - don't quite fit my workflow. I wanted to experiment with features that are often missing elsewhere: native Vim keybindings, a week-view timeline that maximizes vertical space, and a "task suggestion" panel.
 
-I am also implementing a "Stash" feature - a persistent, focused task list accessible from any page. Despite these power-user features, the goal is to keep the interface minimal and deeply visual customizable, allowing for project-specific backgrounds and color schemes(WIP).
+I need "Stash" feature - a persistent, focused task list accessible from any page. Just the focus list on what I plan to work this week/month.
+
+Despite these power-user features, the goal is to keep the interface minimal and deeply visual customizable, allowing for project-specific backgrounds and color schemes.
 
 After comparing several options from the Awesome Selfhosted list, I found that Super Productivity came the closest to meeting my needs. However, it still lacks the specific ergonomic features and visual flexibility I want for my "rest of my life" task manager.
 
