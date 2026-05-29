@@ -6,6 +6,7 @@ import punishmentImg from '../assets/punishment.png';
 import badDayImg from '../assets/bad_day2.png';
 import weekImg from '../assets/week2.png';
 import phoneImg from '../assets/phone.png';
+import timelineImg from '../assets/timeline.png';
 import projectImg from '../assets/project2.png';
 import quickAddImg from '../assets/quick-add.png';
 import repeatableTasksImg from '../assets/repeatable-tasks.png';
@@ -302,12 +303,27 @@ const logoPath =
             <!-- Slides -->
             <div class="relative h-auto overflow-hidden rounded-xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/60">
 
-              <!-- Slide: Desktop overview -->
+
+              <!-- Slide: Timeline view -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
                 data-slide="0"
+                style="opacity:1;transform:translateX(0%) scale(0.97);z-index:0;"
+              >
+                <img
+                  src={timelineImg.src}
+                  alt="Weekly timeline — drag tasks between days across the full week view"
+                  class="w-full block"
+                  loading="eager"
+                />
+              </div>
+
+              <!-- Slide: Desktop overview -->
+              <div
+                class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                data-slide="1"
                 data-active="true"
-                style="opacity:1;transform:translateX(0%) scale(1);z-index:10;"
+                style="opacity:0;transform:translateX(8%) scale(1);z-index:10;"
               >
                 <img
                   src={desktopImg.src}
@@ -320,7 +336,7 @@ const logoPath =
               <!-- Slide: Quick add full -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                data-slide="1"
+                data-slide="2"
                 style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
               >
                 <img
@@ -334,7 +350,7 @@ const logoPath =
               <!-- Slide: Project view -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                data-slide="2"
+                data-slide="3"
                 style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
               >
                 <img
@@ -348,7 +364,7 @@ const logoPath =
               <!-- Slide: Today view -->
               <div
                 class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                data-slide="3"
+                data-slide="4"
                 style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
               >
                 <img
@@ -359,22 +375,9 @@ const logoPath =
                 />
               </div>
 
-              <!-- Slide: Timeline view -->
-              <div
-                class="carousel-slide absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                data-slide="4"
-                style="opacity:0;transform:translateX(8%) scale(0.97);z-index:0;"
-              >
-                <img
-                  src="/timeline.png"
-                  alt="Weekly timeline — drag tasks between days across the full week view"
-                  class="w-full block"
-                  loading="eager"
-                />
-              </div>
 
               <!-- Invisible spacer image to set container height (uses first slide) -->
-              <img src={desktopImg.src} alt="" aria-hidden="true" class="w-full block invisible" />
+              <img src={timelineImg.src} alt="" aria-hidden="true" class="w-full block invisible" />
 
               <!-- Gradient overlays for nav buttons -->
               <div class="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-black/20 to-transparent rounded-l-xl"></div>
@@ -407,20 +410,20 @@ const logoPath =
             <div class="mt-5 flex items-center justify-between gap-4">
               <!-- Caption -->
               <div class="relative h-5 flex-1 overflow-hidden">
-                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="0" style="opacity:1;transform:translateY(0)">
+                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="0" style="opacity:0;transform:translateY(8px)">
+                  <span class="font-medium text-slate-200">Weekly timeline</span>: See the full week, drag tasks between any day
+                </p>
+                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="1" style="opacity:1;transform:translateY(0)">
                   <span class="font-medium text-slate-200">Desktop app</span>: Full task management experience
                 </p>
-                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="1" style="opacity:0;transform:translateY(8px)">
+                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="2" style="opacity:0;transform:translateY(8px)">
                   <span class="font-medium text-slate-200">Quick add</span>: Capture tasks instantly without breaking focus
                 </p>
-                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="2" style="opacity:0;transform:translateY(8px)">
+                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="3" style="opacity:0;transform:translateY(8px)">
                   <span class="font-medium text-slate-200">Project board</span>: Kanban view for your project areas
                 </p>
-                <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="3" style="opacity:0;transform:translateY(8px)">
-                  <span class="font-medium text-slate-200">Today view</span>: Your focused daily task list with instant capture
-                </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="4" style="opacity:0;transform:translateY(8px)">
-                  <span class="font-medium text-slate-200">Weekly timeline</span>: See the full week, drag tasks between any day
+                  <span class="font-medium text-slate-200">Today view</span>: Your focused daily task list with instant capture
                 </p>
               </div>
 
@@ -456,11 +459,15 @@ const logoPath =
         </div>
       </section>
 
-      <!-- 3a. Week planning — stop drowning in scattered lists (amber, odd — text left) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- Feature rows: write copy first, media second; desktop alternation comes from row position. -->
+      <div
+        class="lg:[&>.why-feature:nth-child(odd)_.why-feature-copy]:order-1 lg:[&>.why-feature:nth-child(odd)_.why-feature-media]:order-2 lg:[&>.why-feature:nth-child(even)_.why-feature-copy]:order-2 lg:[&>.why-feature:nth-child(even)_.why-feature-media]:order-1"
+      >
+      <!-- 3a. Week planning — stop drowning in scattered lists -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div>
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -471,7 +478,7 @@ const logoPath =
                 Your whole week fits on one screen, with every day as a column. Drag tasks between days to rebalance on the fly. You always know what's on your plate today, tomorrow, and the rest of the week.
               </p>
             </div>
-            <div>
+            <div class="why-feature-media order-2">
               <Image
                 src={weekImg}
                 alt="Screenshot showing weekly timeline with day columns for planning your week at a glance"
@@ -483,23 +490,11 @@ const logoPath =
         </div>
       </section>
 
-      <!-- Manage tasks at the speed of thought (visual left, text right) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- Manage tasks at the speed of thought -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div class="order-2 lg:order-1">
-              <div class="relative mx-auto max-w-[420px] overflow-hidden rounded-2xl bg-[#071018] ring-1 ring-cyan-400/[0.14] shadow-2xl shadow-black/40">
-                <img
-                  src="/vim.png"
-                  alt="Will Be Done task action menu showing Vim keyboard shortcuts for completing, moving, creating, and deleting tasks"
-                  class="block w-full"
-                  loading="lazy"
-                  width="852"
-                  height="1084"
-                />
-              </div>
-            </div>
-            <div class="order-1 lg:order-2">
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-400/15">
                 <span
                   aria-hidden="true"
@@ -512,23 +507,27 @@ const logoPath =
                 Will Be Done supports Vim keybinds, so your task list keeps up with how you think. Move with h/j/k/l, create tasks with o/O, complete with space, and shift work around without reaching for the mouse.
               </p>
             </div>
+            <div class="why-feature-media order-2">
+              <div class="relative mx-auto max-w-[420px] overflow-hidden rounded-2xl bg-[#071018] ring-1 ring-cyan-400/[0.14] shadow-2xl shadow-black/40">
+                <img
+                  src="/vim.png"
+                  alt="Will Be Done task action menu showing Vim keyboard shortcuts for completing, moving, creating, and deleting tasks"
+                  class="block w-full"
+                  loading="lazy"
+                  width="852"
+                  height="1084"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- No punishment for being human (image left, text right) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- No punishment for being human -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div class="order-2 lg:order-1">
-              <Image
-                src={punishmentImg}
-                alt="Screenshot showing gentle yellow indicators for missed tasks instead of angry red overdue badges"
-                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
-                loading="eager"
-              />
-            </div>
-            <div class="order-1 lg:order-2">
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
@@ -539,15 +538,23 @@ const logoPath =
                 No angry red "OVERDUE" badges. Missed tasks get a gentle yellow nudge, not a panic attack. You stay in control, not in shame.
               </p>
             </div>
+            <div class="why-feature-media order-2">
+              <Image
+                src={punishmentImg}
+                alt="Screenshot showing gentle yellow indicators for missed tasks instead of angry red overdue badges"
+                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                loading="eager"
+              />
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- One bad day won't break your week (text left, image right) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- One bad day won't break your week -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div>
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -558,7 +565,7 @@ const logoPath =
                 Other apps dump yesterday's undone tasks onto today, burying you in guilt. Will Be Done plans by week, so skipping a day doesn't snowball into chaos. Your list stays clean.
               </p>
             </div>
-            <div>
+            <div class="why-feature-media order-2">
               <Image
                 src={badDayImg}
                 alt="Screenshot showing weekly planning that stays clean even when you skip a day"
@@ -571,19 +578,11 @@ const logoPath =
       </section>
 
 
-      <!-- Stop losing ideas in a flat list (image left, text right) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- Stop losing ideas in a flat list -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div class="order-2 lg:order-1">
-              <Image
-                src={projectImg}
-                alt="Screenshot showing project kanban board with Week, Month, Ideas, and Someday columns"
-                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
-                loading="eager"
-              />
-            </div>
-            <div class="order-1 lg:order-2">
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
@@ -594,15 +593,23 @@ const logoPath =
                 Each project gets its own kanban board with columns you define: Week, Month, Ideas, Someday. Separate workspaces keep work and personal apart. Everything has a place, nothing falls through the cracks.
               </p>
             </div>
+            <div class="why-feature-media order-2">
+              <Image
+                src={projectImg}
+                alt="Screenshot showing project kanban board with Week, Month, Ideas, and Someday columns"
+                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                loading="eager"
+              />
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Plan on the go (green, odd — text left) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- Plan on the go -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div>
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/10 text-green-400">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 20.25h3" />
@@ -613,7 +620,7 @@ const logoPath =
                 Full mobile experience, not a shrunken desktop app. Capture tasks wherever you are, check off what's done, and plan your week from the bus, the couch, or the coffee line.
               </p>
             </div>
-            <div class="flex items-center justify-center">
+            <div class="why-feature-media order-2 flex items-center justify-center">
               <Image
                 src={phoneImg}
                 alt="Screenshot of Will Be Done mobile app showing full task management on phone"
@@ -625,19 +632,11 @@ const logoPath =
         </div>
       </section>
 
-      <!-- Don't break focus to capture a task (image left, text right) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- Don't break focus to capture a task -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div class="order-2 lg:order-1">
-              <Image
-                src={quickAddImg}
-                alt="Quick-add popup overlay appearing on top of another application, ready to capture a task"
-                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
-                loading="eager"
-              />
-            </div>
-            <div class="order-1 lg:order-2">
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
@@ -648,15 +647,23 @@ const logoPath =
                 A thought surfaces mid-work. Switching apps kills your flow. One global shortcut from anywhere on your Mac, Windows, or Linux machine: type it, hit enter, and you're back. The popup disappears. Your focus doesn't.
               </p>
             </div>
+            <div class="why-feature-media order-2">
+              <Image
+                src={quickAddImg}
+                alt="Quick-add popup overlay appearing on top of another application, ready to capture a task"
+                class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                loading="eager"
+              />
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Your life doesn't repeat on a simple schedule (text left, image right) -->
-      <section class="relative px-6 py-8 md:py-12">
+      <!-- Your life doesn't repeat on a simple schedule -->
+      <section class="why-feature relative px-6 py-8 md:py-12">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2">
-            <div>
+            <div class="why-feature-copy order-1">
               <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
@@ -667,7 +674,7 @@ const logoPath =
                 Will Be Done lets you schedule by exact day of the week, day of the month, or day of the year, so recurring tasks land exactly when they should.
               </p>
             </div>
-            <div>
+            <div class="why-feature-media order-2">
               <Image
                 src={repeatableTasksImg}
                 alt="Recurring task scheduler showing options for daily, weekly, monthly, and yearly schedules"
@@ -678,6 +685,7 @@ const logoPath =
           </div>
         </div>
       </section>
+      </div>
 
       <!-- Remaining features as cards -->
       <section aria-label="More features" class="relative px-6 py-8 md:py-12">
