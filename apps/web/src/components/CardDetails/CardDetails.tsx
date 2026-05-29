@@ -83,8 +83,9 @@ export function CardDetails() {
     }
 
     const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
+
     if (
-      e.code === "KeyT" &&
+      e.code === "KeyV" &&
       noModifiers &&
       !isEditingAnyField &&
       !e.defaultPrevented

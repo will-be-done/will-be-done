@@ -141,28 +141,38 @@ Then open http://localhost:3000 in your browser.
 ## Vim keybinds
 
 Global:
-1. `s` - toggle stash
-1. `t` - toggle task details panel
-1. `v` - toggle project view
+1. `\` - toggle stash
+1. `v` - toggle task details panel
+1. `p` - toggle project view
 1. `z` - zen mode: close stash, task details, and project view
 
 When you focused on task
 1. `i`, `enter` - insert mode. You can edit the task. `esc` - exit insert mode.
 1. `j`, `k` - move between tasks up and down
 1. `h`, `l` - move between columns left and right
-1. `ctrl-j`, `ctrl-k` - move task up and down
-1. `ctrl-h`, `ctrl-j` - move task left and right
-1. `o` - create new task down to focused
-1. `O` - create new task up to focused
+1. `ctrl-j`, `ctrl-k`, `ctrl-down`, `ctrl-up` - move task up and down
+1. `ctrl-h`, `ctrl-l`, `ctrl-left`, `ctrl-right` - move task left and right
+1. `o` - create new task below focused task
+1. `O` - create new task above focused task
 1. `space` - toggle task state
 1. `m` - move task to other project
-1. `d` - delete task
+1. `S` - stash task
+1. `s` - schedule date
+1. `t` - schedule task to today
+1. `r` - reset schedule
+1. `d`, `x`, `backspace` - delete task
 1. `e` - edit task description
-1. `?` - change date
+1. `c` - add checklist item
 1. `a` - open action menu
 
-Planned:
-1. `u`/`r` - undo/redo action
+When you focused on project
+1. `i` - edit project
+1. `j`, `k` - move between projects up and down
+1. `d`, `x`, `backspace` - delete project
+
+Reserved/WIP:
+1. `u`, `cmd-z`, `ctrl-z` - undo action
+1. `ctrl-r`, `cmd-shift-z`, `ctrl-shift-z` - redo action
 
 ## Current Roadmap, v1.0 release
 

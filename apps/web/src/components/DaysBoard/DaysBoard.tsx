@@ -246,7 +246,7 @@ const BoardView = ({
     const target = e.target instanceof Element ? e.target : document.activeElement;
     if (target && isInputElement(target)) return;
 
-    if (e.code === "KeyV") {
+    if (e.code === "KeyP") {
       e.preventDefault();
       setProjectsViewHidden(!projectsViewHidden);
     } else if (e.code === "KeyZ") {

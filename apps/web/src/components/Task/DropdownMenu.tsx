@@ -4,7 +4,10 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Archive,
   Calendar,
+  CalendarCheck,
+  CalendarX,
   CircleCheck,
   FolderOpen,
   ListPlus,
@@ -79,11 +82,17 @@ export const TaskDropdownMenu = ({
   isOpen,
   isDone,
   canMarkDone,
+  canScheduleTask,
+  canResetSchedule,
+  canStashTask,
   canAddChecklistItem,
   onOpenChange,
   onMarkDone,
   onMoveToProject,
+  onStashTask,
   onChangeDate,
+  onScheduleToday,
+  onResetSchedule,
   onAddTaskAfter,
   onAddTaskBefore,
   onAddChecklistItem,
@@ -99,11 +108,17 @@ export const TaskDropdownMenu = ({
   isOpen: boolean;
   isDone: boolean;
   canMarkDone: boolean;
+  canScheduleTask: boolean;
+  canResetSchedule: boolean;
+  canStashTask: boolean;
   canAddChecklistItem: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkDone: () => void;
   onMoveToProject: () => void;
+  onStashTask: () => void;
   onChangeDate: () => void;
+  onScheduleToday: () => void;
+  onResetSchedule: () => void;
   onAddTaskAfter: () => void;
   onAddTaskBefore: () => void;
   onAddChecklistItem: () => void;
@@ -190,17 +205,44 @@ export const TaskDropdownMenu = ({
             <DropdownMenuShortcut>m</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
+            onSelect={() => {
+              shouldSkipNextCloseAutoFocusRef.current = true;
+              onStashTask();
+            }}
+            disabled={!canStashTask}
+          >
+            <Archive />
+            Stash task
+            <DropdownMenuShortcut>S</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onSelect={(event) => {
               event.preventDefault();
               shouldSkipNextCloseAutoFocusRef.current = true;
               onOpenChange(false);
               window.setTimeout(onChangeDate, 0);
             }}
-            disabled={!canMarkDone}
+            disabled={!canScheduleTask}
           >
             <Calendar />
-            Change date
-            <DropdownMenuShortcut>?</DropdownMenuShortcut>
+            Schedule Date
+            <DropdownMenuShortcut>s</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={onScheduleToday}
+            disabled={!canScheduleTask}
+          >
+            <CalendarCheck />
+            Schedule today
+            <DropdownMenuShortcut>t</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={onResetSchedule}
+            disabled={!canResetSchedule}
+          >
+            <CalendarX />
+            Reset schedule
+            <DropdownMenuShortcut>r</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => {

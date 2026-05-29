@@ -43,6 +43,7 @@ import {
   projectCategoriesSlice,
   cardsTasksSlice,
   cardsTaskTemplatesSlice,
+  dailyListsSlice,
   dailyListsProjectionsSlice,
   AnyModelType,
   type Task,
@@ -52,9 +53,11 @@ import {
   dailyListType,
   projectionType,
   projectCategoryType,
+  STASH_ID,
   stashProjectionType,
   stashType,
   taskType,
+  getDMY,
 } from "@will-be-done/slices/space";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -421,6 +424,58 @@ export const TaskComp = ({
     setIsDatePickerOpen(true);
   }, []);
 
+  const handleScheduleToday = useCallback(() => {
+    if (!isTask(card)) return;
+
+    const dailyList = dispatch(
+      dailyListsSlice.createIfNotPresent(getDMY(date)),
+    );
+
+    dispatch(
+      dailyListsProjectionsSlice.addToDailyList(
+        taskId,
+        dailyList.id,
+        "append",
+      ),
+    );
+  }, [card, date, dispatch, taskId]);
+
+  const handleResetSchedule = useCallback(() => {
+    if (!isTask(card)) return;
+
+    dispatch(dailyListsProjectionsSlice.removeFromDailyList(taskId));
+  }, [card, dispatch, taskId]);
+
+  const handleStashTask = useCallback(() => {
+    if (
+      !isTask(card) ||
+      card.state !== "todo" ||
+      cardWrapper.type === stashProjectionType
+    ) {
+      return;
+    }
+
+    const [upKey, downKey] = getDOMSiblings(focusableItemKey);
+
+    dispatch(
+      appSlice.handleDrop(
+        STASH_ID,
+        stashType,
+        cardWrapper.id,
+        cardWrapper.type,
+        "top",
+      ),
+    );
+
+    if (downKey) {
+      useFocusStore.getState().focusByKey(downKey);
+    } else if (upKey) {
+      useFocusStore.getState().focusByKey(upKey);
+    } else {
+      useFocusStore.getState().resetFocus();
+    }
+  }, [card, cardWrapper.id, cardWrapper.type, dispatch, focusableItemKey]);
+
   const focusTaskOnOverlayCloseAutoFocus = useCallback((event: Event) => {
     event.preventDefault();
 
@@ -464,7 +519,7 @@ export const TaskComp = ({
       e.target instanceof Element ? e.target : document.activeElement;
     if (target && isInputElement(target)) return false;
 
-    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
+    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
 
     const isOpenActions = noModifiers && e.code === "KeyA";
     const isAddAfter = noModifiers && e.code === "KeyO";
@@ -483,7 +538,11 @@ export const TaskComp = ({
       e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
     const isMoveRight =
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
-    const isChangeDate = !e.ctrlKey && !e.metaKey && !e.altKey && e.key === "?";
+    const isScheduleDate = noModifiers && e.code === "KeyS";
+    const isScheduleToday = noModifiers && e.code === "KeyT";
+    const isResetSchedule = noModifiers && e.code === "KeyR";
+    const isStashTask =
+      e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyS";
 
     if (e.code === "Digit1" && noModifiers) {
       return runShortcutAction(() => {
@@ -539,10 +598,16 @@ export const TaskComp = ({
       return runShortcutAction(handleOpenMoveModal, {
         skipActionsCloseAutoFocus: true,
       });
-    } else if (isChangeDate && isTask(card)) {
+    } else if (isScheduleDate && isTask(card)) {
       return runShortcutAction(handleOpenDatePicker, {
         skipActionsCloseAutoFocus: true,
       });
+    } else if (isScheduleToday && isTask(card)) {
+      return runShortcutAction(handleScheduleToday);
+    } else if (isResetSchedule && isTask(card)) {
+      return runShortcutAction(handleResetSchedule);
+    } else if (isStashTask && isTask(card)) {
+      return runShortcutAction(handleStashTask);
     } else if (e.code === "KeyC" && noModifiers) {
       return runShortcutAction(handleAddChecklistItem, {
         skipActionsCloseAutoFocus: true,
@@ -901,11 +966,21 @@ export const TaskComp = ({
                   isOpen={isActionsOpen}
                   isDone={isTask(card) && card.state === "done"}
                   canMarkDone={isTask(card)}
+                  canScheduleTask={isTask(card)}
+                  canResetSchedule={isTask(card) && !!lastScheduleTime}
+                  canStashTask={
+                    isTask(card) &&
+                    card.state === "todo" &&
+                    cardWrapper.type !== stashProjectionType
+                  }
                   canAddChecklistItem={isTask(card) || isTaskTemplate(card)}
                   onOpenChange={setIsActionsOpen}
                   onMarkDone={handleTick}
                   onMoveToProject={handleOpenMoveModal}
+                  onStashTask={handleStashTask}
                   onChangeDate={handleOpenDatePicker}
+                  onScheduleToday={handleScheduleToday}
+                  onResetSchedule={handleResetSchedule}
                   onAddTaskAfter={() => handleAddSiblingTask("after")}
                   onAddTaskBefore={() => handleAddSiblingTask("before")}
                   onAddChecklistItem={handleAddChecklistItem}

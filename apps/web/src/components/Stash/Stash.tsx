@@ -112,7 +112,7 @@ export const Stash = () => {
     const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
 
     if (
-      e.code !== "KeyS" ||
+      e.code !== "Backslash" ||
       !noModifiers ||
       focusState.isFocusDisabled ||
       !!focusState.editItemKey ||
