@@ -172,7 +172,8 @@ From tasks perspective:
 - [x] Checklist inside task
 
 From api perspective:
-- [ ] API & MCP integration
+- [ ] Open API integration
+- [ ] CLI app
 
 UI/UX:
 - [ ] Undo/redo action
@@ -182,7 +183,6 @@ Others:
 
 Separate apps:
 - [x] Desktop app with global quick add
-- [ ] Mobile app(not PWA)
 
 ## Next possible features
 
@@ -192,6 +192,7 @@ From tasks perspective:
 
 From api perspective:
 - [ ] CalDAV integration
+- [ ] MCP integration
 
 UI/UX:
 - [ ] Themes per project(custom background of project and custom color of project tasks)
@@ -201,7 +202,7 @@ UI/UX:
 - [ ] DnD for project columns
 - [ ] I18n
 - [ ] More vim keybindings
-      
+
 Others:
 - [ ] e2e encryption
 - [ ] Global search
@@ -209,6 +210,7 @@ Others:
 Separate apps:
 - [ ] Widgets support on mobile app
 - [ ] Notifications on web, mobile, desktop apps
+- [ ] Mobile app(not PWA)
 
 ## Features that are not planning for now
 

@@ -211,11 +211,33 @@ export const toggleState = action(function* (id: string) {
   if (!item) throw new Error("Checklist item not found");
 
   const state = item.state === "todo" ? "done" : "todo";
+  let orderToken = item.orderToken;
+
+  if (state === "done") {
+    const items = (yield* children(item.parentId, item.parentType)).filter(
+      (child) => child.id !== id,
+    );
+    const firstDoneIndex = items.findIndex((child) => child.state === "done");
+
+    if (firstDoneIndex === -1) {
+      orderToken = generateJitteredKeyBetween(
+        items[items.length - 1]?.orderToken || null,
+        null,
+      );
+    } else {
+      orderToken = generateJitteredKeyBetween(
+        items[firstDoneIndex - 1]?.orderToken || null,
+        items[firstDoneIndex].orderToken,
+      );
+    }
+  }
+
   yield* update(checklistItemsTable, [
     {
       ...item,
       state,
       checkedAt: state === "done" ? Date.now() : null,
+      orderToken,
     },
   ]);
 });

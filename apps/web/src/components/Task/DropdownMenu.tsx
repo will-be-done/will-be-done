@@ -25,6 +25,55 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { taskFloatingControlButtonClassName } from "./styles";
 
+const focusableMenuItemSelector = [
+  "[data-slot='dropdown-menu-item']",
+  "[data-slot='dropdown-menu-checkbox-item']",
+  "[data-slot='dropdown-menu-radio-item']",
+  "[data-slot='dropdown-menu-sub-trigger']",
+]
+  .map(
+    (selector) =>
+      `${selector}:not([data-disabled]):not([aria-disabled='true'])`,
+  )
+  .join(",");
+
+const isMenuNavigationKey = (event: KeyboardEvent) =>
+  !(event.ctrlKey || event.metaKey || event.altKey) &&
+  (event.code === "ArrowUp" ||
+    event.code === "ArrowDown" ||
+    event.code === "ArrowLeft" ||
+    event.code === "ArrowRight" ||
+    event.code === "Home" ||
+    event.code === "End" ||
+    event.code === "PageUp" ||
+    event.code === "PageDown" ||
+    event.code === "Tab" ||
+    event.code === "Enter" ||
+    event.code === "Space" ||
+    event.code === "Escape");
+
+const focusAdjacentMenuItem = (
+  content: HTMLElement,
+  direction: "next" | "previous",
+) => {
+  const items = Array.from(
+    content.querySelectorAll<HTMLElement>(focusableMenuItemSelector),
+  );
+
+  if (!items.length) return;
+
+  const activeIndex = items.findIndex((item) => item === document.activeElement);
+  const fallbackIndex = direction === "next" ? 0 : items.length - 1;
+  const nextIndex =
+    activeIndex === -1
+      ? fallbackIndex
+      : direction === "next"
+        ? (activeIndex + 1) % items.length
+        : (activeIndex - 1 + items.length) % items.length;
+
+  items[nextIndex]?.focus();
+};
+
 export const TaskDropdownMenu = ({
   isFocused,
   isOpen,
@@ -69,6 +118,23 @@ export const TaskDropdownMenu = ({
   const shouldSkipNextCloseAutoFocusRef = useRef(false);
 
   const handleShortcutKeyDown = (event: KeyboardEvent) => {
+    if (
+      !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) &&
+      (event.code === "KeyJ" || event.code === "KeyK")
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      focusAdjacentMenuItem(
+        event.currentTarget as HTMLElement,
+        event.code === "KeyJ" ? "next" : "previous",
+      );
+      return;
+    }
+
+    if (isMenuNavigationKey(event)) {
+      return;
+    }
+
     shouldSkipNextCloseAutoFocusRef.current =
       onShortcutKeyDown?.(event) ?? false;
   };
@@ -96,6 +162,7 @@ export const TaskDropdownMenu = ({
         className="min-w-52 bg-task-dropdown shadow-2xl ring-0 backdrop-blur-none"
         onClick={(e) => e.stopPropagation()}
         onKeyDownCapture={handleShortcutKeyDown}
+        onKeyDown={(e) => e.stopPropagation()}
         onCloseAutoFocus={(e) => {
           e.preventDefault();
           if (shouldSkipNextCloseAutoFocusRef.current) {
