@@ -1,78 +1,6 @@
 import { Folder, Hash } from "lucide-react";
 import { cn } from "@/lib/utils";
 import TextareaAutosize from "react-textarea-autosize";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-
-const markdownComponents = {
-  h1: ({ children }: { children?: React.ReactNode }) => (
-    <h1 className="mb-2 text-base font-semibold leading-6 text-content">
-      {children}
-    </h1>
-  ),
-  h2: ({ children }: { children?: React.ReactNode }) => (
-    <h2 className="mb-2 text-sm font-semibold leading-6 text-content">
-      {children}
-    </h2>
-  ),
-  h3: ({ children }: { children?: React.ReactNode }) => (
-    <h3 className="mb-1 text-xs font-semibold leading-5 tracking-wide text-content">
-      {children}
-    </h3>
-  ),
-  p: ({ children }: { children?: React.ReactNode }) => (
-    <p className="whitespace-pre-wrap text-content [&:not(:last-child)]:mb-2">
-      {children}
-    </p>
-  ),
-  ul: ({ children }: { children?: React.ReactNode }) => (
-    <ul className="list-disc space-y-1 pl-4 text-content">{children}</ul>
-  ),
-  ol: ({ children }: { children?: React.ReactNode }) => (
-    <ol className="list-decimal space-y-1 pl-4 text-content">{children}</ol>
-  ),
-  li: ({ children }: { children?: React.ReactNode }) => (
-    <li className="text-content">{children}</li>
-  ),
-  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-accent underline underline-offset-2"
-    >
-      {children}
-    </a>
-  ),
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="rounded bg-task-panel-hover px-1 py-0.5 font-mono text-[11px] text-content">
-      {children}
-    </code>
-  ),
-  pre: ({ children }: { children?: React.ReactNode }) => (
-    <pre className="overflow-x-auto rounded-md bg-task-panel-hover px-2 py-1.5 font-mono text-[11px] text-content">
-      {children}
-    </pre>
-  ),
-  blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="border-l-2 border-task-panel-ring/40 pl-3 text-content-tinted">
-      {children}
-    </blockquote>
-  ),
-  br: () => <br />,
-};
-
-function MarkdownWithBlankLines({ children }: { children: string }) {
-  return (
-    <Markdown
-      remarkPlugins={[remarkGfm]}
-      skipHtml
-      components={markdownComponents}
-    >
-      {children}
-    </Markdown>
-  );
-}
 
 // ─── EditableTitle ────────────────────────────────────────────────────────────
 
@@ -80,7 +8,6 @@ export function EditableTitle({
   icon,
   isEditing,
   editingTitle,
-  title,
   titleClassName,
   setTitleDraft,
   handleTitleKeyDown,
@@ -91,7 +18,6 @@ export function EditableTitle({
   icon: React.ReactNode;
   isEditing: boolean;
   editingTitle: string;
-  title: string;
   titleClassName?: string;
   setTitleDraft: (v: string) => void;
   handleTitleKeyDown: (e: React.KeyboardEvent) => void;
@@ -102,29 +28,25 @@ export function EditableTitle({
   return (
     <div className="flex items-start gap-2 whitespace-break-spaces [overflow-wrap:anywhere] ">
       <div className="shrink-0">{icon}</div>
-      {isEditing ? (
-        <TextareaAutosize
-          ref={textareaRef}
-          value={editingTitle}
-          onChange={(e) => setTitleDraft(e.target.value)}
-          onKeyDown={handleTitleKeyDown}
-          onBlur={saveTitle}
-          className="flex-1 bg-transparent resize-none focus:outline-none text-sm font-medium text-content leading-snug"
-        />
-      ) : (
-        <div
-          className={cn(
-            "flex-1 text-sm font-medium leading-snug cursor-text select-none",
-            titleClassName ?? "text-content",
-          )}
-          onDoubleClick={() => setIsEditingTitle(true)}
-          title="Double-click to edit"
-        >
-          {title || (
-            <span className="italic text-content-tinted">Untitled</span>
-          )}
-        </div>
-      )}
+      <TextareaAutosize
+        ref={isEditing ? textareaRef : undefined}
+        value={editingTitle}
+        onChange={(e) => setTitleDraft(e.target.value)}
+        onKeyDown={handleTitleKeyDown}
+        onFocus={() => setIsEditingTitle(true)}
+        onBlur={saveTitle}
+        placeholder="Untitled"
+        spellCheck={false}
+        autoCorrect="off"
+        autoCapitalize="off"
+        data-gramm="false"
+        data-gramm_editor="false"
+        data-enable-grammarly="false"
+        className={cn(
+          "flex-1 resize-none bg-transparent text-sm font-medium leading-snug focus:outline-none placeholder:italic placeholder:text-content-tinted",
+          titleClassName ?? "text-content",
+        )}
+      />
     </div>
   );
 }
@@ -151,57 +73,36 @@ export function DetailRow({
   );
 }
 
-export function EditableMarkdownDescription({
-  isEditing,
+export function EditableDescription({
   editingDescription,
-  description,
   setDescriptionDraft,
   handleDescriptionKeyDown,
   textareaRef,
   saveDescription,
   setIsEditingDescription,
 }: {
-  isEditing: boolean;
   editingDescription: string;
-  description: string;
   setDescriptionDraft: (v: string) => void;
-  handleDescriptionKeyDown: (e: React.KeyboardEvent) => void;
+  handleDescriptionKeyDown: (
+    e: React.KeyboardEvent<HTMLTextAreaElement>,
+  ) => void;
   textareaRef: (el: HTMLTextAreaElement | null) => void;
   saveDescription: () => void;
   setIsEditingDescription: (v: boolean) => void;
 }) {
-  if (isEditing) {
-    return (
-      <TextareaAutosize
-        ref={textareaRef}
-        value={editingDescription}
-        onChange={(e) => setDescriptionDraft(e.target.value)}
-        onKeyDown={handleDescriptionKeyDown}
-        onBlur={saveDescription}
-        minRows={4}
-        className="w-full rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content resize-none focus:outline-none focus:ring-1 focus:ring-accent"
-        placeholder="Write a description in markdown..."
-        aria-label="Edit task description"
-      />
-    );
-  }
-
   return (
-    <div
-      className="rounded-md px-2 py-1.5 -mx-2 -my-1.5 cursor-text"
-      onDoubleClick={() => setIsEditingDescription(true)}
-      title="Double-click to edit"
-    >
-      {description ? (
-        <div className="text-xs leading-5 text-content">
-          <MarkdownWithBlankLines>{description}</MarkdownWithBlankLines>
-        </div>
-      ) : (
-        <span className="text-xs italic text-content-tinted">
-          Add a description
-        </span>
-      )}
-    </div>
+    <TextareaAutosize
+      ref={textareaRef}
+      value={editingDescription}
+      onChange={(e) => setDescriptionDraft(e.target.value)}
+      onKeyDown={handleDescriptionKeyDown}
+      onFocus={() => setIsEditingDescription(true)}
+      onBlur={saveDescription}
+      minRows={4}
+      className="w-full rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content resize-none focus:outline-none focus:ring-1 focus:ring-accent placeholder:italic placeholder:text-content-tinted"
+      placeholder="Add a description"
+      aria-label="Edit task description"
+    />
   );
 }
 

@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/emoji-picker.tsx";
 import { Popover } from "@/components/ui/popover.tsx";
 import { useCurrentDate } from "../DaysBoard/hooks.tsx";
-import { promptDialog } from "@/components/ui/prompt-dialog";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";

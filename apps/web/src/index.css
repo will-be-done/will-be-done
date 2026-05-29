@@ -71,6 +71,7 @@
   /* Popover/calendar - semi-transparent with blur */
   --color-popover: oklch(27.9% 0.037 260 / 0.05);
   --color-popover-calendar: oklch(27.9% 0.037 260 / 0.05);
+  --color-task-dropdown: oklch(19% 0.034 260);
   --color-calendar-header: var(--color-slate-200);
   --color-calendar-weekday: var(--color-slate-400);
   --color-calendar-day: var(--color-slate-300);

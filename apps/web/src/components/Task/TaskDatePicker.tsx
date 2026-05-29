@@ -18,14 +18,22 @@ interface TaskDatePickerProps {
   taskId: string;
   currentDate: Date | undefined;
   trigger: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 export function TaskDatePicker({
   taskId,
   currentDate,
   trigger,
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
 }: TaskDatePickerProps) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isOpen = open ?? uncontrolledOpen;
+  const setIsOpen = onOpenChange ?? setUncontrolledOpen;
   const dispatch = useDispatch();
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -43,20 +51,21 @@ export function TaskDatePicker({
     );
 
     // Close popover
-    setOpen(false);
+    setIsOpen(false);
   };
 
   const handleClearDate = () => {
     dispatch(dailyListsProjectionsSlice.removeFromDailyList(taskId));
-    setOpen(false);
+    setIsOpen(false);
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent
         className="z-[1100] w-auto p-0"
         align="end"
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="flex flex-col">
           <Calendar
@@ -67,7 +76,7 @@ export function TaskDatePicker({
               today: new Date(),
             }}
           />
-          {currentDate && open && (
+          {currentDate && isOpen && (
             <div className="p-3 border-t border-ring">
               <Button
                 variant="outline"

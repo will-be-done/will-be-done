@@ -1,4 +1,4 @@
-import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -13,24 +13,33 @@ import {
   type Edge,
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import ReactDOM, { unstable_batchedUpdates } from "react-dom";
+import { unstable_batchedUpdates } from "react-dom";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
+import { createElementDragPreview } from "@/lib/dnd/dragPreview";
 import TextareaAutosize from "react-textarea-autosize";
-import { usePrevious, useUnmount } from "../../utils";
+import {
+  CheckboxComp,
+  ChecklistItems,
+} from "@/components/Checklist/Checklist";
+import { focusChecklistItem } from "@/components/Checklist/focus";
+import { TaskDropdownMenu } from "./DropdownMenu";
+import { taskFloatingIconGroupClassName } from "./styles";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
+import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
 import {
   getDOMAdjacentStackedPlaceholder,
   getDOMColumnSiblingDropTarget,
   getDOMSiblings,
 } from "@/components/Focus/domNavigation.ts";
 import clsx from "clsx";
-import { RotateCw, CircleDashed } from "lucide-react";
+import { CircleDashed, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   appSlice,
   cardsSlice,
+  checklistItemsSlice,
   projectCategoriesSlice,
   cardsTasksSlice,
   cardsTaskTemplatesSlice,
@@ -53,7 +62,6 @@ import {
   useFocusStore,
   parseColumnKey,
 } from "@/store/focusSlice.ts";
-import { Checkbox } from "@base-ui-components/react/checkbox";
 import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { format, startOfDay } from "date-fns";
@@ -62,72 +70,6 @@ import {
   useCardDetailsEditRequest,
   useCardDetailsOpen,
 } from "@/components/CardDetails/CardDetailsStore.ts";
-
-export function CheckboxComp({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <Checkbox.Root
-      defaultChecked
-      className="flex size-4 items-center justify-center rounded-sm bg-input-bg ring-1 ring-ring mt-0.5 transition-all hover:ring-ring-hover data-[checked]:bg-input-checked data-[checked]:ring-input-checked"
-      tabIndex={-1}
-      checked={checked}
-      onCheckedChange={onChange}
-    >
-      <Checkbox.Indicator className="flex text-white data-[unchecked]:hidden">
-        <CheckIcon className="size-2.5" />
-      </Checkbox.Indicator>
-    </Checkbox.Root>
-  );
-}
-
-function CheckIcon(props: React.ComponentProps<"svg">) {
-  return (
-    <svg
-      fill="currentcolor"
-      width="10"
-      height="10"
-      viewBox="0 0 10 10"
-      {...props}
-    >
-      <path d="M9.1603 1.12218C9.50684 1.34873 9.60427 1.81354 9.37792 2.16038L5.13603 8.66012C5.01614 8.8438 4.82192 8.96576 4.60451 8.99384C4.3871 9.02194 4.1683 8.95335 4.00574 8.80615L1.24664 6.30769C0.939709 6.02975 0.916013 5.55541 1.19372 5.24822C1.47142 4.94102 1.94536 4.91731 2.2523 5.19524L4.36085 7.10461L8.12299 1.33999C8.34934 0.993152 8.81376 0.895638 9.1603 1.12218Z" />
-    </svg>
-  );
-}
-
-type State =
-  | { type: "idle" }
-  | { type: "preview"; container: HTMLElement; rect: DOMRect }
-  | { type: "dragging" };
-
-const idleState: State = { type: "idle" };
-const draggingState: State = { type: "dragging" };
-
-const TaskPrimitive = ({
-  title,
-  style,
-}: {
-  title: string;
-  style: CSSProperties;
-}) => {
-  return (
-    <div
-      className="p-3 rounded-lg bg-panel ring-1 ring-ring shadow-lg"
-      style={style}
-    >
-      <div className="flex items-center gap-2">
-        <div className="flex items-center justify-end">
-          <div className="h-4 w-4 rounded-sm bg-input-bg ring-1 ring-ring" />
-        </div>
-        <div className="font-medium text-content h-6">{title}</div>
-      </div>
-    </div>
-  );
-};
 
 export const DropTaskIndicator = ({
   direction,
@@ -161,7 +103,8 @@ const getFocusKeyForColumnMoveTarget = (
 
   if (
     targetColumnModelType === projectCategoryType &&
-    (sourceModelType === projectionType || sourceModelType === stashProjectionType)
+    (sourceModelType === projectionType ||
+      sourceModelType === stashProjectionType)
   ) {
     return buildFocusKey(taskId, taskType);
   }
@@ -220,30 +163,16 @@ export const TaskComp = ({
     startOfDay(date) > lastScheduleTime &&
     isTask(card) &&
     card.state === "todo";
+  const taskTitle = card.title;
 
-  const [editingTitle, setEditingTitle] = useState<string>(card.title);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
-  const [dndState, setDndState] = useState<State>(idleState);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const shouldPlaceTitleCaretAtEndRef = useRef(false);
   const focusableItemKey = buildFocusKey(cardWrapper.id, cardWrapper.type);
-
-  const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-
-      useFocusStore.getState().resetEdit();
-
-      // if (e.key === "Enter") {
-      //   task.setTitle(editingTitle);
-      //   const siblings = taskBox.siblings;
-      //   const list = taskBox.listRef.current;
-      //   const newItem = list.createChild([taskBox, siblings[1]], listItem);
-      //
-      //   currentProjectionState.setFocusedItemId(newItem.id);
-      // }
-    }
-  };
 
   const isFocused = useFocusStore(
     (s) => !s.isFocusDisabled && s.focusItemKey === focusableItemKey,
@@ -252,6 +181,41 @@ export const TaskComp = ({
     (s) => !s.isFocusDisabled && s.editItemKey === focusableItemKey,
   );
   const select = useSelect();
+
+  const persistTaskTitle = useCallback(
+    (title: string) => {
+      if (isTask(card)) {
+        if (!select(cardsTasksSlice.byId(taskId))) return;
+
+        dispatch(
+          cardsTasksSlice.updateTask(taskId, {
+            title,
+          }),
+        );
+        return;
+      }
+
+      if (isTaskTemplate(card)) {
+        if (!select(cardsTaskTemplatesSlice.byId(taskId))) return;
+
+        dispatch(
+          cardsTaskTemplatesSlice.updateTemplate(taskId, {
+            title,
+          }),
+        );
+      }
+    },
+    [card, dispatch, select, taskId],
+  );
+
+  const {
+    draft: editingTitle,
+    setDraft: setEditingTitle,
+    flush: flushEditedTitle,
+  } = useDebouncedPersistedDraft({
+    value: taskTitle,
+    persist: persistTaskTitle,
+  });
 
   const handleTick = useCallback(() => {
     if (!isTask(card)) return;
@@ -287,24 +251,224 @@ export const TaskComp = ({
     }
   }, [dispatch, focusableItemKey, isFocused, card, select, taskId]);
 
-  useGlobalListener("keydown", (e: KeyboardEvent) => {
+  const handleDelete = useCallback(() => {
+    const [upKey, downKey] = getDOMSiblings(focusableItemKey);
+
+    flushEditedTitle();
+    dispatch(appSlice.deleteModel(cardWrapper.id, cardWrapper.type));
+
+    if (downKey) {
+      useFocusStore.getState().focusByKey(downKey);
+    } else if (upKey) {
+      useFocusStore.getState().focusByKey(upKey);
+    } else {
+      useFocusStore.getState().resetFocus();
+    }
+  }, [
+    cardWrapper.id,
+    cardWrapper.type,
+    dispatch,
+    flushEditedTitle,
+    focusableItemKey,
+  ]);
+
+  const handleMoveColumn = useCallback(
+    (direction: "left" | "right") => {
+      const dropTarget = getDOMColumnSiblingDropTarget(
+        focusableItemKey,
+        direction,
+      );
+
+      if (!dropTarget) return;
+
+      const targetFocusKey = getFocusKeyForColumnMoveTarget(
+        cardWrapper.id,
+        cardWrapper.type,
+        dropTarget.targetColumnModel.type,
+        focusableItemKey,
+      );
+      const { id, type } = parseColumnKey(dropTarget.targetKey);
+
+      dispatch(
+        appSlice.handleDrop(
+          id,
+          type as AnyModelType,
+          cardWrapper.id,
+          cardWrapper.type,
+          dropTarget.edge,
+        ),
+      );
+
+      setTimeout(() => {
+        if (targetFocusKey !== focusableItemKey) {
+          useFocusStore.getState().focusByKey(targetFocusKey);
+          return;
+        }
+
+        const el = document.querySelector<HTMLElement>(
+          `[data-focusable-key="${focusableItemKey}"]`,
+        );
+        if (el) {
+          el.focus();
+          el.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+        }
+      }, 0);
+    },
+    [cardWrapper.id, cardWrapper.type, dispatch, focusableItemKey],
+  );
+
+  const handleMoveStacked = useCallback(
+    (direction: "up" | "down") => {
+      const [upKey, downKey] = getDOMSiblings(focusableItemKey, {
+        forMove: true,
+      });
+
+      let targetKey = direction === "up" ? upKey : downKey;
+      let crossedBoundary = false;
+
+      if (targetKey) {
+        const currentColumn = document
+          .querySelector(`[data-focusable-key="${focusableItemKey}"]`)
+          ?.closest("[data-focus-column]");
+        const targetColumn = document
+          .querySelector(`[data-focusable-key="${targetKey}"]`)
+          ?.closest("[data-focus-column]");
+        crossedBoundary = currentColumn !== targetColumn;
+      } else {
+        targetKey = getDOMAdjacentStackedPlaceholder(
+          focusableItemKey,
+          direction,
+        );
+        crossedBoundary = targetKey !== null;
+      }
+
+      if (!targetKey) return;
+
+      const { id, type } = parseColumnKey(targetKey);
+      const edge: Edge = crossedBoundary
+        ? direction === "up"
+          ? "bottom"
+          : "top"
+        : direction === "up"
+          ? "top"
+          : "bottom";
+
+      dispatch(
+        appSlice.handleDrop(id, type, cardWrapper.id, cardWrapper.type, edge),
+      );
+
+      setTimeout(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-focusable-key="${focusableItemKey}"]`,
+        );
+        if (el) {
+          el.focus();
+          el.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "center",
+          });
+        }
+      }, 0);
+    },
+    [cardWrapper.id, cardWrapper.type, dispatch, focusableItemKey],
+  );
+
+  const handleAddChecklistItem = useCallback(() => {
+    if (!isTask(card) && !isTaskTemplate(card)) return;
+
+    useFocusStore.getState().focusByKey(focusableItemKey, true);
+    useFocusStore.getState().resetEdit();
+
+    const item = dispatch(
+      checklistItemsSlice.createItem({
+        parentId: card.id,
+        parentType: card.type,
+      }),
+    );
+
+    focusChecklistItem(item.id, { root: ref.current });
+  }, [card, dispatch, focusableItemKey]);
+
+  const handleAddSiblingTask = useCallback(
+    (position: "after" | "before") => {
+      if (isTask(card) && card.state === "done") return;
+
+      unstable_batchedUpdates(() => {
+        const newBox = dispatch(
+          cardsSlice.createSiblingCard(cardWrapper, position, newTaskParams),
+        );
+        useFocusStore
+          .getState()
+          .editByKey(buildFocusKey(newBox.id, newBox.type));
+      });
+    },
+    [card, cardWrapper, dispatch, newTaskParams],
+  );
+
+  const handleOpenMoveModal = useCallback(() => {
+    // NOTE: this is needed to restore Focus back correctly after modal close
+    ref.current?.focus();
+    setIsMoveModalOpen(true);
+  }, []);
+
+  const handleOpenDatePicker = useCallback(() => {
+    ref.current?.focus();
+    setIsDatePickerOpen(true);
+  }, []);
+
+  const focusTaskOnOverlayCloseAutoFocus = useCallback((event: Event) => {
+    event.preventDefault();
+
+    ref.current?.setAttribute("data-suppress-focus-visible", "true");
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+
+  const handleTaskShortcutKeyDown = (
+    e: KeyboardEvent | React.KeyboardEvent,
+    source: "task" | "actionsMenu" = "task",
+  ) => {
+    const isActionsMenuSource = source === "actionsMenu";
     const focusState = useFocusStore.getState();
     const isSomethingEditing =
       !focusState.isFocusDisabled && !!focusState.editItemKey;
     const isFocusDisabled = focusState.isFocusDisabled;
+    const runShortcutAction = (
+      action: () => void,
+      options?: { skipActionsCloseAutoFocus?: boolean },
+    ) => {
+      e.preventDefault();
 
-    if (isSomethingEditing) return;
-    if (!isFocused) return;
-    if (isFocusDisabled || e.defaultPrevented) return;
+      if (isActionsMenuSource) {
+        e.stopPropagation();
+        setIsActionsOpen(false);
+        window.setTimeout(action, 0);
+        return options?.skipActionsCloseAutoFocus ?? false;
+      }
+
+      action();
+      return false;
+    };
+
+    if (isSomethingEditing) return false;
+    if (!isFocused) return false;
+    if (isActionsOpen && !isActionsMenuSource) return false;
+    if (isDatePickerOpen) return false;
+    if (isFocusDisabled || e.defaultPrevented) return false;
 
     const target =
       e.target instanceof Element ? e.target : document.activeElement;
-    if (target && isInputElement(target)) return;
+    if (target && isInputElement(target)) return false;
 
     const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey);
 
-    const isAddAfter = noModifiers && (e.code === "KeyA" || e.code === "KeyO");
-    const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
+    const isOpenActions = noModifiers && e.code === "KeyA";
+    const isAddAfter = noModifiers && e.code === "KeyO";
+    const isAddBefore = e.shiftKey && e.code === "KeyO";
 
     const isDeleteProjectionTask =
       (e.metaKey || e.ctrlKey) &&
@@ -319,207 +483,114 @@ export const TaskComp = ({
       e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
     const isMoveRight =
       e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
+    const isChangeDate = !e.ctrlKey && !e.metaKey && !e.altKey && e.key === "?";
 
     if (e.code === "Digit1" && noModifiers) {
-      e.preventDefault();
-
-      if (isTask(card)) {
-        dispatch(cardsTasksSlice.updateTask(taskId, { nature: "red" }));
-      } else if (isTaskTemplate(card)) {
-        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "red" }));
-      }
-    } else if (e.code === "Digit2" && noModifiers) {
-      e.preventDefault();
-
-      if (isTask(card)) {
-        dispatch(cardsTasksSlice.updateTask(taskId, { nature: "green" }));
-      } else if (isTaskTemplate(card)) {
-        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "green" }));
-      }
-    } else if (e.code === "Digit3" && noModifiers) {
-      e.preventDefault();
-
-      if (isTask(card)) {
-        dispatch(cardsTasksSlice.updateTask(taskId, { nature: "unknown" }));
-      } else if (isTaskTemplate(card)) {
-        dispatch(cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "unknown" }));
-      }
-    } else if (isDeleteProjectionTask) {
-      e.preventDefault();
-
-      const [upKey, downKey] = getDOMSiblings(focusableItemKey);
-
-      dispatch(cardsTasksSlice.deleteTasks([taskId]));
-
-      if (downKey) {
-        useFocusStore.getState().focusByKey(downKey);
-      } else if (upKey) {
-        useFocusStore.getState().focusByKey(upKey);
-      } else {
-        useFocusStore.getState().resetFocus();
-      }
-    } else if (e.code === "Space" && noModifiers) {
-      e.preventDefault();
-
-      handleTick();
-    } else if (e.code === "KeyM" && noModifiers) {
-      e.preventDefault();
-
-      // NOTE: this is needed to restore Focus back correctly after modal close
-      ref.current?.focus();
-      setIsMoveModalOpen(true);
-    } else if (isMoveLeft || isMoveRight) {
-      e.preventDefault();
-
-      const dropTarget = getDOMColumnSiblingDropTarget(
-        focusableItemKey,
-        isMoveLeft ? "left" : "right",
-      );
-
-      if (dropTarget) {
-        const targetFocusKey = getFocusKeyForColumnMoveTarget(
-          cardWrapper.id,
-          cardWrapper.type,
-          dropTarget.targetColumnModel.type,
-          focusableItemKey,
-        );
-        const { id, type } = parseColumnKey(dropTarget.targetKey);
-
-        dispatch(
-          appSlice.handleDrop(
-            id,
-            type as AnyModelType,
-            cardWrapper.id,
-            cardWrapper.type,
-            dropTarget.edge,
-          ),
-        );
-
-        setTimeout(() => {
-          if (targetFocusKey !== focusableItemKey) {
-            useFocusStore.getState().focusByKey(targetFocusKey);
-            return;
-          }
-
-          const el = document.querySelector<HTMLElement>(
-            `[data-focusable-key="${focusableItemKey}"]`,
+      return runShortcutAction(() => {
+        if (isTask(card)) {
+          dispatch(cardsTasksSlice.updateTask(taskId, { nature: "red" }));
+        } else if (isTaskTemplate(card)) {
+          dispatch(
+            cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "red" }),
           );
-          if (el) {
-            el.focus();
-            el.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-              inline: "center",
-            });
-          }
-        }, 0);
-      }
-    } else if (isMoveUp || isMoveDown) {
-      e.preventDefault();
-
-      const [upKey, downKey] = getDOMSiblings(focusableItemKey, {
-        forMove: true,
+        }
       });
-
-      let targetKey = isMoveUp ? upKey : downKey;
-      let crossedBoundary = false;
-
-      if (targetKey) {
-        const currentColumn = document
-          .querySelector(`[data-focusable-key="${focusableItemKey}"]`)
-          ?.closest("[data-focus-column]");
-        const targetColumn = document
-          .querySelector(`[data-focusable-key="${targetKey}"]`)
-          ?.closest("[data-focus-column]");
-        crossedBoundary = currentColumn !== targetColumn;
-      } else {
-        // No valid sibling — fall back to adjacent section's placeholder
-        targetKey = getDOMAdjacentStackedPlaceholder(
-          focusableItemKey,
-          isMoveUp ? "up" : "down",
-        );
-        crossedBoundary = targetKey !== null;
-      }
-
-      if (targetKey) {
-        const { id, type } = parseColumnKey(targetKey);
-
-        const edge: Edge = crossedBoundary
-          ? isMoveUp
-            ? "bottom"
-            : "top"
-          : isMoveUp
-            ? "top"
-            : "bottom";
-
-        dispatch(
-          appSlice.handleDrop(id, type, cardWrapper.id, cardWrapper.type, edge),
-        );
-
-        setTimeout(() => {
-          const el = document.querySelector<HTMLElement>(
-            `[data-focusable-key="${focusableItemKey}"]`,
+    } else if (e.code === "Digit2" && noModifiers) {
+      return runShortcutAction(() => {
+        if (isTask(card)) {
+          dispatch(cardsTasksSlice.updateTask(taskId, { nature: "green" }));
+        } else if (isTaskTemplate(card)) {
+          dispatch(
+            cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "green" }),
           );
-          if (el) {
-            el.focus();
-            el.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-              inline: "center",
-            });
-          }
-        }, 0);
-      }
+        }
+      });
+    } else if (e.code === "Digit3" && noModifiers) {
+      return runShortcutAction(() => {
+        if (isTask(card)) {
+          dispatch(cardsTasksSlice.updateTask(taskId, { nature: "unknown" }));
+        } else if (isTaskTemplate(card)) {
+          dispatch(
+            cardsTaskTemplatesSlice.updateTemplate(taskId, {
+              nature: "unknown",
+            }),
+          );
+        }
+      });
+    } else if (isDeleteProjectionTask) {
+      return runShortcutAction(() => {
+        const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
-      return;
+        dispatch(cardsTasksSlice.deleteTasks([taskId]));
+
+        if (downKey) {
+          useFocusStore.getState().focusByKey(downKey);
+        } else if (upKey) {
+          useFocusStore.getState().focusByKey(upKey);
+        } else {
+          useFocusStore.getState().resetFocus();
+        }
+      });
+    } else if (e.code === "Space" && noModifiers) {
+      return runShortcutAction(handleTick);
+    } else if (isOpenActions && !isActionsMenuSource) {
+      return runShortcutAction(() => setIsActionsOpen(true));
+    } else if (e.code === "KeyM" && noModifiers) {
+      return runShortcutAction(handleOpenMoveModal, {
+        skipActionsCloseAutoFocus: true,
+      });
+    } else if (isChangeDate && isTask(card)) {
+      return runShortcutAction(handleOpenDatePicker, {
+        skipActionsCloseAutoFocus: true,
+      });
+    } else if (e.code === "KeyC" && noModifiers) {
+      return runShortcutAction(handleAddChecklistItem, {
+        skipActionsCloseAutoFocus: true,
+      });
+    } else if (isMoveLeft || isMoveRight) {
+      return runShortcutAction(() =>
+        handleMoveColumn(isMoveLeft ? "left" : "right"),
+      );
+    } else if (isMoveUp || isMoveDown) {
+      return runShortcutAction(() =>
+        handleMoveStacked(isMoveUp ? "up" : "down"),
+      );
     } else if (
       (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
       noModifiers
     ) {
-      e.preventDefault();
-
-      const [upKey, downKey] = getDOMSiblings(focusableItemKey);
-
-      dispatch(appSlice.deleteModel(cardWrapper.id, cardWrapper.type));
-
-      if (downKey) {
-        useFocusStore.getState().focusByKey(downKey);
-      } else if (upKey) {
-        useFocusStore.getState().focusByKey(upKey);
-      } else {
-        useFocusStore.getState().resetFocus();
-      }
+      return runShortcutAction(handleDelete);
     } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
-      e.preventDefault();
-
-      useFocusStore.getState().editByKey(focusableItemKey);
+      return runShortcutAction(
+        () => {
+          shouldPlaceTitleCaretAtEndRef.current = true;
+          useFocusStore.getState().editByKey(focusableItemKey);
+          titleTextareaRef.current?.focus();
+        },
+        { skipActionsCloseAutoFocus: true },
+      );
     } else if (e.code === "KeyE" && noModifiers) {
-      e.preventDefault();
-
-      useCardDetailsOpen.getState().setOpen(true);
-      useCardDetailsEditRequest.getState().editDescription(cardWrapper.id);
+      return runShortcutAction(
+        () => {
+          useCardDetailsOpen.getState().setOpen(true);
+          useCardDetailsEditRequest.getState().editDescription(cardWrapper.id);
+        },
+        { skipActionsCloseAutoFocus: true },
+      );
     } else if (isAddAfter || isAddBefore) {
-      if (isTask(card) && card.state === "done") return;
+      if (isTask(card) && card.state === "done") return false;
 
-      e.preventDefault();
-
-      unstable_batchedUpdates(() => {
-        const newBox = dispatch(
-          cardsSlice.createSiblingCard(
-            cardWrapper,
-            isAddAfter ? "after" : "before",
-            newTaskParams,
-          ),
-        );
-        useFocusStore
-          .getState()
-          .editByKey(buildFocusKey(newBox.id, newBox.type));
-        // setTimeout(() => {
-        // }, 100);
-      });
-
-      return;
+      return runShortcutAction(
+        () => handleAddSiblingTask(isAddAfter ? "after" : "before"),
+        { skipActionsCloseAutoFocus: true },
+      );
     }
+
+    return false;
+  };
+
+  useGlobalListener("keydown", (e: KeyboardEvent) => {
+    handleTaskShortcutKeyDown(e);
   });
 
   // useGlobalListener("mousedown", (e: MouseEvent) => {
@@ -538,16 +609,35 @@ export const TaskComp = ({
 
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
-    dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
+
+    if (isTask(card)) {
+      dispatch(cardsTasksSlice.moveToProject(taskId, projectId));
+    } else if (isTaskTemplate(card)) {
+      dispatch(
+        cardsTaskTemplatesSlice.moveTemplateToProject(taskId, projectId),
+      );
+    }
   };
 
-  const ref = useRef<HTMLDivElement | null>(null);
+  const suspendCardDragForInput = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const target =
+        event.target instanceof Element ? event.target : document.activeElement;
+
+      if (!target || !isInputElement(target)) return;
+
+      ref.current?.setAttribute("draggable", "false");
+    },
+    [],
+  );
+
+  const restoreCardDrag = useCallback(() => {
+    ref.current?.setAttribute("draggable", "true");
+  }, []);
 
   useEffect(() => {
     const element = ref.current;
     invariant(element);
-
-    if (isEditing) return;
 
     return combine(
       draggable({
@@ -566,17 +656,18 @@ export const TaskComp = ({
               input: location.current.input,
             }),
             render({ container }) {
-              setDndState({ type: "preview", container, rect });
+              const preview = createElementDragPreview({
+                source: source.element,
+                rect,
+              });
+              container.appendChild(preview);
 
               return () => {
-                setDndState(draggingState);
+                preview.remove();
               };
             },
           });
         },
-
-        onDragStart: () => setDndState(draggingState),
-        onDrop: () => setDndState(idleState),
       }),
       dropTargetForExternal({
         element: element,
@@ -632,14 +723,21 @@ export const TaskComp = ({
         },
       }),
     );
-  }, [dispatch, isEditing, select, cardWrapper.id, cardWrapper.type]);
+  }, [dispatch, select, cardWrapper.id, cardWrapper.type]);
 
-  const handleRef = useCallback((el: HTMLTextAreaElement | null) => {
-    if (!el) return;
-    el.focus();
+  const focusTitleTextarea = useCallback(() => {
+    const textarea = titleTextareaRef.current;
+    if (!textarea) return;
 
-    el.selectionStart = el.value.length;
+    textarea.focus();
+    const end = textarea.value.length;
+    textarea.setSelectionRange(end, end);
   }, []);
+
+  const handleChecklistItemsRemoved = useCallback(() => {
+    useFocusStore.getState().editByKey(focusableItemKey);
+    window.requestAnimationFrame(focusTitleTextarea);
+  }, [focusTitleTextarea, focusableItemKey]);
 
   // useEffect(() => {
   //   if (isFocused) {
@@ -654,42 +752,51 @@ export const TaskComp = ({
   //   }
   // }, [isFocused]);
 
-  const prevIsEditing = usePrevious(isEditing);
-  const taskTitle = card.title;
-  const saveEditedTitle = useCallback(() => {
-    if (isTask(card)) {
-      dispatch(
-        cardsTasksSlice.updateTask(taskId, {
-          title: editingTitle,
-        }),
-      );
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+
+      flushEditedTitle();
+      useFocusStore.getState().resetEdit();
+      e.currentTarget.blur();
+      ref.current?.focus();
+
+      // if (e.key === "Enter") {
+      //   task.setTitle(editingTitle);
+      //   const siblings = taskBox.siblings;
+      //   const list = taskBox.listRef.current;
+      //   const newItem = list.createChild([taskBox, siblings[1]], listItem);
+      //
+      //   currentProjectionState.setFocusedItemId(newItem.id);
+      // }
+    }
+  };
+
+  const handleTitleFocus = useCallback(() => {
+    useFocusStore.getState().editByKey(focusableItemKey);
+  }, [focusableItemKey]);
+
+  const handleTitleBlur = useCallback(() => {
+    flushEditedTitle();
+    useFocusStore.getState().resetEdit();
+  }, [flushEditedTitle]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const textarea = titleTextareaRef.current;
+    const isTitleAlreadyFocused = document.activeElement === textarea;
+
+    if (isTitleAlreadyFocused && !shouldPlaceTitleCaretAtEndRef.current) {
       return;
     }
 
-    if (isTaskTemplate(card)) {
-      dispatch(
-        cardsTaskTemplatesSlice.updateTemplate(taskId, {
-          title: editingTitle,
-        }),
-      );
-    }
-  }, [card, dispatch, editingTitle, taskId]);
-
-  useEffect(() => {
-    setEditingTitle(taskTitle);
-  }, [taskTitle]);
-
-  useEffect(() => {
-    if (!isEditing && prevIsEditing && editingTitle !== taskTitle) {
-      saveEditedTitle();
-    }
-  }, [editingTitle, isEditing, prevIsEditing, saveEditedTitle, taskTitle]);
-
-  useUnmount(() => {
-    if (editingTitle !== taskTitle) {
-      saveEditedTitle();
-    }
-  });
+    window.requestAnimationFrame(() => {
+      shouldPlaceTitleCaretAtEndRef.current = false;
+      focusTitleTextarea();
+    });
+  }, [focusTitleTextarea, isEditing]);
 
   // const [isHidden, setIsHidden] = useState(false);
   // const isSelfDragging = dragId === taskBox.id;
@@ -727,7 +834,8 @@ export const TaskComp = ({
         data-order-token={card.orderToken}
         tabIndex={0}
         className={clsx(
-          `relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
+          `group/task relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
+          "[&[data-suppress-focus-visible=true]]:focus-visible:outline-none",
           isFocused
             ? isTask(card) && card.state === "done"
               ? "ring-2 ring-done-panel-selected text-done-content"
@@ -740,6 +848,19 @@ export const TaskComp = ({
         onClick={() =>
           useFocusStore.getState().focusByKey(focusableItemKey, true)
         }
+        onBlur={(event) => {
+          if (
+            event.relatedTarget instanceof Node &&
+            event.currentTarget.contains(event.relatedTarget)
+          ) {
+            return;
+          }
+
+          event.currentTarget.removeAttribute("data-suppress-focus-visible");
+        }}
+        onPointerDownCapture={suspendCardDragForInput}
+        onPointerUpCapture={restoreCardDrag}
+        onPointerCancelCapture={restoreCardDrag}
         onDoubleClick={() => {
           useFocusStore.getState().editByKey(focusableItemKey);
         }}
@@ -747,15 +868,10 @@ export const TaskComp = ({
       >
         {/* {!isSelfDragging && ( */}
         <>
-          <div className="absolute top-2 right-2 flex gap-1">
-            {isTaskTemplate(card) && <CircleDashed className="h-3 w-3" />}
-            {isTask(card) && card.templateId && (
-              <RotateCw className="h-3 w-3" />
-            )}
-          </div>
           <div
             className={clsx(
-              "flex items-start gap-1.5 px-2 pt-2 font-medium pb-3 rounded-t-lg ",
+              "pb-2 rounded-t-lg",
+
               isFocused
                 ? isTask(card) && card.state === "done"
                   ? "bg-done-panel"
@@ -765,43 +881,118 @@ export const TaskComp = ({
                   : "bg-panel hover:bg-panel-hover",
             )}
           >
-            {isEditing ? (
-              <>
-                {isTask(card) && (
-                  <div className="flex items-center justify-end ">
-                    <CheckboxComp
-                      checked={card.state === "done"}
-                      onChange={handleTick}
-                    />
-                  </div>
+            <div className="absolute right-1.5 top-1.5 z-10 h-5">
+              {(isTaskTemplate(card) || (isTask(card) && card.templateId)) && (
+                <div
+                  className={taskFloatingIconGroupClassName({
+                    isShifted: isFocused || isActionsOpen,
+                    isDone: isTask(card) && card.state === "done",
+                  })}
+                >
+                  {isTaskTemplate(card) && <CircleDashed className="size-3" />}
+                  {isTask(card) && card.templateId && (
+                    <RotateCw className="size-3" />
+                  )}
+                </div>
+              )}
+              <div className="absolute right-0 top-0">
+                <TaskDropdownMenu
+                  isFocused={isFocused}
+                  isOpen={isActionsOpen}
+                  isDone={isTask(card) && card.state === "done"}
+                  canMarkDone={isTask(card)}
+                  canAddChecklistItem={isTask(card) || isTaskTemplate(card)}
+                  onOpenChange={setIsActionsOpen}
+                  onMarkDone={handleTick}
+                  onMoveToProject={handleOpenMoveModal}
+                  onChangeDate={handleOpenDatePicker}
+                  onAddTaskAfter={() => handleAddSiblingTask("after")}
+                  onAddTaskBefore={() => handleAddSiblingTask("before")}
+                  onAddChecklistItem={handleAddChecklistItem}
+                  onMoveUp={() => handleMoveStacked("up")}
+                  onMoveDown={() => handleMoveStacked("down")}
+                  onMoveLeft={() => handleMoveColumn("left")}
+                  onMoveRight={() => handleMoveColumn("right")}
+                  onDelete={handleDelete}
+                  onShortcutKeyDown={(event) =>
+                    handleTaskShortcutKeyDown(event, "actionsMenu")
+                  }
+                  onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
+                />
+                {isTask(card) && !displayLastScheduleTime && (
+                  <TaskDatePicker
+                    taskId={taskId}
+                    currentDate={lastScheduleTime}
+                    open={isDatePickerOpen}
+                    onOpenChange={setIsDatePickerOpen}
+                    onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
+                    trigger={
+                      <button
+                        type="button"
+                        className="absolute right-0 top-0 h-5 w-5 opacity-0 pointer-events-none"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                      />
+                    }
+                  />
                 )}
+              </div>
+            </div>
+            <div
+              className={clsx(
+                "flex items-start gap-1.5 rounded-t-lg px-2 pt-2 font-medium pr-6",
+              )}
+            >
+              {isTask(card) && (
+                <div className="flex justify-end">
+                  <CheckboxComp
+                    checked={card.state === "done"}
+                    onChange={handleTick}
+                  />
+                </div>
+              )}
+              {isEditing ? (
                 <TextareaAutosize
-                  ref={handleRef}
+                  ref={titleTextareaRef}
                   value={editingTitle}
                   onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={(e) => handleInputKeyDown(e)}
-                  className="w-full bg-transparent resize-none focus:outline-none"
+                  onKeyDown={handleInputKeyDown}
+                  onFocus={handleTitleFocus}
+                  onBlur={handleTitleBlur}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  spellCheck={false}
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  data-gramm="false"
+                  data-gramm_editor="false"
+                  data-enable-grammarly="false"
+                  className={cn(
+                    "min-h-5 w-full resize-none bg-transparent focus:outline-none",
+                    isTask(card) && card.state === "done" && "line-through",
+                  )}
                   aria-label="Edit task title"
                 />
-              </>
-            ) : (
-              <>
-                {isTask(card) && (
-                  <div className="flex justify-end">
-                    <CheckboxComp
-                      checked={card.state === "done"}
-                      onChange={handleTick}
-                    />
-                  </div>
-                )}
+              ) : (
                 <div
-                  className={cn("min-h-5", {
+                  className={cn("min-h-5 cursor-default", {
                     "line-through": isTask(card) && card.state === "done",
                   })}
                 >
                   {card.title}
                 </div>
-              </>
+              )}
+            </div>
+            {(isTask(card) || isTaskTemplate(card)) && (
+              <ChecklistItems
+                parentId={card.id}
+                parentType={card.type}
+                visible={isFocused || isEditing}
+                focusableItemKey={focusableItemKey}
+                editTrigger="doubleClick"
+                onItemsRemoved={handleChecklistItemsRemoved}
+              />
             )}
           </div>
           <div
@@ -812,9 +1003,11 @@ export const TaskComp = ({
                 : "flex items-center justify-between",
               isTask(card) && card.state === "done"
                 ? "bg-done-panel-tinted text-done-content"
-                : (isTask(card) || isTaskTemplate(card)) && card.nature === "red"
+                : (isTask(card) || isTaskTemplate(card)) &&
+                    card.nature === "red"
                   ? "bg-nature-red text-nature-red-content"
-                  : (isTask(card) || isTaskTemplate(card)) && card.nature === "green"
+                  : (isTask(card) || isTaskTemplate(card)) &&
+                      card.nature === "green"
                     ? "bg-nature-green text-nature-green-content"
                     : "bg-panel-tinted text-content-tinted",
             )}
@@ -830,6 +1023,9 @@ export const TaskComp = ({
                 <TaskDatePicker
                   taskId={taskId}
                   currentDate={lastScheduleTime}
+                  open={isDatePickerOpen}
+                  onOpenChange={setIsDatePickerOpen}
+                  onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
                   trigger={
                     <button
                       className={cn(
@@ -839,7 +1035,10 @@ export const TaskComp = ({
                           ? "text-amber-400"
                           : "hover:text-content",
                       )}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDatePicker();
+                      }}
                     >
                       <svg
                         width="10"
@@ -889,9 +1088,7 @@ export const TaskComp = ({
                     ? "text-right justify-self-end"
                     : "text-right",
                 )}
-                onClick={() => {
-                  setIsMoveModalOpen(true);
-                }}
+                onClick={handleOpenMoveModal}
               >
                 {project.icon || "🟡"} {project.title}
               </button>
@@ -903,19 +1100,6 @@ export const TaskComp = ({
       {closestEdge == "bottom" && <DropTaskIndicator direction="bottom" />}
 
       {/* {!isSelfDragging && closestEdge == "bottom" && <DropTaskIndicator />} */}
-
-      {dndState.type === "preview" &&
-        ReactDOM.createPortal(
-          <TaskPrimitive
-            title={card.title}
-            style={{
-              boxSizing: "border-box",
-              width: dndState.rect.width,
-              height: dndState.rect.height,
-            }}
-          />,
-          dndState.container,
-        )}
 
       {isMoveModalOpen && (
         <MoveModal

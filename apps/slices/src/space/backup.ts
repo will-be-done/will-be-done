@@ -22,6 +22,13 @@ import { ProjectCategory, projectCategoryType } from "./projectsCategories";
 import { dailyListsProjectionsSlice } from ".";
 import { projectionType, TaskProjection } from "./dailyListsProjections";
 import { projectCategoriesSlice } from ".";
+import { checklistItemsSlice } from ".";
+import {
+  ChecklistItem,
+  ChecklistItemState,
+  ChecklistParentType,
+  checklistItemType,
+} from "./checklistItems";
 
 interface CategoryBackup {
   id: string;
@@ -82,6 +89,17 @@ interface TaskTemplateBackup {
   projectCategoryId: string;
 }
 
+interface ChecklistItemBackup {
+  id: string;
+  parentId: string;
+  parentType: ChecklistParentType;
+  orderToken: string;
+  state: ChecklistItemState;
+  content: string;
+  createdAt: number;
+  checkedAt: number | null;
+}
+
 export interface Backup {
   tasks: TaskBackup[];
   projects: ProjectBackup[];
@@ -89,6 +107,7 @@ export interface Backup {
   taskTemplates: TaskTemplateBackup[];
   projectCategories: CategoryBackup[];
   dailyListProjections?: DailyListProjectionBackup[];
+  checklistItems?: ChecklistItemBackup[];
 }
 
 const getNewModels = action(function* (backup: Backup) {
@@ -246,6 +265,36 @@ const getNewModels = action(function* (backup: Backup) {
     }
   }
 
+  for (const itemBackup of backup.checklistItems || []) {
+    const parentExists =
+      itemBackup.parentType === taskType
+        ? backup.tasks.some((task) => task.id === itemBackup.parentId)
+        : (backup.taskTemplates || []).some(
+            (template) => template.id === itemBackup.parentId,
+          );
+
+    if (!parentExists) {
+      console.warn(
+        `Checklist parent ${itemBackup.parentId} not found for checklist item ${itemBackup.id}`,
+      );
+      continue;
+    }
+
+    const checklistItem: ChecklistItem = {
+      type: checklistItemType,
+      id: itemBackup.id,
+      parentId: itemBackup.parentId,
+      parentType: itemBackup.parentType,
+      orderToken: itemBackup.orderToken,
+      state: itemBackup.state,
+      content: itemBackup.content,
+      createdAt: itemBackup.createdAt,
+      checkedAt: itemBackup.checkedAt,
+    };
+
+    models.push(checklistItem);
+  }
+
   // Handle legacy backup format where dailyListId was on tasks directly
   for (const taskBackup of backup.tasks) {
     // Skip if we already have a projection for this task (from dailyListProjections array)
@@ -291,6 +340,7 @@ export const getBackup = selector(function* () {
   const tasks: Task[] = yield* cardsTasksSlice.all();
   const projects: Project[] = yield* projectsAllSlice.all();
   const taskTemplates: TaskTemplate[] = yield* cardsTaskTemplatesSlice.all();
+  const checklistItems: ChecklistItem[] = yield* checklistItemsSlice.all();
   const dailyLists: DailyList[] = [];
 
   // Get all daily lists
@@ -362,6 +412,16 @@ export const getBackup = selector(function* () {
       createdAt: template.createdAt,
       lastGeneratedAt: template.lastGeneratedAt,
       projectCategoryId: template.projectCategoryId,
+    })),
+    checklistItems: checklistItems.map((item) => ({
+      id: item.id,
+      parentId: item.parentId,
+      parentType: item.parentType,
+      orderToken: item.orderToken,
+      state: item.state,
+      content: item.content,
+      createdAt: item.createdAt,
+      checkedAt: item.checkedAt,
     })),
   } satisfies Backup;
 });

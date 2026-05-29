@@ -17,7 +17,10 @@ import {
   cardsTaskTemplatesSlice,
   type Task,
 } from "@will-be-done/slices/space";
-import { CheckboxComp } from "@/components/Task/Task.tsx";
+import {
+  CheckboxComp,
+  ChecklistItems,
+} from "@/components/Checklist/Checklist";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
@@ -27,7 +30,7 @@ import {
   DetailRow,
   ProjectDetailRow,
   CategoryDetailRow,
-  EditableMarkdownDescription,
+  EditableDescription,
 } from "./shared.tsx";
 
 export function TaskBody({
@@ -97,9 +100,11 @@ export function TaskBody({
     textareaRef: descriptionTextareaRef,
   } = useDescriptionEditing({
     description: task.content ?? "",
+    isEditingDescription,
     setIsEditingDescription,
     onSave: useCallback(
-      (content: string) => dispatch(cardsTasksSlice.updateTask(taskId, { content })),
+      (content: string) =>
+        dispatch(cardsTasksSlice.updateTask(taskId, { content })),
       [dispatch, taskId],
     ),
   });
@@ -152,7 +157,6 @@ export function TaskBody({
         }
         isEditing={isEditingTitle}
         editingTitle={editingTitle}
-        title={task.title}
         titleClassName={
           task.state === "done"
             ? "line-through text-content-tinted"
@@ -243,11 +247,17 @@ export function TaskBody({
           </DetailRow>
         )}
 
+        <ChecklistItems
+          parentId={taskId}
+          parentType={task.type}
+          editTrigger="always"
+          showAddItem
+          className="border-task-panel-divider"
+        />
+
         <div className="pt-1">
-          <EditableMarkdownDescription
-            isEditing={isEditingDescription}
+          <EditableDescription
             editingDescription={editingDescription}
-            description={task.content ?? ""}
             setDescriptionDraft={setDescriptionDraft}
             handleDescriptionKeyDown={handleDescriptionKeyDown}
             textareaRef={descriptionTextareaRef}

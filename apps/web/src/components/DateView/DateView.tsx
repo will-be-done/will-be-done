@@ -26,7 +26,8 @@ import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import { Stash, useStashDesktopOffset } from "@/components/Stash/Stash.tsx";
+import { Stash } from "@/components/Stash/Stash.tsx";
+import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
 
 const ChevronLeft = () => (
   <svg

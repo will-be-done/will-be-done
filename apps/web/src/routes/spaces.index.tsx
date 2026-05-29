@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { authUtils, isDemoMode } from "@/lib/auth";
-import { promptDialog } from "@/components/ui/prompt-dialog";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { BackgroundOrbs } from "@/components/Layout/BackgroundOrbs.tsx";
 import { Pencil, Plus, Trash2, LogOut } from "lucide-react";
 import { initDbStore } from "@/store/load";

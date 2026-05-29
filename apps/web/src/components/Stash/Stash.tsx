@@ -11,7 +11,6 @@ import {
 } from "@will-be-done/slices/space";
 import { TaskComp } from "@/components/Task/Task.tsx";
 import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
-import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import { cn } from "@/lib/utils.ts";
@@ -19,7 +18,6 @@ import { isInputElement } from "@/utils/isInputElement.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { ResizableDivider } from "../DaysBoard/ResizableDivider.tsx";
 import {
-  getStashOpenWidth,
   STASH_BUTTON_WIDTH,
   useStashOpen,
   useStashSize,
@@ -90,18 +88,6 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
       </div>
     </TasksColumn>
   );
-};
-
-export const useStashDesktopOffset = () => {
-  const isMobile = useIsMobile();
-  const isOpen = useStashOpen((s) => s.isOpen);
-  const width = useStashSize((s) => s.width);
-
-  if (isMobile) {
-    return 0;
-  }
-
-  return isOpen ? getStashOpenWidth(width) : STASH_BUTTON_WIDTH;
 };
 
 export const Stash = () => {

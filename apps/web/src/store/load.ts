@@ -35,6 +35,7 @@ import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
 import { trpcClient } from "@/lib/trpc.ts";
 import { State } from "@/utils/State.ts";
 import { AutoBackuper } from "./autoBackup.ts";
+import { flushPendingDrafts } from "./pendingDraftFlushes.ts";
 
 export interface SyncConfig {
   dbId: string;
@@ -315,22 +316,65 @@ export const initDbStore = async (
       syncer.forceSync();
     };
 
-    void (async () => {
-      while (true) {
+    const persistQueueLock = new AwaitLock();
+    const drainPendingPersistBatches = async () => {
+      await persistQueueLock.acquireAsync();
+      try {
         const queuedBatches = pendingPersistBatches.get();
+        if (queuedBatches.length === 0) return;
+
         pendingPersistBatches.set([]);
 
-        for (const ops of queuedBatches) {
-          try {
-            await persistBatch(ops);
-          } catch (error) {
-            console.error("Failed to persist local changes", error);
+        while (queuedBatches.length > 0) {
+          for (const ops of queuedBatches) {
+            try {
+              await persistBatch(ops);
+            } catch (error) {
+              console.error("Failed to persist local changes", error);
+            }
           }
-        }
 
+          queuedBatches.splice(0, queuedBatches.length);
+          queuedBatches.push(...pendingPersistBatches.get());
+          pendingPersistBatches.set([]);
+        }
+      } finally {
+        persistQueueLock.release();
+      }
+    };
+
+    const flushDraftsAndPersist = async () => {
+      flushPendingDrafts();
+      await drainPendingPersistBatches();
+    };
+
+    void (async () => {
+      while (true) {
+        await drainPendingPersistBatches();
         await pendingPersistBatches.when((queue) => queue.length > 0);
       }
     })();
+
+    const flushDraftsAndPersistBestEffort = () => {
+      void flushDraftsAndPersist();
+    };
+    const flushDraftsAndPersistWhenHidden = () => {
+      if (document.visibilityState === "hidden") {
+        flushDraftsAndPersistBestEffort();
+      }
+    };
+
+    window.addEventListener("beforeunload", flushDraftsAndPersistBestEffort, {
+      capture: true,
+    });
+    window.addEventListener("pagehide", flushDraftsAndPersistBestEffort, {
+      capture: true,
+    });
+    document.addEventListener(
+      "visibilitychange",
+      flushDraftsAndPersistWhenHidden,
+      { capture: true },
+    );
 
     syncSubDb.subscribe((ops, traits) => {
       ops = ops.filter((op) => op.table !== changesTable);

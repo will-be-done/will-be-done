@@ -14,6 +14,7 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { appSlice } from ".";
 import { cardsTaskTemplatesSlice } from ".";
+import { checklistItemsSlice } from ".";
 import { isTaskTemplate, TaskTemplate } from "./cardsTaskTemplates";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
@@ -113,6 +114,7 @@ export const all = selector(function* () {
 export const deleteTasks = action(function* (
   ids: string[],
 ): Generator<unknown, void, unknown> {
+  yield* checklistItemsSlice.deleteForParents(ids, taskType);
   yield* deleteRows(tasksTable, ids);
   yield* dailyListsProjectionsSlice.deleteProjections(ids);
 });
@@ -171,6 +173,17 @@ export const canDrop = selector(function* (
     return droppedTask !== undefined && droppedTask.state === "todo";
   }
 
+  if (
+    yield* checklistItemsSlice.canDropOnParent(
+      taskId,
+      taskType,
+      dropId,
+      dropModelType,
+    )
+  ) {
+    return true;
+  }
+
   return isTask(model) || isTaskTemplate(model);
 });
 
@@ -224,6 +237,21 @@ export const handleDrop = action(function* (
       });
       // Keep the projection in the daily list
     }
+  } else if (
+    yield* checklistItemsSlice.canDropOnParent(
+      taskId,
+      taskType,
+      dropId,
+      dropModelType,
+    )
+  ) {
+    yield* checklistItemsSlice.handleDropOnParent(
+      taskId,
+      taskType,
+      dropId,
+      dropModelType,
+      edge,
+    );
   } else {
     shouldNeverHappen("unknown drop item type", dropItem);
   }
@@ -263,9 +291,15 @@ export const toggleState = action(function* (taskId: string) {
 export const createFromTemplate = action(function* (
   taskTemplate: TaskTemplate,
 ) {
+  const newId = uuidv7();
+  yield* checklistItemsSlice.copyItems(
+    taskTemplate.id,
+    "template",
+    newId,
+    taskType,
+  );
   yield* appSlice.deleteModel(taskTemplate.id, taskTemplate.type);
 
-  const newId = uuidv7();
   const newTask: Task = {
     id: newId,
     title: taskTemplate.title,

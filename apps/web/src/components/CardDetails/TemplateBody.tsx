@@ -17,9 +17,10 @@ import {
   DetailRow,
   ProjectDetailRow,
   CategoryDetailRow,
-  EditableMarkdownDescription,
+  EditableDescription,
 } from "./shared.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
+import { ChecklistItems } from "@/components/Checklist/Checklist";
 
 export function TemplateBody({
   template,
@@ -84,6 +85,7 @@ export function TemplateBody({
     textareaRef: descriptionTextareaRef,
   } = useDescriptionEditing({
     description: template.content ?? "",
+    isEditingDescription,
     setIsEditingDescription,
     onSave: useCallback(
       (content: string) =>
@@ -122,7 +124,6 @@ export function TemplateBody({
         }
         isEditing={isEditingTitle}
         editingTitle={editingTitle}
-        title={template.title}
         setTitleDraft={setTitleDraft}
         handleTitleKeyDown={handleTitleKeyDown}
         textareaRef={textareaRef}
@@ -167,11 +168,17 @@ export function TemplateBody({
           {format(new Date(template.createdAt), "MMM d, yyyy, h:mm a")}
         </DetailRow>
 
+        <ChecklistItems
+          parentId={templateId}
+          parentType={template.type}
+          editTrigger="always"
+          showAddItem
+          className="border-task-panel-divider"
+        />
+
         <div className="pt-1">
-          <EditableMarkdownDescription
-            isEditing={isEditingDescription}
+          <EditableDescription
             editingDescription={editingDescription}
-            description={template.content ?? ""}
             setDescriptionDraft={setDescriptionDraft}
             handleDescriptionKeyDown={handleDescriptionKeyDown}
             textareaRef={descriptionTextareaRef}

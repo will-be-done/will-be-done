@@ -5,6 +5,7 @@ import { TaskProjection, taskProjectionsTable } from "./dailyListsProjections";
 import { Project, projectsTable } from "./projects";
 import { ProjectCategory, projectCategoriesTable } from "./projectsCategories";
 import { StashProjection, stashProjectionsTable } from "./stashProjections";
+import { ChecklistItem, checklistItemsTable } from "./checklistItems";
 
 export type AnyModel =
   | Task
@@ -13,7 +14,8 @@ export type AnyModel =
   | DailyList
   | ProjectCategory
   | TaskProjection
-  | StashProjection;
+  | StashProjection
+  | ChecklistItem;
 
 export type AnyModelType = AnyModel["type"] | "stash";
 
@@ -24,7 +26,8 @@ export type AnyTable =
   | typeof dailyListsTable
   | typeof projectCategoriesTable
   | typeof taskProjectionsTable
-  | typeof stashProjectionsTable;
+  | typeof stashProjectionsTable
+  | typeof checklistItemsTable;
 
 type ModelSlice<T> = {
   byId: (id: string) => Generator<unknown, T | undefined, unknown>;

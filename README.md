@@ -158,20 +158,22 @@ When you focused on task
 1. `m` - move task to other project
 1. `d` - delete task
 1. `e` - edit task description
+1. `?` - change date
+1. `a` - open action menu
 
 Planned:
 1. `u`/`r` - undo/redo action
-1. `?` - change date
 
 ## Current Roadmap, v1.0 release
 
 From tasks perspective:
 - [x] Repeating tasks
-- [x] Task details. Tast body with markdown support
-- [ ] Checklist inside task
+- [x] Task details
+- [x] Checklist inside task
 
 From api perspective:
-- [ ] API & MCP integration
+- [ ] Open API integration
+- [ ] CLI app
 
 UI/UX:
 - [ ] Undo/redo action
@@ -181,7 +183,6 @@ Others:
 
 Separate apps:
 - [x] Desktop app with global quick add
-- [ ] Mobile app(not PWA)
 
 ## Next possible features
 
@@ -191,6 +192,7 @@ From tasks perspective:
 
 From api perspective:
 - [ ] CalDAV integration
+- [ ] MCP integration
 
 UI/UX:
 - [ ] Themes per project(custom background of project and custom color of project tasks)
@@ -200,7 +202,7 @@ UI/UX:
 - [ ] DnD for project columns
 - [ ] I18n
 - [ ] More vim keybindings
-      
+
 Others:
 - [ ] e2e encryption
 - [ ] Global search
@@ -208,6 +210,7 @@ Others:
 Separate apps:
 - [ ] Widgets support on mobile app
 - [ ] Notifications on web, mobile, desktop apps
+- [ ] Mobile app(not PWA)
 
 ## Features that are not planning for now
 
