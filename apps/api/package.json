@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run src/start.ts",
+    "dev": "WBD_DB_PATH=../../db bun run src/start.ts",
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

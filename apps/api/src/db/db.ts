@@ -19,6 +19,7 @@ import {
   backupFileTable,
 } from "../slices/backupSlice";
 import { dbIdTrait } from "@will-be-done/slices/traits";
+import fs from "fs";
 
 export interface DBConfig {
   dbId: string;
@@ -48,7 +49,10 @@ const initClock = (clientId: string) => {
 const getDB = (dbType: string, dbId: string) => {
   const dbName = dbType + "-" + dbId;
 
-  const dbPath = path.join(getEnvConfig().WBD_DB_PATH, dbName + ".sqlite");
+  const dbDir = getEnvConfig().WBD_DB_PATH;
+  fs.mkdirSync(dbDir, { recursive: true });
+
+  const dbPath = path.join(dbDir, dbName + ".sqlite");
   console.log("Loading database...", dbPath);
   const sqliteDB = new Database(dbPath, { strict: true });
 

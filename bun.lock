@@ -3113,7 +3113,7 @@
 
     "w3c-xmlserializer": ["w3c-xmlserializer@5.0.0", "", { "dependencies": { "xml-name-validator": "^5.0.0" } }, "sha512-o8qghlI8NZHU1lLPrpi2+Uq7abh4GGPpYANlalzWxyWteJOCsr/P+oPBA49TOLu5FTZO4d3F9MnWJfiMo4BkmA=="],
 
-    "wa-sqlite": ["wa-sqlite@github:rhashimoto/wa-sqlite#c737551", {}, "rhashimoto-wa-sqlite-c737551"],
+    "wa-sqlite": ["wa-sqlite@github:rhashimoto/wa-sqlite#c737551", {}, "rhashimoto-wa-sqlite-c737551", "sha512-m/vHCC8nl+4tU+2l9nO184UF9GOBMDfaFxLNJEwJQu4/b7Q4ArgsFjOOtSHzGs4kAv7xGBTWGqz+JuVZO8P1XA=="],
 
     "wcwidth": ["wcwidth@1.0.1", "", { "dependencies": { "defaults": "^1.0.3" } }, "sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg=="],
 

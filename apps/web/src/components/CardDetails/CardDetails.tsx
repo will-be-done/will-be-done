@@ -1,4 +1,5 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback } from "react";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSyncSelector } from "@will-be-done/hyperdb";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
@@ -32,48 +33,23 @@ export function CardDetails() {
     parsed?.type === "template";
   const cardId = isCardFocused ? parsed.id : null;
   const isVisible = useSyncSelector(
-    function* () {
+    function*() {
       if (!cardId) return false;
       return yield* cardsSlice.exists(cardId);
     },
     [cardId],
   );
 
-  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
-  const titleFieldKey = cardId ? `${cardId}:title` : null;
-  const descriptionFieldKey = cardId ? `${cardId}:description` : null;
-  const isEditingTitle = editingFieldKey === titleFieldKey;
-  const isEditingDescription = editingFieldKey === descriptionFieldKey;
-  const isEditingAnyField =
-    !!cardId && editingFieldKey?.startsWith(`${cardId}:`) === true;
-
-  useEffect(() => {
-    setEditingFieldKey(null);
-  }, [cardId]);
-
-  const setIsEditingTitle = useCallback(
-    (v: boolean) => setEditingFieldKey(v && cardId ? `${cardId}:title` : null),
-    [cardId],
-  );
-  const setIsEditingDescription = useCallback(
-    (v: boolean) =>
-      setEditingFieldKey(v && cardId ? `${cardId}:description` : null),
-    [cardId],
-  );
-
   const width = useCardDetailsSize((s) => s.width);
   const setWidth = useCardDetailsSize((s) => s.setWidth);
   const { isOpen: isPanelOpen, toggle } = useCardDetailsOpen();
-  const editRequest = useCardDetailsEditRequest((s) => s.request);
-
-  useEffect(() => {
-    if (!cardId || editRequest?.cardId !== cardId) return;
-
-    if (editRequest.field === "description") {
-      setEditingFieldKey(`${cardId}:description`);
-      useCardDetailsEditRequest.getState().clearRequest();
-    }
-  }, [cardId, editRequest]);
+  const {
+    isEditingTitle,
+    setIsEditingTitle,
+    isEditingDescription,
+    setIsEditingDescription,
+    isEditingAnyField,
+  } = useCardDetailsEditing(cardId);
 
   // Escape closes panel (not while editing title)
   useGlobalListener("keydown", (e: KeyboardEvent) => {
@@ -120,7 +96,10 @@ export function CardDetails() {
   return (
     <div
       ref={rootRef}
-      className={cn("relative h-full flex-shrink-0 z-1000", widthTransitionClass)}
+      className={cn(
+        "relative h-full flex-shrink-0 z-1000",
+        widthTransitionClass,
+      )}
       style={{
         width: `${panelWidth}px`,
       }}
@@ -142,9 +121,12 @@ export function CardDetails() {
           width={3}
           height={6}
           fill="none"
-          className={cn("text-content-tinted transition-transform duration-300 ease-out", {
-            "rotate-180": isPanelOpen,
-          })}
+          className={cn(
+            "text-content-tinted transition-transform duration-300 ease-out",
+            {
+              "rotate-180": isPanelOpen,
+            },
+          )}
         >
           <path
             stroke="currentColor"
@@ -211,6 +193,111 @@ export function CardDetails() {
       </div>
     </div>
   );
+}
+
+export function CardDetailsPage({
+  cardId,
+  onBack,
+}: {
+  cardId: string;
+  onBack: () => void;
+}) {
+  const isVisible = useSyncSelector(
+    function*() {
+      return yield* cardsSlice.exists(cardId);
+    },
+    [cardId],
+  );
+  const {
+    isEditingTitle,
+    setIsEditingTitle,
+    isEditingDescription,
+    setIsEditingDescription,
+  } = useCardDetailsEditing(cardId);
+
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col bg-task-panel/95 text-content shadow-2xl backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none">
+      <div
+        className="sticky top-0 z-10 border-b border-task-panel-divider bg-task-panel/95 px-3 pb-2 backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none"
+        style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}
+      >
+        <div className="flex h-10 items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-9 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-content-tinted transition-colors hover:bg-task-panel-hover hover:text-content active:bg-task-panel-hover cursor-pointer"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+          <span className="min-w-0 flex-1 text-center text-sm font-medium text-content">
+            Task details
+          </span>
+          <div aria-hidden className="h-9 w-[68px]" />
+        </div>
+      </div>
+
+      <div
+        className="min-h-0 flex-1 overflow-y-auto"
+        style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
+      >
+        {isVisible ? (
+          <CardDetailsBody
+            cardId={cardId}
+            isEditingTitle={isEditingTitle}
+            setIsEditingTitle={setIsEditingTitle}
+            isEditingDescription={isEditingDescription}
+            setIsEditingDescription={setIsEditingDescription}
+          />
+        ) : (
+          <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-content-tinted/60">
+            Task details are not available.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function useCardDetailsEditing(cardId: string | null) {
+  const [editingFieldKey, setEditingFieldKey] = useState<string | null>(null);
+  const titleFieldKey = cardId ? `${cardId}:title` : null;
+  const descriptionFieldKey = cardId ? `${cardId}:description` : null;
+  const editRequest = useCardDetailsEditRequest((s) => s.request);
+  const isDescriptionEditRequested =
+    !!cardId &&
+    editRequest?.cardId === cardId &&
+    editRequest.field === "description";
+  const isEditingTitle = editingFieldKey === titleFieldKey;
+  const isEditingDescription =
+    editingFieldKey === descriptionFieldKey || isDescriptionEditRequested;
+  const isEditingAnyField =
+    !!cardId &&
+    (editingFieldKey?.startsWith(`${cardId}:`) === true ||
+      isDescriptionEditRequested);
+
+  const setIsEditingTitle = useCallback(
+    (v: boolean) => setEditingFieldKey(v && cardId ? `${cardId}:title` : null),
+    [cardId],
+  );
+  const setIsEditingDescription = useCallback(
+    (v: boolean) => {
+      if (!v) {
+        useCardDetailsEditRequest.getState().clearRequest();
+      }
+
+      setEditingFieldKey(v && cardId ? `${cardId}:description` : null);
+    },
+    [cardId],
+  );
+
+  return {
+    isEditingTitle,
+    setIsEditingTitle,
+    isEditingDescription,
+    setIsEditingDescription,
+    isEditingAnyField,
+  };
 }
 
 // ─── Body dispatcher ──────────────────────────────────────────────────────────

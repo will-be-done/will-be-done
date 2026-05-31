@@ -1,16 +1,20 @@
 import { useDispatch } from "@will-be-done/hyperdb";
 import { Trash2, Info, RotateCw } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import { appSlice } from "@will-be-done/slices/space";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { cn } from "@/lib/utils";
+import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 
 const CARD_TYPES = new Set(["task", "template", "projection"]);
 
 export const MobileTaskToolbar = () => {
   const isMobile = useIsMobile();
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { spaceId } = SpaceRoute.useParams();
   const focusKey = useFocusStore((s) => s.focusItemKey);
 
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
@@ -29,6 +33,15 @@ export const MobileTaskToolbar = () => {
     } else {
       useFocusStore.getState().resetFocus();
     }
+  };
+
+  const handleDetails = () => {
+    if (!parsed) return;
+
+    void navigate({
+      to: "/spaces/$spaceId/card-details/$cardId",
+      params: { spaceId, cardId: parsed.id },
+    });
   };
 
   return (
@@ -66,14 +79,8 @@ export const MobileTaskToolbar = () => {
         <Divider />
         <ToolbarButton
           icon={<Info size={18} />}
-          label="Details"
-          onPress={() => {}}
-        />
-        <Divider />
-        <ToolbarButton
-          icon={<RotateCw size={18} />}
-          label="Repeat"
-          onPress={() => {}}
+          label="Task details"
+          onPress={handleDetails}
         />
       </div>
     </div>
@@ -116,7 +123,9 @@ const ToolbarButton = ({
     <span
       className={cn(
         "transition-colors duration-100",
-        destructive ? "group-active:text-red-400" : "group-active:text-blue-400",
+        destructive
+          ? "group-active:text-red-400"
+          : "group-active:text-blue-400",
       )}
     >
       {icon}
@@ -124,7 +133,9 @@ const ToolbarButton = ({
     <span
       className={cn(
         "text-[11px] font-medium tracking-wide transition-colors duration-100",
-        destructive ? "group-active:text-red-400" : "group-active:text-blue-400",
+        destructive
+          ? "group-active:text-red-400"
+          : "group-active:text-blue-400",
       )}
       style={{ letterSpacing: "0.03em" }}
     >
