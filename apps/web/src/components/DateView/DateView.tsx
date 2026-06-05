@@ -11,7 +11,7 @@ import {
 
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
-import { TaskComp } from "@/components/Task/Task.tsx";
+import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
 import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
@@ -88,13 +88,13 @@ const SingleDayColumn = ({
     return currentDate === dailyList.date;
   }, [currentDate, dailyList.date]);
 
-  const taskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.childrenIds(dailyListId),
+  const cardsForDisplay = useSyncSelector(
+    () => dailyListsProjectionsSlice.childrenForDisplay(dailyListId),
     [dailyListId],
   );
 
-  const doneTaskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.doneChildrenIds(dailyListId),
+  const doneCardsForDisplay = useSyncSelector(
+    () => dailyListsProjectionsSlice.doneChildrenForDisplay(dailyListId),
     [dailyListId],
   );
 
@@ -238,24 +238,28 @@ const SingleDayColumn = ({
         ref={scrollableRef}
         className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
       >
-        {taskIds.map((id) => (
-          <TaskComp
-            key={id}
-            taskId={id}
-            cardWrapperId={id}
-            cardWrapperType="projection"
+        {cardsForDisplay.map((displayData) => (
+          <PreloadedTaskComp
+            key={displayData.cardWrapper.id}
+            card={displayData.card}
+            category={displayData.category}
+            cardWrapper={displayData.cardWrapper}
+            project={displayData.project}
+            lastScheduleTime={displayData.lastScheduleTime}
             alwaysShowProject
             displayLastScheduleTime
             centerScheduleDate
           />
         ))}
 
-        {doneTaskIds.map((id) => (
-          <TaskComp
-            key={id}
-            taskId={id}
-            cardWrapperId={id}
-            cardWrapperType="projection"
+        {doneCardsForDisplay.map((displayData) => (
+          <PreloadedTaskComp
+            key={displayData.cardWrapper.id}
+            card={displayData.card}
+            category={displayData.category}
+            cardWrapper={displayData.cardWrapper}
+            project={displayData.project}
+            lastScheduleTime={displayData.lastScheduleTime}
             alwaysShowProject
             displayLastScheduleTime
             centerScheduleDate

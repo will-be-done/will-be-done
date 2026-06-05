@@ -56,7 +56,7 @@ const Store =
   (ElectronStore as unknown as { default: typeof ElectronStore }).default || ElectronStore
 const store = new Store<{ serverUrl?: string }>()
 
-const DEFAULT_SERVER = 'https://app.will-be-done.app'
+const DEFAULT_SERVER = 'http://localhost:5173'
 const SERVER_CHECK_TIMEOUT_MS = 5000
 const SERVER_CHECK_FILE = '631521eb-a436-4740-9db3-e6f1d72392fe.json'
 const SERVER_CHECK_NONCE = '4f2c9a71-f7bb-4a57-b9b9-6d433c9f5b2e'

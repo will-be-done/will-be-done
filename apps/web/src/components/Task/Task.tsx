@@ -17,10 +17,7 @@ import { unstable_batchedUpdates } from "react-dom";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { createElementDragPreview } from "@/lib/dnd/dragPreview";
 import TextareaAutosize from "react-textarea-autosize";
-import {
-  CheckboxComp,
-  ChecklistItems,
-} from "@/components/Checklist/Checklist";
+import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { focusChecklistItem } from "@/components/Checklist/focus";
 import { TaskDropdownMenu } from "./DropdownMenu";
 import { taskFloatingIconGroupClassName } from "./styles";
@@ -58,6 +55,7 @@ import {
   stashType,
   taskType,
   getDMY,
+  Project,
 } from "@will-be-done/slices/space";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
@@ -115,21 +113,25 @@ const getFocusKeyForColumnMoveTarget = (
   return fallbackKey;
 };
 
-// TODO: rename to project item
-// TODO: think about to remove taskBox
-export const TaskComp = ({
-  taskId,
-  cardWrapperId,
-  cardWrapperType,
+export const PreloadedTaskComp = ({
+  card,
+  category,
+  cardWrapper,
+  project,
+  lastScheduleTime,
+
   displayedUnderProjectId,
   alwaysShowProject,
   newTaskParams,
   displayLastScheduleTime,
   centerScheduleDate,
 }: {
-  taskId: string;
-  cardWrapperId: string;
-  cardWrapperType: CardWrapperType;
+  card: projectCategoryCardsSlice.Card;
+  category: projectCategoriesSlice.ProjectCategory;
+  cardWrapper: cardsSlice.CardWrapper;
+  project: Project;
+  lastScheduleTime: Date | undefined;
+
   displayedUnderProjectId?: string;
   alwaysShowProject?: boolean;
   newTaskParams?: Partial<Task>;
@@ -138,28 +140,7 @@ export const TaskComp = ({
 }) => {
   const dispatch = useDispatch();
 
-  // TODO: remove card wrapper
-  const card = useSyncSelector(
-    () => projectCategoryCardsSlice.byIdOrDefault(taskId),
-    [taskId],
-  );
-  const category = useSyncSelector(
-    () => projectCategoriesSlice.byIdOrDefault(card.projectCategoryId),
-    [card.projectCategoryId],
-  );
-  const cardWrapper = useSyncSelector(
-    () => cardsSlice.cardWrapperIdOrDefault(cardWrapperId, cardWrapperType),
-    [cardWrapperId, cardWrapperType],
-  );
-  const project = useSyncSelector(
-    () =>
-      projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
-    [card.projectCategoryId],
-  );
-  const lastScheduleTime = useSyncSelector(
-    () => dailyListsProjectionsSlice.getDateOfTask(taskId),
-    [taskId],
-  );
+  const taskId = card.id;
   const date = useCurrentDate();
   const shouldHighlightTime =
     lastScheduleTime &&
@@ -432,11 +413,7 @@ export const TaskComp = ({
     );
 
     dispatch(
-      dailyListsProjectionsSlice.addToDailyList(
-        taskId,
-        dailyList.id,
-        "append",
-      ),
+      dailyListsProjectionsSlice.addToDailyList(taskId, dailyList.id, "append"),
     );
   }, [card, date, dispatch, taskId]);
 
@@ -1184,5 +1161,64 @@ export const TaskComp = ({
         />
       )}
     </div>
+  );
+};
+
+// TODO: rename to project item
+// TODO: think about to remove taskBox
+export const TaskComp = ({
+  taskId,
+  cardWrapperId,
+  cardWrapperType,
+  displayedUnderProjectId,
+  alwaysShowProject,
+  newTaskParams,
+  displayLastScheduleTime,
+  centerScheduleDate,
+}: {
+  taskId: string;
+  cardWrapperId: string;
+  cardWrapperType: CardWrapperType;
+  displayedUnderProjectId?: string;
+  alwaysShowProject?: boolean;
+  newTaskParams?: Partial<Task>;
+  displayLastScheduleTime?: boolean;
+  centerScheduleDate?: boolean;
+}) => {
+  const card = useSyncSelector(
+    () => projectCategoryCardsSlice.byIdOrDefault(taskId),
+    [taskId],
+  );
+  const category = useSyncSelector(
+    () => projectCategoriesSlice.byIdOrDefault(card.projectCategoryId),
+    [card.projectCategoryId],
+  );
+  const cardWrapper = useSyncSelector(
+    () => cardsSlice.cardWrapperIdOrDefault(cardWrapperId, cardWrapperType),
+    [cardWrapperId, cardWrapperType],
+  );
+  const project = useSyncSelector(
+    () =>
+      projectCategoriesSlice.projectOfCategoryOrDefault(card.projectCategoryId),
+    [card.projectCategoryId],
+  );
+  const lastScheduleTime = useSyncSelector(
+    () => dailyListsProjectionsSlice.getDateOfTask(taskId),
+    [taskId],
+  );
+
+  return (
+    <PreloadedTaskComp
+      card={card}
+      category={category}
+      cardWrapper={cardWrapper}
+      project={project}
+      lastScheduleTime={lastScheduleTime}
+      displayedUnderProjectId={displayedUnderProjectId}
+      alwaysShowProject={alwaysShowProject}
+      newTaskParams={newTaskParams}
+      displayLastScheduleTime={displayLastScheduleTime}
+      centerScheduleDate={centerScheduleDate}
+    />
   );
 };

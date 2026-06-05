@@ -10,7 +10,7 @@ import {
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
-import { TaskComp } from "@/components/Task/Task.tsx";
+import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
 import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
@@ -46,13 +46,13 @@ const ColumnView = ({
     return currentDate === dailyList.date;
   }, [currentDate, dailyList.date]);
 
-  const taskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.childrenIds(dailyListId),
+  const cardsForDisplay = useSyncSelector(
+    () => dailyListsProjectionsSlice.childrenForDisplay(dailyListId),
     [dailyListId],
   );
 
-  const doneTaskIds = useSyncSelector(
-    () => dailyListsProjectionsSlice.doneChildrenIds(dailyListId),
+  const doneCardsForDisplay = useSyncSelector(
+    () => dailyListsProjectionsSlice.doneChildrenForDisplay(dailyListId),
     [dailyListId],
   );
 
@@ -64,7 +64,8 @@ const ColumnView = ({
   const setIsHidden = useHiddenDays((state) => state.setIsHidden);
   const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
   const isHidden =
-    isManuallyHidden || (taskIds.length == 0 && doneTaskIds.length == 0);
+    isManuallyHidden ||
+    (cardsForDisplay.length == 0 && doneCardsForDisplay.length == 0);
   const handleHideClick = () => toggleIsHidden(dailyListId);
 
   const handleAddClick = () => {
@@ -99,7 +100,7 @@ const ColumnView = ({
               transform: "rotate(180deg)",
             }}
           >
-            {taskIds.length > 0 ? taskIds.length : ""}
+            {cardsForDisplay.length > 0 ? cardsForDisplay.length : ""}
           </span>
         </>
       }
@@ -108,25 +109,29 @@ const ColumnView = ({
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
-        {taskIds.map((id) => {
+        {cardsForDisplay.map((displayData) => {
           return (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType="projection"
+            <PreloadedTaskComp
+              key={displayData.cardWrapper.id}
+              card={displayData.card}
+              category={displayData.category}
+              cardWrapper={displayData.cardWrapper}
+              project={displayData.project}
+              lastScheduleTime={displayData.lastScheduleTime}
               alwaysShowProject
             />
           );
         })}
 
-        {doneTaskIds.map((id) => {
+        {doneCardsForDisplay.map((displayData) => {
           return (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType="projection"
+            <PreloadedTaskComp
+              key={displayData.cardWrapper.id}
+              card={displayData.card}
+              category={displayData.category}
+              cardWrapper={displayData.cardWrapper}
+              project={displayData.project}
+              lastScheduleTime={displayData.lastScheduleTime}
               alwaysShowProject
             />
           );
@@ -243,7 +248,8 @@ const BoardView = ({
       return;
     }
 
-    const target = e.target instanceof Element ? e.target : document.activeElement;
+    const target =
+      e.target instanceof Element ? e.target : document.activeElement;
     if (target && isInputElement(target)) return;
 
     if (e.code === "KeyP") {
