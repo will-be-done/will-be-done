@@ -1,13 +1,28 @@
 import { runQuery, selector, selectFrom, action } from "@will-be-done/hyperdb";
-import { generateKeyPositionedBetween } from "./utils";
+import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { dailyListsSlice } from ".";
 import { cardsTasksSlice } from ".";
 import { defaultTask, Task, tasksTable } from "./cardsTasks";
 import { cardsTaskTemplatesSlice } from ".";
 import { TaskTemplate, taskTemplatesTable } from "./cardsTaskTemplates";
+import { Project, projectsTable } from "./projects";
+import { parse } from "date-fns";
+import { ProjectCategory, projectCategoriesTable } from "./projectsCategories";
+import { DailyList, dailyListsTable } from "./dailyLists";
+import { TaskProjection, taskProjectionsTable } from "./dailyListsProjections";
+import { CardWrapper } from "./cards";
 
 export type Card = Task | TaskTemplate;
+export type CardForDisplay = {
+  card: Card;
+  category: ProjectCategory;
+  cardWrapper: CardWrapper;
+  project: Project;
+  dailyList: DailyList | undefined;
+  dateOfTask: Date | undefined;
+  lastScheduleTime: Date | undefined;
+};
 
 // TODO: check if all items renamed to card
 
@@ -93,6 +108,114 @@ export const children = selector(function* (projectCategoryId: string) {
   }) as (Task | TaskTemplate)[];
 });
 
+export const cardsForDisplay = selector(function* (
+  cards: Card[],
+  cardWrappers: CardWrapper[],
+): Generator<unknown, CardForDisplay[], unknown> {
+  const categoryIds = [...new Set(cards.map((card) => card.projectCategoryId))];
+  const categories = categoryIds.length
+    ? yield* runQuery(
+        selectFrom(projectCategoriesTable, "byId").where((q) =>
+          categoryIds.map((id) => q.eq("id", id)),
+        ),
+      )
+    : [];
+  const categoryMap = new Map(
+    (categories as ProjectCategory[]).map((category) => [
+      category.id,
+      category,
+    ]),
+  );
+
+  const projectIds = [
+    ...new Set((categories as ProjectCategory[]).map((c) => c.projectId)),
+  ];
+  const projects = projectIds.length
+    ? yield* runQuery(
+        selectFrom(projectsTable, "byId").where((q) =>
+          projectIds.map((id) => q.eq("id", id)),
+        ),
+      )
+    : [];
+  const projectMap = new Map(
+    (projects as Project[]).map((project) => [project.id, project]),
+  );
+
+  const cardIds = cards.map((card) => card.id);
+  const projections = cardIds.length
+    ? yield* runQuery(
+        selectFrom(taskProjectionsTable, "byId").where((q) =>
+          cardIds.map((id) => q.eq("id", id)),
+        ),
+      )
+    : [];
+  const projectionMap = new Map(
+    (projections as TaskProjection[]).map((projection) => [
+      projection.id,
+      projection,
+    ]),
+  );
+
+  const dailyListIds = [
+    ...new Set(
+      (projections as TaskProjection[]).map(
+        (projection) => projection.dailyListId,
+      ),
+    ),
+  ];
+  const dailyLists = dailyListIds.length
+    ? yield* runQuery(
+        selectFrom(dailyListsTable, "byId").where((q) =>
+          dailyListIds.map((id) => q.eq("id", id)),
+        ),
+      )
+    : [];
+  const dailyListMap = new Map(
+    (dailyLists as DailyList[]).map((dailyList) => [dailyList.id, dailyList]),
+  );
+  const wrapperMap = new Map(
+    cardWrappers.map((wrapper) => [`${wrapper.type}:${wrapper.id}`, wrapper]),
+  );
+
+  return cards.map((card) => {
+    const category = categoryMap.get(card.projectCategoryId);
+    if (!category) throw new Error("failed to find project category");
+
+    const project = projectMap.get(category.projectId);
+    if (!project) throw new Error("failed to find project");
+
+    const cardWrapper =
+      wrapperMap.get(`${card.type}:${card.id}`) ||
+      wrapperMap.get(`projection:${card.id}`);
+    if (!cardWrapper) throw new Error("failed to find card wrapper");
+
+    const projection = projectionMap.get(card.id);
+    const dailyList = projection
+      ? dailyListMap.get(projection.dailyListId)
+      : undefined;
+    const dateOfTask = dailyList
+      ? parse(dailyList.date, dailyDateFormat, new Date())
+      : undefined;
+
+    return {
+      card,
+      category,
+      project,
+      cardWrapper,
+      dailyList,
+      dateOfTask,
+      lastScheduleTime: dateOfTask,
+    };
+  });
+});
+
+export const childrenForDisplay = selector(function* (
+  projectCategoryId: string,
+) {
+  const cards = yield* children(projectCategoryId);
+  return yield* cardsForDisplay(cards, cards);
+});
+
 export const childrenIdsWithTypes = selector(function* (
   projectCategoryId: string,
 ) {
@@ -116,6 +239,21 @@ export const doneChildrenIds = selector(function* (projectCategoryId: string) {
   return tasks
     .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
     .map((p) => p.id);
+});
+
+export const doneChildrenForDisplay = selector(function* (
+  projectCategoryId: string,
+) {
+  const tasks = yield* runQuery(
+    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+      q.eq("projectCategoryId", projectCategoryId).eq("state", "done"),
+    ),
+  );
+  const cards = (tasks as Task[]).sort(
+    (a, b) => b.lastToggledAt - a.lastToggledAt,
+  );
+
+  return yield* cardsForDisplay(cards, cards);
 });
 
 export const doneChildrenIdsExceptDailies = selector(function* (

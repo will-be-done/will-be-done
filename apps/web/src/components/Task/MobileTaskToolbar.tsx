@@ -1,5 +1,5 @@
 import { useDispatch } from "@will-be-done/hyperdb";
-import { Trash2, Info, RotateCw } from "lucide-react";
+import { Trash2, Info } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";

@@ -6,7 +6,7 @@ import {
   projectCategoriesSlice,
   projectCategoryCardsSlice,
 } from "@will-be-done/slices/space";
-import { TaskComp } from "@/components/Task/Task.tsx";
+import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { cn } from "@/lib/utils.ts";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -68,13 +68,13 @@ const CategorySection = ({
     [categoryId],
   );
 
-  const cardsWithTypes = useSyncSelector(
-    () => projectCategoryCardsSlice.childrenIdsWithTypes(category.id),
+  const cardsForDisplay = useSyncSelector(
+    () => projectCategoryCardsSlice.childrenForDisplay(category.id),
     [category.id],
   );
 
-  const doneTaskIds = useSyncSelector(
-    () => projectCategoryCardsSlice.doneChildrenIds(categoryId),
+  const doneCardsForDisplay = useSyncSelector(
+    () => projectCategoryCardsSlice.doneChildrenForDisplay(categoryId),
     [categoryId],
   );
 
@@ -109,9 +109,9 @@ const CategorySection = ({
   }, [categoryId, category.type, select]);
 
   const visibleDoneIds = useMemo(() => {
-    if (isShowMore) return doneTaskIds;
-    return doneTaskIds.slice(0, 3);
-  }, [doneTaskIds, isShowMore]);
+    if (isShowMore) return doneCardsForDisplay;
+    return doneCardsForDisplay.slice(0, 3);
+  }, [doneCardsForDisplay, isShowMore]);
 
   const handleTitleClick = async () => {
     const newTitle = await promptDialog("Section name", category.title);
@@ -212,33 +212,37 @@ const CategorySection = ({
         className="relative"
       >
         <div className="flex flex-col gap-2">
-          {cardsWithTypes.map(({ id, type }) => (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType={type}
+          {cardsForDisplay.map((displayData) => (
+            <PreloadedTaskComp
+              key={displayData.cardWrapper.id}
+              card={displayData.card}
+              category={displayData.category}
+              cardWrapper={displayData.cardWrapper}
+              project={displayData.project}
+              lastScheduleTime={displayData.lastScheduleTime}
               displayedUnderProjectId={projectId}
               displayLastScheduleTime
             />
           ))}
-          {visibleDoneIds.map((id) => (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType="task"
+          {visibleDoneIds.map((displayData) => (
+            <PreloadedTaskComp
+              key={displayData.cardWrapper.id}
+              card={displayData.card}
+              category={displayData.category}
+              cardWrapper={displayData.cardWrapper}
+              project={displayData.project}
+              lastScheduleTime={displayData.lastScheduleTime}
               displayedUnderProjectId={projectId}
               displayLastScheduleTime
             />
           ))}
-          {!isShowMore && doneTaskIds.length > 3 && (
+          {!isShowMore && doneCardsForDisplay.length > 3 && (
             <button
               onClick={() => setIsShowMore(true)}
               className="cursor-pointer text-subheader text-sm px-1"
               type="button"
             >
-              Show more ({doneTaskIds.length - 3})
+              Show more ({doneCardsForDisplay.length - 3})
             </button>
           )}
         </div>

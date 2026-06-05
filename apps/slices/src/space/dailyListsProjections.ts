@@ -16,7 +16,7 @@ import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
 import { appSlice } from ".";
 import { cardsTasksSlice } from ".";
-import { isTask, type Task } from "./cardsTasks";
+import { isTask, type Task, tasksTable } from "./cardsTasks";
 import { projectCategoryCardsSlice } from ".";
 import { dailyListsSlice } from ".";
 import { isStashProjection } from "./stashProjections";
@@ -126,6 +126,33 @@ export const childrenIds = selector(function* (
   return result;
 });
 
+export const childrenForDisplay = selector(function* (
+  dailyListId: string,
+): Generator<unknown, projectCategoryCardsSlice.CardForDisplay[], unknown> {
+  const projections = yield* byDailyListId(dailyListId);
+  const projectionIds = projections.map((projection) => projection.id);
+  const tasks = projectionIds.length
+    ? yield* runQuery(
+        selectFrom(tasksTable, "byId").where((q) =>
+          projectionIds.map((id) => q.eq("id", id)),
+        ),
+      )
+    : [];
+  const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
+
+  const cards: Task[] = [];
+  const cardWrappers: TaskProjection[] = [];
+  for (const projection of projections) {
+    const task = taskMap.get(projection.id);
+    if (task && task.state === "todo") {
+      cards.push(task);
+      cardWrappers.push(projection);
+    }
+  }
+
+  return yield* projectCategoryCardsSlice.cardsForDisplay(cards, cardWrappers);
+});
+
 export const getDateOfTask = selector(function* (
   taskId: string,
 ): Generator<unknown, Date | undefined, unknown> {
@@ -155,6 +182,41 @@ export const doneChildrenIds = selector(function* (
   return doneTasks
     .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
     .map((t) => t.id);
+});
+
+export const doneChildrenForDisplay = selector(function* (
+  dailyListId: string,
+): Generator<unknown, projectCategoryCardsSlice.CardForDisplay[], unknown> {
+  const projections = yield* byDailyListId(dailyListId);
+  const projectionIds = projections.map((projection) => projection.id);
+  const tasks = projectionIds.length
+    ? yield* runQuery(
+        selectFrom(tasksTable, "byId").where((q) =>
+          projectionIds.map((id) => q.eq("id", id)),
+        ),
+      )
+    : [];
+  const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
+
+  const cardsWithProjections: {
+    card: Task;
+    cardWrapper: TaskProjection;
+  }[] = [];
+  for (const projection of projections) {
+    const task = taskMap.get(projection.id);
+    if (task && task.state === "done") {
+      cardsWithProjections.push({ card: task, cardWrapper: projection });
+    }
+  }
+
+  cardsWithProjections.sort(
+    (a, b) => b.card.lastToggledAt - a.card.lastToggledAt,
+  );
+
+  return yield* projectCategoryCardsSlice.cardsForDisplay(
+    cardsWithProjections.map(({ card }) => card),
+    cardsWithProjections.map(({ cardWrapper }) => cardWrapper),
+  );
 });
 
 // Get first task in daily list
@@ -395,8 +457,7 @@ export const createProjectionInDailyList = action(function* (
   const dailyList = yield* dailyListsSlice.createIfNotPresent(date);
 
   const projections = yield* byDailyListId(dailyList.id);
-  const firstToken =
-    projections.length > 0 ? projections[0].orderToken : null;
+  const firstToken = projections.length > 0 ? projections[0].orderToken : null;
   const orderToken = generateJitteredKeyBetween(null, firstToken);
 
   return yield* createProjection({

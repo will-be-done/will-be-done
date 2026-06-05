@@ -1,4 +1,4 @@
-import { TaskComp } from "../Task/Task.tsx";
+import { PreloadedTaskComp } from "../Task/Task.tsx";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
@@ -35,17 +35,18 @@ const ProjectTasksColumn = ({
 }) => {
   const dispatch = useDispatch();
 
-  const cardsWithTypes = useSyncSelector(
-    () => projectCategoryCardsSlice.childrenIdsWithTypes(category.id),
+  const cardsForDisplay = useSyncSelector(
+    () => projectCategoryCardsSlice.childrenForDisplay(category.id),
     [category.id],
   );
-  const doneTaskIds = useSyncSelector(
-    () => projectCategoryCardsSlice.doneChildrenIds(category.id),
+  const doneCardsForDisplay = useSyncSelector(
+    () => projectCategoryCardsSlice.doneChildrenForDisplay(category.id),
     [category.id],
   );
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
   const isHidden =
-    isHiddenClicked || (doneTaskIds.length == 0 && cardsWithTypes.length == 0);
+    isHiddenClicked ||
+    (doneCardsForDisplay.length == 0 && cardsForDisplay.length == 0);
   const handleAddClick = () => {
     if (isHidden) {
       setIsHiddenClicked(false);
@@ -64,13 +65,15 @@ const ProjectTasksColumn = ({
   const finalDoneIds = useMemo(() => {
     const ids = (() => {
       if (isShowMore) {
-        return doneTaskIds;
+        return doneCardsForDisplay;
       }
-      return doneTaskIds.slice(0, 5);
+      return doneCardsForDisplay.slice(0, 5);
     })();
 
-    return exceptTaskIds ? ids.filter((id) => !exceptTaskIds.has(id)) : ids;
-  }, [doneTaskIds, exceptTaskIds, isShowMore]);
+    return exceptTaskIds
+      ? ids.filter((displayData) => !exceptTaskIds.has(displayData.card.id))
+      : ids;
+  }, [doneCardsForDisplay, exceptTaskIds, isShowMore]);
 
   return (
     <TasksColumn
@@ -183,7 +186,10 @@ const ProjectTasksColumn = ({
             title="Edit column name"
             onClick={() => {
               void (async () => {
-                const newTitle = await promptDialog("Enter new title", category.title);
+                const newTitle = await promptDialog(
+                  "Enter new title",
+                  category.title,
+                );
                 if (!newTitle) return;
 
                 dispatch(
@@ -201,34 +207,40 @@ const ProjectTasksColumn = ({
     >
       <div className="flex flex-col gap-4 w-full py-4">
         {(exceptTaskIds
-          ? cardsWithTypes.filter(({ id }) => !exceptTaskIds.has(id))
+          ? cardsForDisplay.filter(
+              (displayData) => !exceptTaskIds.has(displayData.card.id),
+            )
           : []
-        ).map(({ id, type }) => {
+        ).map((displayData) => {
           return (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType={type}
+            <PreloadedTaskComp
+              key={displayData.cardWrapper.id}
+              card={displayData.card}
+              category={displayData.category}
+              cardWrapper={displayData.cardWrapper}
+              project={displayData.project}
+              lastScheduleTime={displayData.lastScheduleTime}
               displayedUnderProjectId={project.id}
               displayLastScheduleTime
             />
           );
         })}
-        {finalDoneIds.map((id) => {
+        {finalDoneIds.map((displayData) => {
           return (
-            <TaskComp
-              key={id}
-              taskId={id}
-              cardWrapperId={id}
-              cardWrapperType="task"
+            <PreloadedTaskComp
+              key={displayData.cardWrapper.id}
+              card={displayData.card}
+              category={displayData.category}
+              cardWrapper={displayData.cardWrapper}
+              project={displayData.project}
+              lastScheduleTime={displayData.lastScheduleTime}
               displayedUnderProjectId={project.id}
               displayLastScheduleTime
             />
           );
         })}
 
-        {!isShowMore && doneTaskIds.length > 5 && (
+        {!isShowMore && doneCardsForDisplay.length > 5 && (
           <button
             onClick={() => setIsShowMore(true)}
             className="cursor-pointer text-subheader text-sm"
