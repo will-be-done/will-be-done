@@ -69,7 +69,7 @@ const CategorySection = ({
   );
 
   const cardsForDisplay = useSyncSelector(
-    () => projectCategoryCardsSlice.chidrenForDisplay(category.id),
+    () => projectCategoryCardsSlice.childrenForDisplay(category.id),
     [category.id],
   );
 

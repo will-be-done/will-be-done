@@ -209,14 +209,12 @@ export const cardsForDisplay = selector(function* (
   });
 });
 
-export const chidrenForDisplay = selector(function* (
+export const childrenForDisplay = selector(function* (
   projectCategoryId: string,
 ) {
   const cards = yield* children(projectCategoryId);
   return yield* cardsForDisplay(cards, cards);
 });
-
-export const childrenForDisplay = chidrenForDisplay;
 
 export const childrenIdsWithTypes = selector(function* (
   projectCategoryId: string,

@@ -36,7 +36,7 @@ const ProjectTasksColumn = ({
   const dispatch = useDispatch();
 
   const cardsForDisplay = useSyncSelector(
-    () => projectCategoryCardsSlice.chidrenForDisplay(category.id),
+    () => projectCategoryCardsSlice.childrenForDisplay(category.id),
     [category.id],
   );
   const doneCardsForDisplay = useSyncSelector(
