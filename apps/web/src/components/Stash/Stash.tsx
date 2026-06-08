@@ -196,7 +196,7 @@ export const Stash = () => {
   );
 
   const panelWidth = isOpen ? width : 0;
-  const rootWidth = panelWidth + STASH_BUTTON_WIDTH;
+  const rootWidth = isOpen ? panelWidth : STASH_BUTTON_WIDTH;
   const widthTransitionClass = isResizing
     ? "transition-none"
     : "transition-[width] duration-300 ease-out";
@@ -238,7 +238,7 @@ export const Stash = () => {
     <div
       ref={rootRef}
       className={cn(
-        "absolute left-0 top-0 z-5 hidden h-full sm:flex",
+        "absolute left-0 top-0 z-20 hidden h-full sm:flex",
         widthTransitionClass,
       )}
       style={{ width: `${rootWidth}px` }}
@@ -263,19 +263,28 @@ export const Stash = () => {
         </div>
       </div>
 
+      {isOpen && (
+        <ResizableDivider
+          orientation="vertical"
+          onResizePosition={handleResize}
+          onResizeStart={() => setIsResizing(true)}
+          onResizeEnd={() => setIsResizing(false)}
+          className="left-full top-0"
+        />
+      )}
+
       <div
-        className="relative -ml-px flex h-full flex-shrink-0 items-center justify-center border-l border-ring/30"
-        style={{ width: `${STASH_BUTTON_WIDTH}px` }}
-      >
-        {isOpen && (
-          <ResizableDivider
-            orientation="vertical"
-            onResizePosition={handleResize}
-            onResizeStart={() => setIsResizing(true)}
-            onResizeEnd={() => setIsResizing(false)}
-            className="left-0 top-0"
-          />
+        className={cn(
+          "flex flex-shrink-0 items-center justify-center",
+          isOpen
+            ? "absolute top-1/2 z-30 -translate-y-1/2"
+            : "relative -ml-px h-full border-l border-ring/30",
         )}
+        style={{
+          width: `${STASH_BUTTON_WIDTH}px`,
+          left: isOpen ? `${panelWidth}px` : undefined,
+        }}
+      >
         {stashButton}
       </div>
     </div>

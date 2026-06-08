@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent } from "react";
+import { memo, useRef, type KeyboardEvent } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -66,7 +66,9 @@ const focusAdjacentMenuItem = (
 
   if (!items.length) return;
 
-  const activeIndex = items.findIndex((item) => item === document.activeElement);
+  const activeIndex = items.findIndex(
+    (item) => item === document.activeElement,
+  );
   const fallbackIndex = direction === "next" ? 0 : items.length - 1;
   const nextIndex =
     activeIndex === -1
@@ -78,7 +80,7 @@ const focusAdjacentMenuItem = (
   items[nextIndex]?.focus();
 };
 
-export const TaskDropdownMenu = ({
+export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   isFocused,
   isOpen,
   isDone,
@@ -134,7 +136,7 @@ export const TaskDropdownMenu = ({
   onDelete: () => void;
   onShortcutKeyDown?: (event: KeyboardEvent) => boolean | void;
   onCloseAutoFocus?: (event: Event) => void;
-}) => {
+}) {
   const shouldSkipNextCloseAutoFocusRef = useRef(false);
 
   const handleShortcutKeyDown = (event: KeyboardEvent) => {
@@ -176,152 +178,152 @@ export const TaskDropdownMenu = ({
           <MoreHorizontal className="size-3" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        sideOffset={6}
-        className="min-w-52 bg-task-dropdown shadow-2xl ring-0 backdrop-blur-none"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDownCapture={handleShortcutKeyDown}
-        onKeyDown={(e) => e.stopPropagation()}
-        onCloseAutoFocus={(e) => {
-          e.preventDefault();
-          if (shouldSkipNextCloseAutoFocusRef.current) {
-            shouldSkipNextCloseAutoFocusRef.current = false;
-            return;
-          }
+      {isOpen && (
+        <DropdownMenuContent
+          align="end"
+          sideOffset={6}
+          className="min-w-52 bg-task-dropdown shadow-2xl ring-0 backdrop-blur-none"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDownCapture={handleShortcutKeyDown}
+          onKeyDown={(e) => e.stopPropagation()}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault();
+            if (shouldSkipNextCloseAutoFocusRef.current) {
+              shouldSkipNextCloseAutoFocusRef.current = false;
+              return;
+            }
 
-          onCloseAutoFocus?.(e);
-        }}
-      >
-        <DropdownMenuGroup>
-          <DropdownMenuItem onSelect={onMarkDone} disabled={!canMarkDone}>
-            <CircleCheck />
-            {isDone ? "Mark as todo" : "Mark as done"}
-            <DropdownMenuShortcut>Space</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              shouldSkipNextCloseAutoFocusRef.current = true;
-              onMoveToProject();
-            }}
-          >
-            <FolderOpen />
-            Move to project
-            <DropdownMenuShortcut>m</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              shouldSkipNextCloseAutoFocusRef.current = true;
-              onStashTask();
-            }}
-            disabled={!canStashTask}
-          >
-            <Archive />
-            Stash task
-            <DropdownMenuShortcut>S</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              onChangeDate();
-            }}
-            disabled={!canScheduleTask}
-          >
-            <Calendar />
-            Schedule Date
-            <DropdownMenuShortcut>s</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={onScheduleToday}
-            disabled={!canScheduleTask}
-          >
-            <CalendarCheck />
-            Schedule today
-            <DropdownMenuShortcut>t</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={onResetSchedule}
-            disabled={!canResetSchedule}
-          >
-            <CalendarX />
-            Reset schedule
-            <DropdownMenuShortcut>r</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              shouldSkipNextCloseAutoFocusRef.current = true;
-              onAddChecklistItem();
-            }}
-            disabled={!canAddChecklistItem}
-          >
-            <ListPlus />
-            Add checklist item
-            <DropdownMenuShortcut>c</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          {canConvertToTemplate && (
+            onCloseAutoFocus?.(e);
+          }}
+        >
+          <DropdownMenuGroup>
+            <DropdownMenuItem onSelect={onMarkDone} disabled={!canMarkDone}>
+              <CircleCheck />
+              {isDone ? "Mark as todo" : "Mark as done"}
+              <DropdownMenuShortcut>Space</DropdownMenuShortcut>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => {
                 shouldSkipNextCloseAutoFocusRef.current = true;
-                onConvertToTemplate();
+                onMoveToProject();
               }}
             >
-              <CircleDashed />
-              Convert to template
-              <DropdownMenuShortcut>T</DropdownMenuShortcut>
+              <FolderOpen />
+              Move to project
+              <DropdownMenuShortcut>m</DropdownMenuShortcut>
             </DropdownMenuItem>
-          )}
-          <DropdownMenuItem
-            onSelect={() => {
-              shouldSkipNextCloseAutoFocusRef.current = true;
-              onAddTaskAfter();
-            }}
-            disabled={isDone}
-          >
-            <Plus />
-            Add task after
-            <DropdownMenuShortcut>o</DropdownMenuShortcut>
+            <DropdownMenuItem
+              onSelect={() => {
+                shouldSkipNextCloseAutoFocusRef.current = true;
+                onStashTask();
+              }}
+              disabled={!canStashTask}
+            >
+              <Archive />
+              Stash task
+              <DropdownMenuShortcut>S</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={onChangeDate}
+              disabled={!canScheduleTask}
+            >
+              <Calendar />
+              Schedule Date
+              <DropdownMenuShortcut>s</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={onScheduleToday}
+              disabled={!canScheduleTask}
+            >
+              <CalendarCheck />
+              Schedule today
+              <DropdownMenuShortcut>t</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={onResetSchedule}
+              disabled={!canResetSchedule}
+            >
+              <CalendarX />
+              Reset schedule
+              <DropdownMenuShortcut>r</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                shouldSkipNextCloseAutoFocusRef.current = true;
+                onAddChecklistItem();
+              }}
+              disabled={!canAddChecklistItem}
+            >
+              <ListPlus />
+              Add checklist item
+              <DropdownMenuShortcut>c</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            {canConvertToTemplate && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  shouldSkipNextCloseAutoFocusRef.current = true;
+                  onConvertToTemplate();
+                }}
+              >
+                <CircleDashed />
+                Convert to template
+                <DropdownMenuShortcut>T</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              onSelect={() => {
+                shouldSkipNextCloseAutoFocusRef.current = true;
+                onAddTaskAfter();
+              }}
+              disabled={isDone}
+            >
+              <Plus />
+              Add task after
+              <DropdownMenuShortcut>o</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                shouldSkipNextCloseAutoFocusRef.current = true;
+                onAddTaskBefore();
+              }}
+              disabled={isDone}
+            >
+              <Plus />
+              Add task before
+              <DropdownMenuShortcut>O</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem onSelect={onMoveUp}>
+              <ArrowUp />
+              Move up
+              <DropdownMenuShortcut>^k</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onMoveDown}>
+              <ArrowDown />
+              Move down
+              <DropdownMenuShortcut>^j</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onMoveLeft}>
+              <ArrowLeft />
+              Move left
+              <DropdownMenuShortcut>^h</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onMoveRight}>
+              <ArrowRight />
+              Move right
+              <DropdownMenuShortcut>^l</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+            <Trash2 />
+            Delete
+            <DropdownMenuShortcut>d</DropdownMenuShortcut>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => {
-              shouldSkipNextCloseAutoFocusRef.current = true;
-              onAddTaskBefore();
-            }}
-            disabled={isDone}
-          >
-            <Plus />
-            Add task before
-            <DropdownMenuShortcut>O</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onSelect={onMoveUp}>
-            <ArrowUp />
-            Move up
-            <DropdownMenuShortcut>^k</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onMoveDown}>
-            <ArrowDown />
-            Move down
-            <DropdownMenuShortcut>^j</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onMoveLeft}>
-            <ArrowLeft />
-            Move left
-            <DropdownMenuShortcut>^h</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onMoveRight}>
-            <ArrowRight />
-            Move right
-            <DropdownMenuShortcut>^l</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-          <Trash2 />
-          Delete
-          <DropdownMenuShortcut>d</DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
+        </DropdownMenuContent>
+      )}
     </DropdownMenu>
   );
-};
+});

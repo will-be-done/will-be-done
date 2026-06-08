@@ -1,7 +1,6 @@
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import {
   getStashOpenWidth,
-  STASH_BUTTON_WIDTH,
   useStashOpen,
   useStashSize,
 } from "@/components/DaysBoard/StashStore.ts";
@@ -15,5 +14,5 @@ export const useStashDesktopOffset = () => {
     return 0;
   }
 
-  return isOpen ? getStashOpenWidth(width) : STASH_BUTTON_WIDTH;
+  return isOpen ? getStashOpenWidth(width) : 0;
 };
