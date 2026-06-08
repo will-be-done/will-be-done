@@ -60,6 +60,7 @@ import {
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   buildFocusKey,
+  focusTextareaAtEnd,
   useFocusStore,
   parseColumnKey,
 } from "@/store/focusSlice.ts";
@@ -67,6 +68,7 @@ import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
+import { RepeatModal } from "@/components/RepeatModal/RepeatModal";
 import {
   useCardDetailsEditRequest,
   useCardDetailsOpen,
@@ -153,6 +155,7 @@ export const PreloadedTaskComp = ({
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldPlaceTitleCaretAtEndRef = useRef(false);
@@ -453,6 +456,39 @@ export const PreloadedTaskComp = ({
     }
   }, [card, cardWrapper.id, cardWrapper.type, dispatch, focusableItemKey]);
 
+  const handleConvertToTemplate = useCallback(() => {
+    if (!isTask(card) || card.templateId) return;
+
+    ref.current?.focus();
+    setIsRepeatModalOpen(true);
+  }, [card]);
+
+  const handleConvertToTemplateConfirm = useCallback(
+    (ruleString: string) => {
+      if (!isTask(card) || card.templateId) return;
+
+      setIsRepeatModalOpen(false);
+      flushEditedTitle();
+
+      const task = select(cardsTasksSlice.byId(taskId)) ?? card;
+      const template = dispatch(
+        cardsTaskTemplatesSlice.createFromTask(task, {
+          repeatRule: ruleString,
+        }),
+      );
+
+      useFocusStore
+        .getState()
+        .focusByKey(buildFocusKey(template.id, template.type));
+    },
+    [card, dispatch, flushEditedTitle, select, taskId],
+  );
+
+  const handleConvertToTemplateCancel = useCallback(() => {
+    setIsRepeatModalOpen(false);
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+
   const focusTaskOnOverlayCloseAutoFocus = useCallback((event: Event) => {
     event.preventDefault();
 
@@ -520,6 +556,8 @@ export const PreloadedTaskComp = ({
     const isResetSchedule = noModifiers && e.code === "KeyR";
     const isStashTask =
       e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyS";
+    const isConvertToTemplate =
+      e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyT";
 
     if (e.code === "Digit1" && noModifiers) {
       return runShortcutAction(() => {
@@ -585,6 +623,10 @@ export const PreloadedTaskComp = ({
       return runShortcutAction(handleResetSchedule);
     } else if (isStashTask && isTask(card)) {
       return runShortcutAction(handleStashTask);
+    } else if (isConvertToTemplate && isTask(card) && !card.templateId) {
+      return runShortcutAction(handleConvertToTemplate, {
+        skipActionsCloseAutoFocus: true,
+      });
     } else if (e.code === "KeyC" && noModifiers) {
       return runShortcutAction(handleAddChecklistItem, {
         skipActionsCloseAutoFocus: true,
@@ -771,9 +813,7 @@ export const PreloadedTaskComp = ({
     const textarea = titleTextareaRef.current;
     if (!textarea) return;
 
-    textarea.focus();
-    const end = textarea.value.length;
-    textarea.setSelectionRange(end, end);
+    focusTextareaAtEnd(textarea);
   }, []);
 
   const handleChecklistItemsRemoved = useCallback(() => {
@@ -950,6 +990,7 @@ export const PreloadedTaskComp = ({
                     card.state === "todo" &&
                     cardWrapper.type !== stashProjectionType
                   }
+                  canConvertToTemplate={isTask(card) && !card.templateId}
                   canAddChecklistItem={isTask(card) || isTaskTemplate(card)}
                   onOpenChange={setIsActionsOpen}
                   onMarkDone={handleTick}
@@ -960,6 +1001,7 @@ export const PreloadedTaskComp = ({
                   onResetSchedule={handleResetSchedule}
                   onAddTaskAfter={() => handleAddSiblingTask("after")}
                   onAddTaskBefore={() => handleAddSiblingTask("before")}
+                  onConvertToTemplate={handleConvertToTemplate}
                   onAddChecklistItem={handleAddChecklistItem}
                   onMoveUp={() => handleMoveStacked("up")}
                   onMoveDown={() => handleMoveStacked("down")}
@@ -986,6 +1028,12 @@ export const PreloadedTaskComp = ({
                         aria-hidden="true"
                       />
                     }
+                  />
+                )}
+                {isRepeatModalOpen && (
+                  <RepeatModal
+                    onConfirm={handleConvertToTemplateConfirm}
+                    onCancel={handleConvertToTemplateCancel}
                   />
                 )}
               </div>
@@ -1020,6 +1068,7 @@ export const PreloadedTaskComp = ({
                   data-gramm="false"
                   data-gramm_editor="false"
                   data-enable-grammarly="false"
+                  data-task-title-input
                   className={cn(
                     "min-h-5 w-full resize-none bg-transparent focus:outline-none",
                     isTask(card) && card.state === "done" && "line-through",

@@ -6,6 +6,8 @@ import {
   runSelector,
   insert,
   action,
+  runQuery,
+  selectFrom,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/src/hyperdb/drivers/bptree-inmem-driver";
 import { tasksTable, type Task } from "./cardsTasks";
@@ -14,8 +16,15 @@ import {
   type TaskTemplate,
   newTasksInRange,
   newTasksToGenForTemplate,
+  createFromTask,
 } from "./cardsTaskTemplates";
 import { dbIdTrait } from "@/traits";
+import { checklistItemsTable } from "./checklistItems";
+import { dailyListsTable, type DailyList } from "./dailyLists";
+import {
+  taskProjectionsTable,
+  type TaskProjection,
+} from "./dailyListsProjections";
 
 function createDB(timezoneOffsetMinutes: number) {
   // Mock timezone before creating DB/running selectors
@@ -26,7 +35,15 @@ function createDB(timezoneOffsetMinutes: number) {
   const driver = new BptreeInmemDriver();
   const spaceId = "a0000000-0000-4000-8000-000000000001";
   const db = new DB(driver, [], [dbIdTrait("space", spaceId)]);
-  execSync(db.loadTables([tasksTable, taskTemplatesTable]));
+  execSync(
+    db.loadTables([
+      checklistItemsTable,
+      dailyListsTable,
+      taskProjectionsTable,
+      tasksTable,
+      taskTemplatesTable,
+    ]),
+  );
   return db;
 }
 
@@ -62,6 +79,7 @@ function getNewTasksInRange(db: DB, fromDate: Date, toDate: Date): Task[] {
 describe("cardsTaskTemplates timezone consistency", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("generates tasks with the SAME IDs regardless of timezone", () => {
@@ -414,5 +432,71 @@ describe("cardsTaskTemplates timezone consistency", () => {
     const idsTZ3 = tasksTZ3.map((t) => t.id);
     const idsTZM5 = tasksTZM5.map((t) => t.id);
     expect(idsTZ3).toEqual(idsTZM5);
+  });
+
+  it("immediately generates today's task when converting a task to a template", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-04T17:05:00Z"));
+
+    const now = Date.now();
+    const task: Task = {
+      type: "task",
+      id: "task-to-template",
+      title: "Converted daily task",
+      content: "Task body",
+      state: "todo",
+      projectCategoryId: "cat-1",
+      orderToken: "a0",
+      lastToggledAt: now,
+      nature: "green",
+      createdAt: now,
+      templateId: null,
+      templateDate: null,
+    };
+
+    const db = createDB(0);
+    const template = syncDispatch(
+      db,
+      action(function* () {
+        yield* insert(tasksTable, [task]);
+        return yield* createFromTask(task, {});
+      })(),
+    ) as TaskTemplate;
+
+    const tasks = runSelector<Task[]>(
+      db,
+      function* () {
+        return yield* runQuery(selectFrom(tasksTable, "byIds"));
+      },
+      [],
+    );
+    const projections = runSelector<TaskProjection[]>(
+      db,
+      function* () {
+        return yield* runQuery(selectFrom(taskProjectionsTable, "byIds"));
+      },
+      [],
+    );
+    const dailyLists = runSelector<DailyList[]>(
+      db,
+      function* () {
+        return yield* runQuery(selectFrom(dailyListsTable, "byIds"));
+      },
+      [],
+    );
+
+    expect(template.title).toBe(task.title);
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].id).not.toBe(task.id);
+    expect(tasks[0].templateId).toBe(template.id);
+    expect(tasks[0].title).toBe(task.title);
+    expect(tasks[0].projectCategoryId).toBe(task.projectCategoryId);
+    expect(tasks[0].templateDate).toBe(
+      new Date("2026-03-04T00:00:00Z").getTime(),
+    );
+    expect(projections).toHaveLength(1);
+    expect(projections[0].id).toBe(tasks[0].id);
+    expect(dailyLists).toHaveLength(1);
+    expect(dailyLists[0].date).toBe("2026-03-04");
   });
 });

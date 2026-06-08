@@ -22,10 +22,22 @@ function RouteComponent() {
     });
   };
 
+  const handleCardIdChange = (nextCardId: string) => {
+    void navigate({
+      to: "/spaces/$spaceId/card-details/$cardId",
+      params: { spaceId, cardId: nextCardId },
+      replace: true,
+    });
+  };
+
   return (
     <GlobalLayout>
       <main className="flex min-h-0 w-full justify-center">
-        <CardDetailsPage cardId={cardId} onBack={handleBack} />
+        <CardDetailsPage
+          cardId={cardId}
+          onBack={handleBack}
+          onCardIdChange={handleCardIdChange}
+        />
       </main>
     </GlobalLayout>
   );

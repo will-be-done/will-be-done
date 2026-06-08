@@ -8,6 +8,7 @@ import {
   Calendar,
   CalendarCheck,
   CalendarX,
+  CircleDashed,
   CircleCheck,
   FolderOpen,
   ListPlus,
@@ -85,6 +86,7 @@ export const TaskDropdownMenu = ({
   canScheduleTask,
   canResetSchedule,
   canStashTask,
+  canConvertToTemplate,
   canAddChecklistItem,
   onOpenChange,
   onMarkDone,
@@ -95,6 +97,7 @@ export const TaskDropdownMenu = ({
   onResetSchedule,
   onAddTaskAfter,
   onAddTaskBefore,
+  onConvertToTemplate,
   onAddChecklistItem,
   onMoveUp,
   onMoveDown,
@@ -111,6 +114,7 @@ export const TaskDropdownMenu = ({
   canScheduleTask: boolean;
   canResetSchedule: boolean;
   canStashTask: boolean;
+  canConvertToTemplate: boolean;
   canAddChecklistItem: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkDone: () => void;
@@ -121,6 +125,7 @@ export const TaskDropdownMenu = ({
   onResetSchedule: () => void;
   onAddTaskAfter: () => void;
   onAddTaskBefore: () => void;
+  onConvertToTemplate: () => void;
   onAddChecklistItem: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -255,6 +260,18 @@ export const TaskDropdownMenu = ({
             Add checklist item
             <DropdownMenuShortcut>c</DropdownMenuShortcut>
           </DropdownMenuItem>
+          {canConvertToTemplate && (
+            <DropdownMenuItem
+              onSelect={() => {
+                shouldSkipNextCloseAutoFocusRef.current = true;
+                onConvertToTemplate();
+              }}
+            >
+              <CircleDashed />
+              Convert to template
+              <DropdownMenuShortcut>T</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onSelect={() => {
               shouldSkipNextCloseAutoFocusRef.current = true;
