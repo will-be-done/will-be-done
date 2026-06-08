@@ -221,11 +221,8 @@ export const TaskDropdownMenu = ({
             <DropdownMenuShortcut>S</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault();
-              shouldSkipNextCloseAutoFocusRef.current = true;
-              onOpenChange(false);
-              window.setTimeout(onChangeDate, 0);
+            onSelect={() => {
+              onChangeDate();
             }}
             disabled={!canScheduleTask}
           >

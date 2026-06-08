@@ -159,6 +159,7 @@ export const PreloadedTaskComp = ({
   const ref = useRef<HTMLDivElement | null>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldPlaceTitleCaretAtEndRef = useRef(false);
+  const shouldOpenDatePickerAfterActionsCloseRef = useRef(false);
   const focusableItemKey = buildFocusKey(cardWrapper.id, cardWrapper.type);
 
   const isFocused = useFocusStore(
@@ -408,6 +409,11 @@ export const PreloadedTaskComp = ({
     setIsDatePickerOpen(true);
   }, []);
 
+  const handleOpenDatePickerAfterActionsClose = useCallback(() => {
+    shouldOpenDatePickerAfterActionsCloseRef.current = true;
+    setIsActionsOpen(false);
+  }, []);
+
   const handleScheduleToday = useCallback(() => {
     if (!isTask(card)) return;
 
@@ -491,6 +497,12 @@ export const PreloadedTaskComp = ({
 
   const focusTaskOnOverlayCloseAutoFocus = useCallback((event: Event) => {
     event.preventDefault();
+
+    if (shouldOpenDatePickerAfterActionsCloseRef.current) {
+      shouldOpenDatePickerAfterActionsCloseRef.current = false;
+      setIsDatePickerOpen(true);
+      return;
+    }
 
     ref.current?.setAttribute("data-suppress-focus-visible", "true");
     ref.current?.focus({ preventScroll: true });
@@ -614,9 +626,17 @@ export const PreloadedTaskComp = ({
         skipActionsCloseAutoFocus: true,
       });
     } else if (isScheduleDate && isTask(card)) {
-      return runShortcutAction(handleOpenDatePicker, {
-        skipActionsCloseAutoFocus: true,
-      });
+      if (isActionsMenuSource) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleOpenDatePickerAfterActionsClose();
+        return false;
+      }
+
+      return runShortcutAction(
+        handleOpenDatePicker,
+        { skipActionsCloseAutoFocus: true },
+      );
     } else if (isScheduleToday && isTask(card)) {
       return runShortcutAction(handleScheduleToday);
     } else if (isResetSchedule && isTask(card)) {
@@ -996,7 +1016,7 @@ export const PreloadedTaskComp = ({
                   onMarkDone={handleTick}
                   onMoveToProject={handleOpenMoveModal}
                   onStashTask={handleStashTask}
-                  onChangeDate={handleOpenDatePicker}
+                  onChangeDate={handleOpenDatePickerAfterActionsClose}
                   onScheduleToday={handleScheduleToday}
                   onResetSchedule={handleResetSchedule}
                   onAddTaskAfter={() => handleAddSiblingTask("after")}
@@ -1020,11 +1040,9 @@ export const PreloadedTaskComp = ({
                     open={isDatePickerOpen}
                     onOpenChange={setIsDatePickerOpen}
                     onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
-                    trigger={
-                      <button
-                        type="button"
+                    anchor={
+                      <span
                         className="absolute right-0 top-0 h-5 w-5 opacity-0 pointer-events-none"
-                        tabIndex={-1}
                         aria-hidden="true"
                       />
                     }
@@ -1129,6 +1147,7 @@ export const PreloadedTaskComp = ({
                   onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
                   trigger={
                     <button
+                      type="button"
                       className={cn(
                         "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer",
                         "hover:bg-black/5 dark:hover:bg-white/5",
@@ -1138,7 +1157,6 @@ export const PreloadedTaskComp = ({
                       )}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleOpenDatePicker();
                       }}
                     >
                       <svg
