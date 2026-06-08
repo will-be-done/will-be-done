@@ -92,9 +92,9 @@ export const focusTextareaAtEnd = (textarea: HTMLTextAreaElement) => {
 
   const end = textarea.value.length;
   textarea.setSelectionRange(end, end);
-  removePreparedTextInput();
-
-  return document.activeElement === textarea;
+  const focused = document.activeElement === textarea;
+  if (focused) removePreparedTextInput();
+  return focused;
 };
 
 export const focusTaskTitleTextareaByKey = (key: FocusKey) => {
