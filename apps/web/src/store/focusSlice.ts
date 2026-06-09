@@ -51,6 +51,65 @@ export const parseColumnKey = (
   };
 };
 
+let preparedTextInput: HTMLTextAreaElement | null = null;
+
+const removePreparedTextInput = () => {
+  preparedTextInput?.remove();
+  preparedTextInput = null;
+};
+
+export const prepareTextInputFocus = () => {
+  if (typeof document === "undefined") return;
+
+  removePreparedTextInput();
+
+  const textarea = document.createElement("textarea");
+  textarea.setAttribute("aria-hidden", "true");
+  textarea.tabIndex = -1;
+  textarea.autocapitalize = "off";
+  textarea.autocomplete = "off";
+  textarea.spellcheck = false;
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.width = "1px";
+  textarea.style.height = "1px";
+  textarea.style.opacity = "0.01";
+  textarea.style.pointerEvents = "none";
+  textarea.style.zIndex = "-1";
+
+  document.body.append(textarea);
+  preparedTextInput = textarea;
+  textarea.focus({ preventScroll: true });
+
+  window.setTimeout(() => {
+    if (preparedTextInput === textarea) removePreparedTextInput();
+  }, 1500);
+};
+
+export const focusTextareaAtEnd = (textarea: HTMLTextAreaElement) => {
+  textarea.focus({ preventScroll: true });
+
+  const end = textarea.value.length;
+  textarea.setSelectionRange(end, end);
+  const focused = document.activeElement === textarea;
+  if (focused) removePreparedTextInput();
+  return focused;
+};
+
+export const focusTaskTitleTextareaByKey = (key: FocusKey) => {
+  const root = document.querySelector<HTMLElement>(
+    `[data-focusable-key="${key}"]`,
+  );
+  const textarea = root?.querySelector<HTMLTextAreaElement>(
+    "[data-task-title-input]",
+  );
+
+  if (!textarea) return false;
+
+  return focusTextareaAtEnd(textarea);
+};
+
 interface FocusState {
   focusItemKey: FocusKey | null;
   editItemKey: FocusKey | null;

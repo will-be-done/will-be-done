@@ -198,9 +198,11 @@ export function CardDetails() {
 export function CardDetailsPage({
   cardId,
   onBack,
+  onCardIdChange,
 }: {
   cardId: string;
   onBack: () => void;
+  onCardIdChange?: (cardId: string) => void;
 }) {
   const isVisible = useSyncSelector(
     function*() {
@@ -248,6 +250,7 @@ export function CardDetailsPage({
             setIsEditingTitle={setIsEditingTitle}
             isEditingDescription={isEditingDescription}
             setIsEditingDescription={setIsEditingDescription}
+            onCardIdChange={onCardIdChange}
           />
         ) : (
           <div className="flex h-40 items-center justify-center px-4 text-center text-sm text-content-tinted/60">
@@ -308,12 +311,14 @@ function CardDetailsBody({
   setIsEditingTitle,
   isEditingDescription,
   setIsEditingDescription,
+  onCardIdChange,
 }: {
   cardId: string;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
+  onCardIdChange?: (cardId: string) => void;
 }) {
   const card = useSyncSelector(
     () => projectCategoryCardsSlice.byId(cardId),
@@ -328,6 +333,7 @@ function CardDetailsBody({
         setIsEditingTitle={setIsEditingTitle}
         isEditingDescription={isEditingDescription}
         setIsEditingDescription={setIsEditingDescription}
+        onCardIdChange={onCardIdChange}
       />
     );
   }
@@ -340,6 +346,7 @@ function CardDetailsBody({
         setIsEditingTitle={setIsEditingTitle}
         isEditingDescription={isEditingDescription}
         setIsEditingDescription={setIsEditingDescription}
+        onCardIdChange={onCardIdChange}
       />
     );
   }

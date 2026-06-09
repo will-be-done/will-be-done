@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { flushSync } from "react-dom";
 import {
   appSlice,
   projectsSlice,
@@ -7,7 +8,12 @@ import {
   projectCategoryCardsSlice,
 } from "@will-be-done/slices/space";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
-import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import {
+  buildFocusKey,
+  focusTaskTitleTextareaByKey,
+  prepareTextInputFocus,
+  useFocusStore,
+} from "@/store/focusSlice.ts";
 import { cn } from "@/lib/utils.ts";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
@@ -122,10 +128,27 @@ const CategorySection = ({
   };
 
   const handleAddTask = () => {
-    const task = dispatch(
-      projectCategoriesSlice.createTask(categoryId, "prepend"),
-    );
-    useFocusStore.getState().editByKey(buildFocusKey(task.id, "task"));
+    prepareTextInputFocus();
+
+    let focusKey: ReturnType<typeof buildFocusKey> | undefined;
+
+    // eslint-disable-next-line react-dom/no-flush-sync -- iOS opens the keyboard only when the editable task is focused during the tap.
+    flushSync(() => {
+      const task = dispatch(
+        projectCategoriesSlice.createTask(categoryId, "prepend"),
+      );
+      focusKey = buildFocusKey(task.id, "task");
+      useFocusStore.getState().editByKey(focusKey);
+    });
+
+    if (!focusKey) return;
+
+    const key = focusKey;
+    if (focusTaskTitleTextareaByKey(key)) return;
+
+    window.requestAnimationFrame(() => {
+      focusTaskTitleTextareaByKey(key);
+    });
   };
 
   const handleDelete = () => {

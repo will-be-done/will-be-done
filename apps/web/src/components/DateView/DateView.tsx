@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useDispatch, useSyncSelector, useSelect } from "@will-be-done/hyperdb";
+import { flushSync } from "react-dom";
 import {
   dailyListsSlice,
   dailyListsProjectionsSlice,
@@ -10,7 +11,12 @@ import {
 } from "@will-be-done/slices/space";
 
 import { cn } from "@/lib/utils.ts";
-import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import {
+  buildFocusKey,
+  focusTaskTitleTextareaByKey,
+  prepareTextInputFocus,
+  useFocusStore,
+} from "@/store/focusSlice.ts";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
 import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -295,16 +301,33 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
-      const task = dispatch(
-        dailyListsSlice.createTaskInList(
-          dailyList.id,
-          inboxId,
-          "prepend",
-          "prepend",
-        ),
-      );
+      prepareTextInputFocus();
 
-      useFocusStore.getState().editByKey(buildFocusKey(task.id, "projection"));
+      let focusKey: ReturnType<typeof buildFocusKey> | undefined;
+
+      // eslint-disable-next-line react-dom/no-flush-sync -- iOS opens the keyboard only when the editable task is focused during the tap.
+      flushSync(() => {
+        const task = dispatch(
+          dailyListsSlice.createTaskInList(
+            dailyList.id,
+            inboxId,
+            "prepend",
+            "prepend",
+          ),
+        );
+
+        focusKey = buildFocusKey(task.id, "projection");
+        useFocusStore.getState().editByKey(focusKey);
+      });
+
+      if (!focusKey) return;
+
+      const key = focusKey;
+      if (focusTaskTitleTextareaByKey(key)) return;
+
+      window.requestAnimationFrame(() => {
+        focusTaskTitleTextareaByKey(key);
+      });
     },
     [dispatch, inboxId],
   );

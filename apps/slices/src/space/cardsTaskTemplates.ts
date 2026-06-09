@@ -425,6 +425,7 @@ export const createFromTask = action(function* (
   };
 
   yield* insert(taskTemplatesTable, [template]);
+  yield* generateTasksFromTemplates();
   return template;
 });
 

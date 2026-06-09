@@ -2,6 +2,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -22,16 +23,10 @@ export function useDebouncedPersistedDraft<T>({
   isEqual?: (left: T, right: T) => boolean;
 }) {
   const [draft, setDraftState] = useState<T>(value);
-  const [draftSource, setDraftSource] = useState<T>(value);
   const draftRef = useRef(value);
-  const lastSavedRef = useRef(value);
+  const sourceRef = useRef(value);
+  const lastSubmittedRef = useRef(value);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  if (!isEqual(draftSource, value)) {
-    // Incoming source changes intentionally replace any unpersisted local draft.
-    setDraftSource(value);
-    setDraftState(value);
-  }
 
   const clearSaveTimeout = useCallback(() => {
     if (!saveTimeoutRef.current) return;
@@ -45,16 +40,16 @@ export function useDebouncedPersistedDraft<T>({
       clearSaveTimeout();
 
       if (
-        isEqual(valueToPersist, value) ||
-        isEqual(valueToPersist, lastSavedRef.current)
+        isEqual(valueToPersist, sourceRef.current) ||
+        isEqual(valueToPersist, lastSubmittedRef.current)
       ) {
         return;
       }
 
-      lastSavedRef.current = valueToPersist;
+      lastSubmittedRef.current = valueToPersist;
       persist(valueToPersist);
     },
-    [clearSaveTimeout, isEqual, persist, value],
+    [clearSaveTimeout, isEqual, persist],
   );
 
   const setDraft = useCallback((nextValue: SetStateAction<T>) => {
@@ -71,12 +66,35 @@ export function useDebouncedPersistedDraft<T>({
     draftRef.current = draft;
   }, [draft]);
 
-  useEffect(() => {
-    lastSavedRef.current = value;
-  }, [value]);
+  useLayoutEffect(() => {
+    const previousSource = sourceRef.current;
+    if (isEqual(previousSource, value)) return;
+
+    const currentDraft = draftRef.current;
+    const currentLastSubmitted = lastSubmittedRef.current;
+    const draftMatchesPreviousSource = isEqual(currentDraft, previousSource);
+    const draftMatchesSubmittedValue =
+      isEqual(currentDraft, currentLastSubmitted) &&
+      isEqual(value, currentLastSubmitted);
+
+    sourceRef.current = value;
+
+    if (!draftMatchesPreviousSource && !draftMatchesSubmittedValue) return;
+
+    lastSubmittedRef.current = value;
+    clearSaveTimeout();
+
+    if (isEqual(currentDraft, value)) return;
+
+    draftRef.current = value;
+    setDraftState(value);
+  }, [clearSaveTimeout, isEqual, value]);
 
   useEffect(() => {
-    if (isEqual(draft, value)) {
+    if (
+      isEqual(draft, sourceRef.current) ||
+      isEqual(draft, lastSubmittedRef.current)
+    ) {
       clearSaveTimeout();
       return;
     }
@@ -88,7 +106,7 @@ export function useDebouncedPersistedDraft<T>({
     }, delay);
 
     return clearSaveTimeout;
-  }, [clearSaveTimeout, delay, draft, flush, isEqual, value]);
+  }, [clearSaveTimeout, delay, draft, flush, isEqual]);
 
   useEffect(() => registerPendingDraftFlush(flush), [flush]);
 

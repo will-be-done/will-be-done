@@ -6,8 +6,7 @@ const DEFAULT_STASH_WIDTH = 400;
 const MIN_STASH_WIDTH = 280;
 const MAX_STASH_WIDTH = 720;
 
-export const getStashOpenWidth = (stashWidth: number) =>
-  stashWidth + STASH_BUTTON_WIDTH;
+export const getStashOpenWidth = (stashWidth: number) => stashWidth;
 
 export const useStashSize = create<{
   width: number;

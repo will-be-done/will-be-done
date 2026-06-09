@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { flushSync } from "react-dom";
 import {
   appSlice,
   projectsSlice,
@@ -15,7 +16,12 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import { cn } from "@/lib/utils.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
-import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import {
+  buildFocusKey,
+  focusTaskTitleTextareaByKey,
+  prepareTextInputFocus,
+  useFocusStore,
+} from "@/store/focusSlice.ts";
 import { ResizableDivider } from "../DaysBoard/ResizableDivider.tsx";
 import {
   STASH_BUTTON_WIDTH,
@@ -157,13 +163,28 @@ export const Stash = () => {
   }, [select]);
 
   const handleAddTask = useCallback(() => {
-    const task = dispatch(
-      stashProjectionsSlice.createTaskInStash(inboxId, "prepend", "prepend"),
-    );
+    prepareTextInputFocus();
 
-    useFocusStore
-      .getState()
-      .editByKey(buildFocusKey(task.id, "stashProjection"));
+    let focusKey: ReturnType<typeof buildFocusKey> | undefined;
+
+    // eslint-disable-next-line react-dom/no-flush-sync -- iOS opens the keyboard only when the editable task is focused during the tap.
+    flushSync(() => {
+      const task = dispatch(
+        stashProjectionsSlice.createTaskInStash(inboxId, "prepend", "prepend"),
+      );
+
+      focusKey = buildFocusKey(task.id, "stashProjection");
+      useFocusStore.getState().editByKey(focusKey);
+    });
+
+    if (!focusKey) return;
+
+    const key = focusKey;
+    if (focusTaskTitleTextareaByKey(key)) return;
+
+    window.requestAnimationFrame(() => {
+      focusTaskTitleTextareaByKey(key);
+    });
   }, [dispatch, inboxId]);
 
   const handleResize = useCallback(
@@ -175,7 +196,7 @@ export const Stash = () => {
   );
 
   const panelWidth = isOpen ? width : 0;
-  const rootWidth = panelWidth + STASH_BUTTON_WIDTH;
+  const rootWidth = isOpen ? panelWidth : STASH_BUTTON_WIDTH;
   const widthTransitionClass = isResizing
     ? "transition-none"
     : "transition-[width] duration-300 ease-out";
@@ -217,7 +238,7 @@ export const Stash = () => {
     <div
       ref={rootRef}
       className={cn(
-        "absolute left-0 top-0 z-5 hidden h-full sm:flex",
+        "absolute left-0 top-0 z-20 hidden h-full sm:flex",
         widthTransitionClass,
       )}
       style={{ width: `${rootWidth}px` }}
@@ -242,19 +263,28 @@ export const Stash = () => {
         </div>
       </div>
 
+      {isOpen && (
+        <ResizableDivider
+          orientation="vertical"
+          onResizePosition={handleResize}
+          onResizeStart={() => setIsResizing(true)}
+          onResizeEnd={() => setIsResizing(false)}
+          className="left-full top-0"
+        />
+      )}
+
       <div
-        className="relative -ml-px flex h-full flex-shrink-0 items-center justify-center border-l border-ring/30"
-        style={{ width: `${STASH_BUTTON_WIDTH}px` }}
-      >
-        {isOpen && (
-          <ResizableDivider
-            orientation="vertical"
-            onResizePosition={handleResize}
-            onResizeStart={() => setIsResizing(true)}
-            onResizeEnd={() => setIsResizing(false)}
-            className="left-0 top-0"
-          />
+        className={cn(
+          "flex flex-shrink-0 items-center justify-center",
+          isOpen
+            ? "absolute top-1/2 z-30 -translate-y-1/2"
+            : "relative -ml-px h-full border-l border-ring/30",
         )}
+        style={{
+          width: `${STASH_BUTTON_WIDTH}px`,
+          left: isOpen ? `${panelWidth}px` : undefined,
+        }}
+      >
         {stashButton}
       </div>
     </div>

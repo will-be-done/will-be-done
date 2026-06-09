@@ -39,12 +39,14 @@ export function TaskBody({
   setIsEditingTitle,
   isEditingDescription,
   setIsEditingDescription,
+  onCardIdChange,
 }: {
   task: Task;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
+  onCardIdChange?: (cardId: string) => void;
 }) {
   const dispatch = useDispatch();
   const taskId = task.id;
@@ -136,14 +138,13 @@ export function TaskBody({
           }),
         );
 
-        console.log("template created", template);
-
         useFocusStore
           .getState()
           .focusByKey(buildFocusKey(template.id, template.type));
+        onCardIdChange?.(template.id);
       }
     },
-    [task, dispatch],
+    [task, dispatch, onCardIdChange],
   );
 
   return (

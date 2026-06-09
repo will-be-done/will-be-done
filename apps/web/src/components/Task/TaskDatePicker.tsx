@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -17,7 +18,8 @@ import {
 interface TaskDatePickerProps {
   taskId: string;
   currentDate: Date | undefined;
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
+  anchor?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onCloseAutoFocus?: (event: Event) => void;
@@ -27,6 +29,7 @@ export function TaskDatePicker({
   taskId,
   currentDate,
   trigger,
+  anchor,
   open,
   onOpenChange,
   onCloseAutoFocus,
@@ -61,7 +64,8 @@ export function TaskDatePicker({
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      {trigger && <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
+      {anchor && <PopoverAnchor asChild>{anchor}</PopoverAnchor>}
       <PopoverContent
         className="z-[1100] w-auto p-0"
         align="end"

@@ -60,6 +60,7 @@ import {
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
 import {
   buildFocusKey,
+  focusTextareaAtEnd,
   useFocusStore,
   parseColumnKey,
 } from "@/store/focusSlice.ts";
@@ -67,6 +68,7 @@ import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
+import { RepeatModal } from "@/components/RepeatModal/RepeatModal";
 import {
   useCardDetailsEditRequest,
   useCardDetailsOpen,
@@ -153,9 +155,11 @@ export const PreloadedTaskComp = ({
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldPlaceTitleCaretAtEndRef = useRef(false);
+  const shouldOpenDatePickerAfterActionsCloseRef = useRef(false);
   const focusableItemKey = buildFocusKey(cardWrapper.id, cardWrapper.type);
 
   const isFocused = useFocusStore(
@@ -405,6 +409,11 @@ export const PreloadedTaskComp = ({
     setIsDatePickerOpen(true);
   }, []);
 
+  const handleOpenDatePickerAfterActionsClose = useCallback(() => {
+    shouldOpenDatePickerAfterActionsCloseRef.current = true;
+    setIsActionsOpen(false);
+  }, []);
+
   const handleScheduleToday = useCallback(() => {
     if (!isTask(card)) return;
 
@@ -453,187 +462,307 @@ export const PreloadedTaskComp = ({
     }
   }, [card, cardWrapper.id, cardWrapper.type, dispatch, focusableItemKey]);
 
+  const handleConvertToTemplate = useCallback(() => {
+    if (!isTask(card) || card.templateId) return;
+
+    ref.current?.focus();
+    setIsRepeatModalOpen(true);
+  }, [card]);
+
+  const handleConvertToTemplateConfirm = useCallback(
+    (ruleString: string) => {
+      if (!isTask(card) || card.templateId) return;
+
+      setIsRepeatModalOpen(false);
+      flushEditedTitle();
+
+      const task = select(cardsTasksSlice.byId(taskId)) ?? card;
+      const template = dispatch(
+        cardsTaskTemplatesSlice.createFromTask(task, {
+          repeatRule: ruleString,
+        }),
+      );
+
+      useFocusStore
+        .getState()
+        .focusByKey(buildFocusKey(template.id, template.type));
+    },
+    [card, dispatch, flushEditedTitle, select, taskId],
+  );
+
+  const handleConvertToTemplateCancel = useCallback(() => {
+    setIsRepeatModalOpen(false);
+    ref.current?.focus({ preventScroll: true });
+  }, []);
+
   const focusTaskOnOverlayCloseAutoFocus = useCallback((event: Event) => {
     event.preventDefault();
+
+    if (shouldOpenDatePickerAfterActionsCloseRef.current) {
+      shouldOpenDatePickerAfterActionsCloseRef.current = false;
+      setIsDatePickerOpen(true);
+      return;
+    }
 
     ref.current?.setAttribute("data-suppress-focus-visible", "true");
     ref.current?.focus({ preventScroll: true });
   }, []);
 
-  const handleTaskShortcutKeyDown = (
-    e: KeyboardEvent | React.KeyboardEvent,
-    source: "task" | "actionsMenu" = "task",
-  ) => {
-    const isActionsMenuSource = source === "actionsMenu";
-    const focusState = useFocusStore.getState();
-    const isSomethingEditing =
-      !focusState.isFocusDisabled && !!focusState.editItemKey;
-    const isFocusDisabled = focusState.isFocusDisabled;
-    const runShortcutAction = (
-      action: () => void,
-      options?: { skipActionsCloseAutoFocus?: boolean },
+  const handleTaskShortcutKeyDown = useCallback(
+    (
+      e: KeyboardEvent | React.KeyboardEvent,
+      source: "task" | "actionsMenu" = "task",
     ) => {
-      e.preventDefault();
+      const isActionsMenuSource = source === "actionsMenu";
+      const focusState = useFocusStore.getState();
+      const isSomethingEditing =
+        !focusState.isFocusDisabled && !!focusState.editItemKey;
+      const isFocusDisabled = focusState.isFocusDisabled;
+      const runShortcutAction = (
+        action: () => void,
+        options?: { skipActionsCloseAutoFocus?: boolean },
+      ) => {
+        e.preventDefault();
 
-      if (isActionsMenuSource) {
-        e.stopPropagation();
-        setIsActionsOpen(false);
-        window.setTimeout(action, 0);
-        return options?.skipActionsCloseAutoFocus ?? false;
+        if (isActionsMenuSource) {
+          e.stopPropagation();
+          setIsActionsOpen(false);
+          window.setTimeout(action, 0);
+          return options?.skipActionsCloseAutoFocus ?? false;
+        }
+
+        action();
+        return false;
+      };
+
+      if (isSomethingEditing) return false;
+      if (!isFocused) return false;
+      if (isActionsOpen && !isActionsMenuSource) return false;
+      if (isDatePickerOpen) return false;
+      if (isFocusDisabled || e.defaultPrevented) return false;
+
+      const target =
+        e.target instanceof Element ? e.target : document.activeElement;
+      if (target && isInputElement(target)) return false;
+
+      const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
+
+      const isOpenActions = noModifiers && e.code === "KeyA";
+      const isAddAfter = noModifiers && e.code === "KeyO";
+      const isAddBefore = e.shiftKey && e.code === "KeyO";
+
+      const isDeleteProjectionTask =
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        e.code === "Space" &&
+        cardWrapper.type === projectionType;
+
+      const isMoveUp = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyK");
+      const isMoveDown =
+        e.ctrlKey && (e.code === "ArrowDown" || e.code == "KeyJ");
+      const isMoveLeft =
+        e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
+      const isMoveRight =
+        e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
+      const isScheduleDate = noModifiers && e.code === "KeyS";
+      const isScheduleToday = noModifiers && e.code === "KeyT";
+      const isResetSchedule = noModifiers && e.code === "KeyR";
+      const isStashTask =
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        e.code === "KeyS";
+      const isConvertToTemplate =
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        e.code === "KeyT";
+
+      if (e.code === "Digit1" && noModifiers) {
+        return runShortcutAction(() => {
+          if (isTask(card)) {
+            dispatch(cardsTasksSlice.updateTask(taskId, { nature: "red" }));
+          } else if (isTaskTemplate(card)) {
+            dispatch(
+              cardsTaskTemplatesSlice.updateTemplate(taskId, {
+                nature: "red",
+              }),
+            );
+          }
+        });
+      } else if (e.code === "Digit2" && noModifiers) {
+        return runShortcutAction(() => {
+          if (isTask(card)) {
+            dispatch(cardsTasksSlice.updateTask(taskId, { nature: "green" }));
+          } else if (isTaskTemplate(card)) {
+            dispatch(
+              cardsTaskTemplatesSlice.updateTemplate(taskId, {
+                nature: "green",
+              }),
+            );
+          }
+        });
+      } else if (e.code === "Digit3" && noModifiers) {
+        return runShortcutAction(() => {
+          if (isTask(card)) {
+            dispatch(cardsTasksSlice.updateTask(taskId, { nature: "unknown" }));
+          } else if (isTaskTemplate(card)) {
+            dispatch(
+              cardsTaskTemplatesSlice.updateTemplate(taskId, {
+                nature: "unknown",
+              }),
+            );
+          }
+        });
+      } else if (isDeleteProjectionTask) {
+        return runShortcutAction(() => {
+          const [upKey, downKey] = getDOMSiblings(focusableItemKey);
+
+          dispatch(cardsTasksSlice.deleteTasks([taskId]));
+
+          if (downKey) {
+            useFocusStore.getState().focusByKey(downKey);
+          } else if (upKey) {
+            useFocusStore.getState().focusByKey(upKey);
+          } else {
+            useFocusStore.getState().resetFocus();
+          }
+        });
+      } else if (e.code === "Space" && noModifiers) {
+        return runShortcutAction(handleTick);
+      } else if (isOpenActions && !isActionsMenuSource) {
+        return runShortcutAction(() => setIsActionsOpen(true));
+      } else if (e.code === "KeyM" && noModifiers) {
+        return runShortcutAction(handleOpenMoveModal, {
+          skipActionsCloseAutoFocus: true,
+        });
+      } else if (isScheduleDate && isTask(card)) {
+        if (isActionsMenuSource) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleOpenDatePickerAfterActionsClose();
+          return false;
+        }
+
+        return runShortcutAction(handleOpenDatePicker, {
+          skipActionsCloseAutoFocus: true,
+        });
+      } else if (isScheduleToday && isTask(card)) {
+        return runShortcutAction(handleScheduleToday);
+      } else if (isResetSchedule && isTask(card)) {
+        return runShortcutAction(handleResetSchedule);
+      } else if (isStashTask && isTask(card)) {
+        return runShortcutAction(handleStashTask);
+      } else if (isConvertToTemplate && isTask(card) && !card.templateId) {
+        return runShortcutAction(handleConvertToTemplate, {
+          skipActionsCloseAutoFocus: true,
+        });
+      } else if (e.code === "KeyC" && noModifiers) {
+        return runShortcutAction(handleAddChecklistItem, {
+          skipActionsCloseAutoFocus: true,
+        });
+      } else if (isMoveLeft || isMoveRight) {
+        return runShortcutAction(() =>
+          handleMoveColumn(isMoveLeft ? "left" : "right"),
+        );
+      } else if (isMoveUp || isMoveDown) {
+        return runShortcutAction(() =>
+          handleMoveStacked(isMoveUp ? "up" : "down"),
+        );
+      } else if (
+        (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
+        noModifiers
+      ) {
+        return runShortcutAction(handleDelete);
+      } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
+        return runShortcutAction(
+          () => {
+            shouldPlaceTitleCaretAtEndRef.current = true;
+            useFocusStore.getState().editByKey(focusableItemKey);
+            titleTextareaRef.current?.focus();
+          },
+          { skipActionsCloseAutoFocus: true },
+        );
+      } else if (e.code === "KeyE" && noModifiers) {
+        return runShortcutAction(
+          () => {
+            useCardDetailsOpen.getState().setOpen(true);
+            useCardDetailsEditRequest
+              .getState()
+              .editDescription(cardWrapper.id);
+          },
+          { skipActionsCloseAutoFocus: true },
+        );
+      } else if (isAddAfter || isAddBefore) {
+        if (isTask(card) && card.state === "done") return false;
+
+        return runShortcutAction(
+          () => handleAddSiblingTask(isAddAfter ? "after" : "before"),
+          { skipActionsCloseAutoFocus: true },
+        );
       }
 
-      action();
       return false;
-    };
+    },
+    [
+      card,
+      cardWrapper.id,
+      cardWrapper.type,
+      dispatch,
+      focusableItemKey,
+      handleAddChecklistItem,
+      handleAddSiblingTask,
+      handleConvertToTemplate,
+      handleDelete,
+      handleMoveColumn,
+      handleMoveStacked,
+      handleOpenDatePicker,
+      handleOpenDatePickerAfterActionsClose,
+      handleOpenMoveModal,
+      handleResetSchedule,
+      handleScheduleToday,
+      handleStashTask,
+      handleTick,
+      isActionsOpen,
+      isDatePickerOpen,
+      isFocused,
+      taskId,
+    ],
+  );
 
-    if (isSomethingEditing) return false;
-    if (!isFocused) return false;
-    if (isActionsOpen && !isActionsMenuSource) return false;
-    if (isDatePickerOpen) return false;
-    if (isFocusDisabled || e.defaultPrevented) return false;
+  useGlobalListener("keydown", handleTaskShortcutKeyDown);
 
-    const target =
-      e.target instanceof Element ? e.target : document.activeElement;
-    if (target && isInputElement(target)) return false;
+  const handleAddTaskAfter = useCallback(() => {
+    handleAddSiblingTask("after");
+  }, [handleAddSiblingTask]);
 
-    const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
+  const handleAddTaskBefore = useCallback(() => {
+    handleAddSiblingTask("before");
+  }, [handleAddSiblingTask]);
 
-    const isOpenActions = noModifiers && e.code === "KeyA";
-    const isAddAfter = noModifiers && e.code === "KeyO";
-    const isAddBefore = e.shiftKey && e.code === "KeyO";
+  const handleMoveUp = useCallback(() => {
+    handleMoveStacked("up");
+  }, [handleMoveStacked]);
 
-    const isDeleteProjectionTask =
-      (e.metaKey || e.ctrlKey) &&
-      !e.shiftKey &&
-      e.code === "Space" &&
-      cardWrapper.type === projectionType;
+  const handleMoveDown = useCallback(() => {
+    handleMoveStacked("down");
+  }, [handleMoveStacked]);
 
-    const isMoveUp = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyK");
-    const isMoveDown =
-      e.ctrlKey && (e.code === "ArrowDown" || e.code == "KeyJ");
-    const isMoveLeft =
-      e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
-    const isMoveRight =
-      e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
-    const isScheduleDate = noModifiers && e.code === "KeyS";
-    const isScheduleToday = noModifiers && e.code === "KeyT";
-    const isResetSchedule = noModifiers && e.code === "KeyR";
-    const isStashTask =
-      e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyS";
+  const handleMoveLeft = useCallback(() => {
+    handleMoveColumn("left");
+  }, [handleMoveColumn]);
 
-    if (e.code === "Digit1" && noModifiers) {
-      return runShortcutAction(() => {
-        if (isTask(card)) {
-          dispatch(cardsTasksSlice.updateTask(taskId, { nature: "red" }));
-        } else if (isTaskTemplate(card)) {
-          dispatch(
-            cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "red" }),
-          );
-        }
-      });
-    } else if (e.code === "Digit2" && noModifiers) {
-      return runShortcutAction(() => {
-        if (isTask(card)) {
-          dispatch(cardsTasksSlice.updateTask(taskId, { nature: "green" }));
-        } else if (isTaskTemplate(card)) {
-          dispatch(
-            cardsTaskTemplatesSlice.updateTemplate(taskId, { nature: "green" }),
-          );
-        }
-      });
-    } else if (e.code === "Digit3" && noModifiers) {
-      return runShortcutAction(() => {
-        if (isTask(card)) {
-          dispatch(cardsTasksSlice.updateTask(taskId, { nature: "unknown" }));
-        } else if (isTaskTemplate(card)) {
-          dispatch(
-            cardsTaskTemplatesSlice.updateTemplate(taskId, {
-              nature: "unknown",
-            }),
-          );
-        }
-      });
-    } else if (isDeleteProjectionTask) {
-      return runShortcutAction(() => {
-        const [upKey, downKey] = getDOMSiblings(focusableItemKey);
+  const handleMoveRight = useCallback(() => {
+    handleMoveColumn("right");
+  }, [handleMoveColumn]);
 
-        dispatch(cardsTasksSlice.deleteTasks([taskId]));
-
-        if (downKey) {
-          useFocusStore.getState().focusByKey(downKey);
-        } else if (upKey) {
-          useFocusStore.getState().focusByKey(upKey);
-        } else {
-          useFocusStore.getState().resetFocus();
-        }
-      });
-    } else if (e.code === "Space" && noModifiers) {
-      return runShortcutAction(handleTick);
-    } else if (isOpenActions && !isActionsMenuSource) {
-      return runShortcutAction(() => setIsActionsOpen(true));
-    } else if (e.code === "KeyM" && noModifiers) {
-      return runShortcutAction(handleOpenMoveModal, {
-        skipActionsCloseAutoFocus: true,
-      });
-    } else if (isScheduleDate && isTask(card)) {
-      return runShortcutAction(handleOpenDatePicker, {
-        skipActionsCloseAutoFocus: true,
-      });
-    } else if (isScheduleToday && isTask(card)) {
-      return runShortcutAction(handleScheduleToday);
-    } else if (isResetSchedule && isTask(card)) {
-      return runShortcutAction(handleResetSchedule);
-    } else if (isStashTask && isTask(card)) {
-      return runShortcutAction(handleStashTask);
-    } else if (e.code === "KeyC" && noModifiers) {
-      return runShortcutAction(handleAddChecklistItem, {
-        skipActionsCloseAutoFocus: true,
-      });
-    } else if (isMoveLeft || isMoveRight) {
-      return runShortcutAction(() =>
-        handleMoveColumn(isMoveLeft ? "left" : "right"),
-      );
-    } else if (isMoveUp || isMoveDown) {
-      return runShortcutAction(() =>
-        handleMoveStacked(isMoveUp ? "up" : "down"),
-      );
-    } else if (
-      (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
-      noModifiers
-    ) {
-      return runShortcutAction(handleDelete);
-    } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
-      return runShortcutAction(
-        () => {
-          shouldPlaceTitleCaretAtEndRef.current = true;
-          useFocusStore.getState().editByKey(focusableItemKey);
-          titleTextareaRef.current?.focus();
-        },
-        { skipActionsCloseAutoFocus: true },
-      );
-    } else if (e.code === "KeyE" && noModifiers) {
-      return runShortcutAction(
-        () => {
-          useCardDetailsOpen.getState().setOpen(true);
-          useCardDetailsEditRequest.getState().editDescription(cardWrapper.id);
-        },
-        { skipActionsCloseAutoFocus: true },
-      );
-    } else if (isAddAfter || isAddBefore) {
-      if (isTask(card) && card.state === "done") return false;
-
-      return runShortcutAction(
-        () => handleAddSiblingTask(isAddAfter ? "after" : "before"),
-        { skipActionsCloseAutoFocus: true },
-      );
-    }
-
-    return false;
-  };
-
-  useGlobalListener("keydown", (e: KeyboardEvent) => {
-    handleTaskShortcutKeyDown(e);
-  });
+  const handleActionsShortcutKeyDown = useCallback(
+    (event: React.KeyboardEvent) =>
+      handleTaskShortcutKeyDown(event, "actionsMenu"),
+    [handleTaskShortcutKeyDown],
+  );
 
   // useGlobalListener("mousedown", (e: MouseEvent) => {
   //   const isFocusDisabled = focusSlice.isFocusDisabled(store.getState());
@@ -771,9 +900,7 @@ export const PreloadedTaskComp = ({
     const textarea = titleTextareaRef.current;
     if (!textarea) return;
 
-    textarea.focus();
-    const end = textarea.value.length;
-    textarea.setSelectionRange(end, end);
+    focusTextareaAtEnd(textarea);
   }, []);
 
   const handleChecklistItemsRemoved = useCallback(() => {
@@ -950,25 +1077,25 @@ export const PreloadedTaskComp = ({
                     card.state === "todo" &&
                     cardWrapper.type !== stashProjectionType
                   }
+                  canConvertToTemplate={isTask(card) && !card.templateId}
                   canAddChecklistItem={isTask(card) || isTaskTemplate(card)}
                   onOpenChange={setIsActionsOpen}
                   onMarkDone={handleTick}
                   onMoveToProject={handleOpenMoveModal}
                   onStashTask={handleStashTask}
-                  onChangeDate={handleOpenDatePicker}
+                  onChangeDate={handleOpenDatePickerAfterActionsClose}
                   onScheduleToday={handleScheduleToday}
                   onResetSchedule={handleResetSchedule}
-                  onAddTaskAfter={() => handleAddSiblingTask("after")}
-                  onAddTaskBefore={() => handleAddSiblingTask("before")}
+                  onAddTaskAfter={handleAddTaskAfter}
+                  onAddTaskBefore={handleAddTaskBefore}
+                  onConvertToTemplate={handleConvertToTemplate}
                   onAddChecklistItem={handleAddChecklistItem}
-                  onMoveUp={() => handleMoveStacked("up")}
-                  onMoveDown={() => handleMoveStacked("down")}
-                  onMoveLeft={() => handleMoveColumn("left")}
-                  onMoveRight={() => handleMoveColumn("right")}
+                  onMoveUp={handleMoveUp}
+                  onMoveDown={handleMoveDown}
+                  onMoveLeft={handleMoveLeft}
+                  onMoveRight={handleMoveRight}
                   onDelete={handleDelete}
-                  onShortcutKeyDown={(event) =>
-                    handleTaskShortcutKeyDown(event, "actionsMenu")
-                  }
+                  onShortcutKeyDown={handleActionsShortcutKeyDown}
                   onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
                 />
                 {isTask(card) && !displayLastScheduleTime && (
@@ -978,14 +1105,18 @@ export const PreloadedTaskComp = ({
                     open={isDatePickerOpen}
                     onOpenChange={setIsDatePickerOpen}
                     onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
-                    trigger={
-                      <button
-                        type="button"
+                    anchor={
+                      <span
                         className="absolute right-0 top-0 h-5 w-5 opacity-0 pointer-events-none"
-                        tabIndex={-1}
                         aria-hidden="true"
                       />
                     }
+                  />
+                )}
+                {isRepeatModalOpen && (
+                  <RepeatModal
+                    onConfirm={handleConvertToTemplateConfirm}
+                    onCancel={handleConvertToTemplateCancel}
                   />
                 )}
               </div>
@@ -1020,6 +1151,7 @@ export const PreloadedTaskComp = ({
                   data-gramm="false"
                   data-gramm_editor="false"
                   data-enable-grammarly="false"
+                  data-task-title-input
                   className={cn(
                     "min-h-5 w-full resize-none bg-transparent focus:outline-none",
                     isTask(card) && card.state === "done" && "line-through",
@@ -1080,6 +1212,7 @@ export const PreloadedTaskComp = ({
                   onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
                   trigger={
                     <button
+                      type="button"
                       className={cn(
                         "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer",
                         "hover:bg-black/5 dark:hover:bg-white/5",
@@ -1089,7 +1222,6 @@ export const PreloadedTaskComp = ({
                       )}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleOpenDatePicker();
                       }}
                     >
                       <svg
