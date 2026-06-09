@@ -12,10 +12,11 @@ import {
   EmojiPickerContent,
   EmojiPickerSearch,
 } from "@/components/ui/emoji-picker.tsx";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
+import { useNestedScrollRestoration } from "@/hooks/useNestedScrollRestoration.ts";
 
 const DeleteIcon = () => (
   <svg
@@ -52,6 +53,16 @@ function useIsSmallScreen() {
 
 const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   const dispatch = useDispatch();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRestorationId = useMemo(
+    () => `project-view-scroll-${projectId}`,
+    [projectId],
+  );
+  useNestedScrollRestoration({
+    restorationId: scrollRestorationId,
+    elementRef: scrollContainerRef,
+    label: "project-view",
+  });
   const project = useSyncSelector(
     () => projectsSlice.byIdOrDefault(projectId),
     [projectId],
@@ -78,7 +89,12 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   const isSmallScreen = useIsSmallScreen();
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden">
+    <div
+      ref={scrollContainerRef}
+      data-scroll-restoration-id={scrollRestorationId}
+      className="flex flex-col h-full overflow-y-auto sm:overflow-y-hidden"
+      id="main-scrollable-area"
+    >
       <div className="pointer-events-none absolute top-0 left-0 right-0 z-0 h-4" />
       {/* Header */}
       <div className="sm:flex-shrink-0 w-full pt-11 sm:pt-5 mb-6">

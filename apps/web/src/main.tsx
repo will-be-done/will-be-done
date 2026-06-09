@@ -3,27 +3,20 @@ import "./fixGlobal";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { RouterProvider } from "@tanstack/react-router";
 // import "temporal-polyfill/global";
 
 // Import the generated route tree
-import { routeTree } from "./routeTree.gen";
 
 import reportWebVitals from "./reportWebVitals.ts";
+import { getRouter } from "./router.tsx";
 
 // scan({
 //   enabled: true,
 // });
 
 // Create a new router instance
-const router = createRouter({
-  routeTree,
-  context: {},
-  defaultPreload: "intent",
-  scrollRestoration: true,
-  defaultStructuralSharing: true,
-  defaultPreloadStaleTime: 0,
-});
+const router = getRouter();
 
 // Register the router instance for type safety
 declare module "@tanstack/react-router" {
@@ -35,16 +28,23 @@ declare module "@tanstack/react-router" {
 // Detect Electron desktop app
 if (window.desktopApi) {
   document.documentElement.classList.add("is-desktop-app");
-  if (navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Macintosh")) {
+  if (
+    navigator.platform.startsWith("Mac") ||
+    navigator.userAgent.includes("Macintosh")
+  ) {
     document.documentElement.classList.add("is-macos");
   }
 }
 
 const isSafariBrowser = (() => {
   const { userAgent, vendor } = navigator;
-  return /Safari/i.test(userAgent)
-    && /Apple/i.test(vendor)
-    && !/Chrome|CriOS|Chromium|Edg|EdgiOS|OPR|OPiOS|Firefox|FxiOS|DuckDuckGo/i.test(userAgent);
+  return (
+    /Safari/i.test(userAgent) &&
+    /Apple/i.test(vendor) &&
+    !/Chrome|CriOS|Chromium|Edg|EdgiOS|OPR|OPiOS|Firefox|FxiOS|DuckDuckGo/i.test(
+      userAgent,
+    )
+  );
 })();
 
 if (isSafariBrowser) {

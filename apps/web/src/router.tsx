@@ -9,6 +9,7 @@ export function getRouter() {
     scrollRestoration: true,
     defaultStructuralSharing: true,
     defaultPreloadStaleTime: 0,
+    scrollToTopSelectors: ["#main-scrollable-area"],
   });
 
   return router;

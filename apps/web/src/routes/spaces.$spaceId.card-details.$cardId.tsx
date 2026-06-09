@@ -1,4 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { CardDetailsPage } from "@/components/CardDetails/CardDetails.tsx";
 import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 
@@ -9,10 +13,11 @@ export const Route = createFileRoute("/spaces/$spaceId/card-details/$cardId")({
 function RouteComponent() {
   const { cardId, spaceId } = Route.useParams();
   const navigate = useNavigate();
+  const router = useRouter();
 
   const handleBack = () => {
-    if (window.history.length > 1) {
-      window.history.back();
+    if (router.history.canGoBack()) {
+      router.history.back();
       return;
     }
 

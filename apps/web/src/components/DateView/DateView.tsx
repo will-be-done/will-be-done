@@ -34,6 +34,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
+import { useNestedScrollRestoration } from "@/hooks/useNestedScrollRestoration.ts";
 
 const ChevronLeft = () => (
   <svg
@@ -286,6 +287,16 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
   const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
   const previousDate = useMemo(() => subDays(selectedDate, 1), [selectedDate]);
   const nextDate = useMemo(() => addDays(selectedDate, 1), [selectedDate]);
+  const scrollRestorationId = useMemo(
+    () => `date-view-scroll-${format(startingDate, "yyyy-MM-dd")}`,
+    [startingDate],
+  );
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  useNestedScrollRestoration({
+    restorationId: scrollRestorationId,
+    elementRef: scrollContainerRef,
+    label: "date-view",
+  });
 
   const dailyListsIds = useSyncSelector(
     () => dailyListsSlice.idsByDates([startingDate]),
@@ -336,6 +347,8 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
     <div className="relative h-full min-w-0 overflow-hidden">
       <Stash />
       <div
+        ref={scrollContainerRef}
+        data-scroll-restoration-id={scrollRestorationId}
         className="h-full min-w-0 overflow-y-auto"
         style={{
           paddingLeft: stashOffset ? `${stashOffset}px` : undefined,
