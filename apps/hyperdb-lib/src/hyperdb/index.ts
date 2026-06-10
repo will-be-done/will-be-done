@@ -6,6 +6,7 @@ export * from "./query";
 export * from "./selector";
 export * from "./subscribable-db";
 export * from "./table";
+export * from "./values";
 export * from "./drivers/SqlDriver";
 export * from "./drivers/AsyncSqlDriver";
 export * from "./drivers/bptree-inmem-driver";

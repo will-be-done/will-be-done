@@ -75,8 +75,8 @@ Scope:
 
 ## Goal 2: Replace Phantom Table Types With `defineTable`
 
-Current `table<T>("name").withIndexes(...)` only carries TypeScript type information.
-Replace or extend it with validator-backed table definitions.
+The former phantom table API only carried TypeScript type information. Replace
+it with validator-backed table definitions.
 
 Acceptance:
 
@@ -86,8 +86,10 @@ Acceptance:
 - The `id` field should also be checked at runtime when table definitions are created.
 - `selectFrom(table, index).where(...)` keeps its current type inference.
 - Index columns remain type-checked against document fields.
-- Index declarations can be chained with `.index(name, columns)`.
-- Keep a compatibility layer for old `table<T>()` only if migration needs it.
+- Index declarations can be chained with `.index(name, columns, options?)`.
+- Index options support `{ type: "btree" | "hash" }`; `btree` is the default.
+- Hash indexes must use exactly one column.
+- Do not keep the phantom table compatibility layer after migration.
 
 ## Goal 3: Validate Writes In The DB Layer
 
@@ -175,15 +177,6 @@ After the library supports `defineTable`, update consumers that import `@will-be
 Pattern:
 
 ```ts
-// old
-table<ProjectCategory>("projectCategories").withIndexes({
-  byProjectIdOrderToken: {
-    type: "btree",
-    cols: ["projectId", "orderToken"],
-  },
-});
-
-// new
 defineTable("projectCategories", {
   id: v.string(),
   projectId: v.string(),

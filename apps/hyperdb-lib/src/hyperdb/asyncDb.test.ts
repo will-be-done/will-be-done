@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { table } from "./table";
+import { defineTable } from "./table";
 import SQLiteAsyncESMFactory from "wa-sqlite/dist/wa-sqlite-async.mjs";
 import sqlWasmUrl from "wa-sqlite/dist/wa-sqlite-async.wasm?url";
 import * as SQLite from "wa-sqlite";
@@ -8,6 +8,7 @@ import { MemoryAsyncVFS } from "wa-sqlite/src/examples/MemoryAsyncVFS.js";
 import { AsyncSqlDriver } from "./drivers/AsyncSqlDriver";
 import { DB, execAsync } from "./db";
 import { normalizeWasmUrl } from "./drivers/wasmUrl";
+import { v } from "./values";
 
 type Task = {
   type: "task";
@@ -19,15 +20,18 @@ type Task = {
   orderToken: string;
 };
 
-const tasksTable = table<Task>("tasks").withIndexes({
-  id: { cols: ["id"], type: "hash" },
-  ids: { cols: ["id"], type: "btree" },
-  byTitle: { cols: ["title"], type: "hash" },
-  projectIdState: {
-    cols: ["projectId", "state", "lastToggledAt"],
-    type: "btree",
-  },
-});
+const tasksTable = defineTable("tasks", {
+  type: v.literal("task"),
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  lastToggledAt: v.number(),
+  projectId: v.string(),
+  orderToken: v.string(),
+})
+  .index("ids", ["id"])
+  .index("byTitle", ["title"], { type: "hash" })
+  .index("projectIdState", ["projectId", "state", "lastToggledAt"]);
 
 describe("db", async () => {
   for (const driver of [

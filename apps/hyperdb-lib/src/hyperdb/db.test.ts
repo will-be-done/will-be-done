@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { DB, SyncDB } from "./db.ts";
 // import { SqlDriver } from "./drivers/SqlDriver.ts";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver.ts";
-import { table } from "./table.ts";
+import { defineTable } from "./table.ts";
+import { v } from "./values.ts";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm.ts";
 
 export const fractionalCompare = <T extends { id: string; orderToken: string }>(
@@ -35,21 +36,30 @@ type TaskTemplate = {
   lastGeneratedAt: number;
 };
 
-const tasksTable = table<Task>("tasks").withIndexes({
-  id: { cols: ["id"], type: "hash" },
-  ids: { cols: ["id"], type: "btree" },
-  byTitle: { cols: ["title"], type: "hash" },
-  projectIdState: {
-    cols: ["projectId", "state", "lastToggledAt"],
-    type: "btree",
-  },
-});
+const tasksTable = defineTable("tasks", {
+  type: v.literal("task"),
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  lastToggledAt: v.number(),
+  projectId: v.string(),
+  orderToken: v.string(),
+})
+  .index("ids", ["id"])
+  .index("byTitle", ["title"], { type: "hash" })
+  .index("projectIdState", ["projectId", "state", "lastToggledAt"]);
 
-const taskTemplatesTable = table<TaskTemplate>("taskTemplates").withIndexes({
-  id: { cols: ["id"], type: "hash" },
-  ids: { cols: ["id"], type: "btree" },
-  projectId: { cols: ["projectId", "orderToken"], type: "btree" },
-});
+const taskTemplatesTable = defineTable("taskTemplates", {
+  type: v.literal("taskTemplate"),
+  id: v.string(),
+  title: v.string(),
+  projectId: v.string(),
+  orderToken: v.string(),
+  repeatRule: v.string(),
+  lastGeneratedAt: v.number(),
+})
+  .index("ids", ["id"])
+  .index("projectId", ["projectId", "orderToken"]);
 
 describe("db", async () => {
   for (const driver of [
@@ -465,10 +475,10 @@ describe("Database Operations Edge Cases", async () => {
     describe(`${driver.constructor.name}`, () => {
       it("should handle empty database scans", () => {
         type TestRecord = { id: string; value: number };
-        const testTable = table<TestRecord>("test").withIndexes({
-          id: { cols: ["id"], type: "hash" },
-          byValue: { cols: ["value"], type: "btree" },
-        });
+        const testTable = defineTable("test", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
 
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);
@@ -479,10 +489,11 @@ describe("Database Operations Edge Cases", async () => {
 
       it("works correctly with string order", () => {
         type TestRecord = { id: string; projectId: string; token: string };
-        const testTable = table<TestRecord>("test2").withIndexes({
-          id: { cols: ["id"], type: "hash" },
-          byToken: { cols: ["projectId", "token"], type: "btree" },
-        });
+        const testTable = defineTable("test2", {
+          id: v.string(),
+          projectId: v.string(),
+          token: v.string(),
+        }).index("byToken", ["projectId", "token"]);
 
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);
@@ -502,10 +513,11 @@ describe("Database Operations Edge Cases", async () => {
 
       it("should handle various scan bound combinations", () => {
         type TestRecord = { id: string; a: number; b: string };
-        const testTable = table<TestRecord>("test2").withIndexes({
-          id: { cols: ["id"], type: "hash" },
-          composite: { cols: ["a", "b"], type: "btree" },
-        });
+        const testTable = defineTable("test2", {
+          id: v.string(),
+          a: v.number(),
+          b: v.string(),
+        }).index("composite", ["a", "b"]);
 
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);
@@ -578,10 +590,10 @@ describe("Database Operations Edge Cases", async () => {
 
       it("should handle limit correctly", () => {
         type TestRecord = { id: string; value: number };
-        const testTable = table<TestRecord>("test3").withIndexes({
-          id: { cols: ["id"], type: "hash" },
-          byValue: { cols: ["value"], type: "btree" },
-        });
+        const testTable = defineTable("test3", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
 
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);
@@ -631,14 +643,19 @@ describe("Database Operations Edge Cases", async () => {
           boolVal: boolean;
         };
 
-        const testTable = table<MixedRecord>("mixed").withIndexes({
-          id: { cols: ["id"], type: "hash" },
-          byNull: { cols: ["nullVal"], type: "btree" },
-          byInt: { cols: ["intVal"], type: "btree" },
-          byFloat: { cols: ["floatVal"], type: "btree" },
-          byString: { cols: ["stringVal"], type: "btree" },
-          byBool: { cols: ["boolVal"], type: "btree" },
-        });
+        const testTable = defineTable("mixed", {
+          id: v.string(),
+          nullVal: v.null(),
+          intVal: v.number(),
+          floatVal: v.number(),
+          stringVal: v.string(),
+          boolVal: v.boolean(),
+        })
+          .index("byNull", ["nullVal"])
+          .index("byInt", ["intVal"])
+          .index("byFloat", ["floatVal"])
+          .index("byString", ["stringVal"])
+          .index("byBool", ["boolVal"]);
 
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);
@@ -689,10 +706,10 @@ describe("Database Operations Edge Cases", async () => {
 
       it("should throw errors for missing tables and indexes", () => {
         type TestRecord = { id: string; value: number };
-        const testTable = table<TestRecord>("test4").withIndexes({
-          id: { cols: ["id"], type: "hash" },
-          byValue: { cols: ["value"], type: "btree" },
-        });
+        const testTable = defineTable("test4", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
 
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);
@@ -712,10 +729,10 @@ describe("Database Operations Edge Cases", async () => {
 
       it("should handle duplicate values correctly", () => {
         type TestRecord = { id: string; value: number };
-        const testTable = table<TestRecord>("test6").withIndexes({
-          id: { cols: ["id"], type: "hash" },
-          byValue: { cols: ["value"], type: "btree" },
-        });
+        const testTable = defineTable("test6", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
 
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);

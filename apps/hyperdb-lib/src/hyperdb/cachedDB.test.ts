@@ -2,9 +2,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { DB, type HyperDBTx, SyncDB, SyncDBTx, execSync } from "./db.ts";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver.ts";
-import { table } from "./table.ts";
+import { defineTable } from "./table.ts";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm.ts";
 import { CachedDB } from "./cachedDB.ts";
+import { v } from "./values.ts";
 
 type Task = {
   id: string;
@@ -13,11 +14,14 @@ type Task = {
   projectId: string;
 };
 
-const tasksTable = table<Task>("tasks").withIndexes({
-  id: { cols: ["id"], type: "hash" },
-  byValue: { cols: ["value"], type: "btree" },
-  byProjectIdValue: { cols: ["projectId", "value"], type: "btree" },
-});
+const tasksTable = defineTable("tasks", {
+  id: v.string(),
+  title: v.string(),
+  value: v.number(),
+  projectId: v.string(),
+})
+  .index("byValue", ["value"])
+  .index("byProjectIdValue", ["projectId", "value"]);
 
 /** Wait for setTimeout(0) callbacks to fire and all queued writes to complete */
 const flushQueue = () => new Promise<void>((r) => setTimeout(r, 1500));

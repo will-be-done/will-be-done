@@ -8,7 +8,8 @@ import {
   isRowInRange,
 } from "./tuple.ts";
 import { UnreachableError } from "../utils.ts";
-import { table } from "../table.ts";
+import { defineTable } from "../table.ts";
+import { v } from "../values.ts";
 
 describe("Value and Tuple Comparison Edge Cases", () => {
   describe("encodingTypeOf", () => {
@@ -137,11 +138,14 @@ describe("Value and Tuple Comparison Edge Cases", () => {
 });
 
 describe("isRowInRange", () => {
-  const mockTable = table<any>("test_table").withIndexes({
-    primary: { cols: ["id"], type: "hash" },
-    name_age: { cols: ["name", "age"], type: "btree" },
-    score: { cols: ["score"], type: "btree" },
-  });
+  const mockTable = defineTable("test_table", {
+    id: v.string(),
+    name: v.string(),
+    age: v.number(),
+    score: v.number(),
+  })
+    .index("name_age", ["name", "age"])
+    .index("score", ["score"]);
 
   const sampleRow = {
     id: "1",

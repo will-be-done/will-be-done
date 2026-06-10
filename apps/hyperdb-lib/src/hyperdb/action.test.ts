@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { table } from "./table";
+import { defineTable } from "./table";
 import { DB, execSync } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { action, deleteRows, syncDispatch, insert, update } from "./action";
 import { runQuery } from "./selector";
 import { selectFrom } from "./query";
+import { v } from "./values";
 
 type Task = {
   type: "task";
@@ -15,10 +16,14 @@ type Task = {
   orderToken: string;
 };
 
-const tasksTables = table<Task>("tasks").withIndexes({
-  id: { type: "hash", cols: ["id"] },
-  title: { type: "btree", cols: ["title"] },
-});
+const tasksTables = defineTable("tasks", {
+  type: v.literal("task"),
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  projectId: v.string(),
+  orderToken: v.string(),
+}).index("title", ["title"], { type: "hash" });
 
 const updateAction = action(function* () {
   const task: Task = {

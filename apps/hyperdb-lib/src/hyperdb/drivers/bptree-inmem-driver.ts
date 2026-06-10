@@ -8,7 +8,7 @@ import type {
   TupleScanOptions,
   WhereClause,
 } from "../db";
-import type { IndexDefinitions, TableDefinition } from "../table";
+import type { TableDefinition } from "../table";
 import { InMemoryBinaryPlusTree } from "../utils/bptree";
 import { compareTuple } from "./tuple";
 import { convertWhereToBound } from "../bounds";
@@ -739,9 +739,7 @@ export class BptreeInmemDriver implements DBDriver {
     return new BptreeInmemDriverTx(this, () => (this.isInTransaction = false));
   }
 
-  *loadTables(
-    tables: TableDefinition<any, IndexDefinitions<any>>[],
-  ): Generator<DBCmd, void> {
+  *loadTables(tables: TableDefinition<any>[]): Generator<DBCmd, void> {
     for (const tableDef of tables) {
       // this.tableDefinitions.set(tableDef.name, tableDef);
       const indexes: Map<string, Index> = new Map();
