@@ -358,10 +358,7 @@ class HashIndex implements Index {
     return [this.indexDef.column];
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
 
     const results: Row[] = [];
@@ -469,10 +466,7 @@ class HashIndexTx implements IndexTx {
     }
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const boundValues = getColumnValuesFromBounds(
@@ -626,12 +620,10 @@ class BtreeIndexTx implements IndexTx {
     );
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
+    // TODO: use merge sort too
     const deletedRowIds = new Set<string>();
     for (const bounds of tupleBounds) {
       for (const { value } of this.deletes.iterate(bounds)) {
@@ -726,10 +718,7 @@ class BtreeIndex implements Index {
     this.indexDef = indexConfig;
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     return scanBtree(this.btree, tupleBounds, selectOptions);
   }
 
