@@ -957,12 +957,10 @@ describe("Database Operations Edge Cases", async () => {
         const db = new SyncDB(new DB(driver));
         db.loadTables([testTable]);
 
-        const records: TestRecord[] = [
-          { id: "three", value: 3 },
-          { id: "one", value: 1 },
-          { id: "four", value: 4 },
-          { id: "two", value: 2 },
-        ];
+        const records: TestRecord[] = Array.from({ length: 9 }, (_, i) => ({
+          id: String(i + 1),
+          value: i + 1,
+        }));
 
         db.insert(testTable, records);
 
@@ -970,17 +968,17 @@ describe("Database Operations Edge Cases", async () => {
           db
             .intervalScan(testTable, "byValue", [{}])
             .map((record) => record.value),
-        ).toEqual([1, 2, 3, 4]);
+        ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
         expect(
           db
             .intervalScan(testTable, "byValue", [{}], { order: "asc" })
             .map((record) => record.value),
-        ).toEqual([1, 2, 3, 4]);
+        ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
         expect(
           db
             .intervalScan(testTable, "byValue", [{}], { order: "desc" })
             .map((record) => record.value),
-        ).toEqual([4, 3, 2, 1]);
+        ).toEqual([9, 8, 7, 6, 5, 4, 3, 2, 1]);
         expect(
           db
             .intervalScan(testTable, "byValue", [{}], {
@@ -988,7 +986,390 @@ describe("Database Operations Edge Cases", async () => {
               limit: 2,
             })
             .map((record) => record.value),
-        ).toEqual([4, 3]);
+        ).toEqual([9, 8]);
+
+        const disjointBounds = [
+          {
+            gte: [{ col: "value", val: 1 }],
+            lte: [{ col: "value", val: 3 }],
+          },
+          {
+            gte: [{ col: "value", val: 7 }],
+            lte: [{ col: "value", val: 9 }],
+          },
+        ];
+
+        expect(
+          db
+            .intervalScan(testTable, "byValue", disjointBounds, {
+              order: "desc",
+            })
+            .map((record) => record.value),
+        ).toEqual([9, 8, 7, 3, 2, 1]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", disjointBounds, {
+              order: "desc",
+              limit: 4,
+            })
+            .map((record) => record.value),
+        ).toEqual([9, 8, 7, 3]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", disjointBounds, {
+              limit: 4,
+            })
+            .map((record) => record.value),
+        ).toEqual([1, 2, 3, 7]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [...disjointBounds].reverse(), {
+              limit: 4,
+            })
+            .map((record) => record.value),
+        ).toEqual([1, 2, 3, 7]);
+
+        const overlappingBounds = [
+          {
+            gte: [{ col: "value", val: 2 }],
+            lte: [{ col: "value", val: 5 }],
+          },
+          {
+            gte: [{ col: "value", val: 4 }],
+            lte: [{ col: "value", val: 6 }],
+          },
+        ];
+
+        expect(
+          db
+            .intervalScan(testTable, "byValue", overlappingBounds)
+            .map((record) => record.value),
+        ).toEqual([2, 3, 4, 5, 6]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", overlappingBounds, {
+              limit: 3,
+            })
+            .map((record) => record.value),
+        ).toEqual([2, 3, 4]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", overlappingBounds, {
+              order: "desc",
+            })
+            .map((record) => record.value),
+        ).toEqual([6, 5, 4, 3, 2]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", overlappingBounds, {
+              order: "desc",
+              limit: 3,
+            })
+            .map((record) => record.value),
+        ).toEqual([6, 5, 4]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [
+              overlappingBounds[0],
+              overlappingBounds[0],
+            ])
+            .map((record) => record.value),
+        ).toEqual([2, 3, 4, 5]);
+
+        const tx = db.beginTx();
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", disjointBounds, {
+              order: "desc",
+            })
+            .map((record) => record.value),
+        ).toEqual([9, 8, 7, 3, 2, 1]);
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", disjointBounds, {
+              limit: 4,
+            })
+            .map((record) => record.value),
+        ).toEqual([1, 2, 3, 7]);
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", disjointBounds, {
+              order: "desc",
+              limit: 4,
+            })
+            .map((record) => record.value),
+        ).toEqual([9, 8, 7, 3]);
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", [...disjointBounds].reverse(), {
+              limit: 4,
+            })
+            .map((record) => record.value),
+        ).toEqual([1, 2, 3, 7]);
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", overlappingBounds, {
+              order: "desc",
+            })
+            .map((record) => record.value),
+        ).toEqual([6, 5, 4, 3, 2]);
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", overlappingBounds, {
+              limit: 3,
+            })
+            .map((record) => record.value),
+        ).toEqual([2, 3, 4]);
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", overlappingBounds, {
+              order: "desc",
+              limit: 3,
+            })
+            .map((record) => record.value),
+        ).toEqual([6, 5, 4]);
+        tx.rollback();
+      });
+
+      it("should apply OR limits after duplicate range dedupe", () => {
+        type TestRecord = { id: string; value: number };
+        const testTable = defineTable("duplicateRangeRecords", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
+
+        const db = new SyncDB(new DB(driver));
+        db.loadTables([testTable]);
+
+        db.insert(
+          testTable,
+          Array.from({ length: 10 }, (_, i) => ({
+            id: String(i + 1),
+            value: i + 1,
+          })),
+        );
+
+        const duplicateBounds = [
+          {
+            gte: [{ col: "value", val: 1 }],
+            lte: [{ col: "value", val: 10 }],
+          },
+          {
+            gte: [{ col: "value", val: 1 }],
+            lte: [{ col: "value", val: 10 }],
+          },
+          {
+            gte: [{ col: "value", val: 1 }],
+            lte: [{ col: "value", val: 10 }],
+          },
+        ];
+
+        expect(
+          db
+            .intervalScan(testTable, "byValue", duplicateBounds, { limit: 4 })
+            .map((record) => record.value),
+        ).toEqual([1, 2, 3, 4]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", duplicateBounds, {
+              order: "desc",
+              limit: 4,
+            })
+            .map((record) => record.value),
+        ).toEqual([10, 9, 8, 7]);
+      });
+
+      it("should handle open, empty, and unbounded OR ranges", () => {
+        type TestRecord = { id: string; value: number };
+        const testTable = defineTable("orBoundEdgeRecords", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
+
+        const db = new SyncDB(new DB(driver));
+        db.loadTables([testTable]);
+
+        db.insert(
+          testTable,
+          Array.from({ length: 9 }, (_, i) => ({
+            id: String(i + 1),
+            value: i + 1,
+          })),
+        );
+
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [
+              {
+                gt: [{ col: "value", val: 1 }],
+                lt: [{ col: "value", val: 4 }],
+              },
+              {
+                gte: [{ col: "value", val: 7 }],
+                lte: [{ col: "value", val: 9 }],
+              },
+            ])
+            .map((record) => record.value),
+        ).toEqual([2, 3, 7, 8, 9]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [
+              {
+                gte: [{ col: "value", val: 20 }],
+                lte: [{ col: "value", val: 30 }],
+              },
+              {
+                gte: [{ col: "value", val: 2 }],
+                lte: [{ col: "value", val: 4 }],
+              },
+            ])
+            .map((record) => record.value),
+        ).toEqual([2, 3, 4]);
+        expect(
+          db
+            .intervalScan(
+              testTable,
+              "byValue",
+              [
+                {
+                  gte: [{ col: "value", val: 20 }],
+                  lte: [{ col: "value", val: 30 }],
+                },
+                {
+                  gte: [{ col: "value", val: 40 }],
+                  lte: [{ col: "value", val: 50 }],
+                },
+              ],
+              { order: "desc" },
+            )
+            .map((record) => record.value),
+        ).toEqual([]);
+        if (driver instanceof BptreeInmemDriver) {
+          expect(
+            db
+              .intervalScan(testTable, "byValue", [
+                {},
+                {
+                  gte: [{ col: "value", val: 2 }],
+                  lte: [{ col: "value", val: 4 }],
+                },
+              ])
+              .map((record) => record.value),
+          ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        }
+      });
+
+      it("should merge transaction deletes, updates, and inserts through OR scans", () => {
+        type TestRecord = { id: string; value: number };
+        const testTable = defineTable("txOrMergeRecords", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
+
+        const db = new SyncDB(new DB(driver));
+        db.loadTables([testTable]);
+
+        db.insert(testTable, [
+          { id: "1", value: 1 },
+          { id: "2", value: 2 },
+          { id: "3", value: 3 },
+          { id: "4", value: 4 },
+          { id: "5", value: 5 },
+          { id: "6", value: 6 },
+          { id: "7", value: 7 },
+          { id: "9", value: 9 },
+        ]);
+
+        const tx = db.beginTx();
+        tx.delete(testTable, ["4"]);
+        tx.update(testTable, [{ id: "3", value: 8 }]);
+        tx.insert(testTable, [{ id: "4.5", value: 4.5 }]);
+
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", [
+              {
+                gte: [{ col: "value", val: 2 }],
+                lte: [{ col: "value", val: 5 }],
+              },
+              {
+                gte: [{ col: "value", val: 4 }],
+                lte: [{ col: "value", val: 6 }],
+              },
+            ])
+            .map((record) => record.value),
+        ).toEqual([2, 4.5, 5, 6]);
+        expect(
+          tx
+            .intervalScan(testTable, "byValue", [
+              {
+                gte: [{ col: "value", val: 1 }],
+                lte: [{ col: "value", val: 4 }],
+              },
+              {
+                gte: [{ col: "value", val: 7 }],
+                lte: [{ col: "value", val: 9 }],
+              },
+            ])
+            .map((record) => record.value),
+        ).toEqual([1, 2, 7, 8, 9]);
+
+        tx.rollback();
+      });
+
+      it("should keep global OR order for multi-column indexes", () => {
+        type ProjectRecord = {
+          id: string;
+          projectId: string;
+          state: number;
+        };
+        const testTable = defineTable("multiColumnOrRecords", {
+          id: v.string(),
+          projectId: v.string(),
+          state: v.number(),
+        }).index("byProjectState", ["projectId", "state"]);
+
+        const db = new SyncDB(new DB(driver));
+        db.loadTables([testTable]);
+
+        db.insert(testTable, [
+          { id: "a8", projectId: "a", state: 8 },
+          { id: "a9", projectId: "a", state: 9 },
+          { id: "a10", projectId: "a", state: 10 },
+          { id: "b1", projectId: "b", state: 1 },
+          { id: "b2", projectId: "b", state: 2 },
+        ]);
+
+        const bounds = [
+          {
+            eq: [{ col: "projectId", val: "b" }],
+            gte: [{ col: "state", val: 1 }],
+            lte: [{ col: "state", val: 2 }],
+          },
+          {
+            eq: [{ col: "projectId", val: "a" }],
+            gte: [{ col: "state", val: 8 }],
+            lte: [{ col: "state", val: 9 }],
+          },
+          {
+            eq: [{ col: "projectId", val: "a" }],
+            gte: [{ col: "state", val: 9 }],
+            lte: [{ col: "state", val: 10 }],
+          },
+        ];
+
+        expect(
+          db
+            .intervalScan(testTable, "byProjectState", bounds)
+            .map((record) => `${record.projectId}:${record.state}`),
+        ).toEqual(["a:8", "a:9", "a:10", "b:1", "b:2"]);
+        expect(
+          db
+            .intervalScan(testTable, "byProjectState", bounds, {
+              order: "desc",
+            })
+            .map((record) => `${record.projectId}:${record.state}`),
+        ).toEqual(["b:2", "b:1", "a:10", "a:9", "a:8"]);
       });
 
       it("should handle all value types in indexes", () => {

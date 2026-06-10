@@ -114,6 +114,21 @@ describe("query", () => {
     }
   });
 
+  it("keeps limit with or queries", () => {
+    const result = selectFrom(tasksTable, "projectIdState")
+      .where((q) =>
+        or(
+          q.eq("projectId", "1").lte("state", 3),
+          q.eq("projectId", "1").gte("state", 7),
+        ),
+      )
+      .limit(4)
+      .toQuery();
+
+    expect(result.limit).toBe(4);
+    expect(result.where).toHaveLength(2);
+  });
+
   it("works", () => {
     const result = selectFrom(tasksTable, "projectIdState")
       .where((q) =>

@@ -13,7 +13,6 @@ import type { TableDefinition } from "../table";
 import { InMemoryBinaryPlusTree } from "../utils/bptree";
 import { compareTuple } from "./tuple";
 import { convertWhereToBound } from "../bounds";
-import { orderedArray } from "../utils/ordered-array";
 import type { DBCmd } from "../generators";
 
 type TableData = {
@@ -54,18 +53,172 @@ const getIndexKey = (
   return values;
 };
 
-const makeIndexKey = (row: Row, indexColumns: string[]): ScanValue[] => {
-  const key = getIndexKey(row, indexColumns);
-  if (!key) throw new Error("Row is missing indexed columns");
-  return key;
-};
-
 const getHashIndexValue = (row: Row, column: string): Value | undefined => {
   if (!Object.prototype.hasOwnProperty.call(row, column)) return undefined;
 
   const value = row[column];
   return value === undefined ? null : (value as Value);
 };
+
+type BtreeEntry = { key: ScanValue[]; value: Row };
+
+class BinaryHeap<T> {
+  private items: T[] = [];
+  private compare: (a: T, b: T) => number;
+
+  constructor(compare: (a: T, b: T) => number) {
+    this.compare = compare;
+  }
+
+  get size() {
+    return this.items.length;
+  }
+
+  push(item: T) {
+    this.items.push(item);
+    this.bubbleUp(this.items.length - 1);
+  }
+
+  pop(): T | undefined {
+    const first = this.items[0];
+    const last = this.items.pop();
+    if (last !== undefined && this.items.length > 0) {
+      this.items[0] = last;
+      this.bubbleDown(0);
+    }
+    return first;
+  }
+
+  private bubbleUp(index: number) {
+    while (index > 0) {
+      const parentIndex = (index - 1) >> 1;
+      if (this.compare(this.items[index], this.items[parentIndex]) >= 0) break;
+      [this.items[index], this.items[parentIndex]] = [
+        this.items[parentIndex],
+        this.items[index],
+      ];
+      index = parentIndex;
+    }
+  }
+
+  private bubbleDown(index: number) {
+    while (true) {
+      const leftIndex = index * 2 + 1;
+      const rightIndex = leftIndex + 1;
+      let smallestIndex = index;
+
+      if (
+        leftIndex < this.items.length &&
+        this.compare(this.items[leftIndex], this.items[smallestIndex]) < 0
+      ) {
+        smallestIndex = leftIndex;
+      }
+
+      if (
+        rightIndex < this.items.length &&
+        this.compare(this.items[rightIndex], this.items[smallestIndex]) < 0
+      ) {
+        smallestIndex = rightIndex;
+      }
+
+      if (smallestIndex === index) break;
+
+      [this.items[index], this.items[smallestIndex]] = [
+        this.items[smallestIndex],
+        this.items[index],
+      ];
+      index = smallestIndex;
+    }
+  }
+}
+
+function* filterBtreeIterator(
+  iterator: IterableIterator<BtreeEntry>,
+  shouldSkip: (row: Row) => boolean,
+): IterableIterator<BtreeEntry> {
+  for (const item of iterator) {
+    if (shouldSkip(item.value)) continue;
+    yield item;
+  }
+}
+
+const mergeBtreeIterators = (
+  iterators: IterableIterator<BtreeEntry>[],
+  selectOptions: SelectOptions,
+): Row[] => {
+  if (selectOptions.limit !== undefined && selectOptions.limit <= 0) return [];
+
+  type MergeCursor = {
+    iterator: IterableIterator<BtreeEntry>;
+    current: BtreeEntry;
+    sequence: number;
+  };
+
+  const reverse = selectOptions.order === "desc";
+  const heap = new BinaryHeap<MergeCursor>((a, b) => {
+    const keyComparison = compareTuple(a.current.key, b.current.key);
+    if (keyComparison !== 0) return reverse ? -keyComparison : keyComparison;
+    return a.sequence - b.sequence;
+  });
+
+  iterators.forEach((iterator, sequence) => {
+    const next = iterator.next();
+    if (!next.done) {
+      heap.push({ iterator, current: next.value, sequence });
+    }
+  });
+
+  const seenIds = new Set<string>();
+  const results: Row[] = [];
+
+  while (heap.size > 0) {
+    const cursor = heap.pop();
+    if (!cursor) break;
+
+    const row = cursor.current.value;
+    if (!seenIds.has(row.id)) {
+      seenIds.add(row.id);
+      results.push(row);
+
+      if (
+        selectOptions.limit !== undefined &&
+        results.length >= selectOptions.limit
+      ) {
+        return results;
+      }
+    }
+
+    const next = cursor.iterator.next();
+    if (!next.done) {
+      cursor.current = next.value;
+      heap.push(cursor);
+    }
+  }
+
+  return results;
+};
+
+const createBtreeScanIterators = (
+  btree: InMemoryBinaryPlusTree<ScanValue[], Row>,
+  tupleBounds: TupleScanOptions[],
+  selectOptions: SelectOptions,
+): IterableIterator<BtreeEntry>[] =>
+  tupleBounds.map((bounds) =>
+    btree.iterate({
+      ...bounds,
+      reverse: selectOptions.order === "desc",
+    }),
+  );
+
+const scanBtree = (
+  btree: InMemoryBinaryPlusTree<ScanValue[], Row>,
+  tupleBounds: TupleScanOptions[],
+  selectOptions: SelectOptions,
+): Row[] =>
+  mergeBtreeIterators(
+    createBtreeScanIterators(btree, tupleBounds, selectOptions),
+    selectOptions,
+  );
 
 function performScan(
   tableData: TableData | TxTableData,
@@ -458,13 +611,8 @@ class BtreeIndexTx implements IndexTx {
   deletes: InMemoryBinaryPlusTree<ScanValue[], Row>;
   isCommitted = false;
   type = "btree" as const;
-  orderedArray: ReturnType<typeof orderedArray<Row, ScanValue[]>>;
 
   constructor(index: BtreeIndex) {
-    this.orderedArray = orderedArray(
-      (it: Row) => makeIndexKey(it, index.indexDef.columns),
-      compareTuple,
-    );
     this.index = index;
     this.sets = new InMemoryBinaryPlusTree<ScanValue[], Row>(
       10,
@@ -484,48 +632,30 @@ class BtreeIndexTx implements IndexTx {
   ): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
-    const results: Row[][] = [];
+    const deletedRowIds = new Set<string>();
     for (const bounds of tupleBounds) {
-      const sets = this.sets.list(bounds);
-      const deletes = this.deletes.list(bounds);
-      const result = Array.from(this.index.scan([bounds], {}));
-
-      for (const item of sets) {
-        this.orderedArray.insert(result, item.value);
-      }
-
-      for (const { key } of deletes) {
-        this.orderedArray.remove(result, key);
-      }
-
-      if (selectOptions.order === "desc") {
-        result.reverse();
-      }
-
-      results.push(result);
-    }
-
-    const res: Row[] = [];
-
-    let totalCount = 0;
-    for (const rows of results) {
-      for (const row of rows) {
-        // TODO: could be done in bulk
-        res.push(row);
-
-        totalCount++;
-
-        if (
-          selectOptions?.limit !== undefined &&
-          totalCount >= selectOptions.limit
-        ) {
-          res.splice(selectOptions.limit);
-          return res;
-        }
+      for (const { value } of this.deletes.iterate(bounds)) {
+        deletedRowIds.add(value.id);
       }
     }
 
-    return res;
+    const originalIterators = createBtreeScanIterators(
+      this.index.btree,
+      tupleBounds,
+      selectOptions,
+    ).map((iterator) =>
+      filterBtreeIterator(iterator, (row) => deletedRowIds.has(row.id)),
+    );
+    const setIterators = createBtreeScanIterators(
+      this.sets,
+      tupleBounds,
+      selectOptions,
+    );
+
+    return mergeBtreeIterators(
+      [...setIterators, ...originalIterators],
+      selectOptions,
+    );
   }
 
   insert(values: Row[]): void {
@@ -600,35 +730,7 @@ class BtreeIndex implements Index {
     tupleBounds: TupleScanOptions[],
     selectOptions: SelectOptions,
   ): Row[] {
-    let totalCount = 0;
-
-    const toReturn: Row[] = [];
-    for (const bounds of tupleBounds) {
-      const results = this.btree.list({
-        ...bounds,
-        limit:
-          selectOptions?.limit !== undefined
-            ? selectOptions.limit - totalCount
-            : undefined,
-        reverse: selectOptions.order === "desc",
-      });
-
-      for (const result of results) {
-        // TODO: could be done in bulk
-        toReturn.push(result.value);
-        totalCount++;
-
-        if (
-          selectOptions?.limit !== undefined &&
-          totalCount >= selectOptions.limit
-        ) {
-          toReturn.splice(selectOptions.limit);
-          return toReturn;
-        }
-      }
-    }
-
-    return toReturn;
+    return scanBtree(this.btree, tupleBounds, selectOptions);
   }
 
   insert(values: Row[]): void {

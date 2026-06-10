@@ -25,6 +25,15 @@ type NodeCursor<K, V> = {
   indexPath: number[];
 };
 
+type IterateArgs<K> = {
+  gt?: K;
+  gte?: K;
+  lt?: K;
+  lte?: K;
+  limit?: number;
+  reverse?: boolean;
+};
+
 function newLeafNode<K, V>(
   values: { key: K; value: V }[],
   id = randomId(),
@@ -220,18 +229,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
     }
   }
 
-  list(
-    args: {
-      gt?: K;
-      gte?: K;
-      lt?: K;
-      lte?: K;
-      limit?: number;
-      reverse?: boolean;
-    } = {},
-  ) {
-    const results: { key: K; value: V }[] = [];
-
+  private validateIterateArgs(args: IterateArgs<K>) {
     if (args.gt !== undefined && args.gte !== undefined)
       throw new Error("Invalid bounds: {gt, gte}");
     if (args.lt !== undefined && args.lte !== undefined)
@@ -257,197 +255,114 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       if (comp > 0) {
         console.warn("Invalid bounds.", args);
         throw new Error("Invalid bounds.");
-        return results;
       }
       if (comp === 0 && (startOpen || endOpen)) {
         console.warn("Invalid bounds.", args);
         throw new Error("Invalid bounds.");
-        return results;
       }
     }
 
-    let startKey: NodeCursor<K, V> | undefined;
-    let endKey: NodeCursor<K, V> | undefined;
-    if (start !== undefined) {
-      startKey = this.findPath(start);
-    } else {
-      startKey = this.startCursor();
-    }
+    return { start, startOpen, end, endOpen };
+  }
 
-    // Empty tree.
-    if (startKey.nodePath.length === 0) return [];
+  *iterate(args: IterateArgs<K> = {}): IterableIterator<{ key: K; value: V }> {
+    if (args.limit !== undefined && args.limit <= 0) return;
 
-    if (end !== undefined) {
-      endKey = this.findPath(end);
-    } else {
-      endKey = this.endCursor();
-    }
+    const { start, startOpen, end, endOpen } =
+      this.validateIterateArgs(args);
+    let yielded = 0;
 
     if (args.reverse) {
-      const leaf = endKey.nodePath[0] as LeafNode<K, V>;
+      let cursor: NodeCursor<K, V> | undefined;
       if (end !== undefined) {
-        const result = this.searchLeafValues(leaf.values, end);
-        const index =
-          result.found !== undefined
-            ? endOpen
-              ? result.found
-              : result.found + 1
-            : result.closest;
-        results.push(...leaf.values.slice(0, index).reverse());
+        cursor = this.findPath(end);
       } else {
-        results.push(...leaf.values.slice(0).reverse());
+        cursor = this.endCursor();
       }
 
-      // Start bound in the same leaf.
-      if (
-        start !== undefined &&
-        this.compareKey(leaf.values[0].key, start) <= 0
-      ) {
-        const result = this.searchLeafValues(leaf.values, start);
-        if (result.found !== undefined) {
-          const startIndex = startOpen
-            ? results.length - result.found - 1
-            : results.length - result.found;
-          results.splice(startIndex, results.length);
-        } else {
-          results.splice(results.length - result.closest, results.length);
-        }
+      if (cursor.nodePath.length === 0) return;
 
-        // Start and limit bound
-        if (args.limit && results.length >= args.limit) {
-          results.splice(args.limit, results.length);
-          return results;
-        }
-        return results;
-      }
-
-      // Limit bound
-      if (args.limit && results.length >= args.limit) {
-        results.splice(args.limit, results.length);
-        return results;
-      }
-
-      let cursor: NodeCursor<K, V> | undefined = endKey;
-      while ((cursor = this.prevCursor(cursor))) {
+      let isFirstLeaf = true;
+      while (cursor) {
         const leaf = cursor.nodePath[0] as LeafNode<K, V>;
+        let index = leaf.values.length - 1;
 
-        results.push(...leaf.values.slice(0).reverse());
-
-        // Start bound
-        if (
-          start !== undefined &&
-          this.compareKey(leaf.values[0].key, start) <= 0
-        ) {
-          const result = this.searchLeafValues(leaf.values, start);
-          if (result.found !== undefined) {
-            const startIndex = startOpen
-              ? results.length - result.found - 1
-              : results.length - result.found;
-            results.splice(startIndex, results.length);
-          } else {
-            results.splice(results.length - result.closest, results.length);
-          }
-
-          // Start and limit bound
-          if (args.limit && results.length >= args.limit) {
-            results.splice(args.limit, results.length);
-            return results;
-          }
-          return results;
+        if (isFirstLeaf && end !== undefined) {
+          const result = this.searchLeafValues(leaf.values, end);
+          index =
+            result.found !== undefined
+              ? endOpen
+                ? result.found - 1
+                : result.found
+              : result.closest - 1;
         }
 
-        // Limit bound
-        if (args.limit && results.length >= args.limit) {
-          results.splice(args.limit, results.length);
-          return results;
+        for (let i = index; i >= 0; i--) {
+          const item = leaf.values[i];
+
+          if (start !== undefined) {
+            const comp = this.compareKey(item.key, start);
+            if (comp < 0 || (comp === 0 && startOpen)) return;
+          }
+
+          yield item;
+          yielded++;
+
+          if (args.limit !== undefined && yielded >= args.limit) return;
         }
+
+        cursor = this.prevCursor(cursor);
+        isFirstLeaf = false;
       }
 
-      return results;
+      return;
     }
 
-    let startOffset = 0;
-    const leaf = startKey.nodePath[0] as LeafNode<K, V>;
+    let cursor: NodeCursor<K, V> | undefined;
     if (start !== undefined) {
-      const result = this.searchLeafValues(leaf.values, start);
-      const index =
-        result.found !== undefined
-          ? startOpen
-            ? result.found + 1
-            : result.found
-          : result.closest;
-      startOffset = index;
-      results.push(...leaf.values.slice(index));
+      cursor = this.findPath(start);
     } else {
-      results.push(...leaf.values);
+      cursor = this.startCursor();
     }
 
-    // End bound in the same leaf.
-    if (
-      end !== undefined &&
-      leaf.values.length > 0 &&
-      this.compareKey(leaf.values[leaf.values.length - 1].key, end) >= 0
-    ) {
-      const result = this.searchLeafValues(leaf.values, end);
+    if (cursor.nodePath.length === 0) return;
 
-      if (result.found !== undefined) {
-        const endIndex = endOpen
-          ? result.found - startOffset
-          : result.found + 1 - startOffset;
-        results.splice(endIndex, results.length);
-      } else {
-        results.splice(result.closest - startOffset, results.length);
-      }
-
-      // End and limit bound
-      if (args.limit && results.length >= args.limit) {
-        results.splice(args.limit, results.length);
-        return results;
-      }
-      return results;
-    }
-
-    // Limit bound
-    if (args.limit && results.length >= args.limit) {
-      results.splice(args.limit, results.length);
-      return results;
-    }
-
-    let cursor: NodeCursor<K, V> | undefined = startKey;
-    while ((cursor = this.nextCursor(cursor))) {
+    let isFirstLeaf = true;
+    while (cursor) {
       const leaf = cursor.nodePath[0] as LeafNode<K, V>;
+      let index = 0;
 
-      results.push(...leaf.values);
-
-      // End bound
-      if (
-        end !== undefined &&
-        this.compareKey(leaf.values[leaf.values.length - 1].key, end) >= 0
-      ) {
-        const result = this.searchLeafValues(results, end);
-        if (result.found !== undefined) {
-          const endIndex = endOpen ? result.found : result.found + 1;
-          results.splice(endIndex, results.length);
-        } else {
-          results.splice(result.closest, results.length);
-        }
-
-        // End and limit bound
-        if (args.limit && results.length >= args.limit) {
-          results.splice(args.limit, results.length);
-          return results;
-        }
-        return results;
+      if (isFirstLeaf && start !== undefined) {
+        const result = this.searchLeafValues(leaf.values, start);
+        index =
+          result.found !== undefined
+            ? startOpen
+              ? result.found + 1
+              : result.found
+            : result.closest;
       }
 
-      // Limit bound
-      if (args.limit && results.length >= args.limit) {
-        results.splice(args.limit, results.length);
-        return results;
+      for (let i = index; i < leaf.values.length; i++) {
+        const item = leaf.values[i];
+
+        if (end !== undefined) {
+          const comp = this.compareKey(item.key, end);
+          if (comp > 0 || (comp === 0 && endOpen)) return;
+        }
+
+        yield item;
+        yielded++;
+
+        if (args.limit !== undefined && yielded >= args.limit) return;
       }
+
+      cursor = this.nextCursor(cursor);
+      isFirstLeaf = false;
     }
+  }
 
-    return results;
+  list(args: IterateArgs<K> = {}) {
+    return Array.from(this.iterate(args));
   }
 
   set(key: K, value: V) {
