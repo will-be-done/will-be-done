@@ -1,21 +1,17 @@
 import { assertType, describe, expect, it } from "vitest";
-import { table } from "./table";
+import { defineTable } from "./table";
 import { selectFrom, or } from "./query";
 import type { ExtractIndexColumns } from "./query";
+import { v } from "./values";
 
-type Task = {
-  type: "task";
-  id: string;
-  title: string;
-  state: "todo" | "done";
-  projectId: string;
-  orderToken: string;
-};
-
-const tasksTable = table<Task>("tasks").withIndexes({
-  id: { cols: ["id"], type: "hash" },
-  projectIdState: { cols: ["projectId", "state"], type: "btree" },
-});
+const tasksTable = defineTable("tasks", {
+  type: v.literal("task"),
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  projectId: v.string(),
+  orderToken: v.string(),
+}).index("projectIdState", ["projectId", "state"]);
 
 describe("query", () => {
   it("works with limt", () => {
@@ -216,5 +212,34 @@ describe("query", () => {
         ),
       ),
     );
+  });
+
+  it("does not allow undefined query filter values", () => {
+    const optionalTable = defineTable("optionalTasks", {
+      id: v.string(),
+      title: v.string(),
+      archivedAt: v.optional(v.number()),
+    }).index("byArchivedAt", ["archivedAt"]);
+
+    if (false) {
+      assertType(
+        selectFrom(optionalTable, "byArchivedAt").where(
+          // @ts-expect-error query filters cannot use undefined for missing fields
+          (q) => q.eq("archivedAt", undefined),
+        ),
+      );
+    }
+
+    expect(() =>
+      selectFrom(optionalTable, "byArchivedAt").where((q) =>
+        q.eq("archivedAt", undefined as never),
+      ),
+    ).toThrow(/Query filters do not support undefined values/);
+
+    const query = selectFrom(optionalTable, "byArchivedAt")
+      .where((q) => q.eq("archivedAt", 10))
+      .toQuery();
+
+    expect(query.where[0].eq).toEqual([{ col: "archivedAt", val: 10 }]);
   });
 });

@@ -513,11 +513,12 @@ export class AsyncSqlDriver implements DBDriver {
         tableDefinitions = cloneDeep(tableDefinitions);
         for (const tableDef of tableDefinitions) {
           for (const [, indexDef] of Object.entries(tableDef.indexes)) {
-            const cols = indexDef.cols;
+            const cols = [...indexDef.cols];
 
             if (cols[cols.length - 1] !== "id") {
               cols.push("id");
             }
+            (indexDef as unknown as { cols: typeof cols }).cols = cols;
           }
 
           await this.createTable(tableDef.tableName);

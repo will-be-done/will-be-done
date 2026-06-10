@@ -1,4 +1,9 @@
 import { convertWhereToBound } from "./bounds";
+import {
+  prepareRecordsForDriver,
+  prepareRecordsFromDriver,
+  type CodecOptions,
+} from "./codec";
 import { isNoopCmd, isUnwrapCmd, type DBCmd } from "./generators";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
 import { refVar, type RefVar } from "./utils";
@@ -69,7 +74,7 @@ export const MAX = Symbol("MAX");
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Base schema type that all table records must extend
-export type Row = Record<string, string | number | boolean | null> & {
+export type Row = Record<string, unknown> & {
   id: string;
 };
 
@@ -100,6 +105,7 @@ function* performScan(
   table: TableDefinition,
   indexName: string,
   clauses: WhereClause[],
+  options: CodecOptions,
   selectOptions?: SelectOptions,
 ) {
   if (clauses.length === 0) {
@@ -119,29 +125,34 @@ function* performScan(
   // Just for validation
   convertWhereToBound(indexConfig.cols as string[], clauses);
 
-  return yield* driver.intervalScan(
+  const records = yield* driver.intervalScan(
     table.tableName,
     indexName as string,
     clauses,
     selectOptions || {},
   );
+
+  return prepareRecordsFromDriver(table, records, options);
 }
 
 function* performInsert(
   driver: BaseDBDriverOperations,
   table: TableDefinition,
   records: Row[],
+  options: CodecOptions,
 ) {
   if (records.length === 0) return;
-  yield* driver.insert(table.tableName, records);
+  yield* driver.insert(table.tableName, prepareRecordsForDriver(table, records, options));
 }
 
 function* performUpdate(
   driver: BaseDBDriverOperations,
   table: TableDefinition,
   records: Row[],
+  options: CodecOptions,
 ) {
-  yield* driver.update(table.tableName, records);
+  if (records.length === 0) return;
+  yield* driver.update(table.tableName, prepareRecordsForDriver(table, records, options));
 }
 
 function* performDelete(
@@ -158,6 +169,7 @@ export class DBTx implements HyperDBTx {
   traits: Trait[] = [];
   txCounter: RefVar<number>;
   isFinished: RefVar<boolean>;
+  options: CodecOptions;
 
   constructor(
     originalDB: DB,
@@ -165,12 +177,14 @@ export class DBTx implements HyperDBTx {
     txCounter: RefVar<number> = refVar(1),
     isFinished: RefVar<boolean> = refVar(false),
     currentTraits: Trait[] = [],
+    options: CodecOptions = originalDB.options,
   ) {
     this.originalDB = originalDB;
     this.driver = driverTx;
     this.txCounter = txCounter;
     this.isFinished = isFinished;
     this.traits = currentTraits;
+    this.options = options;
   }
 
   *loadTables(): Generator<DBCmd, void> {
@@ -184,6 +198,7 @@ export class DBTx implements HyperDBTx {
       this.txCounter,
       this.isFinished,
       [...this.traits, ...traits],
+      this.options,
     );
   }
 
@@ -231,6 +246,7 @@ export class DBTx implements HyperDBTx {
       table,
       indexName as string,
       clauses,
+      this.options,
       selectOptions,
     ) as Generator<DBCmd, ExtractSchema<TTable>[]>;
   }
@@ -243,7 +259,7 @@ export class DBTx implements HyperDBTx {
       throw new Error("Transaction is finished");
     }
 
-    yield* performInsert(this.driver, table, records);
+    yield* performInsert(this.driver, table, records as Row[], this.options);
   }
 
   *update<TTable extends TableDefinition>(
@@ -254,7 +270,7 @@ export class DBTx implements HyperDBTx {
       throw new Error("Transaction is finished");
     }
 
-    yield* performUpdate(this.driver, table, records);
+    yield* performUpdate(this.driver, table, records as Row[], this.options);
   }
 
   *delete<TTable extends TableDefinition>(
@@ -273,19 +289,25 @@ export class DB implements HyperDB {
   driver: DBDriver;
   tables: TableDefinition<any, any>[] = [];
   traits: Trait[] = [];
+  options: CodecOptions;
 
   constructor(
     driver: DBDriver,
     tables: TableDefinition<any, any>[] = [],
-    traits: Trait[] = [],
+    traitsOrOptions: Trait[] | Partial<CodecOptions> = [],
+    options: Partial<CodecOptions> = {},
   ) {
     this.tables = tables;
-    this.traits = traits;
+    this.traits = Array.isArray(traitsOrOptions) ? traitsOrOptions : [];
+    this.options = {
+      runtimeValidation: false,
+      ...(Array.isArray(traitsOrOptions) ? options : traitsOrOptions),
+    };
     this.driver = driver;
   }
 
   withTraits(...traits: Trait[]): HyperDB {
-    return new DB(this.driver, this.tables, [...this.traits, ...traits]);
+    return new DB(this.driver, this.tables, [...this.traits, ...traits], this.options);
   }
 
   getTraits(): Trait[] {
@@ -316,6 +338,7 @@ export class DB implements HyperDB {
       table,
       indexName as string,
       clauses,
+      this.options,
       selectOptions,
     ) as Generator<DBCmd, ExtractSchema<TTable>[]>;
   }
@@ -324,14 +347,14 @@ export class DB implements HyperDB {
     table: TTable,
     records: ExtractSchema<TTable>[],
   ) {
-    yield* performInsert(this.driver, table, records);
+    yield* performInsert(this.driver, table, records as Row[], this.options);
   }
 
   *update<TTable extends TableDefinition<any, any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ) {
-    yield* performUpdate(this.driver, table, records);
+    yield* performUpdate(this.driver, table, records as Row[], this.options);
   }
 
   *delete<TTable extends TableDefinition<any, any>>(

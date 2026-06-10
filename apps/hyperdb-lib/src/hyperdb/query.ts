@@ -25,6 +25,11 @@ export type ExtractColumnValue<
   TCol extends keyof ExtractSchema<TTable>,
 > = ExtractSchema<TTable>[TCol];
 
+type ExtractQueryColumnValue<
+  TTable,
+  TCol extends keyof ExtractSchema<TTable>,
+> = Extract<Exclude<ExtractColumnValue<TTable, TCol>, undefined>, Value>;
+
 export type SelectQuery<
   TTable extends TableDefinition = TableDefinition,
   K extends keyof ExtractIndexes<TTable> = keyof ExtractIndexes<TTable>,
@@ -56,48 +61,59 @@ class QueryBuilder<TTable, TIndexName extends keyof ExtractIndexes<TTable>> {
     return builder;
   }
 
+  private assertValue(val: Value): void {
+    if (val === undefined) {
+      throw new Error("Query filters do not support undefined values");
+    }
+  }
+
   eq<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
     col: TCol,
-    val: ExtractColumnValue<TTable, TCol>,
+    val: ExtractQueryColumnValue<TTable, TCol>,
   ): QueryBuilder<TTable, TIndexName> {
+    this.assertValue(val);
     const builder = this.clone();
-    builder.conditions.eq.push({ col: col as string, val: val as string });
+    builder.conditions.eq.push({ col: col as string, val });
     return builder;
   }
 
   lt<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
     col: TCol,
-    val: ExtractColumnValue<TTable, TCol>,
+    val: ExtractQueryColumnValue<TTable, TCol>,
   ): QueryBuilder<TTable, TIndexName> {
+    this.assertValue(val);
     const builder = this.clone();
-    builder.conditions.lt.push({ col: col as string, val: val as string });
+    builder.conditions.lt.push({ col: col as string, val });
     return builder;
   }
 
   lte<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
     col: TCol,
-    val: ExtractColumnValue<TTable, TCol>,
+    val: ExtractQueryColumnValue<TTable, TCol>,
   ): QueryBuilder<TTable, TIndexName> {
+    this.assertValue(val);
     const builder = this.clone();
-    builder.conditions.lte.push({ col: col as string, val: val as string });
+    builder.conditions.lte.push({ col: col as string, val });
     return builder;
   }
 
   gt<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
     col: TCol,
-    val: ExtractColumnValue<TTable, TCol>,
+    val: ExtractQueryColumnValue<TTable, TCol>,
   ): QueryBuilder<TTable, TIndexName> {
+    this.assertValue(val);
     const builder = this.clone();
-    builder.conditions.gt.push({ col: col as string, val: val as string });
+    builder.conditions.gt.push({ col: col as string, val });
     return builder;
   }
 
   gte<TCol extends ExtractIndexColumns<TTable, TIndexName>>(
     col: TCol,
-    val: ExtractColumnValue<TTable, TCol>,
+    val: ExtractQueryColumnValue<TTable, TCol>,
   ): QueryBuilder<TTable, TIndexName> {
+    this.assertValue(val);
     const builder = this.clone();
-    builder.conditions.gte.push({ col: col as string, val: val as string });
+    builder.conditions.gte.push({ col: col as string, val });
     return builder;
   }
 
