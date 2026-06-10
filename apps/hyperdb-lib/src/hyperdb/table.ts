@@ -156,10 +156,7 @@ export function validateIndexes(
           `Index column ${colName} is not in table schema for index: ${indexName} table: ${tableName}`,
         );
       }
-      if (
-        fieldValidator &&
-        !isIndexableValueValidator(fieldValidator as Validator<unknown>)
-      ) {
+      if (fieldValidator && !isIndexableValueValidator(fieldValidator)) {
         throw new Error(
           `Index column ${colName} is not SQLite-comparable for index: ${indexName} table: ${tableName}`,
         );
@@ -212,11 +209,11 @@ function validateSchemaFields(
 
 function validatorHasStringId(validator: Validator<unknown>): boolean {
   if (validator.kind === "object") {
-    return validator.fields?.id?.kind === "string";
+    return validator.fields.id?.kind === "string";
   }
 
   if (validator.kind === "union") {
-    return validator.validators?.every(validatorHasStringId) === true;
+    return validator.validators.every(validatorHasStringId);
   }
 
   return false;
@@ -231,10 +228,80 @@ function validateSchemaValidator(
   }
 }
 
+function collectObjectSchemaFields(
+  schemaValidator: Validator<unknown>,
+): ValidatorSchema[] | undefined {
+  if (schemaValidator.kind === "object") {
+    return [schemaValidator.fields];
+  }
+
+  if (schemaValidator.kind === "union") {
+    const schemaFields: ValidatorSchema[] = [];
+    for (const variantValidator of schemaValidator.validators) {
+      const variantFields = collectObjectSchemaFields(variantValidator);
+      if (!variantFields) return undefined;
+      schemaFields.push(...variantFields);
+    }
+    return schemaFields;
+  }
+
+  return undefined;
+}
+
+function schemaFieldsFromValidator(
+  schemaValidator: Validator<unknown>,
+): ValidatorSchema | undefined {
+  const variantFields = collectObjectSchemaFields(schemaValidator);
+  if (!variantFields) return undefined;
+
+  const fieldValidators = new Map<string, Validator<unknown>[]>();
+  for (const fields of variantFields) {
+    for (const [fieldName, fieldValidator] of Object.entries(fields)) {
+      const validators = fieldValidators.get(fieldName);
+      if (validators) {
+        validators.push(fieldValidator);
+      } else {
+        fieldValidators.set(fieldName, [fieldValidator]);
+      }
+    }
+  }
+
+  const schemaFields: ValidatorSchema = {};
+  for (const [fieldName, validators] of fieldValidators) {
+    schemaFields[fieldName] =
+      validators.length === 1 ? validators[0] : v.union(...validators);
+  }
+
+  return schemaFields;
+}
+
 function isStandaloneSchemaValidator(
   schemaOrValidator: ValidatorSchemaWithId | Validator<{ id: string }>,
 ): schemaOrValidator is Validator<{ id: string }> {
-  return typeof (schemaOrValidator as Validator<unknown>).normalize === "function";
+  return (
+    "normalize" in schemaOrValidator &&
+    typeof schemaOrValidator.normalize === "function"
+  );
+}
+
+function normalizeSchemaInput(
+  tableName: string,
+  schemaOrValidator: ValidatorSchemaWithId | Validator<{ id: string }>,
+): { schemaValidator: Validator<unknown>; schemaFields?: ValidatorSchema } {
+  if (isStandaloneSchemaValidator(schemaOrValidator)) {
+    validateSchemaValidator(tableName, schemaOrValidator);
+    return {
+      schemaValidator: schemaOrValidator,
+      schemaFields: schemaFieldsFromValidator(schemaOrValidator),
+    };
+  }
+
+  validateSchemaFields(tableName, schemaOrValidator);
+
+  return {
+    schemaValidator: v.object(schemaOrValidator),
+    schemaFields: schemaOrValidator,
+  };
 }
 
 export function defineTable<const TSchema extends ValidatorSchemaWithId>(
@@ -274,37 +341,10 @@ export function defineTable(
   }
 > {
   validateKey(tableName, "Table", tableName);
-
-  if (isStandaloneSchemaValidator(schemaOrValidator)) {
-    const schemaValidator = schemaOrValidator;
-    validateSchemaValidator(tableName, schemaValidator as Validator<unknown>);
-
-    const indexes = {
-      id: { type: "hash", cols: ["id"] as const },
-    } satisfies {
-      id: {
-        type: "hash";
-        cols: readonly ["id"];
-      };
-    };
-
-    validateIndexes(tableName, indexes);
-
-    return addIndexMethod({
-      tableName,
-      schema: {} as { id: string },
-      schemaValidator,
-      indexes,
-      idIndexName: "id",
-    });
-  }
-
-  const schema = schemaOrValidator;
-  validateSchemaFields(tableName, schema);
-
-  const schemaValidator = v.object(schema) as Validator<
-    InferTableSchema<typeof schema>
-  >;
+  const { schemaValidator, schemaFields } = normalizeSchemaInput(
+    tableName,
+    schemaOrValidator,
+  );
   const indexes = {
     id: { type: "hash", cols: ["id"] as const },
   } satisfies {
@@ -314,13 +354,13 @@ export function defineTable(
     };
   };
 
-  validateIndexes(tableName, indexes, schema);
+  validateIndexes(tableName, indexes, schemaFields);
 
   return addIndexMethod({
     tableName,
-    schema: {} as InferTableSchema<typeof schema>,
+    schema: {} as any,
     schemaValidator,
-    schemaFields: schema,
+    schemaFields,
     indexes,
     idIndexName: "id",
   });

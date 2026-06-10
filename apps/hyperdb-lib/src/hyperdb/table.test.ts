@@ -217,4 +217,79 @@ describe("defineTable", () => {
       );
     }
   });
+
+  it("runtime-validates index columns for union document schemas", () => {
+    const documentsTable = defineTable(
+      "documents",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("message"),
+          author: v.string(),
+          body: v.string(),
+          metadata: v.object({
+            source: v.string(),
+          }),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("post"),
+          title: v.string(),
+        }),
+      ),
+    );
+
+    expect(() =>
+      documentsTable.index("byMissing", ["unknownField"] as any),
+    ).toThrow(/not in table schema/);
+
+    expect(() =>
+      documentsTable.index("byMetadata", ["metadata"] as any),
+    ).toThrow(/not SQLite-comparable/);
+  });
+
+  it("runtime-validates overlapping union index column value types", () => {
+    const mixedScalarTable = defineTable(
+      "mixedScalars",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("stringName"),
+          name: v.string(),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("numberName"),
+          name: v.number(),
+        }),
+      ),
+    ).index("byName", ["name"]);
+
+    expect(mixedScalarTable.indexes.byName).toEqual({
+      type: "btree",
+      cols: ["name"],
+    });
+
+    const mixedComparableTable = defineTable(
+      "mixedComparable",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("stringName"),
+          name: v.string(),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("objectName"),
+          name: v.object({
+            text: v.string(),
+          }),
+        }),
+      ),
+    );
+
+    expect(() =>
+      mixedComparableTable.index("byName", ["name"] as any),
+    ).toThrow(/not SQLite-comparable/);
+  });
 });

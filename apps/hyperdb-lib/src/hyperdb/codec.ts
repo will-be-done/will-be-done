@@ -6,6 +6,7 @@ import {
   hasNormalizeValue,
   isNormalizeFailure,
   isNormalizeOmitted,
+  isOptionalValidator,
   type NormalizeResult,
   type ValidationPath,
   type Validator,
@@ -91,16 +92,14 @@ function sanitizeWithValidatorShape(
     if (value === undefined) {
       return { ok: true, omitted: true };
     }
-    if (validator.inner) {
-      return sanitizeWithValidatorShape(validator.inner, value, path);
-    }
+    return sanitizeWithValidatorShape(validator.inner, value, path);
   }
 
   if (value === undefined) {
     return fail("undefined is not a valid stored value", path);
   }
 
-  if (validator.kind === "object" && validator.fields && isPlainObject(value)) {
+  if (validator.kind === "object" && isPlainObject(value)) {
     const normalized: Record<string, unknown> = {};
     for (const key of Object.keys(value)) {
       if (!validObjectKey(key)) {
@@ -116,7 +115,7 @@ function sanitizeWithValidatorShape(
 
     for (const [key, fieldValidator] of Object.entries(validator.fields)) {
       if (!(key in value)) {
-        if ("isOptional" in fieldValidator && fieldValidator.isOptional) continue;
+        if (isOptionalValidator(fieldValidator)) continue;
         return fail("missing required field", [...path, key]);
       }
 
@@ -130,7 +129,7 @@ function sanitizeWithValidatorShape(
     return success(normalized);
   }
 
-  if (validator.kind === "array" && validator.item && Array.isArray(value)) {
+  if (validator.kind === "array" && Array.isArray(value)) {
     const normalized: unknown[] = [];
     for (let index = 0; index < value.length; index++) {
       const item = sanitizeWithValidatorShape(validator.item, value[index], [
@@ -156,12 +155,11 @@ function sanitizeWithValidatorShape(
         );
       }
 
-      const field = validator.valueValidator
-        ? sanitizeWithValidatorShape(validator.valueValidator, fieldValue, [
-            ...path,
-            key,
-          ])
-        : sanitizeAny(fieldValue, [...path, key]);
+      const field = sanitizeWithValidatorShape(
+        validator.valueValidator,
+        fieldValue,
+        [...path, key],
+      );
       if (isNormalizeFailure(field)) return field;
       if (isNormalizeOmitted(field)) {
         return fail("undefined is not valid as a record value", [...path, key]);
@@ -288,10 +286,7 @@ export function prepareRecordForDriver<TTable extends TableDefinition>(
       : assertRecordResult(
           table,
           record,
-          sanitizeWithValidatorShape(
-            table.schemaValidator as Validator<unknown>,
-            record,
-          ),
+          sanitizeWithValidatorShape(table.schemaValidator, record),
         )
     : assertRecordResult(table, record, sanitizeAny(record));
 

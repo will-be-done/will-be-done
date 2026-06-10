@@ -8,8 +8,22 @@ import {
   validRecordKey,
 } from "./validation-utils";
 
+export type ValidationPath = readonly (string | number)[];
+
+export type NormalizeResult<T> =
+  | { ok: true; value: T; omitted: false }
+  | { ok: true; omitted: true }
+  | { ok: false; message: string; path: ValidationPath };
+
 export type Infer<TValidator> =
-  TValidator extends Validator<infer TValue> ? TValue : never;
+  TValidator extends {
+    normalize(
+      value: unknown,
+      path?: ValidationPath,
+    ): NormalizeResult<infer TValue>;
+  }
+    ? TValue
+    : never;
 
 type OptionalKeys<TFields extends Record<string, Validator<any>>> = {
   [K in keyof TFields]: TFields[K] extends OptionalValidator<any> ? K : never;
@@ -28,28 +42,89 @@ export type InferObject<TFields extends Record<string, Validator<any>>> = {
     : never;
 };
 
-export type ValidationPath = readonly (string | number)[];
+type PrimitiveValidatorKind = "string" | "number" | "boolean" | "null";
+type ValidatorKind =
+  | PrimitiveValidatorKind
+  | "array"
+  | "object"
+  | "record"
+  | "union"
+  | "literal"
+  | "optional"
+  | "any";
 
-export type NormalizeResult<T> =
-  | { ok: true; value: T; omitted: false }
-  | { ok: true; omitted: true }
-  | { ok: false; message: string; path: ValidationPath };
-
-export interface Validator<T> {
-  readonly kind: string;
-  readonly literalValue?: unknown;
-  readonly validators?: readonly Validator<any>[];
-  readonly fields?: Record<string, Validator<any>>;
-  readonly inner?: Validator<any>;
-  readonly item?: Validator<any>;
-  readonly keyValidator?: Validator<any>;
-  readonly valueValidator?: Validator<any>;
+interface ValidatorOutput<T> {
   normalize(value: unknown, path?: ValidationPath): NormalizeResult<T>;
 }
 
-export interface OptionalValidator<T> extends Validator<T | undefined> {
+interface BaseValidator<T, TKind extends ValidatorKind>
+  extends ValidatorOutput<T> {
+  readonly kind: TKind;
+}
+
+export interface PrimitiveValidator<
+  T,
+  TKind extends PrimitiveValidatorKind,
+> extends BaseValidator<T, TKind> {}
+
+export type StringValidator = PrimitiveValidator<string, "string">;
+export type NumberValidator = PrimitiveValidator<number, "number">;
+export type BooleanValidator = PrimitiveValidator<boolean, "boolean">;
+export type NullValidator = PrimitiveValidator<null, "null">;
+
+export interface ArrayValidator<T> extends BaseValidator<T[], "array"> {
+  readonly item: Validator<T>;
+}
+
+export interface ObjectValidator<
+  TFields extends Record<string, Validator<any>>,
+> extends BaseValidator<InferObject<TFields>, "object"> {
+  readonly fields: TFields;
+}
+
+export interface RecordValidator<TKey extends string, TValue>
+  extends BaseValidator<Record<TKey, TValue>, "record"> {
+  readonly keyValidator: Validator<TKey>;
+  readonly valueValidator: Validator<TValue>;
+}
+
+export interface UnionValidator<TValidators extends readonly Validator<any>[]>
+  extends BaseValidator<Infer<TValidators[number]>, "union"> {
+  readonly validators: TValidators;
+}
+
+export interface LiteralValidator<T extends string | number | boolean | null>
+  extends BaseValidator<T, "literal"> {
+  readonly literalValue: T;
+}
+
+export interface OptionalValidator<T>
+  extends BaseValidator<T | undefined, "optional"> {
   readonly isOptional: true;
   readonly inner: Validator<T>;
+}
+
+export interface AnyValidator extends BaseValidator<any, "any"> {}
+
+export type Validator<T> = (
+  | StringValidator
+  | NumberValidator
+  | BooleanValidator
+  | NullValidator
+  | ArrayValidator<any>
+  | ObjectValidator<Record<string, Validator<any>>>
+  | RecordValidator<string, any>
+  | UnionValidator<readonly Validator<any>[]>
+  | LiteralValidator<string | number | boolean | null>
+  | OptionalValidator<any>
+  | AnyValidator
+) &
+  ValidatorOutput<T>;
+
+export function isOptionalValidator(
+  validator: Validator<any>,
+): validator is OptionalValidator<any> {
+  return validator.kind === "optional";
 }
 
 export function formatPath(path: ValidationPath): string {
@@ -148,11 +223,11 @@ function normalizeAny(
   return fail(`unsupported value type ${typeof value}`, path);
 }
 
-function primitive<T>(
-  kind: string,
+function primitive<T, TKind extends PrimitiveValidatorKind>(
+  kind: TKind,
   guard: (value: unknown) => value is T,
   expected: string,
-): Validator<T> {
+): PrimitiveValidator<T, TKind> {
   return {
     kind,
     normalize(value, path = []) {
@@ -186,7 +261,7 @@ export function isIndexableValueValidator(validator: Validator<unknown>): boolea
     case "null":
       return true;
     case "literal": {
-      const literalValue = (validator as { literalValue?: unknown }).literalValue;
+      const literalValue = validator.literalValue;
       return (
         literalValue === null ||
         typeof literalValue === "string" ||
@@ -195,22 +270,24 @@ export function isIndexableValueValidator(validator: Validator<unknown>): boolea
       );
     }
     case "union":
-      return (
-        validator.validators?.every(isIndexableValueValidator) === true
-      );
+      return validator.validators.every(isIndexableValueValidator);
     case "optional":
-      return validator.inner ? isIndexableValueValidator(validator.inner) : false;
+      return isIndexableValueValidator(validator.inner);
     default:
       return false;
   }
 }
 
 export const v = {
-  string(): Validator<string> {
-    return primitive("string", (value): value is string => typeof value === "string", "string");
+  string(): StringValidator {
+    return primitive(
+      "string",
+      (value): value is string => typeof value === "string",
+      "string",
+    );
   },
 
-  number(): Validator<number> {
+  number(): NumberValidator {
     return primitive(
       "number",
       (value): value is number =>
@@ -219,7 +296,7 @@ export const v = {
     );
   },
 
-  boolean(): Validator<boolean> {
+  boolean(): BooleanValidator {
     return primitive(
       "boolean",
       (value): value is boolean => typeof value === "boolean",
@@ -227,11 +304,11 @@ export const v = {
     );
   },
 
-  null(): Validator<null> {
+  null(): NullValidator {
     return primitive("null", (value): value is null => value === null, "null");
   },
 
-  array<T>(item: Validator<T>): Validator<T[]> {
+  array<T>(item: Validator<T>): ArrayValidator<T> {
     return {
       kind: "array",
       item,
@@ -259,7 +336,7 @@ export const v = {
 
   object<TFields extends Record<string, Validator<any>>>(
     fields: TFields,
-  ): Validator<InferObject<TFields>> {
+  ): ObjectValidator<TFields> {
     const objectFields = { ...fields };
     const fieldEntries = Object.entries(objectFields);
     const invalidFieldKey = fieldEntries.find(
@@ -296,7 +373,7 @@ export const v = {
         const normalized: Record<string, unknown> = {};
         for (const [key, validator] of fieldEntries) {
           if (!(key in value)) {
-            if ((validator as OptionalValidator<any>).isOptional) continue;
+            if (isOptionalValidator(validator)) continue;
             return fail("missing required field", [...path, key]);
           }
 
@@ -315,7 +392,7 @@ export const v = {
   record<TKey extends string, TValue>(
     keyValidator: Validator<TKey>,
     valueValidator: Validator<TValue>,
-  ): Validator<Record<TKey, TValue>> {
+  ): RecordValidator<TKey, TValue> {
     return {
       kind: "record",
       keyValidator,
@@ -358,7 +435,7 @@ export const v = {
 
   union<TValidators extends readonly Validator<any>[]>(
     ...validators: TValidators
-  ): Validator<Infer<TValidators[number]>> {
+  ): UnionValidator<TValidators> {
     return {
       kind: "union",
       validators,
@@ -371,14 +448,17 @@ export const v = {
           }
           messages.push(result.message);
         }
-        return fail(`expected one of union variants: ${messages.join("; ")}`, path);
+        return fail(
+          `expected one of union variants: ${messages.join("; ")}`,
+          path,
+        );
       },
     };
   },
 
   literal<T extends string | number | boolean | null>(
     literalValue: T,
-  ): Validator<T> {
+  ): LiteralValidator<T> {
     return {
       kind: "literal",
       literalValue,
