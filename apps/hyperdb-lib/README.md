@@ -27,8 +27,8 @@ The validator builder supports:
 `ExtractSchema<typeof table>` is inferred from validators. `defineTable` schemas
 must include `id`; missing `id` is rejected by TypeScript and at runtime.
 
-The old `table<T>("name").withIndexes(...)` API remains available as a
-compatibility layer, but new tables should use `defineTable`.
+Tables are declared with `defineTable` so runtime validators and TypeScript
+inference describe the same schema.
 
 ## Optional Fields
 

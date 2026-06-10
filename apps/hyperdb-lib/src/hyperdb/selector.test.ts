@@ -3,8 +3,9 @@ import { DB, execSync } from "./db";
 import { runQuery, selector, initSelector } from "./selector";
 import { SubscribableDB } from "./subscribable-db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
-import { table } from "./table";
+import { defineTable } from "./table";
 import { selectFrom } from "./query";
+import { v } from "./values";
 
 type Task = {
   type: "task";
@@ -15,10 +16,14 @@ type Task = {
   orderToken: string;
 };
 
-const tasksTable = table<Task>("tasks").withIndexes({
-  id: { cols: ["id"], type: "hash" },
-  projectIdState: { cols: ["projectId", "state"], type: "btree" },
-});
+const tasksTable = defineTable("tasks", {
+  type: v.literal("task"),
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  projectId: v.string(),
+  orderToken: v.string(),
+}).index("projectIdState", ["projectId", "state"]);
 
 const driver = new BptreeInmemDriver();
 const db = new SubscribableDB(new DB(driver));
@@ -138,10 +143,11 @@ describe("selector", () => {
       projectId: string;
     };
 
-    const itemsTable = table<Item>("items").withIndexes({
-      id: { cols: ["id"], type: "hash" },
-      projectIdOrder: { cols: ["projectId", "orderToken"], type: "btree" },
-    });
+    const itemsTable = defineTable("items", {
+      id: v.string(),
+      orderToken: v.string(),
+      projectId: v.string(),
+    }).index("projectIdOrder", ["projectId", "orderToken"]);
 
     const testDb = new SubscribableDB(new DB(new BptreeInmemDriver()));
     execSync(testDb.loadTables([itemsTable]));

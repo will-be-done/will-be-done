@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { assertType, describe, expect, it } from "vitest";
 import { selectFrom } from "./query";
-import { defineTable, table, type ExtractSchema } from "./table";
+import { defineTable, type ExtractSchema } from "./table";
 import { v } from "./values";
 
 describe("defineTable", () => {
@@ -127,17 +127,12 @@ describe("defineTable", () => {
     }
   });
 
-  it("keeps the old phantom table API compatible", () => {
-    type Task = {
-      id: string;
-      projectId: string;
-      title: string;
-    };
-
-    const tasksTable = table<Task>("tasks").withIndexes({
-      id: { cols: ["id"], type: "hash" },
-      byProjectId: { cols: ["projectId"], type: "btree" },
-    });
+  it("uses defineTable for schema-backed table definitions", () => {
+    const tasksTable = defineTable("tasks", {
+      id: v.string(),
+      projectId: v.string(),
+      title: v.string(),
+    }).index("byProjectId", ["projectId"]);
 
     const query = selectFrom(tasksTable, "byProjectId")
       .where((q) => q.eq("projectId", "project-1"))

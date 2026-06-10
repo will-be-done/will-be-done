@@ -18,19 +18,7 @@ export type IndexableColumn<T> = {
 
 export type ColumnSpec<T> = readonly Keys<T>[];
 
-export interface IndexConfig<T> {
-  type: IndexType;
-  cols: ColumnSpec<T>;
-}
-
 export type ValidateColumns<T, C> = C extends readonly (keyof T)[] ? C : never;
-
-export type IndexDefinitions<T = any> = {
-  [K: string]: {
-    type: IndexType;
-    cols: ValidateColumns<T, ColumnSpec<T>>;
-  };
-};
 
 export type AnyIndexDefinitions = {
   [K: string]: {
@@ -138,21 +126,6 @@ export function validateIndexes(
   }
 }
 
-function findIdIndex(indexes: AnyIndexDefinitions): string {
-  const indexDef = Object.entries(indexes).find(
-    ([, index]) =>
-      index.type === "hash" &&
-      index.cols[0] === "id" &&
-      index.cols.length === 1,
-  );
-
-  if (!indexDef) {
-    throw new Error("Table must have one hash id index");
-  }
-
-  return indexDef[0];
-}
-
 function addIndexMethod<T, I extends AnyIndexDefinitions>(
   tableDef: Omit<TableDefinition<T, I>, "index">,
 ): TableDefinition<T, I> {
@@ -225,24 +198,4 @@ export function defineTable<const TSchema extends ValidatorSchemaWithId>(
     indexes,
     idIndexName: "id",
   });
-}
-
-export function table<T extends { id: string }>(tableName: string) {
-  return {
-    withIndexes<I extends IndexDefinitions<T>>(
-      indexes: I,
-    ): TableDefinition<T, I> {
-      validateKey(tableName, "Table", tableName);
-      validateIndexes(tableName, indexes);
-
-      const idIndexName = findIdIndex(indexes);
-
-      return addIndexMethod({
-        tableName,
-        schema: {} as T,
-        indexes,
-        idIndexName,
-      });
-    },
-  };
 }

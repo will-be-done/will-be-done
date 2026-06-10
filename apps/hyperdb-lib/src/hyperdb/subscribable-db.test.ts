@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { SubscribableDB, type Op } from "./subscribable-db";
 import { DB, SyncDB } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
-import { table } from "./table";
+import { defineTable } from "./table";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
+import { v } from "./values";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
@@ -14,10 +15,13 @@ type Task = {
   orderToken: string;
 };
 
-const tasksTable = table<Task>("tasks").withIndexes({
-  ids: { cols: ["id"], type: "hash" },
-  projectIdState: { cols: ["projectId", "state"], type: "btree" },
-});
+const tasksTable = defineTable("tasks", {
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  projectId: v.string(),
+  orderToken: v.string(),
+}).index("projectIdState", ["projectId", "state"]);
 
 describe("SubscribableDB", async () => {
   for (const [driver, driverName] of [
@@ -239,7 +243,7 @@ describe("SubscribableDB", async () => {
         syncDB.insert(tasksTable, tasks);
 
         // Test intervalScan
-        const intervalResults = syncDB.intervalScan(tasksTable, "ids", [
+        const intervalResults = syncDB.intervalScan(tasksTable, "id", [
           {
             eq: [{ col: "id", val: "task-1" }],
           },
