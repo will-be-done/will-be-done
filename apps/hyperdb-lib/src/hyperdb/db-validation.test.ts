@@ -111,6 +111,37 @@ describe("DB runtime validation and codec boundary", () => {
     ]);
   });
 
+  it("enforces table object shape when runtime validation is disabled", () => {
+    const driver = new RecordingDriver();
+    const db = new DB(driver, [docsTable], { runtimeValidation: false });
+
+    expect(() =>
+      execSync(
+        db.insert(docsTable, [
+          {
+            id: "doc-1",
+            title: 123,
+            payload: null,
+            extra: "nope",
+          } as any,
+        ]),
+      ),
+    ).toThrow(/Table docs record doc-1: unexpected object field extra at extra/);
+
+    expect(() =>
+      execSync(
+        db.insert(docsTable, [
+          {
+            id: "doc-2",
+            payload: null,
+          } as any,
+        ]),
+      ),
+    ).toThrow(/Table docs record doc-2: missing required field at title/);
+
+    expect(driver.inserted).toEqual([]);
+  });
+
   it("rejects invalid codec values even when schema validation is disabled", () => {
     const driver = new RecordingDriver();
     const db = new DB(driver, [docsTable], { runtimeValidation: false });

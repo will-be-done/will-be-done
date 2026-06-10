@@ -1,5 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import {
+  fail,
+  isPlainObject,
+  success,
+  validObjectKey,
+  validRecordKey,
+} from "./validation-utils";
+
 export type Infer<TValidator> =
   TValidator extends Validator<infer TValue> ? TValue : never;
 
@@ -58,22 +66,6 @@ export function formatPath(path: ValidationPath): string {
     .replace(/^\./, "");
 }
 
-function validObjectKey(key: string): boolean {
-  return key !== "" && !key.startsWith("$");
-}
-
-function validRecordKey(key: string): boolean {
-  return validObjectKey(key) && /^[\x00-\x7F]+$/.test(key);
-}
-
-function fail(message: string, path: ValidationPath): NormalizeResult<never> {
-  return { ok: false, message, path };
-}
-
-function success<T>(value: T): NormalizeResult<T> {
-  return { ok: true, value, omitted: false };
-}
-
 export function isNormalizeFailure<T>(
   result: NormalizeResult<T>,
 ): result is { ok: false; message: string; path: ValidationPath } {
@@ -90,16 +82,6 @@ export function hasNormalizeValue<T>(
   result: NormalizeResult<T>,
 ): result is { ok: true; value: T; omitted: false } {
   return result.ok === true && result.omitted === false;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    !(value instanceof ArrayBuffer) &&
-    !ArrayBuffer.isView(value)
-  );
 }
 
 function normalizeAny(
@@ -278,21 +260,25 @@ export const v = {
   object<TFields extends Record<string, Validator<any>>>(
     fields: TFields,
   ): Validator<InferObject<TFields>> {
+    const objectFields = { ...fields };
+    const fieldEntries = Object.entries(objectFields);
+    const invalidFieldKey = fieldEntries.find(
+      ([key]) => !validObjectKey(key),
+    )?.[0];
+
     return {
       kind: "object",
-      fields,
+      fields: objectFields,
       normalize(value, path = []) {
         if (!isPlainObject(value)) {
           return fail("expected object", path);
         }
 
-        for (const key of Object.keys(fields)) {
-          if (!validObjectKey(key)) {
-            return fail("object keys cannot be empty or start with $", [
-              ...path,
-              key,
-            ]);
-          }
+        if (invalidFieldKey !== undefined) {
+          return fail("object keys cannot be empty or start with $", [
+            ...path,
+            invalidFieldKey,
+          ]);
         }
 
         for (const key of Object.keys(value)) {
@@ -302,13 +288,13 @@ export const v = {
               key,
             ]);
           }
-          if (!(key in fields)) {
+          if (!(key in objectFields)) {
             return fail(`unexpected object field ${key}`, [...path, key]);
           }
         }
 
         const normalized: Record<string, unknown> = {};
-        for (const [key, validator] of Object.entries(fields)) {
+        for (const [key, validator] of fieldEntries) {
           if (!(key in value)) {
             if ((validator as OptionalValidator<any>).isOptional) continue;
             return fail("missing required field", [...path, key]);

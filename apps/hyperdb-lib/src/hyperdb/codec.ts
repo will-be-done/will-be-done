@@ -10,36 +10,17 @@ import {
   type ValidationPath,
   type Validator,
 } from "./values";
+import {
+  fail,
+  isPlainObject,
+  success,
+  validObjectKey,
+  validRecordKey,
+} from "./validation-utils";
 
 export type CodecOptions = {
   runtimeValidation: boolean;
 };
-
-function fail(message: string, path: ValidationPath): NormalizeResult<never> {
-  return { ok: false, message, path };
-}
-
-function success<T>(value: T): NormalizeResult<T> {
-  return { ok: true, value, omitted: false };
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    !(value instanceof ArrayBuffer) &&
-    !ArrayBuffer.isView(value)
-  );
-}
-
-function validObjectKey(key: string): boolean {
-  return key !== "" && !key.startsWith("$");
-}
-
-function validRecordKey(key: string): boolean {
-  return validObjectKey(key) && /^[\x00-\x7F]+$/.test(key);
-}
 
 function sanitizeAny(
   value: unknown,
@@ -121,18 +102,28 @@ function sanitizeWithValidatorShape(
 
   if (validator.kind === "object" && validator.fields && isPlainObject(value)) {
     const normalized: Record<string, unknown> = {};
-    for (const [key, fieldValue] of Object.entries(value)) {
+    for (const key of Object.keys(value)) {
       if (!validObjectKey(key)) {
         return fail("object keys cannot be empty or start with $", [
           ...path,
           key,
         ]);
       }
+      if (!(key in validator.fields)) {
+        return fail(`unexpected object field ${key}`, [...path, key]);
+      }
+    }
 
-      const fieldValidator = validator.fields[key];
-      const field = fieldValidator
-        ? sanitizeWithValidatorShape(fieldValidator, fieldValue, [...path, key])
-        : sanitizeAny(fieldValue, [...path, key]);
+    for (const [key, fieldValidator] of Object.entries(validator.fields)) {
+      if (!(key in value)) {
+        if ("isOptional" in fieldValidator && fieldValidator.isOptional) continue;
+        return fail("missing required field", [...path, key]);
+      }
+
+      const field = sanitizeWithValidatorShape(fieldValidator, value[key], [
+        ...path,
+        key,
+      ]);
       if (isNormalizeFailure(field)) return field;
       if (hasNormalizeValue(field)) normalized[key] = field.value;
     }
