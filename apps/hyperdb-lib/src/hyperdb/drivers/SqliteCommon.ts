@@ -7,6 +7,28 @@ export type BindParams = SqlValue[] | null;
 
 export const CHUNK_SIZE = 12000;
 
+function jsonExtractExpr(col: string | number | symbol): string {
+  return `json_extract(data, '$.${String(col)}')`;
+}
+
+function jsonTypeExpr(col: string | number | symbol): string {
+  return `json_type(data, '$.${String(col)}')`;
+}
+
+function buildWhereWithPresence(
+  indexColumns: readonly (string | number | symbol)[],
+  conditions: string[],
+): string {
+  const presenceConditions = indexColumns.map(
+    (col) => `${jsonTypeExpr(col)} IS NOT NULL`,
+  );
+  const allConditions = [...presenceConditions, ...conditions];
+
+  return allConditions.length > 0
+    ? `WHERE ${allConditions.join(" AND ")}`
+    : "";
+}
+
 export function chunkArray<T>(array: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < array.length; i += size) {
@@ -28,6 +50,7 @@ export function buildWhereClause(
 
   const indexDef = tableDef.indexes[indexName];
   if (!indexDef) throw new Error(`Index ${indexName} not found`);
+  const indexColumns = indexDef.cols;
 
   // Check if all clauses are equality-only (each clause only has eq, no other operators)
   const allEqualityOnly = clauses.every(
@@ -56,14 +79,29 @@ export function buildWhereClause(
     const params: any[] = [];
 
     for (const [col, values] of columnValueMap) {
-      const columnPath = `json_extract(data, '$.${col}')`;
-      const placeholders = values.map(() => "?").join(", ");
-      conditions.push(`${columnPath} IN (${placeholders})`);
-      params.push(...values);
+      const columnPath = jsonExtractExpr(col);
+      const columnType = jsonTypeExpr(col);
+      const nonNullValues = values.filter((value) => value !== null);
+      const valueConditions: string[] = [];
+
+      if (nonNullValues.length > 0) {
+        const placeholders = nonNullValues.map(() => "?").join(", ");
+        valueConditions.push(`${columnPath} IN (${placeholders})`);
+        params.push(...nonNullValues);
+      }
+
+      if (values.some((value) => value === null)) {
+        valueConditions.push(`${columnType} = 'null'`);
+      }
+
+      if (valueConditions.length === 1) {
+        conditions.push(valueConditions[0]);
+      } else if (valueConditions.length > 1) {
+        conditions.push(`(${valueConditions.join(" OR ")})`);
+      }
     }
 
-    const whereClause =
-      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    const whereClause = buildWhereWithPresence(indexColumns, conditions);
     return { where: whereClause, params };
   }
 
@@ -79,9 +117,12 @@ export function buildWhereClause(
       columnConditions: { col: string; val: Value }[],
     ) => {
       for (const { col, val } of columnConditions) {
-        const columnPath = `json_extract(data, '$.${String(col)}')`;
-        currentCond.push(`${columnPath} ${operator} ?`);
-        params.push(val);
+        if (operator === "=" && val === null) {
+          currentCond.push(`${jsonTypeExpr(col)} = 'null'`);
+        } else {
+          currentCond.push(`${jsonExtractExpr(col)} ${operator} ?`);
+          params.push(val);
+        }
       }
     };
 
@@ -106,8 +147,10 @@ export function buildWhereClause(
     }
   }
 
-  const whereClause =
-    conditions.length > 0 ? `WHERE ${conditions.join(" OR ")}` : "";
+  const whereClause = buildWhereWithPresence(
+    indexColumns,
+    conditions.length > 0 ? [`(${conditions.join(" OR ")})`] : [],
+  );
   return { where: whereClause, params };
 }
 
@@ -131,7 +174,7 @@ export function buildOrderClause(
 
   const orderColumns = indexColumns
     .map((col) => {
-      const jsonPath = `json_extract(data, '$.${String(col)}')`;
+      const jsonPath = jsonExtractExpr(col);
       return `${jsonPath} ${reverse ? "DESC" : "ASC"}`;
     })
     .join(", ");
@@ -205,14 +248,18 @@ export function createIndexSQL(
   isIdIndex: boolean,
 ): string {
   const columnPaths = cols
-    .map((col) => `json_extract(data, '$.${String(col)}') ASC`)
+    .map((col) => `${jsonExtractExpr(col)} ASC`)
     .join(", ");
+  const presenceConditions = cols
+    .map((col) => `${jsonTypeExpr(col)} IS NOT NULL`)
+    .join(" AND ");
 
   const uniqueKeyword = isIdIndex ? "UNIQUE" : "";
 
   const sql = `
     CREATE ${uniqueKeyword} INDEX IF NOT EXISTS idx_${tableName}_${indexName} 
     ON ${tableName}(${columnPaths})
+    WHERE ${presenceConditions}
   `
     .trim()
     .replace(/\n+/g, " ");

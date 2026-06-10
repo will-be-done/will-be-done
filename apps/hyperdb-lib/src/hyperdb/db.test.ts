@@ -566,47 +566,73 @@ describe("Database Operations Edge Cases", async () => {
         ).toThrow(/expected one of union variants/);
       });
 
-      it("works with indexes on fields from one union variant", () => {
+      it("skips union rows missing indexed fields while preserving explicit nulls", () => {
         const documentsTable = defineTable(
           "documents",
           v.union(
             v.object({
               id: v.string(),
               type: v.literal("message"),
-              author: v.string(),
               body: v.string(),
             }),
             v.object({
               id: v.string(),
               type: v.literal("post"),
-              title: v.string(),
+              title: v.union(v.string(), v.null()),
+              slug: v.string(),
+            }),
+            v.object({
+              id: v.string(),
+              type: v.literal("preview"),
+              title: v.union(v.string(), v.null()),
             }),
           ),
-        ).index("byPostTitle", ["title"]);
+        )
+          .index("byPostTitle", ["title"])
+          .index("byPostTitleHash", ["title"], { type: "hash" })
+          .index("byPostTitleSlug", ["title", "slug"]);
 
         const db = new SyncDB(
           new DB(driver, [documentsTable], { runtimeValidation: true }),
         );
         db.loadTables([documentsTable]);
 
-        const message = {
-          id: "message-1",
+        const messages = Array.from({ length: 50 }, (_, index) => ({
+          id: `message-${index}`,
           type: "message" as const,
-          author: "Ada",
-          body: "No title here",
-        };
+          body: `No title here ${index}`,
+        }));
         const firstPost = {
           id: "post-1",
           type: "post" as const,
           title: "Hello",
+          slug: "hello",
         };
         const secondPost = {
           id: "post-2",
           type: "post" as const,
           title: "Later",
+          slug: "later",
+        };
+        const nullTitlePost = {
+          id: "post-null",
+          type: "post" as const,
+          title: null,
+          slug: "untitled",
+        };
+        const preview = {
+          id: "preview-1",
+          type: "preview" as const,
+          title: "Preview",
         };
 
-        db.insert(documentsTable, [message, firstPost, secondPost]);
+        db.insert(documentsTable, [
+          ...messages,
+          firstPost,
+          secondPost,
+          nullTitlePost,
+          preview,
+        ]);
 
         expect(
           db.intervalScan(documentsTable, "byPostTitle", [
@@ -615,6 +641,164 @@ describe("Database Operations Edge Cases", async () => {
             },
           ]),
         ).toEqual([firstPost]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleHash", [
+            {
+              eq: [{ col: "title", val: "Hello" }],
+            },
+          ]),
+        ).toEqual([firstPost]);
+
+        expect(
+          db.intervalScan(documentsTable, "byPostTitle", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([nullTitlePost]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleHash", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([nullTitlePost]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitle", [{}], {
+            limit: 3,
+          }),
+        ).toEqual([nullTitlePost, firstPost, secondPost]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleSlug", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([nullTitlePost]);
+
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleSlug", [
+            {
+              eq: [{ col: "title", val: "Hello" }],
+            },
+          ]),
+        ).toEqual([firstPost]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleSlug", [
+            {
+              eq: [{ col: "title", val: "Preview" }],
+            },
+          ]),
+        ).toEqual([]);
+
+        const updatedFirstPost = {
+          ...firstPost,
+          title: "Updated",
+          slug: "updated",
+        };
+        db.update(documentsTable, [updatedFirstPost]);
+
+        expect(
+          db.intervalScan(documentsTable, "byPostTitle", [
+            {
+              eq: [{ col: "title", val: "Hello" }],
+            },
+          ]),
+        ).toEqual([]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleHash", [
+            {
+              eq: [{ col: "title", val: "Updated" }],
+            },
+          ]),
+        ).toEqual([updatedFirstPost]);
+
+        const promotedPreview = {
+          id: preview.id,
+          type: "post" as const,
+          title: "Preview",
+          slug: "preview",
+        };
+        db.update(documentsTable, [promotedPreview]);
+
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleSlug", [
+            {
+              eq: [{ col: "title", val: "Preview" }],
+            },
+          ]),
+        ).toEqual([promotedPreview]);
+
+        db.delete(documentsTable, [nullTitlePost.id]);
+
+        expect(
+          db.intervalScan(documentsTable, "byPostTitle", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleHash", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([]);
+        expect(
+          db.intervalScan(documentsTable, "byPostTitleSlug", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([]);
+
+        const tx = db.beginTx();
+        const txMessage = {
+          id: "tx-message",
+          type: "message" as const,
+          body: "Still no title",
+        };
+        const txNullTitlePost = {
+          id: "tx-post-null",
+          type: "post" as const,
+          title: null,
+          slug: "tx-untitled",
+        };
+        tx.insert(documentsTable, [txMessage, txNullTitlePost]);
+
+        expect(
+          tx.intervalScan(documentsTable, "byPostTitle", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([txNullTitlePost]);
+        expect(
+          tx.intervalScan(documentsTable, "byPostTitleHash", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([txNullTitlePost]);
+
+        tx.delete(documentsTable, [txNullTitlePost.id]);
+        expect(
+          tx.intervalScan(documentsTable, "byPostTitle", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([]);
+        tx.commit();
+
+        expect(
+          db.intervalScan(documentsTable, "byPostTitle", [
+            {
+              eq: [{ col: "title", val: null }],
+            },
+          ]),
+        ).toEqual([]);
       });
 
       it("works correctly with string order", () => {
