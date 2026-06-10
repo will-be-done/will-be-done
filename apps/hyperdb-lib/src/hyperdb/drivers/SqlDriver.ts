@@ -101,7 +101,12 @@ function performScanOperation(
     clauses,
     tableDefinitions,
   );
-  const orderClause = buildOrderClause(indexName, table, tableDefinitions);
+  const orderClause = buildOrderClause(
+    indexName,
+    table,
+    tableDefinitions,
+    selectOptions.order === "desc",
+  );
   const sql = buildSelectSQL(table, where, orderClause, selectOptions);
 
   const q = db.prepare(sql);

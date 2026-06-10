@@ -213,4 +213,62 @@ describe("selector", () => {
     expect(project1Results[2]).toHaveLength(1);
     expect(project2Results[1]).toHaveLength(1);
   });
+
+  test("selector preserves query order after rerun", () => {
+    type Item = {
+      id: string;
+      orderToken: string;
+      projectId: string;
+    };
+
+    const itemsTable = defineTable("orderedSelectorItems", {
+      id: v.string(),
+      orderToken: v.string(),
+      projectId: v.string(),
+    }).index("projectIdOrder", ["projectId", "orderToken"]);
+
+    const testDb = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(testDb.loadTables([itemsTable]));
+    execSync(
+      testDb.insert(itemsTable, [
+        { id: "one", orderToken: "a", projectId: "project1" },
+        { id: "three", orderToken: "c", projectId: "project1" },
+        { id: "two", orderToken: "b", projectId: "project1" },
+      ]),
+    );
+
+    const orderedSelector = selector(function* () {
+      const items = yield* runQuery(
+        selectFrom(itemsTable, "projectIdOrder")
+          .where((q) => q.eq("projectId", "project1"))
+          .order("desc"),
+      );
+      return items;
+    });
+
+    const initializedSelector = initSelector(testDb, () => orderedSelector());
+    const snapshots: string[][] = [];
+    initializedSelector.subscribe(() => {
+      snapshots.push(initializedSelector.getSnapshot().map((item) => item.id));
+    });
+
+    expect(initializedSelector.getSnapshot().map((item) => item.id)).toEqual([
+      "three",
+      "two",
+      "one",
+    ]);
+
+    execSync(
+      testDb.update(itemsTable, [
+        { id: "one", orderToken: "d", projectId: "project1" },
+      ]),
+    );
+
+    expect(initializedSelector.getSnapshot().map((item) => item.id)).toEqual([
+      "one",
+      "three",
+      "two",
+    ]);
+    expect(snapshots).toEqual([["one", "three", "two"]]);
+  });
 });

@@ -947,6 +947,50 @@ describe("Database Operations Edge Cases", async () => {
         expect(zeroLimitResults.length).toBe(0);
       });
 
+      it("should handle explicit index order", () => {
+        type TestRecord = { id: string; value: number };
+        const testTable = defineTable("orderedRecords", {
+          id: v.string(),
+          value: v.number(),
+        }).index("byValue", ["value"]);
+
+        const db = new SyncDB(new DB(driver));
+        db.loadTables([testTable]);
+
+        const records: TestRecord[] = [
+          { id: "three", value: 3 },
+          { id: "one", value: 1 },
+          { id: "four", value: 4 },
+          { id: "two", value: 2 },
+        ];
+
+        db.insert(testTable, records);
+
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [{}])
+            .map((record) => record.value),
+        ).toEqual([1, 2, 3, 4]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [{}], { order: "asc" })
+            .map((record) => record.value),
+        ).toEqual([1, 2, 3, 4]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [{}], { order: "desc" })
+            .map((record) => record.value),
+        ).toEqual([4, 3, 2, 1]);
+        expect(
+          db
+            .intervalScan(testTable, "byValue", [{}], {
+              order: "desc",
+              limit: 2,
+            })
+            .map((record) => record.value),
+        ).toEqual([4, 3]);
+      });
+
       it("should handle all value types in indexes", () => {
         type MixedRecord = {
           id: string;

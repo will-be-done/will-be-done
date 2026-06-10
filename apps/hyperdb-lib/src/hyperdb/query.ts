@@ -15,6 +15,8 @@ type QueryWhereClause = {
   eq: { col: string; val: Value }[];
 };
 
+export type QueryOrder = "asc" | "desc";
+
 // Extract column names from an index
 export type ExtractIndexColumns<
   TTable,
@@ -41,6 +43,7 @@ export type SelectQuery<
   K extends keyof ExtractIndexes<TTable> = keyof ExtractIndexes<TTable>,
 > = {
   limit?: number;
+  order?: QueryOrder;
   from: TTable;
   index: K;
   where: QueryWhereClause[];
@@ -135,11 +138,18 @@ class SelectQueryBuilder<
   private table: TTable;
   private index: TIndexName;
   private limitValue?: number;
+  private orderValue?: QueryOrder;
 
-  constructor(table: TTable, index: TIndexName, limitValue?: number) {
+  constructor(
+    table: TTable,
+    index: TIndexName,
+    limitValue?: number,
+    orderValue?: QueryOrder,
+  ) {
     this.table = table;
     this.index = index;
     this.limitValue = limitValue;
+    this.orderValue = orderValue;
   }
 
   where(
@@ -156,6 +166,7 @@ class SelectQueryBuilder<
         this.index,
         result.map((builder) => builder.getConditions()),
         this.limitValue,
+        this.orderValue,
       );
     } else {
       return new SelectQueryBuilderWithWhere(
@@ -163,12 +174,27 @@ class SelectQueryBuilder<
         this.index,
         [result.getConditions()],
         this.limitValue,
+        this.orderValue,
       );
     }
   }
 
   limit(limit: number): SelectQueryBuilder<TTable, TIndexName> {
-    return new SelectQueryBuilder(this.table, this.index, limit);
+    return new SelectQueryBuilder(
+      this.table,
+      this.index,
+      limit,
+      this.orderValue,
+    );
+  }
+
+  order(order: QueryOrder): SelectQueryBuilder<TTable, TIndexName> {
+    return new SelectQueryBuilder(
+      this.table,
+      this.index,
+      this.limitValue,
+      order,
+    );
   }
 
   toQuery(): SelectQuery<TTable, TIndexName> {
@@ -185,6 +211,7 @@ class SelectQueryBuilder<
         },
       ],
       limit: this.limitValue,
+      ...(this.orderValue !== undefined ? { order: this.orderValue } : {}),
     };
   }
 }
@@ -197,17 +224,20 @@ class SelectQueryBuilderWithWhere<
   private index: TIndexName;
   private whereConditions: QueryWhereClause[];
   private limitValue?: number;
+  private orderValue?: QueryOrder;
 
   constructor(
     table: TTable,
     index: TIndexName,
     whereConditions: QueryWhereClause[],
     limitValue?: number,
+    orderValue?: QueryOrder,
   ) {
     this.table = table;
     this.index = index;
     this.whereConditions = whereConditions;
     this.limitValue = limitValue;
+    this.orderValue = orderValue;
   }
 
   limit(limit: number): SelectQueryBuilderWithWhere<TTable, TIndexName> {
@@ -216,6 +246,17 @@ class SelectQueryBuilderWithWhere<
       this.index,
       this.whereConditions,
       limit,
+      this.orderValue,
+    );
+  }
+
+  order(order: QueryOrder): SelectQueryBuilderWithWhere<TTable, TIndexName> {
+    return new SelectQueryBuilderWithWhere(
+      this.table,
+      this.index,
+      this.whereConditions,
+      this.limitValue,
+      order,
     );
   }
 
@@ -225,6 +266,7 @@ class SelectQueryBuilderWithWhere<
       index: this.index,
       where: this.whereConditions,
       limit: this.limitValue,
+      ...(this.orderValue !== undefined ? { order: this.orderValue } : {}),
     };
   }
 }

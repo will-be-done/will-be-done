@@ -207,7 +207,7 @@ class HashIndex implements Index {
 
   scan(
     tupleBounds: TupleScanOptions[],
-    selectOptions: { limit?: number },
+    selectOptions: SelectOptions,
   ): Row[] {
     const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
 
@@ -318,7 +318,7 @@ class HashIndexTx implements IndexTx {
 
   scan(
     tupleBounds: TupleScanOptions[],
-    selectOptions: { limit?: number },
+    selectOptions: SelectOptions,
   ): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
@@ -480,23 +480,15 @@ class BtreeIndexTx implements IndexTx {
 
   scan(
     tupleBounds: TupleScanOptions[],
-    selectOptions: { limit: number },
+    selectOptions: SelectOptions,
   ): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const results: Row[][] = [];
     for (const bounds of tupleBounds) {
-      const sets = this.sets.list({ ...bounds, limit: selectOptions.limit });
+      const sets = this.sets.list(bounds);
       const deletes = this.deletes.list(bounds);
-
-      const limit =
-        selectOptions?.limit !== undefined
-          ? selectOptions.limit + deletes.length
-          : undefined;
-
-      const result = Array.from(
-        this.index.scan([bounds], limit !== undefined ? { limit } : {}),
-      );
+      const result = Array.from(this.index.scan([bounds], {}));
 
       for (const item of sets) {
         this.orderedArray.insert(result, item.value);
@@ -504,6 +496,10 @@ class BtreeIndexTx implements IndexTx {
 
       for (const { key } of deletes) {
         this.orderedArray.remove(result, key);
+      }
+
+      if (selectOptions.order === "desc") {
+        result.reverse();
       }
 
       results.push(result);
@@ -602,7 +598,7 @@ class BtreeIndex implements Index {
 
   scan(
     tupleBounds: TupleScanOptions[],
-    selectOptions: { limit?: number },
+    selectOptions: SelectOptions,
   ): Row[] {
     let totalCount = 0;
 
@@ -614,6 +610,7 @@ class BtreeIndex implements Index {
           selectOptions?.limit !== undefined
             ? selectOptions.limit - totalCount
             : undefined,
+        reverse: selectOptions.order === "desc",
       });
 
       for (const result of results) {

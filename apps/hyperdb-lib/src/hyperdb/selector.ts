@@ -187,6 +187,7 @@ export function runSelector<TReturn>(
           execSync(
             db.intervalScan(table, index, selectQuery.where, {
               limit: selectQuery.limit,
+              order: selectQuery.order,
             }),
           ),
         );
@@ -228,6 +229,7 @@ export async function runSelectorAsync<TReturn>(
           await execAsync(
             db.intervalScan(table, index, selectQuery.where, {
               limit: selectQuery.limit,
+              order: selectQuery.order,
             }),
           ),
         );
