@@ -463,6 +463,80 @@ describe("Database Operations Edge Cases", async () => {
     new BptreeInmemDriver(),
   ]) {
     describe(`${driver.constructor.name}`, () => {
+      it("should handle nested object fields", () => {
+        type DocumentRecord = {
+          id: string;
+          string: string;
+          number: number;
+          boolean: boolean;
+          nestedObject: {
+            property: string;
+          };
+        };
+
+        const documentsTable = table<DocumentRecord>(
+          "documentsNestedObject",
+        ).withIndexes({
+          id: { cols: ["id"], type: "hash" },
+          byString: { cols: ["string"], type: "btree" },
+        });
+
+        const db = new SyncDB(new DB(driver));
+        db.loadTables([documentsTable]);
+
+        const documents: DocumentRecord[] = [
+          {
+            id: "document-1",
+            string: "Document 1",
+            number: 1,
+            boolean: true,
+            nestedObject: {
+              property: "original value",
+            },
+          },
+          {
+            id: "document-2",
+            string: "Document 2",
+            number: 2,
+            boolean: false,
+            nestedObject: {
+              property: "another value",
+            },
+          },
+        ];
+
+        db.insert(documentsTable, documents);
+
+        expect(
+          db.intervalScan(documentsTable, "byString", [
+            { eq: [{ col: "string", val: "Document 1" }] },
+          ]),
+        ).toEqual([documents[0]]);
+
+        const updatedDocument: DocumentRecord = {
+          ...documents[0],
+          nestedObject: {
+            property: "updated value",
+          },
+        };
+
+        db.update(documentsTable, [updatedDocument]);
+
+        expect(
+          db.intervalScan(documentsTable, "id", [
+            { eq: [{ col: "id", val: "document-1" }] },
+          ]),
+        ).toEqual([updatedDocument]);
+
+        db.delete(documentsTable, ["document-1"]);
+
+        expect(
+          db.intervalScan(documentsTable, "id", [
+            { eq: [{ col: "id", val: "document-1" }] },
+          ]),
+        ).toEqual([]);
+      });
+
       it("should handle empty database scans", () => {
         type TestRecord = { id: string; value: number };
         const testTable = table<TestRecord>("test").withIndexes({

@@ -167,4 +167,129 @@ describe("defineTable", () => {
 
     expect(query.index).toBe("byProjectId");
   });
+
+  it("allows indexes on fields that exist in only one union variant", () => {
+    const documentsTable = defineTable(
+      "documents",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("message"),
+          author: v.string(),
+          body: v.string(),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("post"),
+          title: v.string(),
+        }),
+      ),
+    ).index("byPostTitle", ["title"]);
+
+    const query = selectFrom(documentsTable, "byPostTitle")
+      .where((q) => q.eq("title", "Hello"))
+      .toQuery();
+
+    expect(documentsTable.indexes.byPostTitle.cols).toEqual(["title"]);
+    expect(query.where).toEqual([
+      {
+        eq: [{ col: "title", val: "Hello" }],
+        gt: [],
+        gte: [],
+        lt: [],
+        lte: [],
+      },
+    ]);
+
+    if (false) {
+      assertType(
+        documentsTable.index(
+          "bad",
+          // @ts-expect-error unknownField is not present in any union variant
+          ["unknownField"],
+        ),
+      );
+      assertType(
+        // @ts-expect-error title indexes take title values, not numbers
+        selectFrom(documentsTable, "byPostTitle").where((q) =>
+          q.eq("title", 1),
+        ),
+      );
+    }
+  });
+
+  it("runtime-validates index columns for union document schemas", () => {
+    const documentsTable = defineTable(
+      "documents",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("message"),
+          author: v.string(),
+          body: v.string(),
+          metadata: v.object({
+            source: v.string(),
+          }),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("post"),
+          title: v.string(),
+        }),
+      ),
+    );
+
+    expect(() =>
+      documentsTable.index("byMissing", ["unknownField"] as any),
+    ).toThrow(/not in table schema/);
+
+    expect(() =>
+      documentsTable.index("byMetadata", ["metadata"] as any),
+    ).toThrow(/not SQLite-comparable/);
+  });
+
+  it("runtime-validates overlapping union index column value types", () => {
+    const mixedScalarTable = defineTable(
+      "mixedScalars",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("stringName"),
+          name: v.string(),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("numberName"),
+          name: v.number(),
+        }),
+      ),
+    ).index("byName", ["name"]);
+
+    expect(mixedScalarTable.indexes.byName).toEqual({
+      type: "btree",
+      cols: ["name"],
+    });
+
+    const mixedComparableTable = defineTable(
+      "mixedComparable",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("stringName"),
+          name: v.string(),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("objectName"),
+          name: v.object({
+            text: v.string(),
+          }),
+        }),
+      ),
+    );
+
+    expect(() =>
+      mixedComparableTable.index("byName", ["name"] as any),
+    ).toThrow(/not SQLite-comparable/);
+  });
 });

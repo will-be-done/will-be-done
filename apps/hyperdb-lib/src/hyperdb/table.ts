@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
+  type Infer,
   type InferObject,
   type Validator,
   isIndexableValueValidator,
@@ -8,13 +9,21 @@ import {
 
 export type Keys<T> = keyof T;
 export type Values<T> = T[keyof T];
+export type UnionKeys<T> = T extends unknown ? keyof T : never;
+export type UnionValue<T, K extends PropertyKey> = T extends unknown
+  ? K extends keyof T
+    ? T[K]
+    : never
+  : never;
 
 export type IndexType = "hash" | "btree";
 export type IndexableValue = string | number | boolean | null;
 
 export type IndexableColumn<T> = {
-  [K in keyof T]-?: Exclude<T[K], undefined> extends IndexableValue ? K : never;
-}[keyof T];
+  [K in UnionKeys<T>]-?: Exclude<UnionValue<T, K>, undefined> extends IndexableValue
+    ? K
+    : never;
+}[UnionKeys<T>];
 
 export type ColumnSpec<T> = readonly Keys<T>[];
 
@@ -147,10 +156,7 @@ export function validateIndexes(
           `Index column ${colName} is not in table schema for index: ${indexName} table: ${tableName}`,
         );
       }
-      if (
-        fieldValidator &&
-        !isIndexableValueValidator(fieldValidator as Validator<unknown>)
-      ) {
+      if (fieldValidator && !isIndexableValueValidator(fieldValidator)) {
         throw new Error(
           `Index column ${colName} is not SQLite-comparable for index: ${indexName} table: ${tableName}`,
         );
@@ -201,6 +207,103 @@ function validateSchemaFields(
   }
 }
 
+function validatorHasStringId(validator: Validator<unknown>): boolean {
+  if (validator.kind === "object") {
+    return validator.fields.id?.kind === "string";
+  }
+
+  if (validator.kind === "union") {
+    return validator.validators.every(validatorHasStringId);
+  }
+
+  return false;
+}
+
+function validateSchemaValidator(
+  tableName: string,
+  schemaValidator: Validator<unknown>,
+): void {
+  if (!validatorHasStringId(schemaValidator)) {
+    throw new Error(`Table ${tableName} schema must include an id field`);
+  }
+}
+
+function collectObjectSchemaFields(
+  schemaValidator: Validator<unknown>,
+): ValidatorSchema[] | undefined {
+  if (schemaValidator.kind === "object") {
+    return [schemaValidator.fields];
+  }
+
+  if (schemaValidator.kind === "union") {
+    const schemaFields: ValidatorSchema[] = [];
+    for (const variantValidator of schemaValidator.validators) {
+      const variantFields = collectObjectSchemaFields(variantValidator);
+      if (!variantFields) return undefined;
+      schemaFields.push(...variantFields);
+    }
+    return schemaFields;
+  }
+
+  return undefined;
+}
+
+function schemaFieldsFromValidator(
+  schemaValidator: Validator<unknown>,
+): ValidatorSchema | undefined {
+  const variantFields = collectObjectSchemaFields(schemaValidator);
+  if (!variantFields) return undefined;
+
+  const fieldValidators = new Map<string, Validator<unknown>[]>();
+  for (const fields of variantFields) {
+    for (const [fieldName, fieldValidator] of Object.entries(fields)) {
+      const validators = fieldValidators.get(fieldName);
+      if (validators) {
+        validators.push(fieldValidator);
+      } else {
+        fieldValidators.set(fieldName, [fieldValidator]);
+      }
+    }
+  }
+
+  const schemaFields: ValidatorSchema = {};
+  for (const [fieldName, validators] of fieldValidators) {
+    schemaFields[fieldName] =
+      validators.length === 1 ? validators[0] : v.union(...validators);
+  }
+
+  return schemaFields;
+}
+
+function isStandaloneSchemaValidator(
+  schemaOrValidator: ValidatorSchemaWithId | Validator<{ id: string }>,
+): schemaOrValidator is Validator<{ id: string }> {
+  return (
+    "normalize" in schemaOrValidator &&
+    typeof schemaOrValidator.normalize === "function"
+  );
+}
+
+function normalizeSchemaInput(
+  tableName: string,
+  schemaOrValidator: ValidatorSchemaWithId | Validator<{ id: string }>,
+): { schemaValidator: Validator<unknown>; schemaFields?: ValidatorSchema } {
+  if (isStandaloneSchemaValidator(schemaOrValidator)) {
+    validateSchemaValidator(tableName, schemaOrValidator);
+    return {
+      schemaValidator: schemaOrValidator,
+      schemaFields: schemaFieldsFromValidator(schemaOrValidator),
+    };
+  }
+
+  validateSchemaFields(tableName, schemaOrValidator);
+
+  return {
+    schemaValidator: v.object(schemaOrValidator),
+    schemaFields: schemaOrValidator,
+  };
+}
+
 export function defineTable<const TSchema extends ValidatorSchemaWithId>(
   tableName: string,
   schema: TSchema,
@@ -212,13 +315,36 @@ export function defineTable<const TSchema extends ValidatorSchemaWithId>(
       cols: readonly ["id"];
     };
   }
+>;
+export function defineTable<const TValidator extends Validator<{ id: string }>>(
+  tableName: string,
+  schemaValidator: TValidator,
+): TableDefinition<
+  Infer<TValidator>,
+  {
+    id: {
+      type: "hash";
+      cols: readonly ["id"];
+    };
+  }
+>;
+export function defineTable(
+  tableName: string,
+  schemaOrValidator: ValidatorSchemaWithId | Validator<{ id: string }>,
+): TableDefinition<
+  any,
+  {
+    id: {
+      type: "hash";
+      cols: readonly ["id"];
+    };
+  }
 > {
   validateKey(tableName, "Table", tableName);
-  validateSchemaFields(tableName, schema);
-
-  const schemaValidator = v.object(schema) as Validator<
-    InferTableSchema<TSchema>
-  >;
+  const { schemaValidator, schemaFields } = normalizeSchemaInput(
+    tableName,
+    schemaOrValidator,
+  );
   const indexes = {
     id: { type: "hash", cols: ["id"] as const },
   } satisfies {
@@ -228,13 +354,13 @@ export function defineTable<const TSchema extends ValidatorSchemaWithId>(
     };
   };
 
-  validateIndexes(tableName, indexes, schema);
+  validateIndexes(tableName, indexes, schemaFields);
 
   return addIndexMethod({
     tableName,
-    schema: {} as InferTableSchema<TSchema>,
+    schema: {} as any,
     schemaValidator,
-    schemaFields: schema,
+    schemaFields,
     indexes,
     idIndexName: "id",
   });

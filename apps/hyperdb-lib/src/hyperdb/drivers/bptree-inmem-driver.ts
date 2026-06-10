@@ -6,6 +6,7 @@ import type {
   ScanValue,
   SelectOptions,
   TupleScanOptions,
+  Value,
   WhereClause,
 } from "../db";
 import type { TableDefinition } from "../table";
@@ -37,8 +38,33 @@ type HashIndexDef = {
   column: string;
 };
 
+const getIndexKey = (
+  row: Row,
+  indexColumns: string[],
+): ScanValue[] | undefined => {
+  const values: ScanValue[] = [];
+
+  for (const col of indexColumns) {
+    if (!Object.prototype.hasOwnProperty.call(row, col)) return undefined;
+
+    const value = row[col];
+    values.push(value === undefined ? null : (value as ScanValue));
+  }
+
+  return values;
+};
+
 const makeIndexKey = (row: Row, indexColumns: string[]): ScanValue[] => {
-  return indexColumns.map((col) => row[col] as ScanValue);
+  const key = getIndexKey(row, indexColumns);
+  if (!key) throw new Error("Row is missing indexed columns");
+  return key;
+};
+
+const getHashIndexValue = (row: Row, column: string): Value | undefined => {
+  if (!Object.prototype.hasOwnProperty.call(row, column)) return undefined;
+
+  const value = row[column];
+  return value === undefined ? null : (value as Value);
 };
 
 function performScan(
@@ -118,7 +144,7 @@ const getColumnValuesFromBounds = (
   indexDef: HashIndexDef,
   tupleBounds: TupleScanOptions[],
 ) => {
-  const idxValues = new Set<string>();
+  const idxValues = new Set<Value>();
 
   for (const bound of tupleBounds) {
     if (
@@ -160,7 +186,7 @@ const getColumnValuesFromBounds = (
       );
     }
 
-    idxValues.add(bound.lte?.[0] as string);
+    idxValues.add(bound.lte?.[0] as Value);
   }
 
   return idxValues;
@@ -169,7 +195,7 @@ const getColumnValuesFromBounds = (
 class HashIndex implements Index {
   type = "hash" as const;
   indexDef: HashIndexDef;
-  records: Map<string, Map<string, Row>> = new Map();
+  records: Map<Value, Map<string, Row>> = new Map();
 
   constructor(indexDef: HashIndexDef) {
     this.indexDef = indexDef;
@@ -209,7 +235,9 @@ class HashIndex implements Index {
 
   insert(values: Row[]): void {
     for (const record of values) {
-      const colValue = record[this.indexDef.column] as string;
+      const colValue = getHashIndexValue(record, this.indexDef.column);
+      if (colValue === undefined) continue;
+
       const rows = this.records.get(colValue);
 
       if (!rows) {
@@ -224,7 +252,9 @@ class HashIndex implements Index {
 
   delete(values: Row[]): void {
     for (const record of values) {
-      const col = record[this.indexDef.column] as string;
+      const col = getHashIndexValue(record, this.indexDef.column);
+      if (col === undefined) continue;
+
       const rows = this.records.get(col);
 
       if (!rows) continue;
@@ -239,7 +269,7 @@ class HashIndex implements Index {
 }
 
 type RowId = string;
-type ColumnValue = string;
+type ColumnValue = Value;
 class HashIndexTx implements IndexTx {
   type = "hash" as const;
   originalIndex: HashIndex;
@@ -361,7 +391,12 @@ class HashIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't insert after commit");
 
     for (const record of values) {
-      const colValue = record[this.originalIndex.indexDef.column] as string;
+      const colValue = getHashIndexValue(
+        record,
+        this.originalIndex.indexDef.column,
+      );
+      if (colValue === undefined) continue;
+
       const rows = this.sets.get(colValue);
 
       if (!rows) {
@@ -375,7 +410,12 @@ class HashIndexTx implements IndexTx {
 
     // Remove from deletes if previously deleted
     for (const record of values) {
-      const colValue = record[this.originalIndex.indexDef.column] as string;
+      const colValue = getHashIndexValue(
+        record,
+        this.originalIndex.indexDef.column,
+      );
+      if (colValue === undefined) continue;
+
       const deletes = this.deletes.get(colValue);
       if (deletes) {
         deletes.delete(record.id);
@@ -387,7 +427,11 @@ class HashIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't delete after commit");
 
     for (const record of values) {
-      const colValue = record[this.originalIndex.indexDef.column] as string;
+      const colValue = getHashIndexValue(
+        record,
+        this.originalIndex.indexDef.column,
+      );
+      if (colValue === undefined) continue;
 
       // Remove from sets if it was added in this transaction
       const sets = this.sets.get(colValue);
@@ -492,11 +536,17 @@ class BtreeIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't insert after commit");
 
     for (const record of values) {
-      this.sets.set(makeIndexKey(record, this.index.indexDef.columns), record);
+      const key = getIndexKey(record, this.index.indexDef.columns);
+      if (!key) continue;
+
+      this.sets.set(key, record);
     }
 
     for (const record of values) {
-      this.deletes.delete(makeIndexKey(record, this.index.indexDef.columns));
+      const key = getIndexKey(record, this.index.indexDef.columns);
+      if (!key) continue;
+
+      this.deletes.delete(key);
     }
   }
 
@@ -504,11 +554,17 @@ class BtreeIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't delete after commit");
 
     for (const row of values) {
-      this.sets.delete(makeIndexKey(row, this.index.indexDef.columns));
+      const key = getIndexKey(row, this.index.indexDef.columns);
+      if (!key) continue;
+
+      this.sets.delete(key);
     }
 
     for (const row of values) {
-      this.deletes.set(makeIndexKey(row, this.index.indexDef.columns), row);
+      const key = getIndexKey(row, this.index.indexDef.columns);
+      if (!key) continue;
+
+      this.deletes.set(key, row);
     }
   }
 
@@ -580,13 +636,19 @@ class BtreeIndex implements Index {
 
   insert(values: Row[]): void {
     for (const record of values) {
-      this.btree.set(makeIndexKey(record, this.indexDef.columns), record);
+      const key = getIndexKey(record, this.indexDef.columns);
+      if (!key) continue;
+
+      this.btree.set(key, record);
     }
   }
 
   delete(values: Row[]): void {
     for (const row of values) {
-      this.btree.delete(makeIndexKey(row, this.indexDef.columns));
+      const key = getIndexKey(row, this.indexDef.columns);
+      if (!key) continue;
+
+      this.btree.delete(key);
     }
   }
 
