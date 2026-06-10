@@ -16,7 +16,7 @@ const tasksTable = defineTable("tasks", {
   title: v.string(),
 })
   .index("byIds", ["id"])
-  .index("byTitle", ["title"])
+  .index("byTitle", ["title"], { type: "hash" })
   .index("byTitles", ["title"]);
 
 describe("Database Transactions", async () => {

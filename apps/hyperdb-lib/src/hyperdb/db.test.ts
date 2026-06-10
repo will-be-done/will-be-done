@@ -46,7 +46,7 @@ const tasksTable = defineTable("tasks", {
   orderToken: v.string(),
 })
   .index("ids", ["id"])
-  .index("byTitle", ["title"])
+  .index("byTitle", ["title"], { type: "hash" })
   .index("projectIdState", ["projectId", "state", "lastToggledAt"]);
 
 const taskTemplatesTable = defineTable("taskTemplates", {

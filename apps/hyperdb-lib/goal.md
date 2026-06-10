@@ -86,7 +86,9 @@ Acceptance:
 - The `id` field should also be checked at runtime when table definitions are created.
 - `selectFrom(table, index).where(...)` keeps its current type inference.
 - Index columns remain type-checked against document fields.
-- Index declarations can be chained with `.index(name, columns)`.
+- Index declarations can be chained with `.index(name, columns, options?)`.
+- Index options support `{ type: "btree" | "hash" }`; `btree` is the default.
+- Hash indexes must use exactly one column.
 - Do not keep the phantom table compatibility layer after migration.
 
 ## Goal 3: Validate Writes In The DB Layer

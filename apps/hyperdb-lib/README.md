@@ -88,6 +88,21 @@ and typed arrays.
 
 ## Index Limitations
 
+Indexes are declared on a table with `.index(name, columns, options?)`.
+`btree` is the default index type:
+
+```ts
+defineTable("tasks", {
+  id: v.string(),
+  title: v.string(),
+  projectId: v.string(),
+})
+  .index("byProjectId", ["projectId"])
+  .index("byTitle", ["title"], { type: "hash" });
+```
+
+Hash indexes must use exactly one column.
+
 Documents can contain richer values through validators and the codec, but indexed
 fields are constrained to SQLite-comparable primitives:
 

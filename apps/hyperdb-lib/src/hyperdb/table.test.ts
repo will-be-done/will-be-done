@@ -71,12 +71,21 @@ describe("defineTable", () => {
       projectId: v.string(),
       state: v.union(v.literal("todo"), v.literal("done")),
       title: v.string(),
-    }).index("byProjectState", ["projectId", "state"]);
+    })
+      .index("byProjectState", ["projectId", "state"])
+      .index("byTitle", ["title"], { type: "hash" })
+      .index("byIdBtree", ["id"], { type: "btree" });
 
     expect(tasksTable.indexes.byProjectState.cols).toEqual([
       "projectId",
       "state",
     ]);
+    expect(tasksTable.indexes.byProjectState.type).toBe("btree");
+    expect(tasksTable.indexes.byTitle).toEqual({
+      type: "hash",
+      cols: ["title"],
+    });
+    expect(tasksTable.indexes.byIdBtree.type).toBe("btree");
 
     if (false) {
       assertType(
@@ -86,10 +95,18 @@ describe("defineTable", () => {
           ["titleOnly"],
         ),
       );
+      assertType(
+        tasksTable.index(
+          "badHash",
+          // @ts-expect-error hash indexes must use exactly one column
+          ["projectId", "state"],
+          { type: "hash" },
+        ),
+      );
     }
   });
 
-  it("rejects invalid schema/index keys and non-comparable index fields", () => {
+  it("rejects invalid schema/index keys, hash shapes, and non-comparable index fields", () => {
     expect(() =>
       defineTable("$bad", {
         id: v.string(),
@@ -109,6 +126,16 @@ describe("defineTable", () => {
         tags: v.array(v.string()),
       }).index("byTags", ["tags"] as any),
     ).toThrow(/not SQLite-comparable/);
+
+    expect(() =>
+      defineTable("badHash", {
+        id: v.string(),
+        projectId: v.string(),
+        state: v.string(),
+      }).index("byProjectState", ["projectId", "state"] as any, {
+        type: "hash",
+      }),
+    ).toThrow(/Hash index must have exactly one column/);
 
     if (false) {
       const richTable = defineTable("rich", {

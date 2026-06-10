@@ -27,8 +27,12 @@ export type AnyIndexDefinitions = {
   };
 };
 
+export type IndexOptions<TType extends IndexType = IndexType> = {
+  type?: TType;
+};
+
 export type ValidatorSchema = Record<string, Validator<any>>;
-export type ValidatorSchemaWithId = ValidatorSchema & { id: Validator<any> };
+export type ValidatorSchemaWithId = ValidatorSchema & { id: Validator<string> };
 
 export type InferTableSchema<TSchema extends ValidatorSchema> =
   InferObject<TSchema>;
@@ -55,6 +59,35 @@ export interface TableDefinition<
       [K in TName]: {
         type: "btree";
         cols: TCols;
+      };
+    }
+  >;
+  index<
+    const TName extends string,
+    const TCols extends readonly IndexableColumn<T>[],
+  >(
+    name: TName,
+    columns: TCols,
+    options: { type: "btree" },
+  ): TableDefinition<
+    T,
+    I & {
+      [K in TName]: {
+        type: "btree";
+        cols: TCols;
+      };
+    }
+  >;
+  index<const TName extends string, const TCol extends IndexableColumn<T>>(
+    name: TName,
+    columns: readonly [TCol],
+    options: { type: "hash" },
+  ): TableDefinition<
+    T,
+    I & {
+      [K in TName]: {
+        type: "hash";
+        cols: readonly [TCol];
       };
     }
   >;
@@ -131,11 +164,16 @@ function addIndexMethod<T, I extends AnyIndexDefinitions>(
 ): TableDefinition<T, I> {
   return {
     ...tableDef,
-    index(name, columns) {
+    index(
+      name: string,
+      columns: readonly IndexableColumn<T>[],
+      options?: IndexOptions,
+    ) {
+      const type = options?.type ?? "btree";
       const nextIndexes = {
         ...tableDef.indexes,
-        [name]: { type: "btree", cols: columns },
-      } as I & Record<string, { type: "btree"; cols: typeof columns }>;
+        [name]: { type, cols: columns },
+      } as I & Record<string, { type: typeof type; cols: typeof columns }>;
 
       validateIndexes(tableDef.tableName, nextIndexes, tableDef.schemaFields);
 
@@ -178,7 +216,9 @@ export function defineTable<const TSchema extends ValidatorSchemaWithId>(
   validateKey(tableName, "Table", tableName);
   validateSchemaFields(tableName, schema);
 
-  const schemaValidator = v.object(schema) as Validator<InferTableSchema<TSchema>>;
+  const schemaValidator = v.object(schema) as Validator<
+    InferTableSchema<TSchema>
+  >;
   const indexes = {
     id: { type: "hash", cols: ["id"] as const },
   } satisfies {

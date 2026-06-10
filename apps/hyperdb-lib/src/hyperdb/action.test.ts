@@ -23,7 +23,7 @@ const tasksTables = defineTable("tasks", {
   state: v.union(v.literal("todo"), v.literal("done")),
   projectId: v.string(),
   orderToken: v.string(),
-}).index("title", ["title"]);
+}).index("title", ["title"], { type: "hash" });
 
 const updateAction = action(function* () {
   const task: Task = {
