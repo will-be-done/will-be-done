@@ -8,7 +8,7 @@ const tasksTable = defineTable("tasks", {
   type: v.literal("task"),
   id: v.string(),
   title: v.string(),
-  state: v.union(v.literal("todo"), v.literal("done")),
+  state: v.union(v.literal("todo"), v.literal("done"), v.number()),
   projectId: v.string(),
   orderToken: v.string(),
 }).index("projectIdState", ["projectId", "state"]);
@@ -68,6 +68,67 @@ describe("query", () => {
       });
     }
   });
+
+  it("works with order", () => {
+    const result1 = selectFrom(tasksTable, "projectIdState")
+      .order("desc")
+      .where((q) => q.eq("projectId", "1"))
+      .limit(5)
+      .toQuery();
+
+    const result2 = selectFrom(tasksTable, "projectIdState")
+      .where((q) => q.eq("projectId", "1"))
+      .limit(5)
+      .order("desc")
+      .toQuery();
+
+    for (const result of [result1, result2]) {
+      expect(result).toEqual({
+        from: tasksTable,
+        index: "projectIdState",
+        limit: 5,
+        order: "desc",
+        where: [
+          {
+            eq: [
+              {
+                col: "projectId",
+                val: "1",
+              },
+            ],
+            gte: [],
+            gt: [],
+            lte: [],
+            lt: [],
+          },
+        ],
+      });
+    }
+
+    if (false) {
+      assertType(
+        selectFrom(tasksTable, "projectIdState")
+          // @ts-expect-error order only supports asc or desc
+          .order("newest"),
+      );
+    }
+  });
+
+  it("keeps limit with or queries", () => {
+    const result = selectFrom(tasksTable, "projectIdState")
+      .where((q) =>
+        or(
+          q.eq("projectId", "1").lte("state", 3),
+          q.eq("projectId", "1").gte("state", 7),
+        ),
+      )
+      .limit(4)
+      .toQuery();
+
+    expect(result.limit).toBe(4);
+    expect(result.where).toHaveLength(2);
+  });
+
   it("works", () => {
     const result = selectFrom(tasksTable, "projectIdState")
       .where((q) =>
@@ -118,13 +179,15 @@ describe("query", () => {
     expect(result).toEqual({
       from: tasksTable,
       index: "projectIdState",
-      where: [{
-        eq: [],
-        gte: [],
-        gt: [],
-        lte: [],
-        lt: [],
-      }],
+      where: [
+        {
+          eq: [],
+          gte: [],
+          gt: [],
+          lte: [],
+          lt: [],
+        },
+      ],
       limit: undefined,
     });
   });

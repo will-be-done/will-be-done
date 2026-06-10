@@ -330,10 +330,12 @@ describe("InMemoryBinaryPlusTree", () => {
           reverse?: boolean;
         } = {},
       ) => {
+        const expected = listEvens(min, max)(args);
+        assert.deepEqual(tree.list(args), expected, JSON.stringify(args));
         assert.deepEqual(
-          tree.list(args),
-          listEvens(min, max)(args),
-          JSON.stringify(args),
+          Array.from(tree.iterate(args)),
+          expected,
+          `iterate ${JSON.stringify(args)}`,
         );
       };
 

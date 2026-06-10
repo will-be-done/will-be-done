@@ -67,6 +67,7 @@ export type TupleScanOptions = {
 
 export type SelectOptions = {
   limit?: number;
+  order?: "asc" | "desc";
 };
 
 export const MIN = Symbol("MIN");

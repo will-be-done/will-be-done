@@ -152,7 +152,12 @@ function* performAsyncScanOperation(
       clauses,
       tableDefinitions,
     );
-    const orderClause = buildOrderClause(indexName, table, tableDefinitions);
+    const orderClause = buildOrderClause(
+      indexName,
+      table,
+      tableDefinitions,
+      selectOptions.order === "desc",
+    );
     const sql = buildSelectSQL(table, where, orderClause, selectOptions);
 
     const result: unknown[] = [];
