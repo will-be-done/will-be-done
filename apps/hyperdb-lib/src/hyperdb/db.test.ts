@@ -487,6 +487,136 @@ describe("Database Operations Edge Cases", async () => {
         expect(results).toEqual([]);
       });
 
+      it("works correctly with union document schemas", () => {
+        const docsTable = defineTable(
+          "unionDocuments",
+          v.union(
+            v.object({
+              id: v.string(),
+              kind: v.literal("StringDocument"),
+              value: v.string(),
+            }),
+            v.object({
+              id: v.string(),
+              kind: v.literal("NumberDocument"),
+              value: v.number(),
+              someOtherField: v.string(),
+            }),
+          ),
+        );
+
+        const db = new SyncDB(
+          new DB(driver, [docsTable], { runtimeValidation: true }),
+        );
+        db.loadTables([docsTable]);
+
+        const stringDocument = {
+          id: "doc-string",
+          kind: "StringDocument" as const,
+          value: "hello",
+        };
+        const numberDocument = {
+          id: "doc-number",
+          kind: "NumberDocument" as const,
+          value: 42,
+          someOtherField: "hello",
+        };
+
+        db.insert(docsTable, [stringDocument, numberDocument]);
+
+        const res = db.intervalScan(docsTable, "id", [
+          {
+            eq: [{ col: "id", val: "doc-string" }],
+          },
+        ]);
+
+        res.forEach((doc) => {
+          if (doc.kind === "NumberDocument") {
+            expect(doc.someOtherField).toBe("hello");
+          }
+        });
+
+        expect(
+          db.intervalScan(docsTable, "id", [
+            {
+              eq: [{ col: "id", val: "doc-string" }],
+            },
+          ]),
+        ).toEqual([stringDocument]);
+
+        const updatedNumberDocument = { ...numberDocument, value: 43 };
+        db.update(docsTable, [updatedNumberDocument]);
+
+        expect(
+          db.intervalScan(docsTable, "id", [
+            {
+              eq: [{ col: "id", val: "doc-number" }],
+            },
+          ]),
+        ).toEqual([updatedNumberDocument]);
+
+        expect(() =>
+          db.insert(docsTable, [
+            {
+              id: "doc-invalid",
+              kind: "StringDocument",
+              value: 123,
+            } as any,
+          ]),
+        ).toThrow(/expected one of union variants/);
+      });
+
+      it("works with indexes on fields from one union variant", () => {
+        const documentsTable = defineTable(
+          "documents",
+          v.union(
+            v.object({
+              id: v.string(),
+              type: v.literal("message"),
+              author: v.string(),
+              body: v.string(),
+            }),
+            v.object({
+              id: v.string(),
+              type: v.literal("post"),
+              title: v.string(),
+            }),
+          ),
+        ).index("byPostTitle", ["title"]);
+
+        const db = new SyncDB(
+          new DB(driver, [documentsTable], { runtimeValidation: true }),
+        );
+        db.loadTables([documentsTable]);
+
+        const message = {
+          id: "message-1",
+          type: "message" as const,
+          author: "Ada",
+          body: "No title here",
+        };
+        const firstPost = {
+          id: "post-1",
+          type: "post" as const,
+          title: "Hello",
+        };
+        const secondPost = {
+          id: "post-2",
+          type: "post" as const,
+          title: "Later",
+        };
+
+        db.insert(documentsTable, [message, firstPost, secondPost]);
+
+        expect(
+          db.intervalScan(documentsTable, "byPostTitle", [
+            {
+              eq: [{ col: "title", val: "Hello" }],
+            },
+          ]),
+        ).toEqual([firstPost]);
+      });
+
       it("works correctly with string order", () => {
         type TestRecord = { id: string; projectId: string; token: string };
         const testTable = defineTable("test2", {

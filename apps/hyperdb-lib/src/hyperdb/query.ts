@@ -1,4 +1,10 @@
-import type { TableDefinition, ExtractSchema, ExtractIndexes } from "./table";
+import type {
+  TableDefinition,
+  ExtractSchema,
+  ExtractIndexes,
+  UnionKeys,
+  UnionValue,
+} from "./table";
 import type { Value } from "./db";
 
 type QueryWhereClause = {
@@ -14,7 +20,7 @@ export type ExtractIndexColumns<
   TTable,
   TIndexName extends keyof ExtractIndexes<TTable>,
 > = ExtractIndexes<TTable>[TIndexName]["cols"] extends readonly (infer TCol)[]
-  ? TCol extends keyof ExtractSchema<TTable>
+  ? TCol extends UnionKeys<ExtractSchema<TTable>>
     ? TCol
     : never
   : never;
@@ -22,12 +28,12 @@ export type ExtractIndexColumns<
 // Value type for a given column
 export type ExtractColumnValue<
   TTable,
-  TCol extends keyof ExtractSchema<TTable>,
-> = ExtractSchema<TTable>[TCol];
+  TCol extends UnionKeys<ExtractSchema<TTable>>,
+> = UnionValue<ExtractSchema<TTable>, TCol>;
 
 type ExtractQueryColumnValue<
   TTable,
-  TCol extends keyof ExtractSchema<TTable>,
+  TCol extends UnionKeys<ExtractSchema<TTable>>,
 > = Extract<Exclude<ExtractColumnValue<TTable, TCol>, undefined>, Value>;
 
 export type SelectQuery<

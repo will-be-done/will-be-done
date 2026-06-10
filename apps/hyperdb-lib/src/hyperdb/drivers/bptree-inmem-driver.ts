@@ -38,7 +38,10 @@ type HashIndexDef = {
 };
 
 const makeIndexKey = (row: Row, indexColumns: string[]): ScanValue[] => {
-  return indexColumns.map((col) => row[col] as ScanValue);
+  return indexColumns.map((col) => {
+    const value = row[col];
+    return value === undefined ? null : (value as ScanValue);
+  });
 };
 
 function performScan(

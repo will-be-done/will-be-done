@@ -167,4 +167,54 @@ describe("defineTable", () => {
 
     expect(query.index).toBe("byProjectId");
   });
+
+  it("allows indexes on fields that exist in only one union variant", () => {
+    const documentsTable = defineTable(
+      "documents",
+      v.union(
+        v.object({
+          id: v.string(),
+          type: v.literal("message"),
+          author: v.string(),
+          body: v.string(),
+        }),
+        v.object({
+          id: v.string(),
+          type: v.literal("post"),
+          title: v.string(),
+        }),
+      ),
+    ).index("byPostTitle", ["title"]);
+
+    const query = selectFrom(documentsTable, "byPostTitle")
+      .where((q) => q.eq("title", "Hello"))
+      .toQuery();
+
+    expect(documentsTable.indexes.byPostTitle.cols).toEqual(["title"]);
+    expect(query.where).toEqual([
+      {
+        eq: [{ col: "title", val: "Hello" }],
+        gt: [],
+        gte: [],
+        lt: [],
+        lte: [],
+      },
+    ]);
+
+    if (false) {
+      assertType(
+        documentsTable.index(
+          "bad",
+          // @ts-expect-error unknownField is not present in any union variant
+          ["unknownField"],
+        ),
+      );
+      assertType(
+        // @ts-expect-error title indexes take title values, not numbers
+        selectFrom(documentsTable, "byPostTitle").where((q) =>
+          q.eq("title", 1),
+        ),
+      );
+    }
+  });
 });
