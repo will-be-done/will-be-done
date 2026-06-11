@@ -1,0 +1,5 @@
+TODO next:
+1. "show more" button
+1. On project click - show project tasks. "First 10 tasks" should display tasks of selected project
+1. Cache counter with hooks
+1. REdux/mobx/tanstack-db example

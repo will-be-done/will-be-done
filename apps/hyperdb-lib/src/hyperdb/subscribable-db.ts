@@ -55,6 +55,19 @@ type AfterDeleteSub = (
   ops: DeleteOp[],
 ) => Generator<unknown, void, unknown>;
 
+type AfterChangeSub = (
+  db: HyperDB,
+  table: TableDefinition,
+  traits: Trait[],
+  ops: Op[],
+) => Generator<unknown, void, unknown>;
+
+function appendOps(target: Op[], ops: Op[]) {
+  for (const op of ops) {
+    target.push(op);
+  }
+}
+
 export class SubscribableDBTx implements HyperDBTx {
   // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, upsert, delete batches.
   // That will make async db tx apply very fast. Right now we need to wait each op of tx to finish
@@ -149,9 +162,16 @@ export class SubscribableDBTx implements HyperDBTx {
           newValue: r,
         }) satisfies InsertOp,
     );
-    this.operations.push(...insertOps);
+    appendOps(this.operations, insertOps);
 
     for (const cb of this.subDb.afterInsertSubscribers) {
+      yield* runCommandGenerator(
+        this,
+        cb(this, table, this.getTraits(), insertOps),
+        { allowWrites: true },
+      );
+    }
+    for (const cb of this.subDb.afterChangeSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), insertOps),
@@ -211,9 +231,16 @@ export class SubscribableDBTx implements HyperDBTx {
           newValue: record,
         }) satisfies UpsertOp,
     );
-    this.operations.push(...upsertOps);
+    appendOps(this.operations, upsertOps);
 
     for (const cb of this.subDb.afterUpsertSubscribers) {
+      yield* runCommandGenerator(
+        this,
+        cb(this, table, this.getTraits(), upsertOps),
+        { allowWrites: true },
+      );
+    }
+    for (const cb of this.subDb.afterChangeSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), upsertOps),
@@ -237,11 +264,18 @@ export class SubscribableDBTx implements HyperDBTx {
     )) {
       deleteOps.push({ type: "delete", table, oldValue: oldRecord });
     }
-    this.operations.push(...deleteOps);
+    appendOps(this.operations, deleteOps);
 
     yield* this.txDb.delete(table, ids);
 
     for (const cb of this.subDb.afterDeleteSubscribers) {
+      yield* runCommandGenerator(
+        this,
+        cb(this, table, this.getTraits(), deleteOps),
+        { allowWrites: true },
+      );
+    }
+    for (const cb of this.subDb.afterChangeSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), deleteOps),
@@ -284,6 +318,7 @@ export class SubscribableDB implements HyperDB {
   afterInsertSubscribers: AfterInsertSub[] = [];
   afterUpsertSubscribers: AfterUpsertSub[] = [];
   afterDeleteSubscribers: AfterDeleteSub[] = [];
+  afterChangeSubscribers: AfterChangeSub[] = [];
   traits: Trait[] = [];
 
   constructor(
@@ -292,6 +327,7 @@ export class SubscribableDB implements HyperDB {
     afterInsertSubscribers: AfterInsertSub[] = [],
     afterUpsertSubscribers: AfterUpsertSub[] = [],
     afterDeleteSubscribers: AfterDeleteSub[] = [],
+    afterChangeSubscribers: AfterChangeSub[] = [],
     traits: Trait[] = [],
   ) {
     this.db = db;
@@ -299,6 +335,7 @@ export class SubscribableDB implements HyperDB {
     this.afterInsertSubscribers = afterInsertSubscribers;
     this.afterUpsertSubscribers = afterUpsertSubscribers;
     this.afterDeleteSubscribers = afterDeleteSubscribers;
+    this.afterChangeSubscribers = afterChangeSubscribers;
     this.traits = traits;
   }
 
@@ -323,6 +360,7 @@ export class SubscribableDB implements HyperDB {
       this.afterInsertSubscribers,
       this.afterUpsertSubscribers,
       this.afterDeleteSubscribers,
+      this.afterChangeSubscribers,
       [...this.traits, ...traits],
     );
   }
@@ -356,6 +394,16 @@ export class SubscribableDB implements HyperDB {
 
     return () => {
       this.afterDeleteSubscribers = this.afterDeleteSubscribers.filter(
+        (s) => s !== cb,
+      );
+    };
+  }
+
+  afterChange(cb: AfterChangeSub): () => void {
+    this.afterChangeSubscribers.push(cb);
+
+    return () => {
+      this.afterChangeSubscribers = this.afterChangeSubscribers.filter(
         (s) => s !== cb,
       );
     };
