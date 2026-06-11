@@ -56,7 +56,7 @@ export type SelectQuery<
   where: QueryWhereClause[];
 };
 
-export const createSelectRangeCmd = <QType extends SelectQuery>(
+const createSelectRangeCmd = <QType extends SelectQuery>(
   query: QType,
 ): SelectRangeCmd => {
   const table = query.from;
@@ -76,12 +76,6 @@ export const createSelectRangeCmd = <QType extends SelectQuery>(
     bounds: convertWhereToBound(indexDef.cols as string[], query.where),
   };
 };
-
-export function* runSelectQuery<QType extends SelectQuery>(
-  query: QType,
-): Generator<unknown, ExtractSchema<QType["from"]>[], unknown> {
-  return (yield createSelectRangeCmd(query)) as ExtractSchema<QType["from"]>[];
-}
 
 class QueryBuilder<TTable, TIndexName extends ExtractIndexName<TTable>> {
   private conditions: QueryWhereClause = {
@@ -250,7 +244,9 @@ class SelectQueryBuilder<
   }
 
   *[Symbol.iterator](): Generator<unknown, ExtractSchema<TTable>[], unknown> {
-    return yield* runSelectQuery(this.toQuery());
+    return (yield createSelectRangeCmd(
+      this.toQuery(),
+    )) as ExtractSchema<TTable>[];
   }
 }
 
@@ -309,7 +305,9 @@ class SelectQueryBuilderWithWhere<
   }
 
   *[Symbol.iterator](): Generator<unknown, ExtractSchema<TTable>[], unknown> {
-    return yield* runSelectQuery(this.toQuery());
+    return (yield createSelectRangeCmd(
+      this.toQuery(),
+    )) as ExtractSchema<TTable>[];
   }
 }
 

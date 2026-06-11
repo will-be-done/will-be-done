@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { DB, execSync } from "./db";
-import { runQuery, selector, initSelector } from "./selector";
+import { selector, initSelector } from "./selector";
 import { SubscribableDB } from "./subscribable-db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { defineTable } from "./table";
@@ -30,10 +30,8 @@ const db = new SubscribableDB(new DB(driver));
 execSync(db.loadTables([tasksTable]));
 
 const allTasks = selector(function* () {
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "projectIdState").where((q) =>
-      q.eq("projectId", "1"),
-    ),
+  const tasks = yield* selectFrom(tasksTable, "projectIdState").where((q) =>
+    q.eq("projectId", "1"),
   );
 
   return tasks;
@@ -153,19 +151,15 @@ describe("selector", () => {
     execSync(testDb.loadTables([itemsTable]));
 
     const project1Selector = selector(function* () {
-      const items = yield* runQuery(
-        selectFrom(itemsTable, "projectIdOrder").where((q) =>
-          q.eq("projectId", "project1"),
-        ),
+      const items = yield* selectFrom(itemsTable, "projectIdOrder").where((q) =>
+        q.eq("projectId", "project1"),
       );
       return items;
     });
 
     const project2Selector = selector(function* () {
-      const items = yield* runQuery(
-        selectFrom(itemsTable, "projectIdOrder").where((q) =>
-          q.eq("projectId", "project2"),
-        ),
+      const items = yield* selectFrom(itemsTable, "projectIdOrder").where((q) =>
+        q.eq("projectId", "project2"),
       );
       return items;
     });
@@ -238,11 +232,9 @@ describe("selector", () => {
     );
 
     const orderedSelector = selector(function* () {
-      const items = yield* runQuery(
-        selectFrom(itemsTable, "projectIdOrder")
-          .where((q) => q.eq("projectId", "project1"))
-          .order("desc"),
-      );
+      const items = yield* selectFrom(itemsTable, "projectIdOrder")
+        .where((q) => q.eq("projectId", "project1"))
+        .order("desc");
       return items;
     });
 

@@ -1,10 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { SubscribableDB, Op } from "./subscribable-db";
-import type { ExtractSchema } from "./table";
 import { execAsync, execSync, type HyperDB, type Row } from "./db";
 import { isRowInRange } from "./drivers/tuple";
-import type { SelectQuery } from "./query";
-import { runSelectQuery } from "./query";
 import { runCommandGenerator } from "./command-runner";
 import { type SelectRangeCmd } from "./selector-commands";
 
@@ -31,12 +28,6 @@ type NoopCmd = { type: typeof noopType };
 export const isNoopCmd = (cmd: any): cmd is NoopCmd => cmd.type === noopType;
 // const isSelectCmd = (cmd: any): cmd is SelectEqualCmd =>
 //   cmd.type === "selectEqual";
-
-export function* runQuery<QType extends SelectQuery>(toQuery: {
-  toQuery(): QType;
-}): Generator<unknown, ExtractSchema<QType["from"]>[], unknown> {
-  return yield* runSelectQuery(toQuery.toQuery());
-}
 
 // export function* selectEqual<TTable extends TableDefinition<any>>(
 //   table: TTable,
