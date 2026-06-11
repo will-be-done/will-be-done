@@ -172,7 +172,7 @@ Later optional scope:
 
 ## Goal 7: Migrate Existing Table Definitions
 
-After the library supports `defineTable`, update consumers that import `@will-be-done/hyperdb`.
+After the library supports `defineTable`, update consumers that import `@will-be-done/hyperdb-lib`.
 
 Pattern:
 

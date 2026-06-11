@@ -1,7 +1,7 @@
 import { convertWhereToBound } from "./bounds";
 import {
-  prepareRecordsForDriver,
-  prepareRecordsFromDriver,
+  normalizeRecordsForDriver,
+  validateRecordsFromDriver,
   type CodecOptions,
 } from "./codec";
 import { isNoopCmd, isUnwrapCmd, type DBCmd } from "./generators";
@@ -131,7 +131,7 @@ function* performScan(
     selectOptions || {},
   );
 
-  return prepareRecordsFromDriver(table, records, options);
+  return validateRecordsFromDriver(table, records, options);
 }
 
 function* performInsert(
@@ -141,7 +141,10 @@ function* performInsert(
   options: CodecOptions,
 ) {
   if (records.length === 0) return;
-  yield* driver.insert(table.tableName, prepareRecordsForDriver(table, records, options));
+  yield* driver.insert(
+    table.tableName,
+    normalizeRecordsForDriver(table, records, options),
+  );
 }
 
 function* performUpsert(
@@ -151,7 +154,10 @@ function* performUpsert(
   options: CodecOptions,
 ) {
   if (records.length === 0) return;
-  yield* driver.upsert(table.tableName, prepareRecordsForDriver(table, records, options));
+  yield* driver.upsert(
+    table.tableName,
+    normalizeRecordsForDriver(table, records, options),
+  );
 }
 
 function* performDelete(

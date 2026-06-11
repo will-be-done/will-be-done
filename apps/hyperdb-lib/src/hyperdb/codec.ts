@@ -275,7 +275,7 @@ export function decodeValueFromStorage(value: unknown): unknown {
   return value;
 }
 
-export function prepareRecordForDriver<TTable extends TableDefinition>(
+export function normalizeRecordForDriver<TTable extends TableDefinition>(
   table: TTable,
   record: unknown,
   options: CodecOptions,
@@ -292,35 +292,33 @@ export function prepareRecordForDriver<TTable extends TableDefinition>(
 
   assertStringId(table, record, normalized);
 
-  return encodeValueForStorage(normalized) as Row;
+  return normalized as Row;
 }
 
-export function prepareRecordsForDriver<TTable extends TableDefinition>(
+export function normalizeRecordsForDriver<TTable extends TableDefinition>(
   table: TTable,
   records: unknown[],
   options: CodecOptions,
 ): Row[] {
-  return records.map((record) => prepareRecordForDriver(table, record, options));
+  return records.map((record) => normalizeRecordForDriver(table, record, options));
 }
 
-export function prepareRecordFromDriver<T>(
+export function validateRecordFromDriver<T>(
   table: TableDefinition<T>,
   record: unknown,
   options: CodecOptions,
 ): T {
-  const decoded = decodeValueFromStorage(record);
-
   if (!options.runtimeValidation || !table.schemaValidator) {
-    return decoded as T;
+    return record as T;
   }
 
-  return assertRecordResult(table, decoded, table.schemaValidator.normalize(decoded));
+  return assertRecordResult(table, record, table.schemaValidator.normalize(record));
 }
 
-export function prepareRecordsFromDriver<T>(
+export function validateRecordsFromDriver<T>(
   table: TableDefinition<T>,
   records: unknown[],
   options: CodecOptions,
 ): T[] {
-  return records.map((record) => prepareRecordFromDriver(table, record, options));
+  return records.map((record) => validateRecordFromDriver(table, record, options));
 }

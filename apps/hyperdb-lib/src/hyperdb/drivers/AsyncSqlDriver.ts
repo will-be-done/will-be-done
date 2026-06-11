@@ -24,6 +24,7 @@ import {
   sqliteIndexSortKeyColumn,
   assertSafeTableDefinition,
   buildRowInsertParams,
+  parseSqliteStoredRow,
 } from "./SqliteCommon.ts";
 import AwaitLock from "await-lock";
 
@@ -199,7 +200,7 @@ function* performAsyncScanOperation(
 
         while ((await sqlite3.step(stmt)) === SQLITE_ROW) {
           const row = sqlite3.row(stmt);
-          const record = JSON.parse(row[0] as string) as unknown;
+          const record = parseSqliteStoredRow(row[0] as string);
           result.push(record);
         }
       }

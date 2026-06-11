@@ -3,7 +3,7 @@
 HyperDB tables can be declared directly with validator-backed schemas:
 
 ```ts
-import { defineTable, v } from "@will-be-done/hyperdb";
+import { defineTable, v } from "@will-be-done/hyperdb-lib";
 
 export const projectCategoriesTable = defineTable("projectCategories", {
   id: v.string(),
@@ -92,9 +92,10 @@ Upserts are not patches: omitted fields are omitted from the replacement record.
 
 ## SQLite Serialization
 
-HyperDB normalizes documents before drivers see them and decodes documents after
-driver reads. SQL drivers only perform final JSON storage formatting. This keeps
-value semantics consistent across SQLite and in-memory drivers.
+HyperDB normalizes documents before drivers see them. Drivers return normalized
+documents; SQL drivers encode/decode values around JSON storage, while in-memory
+drivers keep normalized JS objects directly. This keeps value semantics
+consistent across SQLite and in-memory drivers.
 
 The codec rejects invalid `undefined`, strips schema-known optional
 `undefined`, preserves `bigint`, and encodes byte values such as `ArrayBuffer`

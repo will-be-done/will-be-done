@@ -24,6 +24,7 @@ import {
   assertSafeTableDefinition,
   buildRowInsertParams,
   getSqliteIndexSortKeyValue,
+  parseSqliteStoredRow,
   type SqlValue,
   type BindParams,
 } from "./SqliteCommon.ts";
@@ -123,11 +124,11 @@ function performScanOperation(
 
   try {
     const values = q.values(params);
-    return values.map((row) => JSON.parse(row[0] as string) as Row);
+    return values.map((row) => parseSqliteStoredRow(row[0] as string));
 
     // while (q.step()) {
     //   const res = q.get();
-    //   const record = JSON.parse(res[0] as string) as unknown;
+    //   const record = parseSqliteStoredRow(res[0] as string);
     //   result.push(record);
     // }
   } catch (error) {
@@ -403,7 +404,7 @@ export class SqlDriver implements DBDriver {
 
       try {
         for (const [id, data] of q.values([])) {
-          const row = JSON.parse(String(data)) as Row;
+          const row = parseSqliteStoredRow(String(data));
           const sortKeyValue = getSqliteIndexSortKeyValue(
             tableDef,
             indexName,

@@ -18,6 +18,7 @@ TODO:
 1. check that utf8 sorting of string is same in js
 1. fix update() to not work if record not exists
 1. dev tool. Check tinybase. Check powersync
+1. How to make counters? Hooks?
 
 2 DONE. take/order/first
 

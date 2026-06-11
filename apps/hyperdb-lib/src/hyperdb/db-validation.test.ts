@@ -171,7 +171,7 @@ describe("DB runtime validation and codec boundary", () => {
     );
   });
 
-  it("decodes driver records before returning them and before read validation", () => {
+  it("passes normalized logical records through the driver boundary", () => {
     const driver = new RecordingDriver();
     const bytes = new Uint8Array([1, 2, 3]);
     const buffer = new Uint8Array([4, 5]).buffer;
@@ -191,6 +191,12 @@ describe("DB runtime validation and codec boundary", () => {
       ]),
     );
     driver.scanRows = driver.inserted[0];
+
+    expect(driver.inserted[0][0].payload).toEqual({
+      count: 10n,
+      bytes,
+      buffer,
+    });
 
     const [record] = execSync(db.intervalScan(docsTable, "byTitle", scanAll));
 
@@ -259,7 +265,7 @@ describe("DB runtime validation and codec boundary", () => {
     ["SqlDriver", () => initSqlJsWasm()],
     ["BptreeInmemDriver", async () => new BptreeInmemDriver()],
   ] as const) {
-    it(`round-trips encoded rich document values through ${name}`, async () => {
+    it(`round-trips rich document values through ${name}`, async () => {
       const driver = await driverFactory();
       const db = new SyncDB(new DB(driver, [docsTable], { runtimeValidation: true }));
       db.loadTables([docsTable]);

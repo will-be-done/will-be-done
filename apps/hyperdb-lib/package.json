@@ -1,26 +1,14 @@
 {
-  "name": "@will-be-done/hyperdb",
+  "name": "@will-be-done/hyperdb-lib",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
-    },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.mjs",
-      "require": "./dist/react.cjs"
-    }
+    ".": "./src/index.ts",
+    "./react": "./src/react.ts"
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "vite build && tsc",
     "ts": "tsc",

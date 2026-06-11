@@ -8,6 +8,7 @@ import {
 } from "../db.ts";
 import type { TableDefinition } from "../table.ts";
 import { convertWhereToBound } from "../bounds.ts";
+import { decodeValueFromStorage, encodeValueForStorage } from "../codec.ts";
 import {
   encodeSqliteSortKeyTuple,
   getSqliteSortKeyTuple,
@@ -94,13 +95,19 @@ export function buildRowInsertParams(
   tableDef: TableDefinition,
   row: Row,
 ): SqlValue[] {
+  const storageRow = encodeValueForStorage(row) as Row;
+
   return [
-    row.id,
-    JSON.stringify(row),
+    storageRow.id,
+    JSON.stringify(storageRow),
     ...Object.keys(tableDef.indexes).map((indexName) =>
-      getSqliteIndexSortKeyValue(tableDef, indexName, row),
+      getSqliteIndexSortKeyValue(tableDef, indexName, storageRow),
     ),
   ];
+}
+
+export function parseSqliteStoredRow(data: string): Row {
+  return decodeValueFromStorage(JSON.parse(data)) as Row;
 }
 
 function expandBoundTuple(
