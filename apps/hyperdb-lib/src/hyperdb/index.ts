@@ -1,7 +1,6 @@
 export * from "./action";
 export * from "./bounds";
 export * from "./db";
-export * from "./cachedDB";
 export * from "./query";
 export * from "./selector";
 export * from "./subscribable-db";
