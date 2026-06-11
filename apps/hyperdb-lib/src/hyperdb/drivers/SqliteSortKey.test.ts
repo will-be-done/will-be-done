@@ -166,6 +166,24 @@ describe("SqliteSortKey", () => {
       );
     });
 
+    it("does not encode malformed bytes wrappers as bytes", () => {
+      const validBytesKey = encodeSqliteSortKeyTuple(
+        [{ $hyperdbType: "bytes", value: [1, 2] }],
+        "stored",
+      );
+
+      for (const value of [
+        { $hyperdbType: "bytes", value: [1, 256] },
+        { $hyperdbType: "bytes", value: [1.5] },
+        { $hyperdbType: "bytes", value: "AQI=" },
+        { $hyperdbType: "arrayBuffer", value: [Number.NaN] },
+      ]) {
+        expect(encodeSqliteSortKeyTuple([value], "stored")).not.toBe(
+          validBytesKey,
+        );
+      }
+    });
+
     it("encodes tuple comparisons lexicographically", () => {
       const tuples = [
         [1n, "a"],

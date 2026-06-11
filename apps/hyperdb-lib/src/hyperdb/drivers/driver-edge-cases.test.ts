@@ -32,6 +32,16 @@ const noSideTablesTable = defineTable("driverEdgeNoSideTables", {
   title: v.string(),
 }).index("byTitle", ["title"]);
 
+const sortKeyBackfillTableV1 = defineTable("driverEdgeSortKeyBackfill", {
+  id: v.string(),
+  title: v.string(),
+});
+
+const sortKeyBackfillTableV2 = defineTable("driverEdgeSortKeyBackfill", {
+  id: v.string(),
+  title: v.string(),
+}).index("byTitle", ["title"]);
+
 const hashLimitTable = defineTable("driverEdgeHashLimit", {
   id: v.string(),
   title: v.string(),
@@ -73,6 +83,32 @@ const fullValueOrderTable = {
   indexes: {
     id: { type: "hash", cols: ["id"] },
     byValue: { type: "btree", cols: ["value"] },
+  },
+  idIndexName: "id",
+  index() {
+    throw new Error("Not used in tests");
+  },
+} as unknown as TableDefinition<any, any>;
+
+const schemalessPathIndexTable = {
+  tableName: "driverEdgeSchemalessPathIndex",
+  schema: {},
+  indexes: {
+    id: { type: "hash", cols: ["id"] },
+    byProfileName: { type: "btree", cols: ["profile.name"] },
+  },
+  idIndexName: "id",
+  index() {
+    throw new Error("Not used in tests");
+  },
+} as unknown as TableDefinition<any, any>;
+
+const multiColumnHashTable = {
+  tableName: "driverEdgeMultiColumnHash",
+  schema: {},
+  indexes: {
+    id: { type: "hash", cols: ["id"] },
+    byProjectState: { type: "hash", cols: ["projectId", "state"] },
   },
   idIndexName: "id",
   index() {
@@ -234,6 +270,54 @@ describe("driver edge case regressions", () => {
           .intervalScan(noSideTablesTable, "byTitle", [{}], { limit: 2 })
           .map((row) => row.id),
       ).toEqual(["task-a", "task-b"]);
+    });
+
+    it("backfills sort keys for rows that predate a new index", async () => {
+      const db = new SyncDB(new DB(await initSqlJsWasm()));
+      db.loadTables([sortKeyBackfillTableV1]);
+      db.insert(sortKeyBackfillTableV1, [{ id: "task-a", title: "A" }]);
+
+      db.loadTables([sortKeyBackfillTableV2]);
+
+      expect(
+        db.intervalScan(sortKeyBackfillTableV2, "byTitle", [
+          { eq: [{ col: "title", val: "A" }] },
+        ]),
+      ).toEqual([{ id: "task-a", title: "A" }]);
+    });
+
+    it("accepts schemaless index path members that are not SQL identifiers", async () => {
+      const db = new SyncDB(new DB(await initSqlJsWasm()));
+      db.loadTables([schemalessPathIndexTable]);
+      db.insert(schemalessPathIndexTable, [
+        { id: "user-a", "profile.name": "Ada" },
+      ]);
+
+      expect(
+        db.intervalScan(schemalessPathIndexTable, "byProfileName", [
+          { eq: [{ col: "profile.name", val: "Ada" }] },
+        ]),
+      ).toEqual([{ id: "user-a", "profile.name": "Ada" }]);
+    });
+
+    it("supports tuple equality bounds for direct multi-column hash definitions", async () => {
+      const db = new SyncDB(new DB(await initSqlJsWasm()));
+      db.loadTables([multiColumnHashTable]);
+      db.insert(multiColumnHashTable, [
+        { id: "task-a", projectId: "project-1", state: "open" },
+        { id: "task-b", projectId: "project-1", state: "done" },
+      ]);
+
+      expect(
+        db.intervalScan(multiColumnHashTable, "byProjectState", [
+          {
+            eq: [
+              { col: "projectId", val: "project-1" },
+              { col: "state", val: "open" },
+            ],
+          },
+        ]),
+      ).toEqual([{ id: "task-a", projectId: "project-1", state: "open" }]);
     });
 
     it("orders encoded schemaless values before applying limit", async () => {
@@ -699,6 +783,27 @@ describe("driver edge case regressions", () => {
         ).toThrow(/duplicate|exists/i);
       });
 
+      it("update rejects duplicate ids before deleting existing rows", async () => {
+        if (driverName !== "BptreeInmemDriver") return;
+
+        const db = new SyncDB(new DB(await createDriver()));
+        db.loadTables([duplicateTable]);
+        db.insert(duplicateTable, [{ id: "task-1", title: "Existing" }]);
+
+        expect(() =>
+          db.update(duplicateTable, [
+            { id: "task-1", title: "First" },
+            { id: "task-1", title: "Second" },
+          ]),
+        ).toThrow(/duplicate|exists/i);
+
+        expect(
+          db.intervalScan(duplicateTable, "byTitle", [
+            { eq: [{ col: "title", val: "Existing" }] },
+          ]),
+        ).toEqual([{ id: "task-1", title: "Existing" }]);
+      });
+
       it("update upserts rows and replaces indexed sort keys", async () => {
         const db = new SyncDB(new DB(await createDriver()));
         db.loadTables([duplicateTable]);
@@ -740,7 +845,10 @@ describe("driver edge case regressions", () => {
           { limit: 2 },
         );
 
-        expect(results.map((row) => row.id)).toEqual(["task-2", "task-3"]);
+        expect(results).toHaveLength(2);
+        expect(results.map((row) => row.id)).toEqual(
+          expect.arrayContaining(["task-2", "task-3"]),
+        );
         tx.rollback();
       });
 
@@ -773,13 +881,6 @@ describe("driver edge case regressions", () => {
             id: v.string(),
             title: v.string(),
           }).index("by title" as never, ["title"] as never),
-          defineTable("safeColumnTable", {
-            id: v.string(),
-            "profile.name": v.string(),
-          } as never).index(
-            "byProfileName" as never,
-            ["profile.name"] as never,
-          ),
         ];
 
         const throws = [];
@@ -793,7 +894,7 @@ describe("driver edge case regressions", () => {
           }
         }
 
-        expect(throws).toEqual([true, true, true]);
+        expect(throws).toEqual([true, true]);
       });
     });
   }

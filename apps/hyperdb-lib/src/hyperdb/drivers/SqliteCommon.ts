@@ -42,12 +42,8 @@ export function assertSafeIdentifier(kind: string, value: string): void {
 export function assertSafeTableDefinition(tableDef: TableDefinition): void {
   assertSafeIdentifier("Table name", tableDef.tableName);
 
-  for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
+  for (const indexName of Object.keys(tableDef.indexes)) {
     assertSafeIdentifier("Index name", indexName);
-
-    for (const col of indexDef.cols) {
-      assertSafeIdentifier("Index column", String(col));
-    }
   }
 }
 
@@ -118,9 +114,11 @@ function expandBoundTuple(
 
 function validateHashBounds(
   indexName: string,
-  indexColumn: string,
+  indexColumns: string[],
   bounds: ReturnType<typeof convertWhereToBound>,
 ): void {
+  const indexColumn = indexColumns.join(", ");
+
   for (const bound of bounds) {
     if (
       (bound.gt !== undefined && bound.gt.length > 0) ||
@@ -132,19 +130,19 @@ function validateHashBounds(
     }
 
     if (
-      (bound.lte && bound.lte.length !== 1) ||
-      (bound.gte && bound.gte.length !== 1) ||
       !bound.lte ||
-      !bound.gte
+      !bound.gte ||
+      bound.lte.length !== indexColumns.length ||
+      bound.gte.length !== indexColumns.length
     ) {
       throw new Error(
-        `Hash index should have exactly one equality condition for column '${indexColumn}' and index name '${indexName}': ${JSON.stringify(bound)}`,
+        `Hash index should have equality conditions for columns '${indexColumn}' and index name '${indexName}': ${JSON.stringify(bound)}`,
       );
     }
 
-    if (bound.lte[0] !== bound.gte[0]) {
+    if (bound.lte.some((value, index) => !Object.is(value, bound.gte?.[index]))) {
       throw new Error(
-        `Hash index should have the same equality condition for column '${indexColumn}'`,
+        `Hash index should have the same equality condition for columns '${indexColumn}' and index name '${indexName}'`,
       );
     }
   }
@@ -169,7 +167,7 @@ export function buildSortKeyWhereClause(
   const rawBounds = convertWhereToBound(filterColumns, clauses);
 
   if (indexDef.type === "hash") {
-    validateHashBounds(indexName, filterColumns[0], rawBounds);
+    validateHashBounds(indexName, filterColumns, rawBounds);
   }
 
   const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);

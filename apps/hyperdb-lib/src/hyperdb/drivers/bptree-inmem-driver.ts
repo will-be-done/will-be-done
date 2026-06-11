@@ -287,11 +287,11 @@ function performDelete(tblData: TableData | TxTableData, ids: string[]) {
   }
 }
 
-function performInsert(tblData: TableData | TxTableData, values: Row[]) {
-  for (const value of values) {
-    Object.freeze(value);
-  }
-
+function validateRecordIds(
+  tblData: TableData | TxTableData,
+  values: Row[],
+  options: { allowExisting: boolean },
+) {
   const ids = new Set<string>();
   for (const value of values) {
     if (typeof value.id !== "string") {
@@ -302,6 +302,8 @@ function performInsert(tblData: TableData | TxTableData, values: Row[]) {
     }
     ids.add(value.id);
 
+    if (options.allowExisting) continue;
+
     const existing = tblData.idIndex.scan(
       [{ gte: [value.id], lte: [value.id] }],
       { limit: 1 },
@@ -310,6 +312,14 @@ function performInsert(tblData: TableData | TxTableData, values: Row[]) {
       throw new Error(`Record with duplicate id already exists: ${value.id}`);
     }
   }
+}
+
+function performInsert(tblData: TableData | TxTableData, values: Row[]) {
+  for (const value of values) {
+    Object.freeze(value);
+  }
+
+  validateRecordIds(tblData, values, { allowExisting: false });
 
   for (const index of tblData.indexes.values()) {
     index.insert(values);
@@ -320,6 +330,8 @@ function performUpdate(tblData: TableData | TxTableData, records: Row[]) {
   for (const value of records) {
     Object.freeze(value);
   }
+
+  validateRecordIds(tblData, records, { allowExisting: true });
 
   performDelete(
     tblData,

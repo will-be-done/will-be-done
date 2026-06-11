@@ -23,6 +23,7 @@ import {
   sqliteIndexSortKeyColumn,
   assertSafeTableDefinition,
   buildRowInsertParams,
+  getSqliteIndexSortKeyValue,
   type SqlValue,
   type BindParams,
 } from "./SqliteCommon.ts";
@@ -353,6 +354,7 @@ export class SqlDriver implements DBDriver {
 
         this.createTable(tableDef);
         this.addMissingSortKeyColumns(tableDef);
+        this.backfillSortKeyColumns(tableDef);
         this.createIndexes(tableDef);
         this.tableDefinitions.set(tableDef.tableName, tableDef);
       }
@@ -388,6 +390,33 @@ export class SqlDriver implements DBDriver {
       console.log(sql);
       this.db.exec(sql);
       existingColumns.add(sortKeyColumn);
+    }
+  }
+
+  // NOTE: basckwards compatibility. Remove after v1.
+  private backfillSortKeyColumns(tableDef: TableDefinition<any>): void {
+    for (const indexName of Object.keys(tableDef.indexes)) {
+      const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
+      const q = this.db.prepare(
+        `SELECT id, data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`,
+      );
+
+      try {
+        for (const [id, data] of q.values([])) {
+          const row = JSON.parse(String(data)) as Row;
+          const sortKeyValue = getSqliteIndexSortKeyValue(
+            tableDef,
+            indexName,
+            row,
+          );
+          this.db.exec(
+            `UPDATE ${tableDef.tableName} SET ${sortKeyColumn} = ? WHERE id = ? AND ${sortKeyColumn} IS NULL`,
+            [sortKeyValue, id],
+          );
+        }
+      } finally {
+        q.finalize();
+      }
     }
   }
 

@@ -34,6 +34,30 @@ function encodeByteArray(bytes: readonly number[]): string {
   return bytes.map((byte) => toHex(byte, 2)).join("") + "!";
 }
 
+function isByteArray(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (byte) =>
+        Number.isInteger(byte) &&
+        Number.isFinite(byte) &&
+        byte >= 0 &&
+        byte <= 255,
+    )
+  );
+}
+
+function isEncodedBytesObject(value: unknown): value is {
+  $hyperdbType: "arrayBuffer" | "bytes";
+  value: number[];
+} {
+  return (
+    isEncodedObject(value) &&
+    (value.$hyperdbType === "arrayBuffer" || value.$hyperdbType === "bytes") &&
+    isByteArray(value.value)
+  );
+}
+
 function bytesOf(value: unknown): number[] {
   if (value instanceof ArrayBuffer) {
     return Array.from(new Uint8Array(value));
@@ -43,8 +67,8 @@ function bytesOf(value: unknown): number[] {
       new Uint8Array(value.buffer, value.byteOffset, value.byteLength),
     );
   }
-  if (isEncodedObject(value) && Array.isArray(value.value)) {
-    return value.value as number[];
+  if (isEncodedBytesObject(value)) {
+    return value.value;
   }
   return [];
 }
@@ -148,8 +172,7 @@ function encodeStoredSortValue(value: unknown): string {
   if (
     value instanceof ArrayBuffer ||
     ArrayBuffer.isView(value) ||
-    (isEncodedObject(value) &&
-      (value.$hyperdbType === "arrayBuffer" || value.$hyperdbType === "bytes"))
+    isEncodedBytesObject(value)
   ) {
     return `70${encodeByteArray(bytesOf(value))}`;
   }
