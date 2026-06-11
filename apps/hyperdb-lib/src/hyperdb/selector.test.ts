@@ -52,7 +52,9 @@ const allDoneTasks = selector(function* (state: Task["state"]) {
 });
 
 const specificTask = selector(function* (id: string) {
-  const tasks = yield* selectFrom(tasksTable, "id").where((q) => q.eq("id", id));
+  const tasks = yield* selectFrom(tasksTable, "byId").where((q) =>
+    q.eq("id", id),
+  );
   return tasks[0];
 });
 

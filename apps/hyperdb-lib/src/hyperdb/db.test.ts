@@ -151,7 +151,7 @@ describe("db", async () => {
         db.loadTables([writeSemanticsTable]);
 
         const selectById = (id: string) =>
-          db.intervalScan(writeSemanticsTable, "id", [
+          db.intervalScan(writeSemanticsTable, "byId", [
             {
               eq: [{ col: "id", val: id }],
             },
@@ -596,7 +596,7 @@ describe("Database Operations Edge Cases", async () => {
 
         db.insert(docsTable, [stringDocument, numberDocument]);
 
-        const res = db.intervalScan(docsTable, "id", [
+        const res = db.intervalScan(docsTable, "byId", [
           {
             eq: [{ col: "id", val: "doc-string" }],
           },
@@ -609,7 +609,7 @@ describe("Database Operations Edge Cases", async () => {
         });
 
         expect(
-          db.intervalScan(docsTable, "id", [
+          db.intervalScan(docsTable, "byId", [
             {
               eq: [{ col: "id", val: "doc-string" }],
             },
@@ -620,7 +620,7 @@ describe("Database Operations Edge Cases", async () => {
         db.upsert(docsTable, [updatedNumberDocument]);
 
         expect(
-          db.intervalScan(docsTable, "id", [
+          db.intervalScan(docsTable, "byId", [
             {
               eq: [{ col: "id", val: "doc-number" }],
             },

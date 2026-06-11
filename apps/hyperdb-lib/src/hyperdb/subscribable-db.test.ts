@@ -238,7 +238,7 @@ describe("SubscribableDB", async () => {
           },
         ]);
         expect(
-          syncDB.intervalScan(tasksTable, "id", [
+          syncDB.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: nonExistentTask.id }] },
           ]),
         ).toEqual([nonExistentTask]);
@@ -286,7 +286,7 @@ describe("SubscribableDB", async () => {
           },
         ]);
         expect(
-          syncDB.intervalScan(tasksTable, "id", [
+          syncDB.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: finalUpdate.id }] },
           ]),
         ).toEqual([finalUpdate]);
@@ -337,7 +337,7 @@ describe("SubscribableDB", async () => {
         syncDB.insert(tasksTable, tasks);
 
         // Test intervalScan
-        const intervalResults = syncDB.intervalScan(tasksTable, "id", [
+        const intervalResults = syncDB.intervalScan(tasksTable, "byId", [
           {
             eq: [{ col: "id", val: "task-1" }],
           },
@@ -497,7 +497,7 @@ describe("SubscribableDB", async () => {
           let nextCount =
             (
               yield* runQuery(
-                selectFrom(taskCountsTable, "id").where((q) =>
+                selectFrom(taskCountsTable, "byId").where((q) =>
                   q.eq("id", "tasks"),
                 ),
               )
@@ -541,7 +541,7 @@ describe("SubscribableDB", async () => {
         syncDB.delete(tasksTable, ["task-2"]);
 
         expect(
-          syncDB.intervalScan(taskCountsTable, "id", [
+          syncDB.intervalScan(taskCountsTable, "byId", [
             { eq: [{ col: "id", val: "tasks" }] },
           ]),
         ).toEqual([{ id: "tasks", todo: 0, done: 1 }]);

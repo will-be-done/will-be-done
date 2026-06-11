@@ -310,7 +310,7 @@ export function defineTable<const TSchema extends ValidatorSchemaWithId>(
 ): TableDefinition<
   InferTableSchema<TSchema>,
   {
-    id: {
+    byId: {
       type: "hash";
       cols: readonly ["id"];
     };
@@ -322,7 +322,7 @@ export function defineTable<const TValidator extends Validator<{ id: string }>>(
 ): TableDefinition<
   Infer<TValidator>,
   {
-    id: {
+    byId: {
       type: "hash";
       cols: readonly ["id"];
     };
@@ -334,7 +334,7 @@ export function defineTable(
 ): TableDefinition<
   any,
   {
-    id: {
+    byId: {
       type: "hash";
       cols: readonly ["id"];
     };
@@ -346,9 +346,9 @@ export function defineTable(
     schemaOrValidator,
   );
   const indexes = {
-    id: { type: "hash", cols: ["id"] as const },
+    byId: { type: "hash", cols: ["id"] as const },
   } satisfies {
-    id: {
+    byId: {
       type: "hash";
       cols: readonly ["id"];
     };
@@ -362,6 +362,6 @@ export function defineTable(
     schemaValidator,
     schemaFields,
     indexes,
-    idIndexName: "id",
+    idIndexName: "byId",
   });
 }

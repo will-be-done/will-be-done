@@ -267,7 +267,7 @@ describe("query", () => {
     );
 
     // Test that the hash index only has the id column
-    assertType<ExtractIndexColumns<typeof tasksTable, "id">>("id");
+    assertType<ExtractIndexColumns<typeof tasksTable, "byId">>("id");
 
     // Test valid queries that should compile without errors
     const query1 = selectFrom(tasksTable, "projectIdState").where((q) =>
@@ -278,7 +278,9 @@ describe("query", () => {
       q.lte("state", "done"),
     );
 
-    const query3 = selectFrom(tasksTable, "id").where((q) => q.eq("id", "123"));
+    const query3 = selectFrom(tasksTable, "byId").where((q) =>
+      q.eq("id", "123"),
+    );
 
     expect(query1).toBeDefined();
     expect(query2).toBeDefined();

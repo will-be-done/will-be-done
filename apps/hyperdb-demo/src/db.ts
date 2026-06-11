@@ -100,18 +100,18 @@ export const getDashboardSnapshot = selector(function* (
     .order("asc")
     .limit(projectLimit);
   const selectedProject = selectedProjectId
-    ? ((yield* selectFrom(projectsTable, "id").where((q) =>
+    ? ((yield* selectFrom(projectsTable, "byId").where((q) =>
         q.eq("id", selectedProjectId),
       ))[0] ?? null)
     : (projects[0] ?? null);
   const visibleProjectTaskStats =
     projects.length > 0
-      ? yield* selectFrom(projectTaskStatsTable, "id").where((q) =>
+      ? yield* selectFrom(projectTaskStatsTable, "byId").where((q) =>
           projects.map((project) => q.eq("id", project.id)),
         )
       : [];
   const selectedProjectTaskStats = selectedProject
-    ? ((yield* selectFrom(projectTaskStatsTable, "id").where((q) =>
+    ? ((yield* selectFrom(projectTaskStatsTable, "byId").where((q) =>
         q.eq("id", selectedProject.id),
       ))[0] ?? null)
     : null;
@@ -122,7 +122,7 @@ export const getDashboardSnapshot = selector(function* (
         .limit(taskLimit)
     : [];
   const stats =
-    (yield* selectFrom(taskStatsTable, "id").where((q) =>
+    (yield* selectFrom(taskStatsTable, "byId").where((q) =>
       q.eq("id", TASK_STATS_ID),
     ))[0] ?? EMPTY_TASK_STATS;
 
@@ -191,7 +191,7 @@ export function installTaskStatsHooks(db: SubscribableDB) {
     if (table !== tasksTable && table !== projectsTable) return;
 
     const existingStats =
-      (yield* selectFrom(taskStatsTable, "id").where((q) =>
+      (yield* selectFrom(taskStatsTable, "byId").where((q) =>
         q.eq("id", TASK_STATS_ID),
       ))[0] ?? EMPTY_TASK_STATS;
 
@@ -248,10 +248,8 @@ export function installTaskStatsHooks(db: SubscribableDB) {
 
     const existingProjectTaskStats = yield* selectFrom(
       projectTaskStatsTable,
-      "id",
-    ).where((q) =>
-      changedProjectIds.map((projectId) => q.eq("id", projectId)),
-    );
+      "byId",
+    ).where((q) => changedProjectIds.map((projectId) => q.eq("id", projectId)));
     const projectTaskStatsById = new Map(
       existingProjectTaskStats.map((stats) => [stats.id, stats]),
     );

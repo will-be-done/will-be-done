@@ -258,14 +258,14 @@ describe("CachedDB", async () => {
 
     // Cache has it immediately
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([task]);
 
     // Primary does NOT have it yet (deferred)
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
@@ -273,7 +273,7 @@ describe("CachedDB", async () => {
     // After flushing the queue, primary should have it
     await flushQueue();
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([task]);
@@ -282,14 +282,14 @@ describe("CachedDB", async () => {
     const updated = { ...task, title: "Updated" };
     db.upsert(tasksTable, [updated]);
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([updated]);
 
     await flushQueue();
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([updated]);
@@ -297,14 +297,14 @@ describe("CachedDB", async () => {
     // Delete — cache immediate, primary deferred
     db.delete(tasksTable, ["1"]);
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
 
     await flushQueue();
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
@@ -406,14 +406,14 @@ describe("CachedDB", async () => {
 
     // After commit — cache should have the data immediately
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([task]);
 
     // Primary should NOT have it yet (deferred)
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
@@ -421,7 +421,7 @@ describe("CachedDB", async () => {
     // After flush — primary should have it
     await flushQueue();
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([task]);
@@ -442,14 +442,14 @@ describe("CachedDB", async () => {
 
     // Cache has the upsert immediately
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([updated]);
 
     await flushQueue();
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([updated]);
@@ -460,14 +460,14 @@ describe("CachedDB", async () => {
     tx2.commit();
 
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
 
     await flushQueue();
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
@@ -540,12 +540,12 @@ describe("CachedDB", async () => {
 
     // Neither should have the data
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
@@ -572,7 +572,7 @@ describe("CachedDB", async () => {
     cacheScanSpy.mockClear();
 
     // Hash lookup by id — should serve from cache since btree populated hash keys
-    const result = db.intervalScan(tasksTable, "id", [
+    const result = db.intervalScan(tasksTable, "byId", [
       { eq: [{ col: "id", val: "2" }] },
     ]);
     expect(result).toEqual([tasks[1]]);
@@ -591,7 +591,7 @@ describe("CachedDB", async () => {
     await seedPrimary(dbs, tasks);
 
     // First hash lookup — hits primary
-    const result1 = db.intervalScan(tasksTable, "id", [
+    const result1 = db.intervalScan(tasksTable, "byId", [
       { eq: [{ col: "id", val: "1" }] },
     ]);
     expect(result1).toEqual([tasks[0]]);
@@ -601,7 +601,7 @@ describe("CachedDB", async () => {
     cacheScanSpy.mockClear();
 
     // Second identical hash lookup — should serve from cache
-    const result2 = db.intervalScan(tasksTable, "id", [
+    const result2 = db.intervalScan(tasksTable, "byId", [
       { eq: [{ col: "id", val: "1" }] },
     ]);
     expect(result2).toEqual([tasks[0]]);
@@ -610,7 +610,7 @@ describe("CachedDB", async () => {
 
     // Different key still hits primary
     primaryScanSpy.mockClear();
-    const result3 = db.intervalScan(tasksTable, "id", [
+    const result3 = db.intervalScan(tasksTable, "byId", [
       { eq: [{ col: "id", val: "2" }] },
     ]);
     expect(result3).toEqual([tasks[1]]);
@@ -628,7 +628,7 @@ describe("CachedDB", async () => {
 
     // Hash lookup inside a transaction
     const tx = db.beginTx();
-    const txResult = tx.intervalScan(tasksTable, "id", [
+    const txResult = tx.intervalScan(tasksTable, "byId", [
       { eq: [{ col: "id", val: "1" }] },
     ]);
     expect(txResult).toEqual(tasks);
@@ -639,7 +639,7 @@ describe("CachedDB", async () => {
     cacheScanSpy.mockClear();
 
     // After commit, hash key should be cached — no primary hit
-    const result = db.intervalScan(tasksTable, "id", [
+    const result = db.intervalScan(tasksTable, "byId", [
       { eq: [{ col: "id", val: "1" }] },
     ]);
     expect(result).toEqual(tasks);
@@ -672,19 +672,19 @@ describe("CachedDB", async () => {
 
     // Cache should have both records immediately
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toHaveLength(1);
     expect(
-      cache.intervalScan(tasksTable, "id", [
+      cache.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "2" }] },
       ]),
     ).toHaveLength(1);
 
     // Primary should NOT have them yet
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toEqual([]);
@@ -692,12 +692,12 @@ describe("CachedDB", async () => {
     // After flush — primary should have both
     await flushQueue();
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "1" }] },
       ]),
     ).toHaveLength(1);
     expect(
-      primary.intervalScan(tasksTable, "id", [
+      primary.intervalScan(tasksTable, "byId", [
         { eq: [{ col: "id", val: "2" }] },
       ]),
     ).toHaveLength(1);
