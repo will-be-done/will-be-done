@@ -3,7 +3,7 @@ import type { Row, Trait } from "./db";
 import { type ExtractSchema, type TableDefinition } from "./table";
 
 const insertType = "insert";
-const updateType = "update";
+const upsertType = "upsert";
 const deleteType = "delete";
 const getCurrentTraitsType = "getCurrentTraits";
 
@@ -13,8 +13,8 @@ export type InsertActionCmd = {
   values: Row[];
 };
 
-export type UpdateActionCmd = {
-  type: typeof updateType;
+export type UpsertActionCmd = {
+  type: typeof upsertType;
   table: TableDefinition;
   values: Row[];
 };
@@ -35,8 +35,8 @@ const isCmdObject = (cmd: unknown): cmd is { type?: unknown } =>
 export const isInsertActionCmd = (cmd: unknown): cmd is InsertActionCmd =>
   isCmdObject(cmd) && cmd.type === insertType;
 
-export const isUpdateActionCmd = (cmd: unknown): cmd is UpdateActionCmd =>
-  isCmdObject(cmd) && cmd.type === updateType;
+export const isUpsertActionCmd = (cmd: unknown): cmd is UpsertActionCmd =>
+  isCmdObject(cmd) && cmd.type === upsertType;
 
 export const isDeleteActionCmd = (cmd: unknown): cmd is DeleteActionCmd =>
   isCmdObject(cmd) && cmd.type === deleteType;
@@ -67,15 +67,15 @@ export function* insert<TTable extends TableDefinition<any, any>>(
   } satisfies InsertActionCmd;
 }
 
-export function* update<TTable extends TableDefinition<any, any>>(
+export function* upsert<TTable extends TableDefinition<any, any>>(
   table: TTable,
   values: ExtractSchema<TTable>[],
 ): Generator<unknown> {
   yield {
-    type: updateType,
+    type: upsertType,
     table,
     values,
-  } satisfies UpdateActionCmd;
+  } satisfies UpsertActionCmd;
 }
 
 export function* deleteRows<TTable extends TableDefinition<any, any>>(

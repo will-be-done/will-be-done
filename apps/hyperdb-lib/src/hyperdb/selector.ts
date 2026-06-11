@@ -116,8 +116,11 @@ export const isNeedToRerunRange = (cmds: SelectRangeCmd[], ops: Op[]): boolean =
           }
         }
 
-        if (op.type === "update") {
-          if (isRowInRange(op.oldValue, cmd.table, cmd.index, bound)) {
+        if (op.type === "upsert") {
+          if (
+            op.oldValue &&
+            isRowInRange(op.oldValue, cmd.table, cmd.index, bound)
+          ) {
             // console.log(
             //   "need to rerun",
             //   op.oldValue,

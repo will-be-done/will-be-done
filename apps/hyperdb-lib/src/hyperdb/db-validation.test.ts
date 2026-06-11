@@ -19,7 +19,7 @@ import { insert as actionInsert, syncDispatch } from "./action";
 
 class RecordingDriver implements DBDriver, DBDriverTX {
   inserted: Row[][] = [];
-  updated: Row[][] = [];
+  upserted: Row[][] = [];
   scanRows: unknown[] = [];
 
   *loadTables(_tables: TableDefinition<any, any>[]): Generator<DBCmd, void> {}
@@ -41,8 +41,8 @@ class RecordingDriver implements DBDriver, DBDriverTX {
     this.inserted.push(values);
   }
 
-  *update(_tableName: string, values: Row[]): Generator<DBCmd, void> {
-    this.updated.push(values);
+  *upsert(_tableName: string, values: Row[]): Generator<DBCmd, void> {
+    this.upserted.push(values);
   }
 
   *delete(_tableName: string, _values: string[]): Generator<DBCmd, void> {}
@@ -208,7 +208,7 @@ describe("DB runtime validation and codec boundary", () => {
 
     expect(() =>
       execSync(
-        tx.update(docsTable, [
+        tx.upsert(docsTable, [
           {
             id: "doc-1",
             title: "hello",
@@ -219,7 +219,7 @@ describe("DB runtime validation and codec boundary", () => {
       ),
     ).toThrow(/Table docs record doc-1: expected string at optionalNote/);
 
-    expect(driver.updated).toEqual([]);
+    expect(driver.upserted).toEqual([]);
     execSync(tx.rollback());
   });
 
@@ -249,10 +249,10 @@ describe("DB runtime validation and codec boundary", () => {
     const db = new DB(driver, [docsTable], { runtimeValidation: true });
 
     execSync(db.insert(docsTable, []));
-    execSync(db.update(docsTable, []));
+    execSync(db.upsert(docsTable, []));
 
     expect(driver.inserted).toEqual([]);
-    expect(driver.updated).toEqual([]);
+    expect(driver.upserted).toEqual([]);
   });
 
   for (const [name, driverFactory] of [

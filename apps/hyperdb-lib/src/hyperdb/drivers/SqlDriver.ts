@@ -59,7 +59,7 @@ function performInsertOperation(
   }
 }
 
-function performUpdateOperation(
+function performUpsertOperation(
   db: SQLiteDB,
   tableDef: TableDefinition,
   values: Row[],
@@ -68,12 +68,12 @@ function performUpdateOperation(
 
   const allValues = chunkArray(values, CHUNK_SIZE);
   for (const chunk of allValues) {
-    const updateSQL = buildInsertSQL(tableDef, chunk.length, {
+    const upsertSQL = buildInsertSQL(tableDef, chunk.length, {
       replace: true,
     });
 
     db.exec(
-      updateSQL,
+      upsertSQL,
       chunk.flatMap((v) => buildRowInsertParams(tableDef, v)),
     );
   }
@@ -193,13 +193,13 @@ class SqlDriverTx implements DBDriverTX {
     performInsertOperation(this.db, tableDef, values as Row[]);
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
     const tableDef = this.tableDefinitions.get(tableName);
     if (!tableDef) throw new Error(`Table ${tableName} not found`);
-    performUpdateOperation(this.db, tableDef, values);
+    performUpsertOperation(this.db, tableDef, values);
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
@@ -275,7 +275,7 @@ export class SqlDriver implements DBDriver {
     }
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -285,7 +285,7 @@ export class SqlDriver implements DBDriver {
     try {
       const tableDef = this.tableDefinitions.get(tableName);
       if (!tableDef) throw new Error(`Table ${tableName} not found`);
-      performUpdateOperation(this.db, tableDef, values);
+      performUpsertOperation(this.db, tableDef, values);
       this.db.exec("COMMIT");
     } catch (error) {
       rollbackQuietly(this.db);

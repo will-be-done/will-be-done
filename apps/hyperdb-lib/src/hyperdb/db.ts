@@ -28,12 +28,11 @@ export interface HyperDB {
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<DBCmd, ExtractSchema<TTable>[]>;
-  // TODO: not allow insert if record already exists
   insert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void>;
-  update<TTable extends TableDefinition>(
+  upsert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void>;
@@ -86,7 +85,7 @@ type BaseDBDriverOperations = {
     selectOptions: SelectOptions,
   ): Generator<DBCmd, unknown[]>;
   insert(tableName: string, values: Row[]): Generator<DBCmd>;
-  update(tableName: string, values: Row[]): Generator<DBCmd>;
+  upsert(tableName: string, values: Row[]): Generator<DBCmd>;
   delete(tableName: string, values: string[]): Generator<DBCmd>;
 };
 
@@ -145,14 +144,14 @@ function* performInsert(
   yield* driver.insert(table.tableName, prepareRecordsForDriver(table, records, options));
 }
 
-function* performUpdate(
+function* performUpsert(
   driver: BaseDBDriverOperations,
   table: TableDefinition,
   records: Row[],
   options: CodecOptions,
 ) {
   if (records.length === 0) return;
-  yield* driver.update(table.tableName, prepareRecordsForDriver(table, records, options));
+  yield* driver.upsert(table.tableName, prepareRecordsForDriver(table, records, options));
 }
 
 function* performDelete(
@@ -262,7 +261,7 @@ export class DBTx implements HyperDBTx {
     yield* performInsert(this.driver, table, records as Row[], this.options);
   }
 
-  *update<TTable extends TableDefinition>(
+  *upsert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd> {
@@ -270,7 +269,7 @@ export class DBTx implements HyperDBTx {
       throw new Error("Transaction is finished");
     }
 
-    yield* performUpdate(this.driver, table, records as Row[], this.options);
+    yield* performUpsert(this.driver, table, records as Row[], this.options);
   }
 
   *delete<TTable extends TableDefinition>(
@@ -350,11 +349,11 @@ export class DB implements HyperDB {
     yield* performInsert(this.driver, table, records as Row[], this.options);
   }
 
-  *update<TTable extends TableDefinition<any, any>>(
+  *upsert<TTable extends TableDefinition<any, any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ) {
-    yield* performUpdate(this.driver, table, records as Row[], this.options);
+    yield* performUpsert(this.driver, table, records as Row[], this.options);
   }
 
   *delete<TTable extends TableDefinition<any, any>>(
@@ -420,11 +419,11 @@ export class SyncDBTx {
     return execSync(this.dbTx.insert(table, records));
   }
 
-  update<TTable extends TableDefinition>(
+  upsert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): void {
-    return execSync(this.dbTx.update(table, records));
+    return execSync(this.dbTx.upsert(table, records));
   }
 
   delete<TTable extends TableDefinition>(table: TTable, ids: string[]): void {
@@ -477,11 +476,11 @@ export class SyncDB {
     return execSync(this.db.insert(table, records));
   }
 
-  update<TTable extends TableDefinition<any, any>>(
+  upsert<TTable extends TableDefinition<any, any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): void {
-    return execSync(this.db.update(table, records));
+    return execSync(this.db.upsert(table, records));
   }
 
   delete<TTable extends TableDefinition<any, any>>(
@@ -494,7 +493,7 @@ export class SyncDB {
 
 // TODO:
 // 0. DONE test asyncScan
-// 1. DONE update, delete support
+// 1. DONE upsert, delete support
 // 2. DONE generator based selector + ability to subscribe to selector
 // 3. DONE hash type index
 // 3. tx support

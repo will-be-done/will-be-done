@@ -19,10 +19,10 @@ export type InsertOp = {
   newValue: Row;
 };
 
-export type UpdateOp = {
-  type: "update";
+export type UpsertOp = {
+  type: "upsert";
   table: TableDefinition;
-  oldValue: Row;
+  oldValue?: Row;
   newValue: Row;
 };
 
@@ -32,7 +32,7 @@ export type DeleteOp = {
   oldValue: Row;
 };
 
-export type Op = InsertOp | UpdateOp | DeleteOp;
+export type Op = InsertOp | UpsertOp | DeleteOp;
 
 type AfterInsertSub = (
   db: HyperDB,
@@ -41,11 +41,11 @@ type AfterInsertSub = (
   ops: InsertOp[],
 ) => Generator<unknown, void, unknown>;
 
-type AfterUpdateSub = (
+type AfterUpsertSub = (
   db: HyperDB,
   table: TableDefinition,
   traits: Trait[],
-  ops: UpdateOp[],
+  ops: UpsertOp[],
 ) => Generator<unknown, void, unknown>;
 
 type AfterDeleteSub = (
@@ -56,9 +56,9 @@ type AfterDeleteSub = (
 ) => Generator<unknown, void, unknown>;
 
 export class SubscribableDBTx implements HyperDBTx {
-  // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, update, delete batches.
+  // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, upsert, delete batches.
   // That will make async db tx apply very fast. Right now we need to wait each op of tx to finish
-  // before applying next one. Cause otherwise if we will do in unordered way, we could get update before insert, for example.
+  // before applying next one. Cause otherwise if we will do in unordered way, we could get upsert before insert, for example.
   operations: Op[];
 
   private subDb: SubscribableDB;
@@ -160,7 +160,7 @@ export class SubscribableDBTx implements HyperDBTx {
     }
   }
 
-  *update<TTable extends TableDefinition<any>>(
+  *upsert<TTable extends TableDefinition<any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
@@ -177,31 +177,23 @@ export class SubscribableDBTx implements HyperDBTx {
       previousRecords.set(oldRecord.id, oldRecord);
     }
 
-    for (const record of records) {
-      if (!previousRecords.has(record.id)) {
-        throw new Error(
-          `Failed to update record, no previous record found for ${table.tableName}=${record.id}`,
-        );
-      }
-    }
+    yield* this.txDb.upsert(table, records);
 
-    yield* this.txDb.update(table, records);
-
-    const updateOps = records.map(
+    const upsertOps = records.map(
       (record) =>
         ({
-          type: "update",
+          type: "upsert",
           table,
-          oldValue: previousRecords.get(record.id)!,
+          oldValue: previousRecords.get(record.id),
           newValue: record,
-        }) satisfies UpdateOp,
+        }) satisfies UpsertOp,
     );
-    this.operations.push(...updateOps);
+    this.operations.push(...upsertOps);
 
-    for (const cb of this.subDb.afterUpdateSubscribers) {
+    for (const cb of this.subDb.afterUpsertSubscribers) {
       yield* runCommandGenerator(
         this,
-        cb(this, table, this.getTraits(), updateOps),
+        cb(this, table, this.getTraits(), upsertOps),
         { allowWrites: true },
       );
     }
@@ -267,7 +259,7 @@ export class SubscribableDB implements HyperDB {
   db: HyperDB;
 
   afterInsertSubscribers: AfterInsertSub[] = [];
-  afterUpdateSubscribers: AfterUpdateSub[] = [];
+  afterUpsertSubscribers: AfterUpsertSub[] = [];
   afterDeleteSubscribers: AfterDeleteSub[] = [];
   traits: Trait[] = [];
 
@@ -275,14 +267,14 @@ export class SubscribableDB implements HyperDB {
     db: HyperDB,
     subscribers: ((op: Op[], traits: Trait[]) => void)[] = [],
     afterInsertSubscribers: AfterInsertSub[] = [],
-    afterUpdateSubscribers: AfterUpdateSub[] = [],
+    afterUpsertSubscribers: AfterUpsertSub[] = [],
     afterDeleteSubscribers: AfterDeleteSub[] = [],
     traits: Trait[] = [],
   ) {
     this.db = db;
     this.subscribers = subscribers;
     this.afterInsertSubscribers = afterInsertSubscribers;
-    this.afterUpdateSubscribers = afterUpdateSubscribers;
+    this.afterUpsertSubscribers = afterUpsertSubscribers;
     this.afterDeleteSubscribers = afterDeleteSubscribers;
     this.traits = traits;
   }
@@ -306,7 +298,7 @@ export class SubscribableDB implements HyperDB {
       this.db,
       this.subscribers,
       this.afterInsertSubscribers,
-      this.afterUpdateSubscribers,
+      this.afterUpsertSubscribers,
       this.afterDeleteSubscribers,
       [...this.traits, ...traits],
     );
@@ -326,11 +318,11 @@ export class SubscribableDB implements HyperDB {
     };
   }
 
-  afterUpdate(cb: AfterUpdateSub): () => void {
-    this.afterUpdateSubscribers.push(cb);
+  afterUpsert(cb: AfterUpsertSub): () => void {
+    this.afterUpsertSubscribers.push(cb);
 
     return () => {
-      this.afterUpdateSubscribers = this.afterUpdateSubscribers.filter(
+      this.afterUpsertSubscribers = this.afterUpsertSubscribers.filter(
         (s) => s !== cb,
       );
     };
@@ -387,7 +379,7 @@ export class SubscribableDB implements HyperDB {
     yield* tx.commit();
   }
 
-  *update<TTable extends TableDefinition<any>>(
+  *upsert<TTable extends TableDefinition<any>>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ) {
@@ -395,7 +387,7 @@ export class SubscribableDB implements HyperDB {
 
     const tx = yield* this.beginTx();
 
-    yield* tx.update(table, records);
+    yield* tx.upsert(table, records);
     yield* tx.commit();
   }
 

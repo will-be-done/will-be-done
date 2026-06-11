@@ -275,15 +275,13 @@ function performScan(
 }
 
 function performDelete(tblData: TableData | TxTableData, ids: string[]) {
-  for (const id of ids) {
-    const [record] = Array.from(
-      tblData.idIndex.scan([{ lte: [id], gte: [id] }], {}),
-    );
-    if (record === undefined || record == null) continue;
+  const records = tblData.idIndex.scan(
+    ids.map((id) => ({ lte: [id], gte: [id] })),
+    {},
+  );
 
-    for (const index of tblData.indexes.values()) {
-      index.delete([record]);
-    }
+  for (const index of tblData.indexes.values()) {
+    index.delete(records);
   }
 }
 
@@ -301,16 +299,17 @@ function validateRecordIds(
       throw new Error(`Record with duplicate id already exists: ${value.id}`);
     }
     ids.add(value.id);
+  }
 
-    if (options.allowExisting) continue;
+  if (options.allowExisting) return;
 
-    const existing = tblData.idIndex.scan(
-      [{ gte: [value.id], lte: [value.id] }],
-      { limit: 1 },
-    );
-    if (existing.length > 0) {
-      throw new Error(`Record with duplicate id already exists: ${value.id}`);
-    }
+  const existing = tblData.idIndex.scan(
+    [...ids].map((id) => ({ gte: [id], lte: [id] })),
+    { limit: 1 },
+  );
+  const existingId = existing[0]?.id;
+  if (existingId !== undefined) {
+    throw new Error(`Record with duplicate id already exists: ${existingId}`);
   }
 }
 
@@ -319,6 +318,7 @@ function performInsert(tblData: TableData | TxTableData, values: Row[]) {
     Object.freeze(value);
   }
 
+  // NOTE: performance will be noot good here. Maybe make fastInsert?
   validateRecordIds(tblData, values, { allowExisting: false });
 
   for (const index of tblData.indexes.values()) {
@@ -326,7 +326,7 @@ function performInsert(tblData: TableData | TxTableData, values: Row[]) {
   }
 }
 
-function performUpdate(tblData: TableData | TxTableData, records: Row[]) {
+function performUpsert(tblData: TableData | TxTableData, records: Row[]) {
   for (const value of records) {
     Object.freeze(value);
   }
@@ -422,10 +422,7 @@ class HashIndex implements Index {
     return [this.indexDef.column];
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
 
     const results: Row[] = [];
@@ -533,10 +530,7 @@ class HashIndexTx implements IndexTx {
     }
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const boundValues = getColumnValuesFromBounds(
@@ -693,10 +687,7 @@ class BtreeIndexTx implements IndexTx {
     );
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const deletedRowIds = new Set<string>();
@@ -814,10 +805,7 @@ class BtreeIndex implements Index {
     this.indexDef = indexConfig;
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     return scanBtree(this.btree, tupleBounds, selectOptions, this.compareKey);
   }
 
@@ -915,13 +903,13 @@ export class BptreeInmemDriverTx implements DBDriverTX {
     performInsert(tableData, values);
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     this.throwIfDone();
 
     const tableData = this.getOrCreateTableData(tableName);
 
-    // console.log("update", tableName, values);
-    performUpdate(tableData, values);
+    // console.log("upsert", tableName, values);
+    performUpsert(tableData, values);
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
@@ -1055,7 +1043,7 @@ export class BptreeInmemDriver implements DBDriver {
     }
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -1065,7 +1053,7 @@ export class BptreeInmemDriver implements DBDriver {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    performUpdate(tblData, values);
+    performUpsert(tblData, values);
   }
 
   *insert(tableName: string, values: Row[]): Generator<DBCmd, void> {

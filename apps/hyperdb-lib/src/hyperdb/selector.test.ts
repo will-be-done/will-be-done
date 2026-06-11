@@ -82,7 +82,7 @@ describe("selector", () => {
     );
 
     execSync(
-      db.update(tasksTable, [
+      db.upsert(tasksTable, [
         {
           id: "task-1",
           title: "updated",
@@ -121,7 +121,7 @@ describe("selector", () => {
     );
 
     execSync(
-      db.update(tasksTable, [
+      db.upsert(tasksTable, [
         {
           id: "task-1",
           title: "updated",
@@ -202,7 +202,7 @@ describe("selector", () => {
 
     const tx2 = execSync(testDb.beginTx());
     execSync(
-      tx2.update(itemsTable, [
+      tx2.upsert(itemsTable, [
         { id: "item1", orderToken: "c", projectId: "project2" },
       ]),
     );
@@ -259,7 +259,7 @@ describe("selector", () => {
     ]);
 
     execSync(
-      testDb.update(itemsTable, [
+      testDb.upsert(itemsTable, [
         { id: "one", orderToken: "d", projectId: "project1" },
       ]),
     );

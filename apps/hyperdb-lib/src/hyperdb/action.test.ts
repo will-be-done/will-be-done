@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defineTable } from "./table";
 import { DB, execSync } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
-import { action, deleteRows, syncDispatch, insert, update } from "./action";
+import { action, deleteRows, syncDispatch, insert, upsert } from "./action";
 import { runQuery } from "./selector";
 import { selectFrom } from "./query";
 import { v } from "./values";
@@ -35,7 +35,7 @@ const updateAction = action(function* () {
     orderToken: "b",
   };
 
-  yield* update(tasksTables, [task]);
+  yield* upsert(tasksTables, [task]);
 });
 
 const insertAction = action(function* () {

@@ -115,7 +115,7 @@ function* performAsyncInsertOperation(
   });
 }
 
-function* performAsyncUpdateOperation(
+function* performAsyncUpsertOperation(
   sqlite3: AsyncSQLiteDB,
   db: number,
   tableDef: TableDefinition,
@@ -126,11 +126,11 @@ function* performAsyncUpdateOperation(
   yield* unwrapCb(async () => {
     const allValues = chunkArray(values, CHUNK_SIZE);
     for (const chunk of allValues) {
-      const updateSQL = buildInsertSQL(tableDef, chunk.length, {
-        replace: true,
-      });
+    const upsertSQL = buildInsertSQL(tableDef, chunk.length, {
+      replace: true,
+    });
 
-      for await (const stmt of sqlite3.statements(db, updateSQL)) {
+      for await (const stmt of sqlite3.statements(db, upsertSQL)) {
         sqlite3.bind_collection(
           stmt,
           chunk.flatMap((v) => buildRowInsertParams(tableDef, v)),
@@ -289,7 +289,7 @@ class AsyncSqlDriverTx implements DBDriverTX {
     }
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     yield* unwrapCb(async () => {
       await this.queryLock.acquireAsync();
     });
@@ -300,7 +300,7 @@ class AsyncSqlDriverTx implements DBDriverTX {
       }
       const tableDef = this.tableDefinitions.get(tableName);
       if (!tableDef) throw new Error(`Table ${tableName} not found`);
-      yield* performAsyncUpdateOperation(
+      yield* performAsyncUpsertOperation(
         this.sqlite3,
         this.db,
         tableDef,
@@ -443,7 +443,7 @@ export class AsyncSqlDriver implements DBDriver {
     }
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     yield* unwrapCb(async () => {
       await this.txAndQueryLock.acquireAsync();
     });
@@ -459,7 +459,7 @@ export class AsyncSqlDriver implements DBDriver {
         });
         transactionStarted = true;
 
-        yield* performAsyncUpdateOperation(
+        yield* performAsyncUpsertOperation(
           this.sqlite3,
           this.db,
           this.getTableDefinition(tableName),

@@ -783,7 +783,7 @@ describe("driver edge case regressions", () => {
         ).toThrow(/duplicate|exists/i);
       });
 
-      it("update rejects duplicate ids before deleting existing rows", async () => {
+      it("upsert rejects duplicate ids before deleting existing rows", async () => {
         if (driverName !== "BptreeInmemDriver") return;
 
         const db = new SyncDB(new DB(await createDriver()));
@@ -791,7 +791,7 @@ describe("driver edge case regressions", () => {
         db.insert(duplicateTable, [{ id: "task-1", title: "Existing" }]);
 
         expect(() =>
-          db.update(duplicateTable, [
+          db.upsert(duplicateTable, [
             { id: "task-1", title: "First" },
             { id: "task-1", title: "Second" },
           ]),
@@ -804,12 +804,12 @@ describe("driver edge case regressions", () => {
         ).toEqual([{ id: "task-1", title: "Existing" }]);
       });
 
-      it("update upserts rows and replaces indexed sort keys", async () => {
+      it("upsert replaces rows and replaces indexed sort keys", async () => {
         const db = new SyncDB(new DB(await createDriver()));
         db.loadTables([duplicateTable]);
         db.insert(duplicateTable, [{ id: "task-1", title: "A" }]);
 
-        db.update(duplicateTable, [
+        db.upsert(duplicateTable, [
           { id: "task-1", title: "C" },
           { id: "task-2", title: "B" },
         ]);
