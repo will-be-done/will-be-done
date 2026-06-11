@@ -3,7 +3,6 @@ import {
   defineTable,
   deleteRows,
   insert,
-  runQuery,
   selectFrom,
   selector,
   type SubscribableDB,
@@ -96,48 +95,36 @@ export const getDashboardSnapshot = selector(function* (
   projectLimit = 10,
   selectedProjectId: string | null = null,
 ) {
-  const projects = yield* runQuery(
-    selectFrom(projectsTable, "byCreatedAt")
-      .where((q) => q)
-      .order("asc")
-      .limit(projectLimit),
-  );
+  const projects = yield* selectFrom(projectsTable, "byCreatedAt")
+    .where((q) => q)
+    .order("asc")
+    .limit(projectLimit);
   const selectedProject = selectedProjectId
-    ? (yield* runQuery(
-        selectFrom(projectsTable, "id").where((q) =>
-          q.eq("id", selectedProjectId),
-        ),
-      ))[0] ?? null
-    : projects[0] ?? null;
+    ? ((yield* selectFrom(projectsTable, "id").where((q) =>
+        q.eq("id", selectedProjectId),
+      ))[0] ?? null)
+    : (projects[0] ?? null);
   const visibleProjectTaskStats =
     projects.length > 0
-      ? yield* runQuery(
-          selectFrom(projectTaskStatsTable, "id").where((q) =>
-            projects.map((project) => q.eq("id", project.id)),
-          ),
+      ? yield* selectFrom(projectTaskStatsTable, "id").where((q) =>
+          projects.map((project) => q.eq("id", project.id)),
         )
       : [];
   const selectedProjectTaskStats = selectedProject
-    ? (yield* runQuery(
-        selectFrom(projectTaskStatsTable, "id").where((q) =>
-          q.eq("id", selectedProject.id),
-        ),
-      ))[0] ?? null
+    ? ((yield* selectFrom(projectTaskStatsTable, "id").where((q) =>
+        q.eq("id", selectedProject.id),
+      ))[0] ?? null)
     : null;
   const selectedTasks = selectedProject
-    ? yield* runQuery(
-        selectFrom(tasksTable, "byProjectPosition")
-          .where((q) => q.eq("projectId", selectedProject.id))
-          .order("asc")
-          .limit(taskLimit),
-      )
+    ? yield* selectFrom(tasksTable, "byProjectPosition")
+        .where((q) => q.eq("projectId", selectedProject.id))
+        .order("asc")
+        .limit(taskLimit)
     : [];
   const stats =
-    (
-      yield* runQuery(
-        selectFrom(taskStatsTable, "id").where((q) => q.eq("id", TASK_STATS_ID)),
-      )
-    )[0] ?? EMPTY_TASK_STATS;
+    (yield* selectFrom(taskStatsTable, "id").where((q) =>
+      q.eq("id", TASK_STATS_ID),
+    ))[0] ?? EMPTY_TASK_STATS;
 
   return {
     projects,
@@ -181,10 +168,7 @@ function normalizeTaskStats(stats: TaskStats): TaskStats {
   };
 }
 
-function applyProjectTotalDelta(
-  stats: TaskStats,
-  delta: 1 | -1,
-): TaskStats {
+function applyProjectTotalDelta(stats: TaskStats, delta: 1 | -1): TaskStats {
   return {
     ...stats,
     projects: stats.projects + delta,
@@ -204,15 +188,12 @@ function applyProjectTaskCountDelta(
 export function installTaskStatsHooks(db: SubscribableDB) {
   db.afterChange(function* (_db, table, _traits, ops) {
     if (ops.length === 0) return;
+    if (table !== tasksTable && table !== projectsTable) return;
 
     const existingStats =
-      (
-        yield* runQuery(
-          selectFrom(taskStatsTable, "id").where((q) =>
-            q.eq("id", TASK_STATS_ID),
-          ),
-        )
-      )[0] ?? EMPTY_TASK_STATS;
+      (yield* selectFrom(taskStatsTable, "id").where((q) =>
+        q.eq("id", TASK_STATS_ID),
+      ))[0] ?? EMPTY_TASK_STATS;
 
     let nextStats = existingStats;
 
@@ -247,11 +228,7 @@ export function installTaskStatsHooks(db: SubscribableDB) {
       } else if (op.type === "upsert") {
         if (op.oldValue) {
           const oldTask = op.oldValue as Task;
-          nextStats = applyTaskStatusDelta(
-            nextStats,
-            oldTask.status,
-            -1,
-          );
+          nextStats = applyTaskStatusDelta(nextStats, oldTask.status, -1);
           recordProjectTaskDelta(oldTask.projectId, -1);
         }
         const newTask = op.newValue as Task;
@@ -259,11 +236,7 @@ export function installTaskStatsHooks(db: SubscribableDB) {
         recordProjectTaskDelta(newTask.projectId, 1);
       } else {
         const task = op.oldValue as Task;
-        nextStats = applyTaskStatusDelta(
-          nextStats,
-          task.status,
-          -1,
-        );
+        nextStats = applyTaskStatusDelta(nextStats, task.status, -1);
         recordProjectTaskDelta(task.projectId, -1);
       }
     }
@@ -273,10 +246,11 @@ export function installTaskStatsHooks(db: SubscribableDB) {
     const changedProjectIds = [...projectTaskDeltas.keys()];
     if (changedProjectIds.length === 0) return;
 
-    const existingProjectTaskStats = yield* runQuery(
-      selectFrom(projectTaskStatsTable, "id").where((q) =>
-        changedProjectIds.map((projectId) => q.eq("id", projectId)),
-      ),
+    const existingProjectTaskStats = yield* selectFrom(
+      projectTaskStatsTable,
+      "id",
+    ).where((q) =>
+      changedProjectIds.map((projectId) => q.eq("id", projectId)),
     );
     const projectTaskStatsById = new Map(
       existingProjectTaskStats.map((stats) => [stats.id, stats]),
@@ -328,12 +302,10 @@ export const generateWorkload = action(function* (
 });
 
 export const clearWorkload = action(function* () {
-  const projects = yield* runQuery(
-    selectFrom(projectsTable, "byCreatedAt").where((q) => q),
+  const projects = yield* selectFrom(projectsTable, "byCreatedAt").where(
+    (q) => q,
   );
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byCreatedAt").where((q) => q),
-  );
+  const tasks = yield* selectFrom(tasksTable, "byCreatedAt").where((q) => q);
 
   yield* deleteRows(
     tasksTable,

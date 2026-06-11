@@ -4,7 +4,7 @@ import type { ExtractSchema } from "./table";
 import { execAsync, execSync, type HyperDB, type Row } from "./db";
 import { isRowInRange } from "./drivers/tuple";
 import type { SelectQuery } from "./query";
-import { convertWhereToBound } from "./bounds";
+import { runSelectQuery } from "./query";
 import { runCommandGenerator } from "./command-runner";
 import { type SelectRangeCmd } from "./selector-commands";
 
@@ -35,22 +35,7 @@ export const isNoopCmd = (cmd: any): cmd is NoopCmd => cmd.type === noopType;
 export function* runQuery<QType extends SelectQuery>(toQuery: {
   toQuery(): QType;
 }): Generator<unknown, ExtractSchema<QType["from"]>[], unknown> {
-  const query = toQuery.toQuery();
-  const table = query.from;
-  const indexName = query.index;
-  const indexDef = table.indexes[indexName];
-  if (!indexDef)
-    throw new Error(
-      `Index not found: ${indexName as string} for table: ${table.tableName}`,
-    );
-
-  return (yield {
-    type: "selectRange",
-    table: table,
-    index: indexName as string,
-    selectQuery: query,
-    bounds: convertWhereToBound(indexDef.cols as string[], query.where),
-  } satisfies SelectRangeCmd) as ExtractSchema<QType["from"]>[];
+  return yield* runSelectQuery(toQuery.toQuery());
 }
 
 // export function* selectEqual<TTable extends TableDefinition<any>>(
