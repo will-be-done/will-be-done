@@ -10,9 +10,11 @@
     "preview": "bun ./node_modules/vite/bin/vite.js preview"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.12.0",
     "@will-be-done/hyperdb-lib": "workspace:*",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "react-redux": "^9.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

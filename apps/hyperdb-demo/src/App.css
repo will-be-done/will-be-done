@@ -4,6 +4,40 @@
   padding: 24px 0 32px;
 }
 
+.route-tabs {
+  display: flex;
+  width: fit-content;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--panel-strong);
+}
+
+.route-tabs a {
+  min-width: 108px;
+  color: var(--muted);
+  padding: 9px 14px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.route-tabs a + a {
+  border-left: 1px solid var(--line);
+}
+
+.route-tabs a:hover {
+  background: rgba(15, 139, 141, 0.08);
+  color: var(--ink);
+}
+
+.route-tabs a[aria-current="page"] {
+  background: var(--teal);
+  color: #fffdf8;
+}
+
 .topbar,
 .controls-band,
 .metrics-grid,
