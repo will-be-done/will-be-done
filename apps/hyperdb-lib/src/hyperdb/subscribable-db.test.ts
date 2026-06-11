@@ -308,20 +308,22 @@ describe("SubscribableDB", async () => {
         subscribableDB.afterUpdate(function* (_db, table, _traits, ops) {
           if (table !== tasksTable) return;
 
-          const updatedTask = ops[0].newValue as Task;
-          const audits = yield* runQuery(
-            selectFrom(taskAuditsTable, "byTaskId").where((q) =>
-              q.eq("taskId", updatedTask.id),
-            ),
-          );
+          for (const op of ops) {
+            const updatedTask = op.newValue as Task;
+            const audits = yield* runQuery(
+              selectFrom(taskAuditsTable, "byTaskId").where((q) =>
+                q.eq("taskId", updatedTask.id),
+              ),
+            );
 
-          yield* update(taskAuditsTable, [
-            {
-              ...audits[0],
-              phase: "updated",
-              title: updatedTask.title,
-            },
-          ]);
+            yield* update(taskAuditsTable, [
+              {
+                ...audits[0],
+                phase: "updated",
+                title: updatedTask.title,
+              },
+            ]);
+          }
         });
 
         subscribableDB.afterDelete(function* (_db, table, _traits, ops) {

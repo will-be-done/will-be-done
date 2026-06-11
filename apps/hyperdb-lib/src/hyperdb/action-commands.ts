@@ -2,22 +2,10 @@
 import type { Row, Trait } from "./db";
 import { type ExtractSchema, type TableDefinition } from "./table";
 
-const withTraitsType = "withTraits";
-const withoutTraitsType = "withoutTraits";
 const insertType = "insert";
 const updateType = "update";
 const deleteType = "delete";
 const getCurrentTraitsType = "getCurrentTraits";
-
-export type WithTraitsCmd = {
-  type: typeof withTraitsType;
-  traits: Trait[];
-};
-
-export type WithoutTraitsCmd = {
-  type: typeof withoutTraitsType;
-  traits: Trait[];
-};
 
 export type InsertActionCmd = {
   type: typeof insertType;
@@ -77,20 +65,6 @@ export function* insert<TTable extends TableDefinition<any, any>>(
     table,
     values,
   } satisfies InsertActionCmd;
-}
-
-export function* withTraits(...traits: Trait[]): Generator<unknown> {
-  yield {
-    type: withTraitsType,
-    traits,
-  } satisfies WithTraitsCmd;
-}
-
-export function* withoutTraits(...traits: Trait[]): Generator<unknown> {
-  yield {
-    type: withoutTraitsType,
-    traits,
-  } satisfies WithoutTraitsCmd;
 }
 
 export function* update<TTable extends TableDefinition<any, any>>(

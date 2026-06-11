@@ -18,6 +18,18 @@ const isDBCmd = (cmd: unknown): cmd is DBCmd =>
   cmd !== null &&
   (isUnwrapCmd(cmd) || isNoopCmd(cmd));
 
+const describeUnsupportedCommand = (cmd: unknown) => {
+  if (cmd instanceof Object && cmd !== null && "type" in cmd) {
+    return `type "${String((cmd as { type: unknown }).type)}"`;
+  }
+
+  try {
+    return JSON.stringify(cmd);
+  } catch {
+    return String(cmd);
+  }
+};
+
 export function* runCommandGenerator<TReturn>(
   db: HyperDB,
   gen: Generator<unknown, TReturn, unknown>,
@@ -38,18 +50,32 @@ export function* runCommandGenerator<TReturn>(
           order: selectQuery.order,
         }),
       );
-    } else if (options.allowWrites && isInsertActionCmd(cmd)) {
+    } else if (isInsertActionCmd(cmd)) {
+      if (!options.allowWrites) {
+        throw new Error("Writes are disallowed for command: insert");
+      }
+
       result = gen.next(yield* db.insert(cmd.table, cmd.values));
-    } else if (options.allowWrites && isUpdateActionCmd(cmd)) {
+    } else if (isUpdateActionCmd(cmd)) {
+      if (!options.allowWrites) {
+        throw new Error("Writes are disallowed for command: update");
+      }
+
       result = gen.next(yield* db.update(cmd.table, cmd.values));
-    } else if (options.allowWrites && isDeleteActionCmd(cmd)) {
+    } else if (isDeleteActionCmd(cmd)) {
+      if (!options.allowWrites) {
+        throw new Error("Writes are disallowed for command: delete");
+      }
+
       result = gen.next(yield* db.delete(cmd.table, cmd.values));
     } else if (isGetCurrentTraitsCmd(cmd)) {
       result = gen.next(db.getTraits());
     } else if (isDBCmd(cmd)) {
       result = gen.next(yield cmd);
     } else {
-      result = gen.next();
+      throw new Error(
+        `Unsupported command: ${describeUnsupportedCommand(cmd)}`,
+      );
     }
   }
 

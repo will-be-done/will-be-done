@@ -42,7 +42,6 @@ export interface HyperDB {
     ids: string[],
   ): Generator<DBCmd, void>;
   withTraits(...trait: Trait[]): HyperDB;
-  // withoutTraits(...trait: Trait[]): HyperDB;
   getTraits(): Trait[];
 
   beginTx(): Generator<DBCmd, HyperDBTx>;
