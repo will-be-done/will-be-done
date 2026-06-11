@@ -201,7 +201,7 @@ export class DBTx implements HyperDBTx {
     if (this.isFinished.val) {
       throw new Error("Transaction is finished");
     }
-    
+
     this.txCounter.val--;
     if (this.txCounter.val !== 0) return;
 
@@ -468,12 +468,3 @@ export class SyncDB {
     return execSync(this.db.delete(table, ids));
   }
 }
-
-// TODO:
-// 0. DONE test asyncScan
-// 1. DONE update, delete support
-// 2. DONE generator based selector + ability to subscribe to selector
-// 3. DONE hash type index
-// 3. tx support
-// 4. DONE separate by files
-// 5. ONLY ON THE END: fix index typing issue
