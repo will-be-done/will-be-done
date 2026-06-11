@@ -54,7 +54,7 @@ describe("Database Transactions", async () => {
         expect(btreeTxData.length).toBe(1);
         expect(btreeTxData).toEqual(hashTxData);
 
-        tx.update(tasksTable, [{ ...task1, title: "Task 11" }]);
+        tx.upsert(tasksTable, [{ ...task1, title: "Task 11" }]);
         tx.rollback();
 
         const btreeData = makeScan("byIds", db);
@@ -116,8 +116,8 @@ describe("Database Transactions", async () => {
         };
         tx.insert(tasksTable, [newTask]);
 
-        // Update existing task in transaction
-        tx.update(tasksTable, [{ ...initialTask, title: "Updated Title" }]);
+        // Upsert existing task in transaction
+        tx.upsert(tasksTable, [{ ...initialTask, title: "Updated Title" }]);
 
         // Delete existing task in transaction
         tx.delete(tasksTable, ["task-initial"]);
@@ -195,8 +195,8 @@ describe("Database Transactions", async () => {
         const task3: Task = { id: "task-3", title: "Task 3" };
         tx.insert(tasksTable, [task3]);
 
-        // Update existing task
-        tx.update(tasksTable, [{ ...task1, title: "Updated Task 1" }]);
+        // Upsert existing task
+        tx.upsert(tasksTable, [{ ...task1, title: "Updated Task 1" }]);
 
         // Delete existing task
         tx.delete(tasksTable, ["task-2"]);
@@ -335,7 +335,7 @@ describe("Database Transactions", async () => {
 
         // Operations after commit should throw
         expect(() => tx.insert(tasksTable, [task])).toThrow();
-        expect(() => tx.update(tasksTable, [task])).toThrow();
+        expect(() => tx.upsert(tasksTable, [task])).toThrow();
         expect(() => tx.delete(tasksTable, ["task-error"])).toThrow();
       });
 
@@ -350,7 +350,7 @@ describe("Database Transactions", async () => {
 
         // Operations after rollback should throw
         expect(() => tx.insert(tasksTable, [task])).toThrow();
-        expect(() => tx.update(tasksTable, [task])).toThrow();
+        expect(() => tx.upsert(tasksTable, [task])).toThrow();
         expect(() => tx.delete(tasksTable, ["task-error"])).toThrow();
       });
 
@@ -361,7 +361,7 @@ describe("Database Transactions", async () => {
 
         // Empty operations should not throw
         tx.insert(tasksTable, []);
-        tx.update(tasksTable, []);
+        tx.upsert(tasksTable, []);
         tx.delete(tasksTable, []);
 
         tx.commit();
@@ -476,9 +476,9 @@ describe("Database Transactions", async () => {
 
         const tx = db.beginTx();
 
-        // Update task
+        // Upsert task
         const updatedTask: Task = { id: "task-update", title: "Updated" };
-        tx.update(tasksTable, [updatedTask]);
+        tx.upsert(tasksTable, [updatedTask]);
 
         // Query via built-in hash id index
         const hashResult = Array.from(
@@ -606,8 +606,8 @@ describe("Database Transactions", async () => {
         // Insert new task
         tx.insert(tasksTable, [{ id: "task-3", title: "Gamma" }]);
 
-        // Update existing task
-        tx.update(tasksTable, [{ id: "task-1", title: "Alpha-Updated" }]);
+        // Upsert existing task
+        tx.upsert(tasksTable, [{ id: "task-1", title: "Alpha-Updated" }]);
 
         // Delete existing task
         tx.delete(tasksTable, ["task-2"]);
@@ -670,7 +670,7 @@ describe("Database Transactions", async () => {
 
         // Make various changes
         tx.insert(tasksTable, [{ id: "task-3", title: "New" }]);
-        tx.update(tasksTable, [{ id: "task-1", title: "Modified" }]);
+        tx.upsert(tasksTable, [{ id: "task-1", title: "Modified" }]);
         tx.delete(tasksTable, ["task-2"]);
 
         // Verify changes are visible in transaction
@@ -830,11 +830,13 @@ describe("Database Transactions", async () => {
 
         const task: Task = { id: "task-dup", title: "Original" };
 
-        // Insert same task multiple times
+        // Insert rejects duplicate ids instead of silently replacing them.
         tx.insert(tasksTable, [task]);
-        tx.insert(tasksTable, [task]);
+        expect(() => tx.insert(tasksTable, [task])).toThrow(
+          /duplicate|exists|unique/i,
+        );
 
-        // Should only have one instance
+        // Failed duplicate insert should not create extra index entries.
         const afterInserts = Array.from(
           tx.intervalScan(tasksTable, "id", [
             { eq: [{ col: "id", val: "task-dup" }] },
@@ -843,22 +845,22 @@ describe("Database Transactions", async () => {
         expect(afterInserts.length).toBe(1);
 
         // Multiple updates
-        tx.update(tasksTable, [{ ...task, title: "Updated1" }]);
-        tx.update(tasksTable, [{ ...task, title: "Updated2" }]);
+        tx.upsert(tasksTable, [{ ...task, title: "Updated1" }]);
+        tx.upsert(tasksTable, [{ ...task, title: "Updated2" }]);
 
-        // Should have latest update
-        const afterUpdates = Array.from(
+        // Should have latest upsert
+        const afterUpserts = Array.from(
           tx.intervalScan(tasksTable, "id", [
             { eq: [{ col: "id", val: "task-dup" }] },
           ]),
         );
-        expect(afterUpdates.length).toBe(1);
-        expect(afterUpdates[0].title).toBe("Updated2");
+        expect(afterUpserts.length).toBe(1);
+        expect(afterUpserts[0].title).toBe("Updated2");
 
         tx.commit();
       });
 
-      it("edge case - update then delete in transaction", async () => {
+      it("edge case - upsert then delete in transaction", async () => {
         const db = new SyncDB(new DB(await driver()));
         db.loadTables([tasksTable]);
 
@@ -868,8 +870,8 @@ describe("Database Transactions", async () => {
 
         const tx = db.beginTx();
 
-        // Update then delete
-        tx.update(tasksTable, [{ ...task, title: "Updated" }]);
+        // Upsert then delete
+        tx.upsert(tasksTable, [{ ...task, title: "Updated" }]);
         tx.delete(tasksTable, ["task-ud"]);
 
         // Should not exist
@@ -1006,7 +1008,7 @@ describe("Database Transactions", async () => {
         }
         tx.insert(tasksTable, insertTasks);
 
-        // Update some records
+        // Upsert some records
         const updateTasks: Task[] = [];
         for (let i = 0; i < 50; i += 2) {
           updateTasks.push({
@@ -1014,7 +1016,7 @@ describe("Database Transactions", async () => {
             title: `Updated Task ${i}`,
           });
         }
-        tx.update(tasksTable, updateTasks);
+        tx.upsert(tasksTable, updateTasks);
 
         // Delete some records
         const deleteIds: string[] = [];
@@ -1158,7 +1160,7 @@ describe("Database Transactions", async () => {
         expect(finalResults.length).toBe(3);
       });
 
-      it.skip("hash index update and delete with multiple values", async () => {
+      it.skip("hash index upsert and delete with multiple values", async () => {
         const db = new SyncDB(new DB(await driver()));
         db.loadTables([tasksTable]);
 
@@ -1173,8 +1175,8 @@ describe("Database Transactions", async () => {
 
         const tx = db.beginTx();
 
-        // Update one of the tasks with "Same" title
-        tx.update(tasksTable, [{ id: "task-2", title: "Updated" }]);
+        // Upsert one of the tasks with "Same" title
+        tx.upsert(tasksTable, [{ id: "task-2", title: "Updated" }]);
 
         // Delete another task with "Same" title
         tx.delete(tasksTable, ["task-3"]);
@@ -1236,8 +1238,8 @@ describe("Database Transactions", async () => {
         tx.insert(tasksTable, [{ id: "temp-1", title: "Keep" }]);
         tx.insert(tasksTable, [{ id: "temp-2", title: "Keep" }]);
 
-        // Update one existing task
-        tx.update(tasksTable, [{ id: "keep-1", title: "Modified" }]);
+        // Upsert one existing task
+        tx.upsert(tasksTable, [{ id: "keep-1", title: "Modified" }]);
 
         // Delete one existing task
         tx.delete(tasksTable, ["keep-2"]);
@@ -1361,8 +1363,8 @@ describe("Database Transactions", async () => {
         // Create new group
         tx.insert(tasksTable, [{ id: "d1", title: "Delta" }]);
 
-        // Update within group (move from one group to another)
-        tx.update(tasksTable, [{ id: "g1", title: "Alpha" }]); // Gamma -> Alpha
+        // Upsert within group (move from one group to another)
+        tx.upsert(tasksTable, [{ id: "g1", title: "Alpha" }]); // Gamma -> Alpha
 
         // Delete from groups
         tx.delete(tasksTable, ["a2", "b1"]);

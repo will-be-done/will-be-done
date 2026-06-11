@@ -11,7 +11,7 @@ import type {
 } from "../db";
 import type { TableDefinition } from "../table";
 import { InMemoryBinaryPlusTree } from "../utils/bptree";
-import { compareTuple } from "./tuple";
+import { compareStoredTuple, compareTuple } from "./tuple";
 import { convertWhereToBound } from "../bounds";
 import type { DBCmd } from "../generators";
 
@@ -30,6 +30,7 @@ type TxTableData = {
 type BtreeIndexDef = {
   name: string;
   columns: string[];
+  includeMissing: boolean;
 };
 
 type HashIndexDef = {
@@ -37,20 +38,49 @@ type HashIndexDef = {
   column: string;
 };
 
+const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function assertSafeIdentifier(kind: string, value: string): void {
+  if (!SAFE_IDENTIFIER.test(value)) {
+    throw new Error(`${kind} must be a safe SQL/JSON identifier: ${value}`);
+  }
+}
+
+function assertSafeTableDefinition(tableDef: TableDefinition): void {
+  assertSafeIdentifier("Table name", tableDef.tableName);
+
+  for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
+    assertSafeIdentifier("Index name", indexName);
+
+    for (const col of indexDef.cols) {
+      assertSafeIdentifier("Index column", String(col));
+    }
+  }
+}
+
+function isSchemalessTable(tableDef: TableDefinition): boolean {
+  return !tableDef.schemaValidator;
+}
+
 const getIndexKey = (
   row: Row,
   indexColumns: string[],
+  includeMissing = false,
 ): ScanValue[] | undefined => {
-  const values: ScanValue[] = [];
+  const values: unknown[] = [];
 
   for (const col of indexColumns) {
-    if (!Object.prototype.hasOwnProperty.call(row, col)) return undefined;
+    if (!Object.prototype.hasOwnProperty.call(row, col)) {
+      if (!includeMissing) return undefined;
+      values.push(undefined);
+      continue;
+    }
 
     const value = row[col];
-    values.push(value === undefined ? null : (value as ScanValue));
+    values.push(value === undefined ? null : value);
   }
 
-  return values;
+  return values as ScanValue[];
 };
 
 const getHashIndexValue = (row: Row, column: string): Value | undefined => {
@@ -145,6 +175,7 @@ function* filterBtreeIterator(
 const mergeBtreeIterators = (
   iterators: IterableIterator<BtreeEntry>[],
   selectOptions: SelectOptions,
+  compareKey: (a: ScanValue[], b: ScanValue[]) => number = compareTuple,
 ): Row[] => {
   if (selectOptions.limit !== undefined && selectOptions.limit <= 0) return [];
 
@@ -156,7 +187,7 @@ const mergeBtreeIterators = (
 
   const reverse = selectOptions.order === "desc";
   const heap = new BinaryHeap<MergeCursor>((a, b) => {
-    const keyComparison = compareTuple(a.current.key, b.current.key);
+    const keyComparison = compareKey(a.current.key, b.current.key);
     if (keyComparison !== 0) return reverse ? -keyComparison : keyComparison;
     return a.sequence - b.sequence;
   });
@@ -214,10 +245,12 @@ const scanBtree = (
   btree: InMemoryBinaryPlusTree<ScanValue[], Row>,
   tupleBounds: TupleScanOptions[],
   selectOptions: SelectOptions,
+  compareKey: (a: ScanValue[], b: ScanValue[]) => number = compareTuple,
 ): Row[] =>
   mergeBtreeIterators(
     createBtreeScanIterators(btree, tupleBounds, selectOptions),
     selectOptions,
+    compareKey,
   );
 
 function performScan(
@@ -242,15 +275,41 @@ function performScan(
 }
 
 function performDelete(tblData: TableData | TxTableData, ids: string[]) {
-  for (const id of ids) {
-    const [record] = Array.from(
-      tblData.idIndex.scan([{ lte: [id], gte: [id] }], {}),
-    );
-    if (record === undefined || record == null) continue;
+  const records = tblData.idIndex.scan(
+    ids.map((id) => ({ lte: [id], gte: [id] })),
+    {},
+  );
 
-    for (const index of tblData.indexes.values()) {
-      index.delete([record]);
+  for (const index of tblData.indexes.values()) {
+    index.delete(records);
+  }
+}
+
+function validateRecordIds(
+  tblData: TableData | TxTableData,
+  values: Row[],
+  options: { allowExisting: boolean },
+) {
+  const ids = new Set<string>();
+  for (const value of values) {
+    if (typeof value.id !== "string") {
+      throw new Error("Inserted records must have a string id");
     }
+    if (ids.has(value.id)) {
+      throw new Error(`Record with duplicate id already exists: ${value.id}`);
+    }
+    ids.add(value.id);
+  }
+
+  if (options.allowExisting) return;
+
+  const existing = tblData.idIndex.scan(
+    [...ids].map((id) => ({ gte: [id], lte: [id] })),
+    { limit: 1 },
+  );
+  const existingId = existing[0]?.id;
+  if (existingId !== undefined) {
+    throw new Error(`Record with duplicate id already exists: ${existingId}`);
   }
 }
 
@@ -259,15 +318,20 @@ function performInsert(tblData: TableData | TxTableData, values: Row[]) {
     Object.freeze(value);
   }
 
+  // NOTE: performance will be noot good here. Maybe make fastInsert?
+  validateRecordIds(tblData, values, { allowExisting: false });
+
   for (const index of tblData.indexes.values()) {
     index.insert(values);
   }
 }
 
-function performUpdate(tblData: TableData | TxTableData, records: Row[]) {
+function performUpsert(tblData: TableData | TxTableData, records: Row[]) {
   for (const value of records) {
     Object.freeze(value);
   }
+
+  validateRecordIds(tblData, records, { allowExisting: true });
 
   performDelete(
     tblData,
@@ -358,10 +422,7 @@ class HashIndex implements Index {
     return [this.indexDef.column];
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
 
     const results: Row[] = [];
@@ -469,10 +530,7 @@ class HashIndexTx implements IndexTx {
     }
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const boundValues = getColumnValuesFromBounds(
@@ -520,7 +578,10 @@ class HashIndexTx implements IndexTx {
     }
 
     // 2. Yield records from original index, excluding already seen and deleted
-    for (const row of this.originalIndex.scan(tupleBounds, selectOptions)) {
+    for (const row of this.originalIndex.scan(tupleBounds, {
+      ...selectOptions,
+      limit: undefined,
+    })) {
       if (deletedRowIds.has(row.id) || seenRowIds.has(row.id)) continue;
 
       // TODO: could be done in bulk
@@ -617,19 +678,16 @@ class BtreeIndexTx implements IndexTx {
     this.sets = new InMemoryBinaryPlusTree<ScanValue[], Row>(
       10,
       20,
-      compareTuple,
+      index.compareKey,
     );
     this.deletes = new InMemoryBinaryPlusTree<ScanValue[], Row>(
       10,
       20,
-      compareTuple,
+      index.compareKey,
     );
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     const deletedRowIds = new Set<string>();
@@ -655,6 +713,7 @@ class BtreeIndexTx implements IndexTx {
     return mergeBtreeIterators(
       [...setIterators, ...originalIterators],
       selectOptions,
+      this.index.compareKey,
     );
   }
 
@@ -662,14 +721,22 @@ class BtreeIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't insert after commit");
 
     for (const record of values) {
-      const key = getIndexKey(record, this.index.indexDef.columns);
+      const key = getIndexKey(
+        record,
+        this.index.indexDef.columns,
+        this.index.indexDef.includeMissing,
+      );
       if (!key) continue;
 
       this.sets.set(key, record);
     }
 
     for (const record of values) {
-      const key = getIndexKey(record, this.index.indexDef.columns);
+      const key = getIndexKey(
+        record,
+        this.index.indexDef.columns,
+        this.index.indexDef.includeMissing,
+      );
       if (!key) continue;
 
       this.deletes.delete(key);
@@ -680,14 +747,22 @@ class BtreeIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't delete after commit");
 
     for (const row of values) {
-      const key = getIndexKey(row, this.index.indexDef.columns);
+      const key = getIndexKey(
+        row,
+        this.index.indexDef.columns,
+        this.index.indexDef.includeMissing,
+      );
       if (!key) continue;
 
       this.sets.delete(key);
     }
 
     for (const row of values) {
-      const key = getIndexKey(row, this.index.indexDef.columns);
+      const key = getIndexKey(
+        row,
+        this.index.indexDef.columns,
+        this.index.indexDef.includeMissing,
+      );
       if (!key) continue;
 
       this.deletes.set(key, row);
@@ -715,27 +790,32 @@ class BtreeIndexTx implements IndexTx {
 class BtreeIndex implements Index {
   indexDef: BtreeIndexDef;
   btree: InMemoryBinaryPlusTree<ScanValue[], Row>;
+  compareKey: (a: ScanValue[], b: ScanValue[]) => number;
   type = "btree" as const;
 
   constructor(indexConfig: BtreeIndexDef) {
+    this.compareKey = indexConfig.includeMissing
+      ? (compareStoredTuple as (a: ScanValue[], b: ScanValue[]) => number)
+      : compareTuple;
     this.btree = new InMemoryBinaryPlusTree<ScanValue[], Row>(
       10,
       20,
-      compareTuple,
+      this.compareKey,
     );
     this.indexDef = indexConfig;
   }
 
-  scan(
-    tupleBounds: TupleScanOptions[],
-    selectOptions: SelectOptions,
-  ): Row[] {
-    return scanBtree(this.btree, tupleBounds, selectOptions);
+  scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
+    return scanBtree(this.btree, tupleBounds, selectOptions, this.compareKey);
   }
 
   insert(values: Row[]): void {
     for (const record of values) {
-      const key = getIndexKey(record, this.indexDef.columns);
+      const key = getIndexKey(
+        record,
+        this.indexDef.columns,
+        this.indexDef.includeMissing,
+      );
       if (!key) continue;
 
       this.btree.set(key, record);
@@ -744,7 +824,11 @@ class BtreeIndex implements Index {
 
   delete(values: Row[]): void {
     for (const row of values) {
-      const key = getIndexKey(row, this.indexDef.columns);
+      const key = getIndexKey(
+        row,
+        this.indexDef.columns,
+        this.indexDef.includeMissing,
+      );
       if (!key) continue;
 
       this.btree.delete(key);
@@ -819,13 +903,13 @@ export class BptreeInmemDriverTx implements DBDriverTX {
     performInsert(tableData, values);
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     this.throwIfDone();
 
     const tableData = this.getOrCreateTableData(tableName);
 
-    // console.log("update", tableName, values);
-    performUpdate(tableData, values);
+    // console.log("upsert", tableName, values);
+    performUpsert(tableData, values);
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
@@ -902,6 +986,8 @@ export class BptreeInmemDriver implements DBDriver {
 
   *loadTables(tables: TableDefinition<any>[]): Generator<DBCmd, void> {
     for (const tableDef of tables) {
+      assertSafeTableDefinition(tableDef);
+
       // this.tableDefinitions.set(tableDef.name, tableDef);
       const indexes: Map<string, Index> = new Map();
 
@@ -917,6 +1003,7 @@ export class BptreeInmemDriver implements DBDriver {
             new BtreeIndex({
               name: indexName,
               columns: cols,
+              includeMissing: isSchemalessTable(tableDef),
             }),
           );
         } else if (indexDef.type === "hash") {
@@ -956,7 +1043,7 @@ export class BptreeInmemDriver implements DBDriver {
     }
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.isInTransaction) {
       throw new Error("can't run while transaction is in progress");
     }
@@ -966,7 +1053,7 @@ export class BptreeInmemDriver implements DBDriver {
       throw new Error(`Table ${tableName} not found`);
     }
 
-    performUpdate(tblData, values);
+    performUpsert(tblData, values);
   }
 
   *insert(tableName: string, values: Row[]): Generator<DBCmd, void> {

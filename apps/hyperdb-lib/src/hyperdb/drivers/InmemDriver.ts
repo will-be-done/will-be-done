@@ -33,7 +33,7 @@
 //
 //   constructor() {}
 //
-//   update(tableName: string, values: Row[]): void {
+//   upsert(tableName: string, values: Row[]): void {
 //     const tblData = this.data.get(tableName);
 //     if (!tblData) {
 //       throw new Error(`Table ${tableName} not found`);

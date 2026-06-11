@@ -21,7 +21,7 @@ import {
 
 type PendingOp =
   | { type: "insert"; table: TableDefinition; records: Row[] }
-  | { type: "update"; table: TableDefinition; records: Row[] }
+  | { type: "upsert"; table: TableDefinition; records: Row[] }
   | { type: "delete"; table: TableDefinition; ids: string[] };
 
 /**
@@ -83,7 +83,7 @@ function* cachedHashScan<
   // Query primary
   const results = yield* primary.intervalScan(table, indexName, clauses, selectOptions);
   if (results.length > 0) {
-    yield* cache.update(table, results);
+    yield* cache.upsert(table, results);
   }
 
   // Mark this key as cached
@@ -161,9 +161,9 @@ function* cachedIntervalScan<
     );
 
     if (results.length > 0) {
-      // Use update (delete+insert) to avoid duplicates — cache may already
+      // Use upsert to avoid duplicates — cache may already
       // have some of these records from deferred writes
-      yield* cache.update(table, results);
+      yield* cache.upsert(table, results);
 
       // Populate hash key caches for all hash indexes on this table
       populateHashKeysFromRecords(table, results as Row[], cachedHashKeys);
@@ -287,12 +287,12 @@ class CachedDBTx implements HyperDBTx {
     this.pendingOps.push({ type: "insert", table, records: records as Row[] });
   }
 
-  *update<TTable extends TableDefinition>(
+  *upsert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
-    yield* this.cacheTx.update(table, records);
-    this.pendingOps.push({ type: "update", table, records: records as Row[] });
+    yield* this.cacheTx.upsert(table, records);
+    this.pendingOps.push({ type: "upsert", table, records: records as Row[] });
   }
 
   *delete<TTable extends TableDefinition>(
@@ -353,8 +353,8 @@ class CachedDBTx implements HyperDBTx {
               case "insert":
                 await execAsync(tx.insert(op.table, op.records));
                 break;
-              case "update":
-                await execAsync(tx.update(op.table, op.records));
+              case "upsert":
+                await execAsync(tx.upsert(op.table, op.records));
                 break;
               case "delete":
                 await execAsync(tx.delete(op.table, op.ids));
@@ -480,13 +480,13 @@ export class CachedDB implements HyperDB {
     );
   }
 
-  *update<TTable extends TableDefinition>(
+  *upsert<TTable extends TableDefinition>(
     table: TTable,
     records: ExtractSchema<TTable>[],
   ): Generator<DBCmd, void> {
-    yield* this.cache.update(table, records);
+    yield* this.cache.upsert(table, records);
     this.enqueuePrimaryWrite(() =>
-      execAsync(this.primary.update(table, records)),
+      execAsync(this.primary.upsert(table, records)),
     );
   }
 

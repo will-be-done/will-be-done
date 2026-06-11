@@ -61,13 +61,19 @@ const taskTemplatesTable = defineTable("taskTemplates", {
   .index("ids", ["id"])
   .index("projectId", ["projectId", "orderToken"]);
 
+const writeSemanticsTable = defineTable("writeSemantics", {
+  id: v.string(),
+  value: v.string(),
+  optionalValue: v.optional(v.string()),
+});
+
 describe("db", async () => {
   for (const driver of [
     // new InmemDriver(),
     await initSqlJsWasm(),
     new BptreeInmemDriver(),
   ]) {
-    it("insert, delete, update - " + driver.constructor.name, () => {
+    it("insert, delete, upsert - " + driver.constructor.name, () => {
       const db = new SyncDB(new DB(driver));
       db.loadTables([tasksTable, taskTemplatesTable]);
       const updatedTask = (): Task => ({
@@ -110,7 +116,7 @@ describe("db", async () => {
         ]),
       ).toEqual([tasks[0]]);
 
-      db.update(tasksTable, [updatedTask()]);
+      db.upsert(tasksTable, [updatedTask()]);
 
       expect(
         db.intervalScan(tasksTable, "ids", [
@@ -130,6 +136,72 @@ describe("db", async () => {
         ]),
       ).toEqual([]);
     });
+  }
+
+  for (const driver of [
+    await initSqlJsWasm(),
+    // new InmemDriver(),
+    new BptreeInmemDriver(),
+  ]) {
+    it(
+      "insert, upsert, and delete existence semantics - " +
+        driver.constructor.name,
+      () => {
+        const db = new SyncDB(new DB(driver));
+        db.loadTables([writeSemanticsTable]);
+
+        const selectById = (id: string) =>
+          db.intervalScan(writeSemanticsTable, "id", [
+            {
+              eq: [{ col: "id", val: id }],
+            },
+          ]);
+
+        const initialRecord = {
+          id: "existing-record",
+          value: "initial",
+          optionalValue: "kept only until replacement",
+        };
+
+        db.insert(writeSemanticsTable, [initialRecord]);
+        expect(selectById(initialRecord.id)).toEqual([initialRecord]);
+
+        expect(() =>
+          db.insert(writeSemanticsTable, [
+            {
+              id: initialRecord.id,
+              value: "duplicate insert",
+            },
+          ]),
+        ).toThrow(/duplicate|constraint|unique|exists/i);
+        expect(selectById(initialRecord.id)).toEqual([initialRecord]);
+
+        const replacementRecord = {
+          id: initialRecord.id,
+          value: "replacement",
+        };
+        db.upsert(writeSemanticsTable, [replacementRecord]);
+        expect(selectById(initialRecord.id)).toEqual([replacementRecord]);
+
+        const upsertedRecord = {
+          id: "new-from-upsert",
+          value: "created by upsert",
+        };
+        db.upsert(writeSemanticsTable, [upsertedRecord]);
+        expect(selectById(upsertedRecord.id)).toEqual([upsertedRecord]);
+
+        db.delete(writeSemanticsTable, [replacementRecord.id]);
+        expect(selectById(replacementRecord.id)).toEqual([]);
+
+        expect(() =>
+          db.delete(writeSemanticsTable, [
+            replacementRecord.id,
+            "never-existed",
+          ]),
+        ).not.toThrow();
+        expect(selectById(upsertedRecord.id)).toEqual([upsertedRecord]);
+      },
+    );
   }
 
   for (const driver of [
@@ -215,7 +287,7 @@ describe("db", async () => {
         ]),
       ).toEqual([justTask, justTask2]);
 
-      db.update(tasksTable, [{ ...justTask2, title: "Task 2" }]);
+      db.upsert(tasksTable, [{ ...justTask2, title: "Task 2" }]);
 
       expect(
         db.intervalScan(tasksTable, "byTitle", [
@@ -545,7 +617,7 @@ describe("Database Operations Edge Cases", async () => {
         ).toEqual([stringDocument]);
 
         const updatedNumberDocument = { ...numberDocument, value: 43 };
-        db.update(docsTable, [updatedNumberDocument]);
+        db.upsert(docsTable, [updatedNumberDocument]);
 
         expect(
           db.intervalScan(docsTable, "id", [
@@ -696,7 +768,7 @@ describe("Database Operations Edge Cases", async () => {
           title: "Updated",
           slug: "updated",
         };
-        db.update(documentsTable, [updatedFirstPost]);
+        db.upsert(documentsTable, [updatedFirstPost]);
 
         expect(
           db.intervalScan(documentsTable, "byPostTitle", [
@@ -719,7 +791,7 @@ describe("Database Operations Edge Cases", async () => {
           title: "Preview",
           slug: "preview",
         };
-        db.update(documentsTable, [promotedPreview]);
+        db.upsert(documentsTable, [promotedPreview]);
 
         expect(
           db.intervalScan(documentsTable, "byPostTitleSlug", [
@@ -803,7 +875,7 @@ describe("Database Operations Edge Cases", async () => {
 
       it("works correctly with string order", () => {
         type TestRecord = { id: string; projectId: string; token: string };
-        const testTable = defineTable("test2", {
+        const testTable = defineTable("testStringOrder", {
           id: v.string(),
           projectId: v.string(),
           token: v.string(),
@@ -827,7 +899,7 @@ describe("Database Operations Edge Cases", async () => {
 
       it("should handle various scan bound combinations", () => {
         type TestRecord = { id: string; a: number; b: string };
-        const testTable = defineTable("test2", {
+        const testTable = defineTable("testScanBounds", {
           id: v.string(),
           a: v.number(),
           b: v.string(),
@@ -1282,7 +1354,7 @@ describe("Database Operations Edge Cases", async () => {
 
         const tx = db.beginTx();
         tx.delete(testTable, ["4"]);
-        tx.update(testTable, [{ id: "3", value: 8 }]);
+        tx.upsert(testTable, [{ id: "3", value: 8 }]);
         tx.insert(testTable, [{ id: "4.5", value: 4.5 }]);
 
         expect(

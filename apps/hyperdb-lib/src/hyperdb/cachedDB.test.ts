@@ -250,7 +250,7 @@ describe("CachedDB", async () => {
     expect(cacheScanSpy).toHaveBeenCalledTimes(1); // served from cache
   });
 
-  it("insert/update/delete write to cache immediately and defer primary", async () => {
+  it("insert/upsert/delete write to cache immediately and defer primary", async () => {
     const { db, primary, cache } = await createDBs();
 
     const task: Task = { id: "1", title: "A", value: 1, projectId: "p1" };
@@ -278,9 +278,9 @@ describe("CachedDB", async () => {
       ]),
     ).toEqual([task]);
 
-    // Update — cache immediate, primary deferred
+    // Upsert - cache immediate, primary deferred
     const updated = { ...task, title: "Updated" };
-    db.update(tasksTable, [updated]);
+    db.upsert(tasksTable, [updated]);
     expect(
       cache.intervalScan(tasksTable, "id", [
         { eq: [{ col: "id", val: "1" }] },
@@ -434,13 +434,13 @@ describe("CachedDB", async () => {
     db.insert(tasksTable, [task]);
     await flushQueue(); // flush the initial insert to primary
 
-    // Update via tx
+    // Upsert via tx
     const updated = { ...task, title: "Updated" };
     const tx1 = db.beginTx();
-    tx1.update(tasksTable, [updated]);
+    tx1.upsert(tasksTable, [updated]);
     tx1.commit();
 
-    // Cache has the update immediately
+    // Cache has the upsert immediately
     expect(
       cache.intervalScan(tasksTable, "id", [
         { eq: [{ col: "id", val: "1" }] },

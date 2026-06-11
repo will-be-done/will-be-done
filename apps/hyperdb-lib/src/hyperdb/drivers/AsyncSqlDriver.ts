@@ -11,15 +11,21 @@ import type { TableDefinition } from "../table.ts";
 import type { DBCmd } from "../generators.ts";
 import { unwrapCb } from "../generators.ts";
 import {
-  buildWhereClause,
+  buildSortKeyWhereClause,
   buildOrderClause,
   buildSelectSQL,
   buildInsertSQL,
   buildDeleteSQL,
   createTableSQL,
   createIndexSQL,
+  addSortKeyColumnSQL,
   chunkArray,
   CHUNK_SIZE,
+  sqliteIndexSortKeyColumn,
+  assertSafeTableDefinition,
+  buildRowInsertParams,
+  parseSqliteStoredRow,
+  getSqliteIndexSortKeyValue,
 } from "./SqliteCommon.ts";
 import AwaitLock from "await-lock";
 
@@ -66,35 +72,35 @@ interface AsyncSQLiteDB {
 
 const SQLITE_ROW = 100;
 
+async function runAsyncSQL(
+  sqlite3: AsyncSQLiteDB,
+  db: number,
+  sql: string,
+  params?: SQLiteCompatibleType[],
+): Promise<void> {
+  for await (const stmt of sqlite3.statements(db, sql)) {
+    if (params) {
+      sqlite3.bind_collection(stmt, params);
+    }
+    await sqlite3.step(stmt);
+  }
+}
+
+async function rollbackAsyncQuietly(
+  sqlite3: AsyncSQLiteDB,
+  db: number,
+): Promise<void> {
+  try {
+    await runAsyncSQL(sqlite3, db, "ROLLBACK");
+  } catch {
+    // Best effort cleanup after a failed statement.
+  }
+}
+
 function* performAsyncInsertOperation(
   sqlite3: AsyncSQLiteDB,
   db: number,
-  tableName: string,
-  values: Record<string, unknown>[],
-): Generator<DBCmd, void> {
-  if (values.length === 0) return;
-
-  yield* unwrapCb(async () => {
-    const allValues = chunkArray(values, CHUNK_SIZE);
-    for (const chunk of allValues) {
-      const insertSQL = buildInsertSQL(tableName, chunk.length);
-
-      for await (const stmt of sqlite3.statements(db, insertSQL)) {
-        sqlite3.bind_collection(
-          stmt,
-          // @ts-expect-error it's ok
-          chunk.flatMap((v) => [v.id, JSON.stringify(v)]),
-        );
-        await sqlite3.step(stmt);
-      }
-    }
-  });
-}
-
-function* performAsyncUpdateOperation(
-  sqlite3: AsyncSQLiteDB,
-  db: number,
-  tableName: string,
+  tableDef: TableDefinition,
   values: Row[],
 ): Generator<DBCmd, void> {
   if (values.length === 0) return;
@@ -102,12 +108,38 @@ function* performAsyncUpdateOperation(
   yield* unwrapCb(async () => {
     const allValues = chunkArray(values, CHUNK_SIZE);
     for (const chunk of allValues) {
-      const updateSQL = buildInsertSQL(tableName, chunk.length);
+      const insertSQL = buildInsertSQL(tableDef, chunk.length);
 
-      for await (const stmt of sqlite3.statements(db, updateSQL)) {
+      for await (const stmt of sqlite3.statements(db, insertSQL)) {
         sqlite3.bind_collection(
           stmt,
-          chunk.flatMap((v) => [v.id, JSON.stringify(v)]),
+          chunk.flatMap((v) => buildRowInsertParams(tableDef, v)),
+        );
+        await sqlite3.step(stmt);
+      }
+    }
+  });
+}
+
+function* performAsyncUpsertOperation(
+  sqlite3: AsyncSQLiteDB,
+  db: number,
+  tableDef: TableDefinition,
+  values: Row[],
+): Generator<DBCmd, void> {
+  if (values.length === 0) return;
+
+  yield* unwrapCb(async () => {
+    const allValues = chunkArray(values, CHUNK_SIZE);
+    for (const chunk of allValues) {
+    const upsertSQL = buildInsertSQL(tableDef, chunk.length, {
+      replace: true,
+    });
+
+      for await (const stmt of sqlite3.statements(db, upsertSQL)) {
+        sqlite3.bind_collection(
+          stmt,
+          chunk.flatMap((v) => buildRowInsertParams(tableDef, v)),
         );
         await sqlite3.step(stmt);
       }
@@ -118,7 +150,7 @@ function* performAsyncUpdateOperation(
 function* performAsyncDeleteOperation(
   sqlite3: AsyncSQLiteDB,
   db: number,
-  tableName: string,
+  tableDef: TableDefinition,
   values: string[],
 ): Generator<DBCmd, void> {
   if (values.length === 0) return;
@@ -126,7 +158,7 @@ function* performAsyncDeleteOperation(
   yield* unwrapCb(async () => {
     const allValues = chunkArray(values, CHUNK_SIZE);
     for (const chunk of allValues) {
-      const deleteSQL = buildDeleteSQL(tableName, chunk.length);
+      const deleteSQL = buildDeleteSQL(tableDef.tableName, chunk.length);
 
       for await (const stmt of sqlite3.statements(db, deleteSQL)) {
         sqlite3.bind_collection(stmt, chunk);
@@ -146,7 +178,7 @@ function* performAsyncScanOperation(
   selectOptions: SelectOptions,
 ): Generator<DBCmd, unknown[]> {
   return yield* unwrapCb(async () => {
-    const { where, params } = buildWhereClause(
+    const { where, params } = buildSortKeyWhereClause(
       indexName,
       table,
       clauses,
@@ -158,7 +190,12 @@ function* performAsyncScanOperation(
       tableDefinitions,
       selectOptions.order === "desc",
     );
-    const sql = buildSelectSQL(table, where, orderClause, selectOptions);
+    const sql = buildSelectSQL(
+      table,
+      where,
+      orderClause,
+      selectOptions,
+    );
 
     const result: unknown[] = [];
 
@@ -168,7 +205,7 @@ function* performAsyncScanOperation(
 
         while ((await sqlite3.step(stmt)) === SQLITE_ROW) {
           const row = sqlite3.row(stmt);
-          const record = JSON.parse(row[0] as string) as unknown;
+          const record = parseSqliteStoredRow(row[0] as string);
           result.push(record);
         }
       }
@@ -245,18 +282,20 @@ class AsyncSqlDriverTx implements DBDriverTX {
       if (this.committed || this.rolledback) {
         throw new Error("Transaction already finished");
       }
+      const tableDef = this.tableDefinitions.get(tableName);
+      if (!tableDef) throw new Error(`Table ${tableName} not found`);
       yield* performAsyncInsertOperation(
         this.sqlite3,
         this.db,
-        tableName,
-        values,
+        tableDef,
+        values as Row[],
       );
     } finally {
       this.queryLock.release();
     }
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     yield* unwrapCb(async () => {
       await this.queryLock.acquireAsync();
     });
@@ -265,10 +304,12 @@ class AsyncSqlDriverTx implements DBDriverTX {
       if (this.committed || this.rolledback) {
         throw new Error("Transaction already finished");
       }
-      yield* performAsyncUpdateOperation(
+      const tableDef = this.tableDefinitions.get(tableName);
+      if (!tableDef) throw new Error(`Table ${tableName} not found`);
+      yield* performAsyncUpsertOperation(
         this.sqlite3,
         this.db,
-        tableName,
+        tableDef,
         values,
       );
     } finally {
@@ -285,10 +326,12 @@ class AsyncSqlDriverTx implements DBDriverTX {
       if (this.committed || this.rolledback) {
         throw new Error("Transaction already finished");
       }
+      const tableDef = this.tableDefinitions.get(tableName);
+      if (!tableDef) throw new Error(`Table ${tableName} not found`);
       yield* performAsyncDeleteOperation(
         this.sqlite3,
         this.db,
-        tableName,
+        tableDef,
         values,
       );
     } finally {
@@ -373,35 +416,40 @@ export class AsyncSqlDriver implements DBDriver {
     try {
       if (values.length === 0) return;
 
+      let transactionStarted = false;
       console.log("%cBEGIN TRANSACTION", "color: #bada55");
-      yield* unwrapCb(async () => {
-        for await (const stmt of this.sqlite3.statements(
+      try {
+        yield* unwrapCb(async () => {
+          await runAsyncSQL(this.sqlite3, this.db, "BEGIN TRANSACTION");
+        });
+        transactionStarted = true;
+
+        yield* performAsyncInsertOperation(
+          this.sqlite3,
           this.db,
-          "BEGIN TRANSACTION",
-        )) {
-          await this.sqlite3.step(stmt);
-        }
-      });
+          this.getTableDefinition(tableName),
+          values as Row[],
+        );
 
-      yield* performAsyncInsertOperation(
-        this.sqlite3,
-        this.db,
-        tableName,
-        values,
-      );
-
-      console.log("%cCOMMIT", "color: #bada55");
-      yield* unwrapCb(async () => {
-        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-          await this.sqlite3.step(stmt);
+        console.log("%cCOMMIT", "color: #bada55");
+        yield* unwrapCb(async () => {
+          await runAsyncSQL(this.sqlite3, this.db, "COMMIT");
+        });
+        transactionStarted = false;
+      } catch (error) {
+        if (transactionStarted) {
+          yield* unwrapCb(async () => {
+            await rollbackAsyncQuietly(this.sqlite3, this.db);
+          });
         }
-      });
+        throw error;
+      }
     } finally {
       this.txAndQueryLock.release();
     }
   }
 
-  *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
+  *upsert(tableName: string, values: Row[]): Generator<DBCmd, void> {
     yield* unwrapCb(async () => {
       await this.txAndQueryLock.acquireAsync();
     });
@@ -409,29 +457,34 @@ export class AsyncSqlDriver implements DBDriver {
     try {
       if (values.length === 0) return;
 
+      let transactionStarted = false;
       console.log("%cBEGIN TRANSACTION", "color: #bada55");
-      yield* unwrapCb(async () => {
-        for await (const stmt of this.sqlite3.statements(
+      try {
+        yield* unwrapCb(async () => {
+          await runAsyncSQL(this.sqlite3, this.db, "BEGIN TRANSACTION");
+        });
+        transactionStarted = true;
+
+        yield* performAsyncUpsertOperation(
+          this.sqlite3,
           this.db,
-          "BEGIN TRANSACTION",
-        )) {
-          await this.sqlite3.step(stmt);
-        }
-      });
+          this.getTableDefinition(tableName),
+          values,
+        );
 
-      yield* performAsyncUpdateOperation(
-        this.sqlite3,
-        this.db,
-        tableName,
-        values,
-      );
-
-      console.log("%cCOMMIT", "color: #bada55");
-      yield* unwrapCb(async () => {
-        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-          await this.sqlite3.step(stmt);
+        console.log("%cCOMMIT", "color: #bada55");
+        yield* unwrapCb(async () => {
+          await runAsyncSQL(this.sqlite3, this.db, "COMMIT");
+        });
+        transactionStarted = false;
+      } catch (error) {
+        if (transactionStarted) {
+          yield* unwrapCb(async () => {
+            await rollbackAsyncQuietly(this.sqlite3, this.db);
+          });
         }
-      });
+        throw error;
+      }
     } finally {
       this.txAndQueryLock.release();
     }
@@ -445,29 +498,34 @@ export class AsyncSqlDriver implements DBDriver {
     try {
       if (values.length === 0) return;
 
+      let transactionStarted = false;
       console.log("%cBEGIN TRANSACTION", "color: #bada55");
-      yield* unwrapCb(async () => {
-        for await (const stmt of this.sqlite3.statements(
+      try {
+        yield* unwrapCb(async () => {
+          await runAsyncSQL(this.sqlite3, this.db, "BEGIN TRANSACTION");
+        });
+        transactionStarted = true;
+
+        yield* performAsyncDeleteOperation(
+          this.sqlite3,
           this.db,
-          "BEGIN TRANSACTION",
-        )) {
-          await this.sqlite3.step(stmt);
-        }
-      });
+          this.getTableDefinition(tableName),
+          values,
+        );
 
-      yield* performAsyncDeleteOperation(
-        this.sqlite3,
-        this.db,
-        tableName,
-        values,
-      );
-
-      console.log("%cCOMMIT", "color: #bada55");
-      yield* unwrapCb(async () => {
-        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-          await this.sqlite3.step(stmt);
+        console.log("%cCOMMIT", "color: #bada55");
+        yield* unwrapCb(async () => {
+          await runAsyncSQL(this.sqlite3, this.db, "COMMIT");
+        });
+        transactionStarted = false;
+      } catch (error) {
+        if (transactionStarted) {
+          yield* unwrapCb(async () => {
+            await rollbackAsyncQuietly(this.sqlite3, this.db);
+          });
         }
-      });
+        throw error;
+      }
     } finally {
       this.txAndQueryLock.release();
     }
@@ -506,18 +564,18 @@ export class AsyncSqlDriver implements DBDriver {
     });
 
     try {
+      for (const tableDef of tableDefinitions) {
+        assertSafeTableDefinition(tableDef);
+      }
+
       yield* unwrapCb(async () => {
         console.log("%cBEGIN TRANSACTION", "color: #bada55");
-        for await (const stmt of this.sqlite3.statements(
-          this.db,
-          "BEGIN TRANSACTION",
-        )) {
-          await this.sqlite3.step(stmt);
-        }
+        await runAsyncSQL(this.sqlite3, this.db, "BEGIN TRANSACTION");
 
         tableDefinitions = cloneDeep(tableDefinitions);
         for (const tableDef of tableDefinitions) {
           for (const [, indexDef] of Object.entries(tableDef.indexes)) {
+            if (indexDef.type !== "btree") continue;
             const cols = [...indexDef.cols];
 
             if (cols[cols.length - 1] !== "id") {
@@ -526,23 +584,28 @@ export class AsyncSqlDriver implements DBDriver {
             (indexDef as unknown as { cols: typeof cols }).cols = cols;
           }
 
-          await this.createTable(tableDef.tableName);
+          await this.createTable(tableDef);
+          await this.addMissingSortKeyColumns(tableDef);
+          await this.backfillSortKeyColumns(tableDef);
           await this.createIndexes(tableDef);
           this.tableDefinitions.set(tableDef.tableName, tableDef);
         }
 
         console.log("%cCOMMIT", "color: #bada55");
-        for await (const stmt of this.sqlite3.statements(this.db, "COMMIT")) {
-          await this.sqlite3.step(stmt);
-        }
+        await runAsyncSQL(this.sqlite3, this.db, "COMMIT");
       });
+    } catch (error) {
+      yield* unwrapCb(async () => {
+        await rollbackAsyncQuietly(this.sqlite3, this.db);
+      });
+      throw error;
     } finally {
       this.txAndQueryLock.release();
     }
   }
 
-  private async createTable(tableName: string): Promise<void> {
-    const sql = createTableSQL(tableName);
+  private async createTable(tableDef: TableDefinition<any>): Promise<void> {
+    const sql = createTableSQL(tableDef);
     console.log(sql);
 
     for await (const stmt of this.sqlite3.statements(this.db, sql)) {
@@ -550,22 +613,76 @@ export class AsyncSqlDriver implements DBDriver {
     }
   }
 
-  private async createIndexes(tableDef: TableDefinition<any>): Promise<void> {
-    for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
-      const cols = indexDef.cols;
+  private async getTableColumns(tableName: string): Promise<Set<string>> {
+    const columns = new Set<string>();
+    for await (const stmt of this.sqlite3.statements(
+      this.db,
+      `PRAGMA table_info(${tableName})`,
+    )) {
+      while ((await this.sqlite3.step(stmt)) === SQLITE_ROW) {
+        const row = this.sqlite3.row(stmt);
+        columns.add(String(row[1]));
+      }
+    }
+    return columns;
+  }
 
-      // Only make the id index unique, all others should be non-unique
-      const isIdIndex = cols.length === 1 && cols[0] === "id";
-      const sql = createIndexSQL(
-        tableDef.tableName,
-        indexName,
-        cols,
-        isIdIndex,
-      );
+  private async addMissingSortKeyColumns(
+    tableDef: TableDefinition<any>,
+  ): Promise<void> {
+    const existingColumns = await this.getTableColumns(tableDef.tableName);
+    for (const indexName of Object.keys(tableDef.indexes)) {
+      const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
+      if (existingColumns.has(sortKeyColumn)) continue;
 
+      const sql = addSortKeyColumnSQL(tableDef.tableName, sortKeyColumn);
       for await (const stmt of this.sqlite3.statements(this.db, sql)) {
         await this.sqlite3.step(stmt);
       }
+      existingColumns.add(sortKeyColumn);
     }
+  }
+
+  private async backfillSortKeyColumns(
+    tableDef: TableDefinition<any>,
+  ): Promise<void> {
+    for (const indexName of Object.keys(tableDef.indexes)) {
+      const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
+      const sql = `SELECT id, data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`;
+
+      for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+        while ((await this.sqlite3.step(stmt)) === SQLITE_ROW) {
+          const [id, data] = this.sqlite3.row(stmt);
+          const row = parseSqliteStoredRow(String(data));
+          const sortKeyValue = getSqliteIndexSortKeyValue(
+            tableDef,
+            indexName,
+            row,
+          );
+
+          await runAsyncSQL(
+            this.sqlite3,
+            this.db,
+            `UPDATE ${tableDef.tableName} SET ${sortKeyColumn} = ? WHERE id = ? AND ${sortKeyColumn} IS NULL`,
+            [sortKeyValue, id],
+          );
+        }
+      }
+    }
+  }
+
+  private async createIndexes(tableDef: TableDefinition<any>): Promise<void> {
+    for (const [indexName] of Object.entries(tableDef.indexes)) {
+      const indexSQL = createIndexSQL(tableDef.tableName, indexName);
+      for await (const stmt of this.sqlite3.statements(this.db, indexSQL)) {
+        await this.sqlite3.step(stmt);
+      }
+    }
+  }
+
+  private getTableDefinition(tableName: string): TableDefinition {
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) throw new Error(`Table ${tableName} not found`);
+    return tableDef;
   }
 }

@@ -2,7 +2,7 @@ import {
   isDeleteActionCmd,
   isGetCurrentTraitsCmd,
   isInsertActionCmd,
-  isUpdateActionCmd,
+  isUpsertActionCmd,
 } from "./action-commands";
 import type { HyperDB } from "./db";
 import { isNoopCmd, isUnwrapCmd, type DBCmd } from "./generators";
@@ -56,12 +56,12 @@ export function* runCommandGenerator<TReturn>(
       }
 
       result = gen.next(yield* db.insert(cmd.table, cmd.values));
-    } else if (isUpdateActionCmd(cmd)) {
+    } else if (isUpsertActionCmd(cmd)) {
       if (!options.allowWrites) {
-        throw new Error("Writes are disallowed for command: update");
+        throw new Error("Writes are disallowed for command: upsert");
       }
 
-      result = gen.next(yield* db.update(cmd.table, cmd.values));
+      result = gen.next(yield* db.upsert(cmd.table, cmd.values));
     } else if (isDeleteActionCmd(cmd)) {
       if (!options.allowWrites) {
         throw new Error("Writes are disallowed for command: delete");

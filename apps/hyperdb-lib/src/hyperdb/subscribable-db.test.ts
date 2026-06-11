@@ -7,7 +7,7 @@ import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
 import { v } from "./values";
 import { selectFrom } from "./query";
 import { runQuery } from "./selector";
-import { deleteRows, insert, update } from "./action";
+import { deleteRows, insert, upsert } from "./action";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
@@ -90,7 +90,7 @@ describe("SubscribableDB", async () => {
           newValue: tasks[1],
         });
 
-        // Test update operations
+        // Test upsert operations
         const updatedTasks: Task[] = [
           {
             id: "task-1",
@@ -101,11 +101,11 @@ describe("SubscribableDB", async () => {
           },
         ];
 
-        syncDB.update(tasksTable, updatedTasks);
+        syncDB.upsert(tasksTable, updatedTasks);
 
         expect(operations).toHaveLength(3);
         expect(operations[2]).toEqual({
-          type: "update",
+          type: "upsert",
           table: tasksTable,
           oldValue: tasks[0],
           newValue: updatedTasks[0],
@@ -195,12 +195,17 @@ describe("SubscribableDB", async () => {
         expect(operations).toHaveLength(1);
       });
 
-      it("should handle update operations with non-existent records", async () => {
+      it("should handle upsert operations with non-existent records", async () => {
         const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
 
         const syncDB = new SyncDB(subscribableDB);
         syncDB.loadTables([tasksTable]);
+
+        const operations: Op[] = [];
+        subscribableDB.subscribe((op) => {
+          operations.push(...op);
+        });
 
         const nonExistentTask: Task = {
           id: "non-existent",
@@ -210,9 +215,69 @@ describe("SubscribableDB", async () => {
           orderToken: "a",
         };
 
-        expect(() => {
-          syncDB.update(tasksTable, [nonExistentTask]);
-        }).toThrow("Failed to update record, no previous record found");
+        syncDB.upsert(tasksTable, [nonExistentTask]);
+
+        expect(operations).toEqual([
+          {
+            type: "upsert",
+            table: tasksTable,
+            oldValue: undefined,
+            newValue: nonExistentTask,
+          },
+        ]);
+        expect(
+          syncDB.intervalScan(tasksTable, "id", [
+            { eq: [{ col: "id", val: nonExistentTask.id }] },
+          ]),
+        ).toEqual([nonExistentTask]);
+      });
+
+      it("should dedupe duplicate upsert ids before emitting operations", async () => {
+        const db = new DB(await driver());
+        const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
+
+        const originalTask: Task = {
+          id: "task-1",
+          title: "Task 1",
+          state: "todo",
+          projectId: "project-1",
+          orderToken: "a",
+        };
+        const staleUpdate: Task = {
+          ...originalTask,
+          title: "Stale update",
+        };
+        const finalUpdate: Task = {
+          ...originalTask,
+          title: "Final update",
+          state: "done",
+        };
+
+        syncDB.insert(tasksTable, [originalTask]);
+
+        const operations: Op[] = [];
+        subscribableDB.subscribe((op) => {
+          operations.push(...op);
+        });
+
+        syncDB.upsert(tasksTable, [staleUpdate, finalUpdate]);
+
+        expect(operations).toEqual([
+          {
+            type: "upsert",
+            table: tasksTable,
+            oldValue: originalTask,
+            newValue: finalUpdate,
+          },
+        ]);
+        expect(
+          syncDB.intervalScan(tasksTable, "id", [
+            { eq: [{ col: "id", val: finalUpdate.id }] },
+          ]),
+        ).toEqual([finalUpdate]);
       });
 
       it("should handle delete operations with non-existent records", async () => {
@@ -305,7 +370,7 @@ describe("SubscribableDB", async () => {
           );
         });
 
-        subscribableDB.afterUpdate(function* (_db, table, _traits, ops) {
+        subscribableDB.afterUpsert(function* (_db, table, _traits, ops) {
           if (table !== tasksTable) return;
 
           for (const op of ops) {
@@ -316,7 +381,7 @@ describe("SubscribableDB", async () => {
               ),
             );
 
-            yield* update(taskAuditsTable, [
+            yield* upsert(taskAuditsTable, [
               {
                 ...audits[0],
                 phase: "updated",
@@ -373,7 +438,7 @@ describe("SubscribableDB", async () => {
 
         const updatedTask = { ...tasks[0], title: "Updated Task 1" };
 
-        syncDB.update(tasksTable, [updatedTask]);
+        syncDB.upsert(tasksTable, [updatedTask]);
 
         expect(
           syncDB.intervalScan(taskAuditsTable, "byTaskId", [
@@ -444,19 +509,19 @@ describe("SubscribableDB", async () => {
           }
         });
 
-        // Batch update
+        // Batch upsert
         const updatedTasks = tasks.map((task) => ({
           ...task,
           title: `Updated ${task.title}`,
         }));
 
-        syncDB.update(tasksTable, updatedTasks);
+        syncDB.upsert(tasksTable, updatedTasks);
 
         expect(operations).toHaveLength(6);
         for (let i = 3; i < 6; i++) {
           const op = operations[i];
-          expect(op.type).toBe("update");
-          if (op.type === "update") {
+          expect(op.type).toBe("upsert");
+          if (op.type === "upsert") {
             expect(op.oldValue).toEqual(tasks[i - 3]);
             expect(op.newValue).toEqual(updatedTasks[i - 3]);
           }
@@ -496,8 +561,8 @@ describe("SubscribableDB", async () => {
         syncDB.insert(tasksTable, []);
         expect(operations).toHaveLength(0);
 
-        // Empty update
-        syncDB.update(tasksTable, []);
+        // Empty upsert
+        syncDB.upsert(tasksTable, []);
         expect(operations).toHaveLength(0);
 
         // Empty delete
@@ -544,7 +609,7 @@ describe("SubscribableDB", async () => {
           title: "Completed Task 1",
         };
 
-        syncDB.update(tasksTable, [updatedTask]);
+        syncDB.upsert(tasksTable, [updatedTask]);
 
         // Step 3: Insert another task
         const newTask: Task = {
@@ -575,9 +640,9 @@ describe("SubscribableDB", async () => {
           newValue: initialTasks[1],
         });
 
-        // Check update operation
+        // Check upsert operation
         expect(operations[2]).toEqual({
-          type: "update",
+          type: "upsert",
           table: tasksTable,
           oldValue: initialTasks[0],
           newValue: updatedTask,

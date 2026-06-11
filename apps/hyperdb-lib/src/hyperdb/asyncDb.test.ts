@@ -98,7 +98,7 @@ describe("db", async () => {
         ),
       ).toEqual([tasks[0]]);
 
-      await execAsync(db.update(tasksTable, [updatedTask()]));
+      await execAsync(db.upsert(tasksTable, [updatedTask()]));
 
       expect(
         await execAsync(

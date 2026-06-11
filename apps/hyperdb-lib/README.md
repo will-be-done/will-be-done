@@ -3,7 +3,7 @@
 HyperDB tables can be declared directly with validator-backed schemas:
 
 ```ts
-import { defineTable, v } from "@will-be-done/hyperdb";
+import { defineTable, v } from "@will-be-done/hyperdb-lib";
 
 export const projectCategoriesTable = defineTable("projectCategories", {
   id: v.string(),
@@ -42,7 +42,7 @@ const tasksTable = defineTable("tasks", {
 });
 ```
 
-A missing optional field is valid. On insert or replacement update,
+A missing optional field is valid. On insert or replacement upsert,
 `{ content: undefined }` is normalized as if `content` were missing. Arrays with
 `undefined` always throw.
 
@@ -70,17 +70,32 @@ Runtime record validation is configured per DB:
 const db = new DB(driver, [tasksTable], { runtimeValidation: true });
 ```
 
-When enabled, records are validated before insert/update and after driver reads.
+When enabled, records are validated before insert/upsert and after driver reads.
 Errors include the table name, record id when available, and field path. When
 disabled, schema-derived TypeScript types still work, while runtime schema checks
 are skipped. The persistence codec still rejects unsafe values such as
 `undefined` in arrays and invalid object keys.
 
+## Write Semantics
+
+HyperDB writes are keyed by the record `id`:
+
+- `insert(table, records)` creates new records. If any `id` already exists, the
+  insert throws instead of replacing the stored record.
+- `upsert(table, records)` is a replacement upsert. If an `id` exists, the whole
+  stored record is replaced by the provided record. If an `id` does not exist, a
+  new record is inserted.
+- `delete(table, ids)` removes records by `id`. Missing ids are ignored, so
+  deleting a record that does not exist is a no-op.
+
+Upserts are not patches: omitted fields are omitted from the replacement record.
+
 ## SQLite Serialization
 
-HyperDB normalizes documents before drivers see them and decodes documents after
-driver reads. SQL drivers only perform final JSON storage formatting. This keeps
-value semantics consistent across SQLite and in-memory drivers.
+HyperDB normalizes documents before drivers see them. Drivers return normalized
+documents; SQL drivers encode/decode values around JSON storage, while in-memory
+drivers keep normalized JS objects directly. This keeps value semantics
+consistent across SQLite and in-memory drivers.
 
 The codec rejects invalid `undefined`, strips schema-known optional
 `undefined`, preserves `bigint`, and encodes byte values such as `ArrayBuffer`
@@ -113,6 +128,3 @@ defineTable("files", {
   data: v.any(),
 }).index("byName", ["name"]);
 ```
-
-Arrays, objects, bytes, `bigint`, and `v.any()` fields cannot be indexed in this
-implementation.

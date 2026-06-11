@@ -14,7 +14,7 @@ const tasksTable = defineTable("tasks", {
 }).index("projectIdState", ["projectId", "state"]);
 
 describe("query", () => {
-  it("works with limt", () => {
+  it("works with limit", () => {
     const result1 = selectFrom(tasksTable, "projectIdState")
       .where((q) =>
         or(q.eq("projectId", "1").lte("state", "done"), q.eq("projectId", "2")),
@@ -111,6 +111,71 @@ describe("query", () => {
           // @ts-expect-error order only supports asc or desc
           .order("newest"),
       );
+    }
+  });
+
+  it("supports limit and order from any query builder stage", () => {
+    const expectedWhere = [
+      {
+        eq: [
+          {
+            col: "projectId",
+            val: "1",
+          },
+        ],
+        gte: [],
+        gt: [],
+        lte: [],
+        lt: [],
+      },
+    ];
+
+    const queries = [
+      selectFrom(tasksTable, "projectIdState").order("asc").limit(3).toQuery(),
+      selectFrom(tasksTable, "projectIdState").limit(3).order("asc").toQuery(),
+      selectFrom(tasksTable, "projectIdState")
+        .order("asc")
+        .limit(3)
+        .where((q) => q.eq("projectId", "1"))
+        .toQuery(),
+      selectFrom(tasksTable, "projectIdState")
+        .limit(3)
+        .order("asc")
+        .where((q) => q.eq("projectId", "1"))
+        .toQuery(),
+      selectFrom(tasksTable, "projectIdState")
+        .where((q) => q.eq("projectId", "1"))
+        .order("asc")
+        .limit(3)
+        .toQuery(),
+      selectFrom(tasksTable, "projectIdState")
+        .where((q) => q.eq("projectId", "1"))
+        .limit(3)
+        .order("asc")
+        .toQuery(),
+    ];
+
+    expect(queries[0]).toMatchObject({
+      from: tasksTable,
+      index: "projectIdState",
+      limit: 3,
+      order: "asc",
+    });
+    expect(queries[1]).toMatchObject({
+      from: tasksTable,
+      index: "projectIdState",
+      limit: 3,
+      order: "asc",
+    });
+
+    for (const query of queries.slice(2)) {
+      expect(query).toEqual({
+        from: tasksTable,
+        index: "projectIdState",
+        limit: 3,
+        order: "asc",
+        where: expectedWhere,
+      });
     }
   });
 

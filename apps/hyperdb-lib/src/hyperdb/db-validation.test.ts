@@ -19,7 +19,7 @@ import { insert as actionInsert, syncDispatch } from "./action";
 
 class RecordingDriver implements DBDriver, DBDriverTX {
   inserted: Row[][] = [];
-  updated: Row[][] = [];
+  upserted: Row[][] = [];
   scanRows: unknown[] = [];
 
   *loadTables(_tables: TableDefinition<any, any>[]): Generator<DBCmd, void> {}
@@ -41,8 +41,8 @@ class RecordingDriver implements DBDriver, DBDriverTX {
     this.inserted.push(values);
   }
 
-  *update(_tableName: string, values: Row[]): Generator<DBCmd, void> {
-    this.updated.push(values);
+  *upsert(_tableName: string, values: Row[]): Generator<DBCmd, void> {
+    this.upserted.push(values);
   }
 
   *delete(_tableName: string, _values: string[]): Generator<DBCmd, void> {}
@@ -171,7 +171,7 @@ describe("DB runtime validation and codec boundary", () => {
     );
   });
 
-  it("decodes driver records before returning them and before read validation", () => {
+  it("passes normalized logical records through the driver boundary", () => {
     const driver = new RecordingDriver();
     const bytes = new Uint8Array([1, 2, 3]);
     const buffer = new Uint8Array([4, 5]).buffer;
@@ -192,6 +192,12 @@ describe("DB runtime validation and codec boundary", () => {
     );
     driver.scanRows = driver.inserted[0];
 
+    expect(driver.inserted[0][0].payload).toEqual({
+      count: 10n,
+      bytes,
+      buffer,
+    });
+
     const [record] = execSync(db.intervalScan(docsTable, "byTitle", scanAll));
 
     expect(record.payload.count).toBe(10n);
@@ -208,7 +214,7 @@ describe("DB runtime validation and codec boundary", () => {
 
     expect(() =>
       execSync(
-        tx.update(docsTable, [
+        tx.upsert(docsTable, [
           {
             id: "doc-1",
             title: "hello",
@@ -219,7 +225,7 @@ describe("DB runtime validation and codec boundary", () => {
       ),
     ).toThrow(/Table docs record doc-1: expected string at optionalNote/);
 
-    expect(driver.updated).toEqual([]);
+    expect(driver.upserted).toEqual([]);
     execSync(tx.rollback());
   });
 
@@ -249,17 +255,17 @@ describe("DB runtime validation and codec boundary", () => {
     const db = new DB(driver, [docsTable], { runtimeValidation: true });
 
     execSync(db.insert(docsTable, []));
-    execSync(db.update(docsTable, []));
+    execSync(db.upsert(docsTable, []));
 
     expect(driver.inserted).toEqual([]);
-    expect(driver.updated).toEqual([]);
+    expect(driver.upserted).toEqual([]);
   });
 
   for (const [name, driverFactory] of [
     ["SqlDriver", () => initSqlJsWasm()],
     ["BptreeInmemDriver", async () => new BptreeInmemDriver()],
   ] as const) {
-    it(`round-trips encoded rich document values through ${name}`, async () => {
+    it(`round-trips rich document values through ${name}`, async () => {
       const driver = await driverFactory();
       const db = new SyncDB(new DB(driver, [docsTable], { runtimeValidation: true }));
       db.loadTables([docsTable]);
