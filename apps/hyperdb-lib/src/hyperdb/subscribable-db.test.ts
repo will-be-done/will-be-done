@@ -40,6 +40,18 @@ const taskAuditsTable = defineTable("taskAudits", {
   title: v.string(),
 }).index("byTaskId", ["taskId"]);
 
+type TaskCount = {
+  id: string;
+  todo: number;
+  done: number;
+};
+
+const taskCountsTable = defineTable("taskCounts", {
+  id: v.string(),
+  todo: v.number(),
+  done: v.number(),
+});
+
 describe("SubscribableDB", async () => {
   for (const [driver, driverName] of [
     [async () => new BptreeInmemDriver(), "BptreeInmemDriver"],
@@ -414,6 +426,79 @@ describe("SubscribableDB", async () => {
         ).toEqual([]);
       });
 
+      it("should allow afterChange callbacks to persist aggregate rows", async () => {
+        const db = new DB(await driver());
+        const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable, taskCountsTable]);
+
+        const emptyCount: TaskCount = { id: "tasks", todo: 0, done: 0 };
+        const adjust = (
+          count: TaskCount,
+          state: Task["state"],
+          delta: 1 | -1,
+        ): TaskCount => ({
+          ...count,
+          [state]: count[state] + delta,
+        });
+
+        subscribableDB.afterChange(function* (_db, table, _traits, ops) {
+          if (table !== tasksTable) return;
+
+          let nextCount =
+            (
+              yield* runQuery(
+                selectFrom(taskCountsTable, "id").where((q) =>
+                  q.eq("id", "tasks"),
+                ),
+              )
+            )[0] ?? emptyCount;
+
+          for (const op of ops) {
+            if (op.type === "insert") {
+              nextCount = adjust(nextCount, (op.newValue as Task).state, 1);
+            } else if (op.type === "upsert") {
+              if (op.oldValue) {
+                nextCount = adjust(nextCount, (op.oldValue as Task).state, -1);
+              }
+              nextCount = adjust(nextCount, (op.newValue as Task).state, 1);
+            } else {
+              nextCount = adjust(nextCount, (op.oldValue as Task).state, -1);
+            }
+          }
+
+          yield* upsert(taskCountsTable, [nextCount]);
+        });
+
+        const tasks = [
+          {
+            id: "task-1",
+            title: "Task 1",
+            state: "todo",
+            projectId: "project-1",
+            orderToken: "a",
+          },
+          {
+            id: "task-2",
+            title: "Task 2",
+            state: "done",
+            projectId: "project-1",
+            orderToken: "b",
+          },
+        ] satisfies Task[];
+
+        syncDB.insert(tasksTable, tasks);
+        syncDB.upsert(tasksTable, [{ ...tasks[0], state: "done" }]);
+        syncDB.delete(tasksTable, ["task-2"]);
+
+        expect(
+          syncDB.intervalScan(taskCountsTable, "id", [
+            { eq: [{ col: "id", val: "tasks" }] },
+          ]),
+        ).toEqual([{ id: "tasks", todo: 0, done: 1 }]);
+      });
+
       it("should handle batch operations correctly", async () => {
         const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
@@ -495,6 +580,33 @@ describe("SubscribableDB", async () => {
         if (op7.type === "delete") {
           expect(op7.oldValue).toEqual(updatedTasks[2]);
         }
+      });
+
+      it("should handle large operation batches without argument spread overflow", async () => {
+        if (driverName === "SqlDriver") return;
+
+        const db = new DB(await driver());
+        const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
+
+        let operationCount = 0;
+        subscribableDB.subscribe((ops) => {
+          operationCount += ops.length;
+        });
+
+        const tasks = Array.from({ length: 150_000 }, (_, index) => ({
+          id: `task-${index}`,
+          title: `Task ${index}`,
+          state: index % 2 === 0 ? "todo" : "done",
+          projectId: `project-${index % 10}`,
+          orderToken: String(index).padStart(6, "0"),
+        })) satisfies Task[];
+
+        syncDB.insert(tasksTable, tasks);
+
+        expect(operationCount).toBe(tasks.length);
       });
 
       it("should handle operations with empty arrays", async () => {
