@@ -244,6 +244,54 @@ describe("SubscribableDB", async () => {
         ).toEqual([nonExistentTask]);
       });
 
+      it("should dedupe duplicate upsert ids before emitting operations", async () => {
+        const db = new DB(await driver());
+        const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
+
+        const originalTask: Task = {
+          id: "task-1",
+          title: "Task 1",
+          state: "todo",
+          projectId: "project-1",
+          orderToken: "a",
+        };
+        const staleUpdate: Task = {
+          ...originalTask,
+          title: "Stale update",
+        };
+        const finalUpdate: Task = {
+          ...originalTask,
+          title: "Final update",
+          state: "done",
+        };
+
+        syncDB.insert(tasksTable, [originalTask]);
+
+        const operations: Op[] = [];
+        subscribableDB.subscribe((op) => {
+          operations.push(...op);
+        });
+
+        syncDB.upsert(tasksTable, [staleUpdate, finalUpdate]);
+
+        expect(operations).toEqual([
+          {
+            type: "upsert",
+            table: tasksTable,
+            oldValue: originalTask,
+            newValue: finalUpdate,
+          },
+        ]);
+        expect(
+          syncDB.intervalScan(tasksTable, "id", [
+            { eq: [{ col: "id", val: finalUpdate.id }] },
+          ]),
+        ).toEqual([finalUpdate]);
+      });
+
       it("should handle delete operations with non-existent records", async () => {
         const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);

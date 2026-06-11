@@ -25,6 +25,7 @@ import {
   assertSafeTableDefinition,
   buildRowInsertParams,
   parseSqliteStoredRow,
+  getSqliteIndexSortKeyValue,
 } from "./SqliteCommon.ts";
 import AwaitLock from "await-lock";
 
@@ -75,8 +76,12 @@ async function runAsyncSQL(
   sqlite3: AsyncSQLiteDB,
   db: number,
   sql: string,
+  params?: SQLiteCompatibleType[],
 ): Promise<void> {
   for await (const stmt of sqlite3.statements(db, sql)) {
+    if (params) {
+      sqlite3.bind_collection(stmt, params);
+    }
     await sqlite3.step(stmt);
   }
 }
@@ -581,6 +586,7 @@ export class AsyncSqlDriver implements DBDriver {
 
           await this.createTable(tableDef);
           await this.addMissingSortKeyColumns(tableDef);
+          await this.backfillSortKeyColumns(tableDef);
           await this.createIndexes(tableDef);
           this.tableDefinitions.set(tableDef.tableName, tableDef);
         }
@@ -634,6 +640,34 @@ export class AsyncSqlDriver implements DBDriver {
         await this.sqlite3.step(stmt);
       }
       existingColumns.add(sortKeyColumn);
+    }
+  }
+
+  private async backfillSortKeyColumns(
+    tableDef: TableDefinition<any>,
+  ): Promise<void> {
+    for (const indexName of Object.keys(tableDef.indexes)) {
+      const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
+      const sql = `SELECT id, data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`;
+
+      for await (const stmt of this.sqlite3.statements(this.db, sql)) {
+        while ((await this.sqlite3.step(stmt)) === SQLITE_ROW) {
+          const [id, data] = this.sqlite3.row(stmt);
+          const row = parseSqliteStoredRow(String(data));
+          const sortKeyValue = getSqliteIndexSortKeyValue(
+            tableDef,
+            indexName,
+            row,
+          );
+
+          await runAsyncSQL(
+            this.sqlite3,
+            this.db,
+            `UPDATE ${tableDef.tableName} SET ${sortKeyColumn} = ? WHERE id = ? AND ${sortKeyColumn} IS NULL`,
+            [sortKeyValue, id],
+          );
+        }
+      }
     }
   }
 

@@ -271,8 +271,6 @@ export function buildInsertSQL(
       .trim()
       .replace(/\n+/g, " ");
 
-  console.log("%c" + sql, "color: #bada55");
-
   return sql;
 }
 
@@ -281,8 +279,6 @@ export function buildDeleteSQL(tableName: string, idCount: number): string {
   const sql = `DELETE FROM ${tableName} WHERE id IN (${placeholders})`
     .trim()
     .replace(/\n+/g, " ");
-
-  console.log("%c" + sql, "color: #bada55");
 
   return sql;
 }
@@ -306,8 +302,6 @@ export function buildSelectSQL(
     .trim()
     .replace(/\n+/g, " ");
 
-  console.log("%c" + sql, "color: #bada55");
-
   return sql;
 }
 
@@ -324,7 +318,6 @@ export function createTableSQL(tableDef: TableDefinition): string {
   `
     .trim()
     .replace(/\n+/g, " ");
-  console.log("%c" + sql, "color: #bada55");
 
   return sql;
 }
@@ -344,8 +337,6 @@ export function createIndexSQL(
     .trim()
     .replace(/\n+/g, " ");
 
-  console.log("%c" + sql, "color: #bada55");
-
   return sql;
 }
 
@@ -357,8 +348,6 @@ export function addSortKeyColumnSQL(
   const sql = `ALTER TABLE ${tableName} ADD COLUMN ${sortKeyColumn} TEXT`
     .trim()
     .replace(/\n+/g, " ");
-
-  console.log("%c" + sql, "color: #bada55");
 
   return sql;
 }
