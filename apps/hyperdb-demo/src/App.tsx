@@ -19,6 +19,12 @@ import {
   useReduxAppDispatch,
   useReduxAppSelector,
 } from "./reduxStore";
+import {
+  clearTanstackWorkload,
+  generateTanstackWorkload,
+  toggleTanstackTaskDone,
+  useTanstackDashboardSnapshot,
+} from "./tanstackDbStore";
 import { useBenchmarkState } from "./useBenchmarkState";
 import type { Task } from "./workload";
 import "./App.css";
@@ -100,12 +106,31 @@ function ReduxBenchmark() {
   );
 }
 
-function App() {
-  return window.location.pathname === "/redux" ? (
-    <ReduxBenchmark />
-  ) : (
-    <HyperdbBenchmark />
+function TanstackBenchmark() {
+  const benchmarkState = useBenchmarkState();
+  const dashboard = useTanstackDashboardSnapshot(
+    benchmarkState.taskLimit,
+    benchmarkState.projectLimit,
+    benchmarkState.selectedProjectId,
   );
+
+  return (
+    <BenchmarkApp
+      backendName="TanStack DB"
+      benchmarkState={benchmarkState}
+      dashboard={dashboard}
+      generateWorkload={generateTanstackWorkload}
+      clearWorkload={clearTanstackWorkload}
+      toggleTaskDone={toggleTanstackTaskDone}
+    />
+  );
+}
+
+function App() {
+  if (window.location.pathname === "/redux") return <ReduxBenchmark />;
+  if (window.location.pathname === "/db") return <TanstackBenchmark />;
+
+  return <HyperdbBenchmark />;
 }
 
 export default App;

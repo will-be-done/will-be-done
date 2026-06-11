@@ -117,6 +117,12 @@ export function BenchmarkApp({
         >
           Redux
         </a>
+        <a
+          href="/db"
+          aria-current={backendName === "TanStack DB" ? "page" : undefined}
+        >
+          TanStack DB
+        </a>
       </nav>
 
       <header className="topbar">
