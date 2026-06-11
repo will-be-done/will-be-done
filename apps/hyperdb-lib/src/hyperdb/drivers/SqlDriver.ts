@@ -10,15 +10,19 @@ import { cloneDeep } from "es-toolkit";
 import type { TableDefinition } from "../table.ts";
 import type { DBCmd } from "../generators.ts";
 import {
-  buildWhereClause,
+  buildSortKeyWhereClause,
   buildOrderClause,
   buildSelectSQL,
   buildInsertSQL,
   buildDeleteSQL,
   createTableSQL,
   createIndexSQL,
+  addSortKeyColumnSQL,
   chunkArray,
   CHUNK_SIZE,
+  sqliteIndexSortKeyColumn,
+  assertSafeTableDefinition,
+  buildRowInsertParams,
   type SqlValue,
   type BindParams,
 } from "./SqliteCommon.ts";
@@ -38,51 +42,52 @@ interface SQLiteDB {
 
 function performInsertOperation(
   db: SQLiteDB,
-  tableName: string,
-  values: Record<string, unknown>[],
-): void {
-  if (values.length === 0) return;
-
-  const allValues = chunkArray(values, CHUNK_SIZE);
-  for (const chunk of allValues) {
-    const insertSQL = buildInsertSQL(tableName, chunk.length);
-
-    db.exec(
-      insertSQL,
-      // @ts-expect-error it's ok
-      chunk.flatMap((v) => [v.id, JSON.stringify(v)]),
-    );
-  }
-}
-
-function performUpdateOperation(
-  db: SQLiteDB,
-  tableName: string,
+  tableDef: TableDefinition,
   values: Row[],
 ): void {
   if (values.length === 0) return;
 
   const allValues = chunkArray(values, CHUNK_SIZE);
   for (const chunk of allValues) {
-    const updateSQL = buildInsertSQL(tableName, chunk.length);
+    const insertSQL = buildInsertSQL(tableDef, chunk.length);
+
+    db.exec(
+      insertSQL,
+      chunk.flatMap((v) => buildRowInsertParams(tableDef, v)),
+    );
+  }
+}
+
+function performUpdateOperation(
+  db: SQLiteDB,
+  tableDef: TableDefinition,
+  values: Row[],
+): void {
+  if (values.length === 0) return;
+
+  const allValues = chunkArray(values, CHUNK_SIZE);
+  for (const chunk of allValues) {
+    const updateSQL = buildInsertSQL(tableDef, chunk.length, {
+      replace: true,
+    });
 
     db.exec(
       updateSQL,
-      chunk.flatMap((v) => [v.id, JSON.stringify(v)]),
+      chunk.flatMap((v) => buildRowInsertParams(tableDef, v)),
     );
   }
 }
 
 function performDeleteOperation(
   db: SQLiteDB,
-  tableName: string,
+  tableDef: TableDefinition,
   values: string[],
 ): void {
   if (values.length === 0) return;
 
   const allValues = chunkArray(values, CHUNK_SIZE);
   for (const chunk of allValues) {
-    const deleteSQL = buildDeleteSQL(tableName, chunk.length);
+    const deleteSQL = buildDeleteSQL(tableDef.tableName, chunk.length);
     db.exec(deleteSQL, chunk);
   }
 }
@@ -95,7 +100,12 @@ function performScanOperation(
   clauses: WhereClause[],
   selectOptions: SelectOptions,
 ): unknown[] {
-  const { where, params } = buildWhereClause(
+  const tableDef = tableDefinitions.get(table);
+  if (!tableDef) {
+    throw new Error(`Table ${table} not found`);
+  }
+
+  const { where, params } = buildSortKeyWhereClause(
     indexName,
     table,
     clauses,
@@ -108,17 +118,11 @@ function performScanOperation(
     selectOptions.order === "desc",
   );
   const sql = buildSelectSQL(table, where, orderClause, selectOptions);
-
   const q = db.prepare(sql);
 
-  const result: unknown[] = [];
   try {
     const values = q.values(params);
-
-    for (const row of values) {
-      const record = JSON.parse(row[0] as string) as unknown;
-      result.push(record);
-    }
+    return values.map((row) => JSON.parse(row[0] as string) as Row);
 
     // while (q.step()) {
     //   const res = q.get();
@@ -130,8 +134,14 @@ function performScanOperation(
   } finally {
     q.finalize();
   }
+}
 
-  return result;
+function rollbackQuietly(db: SQLiteDB): void {
+  try {
+    db.exec("ROLLBACK");
+  } catch {
+    // Best effort cleanup after a failed statement.
+  }
 }
 
 class SqlDriverTx implements DBDriverTX {
@@ -177,21 +187,27 @@ class SqlDriverTx implements DBDriverTX {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
-    performInsertOperation(this.db, tableName, values);
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) throw new Error(`Table ${tableName} not found`);
+    performInsertOperation(this.db, tableDef, values as Row[]);
   }
 
   *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
-    performUpdateOperation(this.db, tableName, values);
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) throw new Error(`Table ${tableName} not found`);
+    performUpdateOperation(this.db, tableDef, values);
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
     if (this.committed || this.rolledback) {
       throw new Error("Transaction already finished");
     }
-    performDeleteOperation(this.db, tableName, values);
+    const tableDef = this.tableDefinitions.get(tableName);
+    if (!tableDef) throw new Error(`Table ${tableName} not found`);
+    performDeleteOperation(this.db, tableDef, values);
   }
 
   *intervalScan(
@@ -247,8 +263,15 @@ export class SqlDriver implements DBDriver {
     if (values.length === 0) return;
 
     this.db.exec("BEGIN TRANSACTION");
-    performInsertOperation(this.db, tableName, values);
-    this.db.exec("COMMIT");
+    try {
+      const tableDef = this.tableDefinitions.get(tableName);
+      if (!tableDef) throw new Error(`Table ${tableName} not found`);
+      performInsertOperation(this.db, tableDef, values as Row[]);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      rollbackQuietly(this.db);
+      throw error;
+    }
   }
 
   *update(tableName: string, values: Row[]): Generator<DBCmd, void> {
@@ -258,8 +281,15 @@ export class SqlDriver implements DBDriver {
     if (values.length === 0) return;
 
     this.db.exec("BEGIN TRANSACTION");
-    performUpdateOperation(this.db, tableName, values);
-    this.db.exec("COMMIT");
+    try {
+      const tableDef = this.tableDefinitions.get(tableName);
+      if (!tableDef) throw new Error(`Table ${tableName} not found`);
+      performUpdateOperation(this.db, tableDef, values);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      rollbackQuietly(this.db);
+      throw error;
+    }
   }
 
   *delete(tableName: string, values: string[]): Generator<DBCmd, void> {
@@ -269,8 +299,15 @@ export class SqlDriver implements DBDriver {
     if (values.length === 0) return;
 
     this.db.exec("BEGIN TRANSACTION");
-    performDeleteOperation(this.db, tableName, values);
-    this.db.exec("COMMIT");
+    try {
+      const tableDef = this.tableDefinitions.get(tableName);
+      if (!tableDef) throw new Error(`Table ${tableName} not found`);
+      performDeleteOperation(this.db, tableDef, values);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      rollbackQuietly(this.db);
+      throw error;
+    }
   }
 
   *intervalScan(
@@ -296,46 +333,69 @@ export class SqlDriver implements DBDriver {
   *loadTables(
     tableDefinitions: TableDefinition<any>[],
   ): Generator<DBCmd, void> {
-    this.db.exec("BEGIN TRANSACTION");
-    tableDefinitions = cloneDeep(tableDefinitions);
     for (const tableDef of tableDefinitions) {
-      for (const [, indexDef] of Object.entries(tableDef.indexes)) {
-        const cols = [...indexDef.cols];
-
-        if (cols[cols.length - 1] !== "id") {
-          cols.push("id");
-        }
-        (indexDef as unknown as { cols: typeof cols }).cols = cols;
-      }
-
-      this.createTable(tableDef.tableName);
-      this.createIndexes(tableDef);
-      this.tableDefinitions.set(tableDef.tableName, tableDef);
+      assertSafeTableDefinition(tableDef);
     }
-    this.db.exec("COMMIT");
+
+    this.db.exec("BEGIN TRANSACTION");
+    try {
+      tableDefinitions = cloneDeep(tableDefinitions);
+      for (const tableDef of tableDefinitions) {
+        for (const [, indexDef] of Object.entries(tableDef.indexes)) {
+          if (indexDef.type !== "btree") continue;
+          const cols = [...indexDef.cols];
+
+          if (cols[cols.length - 1] !== "id") {
+            cols.push("id");
+          }
+          (indexDef as unknown as { cols: typeof cols }).cols = cols;
+        }
+
+        this.createTable(tableDef);
+        this.addMissingSortKeyColumns(tableDef);
+        this.createIndexes(tableDef);
+        this.tableDefinitions.set(tableDef.tableName, tableDef);
+      }
+      this.db.exec("COMMIT");
+    } catch (error) {
+      rollbackQuietly(this.db);
+      throw error;
+    }
   }
 
-  private createTable(tableName: string): void {
-    // Create main table
-    const sql = createTableSQL(tableName);
+  private createTable(tableDef: TableDefinition<any>): void {
+    const sql = createTableSQL(tableDef);
     console.log(sql);
     this.db.exec(sql);
   }
 
-  private createIndexes(tableDef: TableDefinition<any>): void {
-    for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
-      const cols = indexDef.cols;
+  private getTableColumns(tableName: string): Set<string> {
+    const q = this.db.prepare(`PRAGMA table_info(${tableName})`);
+    try {
+      return new Set(q.values([]).map((row) => String(row[1])));
+    } finally {
+      q.finalize();
+    }
+  }
 
-      // Only make the id index unique, all others should be non-unique
-      const isIdIndex = cols.length === 1 && cols[0] === "id";
-      const sql = createIndexSQL(
-        tableDef.tableName,
-        indexName,
-        cols,
-        isIdIndex,
-      );
+  private addMissingSortKeyColumns(tableDef: TableDefinition<any>): void {
+    const existingColumns = this.getTableColumns(tableDef.tableName);
+    for (const indexName of Object.keys(tableDef.indexes)) {
+      const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
+      if (existingColumns.has(sortKeyColumn)) continue;
+
+      const sql = addSortKeyColumnSQL(tableDef.tableName, sortKeyColumn);
       console.log(sql);
       this.db.exec(sql);
+      existingColumns.add(sortKeyColumn);
+    }
+  }
+
+  private createIndexes(tableDef: TableDefinition<any>): void {
+    for (const indexName of Object.keys(tableDef.indexes)) {
+      const indexSQL = createIndexSQL(tableDef.tableName, indexName);
+      console.log(indexSQL);
+      this.db.exec(indexSQL);
     }
   }
 }

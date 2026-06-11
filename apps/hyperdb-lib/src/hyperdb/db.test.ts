@@ -803,7 +803,7 @@ describe("Database Operations Edge Cases", async () => {
 
       it("works correctly with string order", () => {
         type TestRecord = { id: string; projectId: string; token: string };
-        const testTable = defineTable("test2", {
+        const testTable = defineTable("testStringOrder", {
           id: v.string(),
           projectId: v.string(),
           token: v.string(),
@@ -827,7 +827,7 @@ describe("Database Operations Edge Cases", async () => {
 
       it("should handle various scan bound combinations", () => {
         type TestRecord = { id: string; a: number; b: string };
-        const testTable = defineTable("test2", {
+        const testTable = defineTable("testScanBounds", {
           id: v.string(),
           a: v.number(),
           b: v.string(),

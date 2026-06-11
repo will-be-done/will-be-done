@@ -1,33 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { WhereClause, Value, SelectOptions } from "../db.ts";
+import {
+  MAX,
+  MIN,
+  type Row,
+  type WhereClause,
+  type SelectOptions,
+} from "../db.ts";
 import type { TableDefinition } from "../table.ts";
+import { convertWhereToBound } from "../bounds.ts";
+import {
+  encodeSqliteSortKeyTuple,
+  getSqliteSortKeyTuple,
+  type SqliteSortKeyMode,
+} from "./SqliteSortKey.ts";
 
 export type SqlValue = number | string | Uint8Array | null;
 export type BindParams = SqlValue[] | null;
 
 export const CHUNK_SIZE = 12000;
 
-function jsonExtractExpr(col: string | number | symbol): string {
-  return `json_extract(data, '$.${String(col)}')`;
-}
-
-function jsonTypeExpr(col: string | number | symbol): string {
-  return `json_type(data, '$.${String(col)}')`;
-}
-
-function buildWhereWithPresence(
-  indexColumns: readonly (string | number | symbol)[],
-  conditions: string[],
-): string {
-  const presenceConditions = indexColumns.map(
-    (col) => `${jsonTypeExpr(col)} IS NOT NULL`,
-  );
-  const allConditions = [...presenceConditions, ...conditions];
-
-  return allConditions.length > 0
-    ? `WHERE ${allConditions.join(" AND ")}`
-    : "";
-}
+const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function chunkArray<T>(array: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -37,7 +29,128 @@ export function chunkArray<T>(array: T[], size: number): T[][] {
   return chunks;
 }
 
-export function buildWhereClause(
+function isSchemalessTable(tableDef: TableDefinition): boolean {
+  return !tableDef.schemaValidator;
+}
+
+export function assertSafeIdentifier(kind: string, value: string): void {
+  if (!SAFE_IDENTIFIER.test(value)) {
+    throw new Error(`${kind} must be a safe SQL/JSON identifier: ${value}`);
+  }
+}
+
+export function assertSafeTableDefinition(tableDef: TableDefinition): void {
+  assertSafeIdentifier("Table name", tableDef.tableName);
+
+  for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
+    assertSafeIdentifier("Index name", indexName);
+
+    for (const col of indexDef.cols) {
+      assertSafeIdentifier("Index column", String(col));
+    }
+  }
+}
+
+export function sqliteIndexSortKeyColumn(indexName: string): string {
+  assertSafeIdentifier("Index name", indexName);
+  const columnName = `idx_${indexName}_sort_key`;
+  assertSafeIdentifier("Sort-key column name", columnName);
+  return columnName;
+}
+
+export function sqliteIndexSortColumns(
+  indexColumns: readonly (string | number | symbol)[],
+): string[] {
+  const cols = indexColumns.map(String);
+  if (cols[cols.length - 1] !== "id") {
+    cols.push("id");
+  }
+  return cols;
+}
+
+export function sqliteIndexSortKeyMode(
+  tableDef: TableDefinition,
+  indexName: string,
+): SqliteSortKeyMode {
+  const indexDef = tableDef.indexes[indexName];
+  return indexDef?.type === "btree" && isSchemalessTable(tableDef)
+    ? "stored"
+    : "scan";
+}
+
+export function getSqliteIndexSortKeyValue(
+  tableDef: TableDefinition,
+  indexName: string,
+  row: Row,
+): string | null {
+  const indexDef = tableDef.indexes[indexName];
+  if (!indexDef) throw new Error(`Index ${indexName} not found`);
+
+  const sortColumns = sqliteIndexSortColumns(indexDef.cols);
+  const includeMissing = indexDef.type === "btree" && isSchemalessTable(tableDef);
+  const mode = sqliteIndexSortKeyMode(tableDef, indexName);
+  const tuple = getSqliteSortKeyTuple(row, sortColumns, includeMissing);
+
+  return tuple ? encodeSqliteSortKeyTuple(tuple, mode) : null;
+}
+
+export function buildRowInsertParams(
+  tableDef: TableDefinition,
+  row: Row,
+): SqlValue[] {
+  return [
+    row.id,
+    JSON.stringify(row),
+    ...Object.keys(tableDef.indexes).map((indexName) =>
+      getSqliteIndexSortKeyValue(tableDef, indexName, row),
+    ),
+  ];
+}
+
+function expandBoundTuple(
+  tuple: readonly unknown[] | undefined,
+  targetLength: number,
+  filler: typeof MIN | typeof MAX,
+): unknown[] | undefined {
+  if (!tuple) return undefined;
+  return [...tuple, ...new Array(targetLength - tuple.length).fill(filler)];
+}
+
+function validateHashBounds(
+  indexName: string,
+  indexColumn: string,
+  bounds: ReturnType<typeof convertWhereToBound>,
+): void {
+  for (const bound of bounds) {
+    if (
+      (bound.gt !== undefined && bound.gt.length > 0) ||
+      (bound.lt !== undefined && bound.lt.length > 0)
+    ) {
+      throw new Error(
+        `Hash index doesn't support range conditions for column '${indexColumn}'`,
+      );
+    }
+
+    if (
+      (bound.lte && bound.lte.length !== 1) ||
+      (bound.gte && bound.gte.length !== 1) ||
+      !bound.lte ||
+      !bound.gte
+    ) {
+      throw new Error(
+        `Hash index should have exactly one equality condition for column '${indexColumn}' and index name '${indexName}': ${JSON.stringify(bound)}`,
+      );
+    }
+
+    if (bound.lte[0] !== bound.gte[0]) {
+      throw new Error(
+        `Hash index should have the same equality condition for column '${indexColumn}'`,
+      );
+    }
+  }
+}
+
+export function buildSortKeyWhereClause(
   indexName: string,
   tableName: string,
   clauses: WhereClause[],
@@ -50,108 +163,67 @@ export function buildWhereClause(
 
   const indexDef = tableDef.indexes[indexName];
   if (!indexDef) throw new Error(`Index ${indexName} not found`);
-  const indexColumns = indexDef.cols;
+  const filterColumns = indexDef.cols.map(String);
+  const sortColumns = sqliteIndexSortColumns(indexDef.cols);
+  const mode = sqliteIndexSortKeyMode(tableDef, indexName);
+  const rawBounds = convertWhereToBound(filterColumns, clauses);
 
-  // Check if all clauses are equality-only (each clause only has eq, no other operators)
-  const allEqualityOnly = clauses.every(
-    (clause) => clause.eq && clause.eq.length > 0,
-  );
-
-  if (allEqualityOnly && clauses.length > 0) {
-    // Debug logging
-
-    // Optimize for IN clause when all conditions are equality
-    const columnValueMap = new Map<string, Value[]>();
-
-    for (const clause of clauses) {
-      if (clause.eq) {
-        for (const { col, val } of clause.eq) {
-          const colKey = String(col);
-          if (!columnValueMap.has(colKey)) {
-            columnValueMap.set(colKey, []);
-          }
-          columnValueMap.get(colKey)!.push(val);
-        }
-      }
-    }
-
-    const conditions: string[] = [];
-    const params: any[] = [];
-
-    for (const [col, values] of columnValueMap) {
-      const columnPath = jsonExtractExpr(col);
-      const columnType = jsonTypeExpr(col);
-      const nonNullValues = values.filter((value) => value !== null);
-      const valueConditions: string[] = [];
-
-      if (nonNullValues.length > 0) {
-        const placeholders = nonNullValues.map(() => "?").join(", ");
-        valueConditions.push(`${columnPath} IN (${placeholders})`);
-        params.push(...nonNullValues);
-      }
-
-      if (values.some((value) => value === null)) {
-        valueConditions.push(`${columnType} = 'null'`);
-      }
-
-      if (valueConditions.length === 1) {
-        conditions.push(valueConditions[0]);
-      } else if (valueConditions.length > 1) {
-        conditions.push(`(${valueConditions.join(" OR ")})`);
-      }
-    }
-
-    const whereClause = buildWhereWithPresence(indexColumns, conditions);
-    return { where: whereClause, params };
+  if (indexDef.type === "hash") {
+    validateHashBounds(indexName, filterColumns[0], rawBounds);
   }
 
-  // Fallback to original logic for mixed conditions
-  const conditions: string[] = [];
+  const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
   const params: any[] = [];
+  const rangeConditions: string[] = [];
+  let hasUnboundedRange = false;
 
-  for (const clause of clauses) {
-    const currentCond: string[] = [];
-
-    const buildColumnComparison = (
-      operator: string,
-      columnConditions: { col: string; val: Value }[],
-    ) => {
-      for (const { col, val } of columnConditions) {
-        if (operator === "=" && val === null) {
-          currentCond.push(`${jsonTypeExpr(col)} = 'null'`);
-        } else {
-          currentCond.push(`${jsonExtractExpr(col)} ${operator} ?`);
-          params.push(val);
-        }
-      }
+  for (const rawBound of rawBounds) {
+    const bound = {
+      gte: expandBoundTuple(rawBound.gte, sortColumns.length, MIN),
+      gt: expandBoundTuple(rawBound.gt, sortColumns.length, MAX),
+      lte: expandBoundTuple(rawBound.lte, sortColumns.length, MAX),
+      lt: expandBoundTuple(rawBound.lt, sortColumns.length, MIN),
     };
+    const current: string[] = [];
+    const currentParams: string[] = [];
 
-    if (clause.gt) {
-      buildColumnComparison(">", clause.gt);
+    if (bound.gte) {
+      current.push(`${sortKeyColumn} >= ?`);
+      currentParams.push(encodeSqliteSortKeyTuple(bound.gte, mode));
     }
-    if (clause.gte) {
-      buildColumnComparison(">=", clause.gte);
+    if (bound.gt) {
+      current.push(`${sortKeyColumn} > ?`);
+      currentParams.push(encodeSqliteSortKeyTuple(bound.gt, mode));
     }
-    if (clause.lt) {
-      buildColumnComparison("<", clause.lt);
+    if (bound.lte) {
+      current.push(`${sortKeyColumn} <= ?`);
+      currentParams.push(encodeSqliteSortKeyTuple(bound.lte, mode));
     }
-    if (clause.lte) {
-      buildColumnComparison("<=", clause.lte);
-    }
-    if (clause.eq) {
-      buildColumnComparison("=", clause.eq);
+    if (bound.lt) {
+      current.push(`${sortKeyColumn} < ?`);
+      currentParams.push(encodeSqliteSortKeyTuple(bound.lt, mode));
     }
 
-    if (currentCond.length > 0) {
-      conditions.push(`(${currentCond.join(" AND ")})`);
+    if (current.length === 0) {
+      hasUnboundedRange = true;
+      break;
     }
+
+    rangeConditions.push(`(${current.join(" AND ")})`);
+    params.push(...currentParams);
   }
 
-  const whereClause = buildWhereWithPresence(
-    indexColumns,
-    conditions.length > 0 ? [`(${conditions.join(" OR ")})`] : [],
-  );
-  return { where: whereClause, params };
+  const conditions = [`${sortKeyColumn} IS NOT NULL`];
+  if (!hasUnboundedRange && rangeConditions.length > 0) {
+    conditions.push(`(${rangeConditions.join(" OR ")})`);
+  } else if (hasUnboundedRange) {
+    params.length = 0;
+  }
+
+  return {
+    where: `WHERE ${conditions.join(" AND ")}`,
+    params,
+  };
 }
 
 export function buildOrderClause(
@@ -170,23 +242,29 @@ export function buildOrderClause(
     return "";
   }
 
-  const indexColumns = indexDef.cols;
-
-  const orderColumns = indexColumns
-    .map((col) => {
-      const jsonPath = jsonExtractExpr(col);
-      return `${jsonPath} ${reverse ? "DESC" : "ASC"}`;
-    })
-    .join(", ");
-
-  return `ORDER BY ${orderColumns}`;
+  return `ORDER BY ${sqliteIndexSortKeyColumn(indexName)} ${
+    reverse ? "DESC" : "ASC"
+  }`;
 }
 
-export function buildInsertSQL(tableName: string, valueCount: number): string {
-  const valuesQ = Array(valueCount).fill("(?, ?)").join(", ");
-  const sql = `INSERT OR REPLACE INTO ${tableName} (id, data) VALUES ${valuesQ}`
-    .trim()
-    .replace(/\n+/g, " ");
+export function buildInsertSQL(
+  tableDef: TableDefinition,
+  valueCount: number,
+  options: { replace?: boolean } = {},
+): string {
+  const indexColumns = Object.keys(tableDef.indexes).map((indexName) =>
+    sqliteIndexSortKeyColumn(indexName),
+  );
+  const columns = ["id", "data", ...indexColumns];
+  const rowPlaceholders = `(${columns.map(() => "?").join(", ")})`;
+  const valuesQ = Array(valueCount).fill(rowPlaceholders).join(", ");
+  const conflictMode = options.replace ? "INSERT OR REPLACE" : "INSERT";
+  const sql =
+    `${conflictMode} INTO ${tableDef.tableName} (${columns.join(
+      ", ",
+    )}) VALUES ${valuesQ}`
+      .trim()
+      .replace(/\n+/g, " ");
 
   console.log("%c" + sql, "color: #bada55");
 
@@ -214,7 +292,8 @@ export function buildSelectSQL(
     selectOptions.limit !== undefined ? `LIMIT ${selectOptions.limit}` : "";
 
   const sql = `
-    SELECT data FROM ${tableName}
+    SELECT data
+    FROM ${tableName}
     ${whereClause}
     ${orderClause}
     ${limitClause}
@@ -227,11 +306,15 @@ export function buildSelectSQL(
   return sql;
 }
 
-export function createTableSQL(tableName: string): string {
+export function createTableSQL(tableDef: TableDefinition): string {
+  const sortKeyColumns = Object.keys(tableDef.indexes).map(
+    (indexName) => `${sqliteIndexSortKeyColumn(indexName)} TEXT`,
+  );
   const sql = `
-    CREATE TABLE IF NOT EXISTS ${tableName} (
+    CREATE TABLE IF NOT EXISTS ${tableDef.tableName} (
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL
+      ${sortKeyColumns.length > 0 ? `, ${sortKeyColumns.join(", ")}` : ""}
     )
   `
     .trim()
@@ -244,23 +327,29 @@ export function createTableSQL(tableName: string): string {
 export function createIndexSQL(
   tableName: string,
   indexName: string,
-  cols: readonly (string | number | symbol)[],
-  isIdIndex: boolean,
 ): string {
-  const columnPaths = cols
-    .map((col) => `${jsonExtractExpr(col)} ASC`)
-    .join(", ");
-  const presenceConditions = cols
-    .map((col) => `${jsonTypeExpr(col)} IS NOT NULL`)
-    .join(" AND ");
-
-  const uniqueKeyword = isIdIndex ? "UNIQUE" : "";
-
+  const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
+  const indexIdentifier = `idx_${tableName}_${indexName}_sort_key`;
+  assertSafeIdentifier("SQLite index name", indexIdentifier);
   const sql = `
-    CREATE ${uniqueKeyword} INDEX IF NOT EXISTS idx_${tableName}_${indexName} 
-    ON ${tableName}(${columnPaths})
-    WHERE ${presenceConditions}
+    CREATE INDEX IF NOT EXISTS ${indexIdentifier}
+    ON ${tableName}(${sortKeyColumn}, id)
+    WHERE ${sortKeyColumn} IS NOT NULL
   `
+    .trim()
+    .replace(/\n+/g, " ");
+
+  console.log("%c" + sql, "color: #bada55");
+
+  return sql;
+}
+
+export function addSortKeyColumnSQL(
+  tableName: string,
+  sortKeyColumn: string,
+): string {
+  assertSafeIdentifier("Sort-key column name", sortKeyColumn);
+  const sql = `ALTER TABLE ${tableName} ADD COLUMN ${sortKeyColumn} TEXT`
     .trim()
     .replace(/\n+/g, " ");
 

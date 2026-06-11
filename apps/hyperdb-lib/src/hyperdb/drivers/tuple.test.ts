@@ -2,6 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { MAX, MIN } from "../db.ts";
 import {
+  compareStoredTuple,
+  compareStoredValue,
   compareTuple,
   compareValue,
   encodingTypeOf,
@@ -12,6 +14,8 @@ import { defineTable } from "../table.ts";
 import { v } from "../values.ts";
 
 describe("Value and Tuple Comparison Edge Cases", () => {
+  const sign = (value: number) => (value === 0 ? 0 : value > 0 ? 1 : -1);
+
   describe("encodingTypeOf", () => {
     it("should correctly identify encoding types", () => {
       expect(encodingTypeOf(null)).toBe("null");
@@ -133,6 +137,138 @@ describe("Value and Tuple Comparison Edge Cases", () => {
       // But MIN/MAX vs regular values work for bounds
       expect(compareTuple([1, 0], [1, null])).toBe(1); // 0 > null in encoding order
       expect(compareTuple([null, 1], [1, null])).toBe(-1); // null < 1 in encoding order
+    });
+  });
+
+  describe("compareStoredValue", () => {
+    it("orders the full stored value type ladder including virtual bounds", () => {
+      const values = [
+        MIN,
+        undefined,
+        null,
+        -1n,
+        { $hyperdbType: "bigint", value: "0" },
+        1,
+        false,
+        true,
+        "",
+        new Uint8Array([]),
+        [],
+        {},
+        MAX,
+      ];
+
+      for (let left = 0; left < values.length; left++) {
+        for (let right = 0; right < values.length; right++) {
+          expect(sign(compareStoredValue(values[left], values[right]))).toBe(
+            sign(left - right),
+          );
+        }
+      }
+    });
+
+    it("compares bigint values numerically across raw and encoded forms", () => {
+      const values = [
+        -100n,
+        { $hyperdbType: "bigint", value: "-2" },
+        -1n,
+        0n,
+        { $hyperdbType: "bigint", value: "1" },
+        2n,
+        10n,
+        100n,
+      ];
+
+      for (let left = 0; left < values.length; left++) {
+        for (let right = 0; right < values.length; right++) {
+          expect(sign(compareStoredValue(values[left], values[right]))).toBe(
+            sign(left - right),
+          );
+        }
+      }
+      expect(
+        compareStoredValue(1n, { $hyperdbType: "bigint", value: "1" }),
+      ).toBe(0);
+    });
+
+    it("normalizes equivalent bytes from buffers, typed-array views, and encoded storage", () => {
+      const buffer = new Uint8Array([9, 1, 2, 8]).buffer;
+      const view = new Uint8Array(buffer, 1, 2);
+
+      expect(compareStoredValue(view, new Uint8Array([1, 2]))).toBe(0);
+      expect(
+        compareStoredValue(view, { $hyperdbType: "bytes", value: [1, 2] }),
+      ).toBe(0);
+      expect(
+        compareStoredValue(buffer, {
+          $hyperdbType: "arrayBuffer",
+          value: [9, 1, 2, 8],
+        }),
+      ).toBe(0);
+      expect(compareStoredValue(new Uint8Array([]), new Uint8Array([0]))).toBe(
+        -1,
+      );
+      expect(
+        compareStoredValue(new Uint8Array([0, 1]), new Uint8Array([1])),
+      ).toBe(-1);
+    });
+
+    it("compares arrays recursively and shorter equal prefixes first", () => {
+      const arrays = [
+        [],
+        [null],
+        [0],
+        [0, null],
+        [0, 1],
+        [1],
+        ["a"],
+        [[0]],
+        [{ a: 1 }],
+      ];
+
+      for (let left = 0; left < arrays.length; left++) {
+        for (let right = 0; right < arrays.length; right++) {
+          expect(sign(compareStoredValue(arrays[left], arrays[right]))).toBe(
+            sign(left - right),
+          );
+        }
+      }
+    });
+
+    it("compares objects by sorted keys before values", () => {
+      const objects = [
+        {},
+        { a: 1 },
+        { a: 2 },
+        { a: 999, b: 0 },
+        { b: 0 },
+        { z: null },
+      ];
+
+      for (let left = 0; left < objects.length; left++) {
+        for (let right = 0; right < objects.length; right++) {
+          expect(sign(compareStoredValue(objects[left], objects[right]))).toBe(
+            sign(left - right),
+          );
+        }
+      }
+
+      expect(compareStoredValue({ b: 1, a: 1 }, { a: 1, b: 1 })).toBe(0);
+    });
+  });
+
+  describe("compareStoredTuple", () => {
+    it("compares tuples lexicographically using stored value ordering", () => {
+      expect(compareStoredTuple([undefined, "b"], [null, "a"])).toBe(-1);
+      expect(compareStoredTuple([1n, "a"], [1n, "b"])).toBe(-1);
+      expect(compareStoredTuple([[1], "a"], [{ a: 1 }, "a"])).toBe(-1);
+      expect(compareStoredTuple([new Uint8Array([1])], [["a"]])).toBe(-1);
+    });
+
+    it("orders shorter tuples after equal stored prefixes", () => {
+      expect(compareStoredTuple([1n], [1n, MIN])).toBe(-1);
+      expect(compareStoredTuple([1n, MAX], [1n])).toBe(1);
+      expect(compareStoredTuple([], [])).toBe(0);
     });
   });
 });

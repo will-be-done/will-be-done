@@ -830,11 +830,13 @@ describe("Database Transactions", async () => {
 
         const task: Task = { id: "task-dup", title: "Original" };
 
-        // Insert same task multiple times
+        // Insert rejects duplicate ids instead of silently replacing them.
         tx.insert(tasksTable, [task]);
-        tx.insert(tasksTable, [task]);
+        expect(() => tx.insert(tasksTable, [task])).toThrow(
+          /duplicate|exists|unique/i,
+        );
 
-        // Should only have one instance
+        // Failed duplicate insert should not create extra index entries.
         const afterInserts = Array.from(
           tx.intervalScan(tasksTable, "id", [
             { eq: [{ col: "id", val: "task-dup" }] },

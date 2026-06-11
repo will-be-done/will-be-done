@@ -19,6 +19,17 @@ const encodingByte = {
 } as const;
 
 type EncodingType = keyof typeof encodingByte;
+type StoredEncodingType =
+  | "missing"
+  | "null"
+  | "bigint"
+  | "float"
+  | "boolean"
+  | "string"
+  | "bytes"
+  | "array"
+  | "object"
+  | "virtual";
 
 const encodingRank = sortBy(
   Object.entries(encodingByte) as [EncodingType, string][],
@@ -75,6 +86,204 @@ export function compareValue(a: ScanValue, b: ScanValue): number {
   }
 
   return compare(encodingRank.indexOf(at), encodingRank.indexOf(bt));
+}
+
+function isEncodedObject(
+  value: unknown,
+): value is { $hyperdbType?: unknown; value?: unknown } {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    !(value instanceof ArrayBuffer) &&
+    !ArrayBuffer.isView(value)
+  );
+}
+
+function storedEncodingTypeOf(value: unknown): StoredEncodingType {
+  if (value === MIN || value === MAX) {
+    return "virtual";
+  }
+  if (value === undefined) {
+    return "missing";
+  }
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "bigint") {
+    return "bigint";
+  }
+  if (
+    isEncodedObject(value) &&
+    value.$hyperdbType === "bigint" &&
+    typeof value.value === "string"
+  ) {
+    return "bigint";
+  }
+  if (typeof value === "number") {
+    return "float";
+  }
+  if (typeof value === "boolean") {
+    return "boolean";
+  }
+  if (typeof value === "string") {
+    return "string";
+  }
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+    return "bytes";
+  }
+  if (
+    isEncodedObject(value) &&
+    (value.$hyperdbType === "arrayBuffer" || value.$hyperdbType === "bytes")
+  ) {
+    return "bytes";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  if (isEncodedObject(value)) {
+    return "object";
+  }
+
+  throw new UnreachableError(value as never, "Unknown stored value type");
+}
+
+const storedEncodingRank: StoredEncodingType[] = [
+  "missing",
+  "null",
+  "bigint",
+  "float",
+  "boolean",
+  "string",
+  "bytes",
+  "array",
+  "object",
+  "virtual",
+];
+
+function bytesOf(value: unknown): number[] {
+  if (value instanceof ArrayBuffer) {
+    return Array.from(new Uint8Array(value));
+  }
+  if (ArrayBuffer.isView(value)) {
+    return Array.from(
+      new Uint8Array(value.buffer, value.byteOffset, value.byteLength),
+    );
+  }
+  if (isEncodedObject(value) && Array.isArray(value.value)) {
+    return value.value as number[];
+  }
+  return [];
+}
+
+function bigintOf(value: unknown): bigint {
+  if (typeof value === "bigint") {
+    return value;
+  }
+  if (
+    isEncodedObject(value) &&
+    value.$hyperdbType === "bigint" &&
+    typeof value.value === "string"
+  ) {
+    return BigInt(value.value);
+  }
+  throw new UnreachableError(value as never, "Expected bigint value");
+}
+
+function compareArrays(a: readonly unknown[], b: readonly unknown[]): number {
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    const result = compareStoredValue(a[i], b[i]);
+    if (result !== 0) return result;
+  }
+
+  return compare(a.length, b.length);
+}
+
+function compareObjects(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): number {
+  const aKeys = Object.keys(a).sort();
+  const bKeys = Object.keys(b).sort();
+  const keyComparison = compareArrays(aKeys, bKeys);
+  if (keyComparison !== 0) return keyComparison;
+
+  for (const key of aKeys) {
+    const valueComparison = compareStoredValue(a[key], b[key]);
+    if (valueComparison !== 0) return valueComparison;
+  }
+
+  return 0;
+}
+
+export function compareStoredValue(a: unknown, b: unknown): number {
+  const at = storedEncodingTypeOf(a);
+  const bt = storedEncodingTypeOf(b);
+
+  if (at !== bt) {
+    if (b === MIN) return 1;
+    if (b === MAX) return -1;
+    if (a === MIN) return -1;
+    if (a === MAX) return 1;
+
+    return compare(storedEncodingRank.indexOf(at), storedEncodingRank.indexOf(bt));
+  }
+
+  if (at === "virtual") {
+    if (a === MAX && b === MIN) return 1;
+    if (a === MIN && b === MAX) return -1;
+    return 0;
+  }
+  if (at === "missing" || at === "null") {
+    return 0;
+  }
+  if (at === "bigint") {
+    return compare(bigintOf(a), bigintOf(b));
+  }
+  if (at === "float") {
+    return compare(a as number, b as number);
+  }
+  if (at === "boolean") {
+    return compare(Number(a), Number(b));
+  }
+  if (at === "string") {
+    return compare(a as string, b as string);
+  }
+  if (at === "bytes") {
+    return compareArrays(bytesOf(a), bytesOf(b));
+  }
+  if (at === "array") {
+    return compareArrays(a as unknown[], b as unknown[]);
+  }
+  if (at === "object") {
+    return compareObjects(
+      a as Record<string, unknown>,
+      b as Record<string, unknown>,
+    );
+  }
+
+  throw new UnreachableError(at);
+}
+
+export function compareStoredTuple(a: unknown[], b: unknown[]) {
+  const len = Math.min(a.length, b.length);
+
+  for (let i = 0; i < len; i++) {
+    const dir = compareStoredValue(a[i], b[i]);
+    if (dir === 0) {
+      continue;
+    }
+    return dir;
+  }
+
+  if (a.length > b.length) {
+    return 1;
+  } else if (a.length < b.length) {
+    return -1;
+  } else {
+    return 0;
+  }
 }
 
 export function normalizeTupleBounds(
@@ -159,7 +368,10 @@ export const isRowInRange = (
   return true;
 };
 
-function compare<K extends string | number | boolean>(a: K, b: K): number {
+function compare<K extends string | number | boolean | bigint>(
+  a: K,
+  b: K,
+): number {
   if (a > b) {
     return 1;
   }
