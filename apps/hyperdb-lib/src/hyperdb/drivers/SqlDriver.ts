@@ -368,7 +368,6 @@ export class SqlDriver implements DBDriver {
 
   private createTable(tableDef: TableDefinition<any>): void {
     const sql = createTableSQL(tableDef);
-    console.log(sql);
     this.db.exec(sql);
   }
 
@@ -388,13 +387,12 @@ export class SqlDriver implements DBDriver {
       if (existingColumns.has(sortKeyColumn)) continue;
 
       const sql = addSortKeyColumnSQL(tableDef.tableName, sortKeyColumn);
-      console.log(sql);
       this.db.exec(sql);
       existingColumns.add(sortKeyColumn);
     }
   }
 
-  // NOTE: basckwards compatibility. Remove after v1.
+  // NOTE: backwards compatibility. Remove after v1.
   private backfillSortKeyColumns(tableDef: TableDefinition<any>): void {
     for (const indexName of Object.keys(tableDef.indexes)) {
       const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
@@ -424,7 +422,6 @@ export class SqlDriver implements DBDriver {
   private createIndexes(tableDef: TableDefinition<any>): void {
     for (const indexName of Object.keys(tableDef.indexes)) {
       const indexSQL = createIndexSQL(tableDef.tableName, indexName);
-      console.log(indexSQL);
       this.db.exec(indexSQL);
     }
   }

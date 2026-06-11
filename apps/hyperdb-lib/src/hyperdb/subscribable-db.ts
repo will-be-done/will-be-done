@@ -167,19 +167,42 @@ export class SubscribableDBTx implements HyperDBTx {
     this.throwIfDone();
     if (records.length === 0) return;
 
+    let upsertRecords = records;
+    const recordIds = new Set<string>();
+    let hasDuplicateIds = false;
+    for (const record of records) {
+      if (recordIds.has(record.id)) {
+        hasDuplicateIds = true;
+        break;
+      }
+      recordIds.add(record.id);
+    }
+
+    if (hasDuplicateIds) {
+      const seenIds = new Set<string>();
+      upsertRecords = [];
+      for (let i = records.length - 1; i >= 0; i--) {
+        const record = records[i];
+        if (seenIds.has(record.id)) continue;
+        seenIds.add(record.id);
+        upsertRecords.push(record);
+      }
+      upsertRecords.reverse();
+    }
+
     const previousRecords = new Map<string, Row>();
 
     for (const oldRecord of yield* this.txDb.intervalScan(
       table,
       table.idIndexName,
-      records.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
+      upsertRecords.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
     )) {
       previousRecords.set(oldRecord.id, oldRecord);
     }
 
-    yield* this.txDb.upsert(table, records);
+    yield* this.txDb.upsert(table, upsertRecords);
 
-    const upsertOps = records.map(
+    const upsertOps = upsertRecords.map(
       (record) =>
         ({
           type: "upsert",
