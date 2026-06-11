@@ -6,7 +6,6 @@ import { defineTable } from "./table";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
 import { v } from "./values";
 import { selectFrom } from "./query";
-import { runQuery } from "./selector";
 import { deleteRows, insert, upsert } from "./action";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
@@ -238,7 +237,7 @@ describe("SubscribableDB", async () => {
           },
         ]);
         expect(
-          syncDB.intervalScan(tasksTable, "id", [
+          syncDB.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: nonExistentTask.id }] },
           ]),
         ).toEqual([nonExistentTask]);
@@ -286,7 +285,7 @@ describe("SubscribableDB", async () => {
           },
         ]);
         expect(
-          syncDB.intervalScan(tasksTable, "id", [
+          syncDB.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: finalUpdate.id }] },
           ]),
         ).toEqual([finalUpdate]);
@@ -337,7 +336,7 @@ describe("SubscribableDB", async () => {
         syncDB.insert(tasksTable, tasks);
 
         // Test intervalScan
-        const intervalResults = syncDB.intervalScan(tasksTable, "id", [
+        const intervalResults = syncDB.intervalScan(tasksTable, "byId", [
           {
             eq: [{ col: "id", val: "task-1" }],
           },
@@ -359,10 +358,8 @@ describe("SubscribableDB", async () => {
         subscribableDB.afterInsert(function* (_db, table, _traits, ops) {
           if (table !== tasksTable) return;
 
-          const tasks = yield* runQuery(
-            selectFrom(tasksTable, "projectIdState").where((q) =>
-              q.eq("projectId", "project-1"),
-            ),
+          const tasks = yield* selectFrom(tasksTable, "projectIdState").where(
+            (q) => q.eq("projectId", "project-1"),
           );
 
           snapshots.push(tasks);
@@ -387,10 +384,8 @@ describe("SubscribableDB", async () => {
 
           for (const op of ops) {
             const updatedTask = op.newValue as Task;
-            const audits = yield* runQuery(
-              selectFrom(taskAuditsTable, "byTaskId").where((q) =>
-                q.eq("taskId", updatedTask.id),
-              ),
+            const audits = yield* selectFrom(taskAuditsTable, "byTaskId").where(
+              (q) => q.eq("taskId", updatedTask.id),
             );
 
             yield* upsert(taskAuditsTable, [
@@ -495,13 +490,9 @@ describe("SubscribableDB", async () => {
           if (table !== tasksTable) return;
 
           let nextCount =
-            (
-              yield* runQuery(
-                selectFrom(taskCountsTable, "id").where((q) =>
-                  q.eq("id", "tasks"),
-                ),
-              )
-            )[0] ?? emptyCount;
+            (yield* selectFrom(taskCountsTable, "byId").where((q) =>
+              q.eq("id", "tasks"),
+            ))[0] ?? emptyCount;
 
           for (const op of ops) {
             if (op.type === "insert") {
@@ -541,7 +532,7 @@ describe("SubscribableDB", async () => {
         syncDB.delete(tasksTable, ["task-2"]);
 
         expect(
-          syncDB.intervalScan(taskCountsTable, "id", [
+          syncDB.intervalScan(taskCountsTable, "byId", [
             { eq: [{ col: "id", val: "tasks" }] },
           ]),
         ).toEqual([{ id: "tasks", todo: 0, done: 1 }]);

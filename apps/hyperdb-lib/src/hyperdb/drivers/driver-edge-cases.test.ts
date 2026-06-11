@@ -81,10 +81,10 @@ const fullValueOrderTable = {
   tableName: "driverEdgeFullValueOrder",
   schema: {},
   indexes: {
-    id: { type: "hash", cols: ["id"] },
+    byId: { type: "hash", cols: ["id"] },
     byValue: { type: "btree", cols: ["value"] },
   },
-  idIndexName: "id",
+  idIndexName: "byId",
   index() {
     throw new Error("Not used in tests");
   },
@@ -94,10 +94,10 @@ const schemalessPathIndexTable = {
   tableName: "driverEdgeSchemalessPathIndex",
   schema: {},
   indexes: {
-    id: { type: "hash", cols: ["id"] },
+    byId: { type: "hash", cols: ["id"] },
     byProfileName: { type: "btree", cols: ["profile.name"] },
   },
-  idIndexName: "id",
+  idIndexName: "byId",
   index() {
     throw new Error("Not used in tests");
   },
@@ -107,10 +107,10 @@ const multiColumnHashTable = {
   tableName: "driverEdgeMultiColumnHash",
   schema: {},
   indexes: {
-    id: { type: "hash", cols: ["id"] },
+    byId: { type: "hash", cols: ["id"] },
     byProjectState: { type: "hash", cols: ["projectId", "state"] },
   },
-  idIndexName: "id",
+  idIndexName: "byId",
   index() {
     throw new Error("Not used in tests");
   },
@@ -244,7 +244,7 @@ describe("driver edge case regressions", () => {
       expect(columns).toEqual([
         "id",
         "data",
-        "idx_id_sort_key",
+        "idx_byId_sort_key",
         "idx_byTitle_sort_key",
       ]);
 
@@ -866,7 +866,7 @@ describe("driver edge case regressions", () => {
         const goodRecord = { id: "good", title: "Good" };
         expect(() => db.insert(rollbackTable, [goodRecord])).not.toThrow();
         expect(
-          db.intervalScan(rollbackTable, "id", [
+          db.intervalScan(rollbackTable, "byId", [
             { eq: [{ col: "id", val: "good" }] },
           ]),
         ).toEqual([goodRecord]);

@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+early_access: false
+tone_instructions: "Be direct, practical, and concise. Prioritize correctness, data integrity, public API stability, and meaningful tests over style-only remarks."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  review_status: true
+  review_details: false
+  commit_status: true
+  fail_commit_status: true
+  collapse_walkthrough: true
+  changed_files_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  auto_apply_labels: false
+  suggested_reviewers: true
+  auto_assign_reviewers: false
+  in_progress_fortune: false
+  poem: false
+  enable_prompt_for_ai_agents: true
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
+    drafts: false
+    ignore_title_keywords:
+      - "wip"
+      - "do not merge"
+      - "draft"
+
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/coverage/**"
+    - "!**/.vite/**"
+    - "!**/.vite-temp/**"
+    - "!**/*.tsbuildinfo"
+    - "!**/*.lock"
+    - "!apps/desktop/release/**"
+
+  labeling_instructions:
+    - label: "hyperdb-lib"
+      instructions: "Apply when changes touch apps/hyperdb-lib or its public package contract."
+    - label: "tests"
+      instructions: "Apply when changes primarily add, update, or remove automated tests."
+    - label: "docs"
+      instructions: "Apply when changes primarily affect README, markdown, or documentation files."
+    - label: "dependencies"
+      instructions: "Apply when package metadata or dependency versions change."
+
+  path_instructions:
+    - path: "apps/hyperdb-lib/src/**/*.ts"
+      instructions: |
+        Review this as a TypeScript database/storage library. Focus on semantic
+        correctness before style.
+
+        Pay close attention to:
+        - index ordering, lower/upper bounds, equality/range filters, and stable
+          sorting behavior
+        - codec round trips for null, bigint, ArrayBuffer, typed arrays, optional
+          fields, and rejected undefined values
+        - insert/upsert/delete semantics, especially duplicate ids and replacement
+          behavior
+        - async driver behavior, subscriptions, transactions, and race conditions
+        - public API type inference and compatibility for table schemas,
+          validators, queries, actions, and React exports
+        - SQLite and in-memory driver parity
+    - path: "apps/hyperdb-lib/src/**/*.test.ts"
+      instructions: |
+        Expect focused Vitest coverage for behavior changes. Prefer tests that
+        exercise public APIs and edge cases over snapshot-style assertions.
+        Check that new tests cover both success and failure paths when validation,
+        indexes, codecs, or drivers are changed.
+    - path: "apps/hyperdb-lib/src/react/**/*.ts"
+      instructions: |
+        Review React integration for stable hook behavior, cleanup on unmount,
+        subscription lifecycles, render-loop risks, and compatibility with both
+        React 18 and React 19 peer ranges.
+    - path: "apps/hyperdb-lib/package.json"
+      instructions: |
+        Treat package metadata as part of the public contract. Check exports,
+        peer dependency ranges, build/test scripts, and runtime dependencies.
+    - path: "apps/hyperdb-lib/README.md"
+      instructions: |
+        Keep examples consistent with the actual exported API and current
+        write/query semantics. Flag docs that imply unsupported behavior.
+
+  pre_merge_checks:
+    title:
+      mode: "warning"
+      requirements: "Use a concise, descriptive PR title that names the affected area."
+    description:
+      mode: "warning"
+    custom_checks:
+      - name: "HyperDB tests updated"
+        mode: "warning"
+        instructions: "If runtime behavior under apps/hyperdb-lib/src changes, relevant Vitest coverage should be added or updated unless the PR explains why it is unnecessary."
+      - name: "Public API compatibility"
+        mode: "warning"
+        instructions: "Changes to apps/hyperdb-lib exports, validators, table schemas, query builders, actions, or React helpers should preserve documented public API behavior or clearly document the breaking change."
+
+  tools:
+    github-checks:
+      enabled: true
+      timeout_ms: 180000
+    eslint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    trufflehog:
+      enabled: true
+    osvScanner:
+      enabled: true
+
+chat:
+  auto_reply: true
+  art: false
+
+knowledge_base:
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+  learnings:
+    scope: "local"
+  issues:
+    scope: "local"
+  pull_requests:
+    scope: "local"
+
+code_generation:
+  unit_tests:
+    path_instructions:
+      - path: "apps/hyperdb-lib/src/**/*.ts"
+        instructions: "Use Vitest and follow the existing table/query/driver test style in apps/hyperdb-lib/src/**/*.test.ts."
+  docstrings:
+    language: "en-US"
+    path_instructions:
+      - path: "apps/hyperdb-lib/src/**/*.ts"
+        instructions: "Prefer concise API documentation only for exported functions, classes, and types where behavior is not obvious from the signature."

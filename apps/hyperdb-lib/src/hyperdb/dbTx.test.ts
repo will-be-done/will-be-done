@@ -32,7 +32,7 @@ describe("Database Transactions", async () => {
 
         const tx = db.beginTx();
 
-        const makeScan = (idxName: "id" | "byIds", d: SyncDBTx | SyncDB) =>
+        const makeScan = (idxName: "byId" | "byIds", d: SyncDBTx | SyncDB) =>
           d.intervalScan(tasksTable, idxName, [
             {
               eq: [{ col: "id", val: "task-1" }],
@@ -50,7 +50,7 @@ describe("Database Transactions", async () => {
         tx.insert(tasksTable, [task1, task2]);
 
         const btreeTxData = makeScan("byIds", tx);
-        const hashTxData = makeScan("id", tx);
+        const hashTxData = makeScan("byId", tx);
         expect(btreeTxData.length).toBe(1);
         expect(btreeTxData).toEqual(hashTxData);
 
@@ -58,7 +58,7 @@ describe("Database Transactions", async () => {
         tx.rollback();
 
         const btreeData = makeScan("byIds", db);
-        const hashData = makeScan("id", db);
+        const hashData = makeScan("byId", db);
 
         expect(btreeData.length).toBe(0);
         expect(hashData.length).toBe(0);
@@ -78,7 +78,7 @@ describe("Database Transactions", async () => {
 
         // Changes should not be visible in main db before commit
         const beforeCommit = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-commit" }] },
           ]),
         );
@@ -88,7 +88,7 @@ describe("Database Transactions", async () => {
 
         // Changes should be visible in main db after commit
         const afterCommit = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-commit" }] },
           ]),
         );
@@ -126,13 +126,13 @@ describe("Database Transactions", async () => {
         tx.rollback();
 
         // New task should not exist
-        const newTaskResult = db.intervalScan(tasksTable, "id", [
+        const newTaskResult = db.intervalScan(tasksTable, "byId", [
           { eq: [{ col: "id", val: "task-rollback" }] },
         ]);
         expect(newTaskResult.length).toBe(0);
 
         // Original task should be unchanged
-        const originalTaskResult = db.intervalScan(tasksTable, "id", [
+        const originalTaskResult = db.intervalScan(tasksTable, "byId", [
           { eq: [{ col: "id", val: "task-initial" }] },
         ]);
         expect(originalTaskResult.length).toBe(1);
@@ -154,7 +154,7 @@ describe("Database Transactions", async () => {
         // Another transaction should not see uncommitted changes
         const tx2 = db.beginTx();
         const tx2Result = Array.from(
-          tx2.intervalScan(tasksTable, "id", [
+          tx2.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-isolation-1" }] },
           ]),
         );
@@ -162,7 +162,7 @@ describe("Database Transactions", async () => {
 
         // Main db should not see uncommitted changes
         const dbResult = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-isolation-1" }] },
           ]),
         );
@@ -173,7 +173,7 @@ describe("Database Transactions", async () => {
 
         // Now the committed changes should be visible
         const finalResult = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-isolation-1" }] },
           ]),
         );
@@ -203,17 +203,17 @@ describe("Database Transactions", async () => {
 
         // Check transaction state before commit
         const txTask1 = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-1" }] },
           ]),
         );
         const txTask2 = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-2" }] },
           ]),
         );
         const txTask3 = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-3" }] },
           ]),
         );
@@ -226,17 +226,17 @@ describe("Database Transactions", async () => {
 
         // Verify final state in main db
         const finalTask1 = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-1" }] },
           ]),
         );
         const finalTask2 = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-2" }] },
           ]),
         );
         const finalTask3 = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-3" }] },
           ]),
         );
@@ -482,7 +482,7 @@ describe("Database Transactions", async () => {
 
         // Query via built-in hash id index
         const hashResult = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-update" }] },
           ]),
         );
@@ -548,7 +548,7 @@ describe("Database Transactions", async () => {
 
         // Check via hash index (id)
         const hashIdResult = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-2" }] },
           ]),
         );
@@ -703,7 +703,7 @@ describe("Database Transactions", async () => {
 
         // New task should not exist
         const newTaskResults = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-3" }] },
           ]),
         );
@@ -803,7 +803,7 @@ describe("Database Transactions", async () => {
 
         // Query empty database
         const emptyResults = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "nonexistent" }] },
           ]),
         );
@@ -838,7 +838,7 @@ describe("Database Transactions", async () => {
 
         // Failed duplicate insert should not create extra index entries.
         const afterInserts = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-dup" }] },
           ]),
         );
@@ -850,7 +850,7 @@ describe("Database Transactions", async () => {
 
         // Should have latest upsert
         const afterUpserts = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-dup" }] },
           ]),
         );
@@ -876,7 +876,7 @@ describe("Database Transactions", async () => {
 
         // Should not exist
         const result = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-ud" }] },
           ]),
         );
@@ -886,7 +886,7 @@ describe("Database Transactions", async () => {
 
         // Should not exist after commit
         const finalResult = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-ud" }] },
           ]),
         );
@@ -907,7 +907,7 @@ describe("Database Transactions", async () => {
 
         // Should not exist
         const result = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-id" }] },
           ]),
         );
@@ -917,7 +917,7 @@ describe("Database Transactions", async () => {
 
         // Should not exist after commit
         const finalResult = Array.from(
-          db.intervalScan(tasksTable, "id", [
+          db.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-id" }] },
           ]),
         );
@@ -941,7 +941,7 @@ describe("Database Transactions", async () => {
 
         // Existing data should still be there
         const result = Array.from(
-          tx.intervalScan(tasksTable, "id", [
+          tx.intervalScan(tasksTable, "byId", [
             { eq: [{ col: "id", val: "task-1" }] },
           ]),
         );

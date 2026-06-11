@@ -6,6 +6,8 @@ import type {
   UnionValue,
 } from "./table";
 import type { Value } from "./db";
+import { convertWhereToBound } from "./bounds";
+import type { SelectRangeCmd } from "./selector-commands";
 
 type QueryWhereClause = {
   lt: { col: string; val: Value }[];
@@ -17,10 +19,15 @@ type QueryWhereClause = {
 
 export type QueryOrder = "asc" | "desc";
 
+export type ExtractIndexName<TTable> = Extract<
+  keyof ExtractIndexes<TTable>,
+  string | number
+>;
+
 // Extract column names from an index
 export type ExtractIndexColumns<
   TTable,
-  TIndexName extends keyof ExtractIndexes<TTable>,
+  TIndexName extends ExtractIndexName<TTable>,
 > = ExtractIndexes<TTable>[TIndexName]["cols"] extends readonly (infer TCol)[]
   ? TCol extends UnionKeys<ExtractSchema<TTable>>
     ? TCol
@@ -40,7 +47,7 @@ type ExtractQueryColumnValue<
 
 export type SelectQuery<
   TTable extends TableDefinition = TableDefinition,
-  K extends keyof ExtractIndexes<TTable> = keyof ExtractIndexes<TTable>,
+  K extends ExtractIndexName<TTable> = ExtractIndexName<TTable>,
 > = {
   limit?: number;
   order?: QueryOrder;
@@ -49,7 +56,28 @@ export type SelectQuery<
   where: QueryWhereClause[];
 };
 
-class QueryBuilder<TTable, TIndexName extends keyof ExtractIndexes<TTable>> {
+const createSelectRangeCmd = <QType extends SelectQuery>(
+  query: QType,
+): SelectRangeCmd => {
+  const table = query.from;
+  const indexName = query.index;
+  const indexDef = table.indexes[indexName];
+  if (!indexDef) {
+    throw new Error(
+      `Index not found: ${indexName as string} for table: ${table.tableName}`,
+    );
+  }
+
+  return {
+    type: "selectRange",
+    table,
+    index: indexName as string,
+    selectQuery: query,
+    bounds: convertWhereToBound(indexDef.cols as string[], query.where),
+  };
+};
+
+class QueryBuilder<TTable, TIndexName extends ExtractIndexName<TTable>> {
   private conditions: QueryWhereClause = {
     lt: [],
     lte: [],
@@ -133,7 +161,7 @@ class QueryBuilder<TTable, TIndexName extends keyof ExtractIndexes<TTable>> {
 
 class SelectQueryBuilder<
   TTable extends TableDefinition,
-  TIndexName extends keyof ExtractIndexes<TTable>,
+  TIndexName extends ExtractIndexName<TTable>,
 > {
   private table: TTable;
   private index: TIndexName;
@@ -214,11 +242,17 @@ class SelectQueryBuilder<
       ...(this.orderValue !== undefined ? { order: this.orderValue } : {}),
     };
   }
+
+  *[Symbol.iterator](): Generator<unknown, ExtractSchema<TTable>[], unknown> {
+    return (yield createSelectRangeCmd(
+      this.toQuery(),
+    )) as ExtractSchema<TTable>[];
+  }
 }
 
 class SelectQueryBuilderWithWhere<
   TTable extends TableDefinition,
-  TIndexName extends keyof ExtractIndexes<TTable>,
+  TIndexName extends ExtractIndexName<TTable>,
 > {
   private table: TTable;
   private index: TIndexName;
@@ -269,11 +303,17 @@ class SelectQueryBuilderWithWhere<
       ...(this.orderValue !== undefined ? { order: this.orderValue } : {}),
     };
   }
+
+  *[Symbol.iterator](): Generator<unknown, ExtractSchema<TTable>[], unknown> {
+    return (yield createSelectRangeCmd(
+      this.toQuery(),
+    )) as ExtractSchema<TTable>[];
+  }
 }
 
 export const selectFrom = <
   TTable extends TableDefinition,
-  TIndexName extends keyof ExtractIndexes<TTable>,
+  TIndexName extends ExtractIndexName<TTable>,
 >(
   table: TTable,
   index: TIndexName,
@@ -281,7 +321,7 @@ export const selectFrom = <
   return new SelectQueryBuilder(table, index);
 };
 
-export const or = <TTable, TIndexName extends keyof ExtractIndexes<TTable>>(
+export const or = <TTable, TIndexName extends ExtractIndexName<TTable>>(
   ...builders: QueryBuilder<TTable, TIndexName>[]
 ): QueryBuilder<TTable, TIndexName>[] => {
   return builders;

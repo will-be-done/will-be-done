@@ -116,6 +116,10 @@ defineTable("tasks", {
   .index("byTitle", ["title"], { type: "hash" });
 ```
 
+Index names should follow the `byKebabCase` convention: start with `by` and
+then use PascalCase field names, such as `byProjectIdOrderToken`. Every table
+also gets a built-in hash index named `byId` over the `id` field.
+
 Hash indexes must use exactly one column.
 
 Documents can contain richer values through validators and the codec, but indexed

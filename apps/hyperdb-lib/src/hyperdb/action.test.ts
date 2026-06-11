@@ -3,7 +3,6 @@ import { defineTable } from "./table";
 import { DB, execSync } from "./db";
 import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { action, deleteRows, syncDispatch, insert, upsert } from "./action";
-import { runQuery } from "./selector";
 import { selectFrom } from "./query";
 import { v } from "./values";
 
@@ -50,20 +49,20 @@ const insertAction = action(function* () {
 
   yield* insert(tasksTables, [task]);
 
-  const tasks = yield* runQuery(
-    selectFrom(tasksTables, "title").where((q) => q.eq("title", "Task 1")),
+  const tasks = yield* selectFrom(tasksTables, "title").where((q) =>
+    q.eq("title", "Task 1"),
   );
 
   yield* updateAction();
 
-  const tasks2 = yield* runQuery(
-    selectFrom(tasksTables, "title").where((q) => q.eq("title", "Task 1")),
+  const tasks2 = yield* selectFrom(tasksTables, "title").where((q) =>
+    q.eq("title", "Task 1"),
   );
 
   yield* deleteRows(tasksTables, ["task-1"]);
 
-  const tasks3 = yield* runQuery(
-    selectFrom(tasksTables, "title").where((q) => q.eq("title", "Task 1")),
+  const tasks3 = yield* selectFrom(tasksTables, "title").where((q) =>
+    q.eq("title", "Task 1"),
   );
 
   return [tasks, tasks2, tasks3];

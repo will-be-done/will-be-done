@@ -4,11 +4,11 @@ TODO:
 1. DONE after callback should accept same queries
 1. DONE Generate demo and check profile on bit inserts/selects
 1. DONE How to make counters? Hooks?
-1. remove runQuery(). Just yield*(maybe?)
-1. start index with by...
+1. DONE remove runQuery(). Just yield*(maybe?)
+1. DONE start index with by...
 1. Move code by files/dirs. Follow convention
 1. Check if code has race condition. Maybe selector.ts has race condition? And subacriable-db.ts
-1. Ask if trai apporach overall good. Passing data with tree
+1. Ask if trat apporach overall good. Passing data with tree
 1. do we need cache db?
 1. ? optimize SubscribableDBTx
 1. Think about isert if record exists rule
@@ -18,6 +18,7 @@ TODO:
 1. remove ability to run code with promise
 1. check that utf8 sorting of string is same in js
 1. fix update() to not work if record not exists
+1. Add firstOr(), first()
 
 Then:
 1. Nested index
