@@ -7,6 +7,7 @@ import type {
   Trait,
   WhereClause,
 } from "./db";
+import { runCommandGenerator } from "./command-runner";
 import type { DBCmd } from "./generators";
 // import { collectAll } from "./generators";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "./table";
@@ -38,21 +39,21 @@ type AfterInsertSub = (
   table: TableDefinition,
   traits: Trait[],
   ops: InsertOp[],
-) => Generator<DBCmd, void>;
+) => Generator<unknown, void, unknown>;
 
 type AfterUpdateSub = (
   db: HyperDB,
   table: TableDefinition,
   traits: Trait[],
   ops: UpdateOp[],
-) => Generator<DBCmd, void>;
+) => Generator<unknown, void, unknown>;
 
 type AfterDeleteSub = (
   db: HyperDB,
   table: TableDefinition,
   traits: Trait[],
   ops: DeleteOp[],
-) => Generator<DBCmd, void>;
+) => Generator<unknown, void, unknown>;
 
 export class SubscribableDBTx implements HyperDBTx {
   // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, update, delete batches.
@@ -151,7 +152,11 @@ export class SubscribableDBTx implements HyperDBTx {
     this.operations.push(...insertOps);
 
     for (const cb of this.subDb.afterInsertSubscribers) {
-      yield* cb(this, table, this.getTraits(), insertOps);
+      yield* runCommandGenerator(
+        this,
+        cb(this, table, this.getTraits(), insertOps),
+        { allowWrites: true },
+      );
     }
   }
 
@@ -194,7 +199,11 @@ export class SubscribableDBTx implements HyperDBTx {
     this.operations.push(...updateOps);
 
     for (const cb of this.subDb.afterUpdateSubscribers) {
-      yield* cb(this, table, this.getTraits(), updateOps);
+      yield* runCommandGenerator(
+        this,
+        cb(this, table, this.getTraits(), updateOps),
+        { allowWrites: true },
+      );
     }
   }
 
@@ -218,7 +227,11 @@ export class SubscribableDBTx implements HyperDBTx {
     yield* this.txDb.delete(table, ids);
 
     for (const cb of this.subDb.afterDeleteSubscribers) {
-      yield* cb(this, table, this.getTraits(), deleteOps);
+      yield* runCommandGenerator(
+        this,
+        cb(this, table, this.getTraits(), deleteOps),
+        { allowWrites: true },
+      );
     }
   }
 

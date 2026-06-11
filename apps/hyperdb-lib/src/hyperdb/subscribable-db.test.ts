@@ -5,6 +5,9 @@ import { BptreeInmemDriver } from "./drivers/bptree-inmem-driver";
 import { defineTable } from "./table";
 import { initSqlJsWasm } from "./drivers/initSqlJSWasm";
 import { v } from "./values";
+import { selectFrom } from "./query";
+import { runQuery } from "./selector";
+import { deleteRows, insert, update } from "./action";
 // import { SqlDriver } from "./drivers/SqlDriver";
 
 type Task = {
@@ -22,6 +25,20 @@ const tasksTable = defineTable("tasks", {
   projectId: v.string(),
   orderToken: v.string(),
 }).index("projectIdState", ["projectId", "state"]);
+
+type TaskAudit = {
+  id: string;
+  taskId: string;
+  phase: "inserted" | "updated";
+  title: string;
+};
+
+const taskAuditsTable = defineTable("taskAudits", {
+  id: v.string(),
+  taskId: v.string(),
+  phase: v.union(v.literal("inserted"), v.literal("updated")),
+  title: v.string(),
+}).index("byTaskId", ["taskId"]);
 
 describe("SubscribableDB", async () => {
   for (const [driver, driverName] of [
@@ -251,6 +268,133 @@ describe("SubscribableDB", async () => {
 
         expect(intervalResults).toHaveLength(1);
         expect(intervalResults[0]).toEqual(tasks[0]);
+      });
+
+      it("should allow after callbacks to use action commands", async () => {
+        const db = new DB(await driver());
+        const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable, taskAuditsTable]);
+
+        const snapshots: Task[][] = [];
+
+        subscribableDB.afterInsert(function* (_db, table, _traits, ops) {
+          if (table !== tasksTable) return;
+
+          const tasks = yield* runQuery(
+            selectFrom(tasksTable, "projectIdState").where((q) =>
+              q.eq("projectId", "project-1"),
+            ),
+          );
+
+          snapshots.push(tasks);
+
+          yield* insert(
+            taskAuditsTable,
+            ops.map((op) => {
+              const task = op.newValue as Task;
+
+              return {
+                id: `audit-${task.id}`,
+                taskId: task.id,
+                phase: "inserted",
+                title: task.title,
+              };
+            }),
+          );
+        });
+
+        subscribableDB.afterUpdate(function* (_db, table, _traits, ops) {
+          if (table !== tasksTable) return;
+
+          for (const op of ops) {
+            const updatedTask = op.newValue as Task;
+            const audits = yield* runQuery(
+              selectFrom(taskAuditsTable, "byTaskId").where((q) =>
+                q.eq("taskId", updatedTask.id),
+              ),
+            );
+
+            yield* update(taskAuditsTable, [
+              {
+                ...audits[0],
+                phase: "updated",
+                title: updatedTask.title,
+              },
+            ]);
+          }
+        });
+
+        subscribableDB.afterDelete(function* (_db, table, _traits, ops) {
+          if (table !== tasksTable) return;
+
+          yield* deleteRows(
+            taskAuditsTable,
+            ops.map((op) => `audit-${op.oldValue.id}`),
+          );
+        });
+
+        const tasks = [
+          {
+            id: "task-1",
+            title: "Task 1",
+            state: "todo",
+            projectId: "project-1",
+            orderToken: "a",
+          },
+          {
+            id: "task-2",
+            title: "Task 2",
+            state: "done",
+            projectId: "project-1",
+            orderToken: "b",
+          },
+        ] satisfies Task[];
+
+        syncDB.insert(tasksTable, tasks);
+
+        expect(snapshots).toHaveLength(1);
+        expect(snapshots[0]).toHaveLength(2);
+        expect(snapshots[0]).toEqual(expect.arrayContaining(tasks));
+
+        expect(
+          syncDB.intervalScan(taskAuditsTable, "byTaskId", [
+            { eq: [{ col: "taskId", val: "task-1" }] },
+          ]),
+        ).toEqual([
+          {
+            id: "audit-task-1",
+            taskId: "task-1",
+            phase: "inserted",
+            title: "Task 1",
+          },
+        ]);
+
+        const updatedTask = { ...tasks[0], title: "Updated Task 1" };
+
+        syncDB.update(tasksTable, [updatedTask]);
+
+        expect(
+          syncDB.intervalScan(taskAuditsTable, "byTaskId", [
+            { eq: [{ col: "taskId", val: "task-1" }] },
+          ]),
+        ).toEqual([
+          {
+            id: "audit-task-1",
+            taskId: "task-1",
+            phase: "updated",
+            title: "Updated Task 1",
+          },
+        ]);
+
+        syncDB.delete(tasksTable, ["task-1"]);
+
+        expect(
+          syncDB.intervalScan(taskAuditsTable, "byTaskId", [
+            { eq: [{ col: "taskId", val: "task-1" }] },
+          ]),
+        ).toEqual([]);
       });
 
       it("should handle batch operations correctly", async () => {

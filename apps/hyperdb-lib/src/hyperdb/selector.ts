@@ -1,17 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { SubscribableDB, type Op } from "./subscribable-db";
-import type { ExtractSchema, TableDefinition } from "./table";
-import {
-  execAsync,
-  execSync,
-  type HyperDB,
-  type Row,
-  type TupleScanOptions,
-} from "./db";
+import type { SubscribableDB, Op } from "./subscribable-db";
+import type { ExtractSchema } from "./table";
+import { execAsync, execSync, type HyperDB, type Row } from "./db";
 import { isRowInRange } from "./drivers/tuple";
 import type { SelectQuery } from "./query";
 import { convertWhereToBound } from "./bounds";
-import { isGetCurrentTraitsCmd } from "./action";
+import { runCommandGenerator } from "./command-runner";
+import { type SelectRangeCmd } from "./selector-commands";
+
+export { isSelectRangeCmd, type SelectRangeCmd } from "./selector-commands";
 
 export type PartialScanOptions<T extends Row = Row> = {
   lte?: Partial<T>[];
@@ -22,14 +19,6 @@ export type PartialScanOptions<T extends Row = Row> = {
 };
 
 const noopType = "noop";
-const selectRangeType = "selectRange";
-export type SelectRangeCmd = {
-  type: typeof selectRangeType;
-  table: TableDefinition<any>;
-  index: string;
-  selectQuery: SelectQuery;
-  bounds: TupleScanOptions[];
-};
 type NoopCmd = { type: typeof noopType };
 
 // type SelectEqualCmd = {
@@ -39,8 +28,6 @@ type NoopCmd = { type: typeof noopType };
 //   values: string[];
 // };
 
-export const isSelectRangeCmd = (cmd: any): cmd is SelectRangeCmd =>
-  cmd.type === selectRangeType;
 export const isNoopCmd = (cmd: any): cmd is NoopCmd => cmd.type === noopType;
 // const isSelectCmd = (cmd: any): cmd is SelectEqualCmd =>
 //   cmd.type === "selectEqual";
@@ -170,41 +157,9 @@ export function runSelector<TReturn>(
   gen: () => Generator<unknown, TReturn, unknown>,
   selectRangeCmds: SelectRangeCmd[],
 ): TReturn {
-  const currentGen = gen();
-  let result = currentGen.next();
-
   selectRangeCmds.splice(0, selectRangeCmds.length);
 
-  while (!result.done) {
-    if (isSelectRangeCmd(result.value)) {
-      selectRangeCmds.push(result.value);
-      const val = result.value;
-
-      const { table, index, selectQuery } = val;
-
-      try {
-        result = currentGen.next(
-          execSync(
-            db.intervalScan(table, index, selectQuery.where, {
-              limit: selectQuery.limit,
-              order: selectQuery.order,
-            }),
-          ),
-        );
-      } catch (error) {
-        console.error("error happened for cmd", result.value);
-        throw error;
-      }
-    } else if (isGetCurrentTraitsCmd(result.value)) {
-      result = currentGen.next(db.getTraits());
-    } else if (isNoopCmd(result.value)) {
-      result = currentGen.next();
-    } else {
-      result = currentGen.next();
-    }
-  }
-
-  return result.value as TReturn;
+  return execSync(runCommandGenerator(db, gen(), { selectRangeCmds }));
 }
 
 export async function runSelectorAsync<TReturn>(
@@ -212,41 +167,9 @@ export async function runSelectorAsync<TReturn>(
   gen: () => Generator<unknown, TReturn, unknown>,
   selectRangeCmds: SelectRangeCmd[] = [],
 ): Promise<TReturn> {
-  const currentGen = gen();
-  let result = currentGen.next();
-
   selectRangeCmds.splice(0, selectRangeCmds.length);
 
-  while (!result.done) {
-    if (isSelectRangeCmd(result.value)) {
-      selectRangeCmds.push(result.value);
-      const val = result.value;
-
-      const { table, index, selectQuery } = val;
-
-      try {
-        result = currentGen.next(
-          await execAsync(
-            db.intervalScan(table, index, selectQuery.where, {
-              limit: selectQuery.limit,
-              order: selectQuery.order,
-            }),
-          ),
-        );
-      } catch (error) {
-        console.error("error happened for cmd", result.value);
-        throw error;
-      }
-    } else if (isGetCurrentTraitsCmd(result.value)) {
-      result = currentGen.next(db.getTraits());
-    } else if (isNoopCmd(result.value)) {
-      result = currentGen.next();
-    } else {
-      result = currentGen.next();
-    }
-  }
-
-  return result.value as TReturn;
+  return execAsync(runCommandGenerator(db, gen(), { selectRangeCmds }));
 }
 
 // TODO: issues:
