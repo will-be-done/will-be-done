@@ -43,23 +43,46 @@ export function useAsyncSelector<TReturn>(
 
   useEffect(() => {
     let cancelled = false;
-    let generation = 0;
+    let isRunning = false;
+    let rerunRequested = false;
 
     const run = async () => {
-      const myGen = ++generation;
-      const cmds: SelectRangeCmd[] = [];
-      // TODO: we can detetect if CachedDB has already cached value in range,
-      // and don't spawn async/await promise that may dramatically improve performance
-      const value = await runSelectorAsync(db, genRef.current, cmds);
-      if (!cancelled && myGen === generation) {
-        selectRangeCmdsRef.current = cmds;
-        setResult(value);
+      if (isRunning) {
+        rerunRequested = true;
+        return;
+      }
+
+      isRunning = true;
+      try {
+        do {
+          rerunRequested = false;
+          const cmds: SelectRangeCmd[] = [];
+          // TODO: we can detetect if CachedDB has already cached value in range,
+          // and don't spawn async/await promise that may dramatically improve performance
+          const value = await runSelectorAsync(db, genRef.current, cmds);
+          if (cancelled) return;
+
+          if (rerunRequested) continue;
+
+          selectRangeCmdsRef.current = cmds;
+          setResult(value);
+        } while (rerunRequested);
+      } finally {
+        isRunning = false;
       }
     };
 
     void run();
 
     const unsubscribe = db.subscribe((ops) => {
+      if (isRunning) {
+        rerunRequested = true;
+        if (debugKey) {
+          console.log("async selector rerun queued", debugKey, ops);
+        }
+        return;
+      }
+
       // Only skip if we already have cmds AND they don't need rerun
       if (
         selectRangeCmdsRef.current.length > 0 &&

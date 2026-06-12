@@ -97,6 +97,42 @@ describe("selector", () => {
     expect(results).toEqual([undefined, "task-1", undefined]);
   });
 
+  test("reruns if db changes before subscription is installed", () => {
+    const testDb = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(testDb.loadTables([tasksTable]));
+
+    const taskSelector = selector(function* () {
+      const tasks = yield* selectFrom(tasksTable, "byId").where((q) =>
+        q.eq("id", "task-1"),
+      );
+      return tasks[0];
+    });
+
+    const initializedSelector = initSelector(testDb, () => taskSelector());
+    expect(initializedSelector.getSnapshot()).toBeUndefined();
+
+    const task = {
+      id: "task-1",
+      title: "inserted",
+      state: "done",
+      projectId: "1",
+      orderToken: "d",
+      type: "task",
+    } satisfies Task;
+
+    execSync(testDb.insert(tasksTable, [task]));
+
+    let callbackCount = 0;
+    const unsubscribe = initializedSelector.subscribe(() => {
+      callbackCount++;
+    });
+
+    expect(callbackCount).toBe(1);
+    expect(initializedSelector.getSnapshot()).toEqual(task);
+
+    unsubscribe();
+  });
+
   test("works with equal", () => {
     const selector = initSelector(db, () => specificTask("task-1"));
 

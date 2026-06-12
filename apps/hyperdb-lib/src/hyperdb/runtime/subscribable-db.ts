@@ -30,6 +30,7 @@ export type DeleteOp = {
 };
 
 export type Op = InsertOp | UpsertOp | DeleteOp;
+type Subscriber = (op: Op[], traits: Trait[], revision: number) => void;
 
 type AfterInsertSub = (
   db: HyperDB,
@@ -62,6 +63,14 @@ type AfterChangeSub = (
 function appendOps(target: Op[], ops: Op[]) {
   for (const op of ops) {
     target.push(op);
+  }
+}
+
+function removeSubscriber<T>(subscribers: T[], cb: T) {
+  for (let i = subscribers.length - 1; i >= 0; i--) {
+    if (subscribers[i] === cb) {
+      subscribers.splice(i, 1);
+    }
   }
 }
 
@@ -295,9 +304,11 @@ export class SubscribableDBTx implements HyperDBTx {
     yield* this.txDb.commit();
     this.committed.val = true;
     const traits = this.getTraits();
-    for (const subscriber of this.subDb.subscribers) {
+    const revision = this.subDb.incrementRevision();
+    const subscribers = [...this.subDb.subscribers];
+    for (const subscriber of subscribers) {
       try {
-        subscriber(this.operations, traits);
+        subscriber(this.operations, traits, revision);
       } catch (error) {
         console.error(error);
       }
@@ -316,7 +327,7 @@ export class SubscribableDBTx implements HyperDBTx {
 }
 
 export class SubscribableDB implements HyperDB {
-  subscribers: ((op: Op[], traits: Trait[]) => void)[] = [];
+  subscribers: Subscriber[] = [];
   db: HyperDB;
 
   afterInsertSubscribers: AfterInsertSub[] = [];
@@ -324,15 +335,17 @@ export class SubscribableDB implements HyperDB {
   afterDeleteSubscribers: AfterDeleteSub[] = [];
   afterChangeSubscribers: AfterChangeSub[] = [];
   traits: Trait[] = [];
+  private revision: RefVar<number>;
 
   constructor(
     db: HyperDB,
-    subscribers: ((op: Op[], traits: Trait[]) => void)[] = [],
+    subscribers: Subscriber[] = [],
     afterInsertSubscribers: AfterInsertSub[] = [],
     afterUpsertSubscribers: AfterUpsertSub[] = [],
     afterDeleteSubscribers: AfterDeleteSub[] = [],
     afterChangeSubscribers: AfterChangeSub[] = [],
     traits: Trait[] = [],
+    revision: RefVar<number> = refVar(0),
   ) {
     this.db = db;
     this.subscribers = subscribers;
@@ -341,6 +354,16 @@ export class SubscribableDB implements HyperDB {
     this.afterDeleteSubscribers = afterDeleteSubscribers;
     this.afterChangeSubscribers = afterChangeSubscribers;
     this.traits = traits;
+    this.revision = revision;
+  }
+
+  getRevision(): number {
+    return this.revision.val;
+  }
+
+  incrementRevision(): number {
+    this.revision.val++;
+    return this.revision.val;
   }
 
   loadTables(tables: TableDefinition<any>[]): Generator<DBCmd, void> {
@@ -366,6 +389,7 @@ export class SubscribableDB implements HyperDB {
       this.afterDeleteSubscribers,
       this.afterChangeSubscribers,
       [...this.traits, ...traits],
+      this.revision,
     );
   }
 
@@ -377,9 +401,7 @@ export class SubscribableDB implements HyperDB {
     this.afterInsertSubscribers.push(cb);
 
     return () => {
-      this.afterInsertSubscribers = this.afterInsertSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterInsertSubscribers, cb);
     };
   }
 
@@ -387,9 +409,7 @@ export class SubscribableDB implements HyperDB {
     this.afterUpsertSubscribers.push(cb);
 
     return () => {
-      this.afterUpsertSubscribers = this.afterUpsertSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterUpsertSubscribers, cb);
     };
   }
 
@@ -397,9 +417,7 @@ export class SubscribableDB implements HyperDB {
     this.afterDeleteSubscribers.push(cb);
 
     return () => {
-      this.afterDeleteSubscribers = this.afterDeleteSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterDeleteSubscribers, cb);
     };
   }
 
@@ -407,17 +425,15 @@ export class SubscribableDB implements HyperDB {
     this.afterChangeSubscribers.push(cb);
 
     return () => {
-      this.afterChangeSubscribers = this.afterChangeSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterChangeSubscribers, cb);
     };
   }
 
-  subscribe(cb: (op: Op[], traits: Trait[]) => void): () => void {
+  subscribe(cb: Subscriber): () => void {
     this.subscribers.push(cb);
 
     return () => {
-      this.subscribers = this.subscribers.filter((s) => s !== cb);
+      removeSubscriber(this.subscribers, cb);
     };
   }
 

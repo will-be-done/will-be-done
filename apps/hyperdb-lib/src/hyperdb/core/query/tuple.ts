@@ -57,6 +57,8 @@ export function encodingTypeOf(value: ScanValue): EncodingType {
 }
 
 export function compareValue(a: ScanValue, b: ScanValue): number {
+  if (a === b) return 0;
+
   const at = encodingTypeOf(a);
   const bt = encodingTypeOf(b);
   if (at === bt) {
@@ -218,6 +220,8 @@ function compareObjects(
 }
 
 export function compareStoredValue(a: unknown, b: unknown): number {
+  if (a === b) return 0;
+
   const at = storedEncodingTypeOf(a);
   const bt = storedEncodingTypeOf(b);
 
