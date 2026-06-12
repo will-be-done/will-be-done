@@ -163,6 +163,46 @@ describe("SubscribableDB", async () => {
         unsubscribe2();
       });
 
+      it("should notify a snapshot of subscribers for each commit", async () => {
+        const db = new DB(await driver());
+        const subscribableDB = new SubscribableDB(db);
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
+
+        const calls: string[] = [];
+        subscribableDB.subscribe(() => {
+          calls.push("first");
+          subscribableDB.subscribe(() => {
+            calls.push("second");
+          });
+        });
+
+        syncDB.insert(tasksTable, [
+          {
+            id: "task-1",
+            title: "Task 1",
+            state: "todo",
+            projectId: "project-1",
+            orderToken: "a",
+          },
+        ]);
+
+        expect(calls).toEqual(["first"]);
+
+        syncDB.insert(tasksTable, [
+          {
+            id: "task-2",
+            title: "Task 2",
+            state: "todo",
+            projectId: "project-1",
+            orderToken: "b",
+          },
+        ]);
+
+        expect(calls).toEqual(["first", "first", "second"]);
+      });
+
       it("should properly unsubscribe and not receive further notifications", async () => {
         const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);

@@ -153,8 +153,6 @@ export async function runSelectorAsync<TReturn>(
   return execAsync(runCommandGenerator(db, gen(), { selectRangeCmds }));
 }
 
-// TODO: issues:
-// 1. May miss new ops while running first while getting db(but not for sync dbs)
 export function initSelector<TReturn>(
   db: SubscribableDB,
   gen: () => Generator<unknown, TReturn, unknown>,
@@ -164,15 +162,23 @@ export function initSelector<TReturn>(
   getSnapshot: () => TReturn;
 } {
   let currentResult: TReturn | undefined;
+  let currentRevision: number;
   const selectRangeCmds: SelectRangeCmd[] = [];
 
   currentResult = runSelector(db, gen, selectRangeCmds);
+  currentRevision = db.getRevision();
+
+  const rerun = () => {
+    currentResult = runSelector(db, gen, selectRangeCmds);
+    currentRevision = db.getRevision();
+  };
 
   return {
     subscribe: (callback: () => void) => {
       const dbUnsubscribes: (() => void)[] = [];
 
-      const unsubscribe = db.subscribe((ops) => {
+      const unsubscribe = db.subscribe((ops, _traits, revision) => {
+        currentRevision = revision;
         if (!isNeedToRerunRange(selectRangeCmds, ops)) {
           if (debugKey) {
             console.log("selector no need to rerun", debugKey, ops);
@@ -180,7 +186,7 @@ export function initSelector<TReturn>(
           return;
         }
 
-        currentResult = runSelector(db, gen, selectRangeCmds);
+        rerun();
         callback();
 
         if (!debugKey) return;
@@ -188,6 +194,11 @@ export function initSelector<TReturn>(
       });
 
       dbUnsubscribes.push(unsubscribe);
+
+      if (currentRevision !== db.getRevision()) {
+        rerun();
+        callback();
+      }
 
       return () => {
         for (const unsubscribe of dbUnsubscribes) {
