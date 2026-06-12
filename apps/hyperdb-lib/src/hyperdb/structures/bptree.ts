@@ -54,6 +54,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
   rootId = "root";
   private base?: InMemoryBinaryPlusTree<K, V>;
   private owner = {};
+  private supersededBaseNodeIds = new Set<string>();
   minSize: number;
   maxSize: number;
   compareKey: (a: K, b: K) => number;
@@ -95,12 +96,15 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
     if (!this.base) return this;
 
     this.base.rootId = this.rootId;
-    this.base.owner = {};
 
+    for (const id of this.supersededBaseNodeIds) {
+      this.base.detachMaterializedNode(id);
+    }
     for (const [id, node] of this.nodes) {
       this.ownNode(node, this.base.owner);
       this.base.nodes.set(id, node);
     }
+    this.supersededBaseNodeIds.clear();
 
     return this.base;
   }
@@ -119,6 +123,25 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
 
   private ownsNode(node: BranchNode<K> | LeafNode<K, V>): boolean {
     return (node as typeof node & { owner?: object }).owner === this.owner;
+  }
+
+  private detachNode(node: BranchNode<K> | LeafNode<K, V>) {
+    if (this.ownsNode(node)) {
+      this.nodes.delete(node.id);
+      return;
+    }
+
+    if (this.base) {
+      this.supersededBaseNodeIds.add(node.id);
+    }
+  }
+
+  private detachMaterializedNode(id: string) {
+    if (this.nodes.delete(id)) return;
+
+    if (this.base) {
+      this.supersededBaseNodeIds.add(id);
+    }
   }
 
   private cloneNode(
@@ -163,6 +186,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
     if (!child) throw Error("Missing child node.");
     if (this.ownsNode(child)) return child;
 
+    this.detachNode(child);
     const cloned = this.cloneNode(child);
     this.nodes.set(cloned.id, cloned);
     parent.children[childIndex] = {
@@ -170,12 +194,6 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       childId: cloned.id,
     };
     return cloned;
-  }
-
-  private deleteNodeIfOwned(node: BranchNode<K> | LeafNode<K, V>) {
-    if (this.ownsNode(node)) {
-      this.nodes.delete(node.id);
-    }
   }
 
   private compareBranchKey = (a: K | null, b: K | null) => {
@@ -642,7 +660,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
           const root = this.cloneNode(childNode, this.rootId);
           this.nodes.set(root.id, root);
           this.rootId = root.id;
-          this.deleteNodeIfOwned(childNode);
+          this.detachNode(childNode);
         }
 
         return;
@@ -708,7 +726,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
           node.values.push(...rightSibling.values);
           // Delete rightSibling
           parent.children.splice(1, 1);
-          this.deleteNodeIfOwned(rightSibling);
+          this.detachNode(rightSibling);
           // Update parent minKey
           const leftMost = parent.children[0].minKey === null;
           const minKey = leftMost ? null : node.values[0].key;
@@ -755,7 +773,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
         writableLeftSibling.values.push(...node.values);
         // Delete the node
         parent.children.splice(parentIndex, 1);
-        this.deleteNodeIfOwned(node);
+        this.detachNode(node);
         // No need to update minKey because we added to the right.
 
         // Recur
@@ -800,7 +818,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
         node.children.push(...rightSibling.children);
         // Delete rightSibling
         parent.children.splice(1, 1);
-        this.deleteNodeIfOwned(rightSibling);
+        this.detachNode(rightSibling);
         // Update parent minKey
         const leftMost = parent.children[0].minKey === null;
         const minKey = leftMost ? null : node.children[0].minKey;
@@ -847,7 +865,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       writableLeftSibling.children.push(...node.children);
       // Delete the node
       parent.children.splice(parentIndex, 1);
-      this.deleteNodeIfOwned(node);
+      this.detachNode(node);
       // No need to update minKey because we added to the right.
 
       // Recur

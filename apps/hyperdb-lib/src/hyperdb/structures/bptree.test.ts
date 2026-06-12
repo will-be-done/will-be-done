@@ -327,6 +327,200 @@ describe("InMemoryBinaryPlusTree", () => {
     assert.equal(forked.get(202), undefined);
   });
 
+  it("materialized fork keeps base nodes owned and reachable", () => {
+    let tree = new InMemoryBinaryPlusTree(3, 9);
+    for (let i = 0; i < 200; i++) {
+      tree.set(i, i);
+    }
+
+    const forked = tree.fork();
+    forked.set(201, 201);
+    forked.delete(10);
+
+    tree = forked.materializeFork();
+    verify(tree);
+
+    tree.set(150, 1500);
+    tree.set(202, 202);
+    tree.delete(11);
+
+    verify(tree);
+    assert.equal(tree.get(10), undefined);
+    assert.equal(tree.get(11), undefined);
+    assert.equal(tree.get(150), 1500);
+    assert.equal(tree.get(201), 201);
+    assert.equal(tree.get(202), 202);
+  });
+
+  it("materializes repeated fork splits and joins", () => {
+    let tree = new InMemoryBinaryPlusTree<number, string>(2, 4);
+    const expected = new Map<number, string>();
+
+    const assertMaterializedTree = () => {
+      verify(tree);
+      assert.deepEqual(
+        tree.list().map(({ key, value }) => [key, value]),
+        Array.from(expected.entries()).sort(([a], [b]) => a - b),
+      );
+      for (const [key, value] of expected) {
+        assert.equal(tree.get(key), value);
+      }
+    };
+
+    for (let batch = 0; batch < 20; batch++) {
+      const forked = tree.fork();
+      for (let offset = 0; offset < 6; offset++) {
+        const key = batch * 6 + offset;
+        forked.set(key, `value-${key}`);
+        expected.set(key, `value-${key}`);
+      }
+      tree = forked.materializeFork();
+      assertMaterializedTree();
+    }
+
+    for (let batch = 0; batch < 15; batch++) {
+      const forked = tree.fork();
+      for (let offset = 0; offset < 5; offset++) {
+        const key = batch * 5 + offset;
+        forked.delete(key);
+        expected.delete(key);
+      }
+      tree = forked.materializeFork();
+      assertMaterializedTree();
+    }
+
+    for (let batch = 0; batch < 20; batch++) {
+      const forked = tree.fork();
+      const deletedKey = 75 + batch;
+      const insertedKey = 200 + batch;
+      const updatedKey = 95 + batch;
+
+      forked.delete(deletedKey);
+      expected.delete(deletedKey);
+
+      forked.set(insertedKey, `value-${insertedKey}`);
+      expected.set(insertedKey, `value-${insertedKey}`);
+
+      forked.set(updatedKey, `updated-${updatedKey}`);
+      expected.set(updatedKey, `updated-${updatedKey}`);
+
+      tree = forked.materializeFork();
+      assertMaterializedTree();
+    }
+  });
+
+  it("materializes no-op and missing-delete forks without changing contents", () => {
+    let tree = new InMemoryBinaryPlusTree<number, string>(2, 4);
+    for (let i = 0; i < 40; i++) {
+      tree.set(i, `value-${i}`);
+    }
+    const expected = tree.list();
+
+    tree = tree.fork().materializeFork();
+    verify(tree);
+    assert.deepEqual(tree.list(), expected);
+
+    const forked = tree.fork();
+    forked.delete(-1);
+    forked.delete(100);
+
+    tree = forked.materializeFork();
+    verify(tree);
+    assert.deepEqual(tree.list(), expected);
+
+    tree.set(20, "updated-20");
+    tree.delete(21);
+    verify(tree);
+    assert.equal(tree.get(20), "updated-20");
+    assert.equal(tree.get(21), undefined);
+  });
+
+  it("materializes a fork that deletes every key and collapses the root", () => {
+    let tree = new InMemoryBinaryPlusTree<number, string>(2, 4);
+    for (let i = 0; i < 60; i++) {
+      tree.set(i, `value-${i}`);
+    }
+
+    const forked = tree.fork();
+    for (let i = 0; i < 60; i++) {
+      forked.delete(i);
+    }
+
+    tree = forked.materializeFork();
+    verify(tree);
+    assert.deepEqual(tree.list(), []);
+
+    tree.set(1, "after-empty");
+    verify(tree);
+    assert.deepEqual(tree.list(), [{ key: 1, value: "after-empty" }]);
+  });
+
+  it("materializes fork overwrites and preserves bounded iteration", () => {
+    let tree = new InMemoryBinaryPlusTree<number, string>(2, 4);
+    for (let i = 0; i < 30; i++) {
+      tree.set(i, `value-${i}`);
+    }
+
+    const forked = tree.fork();
+    forked.set(5, "updated-5");
+    forked.set(10, "updated-10");
+    forked.delete(12);
+    forked.set(30, "value-30");
+
+    tree = forked.materializeFork();
+    verify(tree);
+
+    assert.deepEqual(tree.list({ gte: 4, lte: 10, limit: 4 }), [
+      { key: 4, value: "value-4" },
+      { key: 5, value: "updated-5" },
+      { key: 6, value: "value-6" },
+      { key: 7, value: "value-7" },
+    ]);
+    assert.deepEqual(tree.list({ gt: 8, lt: 14, reverse: true }), [
+      { key: 13, value: "value-13" },
+      { key: 11, value: "value-11" },
+      { key: 10, value: "updated-10" },
+      { key: 9, value: "value-9" },
+    ]);
+  });
+
+  it("materializes nested forks without leaving unreachable base nodes", () => {
+    let tree = new InMemoryBinaryPlusTree<number, string>(2, 4);
+    for (let i = 0; i < 80; i++) {
+      tree.set(i, `value-${i}`);
+    }
+
+    let forked = tree.fork();
+    forked.set(80, "value-80");
+    forked.delete(5);
+
+    const nested = forked.fork();
+    nested.set(81, "value-81");
+    nested.delete(6);
+    nested.set(30, "updated-30");
+
+    forked = nested.materializeFork();
+    assert.equal(forked.get(5), undefined);
+    assert.equal(forked.get(6), undefined);
+    assert.equal(forked.get(30), "updated-30");
+    assert.equal(forked.get(80), "value-80");
+    assert.equal(forked.get(81), "value-81");
+
+    tree = forked.materializeFork();
+    verify(tree);
+
+    tree.set(40, "updated-40");
+    tree.delete(7);
+    verify(tree);
+    assert.equal(tree.get(5), undefined);
+    assert.equal(tree.get(6), undefined);
+    assert.equal(tree.get(7), undefined);
+    assert.equal(tree.get(30), "updated-30");
+    assert.equal(tree.get(40), "updated-40");
+    assert.equal(tree.get(80), "value-80");
+    assert.equal(tree.get(81), "value-81");
+  });
+
   it("tuple keys", () => {
     const tree = new InMemoryBinaryPlusTree<any[], any>(
       3,
