@@ -13,6 +13,7 @@
     "build": "vite build && tsc",
     "lint": "eslint .",
     "lint:cycles": "depcruise src --config .dependency-cruiser.cjs",
+    "bench": "vitest bench",
     "ts": "tsc",
     "test": "vitest run"
   },

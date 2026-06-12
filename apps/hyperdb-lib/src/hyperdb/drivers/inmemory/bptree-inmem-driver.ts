@@ -675,13 +675,13 @@ class BtreeIndexTx implements IndexTx {
   constructor(index: BtreeIndex) {
     this.index = index;
     this.sets = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      10,
-      20,
+      64,
+      128,
       index.compareKey,
     );
     this.deletes = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      10,
-      20,
+      64,
+      128,
       index.compareKey,
     );
   }
@@ -728,16 +728,6 @@ class BtreeIndexTx implements IndexTx {
       if (!key) continue;
 
       this.sets.set(key, record);
-    }
-
-    for (const record of values) {
-      const key = getIndexKey(
-        record,
-        this.index.indexDef.columns,
-        this.index.indexDef.includeMissing,
-      );
-      if (!key) continue;
-
       this.deletes.delete(key);
     }
   }
@@ -754,16 +744,6 @@ class BtreeIndexTx implements IndexTx {
       if (!key) continue;
 
       this.sets.delete(key);
-    }
-
-    for (const row of values) {
-      const key = getIndexKey(
-        row,
-        this.index.indexDef.columns,
-        this.index.indexDef.includeMissing,
-      );
-      if (!key) continue;
-
       this.deletes.set(key, row);
     }
   }
@@ -797,8 +777,8 @@ class BtreeIndex implements Index {
       ? (compareStoredTuple as (a: ScanValue[], b: ScanValue[]) => number)
       : compareTuple;
     this.btree = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      10,
-      20,
+      64,
+      128,
       this.compareKey,
     );
     this.indexDef = indexConfig;

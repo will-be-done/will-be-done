@@ -6,10 +6,10 @@ TODO:
 1. DONE How to make counters? Hooks?
 1. DONE remove runQuery(). Just yield*(maybe?)
 1. DONE start index with by...
-1. Move code by files/dirs. Follow convention
+1. DONE Move code by files/dirs. Follow convention
+1. DONE eslint circular ref linter
+1. DONE check that eslit circ plugin really wrosk
 1. Use driver-edge-cases to runtime. Also why db.ts and index.ts?
-1. eslint circular ref linter
-1. check that eslit circ plugin really wrosk
 1. Check if code has race condition. Maybe selector.ts has race condition? And subacriable-db.ts
 1. IMPORTANT - check how to make sjure that devtool will have named queryies/mutations
 1. Ask if trat apporach overall good. Passing data with tree

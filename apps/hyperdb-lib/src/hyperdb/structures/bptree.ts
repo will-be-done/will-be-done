@@ -88,6 +88,48 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
     this.compareBranchKey,
   );
 
+  private searchBranchChild(
+    children: { minKey: K | null; childId: string }[],
+    key: K,
+  ) {
+    let left = 0;
+    let right = children.length;
+
+    while (left < right) {
+      const mid = (left + right) >>> 1;
+      const minKey = children[mid].minKey;
+      const cmp = minKey === null ? -1 : this.compareKey(minKey, key);
+
+      if (cmp === 0) return mid;
+      if (cmp < 0) left = mid + 1;
+      else right = mid;
+    }
+
+    if (left === 0) throw new Error("Broken.");
+    return left - 1;
+  }
+
+  private findPathFromRoot(key: K): NodeCursor<K, V> {
+    const nodePath: (BranchNode<K> | LeafNode<K, V>)[] = [];
+    const indexPath: number[] = [];
+
+    const root = this.nodes.get("root");
+    if (!root) return { nodePath, indexPath };
+    nodePath.push(root);
+
+    while (true) {
+      const node = nodePath[nodePath.length - 1];
+      if (node.leaf === true) return { nodePath, indexPath };
+
+      const childIndex = this.searchBranchChild(node.children, key);
+      const childId = node.children[childIndex].childId;
+      const child = this.nodes.get(childId);
+      if (!child) throw Error("Missing child node.");
+      nodePath.push(child);
+      indexPath.push(childIndex);
+    }
+  }
+
   private findPath(key: K): NodeCursor<K, V> {
     const nodePath: (BranchNode<K> | LeafNode<K, V>)[] = [];
     const indexPath: number[] = [];
@@ -100,14 +142,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       const node = nodePath[0];
       if (node.leaf === true) return { nodePath, indexPath };
 
-      const result = this.branchChildren.search(node.children, key);
-
-      // Closest key that is at least as big as the key...
-      // So the closest should never be less than the minKey.
-      if (result.closest === 0) throw new Error("Broken.");
-
-      const childIndex =
-        result.found !== undefined ? result.found : result.closest - 1;
+      const childIndex = this.searchBranchChild(node.children, key);
       const childId = node.children[childIndex].childId;
       const child = this.nodes.get(childId);
       if (!child) throw Error("Missing child node.");
@@ -117,13 +152,20 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
   }
 
   get(key: K): V | undefined {
-    const { nodePath } = this.findPath(key);
-    if (nodePath.length === 0) return;
+    let node = this.nodes.get("root");
+    if (!node) return;
 
-    const leaf = nodePath[0] as LeafNode<K, V>;
-    const result = this.searchLeafValues(leaf.values, key);
-    if (result.found === undefined) return;
-    return leaf.values[result.found].value;
+    while (node.leaf !== true) {
+      const childIndex = this.searchBranchChild(node.children, key);
+      const childId = node.children[childIndex].childId;
+      const child = this.nodes.get(childId);
+      if (!child) throw Error("Missing child node.");
+      node = child;
+    }
+
+    const index = this.searchLeafValueIndex(node.values, key);
+    if (index < 0) return;
+    return node.values[index].value;
   }
 
   private startCursor() {
@@ -366,7 +408,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
   }
 
   set(key: K, value: V) {
-    const { nodePath, indexPath } = this.findPath(key);
+    const { nodePath, indexPath } = this.findPathFromRoot(key);
 
     // Intitalize root node.
     if (nodePath.length === 0) {
@@ -375,13 +417,13 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
     }
 
     // Insert into leaf node.
-    const leaf = nodePath[0] as LeafNode<K, V>;
+    const leaf = nodePath[nodePath.length - 1] as LeafNode<K, V>;
     const existing = this.insertLeafValue(leaf.values, { key, value });
     // No need to rebalance if we're replacing an existing item.
     if (existing) return;
 
     // Balance the tree by splitting nodes, starting from the leaf.
-    let node = nodePath.shift();
+    let node = nodePath.pop();
     while (node) {
       const size = node.leaf === true ? node.values.length : node.children.length;
       if (size <= this.maxSize) break;
@@ -410,8 +452,8 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
         }
 
         // Insert right node into parent.
-        const parent = nodePath.shift() as BranchNode<K>;
-        const parentIndex = indexPath.shift();
+        const parent = nodePath.pop() as BranchNode<K>;
+        const parentIndex = indexPath.pop();
         if (!parent) throw new Error("Broken.");
         if (parentIndex === undefined) throw new Error("Broken.");
         parent.children.splice(parentIndex + 1, 0, {
@@ -455,8 +497,8 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       }
 
       // Insert right node into parent.
-      const parent = nodePath.shift() as BranchNode<K>;
-      const parentIndex = indexPath.shift();
+      const parent = nodePath.pop() as BranchNode<K>;
+      const parentIndex = indexPath.pop();
       if (!parent) throw new Error("Broken.");
       if (parentIndex === undefined) throw new Error("Broken.");
       parent.children.splice(parentIndex + 1, 0, {
@@ -701,6 +743,15 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
   }
 
   private searchLeafValues(values: { key: K; value: V }[], searchKey: K) {
+    const index = this.searchLeafValueIndex(values, searchKey);
+    if (index >= 0) return { found: index, closest: index };
+    return { closest: ~index };
+  }
+
+  private searchLeafValueIndex(
+    values: { key: K; value: V }[],
+    searchKey: K,
+  ) {
     let left = 0;
     let right = values.length;
 
@@ -708,28 +759,28 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
       const mid = (left + right) >>> 1; // Fast integer division
       const cmp = this.compareKey(values[mid].key, searchKey);
 
-      if (cmp === 0) return { found: mid, closest: mid };
+      if (cmp === 0) return mid;
       if (cmp < 0) left = mid + 1;
       else right = mid;
     }
 
-    return { closest: left };
+    return ~left;
   }
 
   private insertLeafValue(
     values: { key: K; value: V }[],
     item: { key: K; value: V },
   ) {
-    const result = this.searchLeafValues(values, item.key);
+    const index = this.searchLeafValueIndex(values, item.key);
 
-    if (result.found !== undefined) {
+    if (index >= 0) {
       // Replace existing
-      const oldItem = values[result.found];
-      values[result.found] = item;
+      const oldItem = values[index];
+      values[index] = item;
       return oldItem;
     } else {
       // Insert new
-      values.splice(result.closest, 0, item);
+      values.splice(~index, 0, item);
       return undefined;
     }
   }
