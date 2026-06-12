@@ -537,7 +537,6 @@ describe("Database Operations Edge Cases", async () => {
   ]) {
     describe(`${driver.constructor.name}`, () => {
       it("should handle empty database scans", () => {
-        type TestRecord = { id: string; value: number };
         const testTable = defineTable("test", {
           id: v.string(),
           value: v.number(),
@@ -1195,7 +1194,6 @@ describe("Database Operations Edge Cases", async () => {
       });
 
       it("should apply OR limits after duplicate range dedupe", () => {
-        type TestRecord = { id: string; value: number };
         const testTable = defineTable("duplicateRangeRecords", {
           id: v.string(),
           value: v.number(),
@@ -1243,7 +1241,6 @@ describe("Database Operations Edge Cases", async () => {
       });
 
       it("should handle open, empty, and unbounded OR ranges", () => {
-        type TestRecord = { id: string; value: number };
         const testTable = defineTable("orBoundEdgeRecords", {
           id: v.string(),
           value: v.number(),
@@ -1323,7 +1320,6 @@ describe("Database Operations Edge Cases", async () => {
       });
 
       it("should merge transaction deletes, updates, and inserts through OR scans", () => {
-        type TestRecord = { id: string; value: number };
         const testTable = defineTable("txOrMergeRecords", {
           id: v.string(),
           value: v.number(),
@@ -1381,11 +1377,6 @@ describe("Database Operations Edge Cases", async () => {
       });
 
       it("should keep global OR order for multi-column indexes", () => {
-        type ProjectRecord = {
-          id: string;
-          projectId: string;
-          state: number;
-        };
         const testTable = defineTable("multiColumnOrRecords", {
           id: v.string(),
           projectId: v.string(),
@@ -1507,7 +1498,6 @@ describe("Database Operations Edge Cases", async () => {
       });
 
       it("should throw errors for missing tables and indexes", () => {
-        type TestRecord = { id: string; value: number };
         const testTable = defineTable("test4", {
           id: v.string(),
           value: v.number(),

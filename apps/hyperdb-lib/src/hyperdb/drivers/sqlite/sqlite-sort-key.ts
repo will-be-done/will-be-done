@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { MAX, MIN, type Row } from "../../core/primitives";
 import { UnreachableError } from "../../utils";
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Row } from "../core/primitives";
 import type { TableDefinition } from "../schema/table";
 import {

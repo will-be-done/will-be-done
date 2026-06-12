@@ -9,7 +9,10 @@ export function validObjectKey(key: string): boolean {
 }
 
 export function validRecordKey(key: string): boolean {
-  return validObjectKey(key) && /^[\x00-\x7F]+$/.test(key);
+  return (
+    validObjectKey(key) &&
+    Array.from(key).every((char) => char.charCodeAt(0) <= 0x7f)
+  );
 }
 
 export function fail(message: string, path: ValidationPath): NormalizeResult<never> {

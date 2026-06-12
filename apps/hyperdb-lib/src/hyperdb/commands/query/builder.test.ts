@@ -4,6 +4,8 @@ import { selectFrom, or } from "./builder";
 import type { ExtractIndexColumns } from "./builder";
 import { v } from "../../schema/values";
 
+const typeCheckOnly = false as boolean;
+
 const tasksTable = defineTable("tasks", {
   type: v.literal("task"),
   id: v.string(),
@@ -105,7 +107,7 @@ describe("query", () => {
       });
     }
 
-    if (false) {
+    if (typeCheckOnly) {
       assertType(
         selectFrom(tasksTable, "projectIdState")
           // @ts-expect-error order only supports asc or desc
@@ -351,7 +353,7 @@ describe("query", () => {
       archivedAt: v.optional(v.number()),
     }).index("byArchivedAt", ["archivedAt"]);
 
-    if (false) {
+    if (typeCheckOnly) {
       assertType(
         selectFrom(optionalTable, "byArchivedAt").where(
           // @ts-expect-error query filters cannot use undefined for missing fields

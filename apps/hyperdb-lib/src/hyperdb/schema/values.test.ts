@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { assertType, describe, expect, it } from "vitest";
 import { assertValid, type Infer, v } from "./values";
 
 describe("validators", () => {
   it("infers primitive, object, optional, union, literal, and array types", () => {
-    const validator = v.object({
+    const _validator = v.object({
       id: v.string(),
       count: v.number(),
       done: v.boolean(),
@@ -14,7 +13,7 @@ describe("validators", () => {
       none: v.null(),
     });
 
-    type Value = Infer<typeof validator>;
+    type Value = Infer<typeof _validator>;
 
     assertType<Value>({
       id: "1",

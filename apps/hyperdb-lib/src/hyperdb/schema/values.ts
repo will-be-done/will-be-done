@@ -62,10 +62,10 @@ interface BaseValidator<T, TKind extends ValidatorKind>
   readonly kind: TKind;
 }
 
-export interface PrimitiveValidator<
+export type PrimitiveValidator<
   T,
   TKind extends PrimitiveValidatorKind,
-> extends BaseValidator<T, TKind> {}
+> = BaseValidator<T, TKind>;
 
 export type StringValidator = PrimitiveValidator<string, "string">;
 export type NumberValidator = PrimitiveValidator<number, "number">;
@@ -104,7 +104,7 @@ export interface OptionalValidator<T>
   readonly inner: Validator<T>;
 }
 
-export interface AnyValidator extends BaseValidator<any, "any"> {}
+export type AnyValidator = BaseValidator<any, "any">;
 
 export type Validator<T> = (
   | StringValidator

@@ -4,6 +4,8 @@ import { selectFrom } from "../commands/query/builder";
 import { defineTable, type ExtractSchema } from "./table";
 import { v } from "./values";
 
+const typeCheckOnly = false as boolean;
+
 describe("defineTable", () => {
   it("infers table schemas from validators and preserves query ergonomics", () => {
     const projectCategoriesTable = defineTable("projectCategories", {
@@ -49,7 +51,7 @@ describe("defineTable", () => {
   });
 
   it("requires id at type level and runtime table creation", () => {
-    if (false) {
+    if (typeCheckOnly) {
       assertType(
         // @ts-expect-error defineTable schemas must include id
         defineTable("missingId", {
@@ -87,7 +89,7 @@ describe("defineTable", () => {
     });
     expect(tasksTable.indexes.byIdBtree.type).toBe("btree");
 
-    if (false) {
+    if (typeCheckOnly) {
       assertType(
         tasksTable.index(
           "bad",
@@ -137,7 +139,7 @@ describe("defineTable", () => {
       }),
     ).toThrow(/Hash index must have exactly one column/);
 
-    if (false) {
+    if (typeCheckOnly) {
       const richTable = defineTable("rich", {
         id: v.string(),
         title: v.string(),
@@ -201,7 +203,7 @@ describe("defineTable", () => {
       },
     ]);
 
-    if (false) {
+    if (typeCheckOnly) {
       assertType(
         documentsTable.index(
           "bad",

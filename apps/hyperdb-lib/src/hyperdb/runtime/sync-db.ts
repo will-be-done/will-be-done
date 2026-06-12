@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { execSync } from "../core/executor";
 import type { HyperDB, HyperDBTx } from "../core/contracts";
 import type { SelectOptions, WhereClause } from "../core/primitives";

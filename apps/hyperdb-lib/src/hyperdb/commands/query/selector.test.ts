@@ -209,12 +209,6 @@ describe("selector", () => {
   });
 
   test("selector preserves query order after rerun", () => {
-    type Item = {
-      id: string;
-      orderToken: string;
-      projectId: string;
-    };
-
     const itemsTable = defineTable("orderedSelectorItems", {
       id: v.string(),
       orderToken: v.string(),

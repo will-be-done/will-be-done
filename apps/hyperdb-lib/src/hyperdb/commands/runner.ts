@@ -8,15 +8,13 @@ import type { HyperDB } from "../core/contracts";
 import { isNoopCmd, isUnwrapCmd, type DBCmd } from "./async";
 import { isSelectRangeCmd, type SelectRangeCmd } from "./query/commands";
 
-type CommandRunnerOptions = {
+export type CommandRunnerOptions = {
   allowWrites?: boolean;
   selectRangeCmds?: SelectRangeCmd[];
 };
 
 const isDBCmd = (cmd: unknown): cmd is DBCmd =>
-  cmd instanceof Object &&
-  cmd !== null &&
-  (isUnwrapCmd(cmd) || isNoopCmd(cmd));
+  cmd instanceof Object && cmd !== null && (isUnwrapCmd(cmd) || isNoopCmd(cmd));
 
 const describeUnsupportedCommand = (cmd: unknown) => {
   if (cmd instanceof Object && cmd !== null && "type" in cmd) {

@@ -25,13 +25,6 @@ const tasksTable = defineTable("tasks", {
   orderToken: v.string(),
 }).index("projectIdState", ["projectId", "state"]);
 
-type TaskAudit = {
-  id: string;
-  taskId: string;
-  phase: "inserted" | "updated";
-  title: string;
-};
-
 const taskAuditsTable = defineTable("taskAudits", {
   id: v.string(),
   taskId: v.string(),
