@@ -296,6 +296,37 @@ describe("InMemoryBinaryPlusTree", () => {
     assert.equal(treeDepth(tree), 1);
   });
 
+  it("fork uses an empty overlay and isolates later writes", () => {
+    const tree = new InMemoryBinaryPlusTree(3, 9);
+    for (let i = 0; i < 200; i++) {
+      tree.set(i, i);
+    }
+
+    const forked = tree.fork();
+    assert.equal(forked.nodes.size, 0);
+    assert.deepEqual(forked.list(), tree.list());
+
+    const originalList = tree.list();
+    forked.set(201, 201);
+
+    assert.isAbove(forked.nodes.size, 0);
+    assert.isBelow(forked.nodes.size, tree.nodes.size);
+
+    forked.delete(10);
+    assert.deepEqual(tree.list(), originalList);
+
+    const forkedList = forked.list();
+    tree.set(202, 202);
+    tree.delete(11);
+    assert.deepEqual(forked.list(), forkedList);
+
+    verify(tree);
+    assert.equal(forked.get(10), undefined);
+    assert.equal(forked.get(11), 11);
+    assert.equal(forked.get(201), 201);
+    assert.equal(forked.get(202), undefined);
+  });
+
   it("tuple keys", () => {
     const tree = new InMemoryBinaryPlusTree<any[], any>(
       3,

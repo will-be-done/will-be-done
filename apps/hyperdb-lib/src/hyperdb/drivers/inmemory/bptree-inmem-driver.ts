@@ -161,16 +161,6 @@ class BinaryHeap<T> {
   }
 }
 
-function* filterBtreeIterator(
-  iterator: IterableIterator<BtreeEntry>,
-  shouldSkip: (row: Row) => boolean,
-): IterableIterator<BtreeEntry> {
-  for (const item of iterator) {
-    if (shouldSkip(item.value)) continue;
-    yield item;
-  }
-}
-
 const mergeBtreeIterators = (
   iterators: IterableIterator<BtreeEntry>[],
   selectOptions: SelectOptions,
@@ -486,10 +476,8 @@ type ColumnValue = Value;
 class HashIndexTx implements IndexTx {
   type = "hash" as const;
   originalIndex: HashIndex;
+  private txBuckets = new Map<ColumnValue, Map<RowId, Row>>();
   isCommitted = false;
-
-  sets: Map<ColumnValue, Map<RowId, Row>> = new Map();
-  deletes: Map<ColumnValue, Set<RowId>> = new Map();
 
   constructor(index: HashIndex) {
     this.originalIndex = index;
@@ -503,28 +491,11 @@ class HashIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't commit after commit");
 
     this.isCommitted = true;
-
-    // Apply all insertions to the original index
-    for (const [, rows] of this.sets) {
-      const records = Array.from(rows.values());
-      this.originalIndex.insert(records);
-    }
-
-    // Apply all deletions to the original index
-    for (const [colValue, rowIds] of this.deletes) {
-      const records: Row[] = [];
-      for (const rowId of rowIds) {
-        // Find the record in the original index to get full row data
-        const originalRows = this.originalIndex.records.get(colValue);
-        if (originalRows) {
-          const record = originalRows.get(rowId);
-          if (record) {
-            records.push(record);
-          }
-        }
-      }
-      if (records.length > 0) {
-        this.originalIndex.delete(records);
+    for (const [columnValue, rows] of this.txBuckets) {
+      if (rows.size === 0) {
+        this.originalIndex.records.delete(columnValue);
+      } else {
+        this.originalIndex.records.set(columnValue, rows);
       }
     }
   }
@@ -532,65 +503,23 @@ class HashIndexTx implements IndexTx {
   scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
-    const boundValues = getColumnValuesFromBounds(
+    const idxValues = getColumnValuesFromBounds(
       this.originalIndex.indexDef,
       tupleBounds,
     );
 
-    const deletedRowIds = new Set<RowId>();
-    for (const value of boundValues) {
-      const deletes = this.deletes.get(value);
-      if (!deletes) continue;
-
-      for (const rowId of deletes) {
-        deletedRowIds.add(rowId);
-      }
-    }
-
-    const seenRowIds = new Set<RowId>();
-    let totalCount = 0;
-
     const results: Row[] = [];
 
-    // 1. Yield records from transaction sets first
-    for (const value of boundValues) {
-      const sets = this.sets.get(value);
-      if (!sets) continue;
+    for (const idxValue of idxValues) {
+      const rows = this.txBuckets.has(idxValue)
+        ? this.txBuckets.get(idxValue)
+        : this.originalIndex.records.get(idxValue);
 
-      for (const [rowId, row] of sets) {
-        if (deletedRowIds.has(rowId)) continue;
+      if (!rows) continue;
 
-        // TODO: could be done in bulk
-        seenRowIds.add(rowId);
-        results.push(row);
-        totalCount++;
+      results.push(...rows.values());
 
-        if (
-          selectOptions?.limit !== undefined &&
-          totalCount >= selectOptions.limit
-        ) {
-          results.splice(selectOptions.limit);
-
-          return results;
-        }
-      }
-    }
-
-    // 2. Yield records from original index, excluding already seen and deleted
-    for (const row of this.originalIndex.scan(tupleBounds, {
-      ...selectOptions,
-      limit: undefined,
-    })) {
-      if (deletedRowIds.has(row.id) || seenRowIds.has(row.id)) continue;
-
-      // TODO: could be done in bulk
-      results.push(row);
-      totalCount++;
-
-      if (
-        selectOptions?.limit !== undefined &&
-        totalCount >= selectOptions.limit
-      ) {
+      if (selectOptions.limit !== undefined && results.length >= selectOptions.limit) {
         results.splice(selectOptions.limit);
 
         return results;
@@ -598,6 +527,18 @@ class HashIndexTx implements IndexTx {
     }
 
     return results;
+  }
+
+  private writableRows(columnValue: ColumnValue): Map<RowId, Row> | undefined {
+    const txRows = this.txBuckets.get(columnValue);
+    if (txRows) return txRows;
+
+    const rows = this.originalIndex.records.get(columnValue);
+    if (!rows) return undefined;
+
+    const copiedRows = new Map(rows);
+    this.txBuckets.set(columnValue, copiedRows);
+    return copiedRows;
   }
 
   insert(values: Row[]): void {
@@ -610,28 +551,14 @@ class HashIndexTx implements IndexTx {
       );
       if (colValue === undefined) continue;
 
-      const rows = this.sets.get(colValue);
+      const rows = this.writableRows(colValue);
 
       if (!rows) {
         const m = new Map();
         m.set(record.id, record);
-        this.sets.set(colValue, m);
+        this.txBuckets.set(colValue, m);
       } else {
         rows.set(record.id, record);
-      }
-    }
-
-    // Remove from deletes if previously deleted
-    for (const record of values) {
-      const colValue = getHashIndexValue(
-        record,
-        this.originalIndex.indexDef.column,
-      );
-      if (colValue === undefined) continue;
-
-      const deletes = this.deletes.get(colValue);
-      if (deletes) {
-        deletes.delete(record.id);
       }
     }
   }
@@ -646,71 +573,29 @@ class HashIndexTx implements IndexTx {
       );
       if (colValue === undefined) continue;
 
-      // Remove from sets if it was added in this transaction
-      const sets = this.sets.get(colValue);
-      if (sets) {
-        sets.delete(record.id);
-      }
-
-      // Add to deletes
-      const deletes = this.deletes.get(colValue);
-      if (!deletes) {
-        const s = new Set<string>();
-        s.add(record.id);
-        this.deletes.set(colValue, s);
-      } else {
-        deletes.add(record.id);
-      }
+      const rows = this.writableRows(colValue);
+      rows?.delete(record.id);
     }
   }
 }
 
 class BtreeIndexTx implements IndexTx {
   index: BtreeIndex;
-  sets: InMemoryBinaryPlusTree<ScanValue[], Row>;
-  deletes: InMemoryBinaryPlusTree<ScanValue[], Row>;
+  btree: InMemoryBinaryPlusTree<ScanValue[], Row>;
   isCommitted = false;
   type = "btree" as const;
 
   constructor(index: BtreeIndex) {
     this.index = index;
-    this.sets = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      64,
-      128,
-      index.compareKey,
-    );
-    this.deletes = new InMemoryBinaryPlusTree<ScanValue[], Row>(
-      64,
-      128,
-      index.compareKey,
-    );
+    this.btree = index.btree.fork();
   }
 
   scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
-    const deletedRowIds = new Set<string>();
-    for (const bounds of tupleBounds) {
-      for (const { value } of this.deletes.iterate(bounds)) {
-        deletedRowIds.add(value.id);
-      }
-    }
-
-    const originalIterators = createBtreeScanIterators(
-      this.index.btree,
+    return scanBtree(
+      this.btree,
       tupleBounds,
-      selectOptions,
-    ).map((iterator) =>
-      filterBtreeIterator(iterator, (row) => deletedRowIds.has(row.id)),
-    );
-    const setIterators = createBtreeScanIterators(
-      this.sets,
-      tupleBounds,
-      selectOptions,
-    );
-
-    return mergeBtreeIterators(
-      [...setIterators, ...originalIterators],
       selectOptions,
       this.index.compareKey,
     );
@@ -727,8 +612,7 @@ class BtreeIndexTx implements IndexTx {
       );
       if (!key) continue;
 
-      this.sets.set(key, record);
-      this.deletes.delete(key);
+      this.btree.set(key, record);
     }
   }
 
@@ -743,8 +627,7 @@ class BtreeIndexTx implements IndexTx {
       );
       if (!key) continue;
 
-      this.sets.delete(key);
-      this.deletes.set(key, row);
+      this.btree.delete(key);
     }
   }
 
@@ -756,13 +639,7 @@ class BtreeIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't scan after commit");
 
     this.isCommitted = true;
-
-    for (const row of this.sets.list()) {
-      this.index.btree.set(row.key, row.value);
-    }
-    for (const row of this.deletes.list()) {
-      this.index.btree.delete(row.key);
-    }
+    this.index.btree = this.btree.materializeFork();
   }
 }
 
