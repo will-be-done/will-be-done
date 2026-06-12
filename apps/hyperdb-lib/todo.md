@@ -13,11 +13,11 @@ TODO:
 1. Use driver-edge-cases to runtime. driver-edge-cases.test.ts covers runtime DB/SyncDB. Also why db.ts and index.ts?
 1. Ask if that approach overall good. Passing data with tree
 1. ? optimize SubscribableDBTx
-1. Generate docs
 1. remove ability to run code with promise
 1. check that utf8 sorting of string is same in js
 1. Add firstOr(), first()
 1. IMPORTANT - check how to make sure that devtool will have named queries/mutations
+1. Generate docs
 
 Then:
 1. Nested index

@@ -48,12 +48,8 @@ function assertSafeIdentifier(kind: string, value: string): void {
 function assertSafeTableDefinition(tableDef: TableDefinition): void {
   assertSafeIdentifier("Table name", tableDef.tableName);
 
-  for (const [indexName, indexDef] of Object.entries(tableDef.indexes)) {
+  for (const indexName of Object.keys(tableDef.indexes)) {
     assertSafeIdentifier("Index name", indexName);
-
-    for (const col of indexDef.cols) {
-      assertSafeIdentifier("Index column", String(col));
-    }
   }
 }
 
@@ -897,11 +893,13 @@ export class BptreeInmemDriver implements DBDriver {
         throw new Error("Table must have one hash id index");
       }
 
-      this.tblDatas.set(tableDef.tableName, {
+      const tableData = {
         idIndex: idIndex,
         indexes: indexes,
         tableDef: tableDef,
-      });
+      };
+
+      this.tblDatas.set(tableDef.tableName, tableData);
     }
   }
 
