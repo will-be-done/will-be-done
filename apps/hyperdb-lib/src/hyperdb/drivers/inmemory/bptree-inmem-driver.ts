@@ -412,6 +412,8 @@ class HashIndex implements Index {
   }
 
   scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
+    if (selectOptions.limit !== undefined && selectOptions.limit <= 0) return [];
+
     const idxValues = getColumnValuesFromBounds(this.indexDef, tupleBounds);
 
     const results: Row[] = [];
@@ -421,15 +423,15 @@ class HashIndex implements Index {
 
       if (!rows) continue;
 
-      results.push(...rows.values());
+      for (const row of rows.values()) {
+        results.push(row);
 
-      if (
-        selectOptions.limit !== undefined &&
-        results.length >= selectOptions.limit
-      ) {
-        results.splice(selectOptions.limit);
-
-        return results;
+        if (
+          selectOptions.limit !== undefined &&
+          results.length >= selectOptions.limit
+        ) {
+          return results;
+        }
       }
     }
 
@@ -502,6 +504,7 @@ class HashIndexTx implements IndexTx {
 
   scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
+    if (selectOptions.limit !== undefined && selectOptions.limit <= 0) return [];
 
     const idxValues = getColumnValuesFromBounds(
       this.originalIndex.indexDef,
@@ -517,12 +520,15 @@ class HashIndexTx implements IndexTx {
 
       if (!rows) continue;
 
-      results.push(...rows.values());
+      for (const row of rows.values()) {
+        results.push(row);
 
-      if (selectOptions.limit !== undefined && results.length >= selectOptions.limit) {
-        results.splice(selectOptions.limit);
-
-        return results;
+        if (
+          selectOptions.limit !== undefined &&
+          results.length >= selectOptions.limit
+        ) {
+          return results;
+        }
       }
     }
 
