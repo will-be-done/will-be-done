@@ -53,6 +53,7 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
   nodes = new Map<string, BranchNode<K> | LeafNode<K, V>>();
   rootId = "root";
   private base?: InMemoryBinaryPlusTree<K, V>;
+  private activeFork?: InMemoryBinaryPlusTree<K, V>;
   private owner = {};
   private supersededBaseNodeIds = new Set<string>();
   minSize: number;
@@ -80,6 +81,10 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
   }
 
   fork(): InMemoryBinaryPlusTree<K, V> {
+    if (this.activeFork) {
+      throw new Error("Cannot create multiple active forks from the same tree.");
+    }
+
     const forked = new InMemoryBinaryPlusTree<K, V>(
       this.minSize,
       this.maxSize,
@@ -88,25 +93,50 @@ export class InMemoryBinaryPlusTree<K = any, V = any> {
 
     forked.base = this;
     forked.rootId = this.rootId;
+    this.activeFork = forked;
 
     return forked;
   }
 
   materializeFork(): InMemoryBinaryPlusTree<K, V> {
     if (!this.base) return this;
+    if (this.activeFork) {
+      throw new Error(
+        "Cannot materialize a fork while it has an active nested fork.",
+      );
+    }
+    if (this.base.activeFork !== this) {
+      throw new Error("Cannot materialize an inactive fork.");
+    }
 
-    this.base.rootId = this.rootId;
+    const base = this.base;
+    base.rootId = this.rootId;
 
     for (const id of this.supersededBaseNodeIds) {
-      this.base.detachMaterializedNode(id);
+      base.detachMaterializedNode(id);
     }
     for (const [id, node] of this.nodes) {
-      this.ownNode(node, this.base.owner);
-      this.base.nodes.set(id, node);
+      this.ownNode(node, base.owner);
+      base.nodes.set(id, node);
     }
     this.supersededBaseNodeIds.clear();
+    base.activeFork = undefined;
 
-    return this.base;
+    return base;
+  }
+
+  discardFork(): void {
+    if (!this.base) return;
+    if (this.activeFork) {
+      throw new Error(
+        "Cannot discard a fork while it has an active nested fork.",
+      );
+    }
+    if (this.base.activeFork !== this) {
+      throw new Error("Cannot discard an inactive fork.");
+    }
+
+    this.base.activeFork = undefined;
   }
 
   private getNode(id: string): BranchNode<K> | LeafNode<K, V> | undefined {

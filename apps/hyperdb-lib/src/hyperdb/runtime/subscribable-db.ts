@@ -66,6 +66,14 @@ function appendOps(target: Op[], ops: Op[]) {
   }
 }
 
+function removeSubscriber<T>(subscribers: T[], cb: T) {
+  for (let i = subscribers.length - 1; i >= 0; i--) {
+    if (subscribers[i] === cb) {
+      subscribers.splice(i, 1);
+    }
+  }
+}
+
 export class SubscribableDBTx implements HyperDBTx {
   // NOTE: ops could be optimized bu zipping them + each tx type will be in insert, upsert, delete batches.
   // That will make async db tx apply very fast. Right now we need to wait each op of tx to finish
@@ -393,9 +401,7 @@ export class SubscribableDB implements HyperDB {
     this.afterInsertSubscribers.push(cb);
 
     return () => {
-      this.afterInsertSubscribers = this.afterInsertSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterInsertSubscribers, cb);
     };
   }
 
@@ -403,9 +409,7 @@ export class SubscribableDB implements HyperDB {
     this.afterUpsertSubscribers.push(cb);
 
     return () => {
-      this.afterUpsertSubscribers = this.afterUpsertSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterUpsertSubscribers, cb);
     };
   }
 
@@ -413,9 +417,7 @@ export class SubscribableDB implements HyperDB {
     this.afterDeleteSubscribers.push(cb);
 
     return () => {
-      this.afterDeleteSubscribers = this.afterDeleteSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterDeleteSubscribers, cb);
     };
   }
 
@@ -423,9 +425,7 @@ export class SubscribableDB implements HyperDB {
     this.afterChangeSubscribers.push(cb);
 
     return () => {
-      this.afterChangeSubscribers = this.afterChangeSubscribers.filter(
-        (s) => s !== cb,
-      );
+      removeSubscriber(this.afterChangeSubscribers, cb);
     };
   }
 
@@ -433,7 +433,7 @@ export class SubscribableDB implements HyperDB {
     this.subscribers.push(cb);
 
     return () => {
-      this.subscribers = this.subscribers.filter((s) => s !== cb);
+      removeSubscriber(this.subscribers, cb);
     };
   }
 

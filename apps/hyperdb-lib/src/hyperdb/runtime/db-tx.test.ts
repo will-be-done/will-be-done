@@ -707,6 +707,17 @@ describe("Database Transactions", async () => {
           ]),
         );
         expect(newTaskResults.length).toBe(0);
+
+        const nextTx = db.beginTx();
+        nextTx.insert(tasksTable, [{ id: "task-4", title: "Next" }]);
+        nextTx.commit();
+
+        const nextTaskResults = Array.from(
+          db.intervalScan(tasksTable, "byIds", [
+            { eq: [{ col: "id", val: "task-4" }] },
+          ]),
+        );
+        expect(nextTaskResults.length).toBe(1);
       });
 
       it("transaction with limit on different index types", async () => {

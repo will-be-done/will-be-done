@@ -336,6 +336,7 @@ interface BaseIndex {
 
 interface IndexTx extends BaseIndex {
   commit(): void;
+  rollback(): void;
 }
 
 interface Index extends BaseIndex {
@@ -498,6 +499,12 @@ class HashIndexTx implements IndexTx {
     }
   }
 
+  rollback(): void {
+    if (this.isCommitted) throw new Error("Can't rollback after commit");
+
+    this.isCommitted = true;
+  }
+
   scan(tupleBounds: TupleScanOptions[], selectOptions: SelectOptions): Row[] {
     if (this.isCommitted) throw new Error("Can't scan after commit");
     if (selectOptions.limit !== undefined && selectOptions.limit <= 0) return [];
@@ -643,6 +650,13 @@ class BtreeIndexTx implements IndexTx {
     this.isCommitted = true;
     this.index.btree = this.btree.materializeFork();
   }
+
+  rollback(): void {
+    if (this.isCommitted) throw new Error("Can't rollback after commit");
+
+    this.isCommitted = true;
+    this.btree.discardFork();
+  }
 }
 
 class BtreeIndex implements Index {
@@ -732,6 +746,12 @@ export class BptreeInmemDriverTx implements DBDriverTX {
 
   *rollback(): Generator<DBCmd, void> {
     this.throwIfDone();
+    for (const [, table] of this.tblDatas) {
+      for (const index of table.indexes.values()) {
+        index.rollback();
+      }
+    }
+
     this.rollbacked = true;
     this.onFinish();
   }

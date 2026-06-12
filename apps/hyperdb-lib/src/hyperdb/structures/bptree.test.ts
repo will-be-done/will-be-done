@@ -327,6 +327,43 @@ describe("InMemoryBinaryPlusTree", () => {
     assert.equal(forked.get(202), undefined);
   });
 
+  it("prevents sibling forks from the same base", () => {
+    const tree = new InMemoryBinaryPlusTree(3, 9);
+    tree.set(1, "one");
+
+    const first = tree.fork();
+    assert.throws(
+      () => tree.fork(),
+      "Cannot create multiple active forks from the same tree.",
+    );
+
+    first.discardFork();
+    const second = tree.fork();
+    second.set(2, "two");
+
+    const materialized = second.materializeFork();
+    assert.equal(materialized, tree);
+    assert.deepEqual(tree.list(), [
+      { key: 1, value: "one" },
+      { key: 2, value: "two" },
+    ]);
+  });
+
+  it("rejects stale fork materialization after discard", () => {
+    const tree = new InMemoryBinaryPlusTree(3, 9);
+    tree.set(1, "one");
+
+    const forked = tree.fork();
+    forked.set(2, "two");
+    forked.discardFork();
+
+    assert.throws(
+      () => forked.materializeFork(),
+      "Cannot materialize an inactive fork.",
+    );
+    assert.deepEqual(tree.list(), [{ key: 1, value: "one" }]);
+  });
+
   it("materialized fork keeps base nodes owned and reachable", () => {
     let tree = new InMemoryBinaryPlusTree(3, 9);
     for (let i = 0; i < 200; i++) {

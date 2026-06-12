@@ -166,11 +166,33 @@ describe("SubscribableDB", async () => {
       it("should notify a snapshot of subscribers for each commit", async () => {
         const db = new DB(await driver());
         const subscribableDB = new SubscribableDB(db);
+        const traitedDB = subscribableDB.withTraits({
+          type: "traited",
+        }) as SubscribableDB;
 
         const syncDB = new SyncDB(subscribableDB);
         syncDB.loadTables([tasksTable]);
 
         const calls: string[] = [];
+        const revisions: number[] = [];
+        const withTraitsRevisionObservations: {
+          callbackRevision: number;
+          baseRevision: number;
+          traitedRevision: number;
+        }[] = [];
+
+        subscribableDB.subscribe((_ops, _traits, revision) => {
+          revisions.push(revision);
+        });
+
+        traitedDB.subscribe((_ops, _traits, revision) => {
+          withTraitsRevisionObservations.push({
+            callbackRevision: revision,
+            baseRevision: subscribableDB.getRevision(),
+            traitedRevision: traitedDB.getRevision(),
+          });
+        });
+
         subscribableDB.subscribe(() => {
           calls.push("first");
           subscribableDB.subscribe(() => {
@@ -189,6 +211,14 @@ describe("SubscribableDB", async () => {
         ]);
 
         expect(calls).toEqual(["first"]);
+        expect(revisions).toEqual([1]);
+        expect(withTraitsRevisionObservations).toEqual([
+          {
+            callbackRevision: 1,
+            baseRevision: 1,
+            traitedRevision: 1,
+          },
+        ]);
 
         syncDB.insert(tasksTable, [
           {
@@ -201,6 +231,50 @@ describe("SubscribableDB", async () => {
         ]);
 
         expect(calls).toEqual(["first", "first", "second"]);
+        expect(revisions).toEqual([1, 2]);
+        expect(revisions[1]).toBeGreaterThan(revisions[0]);
+        expect(withTraitsRevisionObservations).toEqual([
+          {
+            callbackRevision: 1,
+            baseRevision: 1,
+            traitedRevision: 1,
+          },
+          {
+            callbackRevision: 2,
+            baseRevision: 2,
+            traitedRevision: 2,
+          },
+        ]);
+      });
+
+      it("should unsubscribe subscribers registered through withTraits", async () => {
+        const db = new DB(await driver());
+        const subscribableDB = new SubscribableDB(db);
+        const traitedDB = subscribableDB.withTraits({
+          type: "traited",
+        }) as SubscribableDB;
+
+        const syncDB = new SyncDB(subscribableDB);
+        syncDB.loadTables([tasksTable]);
+
+        const operations: Op[] = [];
+        const unsubscribe = traitedDB.subscribe((op) => {
+          operations.push(...op);
+        });
+
+        unsubscribe();
+
+        syncDB.insert(tasksTable, [
+          {
+            id: "task-1",
+            title: "Task 1",
+            state: "todo",
+            projectId: "project-1",
+            orderToken: "a",
+          },
+        ]);
+
+        expect(operations).toEqual([]);
       });
 
       it("should properly unsubscribe and not receive further notifications", async () => {
