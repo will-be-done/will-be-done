@@ -1,5 +1,5 @@
 import React from "react";
-import type { SubscribableDB } from "../hyperdb/subscribable-db";
+import type { SubscribableDB } from "../hyperdb/runtime/subscribable-db";
 
 const dbContext = React.createContext<SubscribableDB | null>(null);
 

@@ -13,7 +13,7 @@ import {
   select,
   type SelectRangeCmd,
   isNeedToRerunRange,
-} from "../hyperdb/selector";
+} from "../hyperdb/commands/query/selector";
 import { useDB } from "./context";
 import { asyncDispatch, syncDispatch } from "../hyperdb";
 

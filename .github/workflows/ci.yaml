@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [web, hyperdb, api, slices]
+        package: [web, hyperdb, hyperdb-lib, api, slices]
 
     steps:
       - uses: actions/checkout@v4
@@ -35,5 +35,9 @@ jobs:
         run: cd apps/${{ matrix.package }} && bun run ts
 
       - name: Test @apps/${{ matrix.package }}
-        if: matrix.package == 'hyperdb' || matrix.package == 'api'
+        if: matrix.package == 'hyperdb' || matrix.package == 'hyperdb-lib' || matrix.package == 'api'
         run: cd apps/${{ matrix.package }} && bun run test
+
+      - name: Check import cycles @apps/${{ matrix.package }}
+        if: matrix.package == 'hyperdb-lib'
+        run: cd apps/${{ matrix.package }} && bun run lint:cycles
