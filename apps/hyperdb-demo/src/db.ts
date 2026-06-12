@@ -100,9 +100,9 @@ export const getDashboardSnapshot = selector(function* (
     .order("asc")
     .limit(projectLimit);
   const selectedProject = selectedProjectId
-    ? ((yield* selectFrom(projectsTable, "byId").where((q) =>
-        q.eq("id", selectedProjectId),
-      ))[0] ?? null)
+    ? yield* selectFrom(projectsTable, "byId")
+        .where((q) => q.eq("id", selectedProjectId))
+        .firstOr(null)
     : (projects[0] ?? null);
   const visibleProjectTaskStats =
     projects.length > 0
@@ -111,9 +111,9 @@ export const getDashboardSnapshot = selector(function* (
         )
       : [];
   const selectedProjectTaskStats = selectedProject
-    ? ((yield* selectFrom(projectTaskStatsTable, "byId").where((q) =>
-        q.eq("id", selectedProject.id),
-      ))[0] ?? null)
+    ? yield* selectFrom(projectTaskStatsTable, "byId")
+        .where((q) => q.eq("id", selectedProject.id))
+        .firstOr(null)
     : null;
   const selectedTasks = selectedProject
     ? yield* selectFrom(tasksTable, "byProjectPosition")
@@ -121,10 +121,9 @@ export const getDashboardSnapshot = selector(function* (
         .order("asc")
         .limit(taskLimit)
     : [];
-  const stats =
-    (yield* selectFrom(taskStatsTable, "byId").where((q) =>
-      q.eq("id", TASK_STATS_ID),
-    ))[0] ?? EMPTY_TASK_STATS;
+  const stats = yield* selectFrom(taskStatsTable, "byId")
+    .where((q) => q.eq("id", TASK_STATS_ID))
+    .firstOr(EMPTY_TASK_STATS);
 
   return {
     projects,
@@ -190,10 +189,9 @@ export function installTaskStatsHooks(db: SubscribableDB) {
     if (ops.length === 0) return;
     if (table !== tasksTable && table !== projectsTable) return;
 
-    const existingStats =
-      (yield* selectFrom(taskStatsTable, "byId").where((q) =>
-        q.eq("id", TASK_STATS_ID),
-      ))[0] ?? EMPTY_TASK_STATS;
+    const existingStats = yield* selectFrom(taskStatsTable, "byId")
+      .where((q) => q.eq("id", TASK_STATS_ID))
+      .firstOr(EMPTY_TASK_STATS);
 
     let nextStats = existingStats;
 

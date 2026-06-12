@@ -10,12 +10,11 @@ TODO:
 1. DONE eslint circular ref linter: cycle check uses dependency-cruiser (script: lint:cycles)
 1. DONE check that eslint dependency-cruiser plugin really works
 1. DONE Check if code has race condition. Maybe selector.ts has race condition? And subscribable-db.ts
-1. Use driver-edge-cases to runtime. driver-edge-cases.test.ts covers runtime DB/SyncDB. Also why db.ts and index.ts?
-1. Ask if that approach overall good. Passing data with tree
-1. ? optimize SubscribableDBTx
-1. remove ability to run code with promise
-1. check that utf8 sorting of string is same in js
-1. Add firstOr(), first()
+1. DONE Use driver-edge-cases to runtime. driver-edge-cases.test.ts covers runtime DB/SyncDB. Also why db.ts and index.ts?
+1. DONE Ask if that approach overall good. Passing data with tree
+1. DONE check that utf8 sorting of string is same in js
+1. devtool + decorator
+1. DONE Add firstOr(), first()
 1. IMPORTANT - check how to make sure that devtool will have named queries/mutations
 1. Generate docs
 
@@ -25,6 +24,8 @@ Then:
 1. Index name should start by...
 1. dev tool. Check tinybase. Check powersync
 1. parallel async requests for async drivers
+1. ? optimize SubscribableDBTx
+1. remove ability to run code with promise
 
 Maybe:
 1. filter
