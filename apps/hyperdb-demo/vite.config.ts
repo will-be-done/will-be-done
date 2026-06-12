@@ -14,7 +14,7 @@ export default defineConfig({
     alias: [
       {
         find: /^react$/,
-        replacement: `${workspaceNodeModules}react/index.js`,
+        replacement: `${workspaceNodeModules}react`,
       },
       {
         find: /^react\/(.*)$/,
@@ -22,7 +22,7 @@ export default defineConfig({
       },
       {
         find: /^react-dom$/,
-        replacement: `${workspaceNodeModules}react-dom/index.js`,
+        replacement: `${workspaceNodeModules}react-dom`,
       },
       {
         find: /^react-dom\/(.*)$/,

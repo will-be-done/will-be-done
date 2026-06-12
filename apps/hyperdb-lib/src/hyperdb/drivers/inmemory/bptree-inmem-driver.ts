@@ -642,7 +642,7 @@ class BtreeIndexTx implements IndexTx {
   }
 
   commit(): void {
-    if (this.isCommitted) throw new Error("Can't scan after commit");
+    if (this.isCommitted) throw new Error("Can't commit after commit");
 
     this.isCommitted = true;
     this.index.btree = this.btree.materializeFork();

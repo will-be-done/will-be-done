@@ -333,11 +333,13 @@ describe("InMemoryBinaryPlusTree", () => {
       tree.set(i, i);
     }
 
+    const originalTree = tree;
     const forked = tree.fork();
     forked.set(201, 201);
     forked.delete(10);
 
     tree = forked.materializeFork();
+    assert.equal(tree, originalTree);
     verify(tree);
 
     tree.set(150, 1500);
