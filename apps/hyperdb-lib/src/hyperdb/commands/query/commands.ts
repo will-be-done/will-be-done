@@ -34,6 +34,7 @@ export type SelectRangeCmd = {
 };
 
 export const isSelectRangeCmd = (cmd: unknown): cmd is SelectRangeCmd =>
-  cmd instanceof Object &&
+  typeof cmd === "object" &&
   cmd !== null &&
+  typeof (cmd as { type?: unknown }).type === "string" &&
   (cmd as { type?: unknown }).type === selectRangeType;

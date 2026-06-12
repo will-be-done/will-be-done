@@ -47,6 +47,7 @@ function* performScan(
     );
   }
 
+  // Validation-only; driver handles conversion.
   convertWhereToBound(indexConfig.cols as string[], clauses);
 
   const records = yield* driver.intervalScan(
@@ -137,6 +138,10 @@ export class DBTx implements HyperDBTx {
   }
 
   *beginTx(): Generator<DBCmd, HyperDBTx> {
+    if (this.isFinished.val) {
+      throw new Error("Transaction is finished");
+    }
+
     this.txCounter.val++;
 
     return this;
@@ -171,6 +176,10 @@ export class DBTx implements HyperDBTx {
     clauses: WhereClause[],
     selectOptions?: SelectOptions,
   ): Generator<DBCmd, ExtractSchema<TTable>[]> {
+    if (this.isFinished.val) {
+      throw new Error("Transaction is finished");
+    }
+
     return yield* performScan(
       this.driver,
       table,

@@ -9,10 +9,11 @@ export function validObjectKey(key: string): boolean {
 }
 
 export function validRecordKey(key: string): boolean {
-  return (
-    validObjectKey(key) &&
-    Array.from(key).every((char) => char.charCodeAt(0) <= 0x7f)
-  );
+  if (!validObjectKey(key)) return false;
+  for (let i = 0; i < key.length; i++) {
+    if (key.charCodeAt(i) > 0x7f) return false;
+  }
+  return true;
 }
 
 export function fail(message: string, path: ValidationPath): NormalizeResult<never> {

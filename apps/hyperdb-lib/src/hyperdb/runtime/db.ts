@@ -43,6 +43,7 @@ function* performScan(
     );
   }
 
+  // Validation-only; driver handles conversion.
   convertWhereToBound(indexConfig.cols as string[], clauses);
 
   const records = yield* driver.intervalScan(
@@ -86,6 +87,7 @@ function* performDelete(
   table: TableDefinition,
   ids: string[],
 ) {
+  if (ids.length === 0) return;
   yield* driver.delete(table.tableName, ids);
 }
 

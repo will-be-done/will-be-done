@@ -1,5 +1,9 @@
 import { isNoopCmd, isUnwrapCmd, type DBCmd } from "../commands/async";
 
+function unexpectedCmdError(cmd: unknown): Error {
+  return new Error(`Unexpected DBCmd yielded: ${String(cmd)}`);
+}
+
 export function execSync<T>(cmd: Generator<DBCmd, T>): T {
   let result = cmd.next();
 
@@ -8,6 +12,8 @@ export function execSync<T>(cmd: Generator<DBCmd, T>): T {
       throw new Error("Cannot execute async commands");
     } else if (isNoopCmd(result.value)) {
       result = cmd.next();
+    } else {
+      throw unexpectedCmdError(result.value);
     }
   }
 
@@ -22,6 +28,8 @@ export async function execAsync<T>(cmd: Generator<DBCmd, T>): Promise<T> {
       result = cmd.next(await result.value.data);
     } else if (isNoopCmd(result.value)) {
       result = cmd.next();
+    } else {
+      throw unexpectedCmdError(result.value);
     }
   }
 

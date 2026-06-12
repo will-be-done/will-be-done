@@ -82,9 +82,6 @@ export function syncDispatch<TReturn>(
     isCommitted = true;
 
     return result;
-  } catch (e) {
-    console.error(e);
-    throw e;
   } finally {
     if (!isCommitted) {
       execSync(tx.rollback());

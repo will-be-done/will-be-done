@@ -294,7 +294,14 @@ export class SubscribableDBTx implements HyperDBTx {
     this.throwIfDone();
     yield* this.txDb.commit();
     this.committed.val = true;
-    this.subDb.subscribers.forEach((s) => s(this.operations, this.getTraits()));
+    const traits = this.getTraits();
+    for (const subscriber of this.subDb.subscribers) {
+      try {
+        subscriber(this.operations, traits);
+      } catch (error) {
+        console.error(error);
+      }
+    }
   }
 
   throwIfDone() {

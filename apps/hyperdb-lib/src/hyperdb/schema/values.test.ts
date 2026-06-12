@@ -3,7 +3,7 @@ import { assertValid, type Infer, v } from "./values";
 
 describe("validators", () => {
   it("infers primitive, object, optional, union, literal, and array types", () => {
-    const _validator = v.object({
+    const validator = v.object({
       id: v.string(),
       count: v.number(),
       done: v.boolean(),
@@ -13,7 +13,7 @@ describe("validators", () => {
       none: v.null(),
     });
 
-    type Value = Infer<typeof _validator>;
+    type Value = Infer<typeof validator>;
 
     assertType<Value>({
       id: "1",
@@ -31,6 +31,24 @@ describe("validators", () => {
       missing: "ok",
       kind: "template",
       tags: [],
+      none: null,
+    });
+
+    expect(
+      assertValid(validator, {
+        id: "1",
+        count: 1,
+        done: false,
+        kind: "task",
+        tags: ["a"],
+        none: null,
+      }),
+    ).toEqual({
+      id: "1",
+      count: 1,
+      done: false,
+      kind: "task",
+      tags: ["a"],
       none: null,
     });
   });
