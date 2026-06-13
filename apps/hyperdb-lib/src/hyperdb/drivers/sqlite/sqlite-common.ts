@@ -19,6 +19,7 @@ export type SqlValue = number | string | Uint8Array | null;
 export type BindParams = SqlValue[] | null;
 
 export const CHUNK_SIZE = 12000;
+export const SQL_BIND_PARAM_LIMIT = 900;
 
 const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -28,6 +29,15 @@ export function chunkArray<T>(array: T[], size: number): T[][] {
     chunks.push(array.slice(i, i + size));
   }
   return chunks;
+}
+
+export function getSqliteInsertChunkSize(tableDef: TableDefinition): number {
+  const columnCount = 2 + Object.keys(tableDef.indexes).length;
+  return Math.max(1, Math.floor(SQL_BIND_PARAM_LIMIT / columnCount));
+}
+
+export function getSqliteDeleteChunkSize(): number {
+  return SQL_BIND_PARAM_LIMIT;
 }
 
 function isSchemalessTable(tableDef: TableDefinition): boolean {
@@ -170,6 +180,29 @@ function validateHashBounds(
   }
 }
 
+function isExactSortKeyBound(bound: {
+  gte?: unknown[];
+  gt?: unknown[];
+  lte?: unknown[];
+  lt?: unknown[];
+}): bound is {
+  gte: unknown[];
+  lte: unknown[];
+  gt?: undefined;
+  lt?: undefined;
+} {
+  const { gte, lte } = bound;
+
+  return (
+    gte !== undefined &&
+    lte !== undefined &&
+    bound.gt === undefined &&
+    bound.lt === undefined &&
+    gte.length === lte.length &&
+    gte.every((value, index) => Object.is(value, lte[index]))
+  );
+}
+
 export function buildSortKeyWhereClause(
   indexName: string,
   tableName: string,
@@ -195,6 +228,7 @@ export function buildSortKeyWhereClause(
   const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
   const params: any[] = [];
   const rangeConditions: string[] = [];
+  const exactSortKeys: string[] = [];
   let hasUnboundedRange = false;
 
   for (const rawBound of rawBounds) {
@@ -204,6 +238,12 @@ export function buildSortKeyWhereClause(
       lte: expandBoundTuple(rawBound.lte, sortColumns.length, MAX),
       lt: expandBoundTuple(rawBound.lt, sortColumns.length, MIN),
     };
+
+    if (isExactSortKeyBound(bound)) {
+      exactSortKeys.push(encodeSqliteSortKeyTuple(bound.gte, mode));
+      continue;
+    }
+
     const current: string[] = [];
     const currentParams: string[] = [];
 
@@ -234,10 +274,24 @@ export function buildSortKeyWhereClause(
   }
 
   const conditions = [`${sortKeyColumn} IS NOT NULL`];
-  if (!hasUnboundedRange && rangeConditions.length > 0) {
-    conditions.push(`(${rangeConditions.join(" OR ")})`);
-  } else if (hasUnboundedRange) {
+  if (hasUnboundedRange) {
     params.length = 0;
+  } else if (rangeConditions.length > 0) {
+    params.unshift(...exactSortKeys);
+    if (exactSortKeys.length > 0) {
+      const placeholders = exactSortKeys.map(() => "?").join(", ");
+      conditions.push(
+        `(${sortKeyColumn} IN (${placeholders}) OR ${rangeConditions.join(
+          " OR ",
+        )})`,
+      );
+    } else {
+      conditions.push(`(${rangeConditions.join(" OR ")})`);
+    }
+  } else if (exactSortKeys.length > 0) {
+    const placeholders = exactSortKeys.map(() => "?").join(", ");
+    conditions.push(`${sortKeyColumn} IN (${placeholders})`);
+    params.push(...exactSortKeys);
   }
 
   return {

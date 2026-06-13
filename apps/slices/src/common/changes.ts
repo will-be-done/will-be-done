@@ -20,6 +20,16 @@ type PrimitiveRow = Record<string, string | number | boolean | null> & {
   id: string;
 };
 
+const SELECT_OR_CHUNK_SIZE = 400;
+
+const chunkArray = <T>(items: T[], chunkSize: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
 export const changesTable = defineTable("changes", {
   id: v.string(),
   entityId: v.string(),
@@ -76,9 +86,14 @@ const getChangesetAfter = selector(function* (
       continue;
     }
 
-    const rows = yield* selectFrom(table, "byId").where((q) =>
-        changes.map((c) => q.eq("id", c.entityId)),
+    const rows: Row[] = [];
+    for (const changesChunk of chunkArray(changes, SELECT_OR_CHUNK_SIZE)) {
+      rows.push(
+        ...(yield* selectFrom(table, "byId").where((q) =>
+          changesChunk.map((c) => q.eq("id", c.entityId)),
+        )),
       );
+    }
     const rowsMap = new Map(rows.map((r) => [r.id, r]));
 
     const data = changes
@@ -99,7 +114,7 @@ const getChangesetAfter = selector(function* (
         }
 
         return {
-          row: row,
+          row: row as PrimitiveRow,
           change: c,
         };
       })
@@ -238,20 +253,31 @@ const mergeChangesAction = action(function* (
       throw new Error("Unknown table: " + changeset.tableName);
     }
 
-    const currentChanges = yield* selectFrom(changesTable, "byEntityIdAndTableName").where((q) =>
-        changeset.data.map((c) =>
-          q
-            .eq("entityId", c.change.entityId)
-            .eq("tableName", changeset.tableName),
-        ),
+    const currentChanges: Change[] = [];
+    for (const dataChunk of chunkArray(changeset.data, SELECT_OR_CHUNK_SIZE)) {
+      currentChanges.push(
+        ...((yield* selectFrom(changesTable, "byEntityIdAndTableName").where(
+          (q) =>
+            dataChunk.map((c) =>
+              q
+                .eq("entityId", c.change.entityId)
+                .eq("tableName", changeset.tableName),
+            ),
+        )) as Change[]),
       );
+    }
     const currentChangesMap = new Map(
       currentChanges.map((c) => [c.entityId, c as Change]),
     );
 
-    const currentRows = yield* selectFrom(table, "byId").where((q) =>
-        changeset.data.map((c) => q.eq("id", c.change.entityId)),
+    const currentRows: Row[] = [];
+    for (const dataChunk of chunkArray(changeset.data, SELECT_OR_CHUNK_SIZE)) {
+      currentRows.push(
+        ...(yield* selectFrom(table, "byId").where((q) =>
+          dataChunk.map((c) => q.eq("id", c.change.entityId)),
+        )),
       );
+    }
     const currentRowsMap = new Map(currentRows.map((r) => [r.id, r]));
 
     for (const { change: incomingChange, row: incomingRow } of changeset.data) {
@@ -360,8 +386,6 @@ const mergeChangesAction = action(function* (
     yield* upsert(table, toUpdateRows);
     yield* deleteRows(table, toDeleteRows);
   }
-
-  console.log("changes to persist after merge", allChanges);
 
   yield* upsert(changesTable, allChanges);
 });

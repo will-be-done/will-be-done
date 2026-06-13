@@ -21,14 +21,14 @@ import {
   addSortKeyColumnSQL,
   dropSortKeyColumnSQL,
   chunkArray,
-  CHUNK_SIZE,
+  getSqliteDeleteChunkSize,
+  getSqliteInsertChunkSize,
   sqliteIndexSortKeyColumn,
   sqliteIndexIdentifier,
   isSqliteSortKeyColumn,
   assertSafeTableDefinition,
   buildRowInsertParams,
   parseSqliteStoredRow,
-  getSqliteIndexSortKeyValue,
 } from "./sqlite-common";
 import AwaitLock from "await-lock";
 
@@ -170,7 +170,7 @@ function* performAsyncInsertOperation(
   if (values.length === 0) return;
 
   yield* unwrapCb(async () => {
-    const allValues = chunkArray(values, CHUNK_SIZE);
+    const allValues = chunkArray(values, getSqliteInsertChunkSize(tableDef));
     for (const chunk of allValues) {
       const insertSQL = buildInsertSQL(tableDef, chunk.length);
       const params = chunk.flatMap((v) => buildRowInsertParams(tableDef, v));
@@ -212,7 +212,7 @@ function* performAsyncUpsertOperation(
   if (values.length === 0) return;
 
   yield* unwrapCb(async () => {
-    const allValues = chunkArray(values, CHUNK_SIZE);
+    const allValues = chunkArray(values, getSqliteInsertChunkSize(tableDef));
     for (const chunk of allValues) {
       const upsertSQL = buildInsertSQL(tableDef, chunk.length, {
         replace: true,
@@ -256,7 +256,7 @@ function* performAsyncDeleteOperation(
   if (values.length === 0) return;
 
   yield* unwrapCb(async () => {
-    const allValues = chunkArray(values, CHUNK_SIZE);
+    const allValues = chunkArray(values, getSqliteDeleteChunkSize());
     for (const chunk of allValues) {
       const deleteSQL = buildDeleteSQL(tableDef.tableName, chunk.length);
       const startedAt = nowMs();
@@ -863,30 +863,37 @@ export class AsyncSqlDriver implements DBDriver {
   ): Promise<void> {
     for (const indexName of Object.keys(tableDef.indexes)) {
       const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
-      const sql = `SELECT id, data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`;
+      const sql = `SELECT data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`;
       const startedAt = nowMs();
       let rowCount = 0;
+      let batch: Row[] = [];
+      const insertChunkSize = getSqliteInsertChunkSize(tableDef);
+
+      const flushBatch = async (): Promise<void> => {
+        if (batch.length === 0) return;
+
+        await runAsyncSQL(
+          this.sqlite3,
+          this.db,
+          buildInsertSQL(tableDef, batch.length, { replace: true }),
+          batch.flatMap((row) => buildRowInsertParams(tableDef, row)),
+        );
+        batch = [];
+      };
 
       try {
         for await (const stmt of this.sqlite3.statements(this.db, sql)) {
           while ((await this.sqlite3.step(stmt)) === SQLITE_ROW) {
             rowCount++;
-            const [id, data] = this.sqlite3.row(stmt);
-            const row = parseSqliteStoredRow(String(data));
-            const sortKeyValue = getSqliteIndexSortKeyValue(
-              tableDef,
-              indexName,
-              row,
-            );
+            const [data] = this.sqlite3.row(stmt);
+            batch.push(parseSqliteStoredRow(String(data)));
 
-            await runAsyncSQL(
-              this.sqlite3,
-              this.db,
-              `UPDATE ${tableDef.tableName} SET ${sortKeyColumn} = ? WHERE id = ? AND ${sortKeyColumn} IS NULL`,
-              [sortKeyValue, id],
-            );
+            if (batch.length >= insertChunkSize) {
+              await flushBatch();
+            }
           }
         }
+        await flushBatch();
         logAsyncSQL(sql, startedAt, {
           tableName: tableDef.tableName,
           indexName,

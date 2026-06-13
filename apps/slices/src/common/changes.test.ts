@@ -475,4 +475,72 @@ describe("first-creator-wins merge", () => {
     expect(row).toBeDefined();
     expect(row!.title).toBe("updated-by-remote"); // update must not be dropped
   });
+
+  it("merges and reads large changesets in select-sized chunks", () => {
+    resetClock();
+    const db = createDB();
+    const incoming: ChangesetArrayType = [
+      {
+        tableName: "testItems",
+        data: Array.from({ length: 1205 }, (_, index) => {
+          const entityId = `large-${index}`;
+          const createdAtClock = `0000000010-${String(index).padStart(
+            4,
+            "0",
+          )}-remote`;
+
+          return {
+            row: {
+              type: "task",
+              id: entityId,
+              title: `remote-title-${index}`,
+              orderToken: "a",
+              createdAt: 100 + index,
+            },
+            change: {
+              id: `testItems:${entityId}`,
+              entityId,
+              tableName: "testItems",
+              createdAt: createdAtClock,
+              updatedAt: createdAtClock,
+              deletedAt: null,
+              clientId: "remote",
+              changes: {
+                type: createdAtClock,
+                id: createdAtClock,
+                title: createdAtClock,
+                orderToken: createdAtClock,
+                createdAt: createdAtClock,
+              },
+            },
+          };
+        }),
+      },
+    ];
+
+    syncDispatch(
+      db,
+      changesSlice.mergeChanges(
+        incoming,
+        makeClockFn("0000000020"),
+        "local",
+        registeredTables,
+      ),
+    );
+
+    const row = getRow(db, "large-1204");
+    expect(row).toBeDefined();
+    expect(row!.title).toBe("remote-title-1204");
+
+    const { changesets } = runSelector(
+      db,
+      function* () {
+        return yield* changesSlice.getChangesetAfter("", registeredTables);
+      },
+      [],
+    );
+
+    expect(changesets).toHaveLength(1);
+    expect(changesets[0]!.data).toHaveLength(1205);
+  });
 });

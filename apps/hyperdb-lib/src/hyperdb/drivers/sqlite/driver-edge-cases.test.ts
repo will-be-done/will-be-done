@@ -67,19 +67,24 @@ type InspectableSqlDatabase = {
 async function createInspectableSqlDriver(): Promise<{
   driver: SqlDriver;
   sqldb: InspectableSqlDatabase;
+  execLog: string[];
 }> {
   const SQL = await initSqlJs({
     locateFile: () => normalizeWasmUrl(wasmUrl),
   });
   const sqldb: InspectableSqlDatabase = new SQL.Database();
+  const execLog: string[] = [];
 
   return {
     sqldb,
+    execLog,
     driver: new SqlDriver({
       exec(sql: string, params: SqlValue[]): void {
+        execLog.push(sql);
         sqldb.exec(sql, params);
       },
       prepare(sql: string): SQLStatement {
+        execLog.push(sql);
         const prepared = sqldb.prepare(sql);
 
         return {
@@ -111,12 +116,18 @@ function sqliteRows(
 
 describe("SQLite driver edge case regressions", () => {
   it("backfills sort keys for rows that predate a new index", async () => {
-    const db = new SyncDB(new DB(await initSqlJsWasm()));
+    const { driver, execLog } = await createInspectableSqlDriver();
+    const db = new SyncDB(new DB(driver));
     db.loadTables([sortKeyBackfillTableV1]);
     db.insert(sortKeyBackfillTableV1, [{ id: "task-a", title: "A" }]);
+    execLog.length = 0;
 
     db.loadTables([sortKeyBackfillTableV2]);
 
+    expect(execLog.some((sql) => sql.startsWith("INSERT OR REPLACE"))).toBe(
+      true,
+    );
+    expect(execLog.some((sql) => sql.startsWith("UPDATE"))).toBe(false);
     expect(
       db.intervalScan(sortKeyBackfillTableV2, "byTitle", [
         { eq: [{ col: "title", val: "A" }] },
@@ -181,6 +192,55 @@ describe("SQLite driver edge case regressions", () => {
         },
       ]),
     ).toEqual([{ id: "task-a", projectId: "project-1", state: "open" }]);
+  });
+
+  it("uses IN for multiple exact sort-key lookups", async () => {
+    const { driver, execLog } = await createInspectableSqlDriver();
+    const db = new SyncDB(new DB(driver));
+    db.loadTables([noSideTablesTable]);
+    db.insert(noSideTablesTable, [
+      { id: "task-a", title: "A" },
+      { id: "task-b", title: "B" },
+      { id: "task-c", title: "C" },
+    ]);
+    execLog.length = 0;
+
+    expect(
+      db
+        .intervalScan(noSideTablesTable, "byId", [
+          { eq: [{ col: "id", val: "task-a" }] },
+          { eq: [{ col: "id", val: "task-c" }] },
+        ])
+        .map((row) => row.id),
+    ).toEqual(["task-a", "task-c"]);
+
+    const selectSql = execLog.find((sql) =>
+      sql.includes("FROM driverEdgeNoSideTables"),
+    );
+    expect(selectSql).toContain("idx_byId_sort_key IN (?, ?)");
+    expect(selectSql).not.toContain(" OR ");
+  });
+
+  it("chunks inserts by SQLite bind variable budget", async () => {
+    const { driver, execLog } = await createInspectableSqlDriver();
+    const db = new SyncDB(new DB(driver));
+    db.loadTables([noSideTablesTable]);
+    execLog.length = 0;
+
+    db.insert(
+      noSideTablesTable,
+      Array.from({ length: 226 }, (_, index) => ({
+        id: `task-${index}`,
+        title: `Task ${index}`,
+      })),
+    );
+
+    const inserts = execLog.filter((sql) =>
+      sql.startsWith("INSERT INTO driverEdgeNoSideTables"),
+    );
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]!.match(/\?/g)).toHaveLength(900);
+    expect(inserts[1]!.match(/\?/g)).toHaveLength(4);
   });
 
   it("stores index sort keys on the base table and scans without side-index tables", async () => {

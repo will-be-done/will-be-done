@@ -7,6 +7,7 @@ import {
   execAsync,
   execSync,
   HyperDB,
+  Row,
   runSelectorAsync,
   selectFrom,
   type Op,
@@ -262,27 +263,83 @@ export const initDbStore = async (
         Array<{ row?: RowType; change: Change }>
       >();
 
+      const createInsertChange = (table: TableDefinition, row: Row): Change => {
+        const createdAt = nextClock();
+        const changes: Record<string, string> = {};
+        for (const col of Object.keys(row)) {
+          changes[col] = createdAt;
+        }
+
+        return {
+          id: `${table.tableName}:${row.id}`,
+          entityId: row.id,
+          tableName: table.tableName,
+          deletedAt: null,
+          clientId: getClientId(dbName),
+          changes,
+          createdAt,
+          updatedAt: createdAt,
+        };
+      };
+
+      const appendPersistedChange = (
+        tableName: string,
+        row: RowType | undefined,
+        change: Change,
+      ) => {
+        if (!changesByTable.has(tableName)) {
+          changesByTable.set(tableName, []);
+        }
+
+        changesByTable.get(tableName)!.push({ row, change });
+      };
+
+      const persistInsertRun = async (
+        tx: HyperDB,
+        table: TableDefinition,
+        rows: Row[],
+      ) => {
+        await execAsync(tx.insert(table, rows));
+        const changes = rows.map((row) => createInsertChange(table, row));
+        await execAsync(tx.upsert(changesTable, changes));
+
+        for (let i = 0; i < rows.length; i++) {
+          appendPersistedChange(
+            table.tableName,
+            rows[i] as RowType,
+            changes[i]!,
+          );
+        }
+      };
+
       const tx = await execAsync(asyncDB.beginTx());
       let committed = false;
       try {
         try {
-          for (const op of ops) {
+          for (let opIndex = 0; opIndex < ops.length; opIndex++) {
+            const op = ops[opIndex]!;
             if (op.table == changesTable) continue;
 
             let change: Change | undefined;
 
             try {
               if (op.type === "insert") {
-                await execAsync(tx.insert(op.table, [op.newValue]));
-                change = await asyncDispatch(
-                  tx,
-                  changesSlice.insertChangeFromInsert(
-                    op.table,
-                    op.newValue,
-                    getClientId(dbName),
-                    nextClock,
-                  ),
-                );
+                const rows = [op.newValue as Row];
+                while (
+                  opIndex + 1 < ops.length &&
+                  ops[opIndex + 1]!.type === "insert" &&
+                  ops[opIndex + 1]!.table === op.table
+                ) {
+                  opIndex++;
+                  const nextOp = ops[opIndex]!;
+                  if (nextOp.type !== "insert") {
+                    break;
+                  }
+                  rows.push(nextOp.newValue as Row);
+                }
+
+                await persistInsertRun(tx, op.table, rows);
+                continue;
               } else if (op.type === "upsert") {
                 await execAsync(tx.upsert(op.table, [op.newValue]));
                 change = await asyncDispatch(
@@ -324,13 +381,9 @@ export const initDbStore = async (
 
             if (change) {
               const tableName = op.table.tableName;
-              if (!changesByTable.has(tableName)) {
-                changesByTable.set(tableName, []);
-              }
-
               const row =
                 op.type === "delete" ? undefined : (op.newValue as RowType);
-              changesByTable.get(tableName)!.push({ row, change });
+              appendPersistedChange(tableName, row, change);
             }
           }
         } catch (error) {

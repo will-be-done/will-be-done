@@ -21,12 +21,13 @@ import {
   dropSortKeyColumnSQL,
   chunkArray,
   CHUNK_SIZE,
+  getSqliteDeleteChunkSize,
+  getSqliteInsertChunkSize,
   sqliteIndexSortKeyColumn,
   sqliteIndexIdentifier,
   isSqliteSortKeyColumn,
   assertSafeTableDefinition,
   buildRowInsertParams,
-  getSqliteIndexSortKeyValue,
   parseSqliteStoredRow,
   type SqlValue,
   type BindParams,
@@ -52,7 +53,7 @@ function performInsertOperation(
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunkArray(values, CHUNK_SIZE);
+  const allValues = chunkArray(values, getSqliteInsertChunkSize(tableDef));
   for (const chunk of allValues) {
     const insertSQL = buildInsertSQL(tableDef, chunk.length);
 
@@ -70,7 +71,7 @@ function performUpsertOperation(
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunkArray(values, CHUNK_SIZE);
+  const allValues = chunkArray(values, getSqliteInsertChunkSize(tableDef));
   for (const chunk of allValues) {
     const upsertSQL = buildInsertSQL(tableDef, chunk.length, {
       replace: true,
@@ -90,7 +91,7 @@ function performDeleteOperation(
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunkArray(values, CHUNK_SIZE);
+  const allValues = chunkArray(values, getSqliteDeleteChunkSize());
   for (const chunk of allValues) {
     const deleteSQL = buildDeleteSQL(tableDef.tableName, chunk.length);
     db.exec(deleteSQL, chunk);
@@ -454,20 +455,15 @@ export class SqlDriver implements DBDriver {
     for (const indexName of Object.keys(tableDef.indexes)) {
       const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
       const q = this.db.prepare(
-        `SELECT id, data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`,
+        `SELECT data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`,
       );
 
       try {
-        for (const [id, data] of q.values([])) {
-          const row = parseSqliteStoredRow(String(data));
-          const sortKeyValue = getSqliteIndexSortKeyValue(
+        for (const chunk of chunkArray(q.values([]), CHUNK_SIZE)) {
+          performUpsertOperation(
+            this.db,
             tableDef,
-            indexName,
-            row,
-          );
-          this.db.exec(
-            `UPDATE ${tableDef.tableName} SET ${sortKeyColumn} = ? WHERE id = ? AND ${sortKeyColumn} IS NULL`,
-            [sortKeyValue, id],
+            chunk.map(([data]) => parseSqliteStoredRow(String(data))),
           );
         }
       } finally {

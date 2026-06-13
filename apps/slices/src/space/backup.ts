@@ -329,9 +329,20 @@ export const loadBackup = selector(function* (backup: Backup) {
   }
 
   const models = yield* getNewModels(backup);
+  const modelsByTable = new Map<
+    (typeof registeredSpaceSyncableTables)[number],
+    AnyModel[]
+  >();
 
   for (const model of models) {
-    yield* insert(appTypeTablesMap[model.type], [model]);
+    const table = appTypeTablesMap[model.type];
+    const tableModels = modelsByTable.get(table) || [];
+    tableModels.push(model);
+    modelsByTable.set(table, tableModels);
+  }
+
+  for (const [table, tableModels] of modelsByTable) {
+    yield* insert(table, tableModels);
   }
 });
 
