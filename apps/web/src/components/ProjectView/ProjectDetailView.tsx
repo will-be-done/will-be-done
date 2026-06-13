@@ -1,4 +1,4 @@
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
+import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb-lib";
 import { projectsSlice } from "@will-be-done/slices/space";
 import { ProjectTaskPanel } from "@/components/ProjectView/ProjectTaskPanel.tsx";
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";

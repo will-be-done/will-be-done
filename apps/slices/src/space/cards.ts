@@ -1,4 +1,4 @@
-import { action, selector } from "@will-be-done/hyperdb";
+import { action, selector } from "@will-be-done/hyperdb-lib";
 import { assertUnreachable } from "./utils";
 import { cardsTasksSlice } from ".";
 import { type Task, defaultTask, isTask } from "./cardsTasks";

@@ -2,13 +2,14 @@ import { isObjectType, shouldNeverHappen } from "../utils";
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { appSlice } from ".";
@@ -23,17 +24,23 @@ export type ChecklistParentType =
   | typeof taskTemplateParentType;
 export type ChecklistItemState = "todo" | "done";
 
-export type ChecklistItem = {
-  type: typeof checklistItemType;
-  id: string;
-  parentId: string;
-  parentType: ChecklistParentType;
-  orderToken: string;
-  state: ChecklistItemState;
-  content: string;
-  createdAt: number;
-  checkedAt: number | null;
-};
+export const checklistItemsTable = defineTable("checklist_items", {
+  type: v.literal(checklistItemType),
+  id: v.string(),
+  parentId: v.string(),
+  parentType: v.union(
+    v.literal(taskParentType),
+    v.literal(taskTemplateParentType),
+  ),
+  orderToken: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  content: v.string(),
+  createdAt: v.number(),
+  checkedAt: v.union(v.number(), v.null()),
+})
+  .index("byIds", ["id"])
+  .index("byParentOrder", ["parentType", "parentId", "orderToken"]);
+export type ChecklistItem = ExtractSchema<typeof checklistItemsTable>;
 
 export const isChecklistItem = isObjectType<ChecklistItem>(checklistItemType);
 
@@ -48,17 +55,6 @@ export const defaultChecklistItem: ChecklistItem = {
   createdAt: 0,
   checkedAt: null,
 };
-
-export const checklistItemsTable = table<ChecklistItem>(
-  "checklist_items",
-).withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-  byParentOrder: {
-    cols: ["parentType", "parentId", "orderToken"],
-    type: "btree",
-  },
-});
 registerSpaceSyncableTable(checklistItemsTable, checklistItemType);
 
 function isChecklistParentType(
@@ -68,11 +64,9 @@ function isChecklistParentType(
 }
 
 export const byId = selector(function* (id: string) {
-  const items = yield* runQuery(
-    selectFrom(checklistItemsTable, "byId")
+  const items = yield* selectFrom(checklistItemsTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
 
   return items[0] as ChecklistItem | undefined;
 });
@@ -85,11 +79,9 @@ export const children = selector(function* (
   parentId: string,
   parentType: ChecklistParentType,
 ) {
-  return yield* runQuery(
-    selectFrom(checklistItemsTable, "byParentOrder").where((q) =>
+  return yield* selectFrom(checklistItemsTable, "byParentOrder").where((q) =>
       q.eq("parentType", parentType).eq("parentId", parentId),
-    ),
-  );
+    );
 });
 
 export const childrenIds = selector(function* (
@@ -100,7 +92,7 @@ export const childrenIds = selector(function* (
 });
 
 export const all = selector(function* () {
-  return yield* runQuery(selectFrom(checklistItemsTable, "byIds"));
+  return yield* selectFrom(checklistItemsTable, "byIds");
 });
 
 export const siblings = selector(function* (
@@ -199,7 +191,7 @@ export const updateItem = action(function* (
   const itemInState = yield* byId(id);
   if (!itemInState) throw new Error("Checklist item not found");
 
-  yield* update(checklistItemsTable, [{ ...itemInState, ...item }]);
+  yield* upsert(checklistItemsTable, [{ ...itemInState, ...item }]);
 });
 
 export const updateContent = action(function* (id: string, content: string) {
@@ -232,7 +224,7 @@ export const toggleState = action(function* (id: string) {
     }
   }
 
-  yield* update(checklistItemsTable, [
+  yield* upsert(checklistItemsTable, [
     {
       ...item,
       state,

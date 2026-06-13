@@ -3,13 +3,14 @@ import { shouldNeverHappen } from "../utils";
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert as upsertRows,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { generateKeyPositionedBetween } from "./utils";
 import { registerSpaceSyncableTable } from "./syncMap";
@@ -27,12 +28,15 @@ import type { OrderableItem } from "./utils";
 // stashProjection.id = task.id (1:1 relationship)
 export const stashProjectionType = "stashProjection";
 
-export type StashProjection = {
-  type: typeof stashProjectionType;
-  id: string; // Same as task.id
-  orderToken: string;
-  createdAt: number;
-};
+export const stashProjectionsTable = defineTable("stash_projections", {
+  type: v.literal(stashProjectionType),
+  id: v.string(),
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byTokenOrdered", ["orderToken"]);
+export type StashProjection = ExtractSchema<typeof stashProjectionsTable>;
 
 export const isStashProjection =
   isObjectType<StashProjection>(stashProjectionType);
@@ -44,24 +48,11 @@ export const defaultStashProjection: StashProjection = {
   createdAt: 0,
 };
 
-// Table definition
-export const stashProjectionsTable = table<StashProjection>(
-  "stash_projections",
-).withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-  byTokenOrdered: {
-    cols: ["orderToken"],
-    type: "btree",
-  },
-});
 registerSpaceSyncableTable(stashProjectionsTable, stashProjectionType);
 
 // Selectors and actions
 export const allIds = selector(function* () {
-  const projections = yield* runQuery(
-    selectFrom(stashProjectionsTable, "byIds").where((q) => q),
-  );
+  const projections = yield* selectFrom(stashProjectionsTable, "byIds").where((q) => q);
   return projections.map((p) => p.id);
 });
 
@@ -70,20 +61,16 @@ export const allTaskIds = selector(function* () {
 });
 
 export const byId = selector(function* (id: string) {
-  const projections = yield* runQuery(
-    selectFrom(stashProjectionsTable, "byId")
+  const projections = yield* selectFrom(stashProjectionsTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return projections[0] as StashProjection | undefined;
 });
 
 export const byIds = selector(function* (ids: string[]) {
-  const projections = yield* runQuery(
-    selectFrom(stashProjectionsTable, "byId").where((q) =>
+  const projections = yield* selectFrom(stashProjectionsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
-    ),
-  );
+    );
   return projections as StashProjection[];
 });
 
@@ -93,9 +80,7 @@ export const byIdOrDefault = selector(function* (id: string) {
 
 // Get all stash projections ordered by token
 export const allOrdered = selector(function* () {
-  return (yield* runQuery(
-    selectFrom(stashProjectionsTable, "byTokenOrdered").where((q) => q),
-  )) as StashProjection[];
+  return (yield* selectFrom(stashProjectionsTable, "byTokenOrdered").where((q) => q)) as StashProjection[];
 });
 
 // Check if a task is in the stash
@@ -312,7 +297,7 @@ export const updateProjection = action(function* (
   const projInState = yield* byId(id);
   if (!projInState) throw new Error("Stash projection not found");
 
-  yield* update(stashProjectionsTable, [{ ...projInState, ...projection }]);
+  yield* upsertRows(stashProjectionsTable, [{ ...projInState, ...projection }]);
 });
 
 // Create or update stash projection for a task

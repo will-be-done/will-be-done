@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useDispatch } from "@will-be-done/hyperdb";
+import { useDispatch } from "@will-be-done/hyperdb-lib";
 import { backupSlice, parseTickTickCSV } from "@will-be-done/slices/space";
 import { Upload, Download, AlertTriangle, CheckCircle } from "lucide-react";
 import { trpcClient } from "@/lib/trpc";

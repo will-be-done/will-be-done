@@ -4,7 +4,7 @@ import { z } from "zod";
 import { parse } from "date-fns";
 import { GlobalLayout } from "@/components/Layout/GlobalLayout.tsx";
 import { Board } from "@/components/DaysBoard/DaysBoard.tsx";
-import { useSyncSelector } from "@will-be-done/hyperdb";
+import { useSyncSelector } from "@will-be-done/hyperdb-lib";
 import { projectsSlice } from "@will-be-done/slices/space";
 
 const filterParams = z.object({

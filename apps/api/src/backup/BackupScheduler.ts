@@ -1,5 +1,5 @@
-import type { DB } from "@will-be-done/hyperdb";
-import { select } from "@will-be-done/hyperdb";
+import type { DB } from "@will-be-done/hyperdb-lib";
+import { select } from "@will-be-done/hyperdb-lib";
 import type { BackupManager } from "./BackupManager";
 import type { BackupTier, BackupConfig } from "./types";
 import { ScheduledTimeCalculator } from "./ScheduledTimeCalculator";

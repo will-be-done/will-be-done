@@ -2,13 +2,14 @@ import { isObjectType } from "../utils";
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
 import {
@@ -20,7 +21,7 @@ import {
   projectCategoriesSlice,
   projectCategoryCardsSlice,
 } from ".";
-import { isTask, type Task, type TaskNature } from "./cardsTasks";
+import { isTask, type Task } from "./cardsTasks";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { AnyModelType, registerModelSlice } from "./maps";
 import { genUUIDV5 } from "../traits/";
@@ -30,19 +31,24 @@ import { isTaskProjection } from "./dailyListsProjections";
 // Type definitions
 export const taskTemplateType = "template";
 
-export type TaskTemplate = {
-  type: typeof taskTemplateType;
-  id: string;
-  title: string;
-  content?: string;
-  orderToken: string;
-  repeatRule: string;
-  repeatRuleDtStart: number;
-  createdAt: number;
-  lastGeneratedAt: number;
-  projectCategoryId: string;
-  nature?: TaskNature;
-};
+export const taskTemplatesTable = defineTable("task_templates", {
+  type: v.literal(taskTemplateType),
+  id: v.string(),
+  title: v.string(),
+  content: v.optional(v.string()),
+  orderToken: v.string(),
+  repeatRule: v.string(),
+  repeatRuleDtStart: v.number(),
+  createdAt: v.number(),
+  lastGeneratedAt: v.number(),
+  projectCategoryId: v.string(),
+  nature: v.optional(
+    v.union(v.literal("red"), v.literal("green"), v.literal("unknown")),
+  ),
+})
+  .index("byIds", ["id"])
+  .index("byCategoryIdOrderStates", ["projectCategoryId", "orderToken"]);
+export type TaskTemplate = ExtractSchema<typeof taskTemplatesTable>;
 
 export const isTaskTemplate = isObjectType<TaskTemplate>(taskTemplateType);
 
@@ -58,17 +64,6 @@ export const defaultTaskTemplate: TaskTemplate = {
   projectCategoryId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
 };
 
-// Table definition
-export const taskTemplatesTable = table<TaskTemplate>(
-  "task_templates",
-).withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-  byCategoryIdOrderStates: {
-    cols: ["projectCategoryId", "orderToken"],
-    type: "btree",
-  },
-});
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 
 // Template utility functions
@@ -196,34 +191,26 @@ function buildRecurrencePolicy(template: TaskTemplate): RecurrencePolicy {
 
 // Selectors
 export const allIds = selector(function* () {
-  const templates = yield* runQuery(
-    selectFrom(taskTemplatesTable, "byIds").where((q) => q),
-  );
+  const templates = yield* selectFrom(taskTemplatesTable, "byIds").where((q) => q);
   return templates.map((p) => p.id);
 });
 
 export const byId = selector(function* (id: string) {
-  const templates = yield* runQuery(
-    selectFrom(taskTemplatesTable, "byId")
+  const templates = yield* selectFrom(taskTemplatesTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return templates[0] as TaskTemplate | undefined;
 });
 
 export const byIdOrDefault = selector(function* (id: string) {
-  const templates = yield* runQuery(
-    selectFrom(taskTemplatesTable, "byId")
+  const templates = yield* selectFrom(taskTemplatesTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return (templates[0] as TaskTemplate | undefined) ?? defaultTaskTemplate;
 });
 
 export const all = selector(function* () {
-  const templates = yield* runQuery(
-    selectFrom(taskTemplatesTable, "byCategoryIdOrderStates"),
-  );
+  const templates = yield* selectFrom(taskTemplatesTable, "byCategoryIdOrderStates");
   return templates;
 });
 
@@ -380,7 +367,7 @@ export const updateTemplate = action(function* (
   const templateInState = yield* byId(id);
   if (!templateInState) throw new Error("Template not found");
 
-  yield* update(taskTemplatesTable, [{ ...templateInState, ...template }]);
+  yield* upsert(taskTemplatesTable, [{ ...templateInState, ...template }]);
   return templateInState;
 });
 

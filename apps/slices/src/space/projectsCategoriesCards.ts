@@ -1,4 +1,4 @@
-import { runQuery, selector, selectFrom, action } from "@will-be-done/hyperdb";
+import { selector, selectFrom, action } from "@will-be-done/hyperdb-lib";
 import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { dailyListsSlice } from ".";
@@ -50,19 +50,15 @@ export const childrenIdsExceptDailies = selector(function* (
 ): Generator<unknown, string[], unknown> {
   // TODO: use merge sort
   const exceptTaskIds = yield* dailyListsSlice.allTaskIds(exceptDailyListIds);
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+  const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId).eq("state", "todo"),
-    ),
-  );
+    );
 
   const finalTasks = tasks.filter((task) => !exceptTaskIds.has(task.id));
 
-  const templates = yield* runQuery(
-    selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
+  const templates = yield* selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId),
-    ),
-  );
+    );
 
   const allCards = [...finalTasks, ...templates];
 
@@ -82,17 +78,13 @@ export const childrenIdsExceptDailies = selector(function* (
 
 export const children = selector(function* (projectCategoryId: string) {
   // TODO: use merge sort
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+  const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId).eq("state", "todo"),
-    ),
-  );
+    );
 
-  const templates = yield* runQuery(
-    selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
+  const templates = yield* selectFrom(taskTemplatesTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId),
-    ),
-  );
+    );
 
   const allCards = [...tasks, ...templates];
 
@@ -114,11 +106,9 @@ export const cardsForDisplay = selector(function* (
 ): Generator<unknown, CardForDisplay[], unknown> {
   const categoryIds = [...new Set(cards.map((card) => card.projectCategoryId))];
   const categories = categoryIds.length
-    ? yield* runQuery(
-        selectFrom(projectCategoriesTable, "byId").where((q) =>
+    ? yield* selectFrom(projectCategoriesTable, "byId").where((q) =>
           categoryIds.map((id) => q.eq("id", id)),
-        ),
-      )
+        )
     : [];
   const categoryMap = new Map(
     (categories as ProjectCategory[]).map((category) => [
@@ -131,11 +121,9 @@ export const cardsForDisplay = selector(function* (
     ...new Set((categories as ProjectCategory[]).map((c) => c.projectId)),
   ];
   const projects = projectIds.length
-    ? yield* runQuery(
-        selectFrom(projectsTable, "byId").where((q) =>
+    ? yield* selectFrom(projectsTable, "byId").where((q) =>
           projectIds.map((id) => q.eq("id", id)),
-        ),
-      )
+        )
     : [];
   const projectMap = new Map(
     (projects as Project[]).map((project) => [project.id, project]),
@@ -143,11 +131,9 @@ export const cardsForDisplay = selector(function* (
 
   const cardIds = cards.map((card) => card.id);
   const projections = cardIds.length
-    ? yield* runQuery(
-        selectFrom(taskProjectionsTable, "byId").where((q) =>
+    ? yield* selectFrom(taskProjectionsTable, "byId").where((q) =>
           cardIds.map((id) => q.eq("id", id)),
-        ),
-      )
+        )
     : [];
   const projectionMap = new Map(
     (projections as TaskProjection[]).map((projection) => [
@@ -164,11 +150,9 @@ export const cardsForDisplay = selector(function* (
     ),
   ];
   const dailyLists = dailyListIds.length
-    ? yield* runQuery(
-        selectFrom(dailyListsTable, "byId").where((q) =>
+    ? yield* selectFrom(dailyListsTable, "byId").where((q) =>
           dailyListIds.map((id) => q.eq("id", id)),
-        ),
-      )
+        )
     : [];
   const dailyListMap = new Map(
     (dailyLists as DailyList[]).map((dailyList) => [dailyList.id, dailyList]),
@@ -230,11 +214,9 @@ export const childrenIds = selector(function* (projectCategoryId: string) {
 });
 
 export const doneChildrenIds = selector(function* (projectCategoryId: string) {
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+  const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId).eq("state", "done"),
-    ),
-  );
+    );
 
   return tasks
     .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
@@ -244,11 +226,9 @@ export const doneChildrenIds = selector(function* (projectCategoryId: string) {
 export const doneChildrenForDisplay = selector(function* (
   projectCategoryId: string,
 ) {
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
+  const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId).eq("state", "done"),
-    ),
-  );
+    );
   const cards = (tasks as Task[]).sort(
     (a, b) => b.lastToggledAt - a.lastToggledAt,
   );

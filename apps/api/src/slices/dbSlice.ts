@@ -1,29 +1,25 @@
 import {
-  runQuery,
-  table,
+  defineTable,
+  type ExtractSchema,
   selectFrom,
   selector,
   action,
   insert,
-} from "@will-be-done/hyperdb";
+  v,
+} from "@will-be-done/hyperdb-lib";
 
-export type Db = {
-  id: string;
-  type: "user" | "space";
-  userId: string;
-};
-
-export const dbsTable = table<Db>("dbs").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIdTypes: { cols: ["id", "type"], type: "btree" },
-});
+export const dbsTable = defineTable("dbs", {
+  id: v.string(),
+  type: v.union(v.literal("user"), v.literal("space")),
+  userId: v.string(),
+})
+  .index("byIdTypes", ["id", "type"]);
+export type Db = ExtractSchema<typeof dbsTable>;
 
 const getById = selector(function* (id: string, type: "user" | "space") {
-  const dbs = yield* runQuery(
-    selectFrom(dbsTable, "byIdTypes").where((q) =>
+  const dbs = yield* selectFrom(dbsTable, "byIdTypes").where((q) =>
       q.eq("id", id).eq("type", type),
-    ),
-  );
+    );
 
   return dbs[0] as Db | undefined;
 });

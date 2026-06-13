@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import { useDispatch } from "@will-be-done/hyperdb";
+import { useDispatch } from "@will-be-done/hyperdb-lib";
 import {
   dailyListsSlice,
   dailyListsProjectionsSlice,

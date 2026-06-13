@@ -20,7 +20,7 @@ import {
   stashProjectionType,
   stashType,
 } from "@will-be-done/slices/space";
-import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
+import { select, useDB, useDispatch } from "@will-be-done/hyperdb-lib";
 import { FocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   getDOMSiblings,

@@ -858,15 +858,15 @@ const identifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const formatIdentifier = (identifier: string): string =>
   identifierPattern.test(identifier)
     ? identifier
-    : `"${identifier.replaceAll('"', '""')}"`;
+    : `"${identifier.replace(/"/g, '""')}"`;
 
 const formatLiteral = (value: unknown): string => {
-  if (typeof value === "string") return `'${value.replaceAll("'", "''")}'`;
+  if (typeof value === "string") return `'${value.replace(/'/g, "''")}'`;
   if (typeof value === "number")
     return Number.isFinite(value) ? String(value) : "NULL";
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
   if (value === null) return "NULL";
-  return `'${safeSerialize(value).text.replaceAll("'", "''")}'`;
+  return `'${safeSerialize(value).text.replace(/'/g, "''")}'`;
 };
 
 const formatWhereClause = (

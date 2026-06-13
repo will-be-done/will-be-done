@@ -2,12 +2,13 @@ import { isObjectType } from "../utils";
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-} from "@will-be-done/hyperdb";
+  v,
+} from "@will-be-done/hyperdb-lib";
 import type { OrderableItem } from "./utils";
 import { getDMY } from "./utils";
 import { appSlice } from ".";
@@ -26,11 +27,14 @@ import { genUUIDV5 } from "../traits";
 // Type definitions
 export const dailyListType = "dailyList";
 
-export type DailyList = {
-  type: typeof dailyListType;
-  id: string;
-  date: string;
-};
+export const dailyListsTable = defineTable("daily_lists", {
+  type: v.literal(dailyListType),
+  id: v.string(),
+  date: v.string(),
+})
+  .index("byIds", ["id"])
+  .index("byDate", ["date"], { type: "hash" });
+export type DailyList = ExtractSchema<typeof dailyListsTable>;
 
 export const isDailyList = isObjectType<DailyList>(dailyListType);
 
@@ -40,38 +44,26 @@ export const defaultDailyList: DailyList = {
   date: "",
 };
 
-// Table definition
-export const dailyListsTable = table<DailyList>("daily_lists").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-  byDate: { cols: ["date"], type: "hash" },
-});
 registerSpaceSyncableTable(dailyListsTable, dailyListType);
 
 // Selectors and actions
 export const allIds = selector(function* () {
-  const dailyLists = yield* runQuery(
-    selectFrom(dailyListsTable, "byIds").where((q) => q),
-  );
+  const dailyLists = yield* selectFrom(dailyListsTable, "byIds").where((q) => q);
 
   return dailyLists.map((p) => p.id);
 });
 
 export const byId = selector(function* (id: string) {
-  const dailyLists = yield* runQuery(
-    selectFrom(dailyListsTable, "byId")
+  const dailyLists = yield* selectFrom(dailyListsTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return dailyLists[0] as DailyList | undefined;
 });
 
 export const byIds = selector(function* (ids: string[]) {
-  const dailyLists = yield* runQuery(
-    selectFrom(dailyListsTable, "byId").where((q) =>
+  const dailyLists = yield* selectFrom(dailyListsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
-    ),
-  );
+    );
   return dailyLists as DailyList[];
 });
 
@@ -80,11 +72,9 @@ export const byIdOrDefault = selector(function* (id: string) {
 });
 
 export const byDate = selector(function* (date: string) {
-  const dailyLists = yield* runQuery(
-    selectFrom(dailyListsTable, "byDate")
+  const dailyLists = yield* selectFrom(dailyListsTable, "byDate")
       .where((q) => q.eq("date", date))
-      .limit(1),
-  );
+      .limit(1);
   return dailyLists[0] as DailyList | undefined;
 });
 
@@ -116,8 +106,11 @@ export const allTaskIds = selector(function* (dailyListIds: string[]) {
 });
 
 export const dateIdsMap = selector(function* () {
-  const allDailyLists = yield* runQuery(selectFrom(dailyListsTable, "byIds"));
-  return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id])) as Record<string, string>;
+  const allDailyLists = yield* selectFrom(dailyListsTable, "byIds");
+  return Object.fromEntries(allDailyLists.map((d) => [d.date, d.id])) as Record<
+    string,
+    string
+  >;
 });
 
 export const idsByDates = selector(function* (dates: Date[]) {

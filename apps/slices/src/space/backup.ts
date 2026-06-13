@@ -2,10 +2,9 @@ import {
   action,
   deleteRows,
   insert,
-  runQuery,
   selectFrom,
   selector,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import { getDMY } from "./utils";
 import { cardsTasksSlice } from ".";
 import { type Task, taskType } from "./cardsTasks";
@@ -322,7 +321,7 @@ const getNewModels = action(function* (backup: Backup) {
 
 export const loadBackup = selector(function* (backup: Backup) {
   for (const table of registeredSpaceSyncableTables) {
-    const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
+    const allIds = (yield* selectFrom(table, "byIds")).map(
       (r) => r.id,
     );
 

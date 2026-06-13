@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useDispatch } from "@will-be-done/hyperdb";
+import { useDispatch } from "@will-be-done/hyperdb-lib";
 import { backupSlice } from "@will-be-done/slices/space";
 import { Download, Upload, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";

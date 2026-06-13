@@ -3,13 +3,14 @@ import { shouldNeverHappen } from "../utils";
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import type { OrderableItem } from "./utils";
@@ -32,15 +33,19 @@ import { genUUIDV5 } from "../traits";
 import { startOfDay } from "date-fns";
 
 export const projectType = "project";
-export type Project = {
-  type: typeof projectType;
-  id: string;
-  title: string;
-  icon: string;
-  isInbox: boolean;
-  orderToken: string;
-  createdAt: number;
-};
+export const projectsTable = defineTable("projects", {
+  type: v.literal(projectType),
+  id: v.string(),
+  title: v.string(),
+  icon: v.string(),
+  isInbox: v.boolean(),
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byOrderToken", ["orderToken"])
+  .index("byIsInbox", ["isInbox"], { type: "hash" });
+export type Project = ExtractSchema<typeof projectsTable>;
 
 export const isProject = isObjectType<Project>(projectType);
 
@@ -54,30 +59,19 @@ export const defaultProject: Project = {
   createdAt: 0,
 };
 
-// Table definition
-export const projectsTable = table<Project>("projects").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-  byOrderToken: { cols: ["orderToken"], type: "btree" },
-  byIsInbox: { cols: ["isInbox"], type: "hash" },
-});
 registerSpaceSyncableTable(projectsTable, projectType);
 
 // Selectors and actions
 export const allIds = selector(function* () {
-  const projects = yield* runQuery(
-    selectFrom(projectsTable, "byOrderToken").where((q) => q),
-  );
+  const projects = yield* selectFrom(projectsTable, "byOrderToken").where((q) => q);
 
   return projects.map((p) => p.id);
 });
 
 export const byId = selector(function* (id: string) {
-  const projects = yield* runQuery(
-    selectFrom(projectsTable, "byId")
+  const projects = yield* selectFrom(projectsTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return projects[0] as Project | undefined;
 });
 
@@ -368,7 +362,7 @@ export const updateProject = action(function* (
   const projectInState = yield* byId(id);
   if (!projectInState) throw new Error("Project not found");
 
-  yield* update(projectsTable, [{ ...projectInState, ...project }]);
+  yield* upsert(projectsTable, [{ ...projectInState, ...project }]);
 });
 
 export const deleteProjects = action(function* (

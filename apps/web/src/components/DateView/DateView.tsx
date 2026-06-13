@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useDispatch, useSyncSelector, useSelect } from "@will-be-done/hyperdb";
+import { useDispatch, useSyncSelector, useSelect } from "@will-be-done/hyperdb-lib";
 import { flushSync } from "react-dom";
 import {
   dailyListsSlice,

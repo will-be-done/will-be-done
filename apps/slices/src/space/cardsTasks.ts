@@ -3,13 +3,14 @@ import { shouldNeverHappen } from "../utils";
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { appSlice } from ".";
@@ -25,24 +26,33 @@ import { projectCategoriesSlice } from ".";
 
 // Type definitions
 export const taskType = "task";
-type TaskState = "todo" | "done";
 
 export type TaskNature = "red" | "green" | "unknown";
 
-export type Task = {
-  type: typeof taskType;
-  id: string;
-  title: string;
-  content?: string;
-  state: TaskState;
-  projectCategoryId: string;
-  orderToken: string;
-  lastToggledAt: number;
-  nature?: TaskNature;
-  createdAt: number;
-  templateId: string | null;
-  templateDate: number | null;
-};
+export const tasksTable = defineTable("tasks", {
+  type: v.literal(taskType),
+  id: v.string(),
+  title: v.string(),
+  content: v.optional(v.string()),
+  state: v.union(v.literal("todo"), v.literal("done")),
+  projectCategoryId: v.string(),
+  orderToken: v.string(),
+  lastToggledAt: v.number(),
+  nature: v.optional(
+    v.union(v.literal("red"), v.literal("green"), v.literal("unknown")),
+  ),
+  createdAt: v.number(),
+  templateId: v.union(v.string(), v.null()),
+  templateDate: v.union(v.number(), v.null()),
+})
+  .index("byIds", ["id"])
+  .index("byCategoryIdOrderStates", [
+    "projectCategoryId",
+    "state",
+    "orderToken",
+  ])
+  .index("byTemplateId", ["templateId"], { type: "hash" });
+export type Task = ExtractSchema<typeof tasksTable>;
 
 export const isTask = isObjectType<Task>(taskType);
 
@@ -60,28 +70,13 @@ export const defaultTask: Task = {
   templateDate: null,
 };
 
-// Table definition
-export const tasksTable = table<Task>("tasks").withIndexes({
-  byIds: { cols: ["id"], type: "btree" },
-  byId: { cols: ["id"], type: "hash" },
-  byCategoryIdOrderStates: {
-    cols: ["projectCategoryId", "state", "orderToken"],
-    type: "btree",
-  },
-  byTemplateId: {
-    cols: ["templateId"],
-    type: "hash",
-  },
-});
 registerSpaceSyncableTable(tasksTable, taskType);
 
 // Selectors and actions
 export const byId = selector(function* (id: string) {
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byId")
+  const tasks = yield* selectFrom(tasksTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
 
   return tasks[0] as Task | undefined;
 });
@@ -95,19 +90,15 @@ export const byIdOrDefault = selector(function* (id: string) {
 });
 
 export const taskIdsOfTemplateId = selector(function* (ids: string[]) {
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byTemplateId").where((q) =>
+  const tasks = yield* selectFrom(tasksTable, "byTemplateId").where((q) =>
       ids.map((id) => q.eq("templateId", id)),
-    ),
-  );
+    );
 
   return tasks.map((t) => t.id);
 });
 
 export const all = selector(function* () {
-  const tasks = yield* runQuery(
-    selectFrom(tasksTable, "byCategoryIdOrderStates"),
-  );
+  const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates");
   return tasks;
 });
 
@@ -123,7 +114,7 @@ export const updateTask = action(function* (id: string, task: Partial<Task>) {
   const taskInState = yield* byId(id);
   if (!taskInState) throw new Error("Task not found");
 
-  yield* update(tasksTable, [{ ...taskInState, ...task }]);
+  yield* upsert(tasksTable, [{ ...taskInState, ...task }]);
 });
 
 export const createTask = action(function* (
@@ -267,7 +258,7 @@ export const moveToProject = action(function* (
   const firstCategory = yield* projectCategoriesSlice.firstChild(projectId);
   if (!firstCategory) throw new Error("No categories found");
 
-  yield* update(tasksTable, [
+  yield* upsert(tasksTable, [
     {
       ...task,
       projectCategoryId: firstCategory.id,
@@ -279,7 +270,7 @@ export const toggleState = action(function* (taskId: string) {
   const task = yield* byId(taskId);
   if (!task) throw new Error("Task not found");
 
-  yield* update(tasksTable, [
+  yield* upsert(tasksTable, [
     {
       ...task,
       state: task.state === "todo" ? "done" : "todo",

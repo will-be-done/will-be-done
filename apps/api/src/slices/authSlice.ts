@@ -1,63 +1,52 @@
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-} from "@will-be-done/hyperdb";
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { uuidv7 } from "uuidv7";
 
-export type User = {
-  id: string;
-  email: string;
-  password: string;
-  createdAt: string;
-  updatedAt: string;
-};
+export const usersTable = defineTable("users", {
+  id: v.string(),
+  email: v.string(),
+  password: v.string(),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+})
+  .index("byIds", ["id"])
+  .index("byEmail", ["email"]);
+export type User = ExtractSchema<typeof usersTable>;
 
-export const usersTable = table<User>("users").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-  byEmail: { cols: ["email"], type: "btree" },
-});
-
-export type Token = {
-  id: string;
-  userId: string;
-  createdAt: string;
-};
-
-export const tokensTable = table<Token>("tokens").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byUserId: { cols: ["userId"], type: "btree" },
-});
+export const tokensTable = defineTable("tokens", {
+  id: v.string(),
+  userId: v.string(),
+  createdAt: v.string(),
+})
+  .index("byUserId", ["userId"]);
+export type Token = ExtractSchema<typeof tokensTable>;
 
 const getUserByEmail = selector(function* (email: string) {
-  const users = yield* runQuery(
-    selectFrom(usersTable, "byEmail")
+  const users = yield* selectFrom(usersTable, "byEmail")
       .where((q) => q.eq("email", email))
-      .limit(1),
-  );
+      .limit(1);
   return users[0] as User | undefined;
 });
 
 const getUserById = selector(function* (id: string) {
-  const users = yield* runQuery(
-    selectFrom(usersTable, "byId")
+  const users = yield* selectFrom(usersTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return users[0] as User | undefined;
 });
 
 const getTokenById = selector(function* (id: string) {
-  const tokens = yield* runQuery(
-    selectFrom(tokensTable, "byId")
+  const tokens = yield* selectFrom(tokensTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return tokens[0] as Token | undefined;
 });
 
@@ -123,8 +112,8 @@ const revokeToken = action(function* (tokenId: string) {
 });
 
 const revokeAllUserTokens = action(function* (userId: string) {
-  const tokens = yield* runQuery(
-    selectFrom(tokensTable, "byUserId").where((q) => q.eq("userId", userId)),
+  const tokens = yield* selectFrom(tokensTable, "byUserId").where((q) =>
+    q.eq("userId", userId),
   );
   const tokenIds = tokens.map((t) => t.id);
   if (tokenIds.length > 0) {

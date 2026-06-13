@@ -1,91 +1,94 @@
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { uuidv7 } from "uuidv7";
 
 export type BackupStatus = "pending" | "running" | "completed" | "failed";
 export type BackupTier = "hourly" | "daily" | "weekly" | "monthly";
 
-export type BackupState = {
-  id: string;
-  tier: BackupTier;
-  status: BackupStatus;
-  scheduledAt: string; // Deterministic scheduled time for this backup window
-  startedAt: string | null;
-  completedAt: string | null;
-  totalSizeBytes: number;
-  durationMs: number | null;
-  error: string | null;
-};
+const backupTierValidator = v.union(
+  v.literal("hourly"),
+  v.literal("daily"),
+  v.literal("weekly"),
+  v.literal("monthly"),
+);
 
-export type BackupFile = {
-  id: string;
-  backupId: string;
-  tier: BackupTier;
-  scheduledAt: string; // Same as parent backup's scheduledAt
-  fileName: string; // e.g., "main.sqlite"
-  s3Key: string; // Full S3 path
-  sizeBytes: number;
-  compressedSizeBytes: number;
-  vacuumDurationMs: number;
-  uploadDurationMs: number;
-  compressionDurationMs: number;
-  createdAt: string;
-};
+const backupStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("running"),
+  v.literal("completed"),
+  v.literal("failed"),
+);
 
-export const backupStateTable = table<BackupState>("backup_state").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byTier: { cols: ["tier"], type: "btree" },
-  byScheduledAt: { cols: ["scheduledAt"], type: "btree" },
-  byTierScheduledAt: { cols: ["tier", "scheduledAt"], type: "btree" },
-});
+const nullableString = () => v.union(v.string(), v.null());
+const nullableNumber = () => v.union(v.number(), v.null());
 
-export const backupFileTable = table<BackupFile>("backup_file").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byBackupId: { cols: ["backupId"], type: "btree" },
-  byTierScheduledAt: { cols: ["tier", "scheduledAt"], type: "btree" },
-  byS3Key: { cols: ["s3Key"], type: "hash" },
-});
+export const backupStateTable = defineTable("backup_state", {
+  id: v.string(),
+  tier: backupTierValidator,
+  status: backupStatusValidator,
+  scheduledAt: v.string(),
+  startedAt: nullableString(),
+  completedAt: nullableString(),
+  totalSizeBytes: v.number(),
+  durationMs: nullableNumber(),
+  error: nullableString(),
+})
+  .index("byTier", ["tier"])
+  .index("byScheduledAt", ["scheduledAt"])
+  .index("byTierScheduledAt", ["tier", "scheduledAt"]);
+export type BackupState = ExtractSchema<typeof backupStateTable>;
 
-export type BackupTierState = {
-  id: string;
-  tier: BackupTier;
-  lastScheduledTime: string | null; // Last scheduled window
-  nextScheduledTime: string | null; // Next scheduled window
-  lastCompletedAt: string | null; // Actual completion time
-  consecutiveFailures: number;
-  isBackupInProgress: boolean; // Prevent concurrent backups
-};
+export const backupFileTable = defineTable("backup_file", {
+  id: v.string(),
+  backupId: v.string(),
+  tier: backupTierValidator,
+  scheduledAt: v.string(),
+  fileName: v.string(),
+  s3Key: v.string(),
+  sizeBytes: v.number(),
+  compressedSizeBytes: v.number(),
+  vacuumDurationMs: v.number(),
+  uploadDurationMs: v.number(),
+  compressionDurationMs: v.number(),
+  createdAt: v.string(),
+})
+  .index("byBackupId", ["backupId"])
+  .index("byTierScheduledAt", ["tier", "scheduledAt"])
+  .index("byS3Key", ["s3Key"], { type: "hash" });
+export type BackupFile = ExtractSchema<typeof backupFileTable>;
 
-export const backupTierStateTable = table<BackupTierState>(
-  "backup_tier_state",
-).withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byTier: { cols: ["tier"], type: "hash" },
-});
+export const backupTierStateTable = defineTable("backup_tier_state", {
+  id: v.string(),
+  tier: backupTierValidator,
+  lastScheduledTime: nullableString(),
+  nextScheduledTime: nullableString(),
+  lastCompletedAt: nullableString(),
+  consecutiveFailures: v.number(),
+  isBackupInProgress: v.boolean(),
+})
+  .index("byTier", ["tier"], { type: "hash" });
+export type BackupTierState = ExtractSchema<typeof backupTierStateTable>;
 
 const getBackupById = selector(function* (id: string) {
-  const backups = yield* runQuery(
-    selectFrom(backupStateTable, "byId")
+  const backups = yield* selectFrom(backupStateTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return backups[0] as BackupState | undefined;
 });
 
 const getBackupsByTier = selector(function* (tier: BackupTier) {
-  const backups = yield* runQuery(
-    selectFrom(backupStateTable, "byTierScheduledAt").where((q) =>
+  const backups = yield* selectFrom(backupStateTable, "byTierScheduledAt").where((q) =>
       q.eq("tier", tier),
-    ),
-  );
+    );
   // BTree index returns in ascending order, reverse for descending
   return backups.reverse() as BackupState[];
 });
@@ -96,11 +99,9 @@ const getCompletedBackupsByTier = selector(function* (tier: BackupTier) {
 });
 
 const getTierState = selector(function* (tier: BackupTier) {
-  const states = yield* runQuery(
-    selectFrom(backupTierStateTable, "byTier")
+  const states = yield* selectFrom(backupTierStateTable, "byTier")
       .where((q) => q.eq("tier", tier))
-      .limit(1),
-  );
+      .limit(1);
   return states[0] as BackupTierState | undefined;
 });
 
@@ -130,7 +131,7 @@ const startBackup = action(function* (id: string) {
     throw new Error(`Backup ${id} not found`);
   }
 
-  yield* update(backupStateTable, [
+  yield* upsert(backupStateTable, [
     {
       ...backup,
       status: "running",
@@ -149,7 +150,7 @@ const completeBackup = action(function* (
     throw new Error(`Backup ${id} not found`);
   }
 
-  yield* update(backupStateTable, [
+  yield* upsert(backupStateTable, [
     {
       ...backup,
       status: "completed",
@@ -166,7 +167,7 @@ const failBackup = action(function* (id: string, error: string) {
     throw new Error(`Backup ${id} not found`);
   }
 
-  yield* update(backupStateTable, [
+  yield* upsert(backupStateTable, [
     {
       ...backup,
       status: "failed",
@@ -183,7 +184,7 @@ const updateTierState = action(function* (
   const existing = yield* getTierState(tier);
 
   if (existing) {
-    yield* update(backupTierStateTable, [{ ...existing, ...updates }]);
+    yield* upsert(backupTierStateTable, [{ ...existing, ...updates }]);
   } else {
     // Create new tier state
     const tierState: BackupTierState = {
@@ -235,11 +236,9 @@ const createBackupFile = action(function* (
 });
 
 const getBackupFiles = selector(function* (backupId: string) {
-  const files = yield* runQuery(
-    selectFrom(backupFileTable, "byBackupId").where((q) =>
+  const files = yield* selectFrom(backupFileTable, "byBackupId").where((q) =>
       q.eq("backupId", backupId),
-    ),
-  );
+    );
   return files as BackupFile[];
 });
 
@@ -247,11 +246,9 @@ const getBackupFilesByTierAndTime = selector(function* (
   tier: BackupTier,
   scheduledAt: string,
 ) {
-  const files = yield* runQuery(
-    selectFrom(backupFileTable, "byTierScheduledAt").where((q) =>
+  const files = yield* selectFrom(backupFileTable, "byTierScheduledAt").where((q) =>
       q.eq("tier", tier).eq("scheduledAt", scheduledAt),
-    ),
-  );
+    );
   return files as BackupFile[];
 });
 

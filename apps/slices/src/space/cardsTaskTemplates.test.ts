@@ -6,10 +6,10 @@ import {
   runSelector,
   insert,
   action,
-  runQuery,
   selectFrom,
-} from "@will-be-done/hyperdb";
-import { BptreeInmemDriver } from "@will-be-done/hyperdb/src/hyperdb/drivers/bptree-inmem-driver";
+  BptreeInmemDriver,
+} from "@will-be-done/hyperdb-lib";
+
 import { tasksTable, type Task } from "./cardsTasks";
 import {
   taskTemplatesTable,
@@ -466,21 +466,21 @@ describe("cardsTaskTemplates timezone consistency", () => {
     const tasks = runSelector<Task[]>(
       db,
       function* () {
-        return yield* runQuery(selectFrom(tasksTable, "byIds"));
+        return yield* selectFrom(tasksTable, "byIds");
       },
       [],
     );
     const projections = runSelector<TaskProjection[]>(
       db,
       function* () {
-        return yield* runQuery(selectFrom(taskProjectionsTable, "byIds"));
+        return yield* selectFrom(taskProjectionsTable, "byIds");
       },
       [],
     );
     const dailyLists = runSelector<DailyList[]>(
       db,
       function* () {
-        return yield* runQuery(selectFrom(dailyListsTable, "byIds"));
+        return yield* selectFrom(dailyListsTable, "byIds");
       },
       [],
     );

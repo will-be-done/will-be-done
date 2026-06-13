@@ -4,15 +4,16 @@ import {
   execSync,
   syncDispatch,
   runSelector,
-  runQuery,
   insert,
   action,
   selector,
   selectFrom,
-  table,
+  defineTable,
   Row,
-} from "@will-be-done/hyperdb";
-import { BptreeInmemDriver } from "@will-be-done/hyperdb/src/hyperdb/drivers/bptree-inmem-driver";
+  BptreeInmemDriver,
+  v,
+} from "@will-be-done/hyperdb-lib";
+
 import {
   changesSlice,
   changesTable,
@@ -21,14 +22,12 @@ import {
 } from "./changes";
 
 // A simple test table
-const testTable = table<{
-  type: string;
-  id: string;
-  title: string;
-  orderToken: string;
-  createdAt: number;
-}>("testItems").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
+const testTable = defineTable("testItems", {
+  type: v.string(),
+  id: v.string(),
+  title: v.string(),
+  orderToken: v.string(),
+  createdAt: v.number(),
 });
 
 function createDB() {
@@ -57,7 +56,13 @@ const registeredTables: Record<string, typeof testTable> = {
 /** Insert a row + its change record into a DB (simulates a local create). */
 function localCreate(
   db: DB,
-  row: { type: string; id: string; title: string; orderToken: string; createdAt: number },
+  row: {
+    type: string;
+    id: string;
+    title: string;
+    orderToken: string;
+    createdAt: number;
+  },
   createdAtClock: string,
 ) {
   syncDispatch(
@@ -130,22 +135,16 @@ function makeIncomingCreate(
 }
 
 const getRowSelector = selector(function* (id: string) {
-  const rows = yield* runQuery(
-    selectFrom(testTable, "byId")
+  const rows = yield* selectFrom(testTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return rows[0] as Row | undefined;
 });
 
 const getChangeSelector = selector(function* (entityId: string) {
-  const changes = yield* runQuery(
-    selectFrom(changesTable, "byEntityIdAndTableName")
-      .where((q) =>
-        q.eq("entityId", entityId).eq("tableName", "testItems"),
-      )
-      .limit(1),
-  );
+  const changes = yield* selectFrom(changesTable, "byEntityIdAndTableName")
+      .where((q) => q.eq("entityId", entityId).eq("tableName", "testItems"))
+      .limit(1);
   return changes[0] as Change | undefined;
 });
 
@@ -178,7 +177,13 @@ describe("first-creator-wins merge", () => {
     // Client1 creates at t=10 (earlier)
     localCreate(
       db,
-      { type: "task", id: entityId, title: "client1-title", orderToken: "a", createdAt: 100 },
+      {
+        type: "task",
+        id: entityId,
+        title: "client1-title",
+        orderToken: "a",
+        createdAt: 100,
+      },
       "0000000010-0001-client1",
     );
 
@@ -213,7 +218,13 @@ describe("first-creator-wins merge", () => {
     // Client2 creates locally at t=20 (later)
     localCreate(
       db,
-      { type: "task", id: entityId, title: "client2-title", orderToken: "a", createdAt: 100 },
+      {
+        type: "task",
+        id: entityId,
+        title: "client2-title",
+        orderToken: "a",
+        createdAt: 100,
+      },
       "0000000020-0001-client2",
     );
 
@@ -247,7 +258,13 @@ describe("first-creator-wins merge", () => {
     // Client1 creates at t=10 (earlier)
     localCreate(
       db,
-      { type: "task", id: entityId, title: "client1-title", orderToken: "a", createdAt: 100 },
+      {
+        type: "task",
+        id: entityId,
+        title: "client1-title",
+        orderToken: "a",
+        createdAt: 100,
+      },
       "0000000010-0001-client1",
     );
 
@@ -308,7 +325,13 @@ describe("first-creator-wins merge", () => {
     // Client1 creates at t=10 (earlier)
     localCreate(
       db,
-      { type: "task", id: entityId, title: "client1-title", orderToken: "a", createdAt: 100 },
+      {
+        type: "task",
+        id: entityId,
+        title: "client1-title",
+        orderToken: "a",
+        createdAt: 100,
+      },
       "0000000010-0001-client1",
     );
 
@@ -394,7 +417,13 @@ describe("first-creator-wins merge", () => {
     // Both sides share the same entity with the same createdAt (synced earlier)
     localCreate(
       db,
-      { type: "task", id: entityId, title: "original", orderToken: "a", createdAt: 100 },
+      {
+        type: "task",
+        id: entityId,
+        title: "original",
+        orderToken: "a",
+        createdAt: 100,
+      },
       sharedCreatedAt,
     );
 

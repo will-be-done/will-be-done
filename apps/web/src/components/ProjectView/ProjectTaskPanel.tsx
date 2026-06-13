@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb-lib";
 import { flushSync } from "react-dom";
 import {
   appSlice,

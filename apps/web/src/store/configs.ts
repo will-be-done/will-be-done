@@ -8,7 +8,7 @@ import {
   registeredSpaceSyncableTables,
   type Task,
 } from "@will-be-done/slices/space";
-import { HyperDB, runSelector, syncDispatch } from "@will-be-done/hyperdb";
+import { HyperDB, runSelector, syncDispatch } from "@will-be-done/hyperdb-lib";
 import {
   registeredUserSyncableTableNameMap,
   registeredUserSyncableTables,

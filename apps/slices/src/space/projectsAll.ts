@@ -1,14 +1,14 @@
-import { runQuery, selectFrom, selector } from "@will-be-done/hyperdb";
+import { selectFrom, selector } from "@will-be-done/hyperdb-lib";
 import { projectsSlice } from ".";
 import { type Project, projectsTable, defaultProject } from "./projects";
 
 export const all = selector(function* () {
-  const projects = yield* runQuery(selectFrom(projectsTable, "byOrderToken"));
+  const projects = yield* selectFrom(projectsTable, "byOrderToken");
   return projects;
 });
 
 export const allSorted = selector(function* () {
-  const projects = yield* runQuery(selectFrom(projectsTable, "byOrderToken"));
+  const projects = yield* selectFrom(projectsTable, "byOrderToken");
   return projects;
 });
 

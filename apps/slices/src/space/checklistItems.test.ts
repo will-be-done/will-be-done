@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DB, execSync, runSelector, syncDispatch } from "@will-be-done/hyperdb";
-import { BptreeInmemDriver } from "@will-be-done/hyperdb/src/hyperdb/drivers/bptree-inmem-driver";
+import {
+  DB,
+  execSync,
+  runSelector,
+  syncDispatch,
+  BptreeInmemDriver,
+} from "@will-be-done/hyperdb-lib";
+
 import { dbIdTrait } from "../traits";
 import {
   checklistItemsSlice,

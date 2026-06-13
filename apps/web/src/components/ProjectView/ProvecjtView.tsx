@@ -25,7 +25,7 @@ import {
   useDB,
   useDispatch,
   useSyncSelector,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";

@@ -23,7 +23,7 @@ import {
 import TextareaAutosize from "react-textarea-autosize";
 import clsx from "clsx";
 import { GripVertical, Plus } from "lucide-react";
-import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb-lib";
 import {
   appSlice,
   checklistItemsSlice,

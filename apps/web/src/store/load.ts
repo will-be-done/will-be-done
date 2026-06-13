@@ -8,14 +8,13 @@ import {
   execSync,
   HyperDB,
   insert,
-  runQuery,
   runSelectorAsync,
   selectFrom,
   type Op,
   SubscribableDB,
   syncDispatch,
   TableDefinition,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import AwaitLock from "await-lock";
 import {
   changesSlice,
@@ -31,7 +30,7 @@ import {
   createLeaderElection,
   LeaderElector,
 } from "broadcast-channel";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
+import { noop } from "@will-be-done/hyperdb-lib";
 import { trpcClient } from "@/lib/trpc.ts";
 import { State } from "@/utils/State.ts";
 import { AutoBackuper } from "./autoBackup.ts";
@@ -155,13 +154,26 @@ export const initDbStore = async (
 
       yield* noop();
     });
-    syncSubDb.afterUpdate(function* (db, table, traits, ops) {
+    syncSubDb.afterUpsert(function* (db, table, traits, ops) {
       if (table === changesTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
 
       for (const op of ops) {
+        if (!op.oldValue) {
+          syncDispatch(
+            db,
+            changesSlice.insertChangeFromInsert(
+              op.table,
+              op.newValue,
+              getClientId(dbName),
+              nextClock,
+            ),
+          );
+          continue;
+        }
+
         syncDispatch(
           db,
           changesSlice.insertChangeFromUpdate(
@@ -202,7 +214,7 @@ export const initDbStore = async (
 
     for (const table of syncConfig.syncableDBTables) {
       const res = await runSelectorAsync(asyncDB, function* () {
-        return yield* runQuery(selectFrom(table, "byIds"));
+        return yield* selectFrom(table, "byIds");
       });
 
       // no need to broadcast to sub db
@@ -260,17 +272,24 @@ export const initDbStore = async (
                 nextClock,
               ),
             );
-          } else if (op.type === "update") {
-            await execAsync(tx.update(op.table, [op.newValue]));
+          } else if (op.type === "upsert") {
+            await execAsync(tx.upsert(op.table, [op.newValue]));
             change = await asyncDispatch(
               tx,
-              changesSlice.insertChangeFromUpdate(
-                op.table,
-                op.oldValue,
-                op.newValue,
-                getClientId(dbName),
-                nextClock,
-              ),
+              op.oldValue
+                ? changesSlice.insertChangeFromUpdate(
+                    op.table,
+                    op.oldValue,
+                    op.newValue,
+                    getClientId(dbName),
+                    nextClock,
+                  )
+                : changesSlice.insertChangeFromInsert(
+                    op.table,
+                    op.newValue,
+                    getClientId(dbName),
+                    nextClock,
+                  ),
             );
           } else if (op.type === "delete") {
             await execAsync(tx.delete(op.table, [op.oldValue.id]));
@@ -291,7 +310,8 @@ export const initDbStore = async (
               changesByTable.set(tableName, []);
             }
 
-            const row = op.type === "delete" ? undefined : op.newValue;
+            const row =
+              op.type === "delete" ? undefined : (op.newValue as RowType);
             changesByTable.get(tableName)!.push({ row, change });
           }
         }

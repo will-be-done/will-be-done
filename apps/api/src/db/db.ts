@@ -6,11 +6,11 @@ import {
   SubscribableDB,
   syncDispatch,
   TableDefinition,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import path from "path";
 import { getEnvConfig } from "../env";
 import { changesSlice, changesTable } from "@will-be-done/slices/common";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
+import { noop } from "@will-be-done/hyperdb-lib";
 import { usersTable, tokensTable } from "../slices/authSlice";
 import { dbsTable } from "../slices/dbSlice";
 import {
@@ -153,13 +153,26 @@ export const getHyperDB = (dbConfig: DBConfig) => {
     yield* noop();
   });
 
-  hyperDB.afterUpdate(function* (db, table, traits, ops) {
+  hyperDB.afterUpsert(function* (db, table, traits, ops) {
     if (table === changesTable) return;
     if (traits.some((t) => t.type === "skip-sync")) {
       return;
     }
 
     for (const op of ops) {
+      if (!op.oldValue) {
+        syncDispatch(
+          db,
+          changesSlice.insertChangeFromInsert(
+            op.table,
+            op.newValue,
+            clientId,
+            nextClock,
+          ),
+        );
+        continue;
+      }
+
       syncDispatch(
         db,
         changesSlice.insertChangeFromUpdate(

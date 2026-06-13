@@ -3,7 +3,7 @@ import {
   asyncDispatch,
   DB,
   execAsync,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import {
   changesSlice,
   changesTable,

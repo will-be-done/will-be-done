@@ -57,7 +57,7 @@ import {
   getDMY,
   Project,
 } from "@will-be-done/slices/space";
-import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb";
+import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb-lib";
 import {
   buildFocusKey,
   focusTextareaAtEnd,

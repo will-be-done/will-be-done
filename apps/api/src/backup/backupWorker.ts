@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { DB, execSync, SqlDriver } from "@will-be-done/hyperdb";
+import { DB, execSync, SqlDriver } from "@will-be-done/hyperdb-lib";
 import path from "path";
 import fs from "fs";
 import {

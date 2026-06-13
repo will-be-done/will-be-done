@@ -12,9 +12,10 @@ import { Pencil, Plus, Trash2, LogOut } from "lucide-react";
 import { initDbStore } from "@/store/load";
 import {
   DBProvider,
+  type SubscribableDB,
   useDispatch,
   useSyncSelector,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import { spaceSlice } from "@will-be-done/slices/user";
 import { userDBConfig } from "@/store/configs";
 
@@ -306,7 +307,7 @@ function SpacePage() {
   const newStore = Route.useLoaderData();
 
   return (
-    <DBProvider value={newStore}>
+    <DBProvider value={newStore as SubscribableDB}>
       <SpacePageComponent />
     </DBProvider>
   );

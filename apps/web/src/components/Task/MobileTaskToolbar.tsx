@@ -1,4 +1,4 @@
-import { useDispatch } from "@will-be-done/hyperdb";
+import { useDispatch } from "@will-be-done/hyperdb-lib";
 import { Trash2, Info } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";

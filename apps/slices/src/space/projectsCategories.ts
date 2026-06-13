@@ -1,13 +1,14 @@
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { generateOrderTokenPositioned, OrderableItem } from "./utils";
 import { isObjectType } from "../utils";
 import { registerModelSlice, AnyModelType } from "./maps";
@@ -19,7 +20,7 @@ import { projectCategoryCardsSlice } from ".";
 import { cardsTasksSlice } from ".";
 import { cardsTaskTemplatesSlice } from ".";
 import { Task, isTask } from "./cardsTasks";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
+import { noop } from "@will-be-done/hyperdb-lib";
 import { appSlice } from ".";
 import { isTaskTemplate } from "./cardsTaskTemplates";
 import { cardsSlice } from ".";
@@ -29,28 +30,21 @@ import { genUUIDV5 } from "../traits";
 
 export const projectCategoryType = "projectCategory";
 
-export type ProjectCategory = {
-  type: typeof projectCategoryType;
-  id: string;
-  orderToken: string;
-  title: string;
-  projectId: string;
-  createdAt: number;
-};
+export const projectCategoriesTable = defineTable("project_categories", {
+  type: v.literal(projectCategoryType),
+  id: v.string(),
+  orderToken: v.string(),
+  title: v.string(),
+  projectId: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byProjectIdOrderToken", ["projectId", "orderToken"]);
+export type ProjectCategory = ExtractSchema<typeof projectCategoriesTable>;
 
 export const isProjectCategory =
   isObjectType<ProjectCategory>(projectCategoryType);
 
-export const projectCategoriesTable = table<ProjectCategory>(
-  "project_categories",
-).withIndexes({
-  byIds: { cols: ["id"], type: "btree" },
-  byId: { cols: ["id"], type: "hash" },
-  byProjectIdOrderToken: {
-    cols: ["projectId", "orderToken"],
-    type: "btree",
-  },
-});
 registerSpaceSyncableTable(projectCategoriesTable, projectCategoryType);
 
 export const defaultProjectCategory: ProjectCategory = {
@@ -63,11 +57,9 @@ export const defaultProjectCategory: ProjectCategory = {
 };
 
 export const byId = selector(function* (id: string) {
-  const tasks = yield* runQuery(
-    selectFrom(projectCategoriesTable, "byId")
+  const tasks = yield* selectFrom(projectCategoriesTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
 
   return tasks[0] as ProjectCategory | undefined;
 });
@@ -77,9 +69,7 @@ export const byIdOrDefault = selector(function* (id: string) {
 });
 
 export const all = selector(function* () {
-  const tasks = yield* runQuery(
-    selectFrom(projectCategoriesTable, "byProjectIdOrderToken"),
-  );
+  const tasks = yield* selectFrom(projectCategoriesTable, "byProjectIdOrderToken");
   return tasks;
 });
 
@@ -88,11 +78,9 @@ export const inboxCategoryId = selector(function* () {
 });
 
 export const byProjectIds = selector(function* (projectIds: string[]) {
-  const categories = yield* runQuery(
-    selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
+  const categories = yield* selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
       projectIds.map((id) => q.eq("projectId", id)),
-    ),
-  );
+    );
   return categories;
 });
 
@@ -136,7 +124,7 @@ export const updateCategory = action(function* (
   const categoryInState = yield* byId(categoryId);
   if (!categoryInState) throw new Error("Category not found");
 
-  yield* update(projectCategoriesTable, [{ ...categoryInState, ...category }]);
+  yield* upsert(projectCategoriesTable, [{ ...categoryInState, ...category }]);
 });
 
 export const siblings = selector(function* (categoryId: string) {
@@ -147,11 +135,9 @@ export const siblings = selector(function* (categoryId: string) {
       ProjectCategory | undefined,
     ];
 
-  const sortedProjectCategories = yield* runQuery(
-    selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
+  const sortedProjectCategories = yield* selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
       q.eq("projectId", item.projectId),
-    ),
-  );
+    );
 
   const index = sortedProjectCategories.findIndex((p) => p.id === categoryId);
 

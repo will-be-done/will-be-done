@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback } from "react";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSyncSelector } from "@will-be-done/hyperdb";
+import { useSyncSelector } from "@will-be-done/hyperdb-lib";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import {
   projectCategoryCardsSlice,

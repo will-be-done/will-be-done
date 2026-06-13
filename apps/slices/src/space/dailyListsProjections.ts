@@ -3,13 +3,14 @@ import { shouldNeverHappen } from "../utils";
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert as upsertRows,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { registerSpaceSyncableTable } from "./syncMap";
@@ -27,13 +28,17 @@ import { parse } from "date-fns";
 // projection.id = task.id (1:1 relationship)
 export const projectionType = "projection";
 
-export type TaskProjection = {
-  type: typeof projectionType;
-  id: string; // Same as task.id
-  orderToken: string;
-  dailyListId: string;
-  createdAt: number;
-};
+export const taskProjectionsTable = defineTable("task_projections", {
+  type: v.literal(projectionType),
+  id: v.string(),
+  orderToken: v.string(),
+  dailyListId: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byDailyListId", ["dailyListId"], { type: "hash" })
+  .index("byDailyListIdTokenOrdered", ["dailyListId", "orderToken"]);
+export type TaskProjection = ExtractSchema<typeof taskProjectionsTable>;
 
 export const isTaskProjection = isObjectType<TaskProjection>(projectionType);
 
@@ -45,43 +50,25 @@ export const defaultTaskProjection: TaskProjection = {
   createdAt: 0,
 };
 
-// Table definition
-export const taskProjectionsTable = table<TaskProjection>(
-  "task_projections",
-).withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-  byDailyListId: { cols: ["dailyListId"], type: "hash" },
-  byDailyListIdTokenOrdered: {
-    cols: ["dailyListId", "orderToken"],
-    type: "btree",
-  },
-});
 registerSpaceSyncableTable(taskProjectionsTable, projectionType);
 
 // Selectors and actions
 export const allIds = selector(function* () {
-  const projections = yield* runQuery(
-    selectFrom(taskProjectionsTable, "byIds").where((q) => q),
-  );
+  const projections = yield* selectFrom(taskProjectionsTable, "byIds").where((q) => q);
   return projections.map((p) => p.id);
 });
 
 export const byId = selector(function* (id: string) {
-  const projections = yield* runQuery(
-    selectFrom(taskProjectionsTable, "byId")
+  const projections = yield* selectFrom(taskProjectionsTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return projections[0] as TaskProjection | undefined;
 });
 
 export const byIds = selector(function* (ids: string[]) {
-  const projections = yield* runQuery(
-    selectFrom(taskProjectionsTable, "byId").where((q) =>
+  const projections = yield* selectFrom(taskProjectionsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
-    ),
-  );
+    );
   return projections as TaskProjection[];
 });
 
@@ -102,11 +89,9 @@ export const hasProjection = selector(function* (taskId: string) {
 
 // Get all projections for a daily list
 export const byDailyListId = selector(function* (dailyListId: string) {
-  return (yield* runQuery(
-    selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
+  return (yield* selectFrom(taskProjectionsTable, "byDailyListIdTokenOrdered").where((q) =>
       q.eq("dailyListId", dailyListId),
-    ),
-  )) as TaskProjection[];
+    )) as TaskProjection[];
 });
 
 // Get all task ids in a specific daily list (non-done, ordered)
@@ -132,11 +117,9 @@ export const childrenForDisplay = selector(function* (
   const projections = yield* byDailyListId(dailyListId);
   const projectionIds = projections.map((projection) => projection.id);
   const tasks = projectionIds.length
-    ? yield* runQuery(
-        selectFrom(tasksTable, "byId").where((q) =>
+    ? yield* selectFrom(tasksTable, "byId").where((q) =>
           projectionIds.map((id) => q.eq("id", id)),
-        ),
-      )
+        )
     : [];
   const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
 
@@ -190,11 +173,9 @@ export const doneChildrenForDisplay = selector(function* (
   const projections = yield* byDailyListId(dailyListId);
   const projectionIds = projections.map((projection) => projection.id);
   const tasks = projectionIds.length
-    ? yield* runQuery(
-        selectFrom(tasksTable, "byId").where((q) =>
+    ? yield* selectFrom(tasksTable, "byId").where((q) =>
           projectionIds.map((id) => q.eq("id", id)),
-        ),
-      )
+        )
     : [];
   const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
 
@@ -388,7 +369,7 @@ export const updateProjection = action(function* (
   const projInState = yield* byId(id);
   if (!projInState) throw new Error("Projection not found");
 
-  yield* update(taskProjectionsTable, [{ ...projInState, ...projection }]);
+  yield* upsertRows(taskProjectionsTable, [{ ...projInState, ...projection }]);
 });
 
 // Create or update projection for a task

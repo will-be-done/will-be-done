@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSyncSelector, useDispatch } from "@will-be-done/hyperdb";
+import { useSyncSelector, useDispatch } from "@will-be-done/hyperdb-lib";
 import {
   backupSlice,
   projectsAllSlice,

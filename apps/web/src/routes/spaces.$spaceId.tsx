@@ -2,7 +2,7 @@ import { GlobalListener } from "@/components/GlobalListener/GlobalListener.tsx";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { KeyPressedCtxProvider } from "@/components/GlobalListener/KeyPressedCtxProvider.tsx";
 import { Outlet, redirect, createFileRoute, useRouterState } from "@tanstack/react-router";
-import { DBProvider } from "@will-be-done/hyperdb";
+import { DBProvider, type SubscribableDB } from "@will-be-done/hyperdb-lib";
 import { initDbStore } from "@/store/load.ts";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
@@ -32,7 +32,7 @@ function RouteComponent() {
   const newStore = Route.useLoaderData();
 
   return (
-    <DBProvider value={newStore}>
+    <DBProvider value={newStore as SubscribableDB}>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         <KeyPressedCtxProvider>
           <div className="relative h-full">

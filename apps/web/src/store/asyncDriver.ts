@@ -1,5 +1,5 @@
 import SQLiteAsyncESMFactory from "wa-sqlite/dist/wa-sqlite-async.mjs";
-import { AsyncSqlDriver } from "@will-be-done/hyperdb";
+import { AsyncSqlDriver } from "@will-be-done/hyperdb-lib";
 import asyncSqlWasmUrl from "wa-sqlite/dist/wa-sqlite-async.wasm?url";
 //@ts-expect-error no declarations
 import { IDBBatchAtomicVFS } from "wa-sqlite/src/examples/IDBBatchAtomicVFS.js";
