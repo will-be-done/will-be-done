@@ -6,7 +6,6 @@ import React, {
 } from "react";
 import { css, setup, styled } from "goober";
 import type { SubscribableDB } from "../hyperdb/runtime/subscribable-db";
-import { useDB } from "../react/context";
 import {
   hyperDBTraceStore,
   safeSerialize,
@@ -1307,8 +1306,7 @@ const DevtoolsPanelInner = ({
 };
 
 const ContextPanel = (props: Omit<HyperDBDevtoolsPanelProps, "db">) => {
-  const db = useDB();
-  return <DevtoolsPanelInner {...props} db={db} />;
+  return <DevtoolsPanelInner {...props} />;
 };
 
 export const HyperDBDevtoolsPanel = (props: HyperDBDevtoolsPanelProps) =>

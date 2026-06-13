@@ -183,7 +183,10 @@ export class HyperDBTraceStore {
   isActive = (): boolean => this.activeListenerCount > 0;
 
   setMaxTraces = (maxTraces: number): void => {
-    const nextMaxTraces = Math.max(1, Math.floor(maxTraces));
+    const n = Number(maxTraces);
+    if (!Number.isFinite(n)) return;
+
+    const nextMaxTraces = Math.max(1, Math.floor(n));
     if (nextMaxTraces === this.maxTraces) return;
 
     this.maxTraces = nextMaxTraces;

@@ -70,6 +70,30 @@ describe("devtool tracing store", () => {
     unsubscribe();
   });
 
+  it("ignores non-finite max trace counts", () => {
+    const store = new HyperDBTraceStore(2);
+    const unsubscribe = store.subscribe(() => {});
+
+    for (const name of ["one", "two", "three"]) {
+      const context = startRootTrace(
+        createTraceFrameMeta("action", name, []),
+        store,
+      );
+      expect(context).toBeDefined();
+      endTraceSuccess(context!);
+    }
+
+    store.setMaxTraces(Number.NaN);
+    store.setMaxTraces(Number.POSITIVE_INFINITY);
+
+    expect(store.getSnapshot().map((trace) => trace.name)).toEqual([
+      "three",
+      "two",
+    ]);
+
+    unsubscribe();
+  });
+
   it("records successful and failed root trace lifecycles", () => {
     const store = new HyperDBTraceStore();
     const unsubscribe = store.subscribe(() => {});

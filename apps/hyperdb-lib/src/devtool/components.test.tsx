@@ -70,7 +70,8 @@ describe("HyperDBDevtools", () => {
       <HyperDBDevtools db={createDB()} initialIsOpen={false} />,
     );
 
-    expect(html).toContain("HyperDB");
+    expect(html).toContain("Close HyperDB Devtools");
+    expect(html).toContain("Clear");
   });
 
   it("falls back when localStorage.getItem throws", () => {
@@ -85,7 +86,8 @@ describe("HyperDBDevtools", () => {
       <HyperDBDevtools db={createDB()} initialIsOpen={false} />,
     );
 
-    expect(html).toContain("HyperDB");
+    expect(html).toContain("Open HyperDB Devtools");
+    expect(html).not.toContain("Clear");
   });
 
   it("formats select events as SQL-like queries", () => {

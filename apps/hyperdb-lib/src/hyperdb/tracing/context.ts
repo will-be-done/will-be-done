@@ -23,8 +23,14 @@ export const isTraceContextTrait = (
 
 export const getTraceContextFromTraits = (
   traits: Trait[],
-): TraceContext | undefined =>
-  traits.find(isTraceContextTrait)?.traceContext;
+): TraceContext | undefined => {
+  for (let index = traits.length - 1; index >= 0; index -= 1) {
+    const trait = traits[index];
+    if (trait && isTraceContextTrait(trait)) {
+      return trait.traceContext;
+    }
+  }
+};
 
 export const getTraceContextForDB = (
   db: Pick<HyperDB, "getTraits">,
