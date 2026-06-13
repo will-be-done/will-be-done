@@ -3,6 +3,7 @@ import { execAsync, execSync } from "../../core/executor";
 import type { HyperDB } from "../../core/contracts";
 import type { Trait } from "../../core/primitives";
 import type { ExtractSchema, TableDefinition } from "../../schema/table";
+import { wrapGeneratorWithTraceMeta } from "../../../devtool/tracing/metadata";
 import {
   deleteType,
   getCurrentTraitsType,
@@ -24,7 +25,13 @@ export type ActionFn<TReturn, TParams extends any[]> = (
 export function action<TReturn, TParams extends any[]>(
   fn: ActionFn<TReturn, TParams>,
 ): ActionFn<TReturn, TParams> {
-  return fn;
+  return ((...args: TParams) =>
+    wrapGeneratorWithTraceMeta(
+      fn(...args),
+      "action",
+      fn.name || "anonymous action",
+      args,
+    )) as ActionFn<TReturn, TParams>;
 }
 
 export function* insert<TTable extends TableDefinition<any, any>>(

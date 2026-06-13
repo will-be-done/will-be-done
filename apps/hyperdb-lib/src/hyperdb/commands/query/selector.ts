@@ -4,6 +4,10 @@ import { execAsync, execSync } from "../../core/executor";
 import type { HyperDB } from "../../core/contracts";
 import type { Row } from "../../core/primitives";
 import { isRowInRange } from "../../core/query/tuple";
+import {
+  isGeneratorFunction,
+  wrapGeneratorWithTraceMeta,
+} from "../../../devtool/tracing/metadata";
 import { runCommandGenerator } from "../runner";
 import { type SelectRangeCmd } from "./commands";
 
@@ -51,13 +55,6 @@ export type SelectorFn<TReturn, TParams extends any[]> = (
   ...args: TParams
 ) => TReturn;
 
-const GeneratorFunction = function* () {
-  yield undefined;
-}.constructor;
-
-const isGenerator = (fn: unknown): fn is Generator<unknown, unknown, unknown> =>
-  fn instanceof GeneratorFunction;
-
 export function selector<TReturn, TParams extends any[]>(
   fn: SelectorGeneratorFn<TReturn, TParams>,
 ): SelectorGeneratorFn<TReturn, TParams>;
@@ -69,15 +66,20 @@ export function selector<TReturn, TParams extends any[]>(
 ): SelectorGeneratorFn<TReturn, TParams> {
   return (...args: TParams) => {
     const res = fn(...args);
-    if (isGenerator(fn)) {
-      return res as Generator<unknown, TReturn, unknown>;
-    } else {
-      return (function* () {
+    const generator = isGeneratorFunction(fn)
+      ? (res as Generator<unknown, TReturn, unknown>)
+      : ((function* () {
         yield { type: noopType };
 
         return res;
-      })() as Generator<unknown, TReturn, unknown>;
-    }
+      })() as Generator<unknown, TReturn, unknown>);
+
+    return wrapGeneratorWithTraceMeta(
+      generator,
+      "selector",
+      fn.name || "anonymous selector",
+      args,
+    );
   };
 }
 

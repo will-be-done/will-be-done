@@ -1,6 +1,7 @@
 export const MIN = Symbol("MIN");
 export const MAX = Symbol("MAX");
 
+//TODO: add other values support like bigint/arraybuffer
 export type Value = string | number | boolean | null;
 export type ScanValue = Value | typeof MIN | typeof MAX;
 export type Tuple = ScanValue[];

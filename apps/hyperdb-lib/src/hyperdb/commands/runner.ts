@@ -7,10 +7,27 @@ import {
 import type { HyperDB } from "../core/contracts";
 import { isNoopCmd, isUnwrapCmd, type DBCmd } from "./async";
 import { isSelectRangeCmd, type SelectRangeCmd } from "./query/commands";
+import { setActiveTraceContextForDB } from "../../devtool/tracing/context";
+import {
+  getCommandFramePath,
+  getGeneratorTraceMeta,
+} from "../../devtool/tracing/metadata";
+import {
+  anonymousTraceMeta,
+  beginSelectEvent,
+  endSelectEventError,
+  endSelectEventSuccess,
+  endTraceError,
+  endTraceSuccess,
+  enterFramePath,
+  startRootTrace,
+  type TraceContext,
+} from "../../devtool/tracing/store";
 
 export type CommandRunnerOptions = {
   allowWrites?: boolean;
   selectRangeCmds?: SelectRangeCmd[];
+  traceContext?: TraceContext;
 };
 
 const isDBCmd = (cmd: unknown): cmd is DBCmd =>
@@ -33,49 +50,117 @@ export function* runCommandGenerator<TReturn>(
   gen: Generator<unknown, TReturn, unknown>,
   options: CommandRunnerOptions = {},
 ): Generator<DBCmd, TReturn, unknown> {
-  let result = gen.next();
+  const traceContext =
+    options.traceContext ??
+    startRootTrace(getGeneratorTraceMeta(gen) ?? anonymousTraceMeta());
+  const ownsTraceContext = traceContext !== undefined && !options.traceContext;
 
-  while (!result.done) {
-    const cmd = result.value;
+  try {
+    let result = gen.next();
 
-    if (isSelectRangeCmd(cmd)) {
-      const { table, index, selectQuery } = cmd;
+    while (!result.done) {
+      const cmd = result.value;
+      const traceFrame = traceContext
+        ? enterFramePath(traceContext, getCommandFramePath(cmd))
+        : undefined;
 
-      options.selectRangeCmds?.push(cmd);
-      result = gen.next(
-        yield* db.intervalScan(table, index, selectQuery.where, {
-          limit: selectQuery.limit,
-          order: selectQuery.order,
-        }),
-      );
-    } else if (isInsertActionCmd(cmd)) {
-      if (!options.allowWrites) {
-        throw new Error("Writes are disallowed for command: insert");
+      if (isSelectRangeCmd(cmd)) {
+        const { table, index, selectQuery } = cmd;
+
+        options.selectRangeCmds?.push(cmd);
+        const selectEvent =
+          traceContext && traceFrame
+            ? beginSelectEvent(traceContext, traceFrame, {
+                tableName: table.tableName,
+                index,
+                where: selectQuery.where,
+                bounds: cmd.bounds,
+                limit: selectQuery.limit,
+                order: selectQuery.order,
+              })
+            : undefined;
+
+        try {
+          const rows = yield* db.intervalScan(table, index, selectQuery.where, {
+            limit: selectQuery.limit,
+            order: selectQuery.order,
+          });
+          if (traceContext && selectEvent) {
+            endSelectEventSuccess(traceContext, selectEvent, rows);
+          }
+          result = gen.next(rows);
+        } catch (error) {
+          if (traceContext && selectEvent) {
+            endSelectEventError(traceContext, selectEvent, error);
+          }
+          throw error;
+        }
+      } else if (isInsertActionCmd(cmd)) {
+        if (!options.allowWrites) {
+          throw new Error("Writes are disallowed for command: insert");
+        }
+
+        if (traceContext) {
+          const restore = setActiveTraceContextForDB(db, traceContext);
+          try {
+            result = gen.next(yield* db.insert(cmd.table, cmd.values));
+          } finally {
+            restore();
+          }
+        } else {
+          result = gen.next(yield* db.insert(cmd.table, cmd.values));
+        }
+      } else if (isUpsertActionCmd(cmd)) {
+        if (!options.allowWrites) {
+          throw new Error("Writes are disallowed for command: upsert");
+        }
+
+        if (traceContext) {
+          const restore = setActiveTraceContextForDB(db, traceContext);
+          try {
+            result = gen.next(yield* db.upsert(cmd.table, cmd.values));
+          } finally {
+            restore();
+          }
+        } else {
+          result = gen.next(yield* db.upsert(cmd.table, cmd.values));
+        }
+      } else if (isDeleteActionCmd(cmd)) {
+        if (!options.allowWrites) {
+          throw new Error("Writes are disallowed for command: delete");
+        }
+
+        if (traceContext) {
+          const restore = setActiveTraceContextForDB(db, traceContext);
+          try {
+            result = gen.next(yield* db.delete(cmd.table, cmd.values));
+          } finally {
+            restore();
+          }
+        } else {
+          result = gen.next(yield* db.delete(cmd.table, cmd.values));
+        }
+      } else if (isGetCurrentTraitsCmd(cmd)) {
+        result = gen.next(db.getTraits());
+      } else if (isDBCmd(cmd)) {
+        result = gen.next(yield cmd);
+      } else {
+        throw new Error(
+          `Unsupported command: ${describeUnsupportedCommand(cmd)}`,
+        );
       }
-
-      result = gen.next(yield* db.insert(cmd.table, cmd.values));
-    } else if (isUpsertActionCmd(cmd)) {
-      if (!options.allowWrites) {
-        throw new Error("Writes are disallowed for command: upsert");
-      }
-
-      result = gen.next(yield* db.upsert(cmd.table, cmd.values));
-    } else if (isDeleteActionCmd(cmd)) {
-      if (!options.allowWrites) {
-        throw new Error("Writes are disallowed for command: delete");
-      }
-
-      result = gen.next(yield* db.delete(cmd.table, cmd.values));
-    } else if (isGetCurrentTraitsCmd(cmd)) {
-      result = gen.next(db.getTraits());
-    } else if (isDBCmd(cmd)) {
-      result = gen.next(yield cmd);
-    } else {
-      throw new Error(
-        `Unsupported command: ${describeUnsupportedCommand(cmd)}`,
-      );
     }
-  }
 
-  return result.value;
+    if (ownsTraceContext) {
+      endTraceSuccess(traceContext);
+    }
+
+    return result.value;
+  } catch (error) {
+    if (ownsTraceContext) {
+      endTraceError(traceContext, error);
+    }
+
+    throw error;
+  }
 }

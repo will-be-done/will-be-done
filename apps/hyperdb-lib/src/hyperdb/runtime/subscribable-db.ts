@@ -8,6 +8,13 @@ import { runCommandGenerator } from "../commands/runner";
 import type { DBCmd } from "../commands/async";
 // import { collectAll } from "../commands/async";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "../schema/table";
+import { getActiveTraceContextForDB } from "../../devtool/tracing/context";
+import {
+  beginMutationEvent,
+  endMutationEventError,
+  endMutationEventSuccess,
+  getCurrentTraceFrame,
+} from "../../devtool/tracing/store";
 import { refVar, type RefVar } from "../utils";
 
 export type InsertOp = {
@@ -158,7 +165,24 @@ export class SubscribableDBTx implements HyperDBTx {
     this.throwIfDone();
     if (records.length === 0) return;
 
-    yield* this.txDb.insert(table, records);
+    const traceContext = getActiveTraceContextForDB(this);
+    const mutationEvent = traceContext
+      ? beginMutationEvent(traceContext, getCurrentTraceFrame(traceContext), {
+          kind: "insert",
+          tableName: table.tableName,
+          newValue: records,
+          rows: records,
+        })
+      : undefined;
+
+    try {
+      yield* this.txDb.insert(table, records);
+    } catch (error) {
+      if (traceContext && mutationEvent) {
+        endMutationEventError(traceContext, mutationEvent, error);
+      }
+      throw error;
+    }
 
     const insertOps = records.map(
       (r) =>
@@ -169,19 +193,25 @@ export class SubscribableDBTx implements HyperDBTx {
         }) satisfies InsertOp,
     );
     appendOps(this.operations, insertOps);
+    if (traceContext && mutationEvent) {
+      endMutationEventSuccess(traceContext, mutationEvent, {
+        newValue: records,
+        rows: records,
+      });
+    }
 
     for (const cb of this.subDb.afterInsertSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), insertOps),
-        { allowWrites: true },
+        { allowWrites: true, traceContext },
       );
     }
     for (const cb of this.subDb.afterChangeSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), insertOps),
-        { allowWrites: true },
+        { allowWrites: true, traceContext },
       );
     }
   }
@@ -217,16 +247,32 @@ export class SubscribableDBTx implements HyperDBTx {
     }
 
     const previousRecords = new Map<string, Row>();
+    const traceContext = getActiveTraceContextForDB(this);
+    const mutationEvent = traceContext
+      ? beginMutationEvent(traceContext, getCurrentTraceFrame(traceContext), {
+          kind: "upsert",
+          tableName: table.tableName,
+          newValue: upsertRecords,
+          rows: upsertRecords,
+        })
+      : undefined;
 
-    for (const oldRecord of yield* this.txDb.intervalScan(
-      table,
-      table.idIndexName,
-      upsertRecords.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
-    )) {
-      previousRecords.set(oldRecord.id, oldRecord);
+    try {
+      for (const oldRecord of yield* this.txDb.intervalScan(
+        table,
+        table.idIndexName,
+        upsertRecords.map((r) => ({ eq: [{ col: "id", val: r.id }] })),
+      )) {
+        previousRecords.set(oldRecord.id, oldRecord);
+      }
+
+      yield* this.txDb.upsert(table, upsertRecords);
+    } catch (error) {
+      if (traceContext && mutationEvent) {
+        endMutationEventError(traceContext, mutationEvent, error);
+      }
+      throw error;
     }
-
-    yield* this.txDb.upsert(table, upsertRecords);
 
     const upsertOps = upsertRecords.map(
       (record) =>
@@ -238,19 +284,26 @@ export class SubscribableDBTx implements HyperDBTx {
         }) satisfies UpsertOp,
     );
     appendOps(this.operations, upsertOps);
+    if (traceContext && mutationEvent) {
+      endMutationEventSuccess(traceContext, mutationEvent, {
+        oldValue: Array.from(previousRecords.values()),
+        newValue: upsertRecords,
+        rows: upsertRecords,
+      });
+    }
 
     for (const cb of this.subDb.afterUpsertSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), upsertOps),
-        { allowWrites: true },
+        { allowWrites: true, traceContext },
       );
     }
     for (const cb of this.subDb.afterChangeSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), upsertOps),
-        { allowWrites: true },
+        { allowWrites: true, traceContext },
       );
     }
   }
@@ -263,29 +316,52 @@ export class SubscribableDBTx implements HyperDBTx {
     if (ids.length === 0) return;
 
     const deleteOps: DeleteOp[] = [];
-    for (const oldRecord of yield* this.txDb.intervalScan(
-      table,
-      table.idIndexName,
-      ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
-    )) {
-      deleteOps.push({ type: "delete", table, oldValue: oldRecord });
-    }
-    appendOps(this.operations, deleteOps);
+    const traceContext = getActiveTraceContextForDB(this);
+    const mutationEvent = traceContext
+      ? beginMutationEvent(traceContext, getCurrentTraceFrame(traceContext), {
+          kind: "delete",
+          tableName: table.tableName,
+          ids,
+        })
+      : undefined;
 
-    yield* this.txDb.delete(table, ids);
+    try {
+      for (const oldRecord of yield* this.txDb.intervalScan(
+        table,
+        table.idIndexName,
+        ids.map((id) => ({ eq: [{ col: "id", val: id }] })),
+      )) {
+        deleteOps.push({ type: "delete", table, oldValue: oldRecord });
+      }
+      appendOps(this.operations, deleteOps);
+
+      yield* this.txDb.delete(table, ids);
+    } catch (error) {
+      if (traceContext && mutationEvent) {
+        endMutationEventError(traceContext, mutationEvent, error);
+      }
+      throw error;
+    }
+
+    if (traceContext && mutationEvent) {
+      endMutationEventSuccess(traceContext, mutationEvent, {
+        ids,
+        oldValue: deleteOps.map((op) => op.oldValue),
+      });
+    }
 
     for (const cb of this.subDb.afterDeleteSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), deleteOps),
-        { allowWrites: true },
+        { allowWrites: true, traceContext },
       );
     }
     for (const cb of this.subDb.afterChangeSubscribers) {
       yield* runCommandGenerator(
         this,
         cb(this, table, this.getTraits(), deleteOps),
-        { allowWrites: true },
+        { allowWrites: true, traceContext },
       );
     }
   }
