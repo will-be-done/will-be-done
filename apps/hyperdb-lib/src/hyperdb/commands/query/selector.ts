@@ -65,14 +65,18 @@ export function selector<TReturn, TParams extends any[]>(
   fn: SelectorGeneratorFn<TReturn, TParams> | SelectorFn<TReturn, TParams>,
 ): SelectorGeneratorFn<TReturn, TParams> {
   return (...args: TParams) => {
-    const res = fn(...args);
-    const generator = isGeneratorFunction(fn)
-      ? (res as Generator<unknown, TReturn, unknown>)
-      : ((function* () {
+    let generator: Generator<unknown, TReturn, unknown>;
+
+    if (isGeneratorFunction(fn)) {
+      const res = fn(...args);
+      generator = res as Generator<unknown, TReturn, unknown>;
+    } else {
+      generator = (function* () {
         yield { type: noopType };
 
-        return res;
-      })() as Generator<unknown, TReturn, unknown>);
+        return fn(...args);
+      })() as Generator<unknown, TReturn, unknown>;
+    }
 
     return wrapGeneratorWithTraceMeta(
       generator,

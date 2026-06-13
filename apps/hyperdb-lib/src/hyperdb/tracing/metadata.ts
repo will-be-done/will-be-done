@@ -53,26 +53,36 @@ export const wrapGeneratorWithTraceMeta = <TReturn>(
 ): Generator<unknown, TReturn, unknown> => {
   const meta = createTraceFrameMeta(kind, name, args);
 
-  function* tracedGenerator(): Generator<unknown, TReturn, unknown> {
-    let sentValue: unknown;
-    let result: IteratorResult<unknown, TReturn>;
+  const annotateResult = (
+    result: IteratorResult<unknown, TReturn>,
+  ): IteratorResult<unknown, TReturn> =>
+    result.done
+      ? result
+      : {
+          done: false,
+          value: annotateCommand(result.value, meta),
+        };
 
-    result = gen.next();
-
-    while (!result.done) {
-      try {
-        sentValue = yield annotateCommand(result.value, meta);
-        result = gen.next(sentValue);
-      } catch (error) {
-        if (!gen.throw) throw error;
-        result = gen.throw(error);
+  const traced = {
+    next(value?: unknown): IteratorResult<unknown, TReturn> {
+      return annotateResult(gen.next(value));
+    },
+    throw(error?: unknown): IteratorResult<unknown, TReturn> {
+      if (!gen.throw) throw error;
+      return annotateResult(gen.throw(error));
+    },
+    return(value?: TReturn): IteratorResult<unknown, TReturn> {
+      if (!gen.return) {
+        return { done: true, value: value as TReturn };
       }
-    }
 
-    return result.value;
-  }
+      return annotateResult(gen.return(value as TReturn));
+    },
+    [Symbol.iterator]() {
+      return this;
+    },
+  } as TraceableGenerator<TReturn>;
 
-  const traced = tracedGenerator() as TraceableGenerator<TReturn>;
   Object.defineProperty(traced, generatorTraceMetaKey, {
     value: meta,
     enumerable: false,

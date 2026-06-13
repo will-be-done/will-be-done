@@ -42,20 +42,29 @@ export type HyperDBDevtoolsPanelProps = {
   theme?: HyperDBDevtoolsTheme;
   position?: HyperDBDevtoolsPosition;
   embedded?: boolean;
+  onClose?: () => void;
 };
 
 const storageKey = "hyperdb-devtools-open";
 
 const readStoredOpenState = (initialIsOpen: boolean): boolean => {
-  if (typeof globalThis.localStorage === "undefined") return initialIsOpen;
-  const stored = globalThis.localStorage.getItem(storageKey);
-  if (stored === null) return initialIsOpen;
-  return stored === "true";
+  try {
+    if (typeof globalThis.localStorage === "undefined") return initialIsOpen;
+    const stored = globalThis.localStorage.getItem(storageKey);
+    if (stored === null) return initialIsOpen;
+    return stored === "true";
+  } catch {
+    return initialIsOpen;
+  }
 };
 
 const writeStoredOpenState = (isOpen: boolean): void => {
-  if (typeof globalThis.localStorage === "undefined") return;
-  globalThis.localStorage.setItem(storageKey, String(isOpen));
+  try {
+    if (typeof globalThis.localStorage === "undefined") return;
+    globalThis.localStorage.setItem(storageKey, String(isOpen));
+  } catch {
+    // Ignore storage failures so devtools can still mount in restricted contexts.
+  }
 };
 
 const useTraces = (maxTraces: number): RootTrace[] => {
@@ -120,11 +129,13 @@ const ButtonElement = (
   props: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     selected?: boolean;
     buttonPosition?: HyperDBDevtoolsButtonPosition;
+    theme?: HyperDBDevtoolsTheme;
   },
 ) => {
-  const { selected, buttonPosition, ...domProps } = props;
+  const { selected, buttonPosition, theme, ...domProps } = props;
   void selected;
   void buttonPosition;
+  void theme;
   return <button {...domProps} />;
 };
 
@@ -204,213 +215,301 @@ const Shell = styled(ShellElement)<ShellStyleProps>`
       ? "position:relative;width:100%;height:100%;border:1px solid var(--hdb-border);"
       : `position:fixed;z-index:2147483646;${panelPositionStyle(position)}`}
   display:grid;
-  grid-template-columns:minmax(320px, 38%) minmax(0, 1fr);
-  min-height:280px;
-  overflow:hidden;
-  background:var(--hdb-bg);
-  color:var(--hdb-text);
-  box-shadow:var(--hdb-shadow);
-  font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size:12px;
-  letter-spacing:0;
+  grid-template-columns: minmax(320px, 38%) minmax(0, 1fr);
+  min-height: 280px;
+  overflow: hidden;
+  background: var(--hdb-bg);
+  color: var(--hdb-text);
+  box-shadow: var(--hdb-shadow);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 12px;
+  letter-spacing: 0;
 `;
 
 const TraceList = styled("aside")`
-  min-width:0;
-  border-right:1px solid var(--hdb-border);
-  background:var(--hdb-panel);
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
+  min-width: 0;
+  border-right: 1px solid var(--hdb-border);
+  background: var(--hdb-panel);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 `;
 
 const Toolbar = styled("div")`
-  min-height:42px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
-  padding:6px 12px;
-  border-bottom:1px solid var(--hdb-border);
-  background:var(--hdb-surface);
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--hdb-border);
+  background: var(--hdb-surface);
 `;
 
 const Title = styled("strong")`
-  display:flex;
-  align-items:center;
-  gap:7px;
-  min-width:0;
-  font-size:12px;
-  font-weight:800;
-  color:var(--hdb-text);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--hdb-text);
 `;
 
 const Mark = styled("span")`
-  width:7px;
-  height:7px;
-  border-radius:999px;
-  background:var(--hdb-blue);
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--hdb-blue);
 `;
 
 const ToolbarActions = styled("div")`
-  display:flex;
-  align-items:center;
-  gap:6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 `;
 
 const TraceCount = styled("span")`
-  height:24px;
-  display:inline-flex;
-  align-items:center;
-  border:1px solid var(--hdb-border);
-  border-radius:6px;
-  padding:0 8px;
-  background:var(--hdb-panel);
-  color:var(--hdb-muted);
-  font:700 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--hdb-border);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--hdb-panel);
+  color: var(--hdb-muted);
+  font:
+    700 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
 `;
 
 const Button = styled("button")`
-  height:24px;
-  border:1px solid var(--hdb-border);
-  background:var(--hdb-panel);
-  color:var(--hdb-text);
-  font:700 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  border-radius:6px;
-  padding:0 8px;
-  cursor:pointer;
+  height: 24px;
+  border: 1px solid var(--hdb-border);
+  background: var(--hdb-panel);
+  color: var(--hdb-text);
+  font:
+    700 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  border-radius: 6px;
+  padding: 0 8px;
+  cursor: pointer;
   transition:
     background 120ms ease,
     border-color 140ms ease,
     color 140ms ease;
 
   &:hover {
-    border-color:var(--hdb-blue);
-    background:var(--hdb-soft);
-    color:var(--hdb-text);
+    border-color: var(--hdb-blue);
+    background: var(--hdb-soft);
+    color: var(--hdb-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--hdb-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
   }
 `;
 
 const ToggleButton = styled(ButtonElement)<{
   buttonPosition: HyperDBDevtoolsButtonPosition;
+  theme: HyperDBDevtoolsTheme;
 }>`
+  --hdb-toggle-surface: #202432;
+  --hdb-toggle-soft: #2a2f3e;
+  --hdb-toggle-border: #343a46;
+  --hdb-toggle-text: #e4e7ec;
+  --hdb-toggle-blue: #3b82f6;
+
+  ${({ theme }) =>
+    theme === "light"
+      ? `
+        --hdb-toggle-surface:#ffffff;
+        --hdb-toggle-soft:#f1f5f9;
+        --hdb-toggle-border:#cbd5e1;
+        --hdb-toggle-text:#0f172a;
+        --hdb-toggle-blue:#2563eb;
+      `
+      : ""}
+
+  ${({ theme }) =>
+    theme === "system"
+      ? `
+        @media (prefers-color-scheme: light) {
+          --hdb-toggle-surface:#ffffff;
+          --hdb-toggle-soft:#f1f5f9;
+          --hdb-toggle-border:#cbd5e1;
+          --hdb-toggle-text:#0f172a;
+          --hdb-toggle-blue:#2563eb;
+        }
+      `
+      : ""}
+
   position:fixed;
   ${({ buttonPosition }) => buttonPositionStyle(buttonPosition)}
   z-index:2147483647;
-  height:34px;
-  min-width:50px;
-  border:1px solid var(--hdb-border);
-  border-radius:8px;
-  background:var(--hdb-surface);
-  color:var(--hdb-text);
-  box-shadow:0 8px 26px rgba(0, 0, 0, 0.28);
-  font:700 12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  letter-spacing:0;
-  cursor:pointer;
+  height: 34px;
+  min-width: 50px;
+  border: 1px solid var(--hdb-toggle-border);
+  border-radius: 8px;
+  background: var(--hdb-toggle-surface);
+  color: var(--hdb-toggle-text);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+  font:
+    700 12px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  letter-spacing: 0;
+  cursor: pointer;
   transition:
     border-color 150ms ease,
     background 150ms ease;
 
   &:hover {
-    border-color:var(--hdb-blue);
-    background:var(--hdb-soft);
+    border-color: var(--hdb-toggle-blue);
+    background: var(--hdb-toggle-soft);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--hdb-toggle-blue);
+    outline-offset: 2px;
+    box-shadow:
+      0 0 0 3px rgba(59, 130, 246, 0.16),
+      0 8px 26px rgba(0, 0, 0, 0.28);
   }
 `;
 
 const Rows = styled("div")`
-  overflow:auto;
-  min-height:0;
+  overflow: auto;
+  min-height: 0;
 `;
 
 const TraceRow = styled(ButtonElement)<{ selected: boolean }>`
-  position:relative;
-  appearance:none;
-  box-sizing:border-box;
-  width:100%;
-  display:grid;
-  grid-template-columns:32px minmax(0, 1fr) auto;
-  gap:10px;
-  align-items:center;
-  height:48px;
-  padding:6px 10px 6px 20px;
-  border:0;
-  border-bottom:1px solid var(--hdb-border);
-  border-radius:0;
-  background:${({ selected }) =>
-    selected ? "color-mix(in srgb, var(--hdb-blue) 13%, var(--hdb-panel))" : "transparent"};
-  color:var(--hdb-text);
-  font:inherit;
-  line-height:1;
-  text-align:left;
-  cursor:pointer;
-  outline:0;
-  overflow:hidden;
+  position: relative;
+  appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  height: 48px;
+  padding: 6px 10px 6px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--hdb-border);
+  border-radius: 0;
+  background: ${({ selected }) =>
+    selected
+      ? "color-mix(in srgb, var(--hdb-blue) 13%, var(--hdb-panel))"
+      : "transparent"};
+  color: var(--hdb-text);
+  font: inherit;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  outline: 0;
+  overflow: hidden;
 
   &::before {
-    content:"";
-    position:absolute;
-    left:0;
-    top:0;
-    bottom:0;
-    width:2px;
-    background:${({ selected }) => (selected ? "var(--hdb-blue)" : "transparent")};
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: ${({ selected }) =>
+      selected ? "var(--hdb-blue)" : "transparent"};
   }
 
   &:hover {
-    background:${({ selected }) =>
-      selected ? "color-mix(in srgb, var(--hdb-blue) 13%, var(--hdb-panel))" : "var(--hdb-surface)"};
+    background: ${({ selected }) =>
+      selected
+        ? "color-mix(in srgb, var(--hdb-blue) 13%, var(--hdb-panel))"
+        : "var(--hdb-surface)"};
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--hdb-blue);
+    outline-offset: -2px;
+    box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.16);
   }
 `;
 
 const RowName = styled("div")`
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  font-size:12px;
-  font-weight:700;
-  line-height:1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
 `;
 
 const RowMeta = styled("div")`
-  display:flex;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:5px;
-  color:var(--hdb-muted);
-  font:10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  color: var(--hdb-muted);
+  font:
+    10px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
 `;
 
 const RowBody = styled("div")`
-  min-width:0;
-  display:grid;
-  gap:3px;
-  align-content:center;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  align-content: center;
 `;
 
 const RowTop = styled("div")`
-  min-width:0;
-  display:flex;
-  align-items:center;
+  min-width: 0;
+  display: flex;
+  align-items: center;
 `;
 
 const RowStats = styled("div")`
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 `;
 
-const Badge = styled(SpanElement)<{ tone?: "green" | "blue" | "red" | "amber" }>`
-  box-sizing:border-box;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  flex:0 0 auto;
-  min-height:18px;
-  padding:0 6px;
-  border-radius:5px;
-  border:1px solid
+const Badge = styled(SpanElement)<{
+  tone?: "green" | "blue" | "red" | "amber";
+}>`
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid
     ${({ tone }) =>
       tone === "red"
         ? "var(--hdb-danger)"
@@ -419,7 +518,7 @@ const Badge = styled(SpanElement)<{ tone?: "green" | "blue" | "red" | "amber" }>
           : tone === "blue"
             ? "var(--hdb-blue)"
             : "var(--hdb-accent)"};
-  color:${({ tone }) =>
+  color: ${({ tone }) =>
     tone === "red"
       ? "var(--hdb-danger)"
       : tone === "amber"
@@ -427,7 +526,7 @@ const Badge = styled(SpanElement)<{ tone?: "green" | "blue" | "red" | "amber" }>
         : tone === "blue"
           ? "var(--hdb-blue)"
           : "var(--hdb-accent)"};
-  background:${({ tone }) =>
+  background: ${({ tone }) =>
     tone === "red"
       ? "color-mix(in srgb, var(--hdb-danger) 14%, transparent)"
       : tone === "amber"
@@ -435,229 +534,292 @@ const Badge = styled(SpanElement)<{ tone?: "green" | "blue" | "red" | "amber" }>
         : tone === "blue"
           ? "color-mix(in srgb, var(--hdb-blue) 15%, transparent)"
           : "color-mix(in srgb, var(--hdb-accent) 14%, transparent)"};
-  font:700 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  text-transform:uppercase;
+  font:
+    700 10px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  text-transform: uppercase;
 `;
 
 const KindBadge = styled(Badge)`
-  width:28px;
-  height:22px;
-  min-height:22px;
-  padding:0;
-  line-height:1;
+  width: 28px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  line-height: 1;
 `;
 
 const DurationBadge = styled(Badge)`
-  width:72px;
-  min-width:72px;
-  height:24px;
-  min-height:24px;
-  padding:0 8px;
-  line-height:1;
+  width: 72px;
+  min-width: 72px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  line-height: 1;
 `;
 
 const HeaderBadges = styled("div")`
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:6px;
-  flex:0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
 `;
 
 const Detail = styled("main")`
-  min-width:0;
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
-  background:var(--hdb-bg);
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--hdb-bg);
 `;
 
 const DetailHeader = styled("header")`
-  min-height:42px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:6px 12px;
-  border-bottom:1px solid var(--hdb-border);
-  background:var(--hdb-panel);
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--hdb-border);
+  background: var(--hdb-panel);
 `;
 
 const DetailTitle = styled("div")`
-  min-width:0;
-  display:grid;
-  gap:2px;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 
   strong {
-    display:block;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
-    font-size:13px;
-    line-height:1.2;
-    font-weight:750;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 750;
   }
 
   span {
-    color:var(--hdb-muted);
-    font:10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: var(--hdb-muted);
+    font:
+      10px ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Monaco,
+      Consolas,
+      monospace;
   }
 `;
 
 const Tabs = styled("div")`
-  display:flex;
-  gap:4px;
-  padding:6px 12px;
-  border-bottom:1px solid var(--hdb-border);
-  background:var(--hdb-panel);
+  display: flex;
+  gap: 4px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--hdb-border);
+  background: var(--hdb-panel);
 `;
 
 const Tab = styled(ButtonElement)<{ selected: boolean }>`
-  position:relative;
-  height:26px;
-  padding:0 10px;
-  border:1px solid ${({ selected }) => (selected ? "var(--hdb-border)" : "transparent")};
-  border-radius:6px;
-  color:${({ selected }) => (selected ? "var(--hdb-text)" : "var(--hdb-muted)")};
-  background:${({ selected }) =>
+  position: relative;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid
+    ${({ selected }) => (selected ? "var(--hdb-border)" : "transparent")};
+  border-radius: 6px;
+  color: ${({ selected }) =>
+    selected ? "var(--hdb-text)" : "var(--hdb-muted)"};
+  background: ${({ selected }) =>
     selected ? "var(--hdb-surface)" : "transparent"};
-  font:700 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  cursor:pointer;
+  font:
+    700 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  cursor: pointer;
   transition:
     background 140ms ease,
     border-color 140ms ease,
     color 140ms ease;
 
   &:hover {
-    background:var(--hdb-surface);
-    color:var(--hdb-text);
+    background: var(--hdb-surface);
+    color: var(--hdb-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--hdb-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
   }
 `;
 
 const Content = styled("div")`
-  min-height:0;
-  overflow:auto;
-  padding:10px 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
 `;
 
 const Empty = styled("div")`
-  height:100%;
-  display:grid;
-  place-items:center;
-  color:var(--hdb-faint);
-  font:800 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  text-transform:uppercase;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--hdb-faint);
+  font:
+    800 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  text-transform: uppercase;
 `;
 
 const Grid = styled("div")`
-  display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(128px, 1fr));
-  gap:8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
 `;
 
 const ResultGrid = styled(Grid)`
-  margin-top:8px;
+  margin-top: 8px;
 `;
 
 const Stat = styled("div")`
-  border:1px solid var(--hdb-border);
-  border-radius:6px;
-  padding:7px 9px;
-  background:var(--hdb-panel);
+  border: 1px solid var(--hdb-border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: var(--hdb-panel);
 
   span {
-    display:block;
-    color:var(--hdb-muted);
-    font:800 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    text-transform:uppercase;
+    display: block;
+    color: var(--hdb-muted);
+    font:
+      800 9px ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Monaco,
+      Consolas,
+      monospace;
+    text-transform: uppercase;
   }
 
   strong {
-    display:block;
-    margin-top:4px;
-    color:var(--hdb-text);
-    font:800 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    display: block;
+    margin-top: 4px;
+    color: var(--hdb-text);
+    font:
+      800 13px ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Monaco,
+      Consolas,
+      monospace;
   }
 `;
 
 const DataBlock = styled("pre")`
-  margin:8px 0 0;
-  padding:8px 10px;
-  border:1px solid var(--hdb-border);
-  border-radius:6px;
-  background:var(--hdb-panel);
-  color:var(--hdb-text);
-  overflow:auto;
-  white-space:pre-wrap;
-  overflow-wrap:anywhere;
-  font:11px/1.42 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--hdb-border);
+  border-radius: 6px;
+  background: var(--hdb-panel);
+  color: var(--hdb-text);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    11px/1.42 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
 `;
 
 const EventBlock = styled("article")`
-  border:1px solid var(--hdb-border);
-  border-radius:6px;
-  background:var(--hdb-panel);
-  padding:8px;
-  margin-bottom:8px;
+  border: 1px solid var(--hdb-border);
+  border-radius: 6px;
+  background: var(--hdb-panel);
+  padding: 8px;
+  margin-bottom: 8px;
 `;
 
 const EventHeader = styled("div")`
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:6px;
-  color:var(--hdb-text);
-  font:800 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--hdb-text);
+  font:
+    800 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
 `;
 
 const TreeRow = styled("div")`
-  display:flex;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:5px 6px;
-  min-width:0;
-  padding:4px 6px;
-  border:1px solid transparent;
-  border-radius:5px;
-  background:var(--hdb-bg);
-  font:800 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: var(--hdb-bg);
+  font:
+    800 11px/1.35 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
 
   & + & {
-    margin-top:4px;
+    margin-top: 4px;
   }
 `;
 
 const TreeLabel = styled("span")`
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const TreeBadge = styled(SpanElement)<{ tone: "duration" | "rows" }>`
-  flex:0 0 auto;
-  display:inline-flex;
-  align-items:center;
-  min-height:16px;
-  padding:0 5px;
-  border-radius:5px;
-  border:1px solid
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 16px;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid
     ${({ tone }) => (tone === "rows" ? "var(--hdb-accent)" : "var(--hdb-blue)")};
-  color:${({ tone }) => (tone === "rows" ? "var(--hdb-accent)" : "var(--hdb-blue)")};
-  background:${({ tone }) =>
+  color: ${({ tone }) =>
+    tone === "rows" ? "var(--hdb-accent)" : "var(--hdb-blue)"};
+  background: ${({ tone }) =>
     tone === "rows"
       ? "color-mix(in srgb, var(--hdb-accent) 12%, transparent)"
       : "color-mix(in srgb, var(--hdb-blue) 12%, transparent)"};
-  font-size:10px;
-  line-height:1.3;
-  font-weight:700;
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 700;
 `;
 
 const frameIndent = css`
-  margin-top:4px;
-  margin-left:10px;
-  padding-left:9px;
-  border-left:1px solid var(--hdb-border);
+  margin-top: 4px;
+  margin-left: 10px;
+  padding-left: 9px;
+  border-left: 1px solid var(--hdb-border);
 `;
 
 const statusTone = (status: TraceStatus): "green" | "red" | "amber" => {
@@ -701,7 +863,8 @@ const formatIdentifier = (identifier: string): string =>
 
 const formatLiteral = (value: unknown): string => {
   if (typeof value === "string") return `'${value.replaceAll("'", "''")}'`;
-  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "NULL";
+  if (typeof value === "number")
+    return Number.isFinite(value) ? String(value) : "NULL";
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
   if (value === null) return "NULL";
   return `'${safeSerialize(value).text.replaceAll("'", "''")}'`;
@@ -730,11 +893,15 @@ export const formatSelectQuery = (event: SelectCommandEvent): string => {
   if (whereGroups.length === 1) {
     lines.push(`WHERE ${whereGroups[0]}`);
   } else if (whereGroups.length > 1) {
-    lines.push(`WHERE ${whereGroups.map((group) => `(${group})`).join(" OR ")}`);
+    lines.push(
+      `WHERE ${whereGroups.map((group) => `(${group})`).join(" OR ")}`,
+    );
   }
 
   if (event.order !== undefined) {
-    lines.push(`ORDER BY ${formatIdentifier(event.index)} ${event.order.toUpperCase()}`);
+    lines.push(
+      `ORDER BY ${formatIdentifier(event.index)} ${event.order.toUpperCase()}`,
+    );
   }
 
   if (event.limit !== undefined) {
@@ -781,35 +948,37 @@ const idOrder = (id: string): number => {
 export const getCallTreeOperations = (
   frame: TraceFrame,
   trace: RootTrace,
-): CallTreeOperation[] => [
-  ...trace.commandEvents
-    .filter((event) => event.frameId === frame.id)
-    .map((event) => ({
-      kind: "select" as const,
-      id: event.id,
-      startedAt: event.startedAt,
-      order: idOrder(event.id),
-      event,
+): CallTreeOperation[] =>
+  [
+    ...trace.commandEvents
+      .filter((event) => event.frameId === frame.id)
+      .map((event) => ({
+        kind: "select" as const,
+        id: event.id,
+        startedAt: event.startedAt,
+        order: idOrder(event.id),
+        event,
+      })),
+    ...trace.mutationEvents
+      .filter((event) => event.frameId === frame.id)
+      .map((event) => ({
+        kind: "mutation" as const,
+        id: event.id,
+        startedAt: event.startedAt,
+        order: idOrder(event.id),
+        event,
+      })),
+    ...frame.children.map((child) => ({
+      kind: "frame" as const,
+      id: child.id,
+      startedAt: child.startedAt,
+      order: idOrder(child.id),
+      frame: child,
     })),
-  ...trace.mutationEvents
-    .filter((event) => event.frameId === frame.id)
-    .map((event) => ({
-      kind: "mutation" as const,
-      id: event.id,
-      startedAt: event.startedAt,
-      order: idOrder(event.id),
-      event,
-    })),
-  ...frame.children.map((child) => ({
-    kind: "frame" as const,
-    id: child.id,
-    startedAt: child.startedAt,
-    order: idOrder(child.id),
-    frame: child,
-  })),
-].sort(
-  (left, right) => left.startedAt - right.startedAt || left.order - right.order,
-);
+  ].sort(
+    (left, right) =>
+      left.startedAt - right.startedAt || left.order - right.order,
+  );
 
 export const formatCallTreeOperation = (
   operation: CallTreeOperation,
@@ -825,9 +994,7 @@ export const formatCallTreeOperation = (
   return `${operation.event.kind} ${operation.event.tableName}`;
 };
 
-const callTreeOperationDuration = (
-  operation: CallTreeOperation,
-): string => {
+const callTreeOperationDuration = (operation: CallTreeOperation): string => {
   const durationMs =
     operation.kind === "frame"
       ? operation.frame.durationMs
@@ -907,7 +1074,9 @@ const TraceOverview = ({ trace }: { trace: RootTrace }) => (
         <strong>{trace.mutationEvents.length}</strong>
       </Stat>
     </Grid>
-    <DataBlock>{renderSerialized({ args: trace.args, error: trace.error })}</DataBlock>
+    <DataBlock>
+      {renderSerialized({ args: trace.args, error: trace.error })}
+    </DataBlock>
   </>
 );
 
@@ -966,7 +1135,9 @@ const CallTreeOperationView = ({
   trace: RootTrace;
 }) => {
   const childOperations =
-    operation.kind === "frame" ? getCallTreeOperations(operation.frame, trace) : [];
+    operation.kind === "frame"
+      ? getCallTreeOperations(operation.frame, trace)
+      : [];
   const badges = getCallTreeOperationBadges(operation);
 
   return (
@@ -1038,12 +1209,9 @@ const TraceDetails = ({ trace }: { trace: RootTrace }) => {
           Overview
         </Tab>
         <Tab selected={tab === "data"} onClick={() => setTab("data")}>
-          Data
+          Queries
         </Tab>
-        <Tab
-          selected={tab === "mutations"}
-          onClick={() => setTab("mutations")}
-        >
+        <Tab selected={tab === "mutations"} onClick={() => setTab("mutations")}>
           Mutations
         </Tab>
         <Tab selected={tab === "tree"} onClick={() => setTab("tree")}>
@@ -1068,14 +1236,13 @@ const DevtoolsPanelInner = ({
   theme = "system",
   position = "bottom",
   embedded = false,
+  onClose,
 }: HyperDBDevtoolsPanelProps) => {
   void db;
   const traces = useTraces(maxTraces);
   const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>();
   const selectedTrace = useMemo(
-    () =>
-      traces.find((trace) => trace.id === selectedTraceId) ??
-      traces[0],
+    () => traces.find((trace) => trace.id === selectedTraceId) ?? traces[0],
     [selectedTraceId, traces],
   );
 
@@ -1090,6 +1257,11 @@ const DevtoolsPanelInner = ({
           <ToolbarActions>
             <TraceCount>{traces.length} traces</TraceCount>
             <Button onClick={() => hyperDBTraceStore.clear()}>Clear</Button>
+            {onClose ? (
+              <Button aria-label="Close HyperDB Devtools" onClick={onClose}>
+                Close
+              </Button>
+            ) : null}
           </ToolbarActions>
         </Toolbar>
         <Rows>
@@ -1125,21 +1297,21 @@ const DevtoolsPanelInner = ({
           )}
         </Rows>
       </TraceList>
-      {selectedTrace ? <TraceDetails trace={selectedTrace} /> : <Empty>No traces</Empty>}
+      {selectedTrace ? (
+        <TraceDetails trace={selectedTrace} />
+      ) : (
+        <Empty>No traces</Empty>
+      )}
     </Shell>
   );
 };
 
-const ContextPanel = (
-  props: Omit<HyperDBDevtoolsPanelProps, "db">,
-) => {
+const ContextPanel = (props: Omit<HyperDBDevtoolsPanelProps, "db">) => {
   const db = useDB();
   return <DevtoolsPanelInner {...props} db={db} />;
 };
 
-export const HyperDBDevtoolsPanel = (
-  props: HyperDBDevtoolsPanelProps,
-) =>
+export const HyperDBDevtoolsPanel = (props: HyperDBDevtoolsPanelProps) =>
   props.db ? (
     <DevtoolsPanelInner {...props} />
   ) : (
@@ -1148,6 +1320,7 @@ export const HyperDBDevtoolsPanel = (
       theme={props.theme}
       position={props.position}
       embedded={props.embedded}
+      onClose={props.onClose}
     />
   );
 
@@ -1167,10 +1340,24 @@ export const HyperDBDevtools = ({
     writeStoredOpenState(isOpen);
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
   return (
     <>
       <ToggleButton
         buttonPosition={buttonPosition}
+        theme={theme}
         aria-label={isOpen ? "Close HyperDB Devtools" : "Open HyperDB Devtools"}
         onClick={() => setIsOpen((open) => !open)}
       >
@@ -1182,6 +1369,7 @@ export const HyperDBDevtools = ({
           maxTraces={maxTraces}
           theme={theme}
           position={position}
+          onClose={() => setIsOpen(false)}
         />
       )}
     </>

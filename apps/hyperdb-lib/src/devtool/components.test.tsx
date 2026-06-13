@@ -73,6 +73,21 @@ describe("HyperDBDevtools", () => {
     expect(html).toContain("HyperDB");
   });
 
+  it("falls back when localStorage.getItem throws", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("fail");
+      },
+      setItem: () => {},
+    });
+
+    const html = renderToString(
+      <HyperDBDevtools db={createDB()} initialIsOpen={false} />,
+    );
+
+    expect(html).toContain("HyperDB");
+  });
+
   it("formats select events as SQL-like queries", () => {
     const event: SelectCommandEvent = {
       id: "cmd-1",

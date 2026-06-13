@@ -333,9 +333,9 @@ export class SubscribableDBTx implements HyperDBTx {
       )) {
         deleteOps.push({ type: "delete", table, oldValue: oldRecord });
       }
-      appendOps(this.operations, deleteOps);
 
       yield* this.txDb.delete(table, ids);
+      appendOps(this.operations, deleteOps);
     } catch (error) {
       if (traceContext && mutationEvent) {
         endMutationEventError(traceContext, mutationEvent, error);

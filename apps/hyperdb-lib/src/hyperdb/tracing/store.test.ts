@@ -54,6 +54,22 @@ describe("devtool tracing store", () => {
     unsubscribe();
   });
 
+  it("does not notify when max trace count is unchanged", () => {
+    const store = new HyperDBTraceStore(2);
+    let notifyCount = 0;
+    const unsubscribe = store.subscribe(() => {
+      notifyCount += 1;
+    });
+
+    store.setMaxTraces(2);
+    expect(notifyCount).toBe(0);
+
+    store.setMaxTraces(3);
+    expect(notifyCount).toBe(1);
+
+    unsubscribe();
+  });
+
   it("records successful and failed root trace lifecycles", () => {
     const store = new HyperDBTraceStore();
     const unsubscribe = store.subscribe(() => {});

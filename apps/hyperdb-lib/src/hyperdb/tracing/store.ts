@@ -99,14 +99,6 @@ const nextId = (prefix: string): string => {
   return `${prefix}-${idCounter}`;
 };
 
-const nowMs = (): number => {
-  if (typeof performance !== "undefined" && performance.now) {
-    return performance.now();
-  }
-
-  return Date.now();
-};
-
 const wallClockNow = (): number => Date.now();
 
 export const summarizeError = (error: unknown): TraceError => {
@@ -191,7 +183,10 @@ export class HyperDBTraceStore {
   isActive = (): boolean => this.activeListenerCount > 0;
 
   setMaxTraces = (maxTraces: number): void => {
-    this.maxTraces = Math.max(1, Math.floor(maxTraces));
+    const nextMaxTraces = Math.max(1, Math.floor(maxTraces));
+    if (nextMaxTraces === this.maxTraces) return;
+
+    this.maxTraces = nextMaxTraces;
     this.trim();
     this.notify();
   };
@@ -227,7 +222,6 @@ export type TraceContext = {
   frameStack: TraceFrame[];
   frameMetas: TraceFrameMeta[];
   rootMetaId?: string;
-  timeOrigin: number;
   store: HyperDBTraceStore;
 };
 
@@ -282,7 +276,6 @@ export const startRootTrace = (
 ): TraceContext | undefined => {
   if (!store.isActive()) return undefined;
 
-  const timeOrigin = nowMs();
   const startedAt = wallClockNow();
   const rootFrame = createFrame(meta, startedAt);
   const trace: RootTrace = {
@@ -303,7 +296,6 @@ export const startRootTrace = (
     frameStack: [rootFrame],
     frameMetas: [meta],
     rootMetaId: meta.id,
-    timeOrigin,
     store,
   };
 

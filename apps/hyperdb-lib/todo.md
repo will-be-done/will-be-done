@@ -14,15 +14,15 @@ TODO:
 1. DONE Ask if that approach overall good. Passing data with tree
 1. DONE check that utf8 sorting of string is same in js
 1. devtool 
-1. ability to change data in devtool
 1. DONE Add firstOr(), first()
-1. Check devtool for tansatack table
-1. IMPORTANT - check how to make sure that devtool will have named queries/mutations
-1. Generate docs
-1. Rename selector -> query; action -> mutation?
-1. better naming query/mutation. But if name query, then what is selectFrom() - . Actualyy maybe current naming is good. Action, selectors, query = selecFrom, mutation = insert/upsert/delete
+1. DONE Check devtool for tansatack table
+1. DONE IMPORTANT - check how to make sure that devtool will have named queries/mutations
+1. DONE Rename selector -> query; action -> mutation?
+1. DONE better naming query/mutation. But if name query, then what is selectFrom() - . Actualyy maybe current naming is good. Action, selectors, query = selecFrom, mutation = insert/upsert/delete
 1. Value - add bignit/arraybuffer support
 1. Maybe rename trait -> context?
+1. Refactor UI with claude code
+1. Generate docs
 
 TODO for devtool:
 1. Polisj UI. Remove flickering. Maybe adopt UI from livestore
@@ -42,7 +42,7 @@ Then:
 Maybe:
 1. filter
 1. play with effect-ts
-
+1. ability to change data in devtool
 
 @insertProject [200ms]
   select projects.byId [50ms] [1 row]

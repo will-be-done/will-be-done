@@ -266,6 +266,27 @@ describe("query", () => {
     expect(result.value).toBe(fallback);
   });
 
+  it("returns the first row from firstOr when the query is not empty", () => {
+    const fallback = null;
+    const task: ExtractSchema<typeof tasksTable> = {
+      type: "task",
+      id: "existing-task",
+      title: "Existing task",
+      state: "done",
+      projectId: "project-1",
+      orderToken: "a",
+    };
+    const gen = selectFrom(tasksTable, "byId")
+      .where((q) => q.eq("id", "existing-task"))
+      .firstOr(fallback);
+
+    gen.next();
+
+    const result = gen.next([task]);
+    expect(result.done).toBe(true);
+    expect(result.value).toBe(task);
+  });
+
   it("supports first and firstOr without a where clause", () => {
     const firstQuery = selectFrom(tasksTable, "projectIdState").first();
     const firstCmdResult = firstQuery.next();

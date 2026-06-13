@@ -147,6 +147,40 @@ describe("devtool runtime tracing", () => {
     );
   });
 
+  it("records a non-generator selector success as a root trace", () => {
+    const db = createDB();
+
+    const plainSelector = selector(function plainValueSelector() {
+      return "plain result";
+    });
+
+    expect(select(db, plainSelector())).toBe("plain result");
+
+    const trace = hyperDBTraceStore.getSnapshot()[0]!;
+    expect(trace.kind).toBe("selector");
+    expect(trace.name).toBe("plainValueSelector");
+    expect(trace.status).toBe("success");
+    expect(trace.commandEvents).toHaveLength(0);
+  });
+
+  it("marks non-generator selector errors on the root trace, then rethrows", () => {
+    const db = createDB();
+    const failingSelector = selector(function failingPlainSelector() {
+      throw new Error("plain selector failed");
+    });
+
+    expect(() => select(db, failingSelector())).toThrow(
+      "plain selector failed",
+    );
+
+    const trace = hyperDBTraceStore.getSnapshot()[0]!;
+    expect(trace.kind).toBe("selector");
+    expect(trace.name).toBe("failingPlainSelector");
+    expect(trace.status).toBe("error");
+    expect(trace.error?.message).toBe("plain selector failed");
+    expect(trace.commandEvents).toHaveLength(0);
+  });
+
   it("marks select errors on the command and root trace, then rethrows", () => {
     const db = new DB(new BptreeInmemDriver());
     const failingSelector = selector(function* failingSelector() {
