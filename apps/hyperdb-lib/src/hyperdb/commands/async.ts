@@ -32,26 +32,3 @@ export const isUnwrapCmd = (cmd: unknown): cmd is UnwrapCmd =>
 
 export const isCmd = (cmd: unknown): cmd is UnwrapCmd | any => isUnwrapCmd(cmd);
 export const isNoopCmd = (cmd: any): cmd is NoopCmd => cmd.type === noopType;
-
-// export function* collectAll<T>(
-//   gen: Generator<T, unknown, unknown>,
-// ): Generator<unknown, T[]> {
-//   const currentGen = gen;
-//   let currentResult = gen.next();
-//
-//   const result: T[] = [];
-//   while (!currentResult.done) {
-//     if (isCmd(currentResult.value)) {
-//       const res = yield currentResult.value;
-//
-//       currentResult = currentGen.next(res);
-//     } else {
-//       result.push(currentResult.value);
-//       currentResult = currentGen.next();
-//     }
-//   }
-//   result.push(currentResult.value as T);
-//
-//   return result;
-// }
-//

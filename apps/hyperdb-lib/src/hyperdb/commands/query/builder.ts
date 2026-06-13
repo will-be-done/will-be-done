@@ -58,6 +58,32 @@ const createSelectRangeCmd = <QType extends SelectQuery>(
   };
 };
 
+function* selectFirst<
+  TTable extends TableDefinition,
+  TIndexName extends ExtractIndexName<TTable>,
+>(
+  query: SelectQuery<TTable, TIndexName>,
+): Generator<unknown, ExtractSchema<TTable> | undefined, unknown> {
+  const results = (yield createSelectRangeCmd({
+    ...query,
+    limit: 1,
+  })) as ExtractSchema<TTable>[];
+
+  return results[0];
+}
+
+function* selectFirstOr<
+  TTable extends TableDefinition,
+  TIndexName extends ExtractIndexName<TTable>,
+  TOtherValue,
+>(
+  query: SelectQuery<TTable, TIndexName>,
+  otherValue: TOtherValue,
+): Generator<unknown, ExtractSchema<TTable> | TOtherValue, unknown> {
+  const result = yield* selectFirst(query);
+  return result === undefined ? otherValue : result;
+}
+
 class QueryBuilder<TTable, TIndexName extends ExtractIndexName<TTable>> {
   private conditions: QueryWhereClause = {
     lt: [],
@@ -229,6 +255,16 @@ class SelectQueryBuilder<
       this.toQuery(),
     )) as ExtractSchema<TTable>[];
   }
+
+  first(): Generator<unknown, ExtractSchema<TTable> | undefined, unknown> {
+    return selectFirst(this.toQuery());
+  }
+
+  firstOr<TOtherValue>(
+    otherValue: TOtherValue,
+  ): Generator<unknown, ExtractSchema<TTable> | TOtherValue, unknown> {
+    return selectFirstOr(this.toQuery(), otherValue);
+  }
 }
 
 class SelectQueryBuilderWithWhere<
@@ -289,6 +325,16 @@ class SelectQueryBuilderWithWhere<
     return (yield createSelectRangeCmd(
       this.toQuery(),
     )) as ExtractSchema<TTable>[];
+  }
+
+  first(): Generator<unknown, ExtractSchema<TTable> | undefined, unknown> {
+    return selectFirst(this.toQuery());
+  }
+
+  firstOr<TOtherValue>(
+    otherValue: TOtherValue,
+  ): Generator<unknown, ExtractSchema<TTable> | TOtherValue, unknown> {
+    return selectFirstOr(this.toQuery(), otherValue);
   }
 }
 

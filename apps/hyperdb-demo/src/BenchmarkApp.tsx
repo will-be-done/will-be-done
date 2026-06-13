@@ -123,6 +123,12 @@ export function BenchmarkApp({
         >
           TanStack DB
         </a>
+        <a
+          href="/loki"
+          aria-current={backendName === "LokiJS" ? "page" : undefined}
+        >
+          LokiJS
+        </a>
       </nav>
 
       <header className="topbar">

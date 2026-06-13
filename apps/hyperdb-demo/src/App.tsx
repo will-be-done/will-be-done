@@ -3,6 +3,7 @@ import {
   useDispatch as useHyperdbDispatch,
   useSyncSelector,
 } from "@will-be-done/hyperdb-lib/react";
+import { HyperDBDevtools } from "@will-be-done/hyperdb-lib/devtool";
 import { BenchmarkApp } from "./BenchmarkApp";
 import {
   clearWorkload as clearHyperdbWorkload,
@@ -25,6 +26,12 @@ import {
   toggleTanstackTaskDone,
   useTanstackDashboardSnapshot,
 } from "./tanstackDbStore";
+import {
+  clearLokiWorkload,
+  generateLokiWorkload,
+  toggleLokiTaskDone,
+  useLokiDashboardSnapshot,
+} from "./lokiDbStore";
 import { useBenchmarkState } from "./useBenchmarkState";
 import type { Task } from "./workload";
 import "./App.css";
@@ -47,18 +54,21 @@ function HyperdbBenchmark() {
   );
 
   return (
-    <BenchmarkApp
-      backendName="HyperDB"
-      benchmarkState={benchmarkState}
-      dashboard={dashboard}
-      generateWorkload={(projectCount, tasksPerProject) =>
-        dispatch(generateHyperdbWorkload(projectCount, tasksPerProject))
-      }
-      clearWorkload={() => dispatch(clearHyperdbWorkload())}
-      toggleTaskDone={(task: Task) => {
-        dispatch(toggleHyperdbTaskDone(task));
-      }}
-    />
+    <>
+      <BenchmarkApp
+        backendName="HyperDB"
+        benchmarkState={benchmarkState}
+        dashboard={dashboard}
+        generateWorkload={(projectCount, tasksPerProject) =>
+          dispatch(generateHyperdbWorkload(projectCount, tasksPerProject))
+        }
+        clearWorkload={() => dispatch(clearHyperdbWorkload())}
+        toggleTaskDone={(task: Task) => {
+          dispatch(toggleHyperdbTaskDone(task));
+        }}
+      />
+      <HyperDBDevtools position="bottom" buttonPosition="bottom-right" />
+    </>
   );
 }
 
@@ -80,8 +90,8 @@ function ReduxBenchmarkContent() {
       benchmarkState={benchmarkState}
       dashboard={dashboard}
       generateWorkload={(projectCount, tasksPerProject) =>
-        dispatch(generateReduxWorkload({ projectCount, tasksPerProject })).payload
-          .result
+        dispatch(generateReduxWorkload({ projectCount, tasksPerProject }))
+          .payload.result
       }
       clearWorkload={() =>
         dispatch(
@@ -115,13 +125,35 @@ function TanstackBenchmark() {
   );
 
   return (
+    <>
+      <BenchmarkApp
+        backendName="TanStack DB"
+        benchmarkState={benchmarkState}
+        dashboard={dashboard}
+        generateWorkload={generateTanstackWorkload}
+        clearWorkload={clearTanstackWorkload}
+        toggleTaskDone={toggleTanstackTaskDone}
+      />
+    </>
+  );
+}
+
+function LokiBenchmark() {
+  const benchmarkState = useBenchmarkState();
+  const dashboard = useLokiDashboardSnapshot(
+    benchmarkState.taskLimit,
+    benchmarkState.projectLimit,
+    benchmarkState.selectedProjectId,
+  );
+
+  return (
     <BenchmarkApp
-      backendName="TanStack DB"
+      backendName="LokiJS"
       benchmarkState={benchmarkState}
       dashboard={dashboard}
-      generateWorkload={generateTanstackWorkload}
-      clearWorkload={clearTanstackWorkload}
-      toggleTaskDone={toggleTanstackTaskDone}
+      generateWorkload={generateLokiWorkload}
+      clearWorkload={clearLokiWorkload}
+      toggleTaskDone={toggleLokiTaskDone}
     />
   );
 }
@@ -129,6 +161,7 @@ function TanstackBenchmark() {
 function App() {
   if (window.location.pathname === "/redux") return <ReduxBenchmark />;
   if (window.location.pathname === "/db") return <TanstackBenchmark />;
+  if (window.location.pathname === "/loki") return <LokiBenchmark />;
 
   return <HyperdbBenchmark />;
 }

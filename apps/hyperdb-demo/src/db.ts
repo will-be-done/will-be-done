@@ -90,7 +90,7 @@ const EMPTY_TASK_STATS: TaskStats = {
   done: 0,
 };
 
-export const getDashboardSnapshot = selector(function* (
+export const getDashboardSnapshot = selector(function* getDashboardSnapshot(
   taskLimit = 10,
   projectLimit = 10,
   selectedProjectId: string | null = null,
@@ -100,9 +100,9 @@ export const getDashboardSnapshot = selector(function* (
     .order("asc")
     .limit(projectLimit);
   const selectedProject = selectedProjectId
-    ? ((yield* selectFrom(projectsTable, "byId").where((q) =>
-        q.eq("id", selectedProjectId),
-      ))[0] ?? null)
+    ? yield* selectFrom(projectsTable, "byId")
+        .where((q) => q.eq("id", selectedProjectId))
+        .firstOr(null)
     : (projects[0] ?? null);
   const visibleProjectTaskStats =
     projects.length > 0
@@ -111,9 +111,9 @@ export const getDashboardSnapshot = selector(function* (
         )
       : [];
   const selectedProjectTaskStats = selectedProject
-    ? ((yield* selectFrom(projectTaskStatsTable, "byId").where((q) =>
-        q.eq("id", selectedProject.id),
-      ))[0] ?? null)
+    ? yield* selectFrom(projectTaskStatsTable, "byId")
+        .where((q) => q.eq("id", selectedProject.id))
+        .firstOr(null)
     : null;
   const selectedTasks = selectedProject
     ? yield* selectFrom(tasksTable, "byProjectPosition")
@@ -121,10 +121,9 @@ export const getDashboardSnapshot = selector(function* (
         .order("asc")
         .limit(taskLimit)
     : [];
-  const stats =
-    (yield* selectFrom(taskStatsTable, "byId").where((q) =>
-      q.eq("id", TASK_STATS_ID),
-    ))[0] ?? EMPTY_TASK_STATS;
+  const stats = yield* selectFrom(taskStatsTable, "byId")
+    .where((q) => q.eq("id", TASK_STATS_ID))
+    .firstOr(EMPTY_TASK_STATS);
 
   return {
     projects,
@@ -186,14 +185,13 @@ function applyProjectTaskCountDelta(
 }
 
 export function installTaskStatsHooks(db: SubscribableDB) {
-  db.afterChange(function* (_db, table, _traits, ops) {
+  db.afterChange(function* updateTaskStats(_db, table, _traits, ops) {
     if (ops.length === 0) return;
     if (table !== tasksTable && table !== projectsTable) return;
 
-    const existingStats =
-      (yield* selectFrom(taskStatsTable, "byId").where((q) =>
-        q.eq("id", TASK_STATS_ID),
-      ))[0] ?? EMPTY_TASK_STATS;
+    const existingStats = yield* selectFrom(taskStatsTable, "byId")
+      .where((q) => q.eq("id", TASK_STATS_ID))
+      .firstOr(EMPTY_TASK_STATS);
 
     let nextStats = existingStats;
 
@@ -284,7 +282,7 @@ export function installTaskStatsHooks(db: SubscribableDB) {
   });
 }
 
-export const generateWorkload = action(function* (
+export const generateWorkload = action(function* generateWorkload(
   projectCount: number,
   tasksPerProject: number,
 ) {
@@ -295,11 +293,12 @@ export const generateWorkload = action(function* (
 
   yield* insert(projectsTable, projects);
   yield* insert(tasksTable, tasks);
+  yield* getDashboardSnapshot(10, 10);
 
   return result;
 });
 
-export const clearWorkload = action(function* () {
+export const clearWorkload = action(function* clearWorkload() {
   const projects = yield* selectFrom(projectsTable, "byCreatedAt").where(
     (q) => q,
   );
@@ -320,7 +319,7 @@ export const clearWorkload = action(function* () {
   };
 });
 
-export const toggleTaskDone = action(function* (task: Task) {
+export const toggleTaskDone = action(function* toggleTaskDone(task: Task) {
   const status: Task["status"] = task.status === "done" ? "todo" : "done";
 
   yield* upsert(tasksTable, [{ ...task, status }]);
