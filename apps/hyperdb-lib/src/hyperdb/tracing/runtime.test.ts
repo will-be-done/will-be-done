@@ -1,21 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { DB, execSync } from "../../hyperdb/db";
-import { BptreeInmemDriver } from "../../hyperdb/drivers/inmemory/bptree-inmem-driver";
-import { SubscribableDB } from "../../hyperdb/runtime/subscribable-db";
-import { defineTable } from "../../hyperdb/schema/table";
-import { v } from "../../hyperdb/schema/values";
+import { DB, execSync } from "../db";
+import { BptreeInmemDriver } from "../drivers/inmemory/bptree-inmem-driver";
+import { SubscribableDB } from "../runtime/subscribable-db";
+import { defineTable } from "../schema/table";
+import { v } from "../schema/values";
 import {
   action,
   deleteRows,
+  getCurrentTraits,
   insert,
   syncDispatch,
   upsert,
-} from "../../hyperdb/commands/action/builders";
-import { selectFrom } from "../../hyperdb/commands/query/builder";
+} from "../commands/action/builders";
+import { selectFrom } from "../commands/query/builder";
 import {
   select,
   selector,
-} from "../../hyperdb/commands/query/selector";
+} from "../commands/query/selector";
+import { getTraceContextFromTraits } from "./context";
 import { hyperDBTraceStore } from "./store";
 
 type Task = {
@@ -186,6 +188,25 @@ describe("devtool runtime tracing", () => {
     expect(trace.mutationEvents[1]?.newValue).toEqual([updatedTask]);
     expect(trace.mutationEvents[2]?.ids).toEqual([updatedTask.id]);
     expect(trace.mutationEvents[2]?.oldValue).toEqual([updatedTask]);
+  });
+
+  it("passes the trace context through traits", () => {
+    const db = createDB();
+    const observedSubscriberTraces: (string | undefined)[] = [];
+
+    db.afterChange(function* afterChange(_db, _table, traits) {
+      observedSubscriberTraces.push(getTraceContextFromTraits(traits)?.trace.name);
+    });
+
+    const readTraceTraitsAction = action(function* traceTraitsAction() {
+      const traits = yield* getCurrentTraits();
+      yield* insert(tasksTable, [task()]);
+
+      return getTraceContextFromTraits(traits)?.trace.name;
+    });
+
+    expect(syncDispatch(db, readTraceTraitsAction())).toBe("traceTraitsAction");
+    expect(observedSubscriberTraces).toEqual(["traceTraitsAction"]);
   });
 
   it("does not create extra roots for synchronous afterChange subscribers", () => {

@@ -7,7 +7,7 @@ import { isRowInRange } from "../../core/query/tuple";
 import {
   isGeneratorFunction,
   wrapGeneratorWithTraceMeta,
-} from "../../../devtool/tracing/metadata";
+} from "../../tracing/metadata";
 import { runCommandGenerator } from "../runner";
 import { type SelectRangeCmd } from "./commands";
 

@@ -15,7 +15,7 @@ import {
   type SelectCommandEvent,
   type TraceFrame,
   type TraceStatus,
-} from "./tracing/store";
+} from "../hyperdb/tracing/store";
 
 setup(React.createElement);
 

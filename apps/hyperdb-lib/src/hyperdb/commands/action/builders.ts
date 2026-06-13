@@ -3,7 +3,7 @@ import { execAsync, execSync } from "../../core/executor";
 import type { HyperDB } from "../../core/contracts";
 import type { Trait } from "../../core/primitives";
 import type { ExtractSchema, TableDefinition } from "../../schema/table";
-import { wrapGeneratorWithTraceMeta } from "../../../devtool/tracing/metadata";
+import { wrapGeneratorWithTraceMeta } from "../../tracing/metadata";
 import {
   deleteType,
   getCurrentTraitsType,

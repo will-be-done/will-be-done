@@ -1,2 +1,2 @@
 export * from "./components";
-export * from "./tracing";
+export * from "../hyperdb/tracing";

@@ -22,6 +22,7 @@ TODO:
 1. Rename selector -> query; action -> mutation?
 1. better naming query/mutation. But if name query, then what is selectFrom() - . Actualyy maybe current naming is good. Action, selectors, query = selecFrom, mutation = insert/upsert/delete
 1. Value - add bignit/arraybuffer support
+1. Maybe rename trait -> context?
 
 TODO for devtool:
 1. Polisj UI. Remove flickering. Maybe adopt UI from livestore

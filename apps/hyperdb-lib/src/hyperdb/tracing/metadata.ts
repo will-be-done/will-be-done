@@ -4,8 +4,6 @@ import {
   type TraceKind,
 } from "./store";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 export const generatorTraceMetaKey = Symbol.for(
   "hyperdb.devtool.generatorMeta",
 );
@@ -59,11 +57,7 @@ export const wrapGeneratorWithTraceMeta = <TReturn>(
     let sentValue: unknown;
     let result: IteratorResult<unknown, TReturn>;
 
-    try {
-      result = gen.next();
-    } catch (error) {
-      throw error;
-    }
+    result = gen.next();
 
     while (!result.done) {
       try {

@@ -90,7 +90,7 @@ const EMPTY_TASK_STATS: TaskStats = {
   done: 0,
 };
 
-export const getDashboardSnapshot = selector(function* (
+export const getDashboardSnapshot = selector(function* getDashboardSnapshot(
   taskLimit = 10,
   projectLimit = 10,
   selectedProjectId: string | null = null,
@@ -185,7 +185,7 @@ function applyProjectTaskCountDelta(
 }
 
 export function installTaskStatsHooks(db: SubscribableDB) {
-  db.afterChange(function* (_db, table, _traits, ops) {
+  db.afterChange(function* updateTaskStats(_db, table, _traits, ops) {
     if (ops.length === 0) return;
     if (table !== tasksTable && table !== projectsTable) return;
 
@@ -282,7 +282,7 @@ export function installTaskStatsHooks(db: SubscribableDB) {
   });
 }
 
-export const generateWorkload = action(function* (
+export const generateWorkload = action(function* generateWorkload(
   projectCount: number,
   tasksPerProject: number,
 ) {
@@ -293,11 +293,12 @@ export const generateWorkload = action(function* (
 
   yield* insert(projectsTable, projects);
   yield* insert(tasksTable, tasks);
+  yield* getDashboardSnapshot(10, 10);
 
   return result;
 });
 
-export const clearWorkload = action(function* () {
+export const clearWorkload = action(function* clearWorkload() {
   const projects = yield* selectFrom(projectsTable, "byCreatedAt").where(
     (q) => q,
   );
@@ -318,7 +319,7 @@ export const clearWorkload = action(function* () {
   };
 });
 
-export const toggleTaskDone = action(function* (task: Task) {
+export const toggleTaskDone = action(function* toggleTaskDone(task: Task) {
   const status: Task["status"] = task.status === "done" ? "todo" : "done";
 
   yield* upsert(tasksTable, [{ ...task, status }]);

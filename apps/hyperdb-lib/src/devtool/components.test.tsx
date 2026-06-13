@@ -16,9 +16,13 @@ import {
   endTraceSuccess,
   hyperDBTraceStore,
   startRootTrace,
-} from "./tracing/store";
-import type { SelectCommandEvent } from "./tracing/store";
-import type { MutationEvent, RootTrace, TraceFrame } from "./tracing/store";
+} from "../hyperdb/tracing/store";
+import type { SelectCommandEvent } from "../hyperdb/tracing/store";
+import type {
+  MutationEvent,
+  RootTrace,
+  TraceFrame,
+} from "../hyperdb/tracing/store";
 
 const createDB = (): SubscribableDB => {
   const db = new SubscribableDB(new DB(new BptreeInmemDriver()));

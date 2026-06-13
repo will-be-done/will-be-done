@@ -8,13 +8,13 @@ import { runCommandGenerator } from "../commands/runner";
 import type { DBCmd } from "../commands/async";
 // import { collectAll } from "../commands/async";
 import type { ExtractIndexes, ExtractSchema, TableDefinition } from "../schema/table";
-import { getActiveTraceContextForDB } from "../../devtool/tracing/context";
+import { getTraceContextForDB } from "../tracing/context";
 import {
   beginMutationEvent,
   endMutationEventError,
   endMutationEventSuccess,
   getCurrentTraceFrame,
-} from "../../devtool/tracing/store";
+} from "../tracing/store";
 import { refVar, type RefVar } from "../utils";
 
 export type InsertOp = {
@@ -165,7 +165,7 @@ export class SubscribableDBTx implements HyperDBTx {
     this.throwIfDone();
     if (records.length === 0) return;
 
-    const traceContext = getActiveTraceContextForDB(this);
+    const traceContext = getTraceContextForDB(this);
     const mutationEvent = traceContext
       ? beginMutationEvent(traceContext, getCurrentTraceFrame(traceContext), {
           kind: "insert",
@@ -247,7 +247,7 @@ export class SubscribableDBTx implements HyperDBTx {
     }
 
     const previousRecords = new Map<string, Row>();
-    const traceContext = getActiveTraceContextForDB(this);
+    const traceContext = getTraceContextForDB(this);
     const mutationEvent = traceContext
       ? beginMutationEvent(traceContext, getCurrentTraceFrame(traceContext), {
           kind: "upsert",
@@ -316,7 +316,7 @@ export class SubscribableDBTx implements HyperDBTx {
     if (ids.length === 0) return;
 
     const deleteOps: DeleteOp[] = [];
-    const traceContext = getActiveTraceContextForDB(this);
+    const traceContext = getTraceContextForDB(this);
     const mutationEvent = traceContext
       ? beginMutationEvent(traceContext, getCurrentTraceFrame(traceContext), {
           kind: "delete",

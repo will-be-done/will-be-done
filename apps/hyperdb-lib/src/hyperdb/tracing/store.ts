@@ -1,7 +1,5 @@
-import type { TupleScanOptions, Value } from "../../hyperdb/core/primitives";
-import type { QueryWhereClause } from "../../hyperdb/commands/query/commands";
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { QueryWhereClause } from "../commands/query/commands";
+import type { TupleScanOptions, Value } from "../core/primitives";
 
 export type TraceKind = "action" | "selector" | "unknown";
 export type TraceStatus = "running" | "success" | "error";
