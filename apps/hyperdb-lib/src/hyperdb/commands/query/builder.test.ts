@@ -1,5 +1,5 @@
 import { assertType, describe, expect, it } from "vitest";
-import { defineTable } from "../../schema/table";
+import { defineTable, type ExtractSchema } from "../../schema/table";
 import { selectFrom, or } from "./builder";
 import type { ExtractIndexColumns } from "./builder";
 import { v } from "../../schema/values";
@@ -196,6 +196,130 @@ describe("query", () => {
     expect(result.where).toHaveLength(2);
   });
 
+  it("returns the first row as a terminal query helper", () => {
+    const task: ExtractSchema<typeof tasksTable> = {
+      type: "task",
+      id: "task-1",
+      title: "Task 1",
+      state: "todo",
+      projectId: "project-1",
+      orderToken: "a",
+    };
+
+    const gen = selectFrom(tasksTable, "byId")
+      .where((q) => q.eq("id", "task-1"))
+      .first();
+    const cmdResult = gen.next();
+
+    expect(cmdResult.done).toBe(false);
+    expect(cmdResult.value).toMatchObject({
+      type: "selectRange",
+      selectQuery: {
+        from: tasksTable,
+        index: "byId",
+        limit: 1,
+      },
+    });
+
+    const result = gen.next([task]);
+    expect(result.done).toBe(true);
+    expect(result.value).toEqual(task);
+  });
+
+  it("forces limit 1 when first is called", () => {
+    const gen = selectFrom(tasksTable, "projectIdState")
+      .limit(10)
+      .where((q) => q.eq("projectId", "project-1"))
+      .first();
+    const cmdResult = gen.next();
+
+    expect(cmdResult.value).toMatchObject({
+      type: "selectRange",
+      selectQuery: {
+        limit: 1,
+      },
+    });
+  });
+
+  it("returns undefined from first when the query is empty", () => {
+    const gen = selectFrom(tasksTable, "byId")
+      .where((q) => q.eq("id", "missing-task"))
+      .first();
+
+    gen.next();
+
+    const result = gen.next([]);
+    expect(result.done).toBe(true);
+    expect(result.value).toBeUndefined();
+  });
+
+  it("returns a fallback from firstOr when the query is empty", () => {
+    const fallback = null;
+    const gen = selectFrom(tasksTable, "byId")
+      .where((q) => q.eq("id", "missing-task"))
+      .firstOr(fallback);
+
+    gen.next();
+
+    const result = gen.next([]);
+    expect(result.done).toBe(true);
+    expect(result.value).toBe(fallback);
+  });
+
+  it("returns the first row from firstOr when the query is not empty", () => {
+    const fallback = null;
+    const task: ExtractSchema<typeof tasksTable> = {
+      type: "task",
+      id: "existing-task",
+      title: "Existing task",
+      state: "done",
+      projectId: "project-1",
+      orderToken: "a",
+    };
+    const gen = selectFrom(tasksTable, "byId")
+      .where((q) => q.eq("id", "existing-task"))
+      .firstOr(fallback);
+
+    gen.next();
+
+    const result = gen.next([task]);
+    expect(result.done).toBe(true);
+    expect(result.value).toBe(task);
+  });
+
+  it("supports first and firstOr without a where clause", () => {
+    const firstQuery = selectFrom(tasksTable, "projectIdState").first();
+    const firstCmdResult = firstQuery.next();
+
+    expect(firstCmdResult.value).toMatchObject({
+      type: "selectRange",
+      selectQuery: {
+        limit: 1,
+        where: [
+          {
+            eq: [],
+            gte: [],
+            gt: [],
+            lte: [],
+            lt: [],
+          },
+        ],
+      },
+    });
+
+    const firstOrQuery = selectFrom(tasksTable, "projectIdState").firstOr(
+      "fallback",
+    );
+    const firstOrCmdResult = firstOrQuery.next();
+
+    expect(firstOrCmdResult.value).toMatchObject({
+      type: "selectRange",
+      selectQuery: {
+        limit: 1,
+      },
+    });
+  });
+
   it("works", () => {
     const result = selectFrom(tasksTable, "projectIdState")
       .where((q) =>
@@ -373,5 +497,30 @@ describe("query", () => {
       .toQuery();
 
     expect(query.where[0].eq).toEqual([{ col: "archivedAt", val: 10 }]);
+  });
+
+  it("types first and firstOr as terminal query helpers", () => {
+    function* firstTask() {
+      const task = yield* selectFrom(tasksTable, "byId")
+        .where((q) => q.eq("id", "task-1"))
+        .first();
+
+      assertType<ExtractSchema<typeof tasksTable> | undefined>(task);
+
+      return task;
+    }
+
+    function* firstTaskOrNull() {
+      const task = yield* selectFrom(tasksTable, "byId")
+        .where((q) => q.eq("id", "task-1"))
+        .firstOr(null);
+
+      assertType<ExtractSchema<typeof tasksTable> | null>(task);
+
+      return task;
+    }
+
+    expect(firstTask()).toBeDefined();
+    expect(firstTaskOrNull()).toBeDefined();
   });
 });

@@ -7,6 +7,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, "src/index.ts"),
         react: resolve(__dirname, "src/react.ts"),
+        devtool: resolve(__dirname, "src/devtool/index.ts"),
       },
       formats: ["es", "cjs"],
       fileName: (format, entryName) =>
