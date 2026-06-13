@@ -87,9 +87,9 @@ describe("validators", () => {
       /undefined is not a valid stored value at <root>/,
     );
 
-    expect(() =>
-      assertValid(v.array(v.string()), ["ok", undefined]),
-    ).toThrow(/undefined is not a valid stored value at \[1\]/);
+    expect(() => assertValid(v.array(v.string()), ["ok", undefined])).toThrow(
+      /undefined is not a valid stored value at \[1\]/,
+    );
   });
 
   it("rejects missing required fields, unexpected fields, and invalid object keys", () => {
@@ -104,12 +104,12 @@ describe("validators", () => {
     expect(() =>
       assertValid(validator, { id: "1", _private: true, extra: "nope" }),
     ).toThrow(/unexpected object field extra at extra/);
-    expect(() =>
-      assertValid(v.any(), { "": "empty" }),
-    ).toThrow(/object keys cannot be empty or start with \$ at \[""\]/);
-    expect(() =>
-      assertValid(v.any(), { $bad: "bad" }),
-    ).toThrow(/object keys cannot be empty or start with \$ at \$bad/);
+    expect(() => assertValid(v.any(), { "": "empty" })).toThrow(
+      /object keys cannot be empty or start with \$ at \[""\]/,
+    );
+    expect(() => assertValid(v.any(), { $bad: "bad" })).toThrow(
+      /object keys cannot be empty or start with \$ at \$bad/,
+    );
 
     expect(assertValid(validator, { id: "1", _private: true })).toEqual({
       id: "1",
@@ -125,7 +125,7 @@ describe("validators", () => {
       "z-9": false,
     });
 
-    expect(() => assertValid(validator, { "ключ": true })).toThrow(
+    expect(() => assertValid(validator, { ключ: true })).toThrow(
       /record keys must be non-empty ASCII keys/,
     );
     expect(() => assertValid(validator, { $bad: true })).toThrow(
@@ -144,10 +144,12 @@ describe("validators", () => {
     );
 
     const bytes = new ArrayBuffer(2);
-    expect(assertValid(v.any(), { ok: [1, "two", true, null], bytes })).toEqual({
-      ok: [1, "two", true, null],
-      bytes,
-    });
+    expect(assertValid(v.any(), { ok: [1, "two", true, null], bytes })).toEqual(
+      {
+        ok: [1, "two", true, null],
+        bytes,
+      },
+    );
   });
 
   it("rejects non-finite numbers", () => {

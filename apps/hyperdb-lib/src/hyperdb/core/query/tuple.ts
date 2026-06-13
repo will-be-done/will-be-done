@@ -13,8 +13,10 @@ import type { TableDefinition } from "../../schema/table";
 
 const encodingByte = {
   null: "b",
+  bigint: "c",
   float: "d",
   string: "e",
+  bytes: "f",
   virtual: "z",
 } as const;
 
@@ -43,11 +45,17 @@ export function encodingTypeOf(value: ScanValue): EncodingType {
   if (value === true || value === false) {
     return "float";
   }
+  if (typeof value === "bigint") {
+    return "bigint";
+  }
   if (typeof value === "string") {
     return "string";
   }
   if (typeof value === "number") {
     return "float";
+  }
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+    return "bytes";
   }
   if (value === MIN || value === MAX) {
     return "virtual";
@@ -64,10 +72,14 @@ export function compareValue(a: ScanValue, b: ScanValue): number {
   if (at === bt) {
     if (at === "float") {
       return compare(a as number, b as number);
+    } else if (at === "bigint") {
+      return compare(a as bigint, b as bigint);
     } else if (at === "null") {
       return 0;
     } else if (at === "string") {
       return compare(a as string, b as string);
+    } else if (at === "bytes") {
+      return compareArrays(bytesOf(a), bytesOf(b));
     } else if (at === "virtual") {
       if (a === MAX && b === MIN) return 1;
       if (a === MIN && b === MAX) return -1;

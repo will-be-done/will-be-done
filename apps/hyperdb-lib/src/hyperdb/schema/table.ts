@@ -17,10 +17,30 @@ export type UnionValue<T, K extends PropertyKey> = T extends unknown
   : never;
 
 export type IndexType = "hash" | "btree";
-export type IndexableValue = string | number | boolean | null;
+export type IndexableValue =
+  | string
+  | number
+  | bigint
+  | boolean
+  | null
+  | ArrayBuffer
+  | ArrayBufferView;
+
+type IsAny<T> = 0 extends 1 & T ? true : false;
+
+type IsIndexableValue<T> =
+  IsAny<T> extends true
+    ? false
+    : [T] extends [never]
+      ? false
+      : Exclude<T, IndexableValue> extends never
+        ? true
+        : false;
 
 export type IndexableColumn<T> = {
-  [K in UnionKeys<T>]-?: Exclude<UnionValue<T, K>, undefined> extends IndexableValue
+  [K in UnionKeys<T>]-?: IsIndexableValue<
+    Exclude<UnionValue<T, K>, undefined>
+  > extends true
     ? K
     : never;
 }[UnionKeys<T>];
@@ -158,7 +178,7 @@ export function validateIndexes(
       }
       if (fieldValidator && !isIndexableValueValidator(fieldValidator)) {
         throw new Error(
-          `Index column ${colName} is not SQLite-comparable for index: ${indexName} table: ${tableName}`,
+          `Index column ${colName} is not comparable for index: ${indexName} table: ${tableName}`,
         );
       }
     }

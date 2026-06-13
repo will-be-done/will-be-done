@@ -1,7 +1,8 @@
 export const MIN = Symbol("MIN");
 export const MAX = Symbol("MAX");
 
-export type Value = string | number | boolean | null;
+export type BinaryValue = ArrayBuffer | ArrayBufferView;
+export type Value = string | number | bigint | boolean | null | BinaryValue;
 export type ScanValue = Value | typeof MIN | typeof MAX;
 export type Tuple = ScanValue[];
 export type TupleScanOptions = {

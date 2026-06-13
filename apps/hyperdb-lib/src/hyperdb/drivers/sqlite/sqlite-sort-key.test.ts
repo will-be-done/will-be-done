@@ -34,6 +34,9 @@ describe("SqliteSortKey", () => {
         MIN,
         undefined,
         null,
+        -1n,
+        0n,
+        1n,
         Number.NEGATIVE_INFINITY,
         -1,
         -0,
@@ -49,6 +52,10 @@ describe("SqliteSortKey", () => {
         "a",
         "aa",
         "b",
+        new Uint8Array([]),
+        new Uint8Array([0]),
+        new Uint8Array([0, 1]),
+        new Uint8Array([1]),
         MAX,
       ];
 
@@ -68,11 +75,24 @@ describe("SqliteSortKey", () => {
     });
 
     it("rejects values that are not valid scan bounds", () => {
-      for (const value of [1n, [], {}, new Uint8Array([1])]) {
+      for (const value of [[], {}]) {
         expect(() => encodeSqliteSortKeyTuple([value], "scan")).toThrow(
           UnreachableError,
         );
       }
+    });
+
+    it("encodes equivalent byte values to equivalent scan keys", () => {
+      const buffer = new Uint8Array([9, 1, 2, 8]).buffer;
+
+      expect(
+        encodeSqliteSortKeyTuple([new Uint8Array(buffer, 1, 2)], "scan"),
+      ).toBe(
+        encodeSqliteSortKeyTuple(
+          [{ $hyperdbType: "bytes", value: [1, 2] }],
+          "scan",
+        ),
+      );
     });
   });
 

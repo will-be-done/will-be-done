@@ -142,9 +142,24 @@ function encodeScanSortValue(value: unknown): string {
   if (value === MIN) return "00";
   if (value === MAX) return "zz";
   if (value === null || value === undefined) return "20";
+  if (
+    typeof value === "bigint" ||
+    (isEncodedObject(value) &&
+      value.$hyperdbType === "bigint" &&
+      typeof value.value === "string")
+  ) {
+    return `30${encodeBigint(value)}`;
+  }
   if (typeof value === "number") return `40${encodeNumber(value)}`;
   if (typeof value === "boolean") return `40${encodeNumber(Number(value))}`;
   if (typeof value === "string") return `60${encodeCodeUnitString(value)}`;
+  if (
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value) ||
+    isEncodedBytesObject(value)
+  ) {
+    return `70${encodeByteArray(bytesOf(value))}`;
+  }
 
   throw new UnreachableError(value as never, "Unknown scan sort-key value");
 }

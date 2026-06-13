@@ -85,6 +85,26 @@ const getHashIndexValue = (row: Row, column: string): Value | undefined => {
   return value === undefined ? null : (value as Value);
 };
 
+function bytesOfHashValue(value: ArrayBuffer | ArrayBufferView): number[] {
+  if (value instanceof ArrayBuffer) {
+    return Array.from(new Uint8Array(value));
+  }
+  return Array.from(
+    new Uint8Array(value.buffer, value.byteOffset, value.byteLength),
+  );
+}
+
+function hashIndexKey(value: Value): HashColumnKey {
+  if (value === null) return "null:";
+  if (typeof value === "string") return `string:${value}`;
+  if (typeof value === "number") {
+    return `number:${Object.is(value, -0) ? 0 : value}`;
+  }
+  if (typeof value === "bigint") return `bigint:${value.toString()}`;
+  if (typeof value === "boolean") return `boolean:${value ? "1" : "0"}`;
+  return `bytes:${bytesOfHashValue(value).join(",")}`;
+}
+
 type BtreeEntry = { key: ScanValue[]; value: Row };
 
 class BinaryHeap<T> {
@@ -347,7 +367,7 @@ const getColumnValuesFromBounds = (
   indexDef: HashIndexDef,
   tupleBounds: TupleScanOptions[],
 ) => {
-  const idxValues = new Set<Value>();
+  const idxValues = new Set<HashColumnKey>();
 
   for (const bound of tupleBounds) {
     if (
@@ -381,7 +401,9 @@ const getColumnValuesFromBounds = (
       );
     }
 
-    if (bound.lte?.[0] !== bound.gte?.[0]) {
+    const lteKey = hashIndexKey(bound.lte?.[0] as Value);
+    const gteKey = hashIndexKey(bound.gte?.[0] as Value);
+    if (lteKey !== gteKey) {
       throw new Error(
         "Hash index should have the same equality condition for column '" +
           indexDef.column +
@@ -389,16 +411,18 @@ const getColumnValuesFromBounds = (
       );
     }
 
-    idxValues.add(bound.lte?.[0] as Value);
+    idxValues.add(lteKey);
   }
 
   return idxValues;
 };
 
+type HashColumnKey = string;
+
 class HashIndex implements Index {
   type = "hash" as const;
   indexDef: HashIndexDef;
-  records: Map<Value, Map<string, Row>> = new Map();
+  records: Map<HashColumnKey, Map<string, Row>> = new Map();
 
   constructor(indexDef: HashIndexDef) {
     this.indexDef = indexDef;
@@ -439,13 +463,14 @@ class HashIndex implements Index {
     for (const record of values) {
       const colValue = getHashIndexValue(record, this.indexDef.column);
       if (colValue === undefined) continue;
+      const key = hashIndexKey(colValue);
 
-      const rows = this.records.get(colValue);
+      const rows = this.records.get(key);
 
       if (!rows) {
         const m = new Map();
         m.set(record.id, record);
-        this.records.set(colValue, m);
+        this.records.set(key, m);
       } else {
         rows.set(record.id, record);
       }
@@ -456,8 +481,9 @@ class HashIndex implements Index {
     for (const record of values) {
       const col = getHashIndexValue(record, this.indexDef.column);
       if (col === undefined) continue;
+      const key = hashIndexKey(col);
 
-      const rows = this.records.get(col);
+      const rows = this.records.get(key);
 
       if (!rows) continue;
 
@@ -471,7 +497,7 @@ class HashIndex implements Index {
 }
 
 type RowId = string;
-type ColumnValue = Value;
+type ColumnValue = HashColumnKey;
 class HashIndexTx implements IndexTx {
   type = "hash" as const;
   originalIndex: HashIndex;
@@ -559,13 +585,14 @@ class HashIndexTx implements IndexTx {
         this.originalIndex.indexDef.column,
       );
       if (colValue === undefined) continue;
+      const key = hashIndexKey(colValue);
 
-      const rows = this.writableRows(colValue);
+      const rows = this.writableRows(key);
 
       if (!rows) {
         const m = new Map();
         m.set(record.id, record);
-        this.txBuckets.set(colValue, m);
+        this.txBuckets.set(key, m);
       } else {
         rows.set(record.id, record);
       }
@@ -581,8 +608,9 @@ class HashIndexTx implements IndexTx {
         this.originalIndex.indexDef.column,
       );
       if (colValue === undefined) continue;
+      const key = hashIndexKey(colValue);
 
-      const rows = this.writableRows(colValue);
+      const rows = this.writableRows(key);
       rows?.delete(record.id);
     }
   }

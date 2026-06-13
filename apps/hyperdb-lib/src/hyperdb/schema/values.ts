@@ -42,9 +42,15 @@ export type InferObject<TFields extends Record<string, Validator<any>>> = {
     : never;
 };
 
-type PrimitiveValidatorKind = "string" | "number" | "boolean" | "null";
+type PrimitiveValidatorKind =
+  | "string"
+  | "number"
+  | "bigint"
+  | "boolean"
+  | "null";
 type ValidatorKind =
   | PrimitiveValidatorKind
+  | "arrayBuffer"
   | "array"
   | "object"
   | "record"
@@ -69,8 +75,10 @@ export type PrimitiveValidator<
 
 export type StringValidator = PrimitiveValidator<string, "string">;
 export type NumberValidator = PrimitiveValidator<number, "number">;
+export type BigIntValidator = PrimitiveValidator<bigint, "bigint">;
 export type BooleanValidator = PrimitiveValidator<boolean, "boolean">;
 export type NullValidator = PrimitiveValidator<null, "null">;
+export type ArrayBufferValidator = BaseValidator<ArrayBuffer, "arrayBuffer">;
 
 export interface ArrayValidator<T> extends BaseValidator<T[], "array"> {
   readonly item: Validator<T>;
@@ -93,7 +101,9 @@ export interface UnionValidator<TValidators extends readonly Validator<any>[]>
   readonly validators: TValidators;
 }
 
-export interface LiteralValidator<T extends string | number | boolean | null>
+export interface LiteralValidator<
+  T extends string | number | bigint | boolean | null,
+>
   extends BaseValidator<T, "literal"> {
   readonly literalValue: T;
 }
@@ -109,13 +119,15 @@ export type AnyValidator = BaseValidator<any, "any">;
 export type Validator<T> = (
   | StringValidator
   | NumberValidator
+  | BigIntValidator
   | BooleanValidator
   | NullValidator
+  | ArrayBufferValidator
   | ArrayValidator<any>
   | ObjectValidator<Record<string, Validator<any>>>
   | RecordValidator<string, any>
   | UnionValidator<readonly Validator<any>[]>
-  | LiteralValidator<string | number | boolean | null>
+  | LiteralValidator<string | number | bigint | boolean | null>
   | OptionalValidator<any>
   | AnyValidator
 ) &
@@ -257,8 +269,10 @@ export function isIndexableValueValidator(validator: Validator<unknown>): boolea
   switch (validator.kind) {
     case "string":
     case "number":
+    case "bigint":
     case "boolean":
     case "null":
+    case "arrayBuffer":
       return true;
     case "literal": {
       const literalValue = validator.literalValue;
@@ -266,6 +280,7 @@ export function isIndexableValueValidator(validator: Validator<unknown>): boolea
         literalValue === null ||
         typeof literalValue === "string" ||
         typeof literalValue === "number" ||
+        typeof literalValue === "bigint" ||
         typeof literalValue === "boolean"
       );
     }
@@ -296,6 +311,14 @@ export const v = {
     );
   },
 
+  bigint(): BigIntValidator {
+    return primitive(
+      "bigint",
+      (value): value is bigint => typeof value === "bigint",
+      "bigint",
+    );
+  },
+
   boolean(): BooleanValidator {
     return primitive(
       "boolean",
@@ -306,6 +329,18 @@ export const v = {
 
   null(): NullValidator {
     return primitive("null", (value): value is null => value === null, "null");
+  },
+
+  arrayBuffer(): ArrayBufferValidator {
+    return {
+      kind: "arrayBuffer",
+      normalize(value, path = []) {
+        if (!(value instanceof ArrayBuffer)) {
+          return fail("expected ArrayBuffer", path);
+        }
+        return success(value);
+      },
+    };
   },
 
   array<T>(item: Validator<T>): ArrayValidator<T> {
@@ -456,7 +491,7 @@ export const v = {
     };
   },
 
-  literal<T extends string | number | boolean | null>(
+  literal<T extends string | number | bigint | boolean | null>(
     literalValue: T,
   ): LiteralValidator<T> {
     return {
