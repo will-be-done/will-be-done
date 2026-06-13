@@ -235,6 +235,17 @@ function normalizeAny(
   return fail(`unsupported value type ${typeof value}`, path);
 }
 
+function arrayBufferOfView(value: ArrayBufferView): ArrayBuffer {
+  const bytes = new Uint8Array(
+    value.buffer,
+    value.byteOffset,
+    value.byteLength,
+  );
+  const normalized = new Uint8Array(bytes.byteLength);
+  normalized.set(bytes);
+  return normalized.buffer as ArrayBuffer;
+}
+
 function primitive<T, TKind extends PrimitiveValidatorKind>(
   kind: TKind,
   guard: (value: unknown) => value is T,
@@ -335,10 +346,13 @@ export const v = {
     return {
       kind: "arrayBuffer",
       normalize(value, path = []) {
-        if (!(value instanceof ArrayBuffer)) {
-          return fail("expected ArrayBuffer", path);
+        if (value instanceof ArrayBuffer) {
+          return success(value);
         }
-        return success(value);
+        if (ArrayBuffer.isView(value)) {
+          return success(arrayBufferOfView(value));
+        }
+        return fail("expected ArrayBuffer", path);
       },
     };
   },

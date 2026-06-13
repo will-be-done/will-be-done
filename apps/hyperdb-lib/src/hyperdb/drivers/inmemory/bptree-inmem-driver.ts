@@ -94,6 +94,10 @@ function bytesOfHashValue(value: ArrayBuffer | ArrayBufferView): number[] {
   );
 }
 
+function toHex(value: number): string {
+  return value.toString(16).padStart(2, "0");
+}
+
 function hashIndexKey(value: Value): HashColumnKey {
   if (value === null) return "null:";
   if (typeof value === "string") return `string:${value}`;
@@ -102,7 +106,7 @@ function hashIndexKey(value: Value): HashColumnKey {
   }
   if (typeof value === "bigint") return `bigint:${value.toString()}`;
   if (typeof value === "boolean") return `boolean:${value ? "1" : "0"}`;
-  return `bytes:${bytesOfHashValue(value).join(",")}`;
+  return `bytes:${bytesOfHashValue(value).map(toHex).join("")}`;
 }
 
 type BtreeEntry = { key: ScanValue[]; value: Row };

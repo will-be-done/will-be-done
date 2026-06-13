@@ -152,6 +152,15 @@ describe("validators", () => {
     );
   });
 
+  it("normalizes ArrayBufferView values to exact ArrayBuffers", () => {
+    const source = new Uint8Array([9, 1, 2, 8]);
+    const view = source.subarray(1, 3);
+    const normalized = assertValid(v.arrayBuffer(), view);
+
+    expect(normalized).toBeInstanceOf(ArrayBuffer);
+    expect(Array.from(new Uint8Array(normalized))).toEqual([1, 2]);
+  });
+
   it("rejects non-finite numbers", () => {
     expect(() => assertValid(v.number(), Number.NaN)).toThrow(
       /expected finite number/,
