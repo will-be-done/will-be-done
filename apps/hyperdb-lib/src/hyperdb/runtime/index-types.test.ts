@@ -111,7 +111,9 @@ type IndexTypeCase = {
 
 const buffer = (...bytes: number[]): ArrayBuffer =>
   new Uint8Array(bytes).buffer as ArrayBuffer;
-const view = (...bytes: number[]): Uint8Array => new Uint8Array(bytes);
+const uint8Array = (...bytes: number[]): Uint8Array => new Uint8Array(bytes);
+const dataView = (...bytes: number[]): DataView =>
+  new DataView(buffer(...bytes));
 
 const cases: IndexTypeCase[] = [
   {
@@ -199,16 +201,18 @@ const cases: IndexTypeCase[] = [
       { id: "bytes-one", value: buffer(1) },
       { id: "bytes-prefix", value: buffer(0) },
       { id: "bytes-long", value: buffer(0, 1) },
-      { id: "bytes-view", value: view(0, 2) },
+      { id: "bytes-ua", value: uint8Array(0, 1) },
+      { id: "bytes-dv", value: dataView(0, 1) },
       { id: "bytes-empty", value: buffer() },
     ],
-    eqValue: view(0, 2),
-    eqIds: ["bytes-view"],
+    eqValue: buffer(0, 1),
+    eqIds: ["bytes-dv", "bytes-long", "bytes-ua"],
     scanIds: [
       "bytes-empty",
       "bytes-prefix",
+      "bytes-dv",
       "bytes-long",
-      "bytes-view",
+      "bytes-ua",
       "bytes-one",
     ],
     range: {
@@ -218,7 +222,7 @@ const cases: IndexTypeCase[] = [
           lt: [{ col: "value", val: buffer(1) }],
         },
       ],
-      ids: ["bytes-long", "bytes-view"],
+      ids: ["bytes-dv", "bytes-long", "bytes-ua"],
     },
   },
   {

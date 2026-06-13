@@ -346,6 +346,9 @@ export const v = {
     return {
       kind: "arrayBuffer",
       normalize(value, path = []) {
+        if (value === undefined) {
+          return fail("undefined is not a valid stored value", path);
+        }
         if (value instanceof ArrayBuffer) {
           return success(value);
         }

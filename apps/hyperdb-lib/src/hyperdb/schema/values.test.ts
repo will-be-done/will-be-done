@@ -152,6 +152,34 @@ describe("validators", () => {
     );
   });
 
+  it("validates bigint values", () => {
+    expect(assertValid(v.bigint(), 1n)).toBe(1n);
+    expect(() => assertValid(v.bigint(), 1)).toThrow(/expected bigint/);
+    expect(() => assertValid(v.bigint(), "1")).toThrow(/expected bigint/);
+    expect(() => assertValid(v.bigint(), null)).toThrow(/expected bigint/);
+    expect(() => assertValid(v.bigint(), undefined)).toThrow(
+      /undefined is not a valid stored value at <root>/,
+    );
+  });
+
+  it("validates ArrayBuffer values", () => {
+    const bytes = new ArrayBuffer(2);
+
+    expect(assertValid(v.arrayBuffer(), bytes)).toBe(bytes);
+    expect(() => assertValid(v.arrayBuffer(), [1, 2])).toThrow(
+      /expected ArrayBuffer/,
+    );
+    expect(() => assertValid(v.arrayBuffer(), "bytes")).toThrow(
+      /expected ArrayBuffer/,
+    );
+    expect(() => assertValid(v.arrayBuffer(), null)).toThrow(
+      /expected ArrayBuffer/,
+    );
+    expect(() => assertValid(v.arrayBuffer(), undefined)).toThrow(
+      /undefined is not a valid stored value at <root>/,
+    );
+  });
+
   it("normalizes ArrayBufferView values to exact ArrayBuffers", () => {
     const source = new Uint8Array([9, 1, 2, 8]);
     const view = source.subarray(1, 3);

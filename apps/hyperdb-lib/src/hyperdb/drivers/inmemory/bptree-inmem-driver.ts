@@ -109,6 +109,12 @@ function hashIndexKey(value: Value): HashColumnKey {
   return `bytes:${bytesOfHashValue(value).map(toHex).join("")}`;
 }
 
+function stringifyWithBigInt(value: unknown): string {
+  return JSON.stringify(value, (_key, item) =>
+    typeof item === "bigint" ? item.toString() : item,
+  );
+}
+
 type BtreeEntry = { key: ScanValue[]; value: Row };
 
 class BinaryHeap<T> {
@@ -401,7 +407,7 @@ const getColumnValuesFromBounds = (
           "' and index name '" +
           indexDef.name +
           "': " +
-          JSON.stringify(bound),
+          stringifyWithBigInt(bound),
       );
     }
 
@@ -427,6 +433,7 @@ class HashIndex implements Index {
   type = "hash" as const;
   indexDef: HashIndexDef;
   records: Map<HashColumnKey, Map<string, Row>> = new Map();
+  rowKeys: Map<RowId, HashColumnKey> = new Map();
 
   constructor(indexDef: HashIndexDef) {
     this.indexDef = indexDef;
@@ -468,6 +475,7 @@ class HashIndex implements Index {
       const colValue = getHashIndexValue(record, this.indexDef.column);
       if (colValue === undefined) continue;
       const key = hashIndexKey(colValue);
+      this.rowKeys.set(record.id, key);
 
       const rows = this.records.get(key);
 
@@ -483,15 +491,15 @@ class HashIndex implements Index {
 
   delete(values: Row[]): void {
     for (const record of values) {
-      const col = getHashIndexValue(record, this.indexDef.column);
-      if (col === undefined) continue;
-      const key = hashIndexKey(col);
+      const key = this.rowKeys.get(record.id);
+      if (key === undefined) continue;
 
       const rows = this.records.get(key);
 
       if (!rows) continue;
 
       rows.delete(record.id);
+      this.rowKeys.delete(record.id);
     }
   }
 
@@ -506,6 +514,7 @@ class HashIndexTx implements IndexTx {
   type = "hash" as const;
   originalIndex: HashIndex;
   private txBuckets = new Map<ColumnValue, Map<RowId, Row>>();
+  private txRowKeys = new Map<RowId, HashColumnKey | undefined>();
   isCommitted = false;
 
   constructor(index: HashIndex) {
@@ -525,6 +534,13 @@ class HashIndexTx implements IndexTx {
         this.originalIndex.records.delete(columnValue);
       } else {
         this.originalIndex.records.set(columnValue, rows);
+      }
+    }
+    for (const [rowId, key] of this.txRowKeys) {
+      if (key === undefined) {
+        this.originalIndex.rowKeys.delete(rowId);
+      } else {
+        this.originalIndex.rowKeys.set(rowId, key);
       }
     }
   }
@@ -590,6 +606,7 @@ class HashIndexTx implements IndexTx {
       );
       if (colValue === undefined) continue;
       const key = hashIndexKey(colValue);
+      this.txRowKeys.set(record.id, key);
 
       const rows = this.writableRows(key);
 
@@ -607,15 +624,14 @@ class HashIndexTx implements IndexTx {
     if (this.isCommitted) throw new Error("Can't delete after commit");
 
     for (const record of values) {
-      const colValue = getHashIndexValue(
-        record,
-        this.originalIndex.indexDef.column,
-      );
-      if (colValue === undefined) continue;
-      const key = hashIndexKey(colValue);
+      const key = this.txRowKeys.has(record.id)
+        ? this.txRowKeys.get(record.id)
+        : this.originalIndex.rowKeys.get(record.id);
+      if (key === undefined) continue;
 
       const rows = this.writableRows(key);
       rows?.delete(record.id);
+      this.txRowKeys.set(record.id, undefined);
     }
   }
 }
