@@ -80,6 +80,8 @@ describe("devtool runtime tracing", () => {
     expect(result).toEqual([task()]);
     expect(trace.kind).toBe("action");
     expect(trace.name).toBe("readTask");
+    expect(trace.dbId).toBeDefined();
+    expect(trace.dbLabel).toMatch(/^DB \d+$/);
     expect(trace.commandEvents).toHaveLength(1);
     expect(trace.mutationEvents).toHaveLength(0);
     expect(trace.commandEvents[0]).toMatchObject({
@@ -95,6 +97,30 @@ describe("devtool runtime tracing", () => {
       { col: "projectId", val: "project-1" },
     ]);
     expect(trace.commandEvents[0]?.bounds.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the same db identity across traited wrappers", () => {
+    const db = createDB();
+    expect(db.withTraits({ type: "test.identity" }).getId()).toBe(db.getId());
+    const readTaskAction = action(function* readTask() {
+      return yield* selectFrom(tasksTable, "projectState").where((q) =>
+        q.eq("projectId", "project-1"),
+      );
+    });
+
+    syncDispatch(db, readTaskAction());
+    syncDispatch(
+      db.withTraits({
+        type: "test.trait",
+      }),
+      readTaskAction(),
+    );
+
+    const dbIds = new Set(
+      hyperDBTraceStore.getSnapshot().map((trace) => trace.dbId),
+    );
+
+    expect(dbIds.size).toBe(1);
   });
 
   it("records an action calling an action as one root with a child frame", () => {

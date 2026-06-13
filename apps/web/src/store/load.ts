@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import {
+  action,
   asyncDispatch,
   BptreeInmemDriver,
   DB,
@@ -540,6 +541,101 @@ type ChangePersistedEvent = {
   changeset: ChangesetArrayType;
 };
 
+const applyServerChangesIfNoClientChanges = action(
+  function* applyServerChangesIfNoClientChanges(
+    syncConfig: SyncConfig,
+    syncState: { lastSentClock: string },
+    serverChanges: { changesets: ChangesetArrayType; maxClock: string },
+    nextClock: () => string,
+    clientId: string,
+  ) {
+    const { changesets } = yield* changesSlice.getChangesetAfter(
+      syncState.lastSentClock,
+      syncConfig.tableNameMap,
+    );
+    if (changesets.length !== 0) {
+      console.log(
+        "some new client changes appeared, skipping server changes apply",
+      );
+
+      return;
+    }
+
+    const allChanges: Change[] = [];
+
+    let maxNewClientClock = "";
+
+    for (const changeset of serverChanges.changesets) {
+      const toDeleteRows: string[] = [];
+      const toUpsertRows: { id: string; [key: string]: unknown }[] = [];
+
+      const table = syncConfig.tableNameMap[changeset.tableName];
+      if (!table) {
+        throw new Error("Unknown table: " + changeset.tableName);
+      }
+
+      for (const { change, row } of changeset.data) {
+        if (change.deletedAt != null) {
+          toDeleteRows.push(change.entityId);
+        } else if (row) {
+          toUpsertRows.push(row);
+        }
+
+        const currentClock = nextClock();
+
+        if (currentClock > maxNewClientClock) {
+          maxNewClientClock = currentClock;
+        }
+
+        allChanges.push({
+          id: change.id,
+          entityId: change.entityId,
+          tableName: table.tableName,
+          // TODO: use local createdAt value. Or maybe not?
+          createdAt: change?.createdAt,
+          updatedAt: currentClock,
+          deletedAt: change?.deletedAt,
+          clientId,
+          changes: change.changes,
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      yield* upsert(table, toUpsertRows as any);
+      yield* deleteRows(table, toDeleteRows);
+    }
+
+    yield* upsert(changesTable, allChanges);
+    console.log("set clock", serverChanges.maxClock, maxNewClientClock);
+
+    yield* syncSlice.update({
+      lastServerAppliedClock: serverChanges.maxClock,
+      lastSentClock: maxNewClientClock,
+    });
+  },
+);
+
+const getChangesToSendToServer = action(function* getChangesToSendToServer(
+  syncConfig: SyncConfig,
+) {
+  const currentSyncState = yield* syncSlice.getOrDefault();
+
+  console.log(
+    "get clock",
+    currentSyncState.lastServerAppliedClock,
+    currentSyncState.lastSentClock,
+  );
+
+  const { changesets, maxClock } = yield* changesSlice.getChangesetAfter(
+    currentSyncState.lastSentClock,
+    syncConfig.tableNameMap,
+  );
+
+  console.log("new client changes", changesets, maxClock);
+
+  return { changesets, maxClock };
+});
+
 class Syncer {
   private electionChannel: BroadcastChannel;
   private elector: LeaderElector;
@@ -719,75 +815,15 @@ class Syncer {
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const that = this;
     await asyncDispatch(
       this.persistentDB,
-      (function* () {
-        const { changesets } = yield* changesSlice.getChangesetAfter(
-          syncState.lastSentClock,
-          that.syncConfig.tableNameMap,
-        );
-        if (changesets.length !== 0) {
-          console.log(
-            "some new client changes appeared, skipping server changes apply",
-          );
-
-          return;
-        }
-
-        const allChanges: Change[] = [];
-
-        let maxNewClientClock = "";
-
-        for (const changeset of serverChanges.changesets) {
-          const toDeleteRows: string[] = [];
-          const toUpsertRows: { id: string; [key: string]: unknown }[] = [];
-
-          const table = that.syncConfig.tableNameMap[changeset.tableName];
-          if (!table) {
-            throw new Error("Unknown table: " + changeset.tableName);
-          }
-
-          for (const { change, row } of changeset.data) {
-            if (change.deletedAt != null) {
-              toDeleteRows.push(change.entityId);
-            } else if (row) {
-              toUpsertRows.push(row);
-            }
-
-            const currentClock = that.nextClock();
-
-            if (currentClock > maxNewClientClock) {
-              maxNewClientClock = currentClock;
-            }
-
-            allChanges.push({
-              id: change.id,
-              entityId: change.entityId,
-              tableName: table.tableName,
-              // TODO: use local createdAt value. Or maybe not?
-              createdAt: change?.createdAt,
-              updatedAt: currentClock,
-              deletedAt: change?.deletedAt,
-              clientId: that.clientId,
-              changes: change.changes,
-            });
-          }
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          yield* upsert(table, toUpsertRows as any);
-          yield* deleteRows(table, toDeleteRows);
-        }
-
-        yield* upsert(changesTable, allChanges);
-        console.log("set clock", serverChanges.maxClock, maxNewClientClock);
-
-        yield* syncSlice.update({
-          lastServerAppliedClock: serverChanges.maxClock,
-          lastSentClock: maxNewClientClock,
-        });
-      })(),
+      applyServerChangesIfNoClientChanges(
+        this.syncConfig,
+        syncState,
+        serverChanges,
+        this.nextClock,
+        this.clientId,
+      ),
     );
 
     try {
@@ -798,28 +834,9 @@ class Syncer {
   }
 
   private async sendChangesToServer() {
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const that = this;
     const { changesets, maxClock } = await asyncDispatch(
       this.persistentDB,
-      (function* () {
-        const currentSyncState = yield* syncSlice.getOrDefault();
-
-        console.log(
-          "get clock",
-          currentSyncState.lastServerAppliedClock,
-          currentSyncState.lastSentClock,
-        );
-
-        const { changesets, maxClock } = yield* changesSlice.getChangesetAfter(
-          currentSyncState.lastSentClock,
-          that.syncConfig.tableNameMap,
-        );
-
-        console.log("new client changes", changesets, maxClock);
-
-        return { changesets, maxClock };
-      })(),
+      getChangesToSendToServer(this.syncConfig),
     );
 
     if (changesets.length === 0) {

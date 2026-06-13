@@ -51,46 +51,46 @@ export const defaultStashProjection: StashProjection = {
 registerSpaceSyncableTable(stashProjectionsTable, stashProjectionType);
 
 // Selectors and actions
-export const allIds = selector(function* () {
+export const allIds = selector(function* allIds() {
   const projections = yield* selectFrom(stashProjectionsTable, "byIds").where((q) => q);
   return projections.map((p) => p.id);
 });
 
-export const allTaskIds = selector(function* () {
+export const allTaskIds = selector(function* allTaskIds() {
   return new Set(yield* allIds());
 });
 
-export const byId = selector(function* (id: string) {
+export const byId = selector(function* byId(id: string) {
   const projections = yield* selectFrom(stashProjectionsTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
   return projections[0] as StashProjection | undefined;
 });
 
-export const byIds = selector(function* (ids: string[]) {
+export const byIds = selector(function* byIds(ids: string[]) {
   const projections = yield* selectFrom(stashProjectionsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
     );
   return projections as StashProjection[];
 });
 
-export const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* byIdOrDefault(id: string) {
   return (yield* byId(id)) || defaultStashProjection;
 });
 
 // Get all stash projections ordered by token
-export const allOrdered = selector(function* () {
+export const allOrdered = selector(function* allOrdered() {
   return (yield* selectFrom(stashProjectionsTable, "byTokenOrdered").where((q) => q)) as StashProjection[];
 });
 
 // Check if a task is in the stash
-export const hasProjection = selector(function* (taskId: string) {
+export const hasProjection = selector(function* hasProjection(taskId: string) {
   const projection = yield* byId(taskId);
   return projection !== undefined;
 });
 
 // Get all task ids in stash (non-done, ordered)
-export const childrenIds = selector(function* (): Generator<
+export const childrenIds = selector(function* childrenIds(): Generator<
   unknown,
   string[],
   unknown
@@ -109,7 +109,7 @@ export const childrenIds = selector(function* (): Generator<
 });
 
 // Get all done task ids in stash (sorted by lastToggledAt)
-export const doneChildrenIds = selector(function* (): Generator<
+export const doneChildrenIds = selector(function* doneChildrenIds(): Generator<
   unknown,
   string[],
   unknown
@@ -130,7 +130,7 @@ export const doneChildrenIds = selector(function* (): Generator<
 });
 
 // Get first task in stash
-export const firstChild = selector(function* (): Generator<
+export const firstChild = selector(function* firstChild(): Generator<
   unknown,
   Task | undefined,
   unknown
@@ -143,7 +143,7 @@ export const firstChild = selector(function* (): Generator<
 });
 
 // Get last task in stash
-export const lastChild = selector(function* (): Generator<
+export const lastChild = selector(function* lastChild(): Generator<
   unknown,
   Task | undefined,
   unknown
@@ -156,7 +156,7 @@ export const lastChild = selector(function* (): Generator<
 });
 
 // Get siblings of a task within the stash
-export const siblings = selector(function* (taskId: string) {
+export const siblings = selector(function* siblings(taskId: string) {
   const projection = yield* byId(taskId);
   if (!projection)
     return [undefined, undefined] as [
@@ -181,7 +181,7 @@ export const siblings = selector(function* (taskId: string) {
 });
 
 // Check if a stash projection can accept another model being dropped
-export const canDrop = selector(function* (
+export const canDrop = selector(function* canDrop(
   projectionId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -219,7 +219,7 @@ export const canDrop = selector(function* (
 });
 
 // Handle drop operations
-export const handleDrop = action(function* (
+export const handleDrop = action(function* handleDrop(
   projectionId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -271,11 +271,11 @@ export const handleDrop = action(function* (
   }
 });
 
-export const deleteProjections = action(function* (ids: string[]) {
+export const deleteProjections = action(function* deleteProjections(ids: string[]) {
   yield* deleteRows(stashProjectionsTable, ids);
 });
 
-export const createProjection = action(function* (projection: {
+export const createProjection = action(function* createProjection(projection: {
   id: string; // This should be the task.id
   orderToken: string;
 }) {
@@ -290,7 +290,7 @@ export const createProjection = action(function* (projection: {
   return newProjection;
 });
 
-export const updateProjection = action(function* (
+export const updateProjection = action(function* updateProjection(
   id: string,
   projection: Partial<StashProjection>,
 ): Generator<unknown, void, unknown> {
@@ -301,7 +301,7 @@ export const updateProjection = action(function* (
 });
 
 // Create or update stash projection for a task
-export const upsert = action(function* (projection: {
+export const upsert = action(function* upsert(projection: {
   id: string;
   orderToken: string;
 }) {
@@ -318,7 +318,7 @@ export const upsert = action(function* (projection: {
 });
 
 // Create a sibling task in the stash
-export const createSibling = action(function* (
+export const createSibling = action(function* createSibling(
   taskId: string,
   position: "before" | "after",
   taskParams?: Partial<Task>,
@@ -351,12 +351,12 @@ export const createSibling = action(function* (
 });
 
 // Remove task from stash
-export const removeFromStash = action(function* (taskId: string) {
+export const removeFromStash = action(function* removeFromStash(taskId: string) {
   yield* deleteProjections([taskId]);
 });
 
 // Add task to stash
-export const addToStash = action(function* (
+export const addToStash = action(function* addToStash(
   taskId: string,
   position:
     | "append"
@@ -412,7 +412,7 @@ export const stashType = "stash" as const;
 export const STASH_ID = "stash-singleton";
 
 // Column-level canDrop: any todo task/projection can be dropped onto the stash column
-const stashColumnCanDrop = selector(function* (
+const stashColumnCanDrop = selector(function* stashColumnCanDrop(
   _stashId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -438,7 +438,7 @@ const stashColumnCanDrop = selector(function* (
 });
 
 // Column-level handleDrop: add dropped task to stash (prepend/append based on edge)
-const stashColumnHandleDrop = action(function* (
+const stashColumnHandleDrop = action(function* stashColumnHandleDrop(
   _stashId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -468,16 +468,16 @@ const stashColumnHandleDrop = action(function* (
 });
 
 // Column-level byId: returns the stash projection if it exists, for the column model lookup
-const stashColumnById = selector(function* (_id: string) {
+const stashColumnById = selector(function* stashColumnById(_id: string) {
   return undefined as StashProjection | undefined;
 });
 
-const stashColumnDelete = action(function* (_ids: string[]) {
+const stashColumnDelete = action(function* stashColumnDelete(_ids: string[]) {
   // No-op: stash is a virtual singleton, nothing to delete
 });
 
 // Create a task directly in the stash
-export const createTaskInStash = action(function* (
+export const createTaskInStash = action(function* createTaskInStash(
   projectId: string,
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]

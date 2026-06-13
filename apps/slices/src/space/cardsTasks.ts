@@ -73,7 +73,7 @@ export const defaultTask: Task = {
 registerSpaceSyncableTable(tasksTable, taskType);
 
 // Selectors and actions
-export const byId = selector(function* (id: string) {
+export const byId = selector(function* byId(id: string) {
   const tasks = yield* selectFrom(tasksTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
@@ -81,15 +81,15 @@ export const byId = selector(function* (id: string) {
   return tasks[0] as Task | undefined;
 });
 
-export const exists = selector(function* (id: string) {
+export const exists = selector(function* exists(id: string) {
   return !!(yield* byId(id));
 });
 
-export const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* byIdOrDefault(id: string) {
   return (yield* byId(id)) || defaultTask;
 });
 
-export const taskIdsOfTemplateId = selector(function* (ids: string[]) {
+export const taskIdsOfTemplateId = selector(function* taskIdsOfTemplateId(ids: string[]) {
   const tasks = yield* selectFrom(tasksTable, "byTemplateId").where((q) =>
       ids.map((id) => q.eq("templateId", id)),
     );
@@ -97,12 +97,12 @@ export const taskIdsOfTemplateId = selector(function* (ids: string[]) {
   return tasks.map((t) => t.id);
 });
 
-export const all = selector(function* () {
+export const all = selector(function* all() {
   const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates");
   return tasks;
 });
 
-export const deleteTasks = action(function* (
+export const deleteTasks = action(function* deleteTasks(
   ids: string[],
 ): Generator<unknown, void, unknown> {
   yield* checklistItemsSlice.deleteForParents(ids, taskType);
@@ -110,14 +110,14 @@ export const deleteTasks = action(function* (
   yield* dailyListsProjectionsSlice.deleteProjections(ids);
 });
 
-export const updateTask = action(function* (id: string, task: Partial<Task>) {
+export const updateTask = action(function* updateTask(id: string, task: Partial<Task>) {
   const taskInState = yield* byId(id);
   if (!taskInState) throw new Error("Task not found");
 
   yield* upsert(tasksTable, [{ ...taskInState, ...task }]);
 });
 
-export const createTask = action(function* (
+export const createTask = action(function* createTask(
   task: Partial<Task> & { orderToken: string; projectCategoryId: string },
 ) {
   const id = task.id || uuidv7();
@@ -140,7 +140,7 @@ export const createTask = action(function* (
   return newTask;
 });
 
-export const canDrop = selector(function* (
+export const canDrop = selector(function* canDrop(
   taskId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -178,7 +178,7 @@ export const canDrop = selector(function* (
   return isTask(model) || isTaskTemplate(model);
 });
 
-export const handleDrop = action(function* (
+export const handleDrop = action(function* handleDrop(
   taskId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -248,7 +248,7 @@ export const handleDrop = action(function* (
   }
 });
 
-export const moveToProject = action(function* (
+export const moveToProject = action(function* moveToProject(
   taskId: string,
   projectId: string,
 ): Generator<unknown, void, unknown> {
@@ -266,7 +266,7 @@ export const moveToProject = action(function* (
   ]);
 });
 
-export const toggleState = action(function* (taskId: string) {
+export const toggleState = action(function* toggleState(taskId: string) {
   const task = yield* byId(taskId);
   if (!task) throw new Error("Task not found");
 
@@ -279,7 +279,7 @@ export const toggleState = action(function* (taskId: string) {
   ]);
 });
 
-export const createFromTemplate = action(function* (
+export const createFromTemplate = action(function* createFromTemplate(
   taskTemplate: TaskTemplate,
 ) {
   const newId = uuidv7();
@@ -310,11 +310,11 @@ export const createFromTemplate = action(function* (
   return newTask;
 });
 
-export const deleteByIds = action(function* (ids: string[]) {
+export const deleteByIds = action(function* deleteByIds(ids: string[]) {
   yield* deleteTasks(ids);
 });
 
-export const deleteById = action(function* (id: string) {
+export const deleteById = action(function* deleteById(id: string) {
   yield* deleteTasks([id]);
 });
 

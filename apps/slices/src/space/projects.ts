@@ -62,24 +62,24 @@ export const defaultProject: Project = {
 registerSpaceSyncableTable(projectsTable, projectType);
 
 // Selectors and actions
-export const allIds = selector(function* () {
+export const allIds = selector(function* allIds() {
   const projects = yield* selectFrom(projectsTable, "byOrderToken").where((q) => q);
 
   return projects.map((p) => p.id);
 });
 
-export const byId = selector(function* (id: string) {
+export const byId = selector(function* byId(id: string) {
   const projects = yield* selectFrom(projectsTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
   return projects[0] as Project | undefined;
 });
 
-export const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* byIdOrDefault(id: string) {
   return (yield* byId(id)) || defaultProject;
 });
 
-export const canDrop = selector(function* (
+export const canDrop = selector(function* canDrop(
   projectId: string,
   dropItemId: string,
   dropModelType: AnyModelType,
@@ -103,11 +103,11 @@ export const canDrop = selector(function* (
   return false;
 });
 
-export const inboxProjectId = selector(function* () {
+export const inboxProjectId = selector(function* inboxProjectId() {
   return yield* genUUIDV5(projectType, "inbox");
 });
 
-export const overdueTasksCountExceptDailiesCount = selector(function* (
+export const overdueTasksCountExceptDailiesCount = selector(function* overdueTasksCountExceptDailiesCount(
   projectId: string,
   exceptDailyListIds: string[],
   currentDate: Date,
@@ -172,7 +172,7 @@ export const overdueTasksCountExceptDailiesCount = selector(function* (
   return overdueCount;
 });
 
-export const notDoneTasksCountExceptDailiesCount = selector(function* (
+export const notDoneTasksCountExceptDailiesCount = selector(function* notDoneTasksCountExceptDailiesCount(
   projectId: string,
   exceptDailyListIds: string[],
 ): Generator<unknown, number, unknown> {
@@ -193,7 +193,7 @@ export const notDoneTasksCountExceptDailiesCount = selector(function* (
   return finalChildrenIds.filter((id) => !exceptCardIds.has(id)).length;
 });
 
-export const overdueTasksCountExceptDailiesAndStashCount = selector(function* (
+export const overdueTasksCountExceptDailiesAndStashCount = selector(function* overdueTasksCountExceptDailiesAndStashCount(
   projectId: string,
   exceptDailyListIds: string[],
   currentDate: Date,
@@ -255,7 +255,7 @@ export const overdueTasksCountExceptDailiesAndStashCount = selector(function* (
   return overdueCount;
 });
 
-export const notDoneTasksCountExceptDailiesAndStashCount = selector(function* (
+export const notDoneTasksCountExceptDailiesAndStashCount = selector(function* notDoneTasksCountExceptDailiesAndStashCount(
   projectId: string,
   exceptDailyListIds: string[],
 ): Generator<unknown, number, unknown> {
@@ -277,7 +277,7 @@ export const notDoneTasksCountExceptDailiesAndStashCount = selector(function* (
   return finalChildrenIds.filter((id) => !exceptCardIds.has(id)).length;
 });
 
-export const create = action(function* (
+export const create = action(function* create(
   project: Partial<Project>,
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]
@@ -332,7 +332,7 @@ export const create = action(function* (
   return newProject;
 });
 
-export const createInboxIfNotExists = action(function* (): Generator<
+export const createInboxIfNotExists = action(function* createInboxIfNotExists(): Generator<
   unknown,
   Project,
   unknown
@@ -355,7 +355,7 @@ export const createInboxIfNotExists = action(function* (): Generator<
   );
 });
 
-export const updateProject = action(function* (
+export const updateProject = action(function* updateProject(
   id: string,
   project: Partial<Project>,
 ): Generator<unknown, void, unknown> {
@@ -365,7 +365,7 @@ export const updateProject = action(function* (
   yield* upsert(projectsTable, [{ ...projectInState, ...project }]);
 });
 
-export const deleteProjects = action(function* (
+export const deleteProjects = action(function* deleteProjects(
   ids: string[],
 ): Generator<unknown, void, unknown> {
   const projectCategories = yield* projectCategoriesSlice.byProjectIds(ids);
@@ -376,7 +376,7 @@ export const deleteProjects = action(function* (
   yield* deleteRows(projectsTable, ids);
 });
 
-export const handleDrop = action(function* (
+export const handleDrop = action(function* handleDrop(
   projectId: string,
   dropItemId: string,
   dropModelType: AnyModelType,
@@ -441,7 +441,7 @@ export const handleDrop = action(function* (
   }
 });
 
-export const createTask = action(function* (
+export const createTask = action(function* createTask(
   projectId: string,
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]
@@ -466,7 +466,7 @@ export const createTask = action(function* (
   );
 });
 
-export const createTaskIfNotExists = action(function* (
+export const createTaskIfNotExists = action(function* createTaskIfNotExists(
   projectId: string,
   taskId: string,
   position:

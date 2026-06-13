@@ -63,7 +63,7 @@ function isChecklistParentType(
   return modelType === taskParentType || modelType === taskTemplateParentType;
 }
 
-export const byId = selector(function* (id: string) {
+export const byId = selector(function* byId(id: string) {
   const items = yield* selectFrom(checklistItemsTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
@@ -71,11 +71,11 @@ export const byId = selector(function* (id: string) {
   return items[0] as ChecklistItem | undefined;
 });
 
-export const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* byIdOrDefault(id: string) {
   return (yield* byId(id)) || defaultChecklistItem;
 });
 
-export const children = selector(function* (
+export const children = selector(function* children(
   parentId: string,
   parentType: ChecklistParentType,
 ) {
@@ -84,18 +84,18 @@ export const children = selector(function* (
     );
 });
 
-export const childrenIds = selector(function* (
+export const childrenIds = selector(function* childrenIds(
   parentId: string,
   parentType: ChecklistParentType,
 ) {
   return (yield* children(parentId, parentType)).map((item) => item.id);
 });
 
-export const all = selector(function* () {
+export const all = selector(function* all() {
   return yield* selectFrom(checklistItemsTable, "byIds");
 });
 
-export const siblings = selector(function* (
+export const siblings = selector(function* siblings(
   itemId: string,
 ): Generator<
   unknown,
@@ -114,7 +114,7 @@ export const siblings = selector(function* (
   ];
 });
 
-export const canDrop = selector(function* (
+export const canDrop = selector(function* canDrop(
   itemId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -129,7 +129,7 @@ export const canDrop = selector(function* (
   return !!dropped && isChecklistItem(dropped);
 });
 
-export const createItem = action(function* (
+export const createItem = action(function* createItem(
   item: Partial<ChecklistItem> & {
     parentId: string;
     parentType: ChecklistParentType;
@@ -164,7 +164,7 @@ export const createItem = action(function* (
   return newItem;
 });
 
-export const createItemAfter = action(function* (
+export const createItemAfter = action(function* createItemAfter(
   itemId: string,
   item?: Partial<ChecklistItem>,
 ) {
@@ -184,7 +184,7 @@ export const createItemAfter = action(function* (
   });
 });
 
-export const updateItem = action(function* (
+export const updateItem = action(function* updateItem(
   id: string,
   item: Partial<ChecklistItem>,
 ) {
@@ -194,11 +194,11 @@ export const updateItem = action(function* (
   yield* upsert(checklistItemsTable, [{ ...itemInState, ...item }]);
 });
 
-export const updateContent = action(function* (id: string, content: string) {
+export const updateContent = action(function* updateContent(id: string, content: string) {
   yield* updateItem(id, { content });
 });
 
-export const toggleState = action(function* (id: string) {
+export const toggleState = action(function* toggleState(id: string) {
   const item = yield* byId(id);
   if (!item) throw new Error("Checklist item not found");
 
@@ -234,11 +234,11 @@ export const toggleState = action(function* (id: string) {
   ]);
 });
 
-export const deleteItems = action(function* (ids: string[]) {
+export const deleteItems = action(function* deleteItems(ids: string[]) {
   yield* deleteRows(checklistItemsTable, ids);
 });
 
-export const deleteForParents = action(function* (
+export const deleteForParents = action(function* deleteForParents(
   parentIds: string[],
   parentType: ChecklistParentType,
 ) {
@@ -252,7 +252,7 @@ export const deleteForParents = action(function* (
   }
 });
 
-export const copyItems = action(function* (
+export const copyItems = action(function* copyItems(
   fromParentId: string,
   fromParentType: ChecklistParentType,
   toParentId: string,
@@ -277,7 +277,7 @@ export const copyItems = action(function* (
   return copiedItems;
 });
 
-export const moveToParent = action(function* (
+export const moveToParent = action(function* moveToParent(
   itemId: string,
   parentId: string,
   parentType: ChecklistParentType,
@@ -300,7 +300,7 @@ export const moveToParent = action(function* (
   yield* updateItem(itemId, { parentId, parentType, orderToken });
 });
 
-export const handleDrop = action(function* (
+export const handleDrop = action(function* handleDrop(
   itemId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -335,7 +335,7 @@ export const handleDrop = action(function* (
   });
 });
 
-export const canDropOnParent = selector(function* (
+export const canDropOnParent = selector(function* canDropOnParent(
   parentId: string,
   parentType: AnyModelType,
   dropId: string,
@@ -350,7 +350,7 @@ export const canDropOnParent = selector(function* (
   return !!parent && isChecklistItem(dropped);
 });
 
-export const handleDropOnParent = action(function* (
+export const handleDropOnParent = action(function* handleDropOnParent(
   parentId: string,
   parentType: ChecklistParentType,
   dropId: string,

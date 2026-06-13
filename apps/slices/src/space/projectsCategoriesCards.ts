@@ -26,7 +26,7 @@ export type CardForDisplay = {
 
 // TODO: check if all items renamed to card
 
-export const firstChild = selector(function* (
+export const firstChild = selector(function* firstChild(
   projectCategoryId: string,
 ): Generator<unknown, Card, unknown> {
   const ids = yield* childrenIds(projectCategoryId);
@@ -35,7 +35,7 @@ export const firstChild = selector(function* (
   return yield* byIdOrDefault(ids[0]);
 });
 
-export const lastChild = selector(function* (
+export const lastChild = selector(function* lastChild(
   projectCategoryId: string,
 ): Generator<unknown, Card, unknown> {
   const ids = yield* childrenIds(projectCategoryId);
@@ -44,7 +44,7 @@ export const lastChild = selector(function* (
   return yield* byIdOrDefault(ids[ids.length - 1]);
 });
 
-export const childrenIdsExceptDailies = selector(function* (
+export const childrenIdsExceptDailies = selector(function* childrenIdsExceptDailies(
   projectCategoryId: string,
   exceptDailyListIds: string[],
 ): Generator<unknown, string[], unknown> {
@@ -76,7 +76,7 @@ export const childrenIdsExceptDailies = selector(function* (
     .map((card) => card.id);
 });
 
-export const children = selector(function* (projectCategoryId: string) {
+export const children = selector(function* children(projectCategoryId: string) {
   // TODO: use merge sort
   const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId).eq("state", "todo"),
@@ -100,7 +100,7 @@ export const children = selector(function* (projectCategoryId: string) {
   }) as (Task | TaskTemplate)[];
 });
 
-export const cardsForDisplay = selector(function* (
+export const cardsForDisplay = selector(function* cardsForDisplay(
   cards: Card[],
   cardWrappers: CardWrapper[],
 ): Generator<unknown, CardForDisplay[], unknown> {
@@ -193,14 +193,14 @@ export const cardsForDisplay = selector(function* (
   });
 });
 
-export const childrenForDisplay = selector(function* (
+export const childrenForDisplay = selector(function* childrenForDisplay(
   projectCategoryId: string,
 ) {
   const cards = yield* children(projectCategoryId);
   return yield* cardsForDisplay(cards, cards);
 });
 
-export const childrenIdsWithTypes = selector(function* (
+export const childrenIdsWithTypes = selector(function* childrenIdsWithTypes(
   projectCategoryId: string,
 ) {
   return (yield* children(projectCategoryId)).map((card) => ({
@@ -209,11 +209,11 @@ export const childrenIdsWithTypes = selector(function* (
   }));
 });
 
-export const childrenIds = selector(function* (projectCategoryId: string) {
+export const childrenIds = selector(function* childrenIds(projectCategoryId: string) {
   return (yield* children(projectCategoryId)).map((card) => card.id);
 });
 
-export const doneChildrenIds = selector(function* (projectCategoryId: string) {
+export const doneChildrenIds = selector(function* doneChildrenIds(projectCategoryId: string) {
   const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
       q.eq("projectCategoryId", projectCategoryId).eq("state", "done"),
     );
@@ -223,7 +223,7 @@ export const doneChildrenIds = selector(function* (projectCategoryId: string) {
     .map((p) => p.id);
 });
 
-export const doneChildrenForDisplay = selector(function* (
+export const doneChildrenForDisplay = selector(function* doneChildrenForDisplay(
   projectCategoryId: string,
 ) {
   const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates").where((q) =>
@@ -236,7 +236,7 @@ export const doneChildrenForDisplay = selector(function* (
   return yield* cardsForDisplay(cards, cards);
 });
 
-export const doneChildrenIdsExceptDailies = selector(function* (
+export const doneChildrenIdsExceptDailies = selector(function* doneChildrenIdsExceptDailies(
   projectCategoryId: string,
   exceptDailyListIds: string[],
 ): Generator<unknown, string[], unknown> {
@@ -247,7 +247,7 @@ export const doneChildrenIdsExceptDailies = selector(function* (
   return taskIds.filter((id) => !exceptTaskIds.has(id));
 });
 
-export const byId = selector(function* (
+export const byId = selector(function* byId(
   id: string,
 ): Generator<unknown, Card | undefined, unknown> {
   const task = yield* cardsTasksSlice.byId(id);
@@ -259,13 +259,13 @@ export const byId = selector(function* (
   return undefined;
 });
 
-export const byIdOrDefault = selector(function* (
+export const byIdOrDefault = selector(function* byIdOrDefault(
   id: string,
 ): Generator<unknown, Card, unknown> {
   return (yield* byId(id)) || defaultTask;
 });
 
-export const siblings = selector(function* (
+export const siblings = selector(function* siblings(
   cardId: string,
 ): Generator<unknown, [Card | undefined, Card | undefined], unknown> {
   const card = yield* byIdOrDefault(cardId);
@@ -283,7 +283,7 @@ export const siblings = selector(function* (
   return [before, after];
 });
 
-export const createSiblingTask = action(function* (
+export const createSiblingTask = action(function* createSiblingTask(
   cardId: string,
   position: "before" | "after",
   taskParams?: Partial<Task>,
@@ -302,7 +302,7 @@ export const createSiblingTask = action(function* (
   });
 });
 
-export const createTaskCardAfter = action(function* (
+export const createTaskCardAfter = action(function* createTaskCardAfter(
   cardId: string,
   taskParams?: Partial<Task>,
 ) {

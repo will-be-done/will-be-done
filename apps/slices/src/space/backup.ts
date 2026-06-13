@@ -109,7 +109,7 @@ export interface Backup {
   checklistItems?: ChecklistItemBackup[];
 }
 
-const getNewModels = action(function* (backup: Backup) {
+const getNewModels = action(function* getNewModels(backup: Backup) {
   const models: AnyModel[] = [];
 
   const inboxProjectIdInBackup = backup.projects.find((p) => p.isInbox)?.id;
@@ -319,7 +319,7 @@ const getNewModels = action(function* (backup: Backup) {
   return models;
 });
 
-export const loadBackup = selector(function* (backup: Backup) {
+export const loadBackup = selector(function* loadBackup(backup: Backup) {
   for (const table of registeredSpaceSyncableTables) {
     const allIds = (yield* selectFrom(table, "byIds")).map(
       (r) => r.id,
@@ -346,7 +346,7 @@ export const loadBackup = selector(function* (backup: Backup) {
   }
 });
 
-export const getBackup = selector(function* () {
+export const getBackup = selector(function* getBackup() {
   const tasks: Task[] = yield* cardsTasksSlice.all();
   const projects: Project[] = yield* projectsAllSlice.all();
   const taskTemplates: TaskTemplate[] = yield* cardsTaskTemplatesSlice.all();

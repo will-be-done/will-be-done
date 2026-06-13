@@ -60,6 +60,32 @@ describe("HyperDBDevtools", () => {
     expect(html).toContain("Overview");
   });
 
+  it("renders a database selector when traces come from multiple dbs", () => {
+    const unsubscribe = hyperDBTraceStore.subscribe(() => {});
+    const firstDB = createDB();
+    const secondDB = createDB();
+    const firstContext = startRootTrace(
+      createTraceFrameMeta("action", "firstDBAction", []),
+      hyperDBTraceStore,
+      firstDB,
+    )!;
+    endTraceSuccess(firstContext);
+    const secondContext = startRootTrace(
+      createTraceFrameMeta("selector", "secondDBSelector", []),
+      hyperDBTraceStore,
+      secondDB,
+    )!;
+    endTraceSuccess(secondContext);
+    unsubscribe();
+
+    const html = renderToString(<HyperDBDevtoolsPanel db={firstDB} />);
+
+    expect(html).toContain("<select");
+    expect(html).toContain("<option");
+    expect(html).toContain("firstDBAction");
+    expect(html).not.toContain("secondDBSelector");
+  });
+
   it("respects localStorage open state", () => {
     vi.stubGlobal("localStorage", {
       getItem: () => "true",

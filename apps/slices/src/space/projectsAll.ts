@@ -2,45 +2,45 @@ import { selectFrom, selector } from "@will-be-done/hyperdb-lib";
 import { projectsSlice } from ".";
 import { type Project, projectsTable, defaultProject } from "./projects";
 
-export const all = selector(function* () {
+export const all = selector(function* all() {
   const projects = yield* selectFrom(projectsTable, "byOrderToken");
   return projects;
 });
 
-export const allSorted = selector(function* () {
+export const allSorted = selector(function* allSorted() {
   const projects = yield* selectFrom(projectsTable, "byOrderToken");
   return projects;
 });
 
-export const childrenIds = selector(function* () {
+export const childrenIds = selector(function* childrenIds() {
   return (yield* allSorted()).map((p) => p.id);
 });
 
-export const childrenIdsWithoutInbox = selector(function* () {
+export const childrenIdsWithoutInbox = selector(function* childrenIdsWithoutInbox() {
   const projects = yield* allSorted();
   return projects.filter((p) => !p.isInbox).map((p) => p.id);
 });
 
-export const firstChild = selector(function* () {
+export const firstChild = selector(function* firstChild() {
   const ids = yield* childrenIds();
   const firstChildId = ids[0];
   return firstChildId ? yield* projectsSlice.byId(firstChildId) : undefined;
 });
 
-export const lastChild = selector(function* () {
+export const lastChild = selector(function* lastChild() {
   const ids = yield* childrenIds();
   const lastChildId = ids[ids.length - 1];
   return lastChildId ? yield* projectsSlice.byId(lastChildId) : undefined;
 });
 
-export const inbox = selector(function* () {
+export const inbox = selector(function* inbox() {
   return (
     (yield* projectsSlice.byId(yield* projectsSlice.inboxProjectId())) ||
     defaultProject
   );
 });
 
-export const siblings = selector(function* (projectId: string) {
+export const siblings = selector(function* siblings(projectId: string) {
   const ids = yield* childrenIds();
   const index = ids.findIndex((id) => id === projectId);
 
@@ -56,7 +56,7 @@ export const siblings = selector(function* (projectId: string) {
   return [before, after] as [Project | undefined, Project | undefined];
 });
 
-export const dropdownProjectsList = selector(function* () {
+export const dropdownProjectsList = selector(function* dropdownProjectsList() {
   const projects = yield* allSorted();
   return projects.map((p) => {
     return { value: p.id, label: p.title };

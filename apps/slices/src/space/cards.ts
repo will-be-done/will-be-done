@@ -14,7 +14,7 @@ import { stashProjectionsSlice } from ".";
 export type CardWrapper = Task | TaskTemplate | TaskProjection | StashProjection;
 export type CardWrapperType = CardWrapper["type"];
 
-export const byId = selector(function* (id: string) {
+export const byId = selector(function* byId(id: string) {
   const tasks = yield* cardsTasksSlice.byId(id);
   if (tasks) return tasks;
 
@@ -24,11 +24,11 @@ export const byId = selector(function* (id: string) {
   return undefined as CardWrapper | undefined;
 });
 
-export const exists = selector(function* (id: string) {
+export const exists = selector(function* exists(id: string) {
   return !!(yield* byId(id));
 });
 
-export const createSiblingCard = action(function* (
+export const createSiblingCard = action(function* createSiblingCard(
   taskBox: Task | TaskTemplate | TaskProjection | StashProjection,
   position: "before" | "after",
   taskParams?: Partial<Task>,
@@ -56,7 +56,7 @@ export const createSiblingCard = action(function* (
   }
 });
 
-export const cardWrapperId = selector(function* (
+export const cardWrapperId = selector(function* cardWrapperId(
   id: string,
   modelType: CardWrapperType,
 ) {
@@ -66,7 +66,7 @@ export const cardWrapperId = selector(function* (
   return (yield* slice.byId(id)) as CardWrapper;
 });
 
-export const cardWrapperIdOrDefault = selector(function* (
+export const cardWrapperIdOrDefault = selector(function* cardWrapperIdOrDefault(
   id: string,
   modelType: CardWrapperType,
 ) {
@@ -78,7 +78,7 @@ export const cardWrapperIdOrDefault = selector(function* (
   return entity;
 });
 
-export const taskOfModel = selector(function* (model: AnyModel) {
+export const taskOfModel = selector(function* taskOfModel(model: AnyModel) {
   if (isTaskProjection(model)) {
     return yield* cardsTasksSlice.byId(model.id);
   }
@@ -94,7 +94,7 @@ export const taskOfModel = selector(function* (model: AnyModel) {
   return undefined as Task | undefined;
 });
 
-export const deleteByIds = action(function* (ids: string[]) {
+export const deleteByIds = action(function* deleteByIds(ids: string[]) {
   yield* cardsTasksSlice.deleteByIds(ids);
   yield* cardsTaskTemplatesSlice.deleteTemplates(ids);
   yield* dailyListsProjectionsSlice.deleteProjections(ids);

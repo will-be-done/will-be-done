@@ -21,6 +21,17 @@ import type {
 } from "../schema/table";
 import { DBTx } from "./db-tx";
 
+let dbIdCounter = 0;
+
+const createDBId = (): string => {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  dbIdCounter += 1;
+  return `db-${Date.now().toString(36)}-${dbIdCounter.toString(36)}`;
+};
+
 function* performScan(
   driver: BaseDBDriverOperations,
   table: TableDefinition,
@@ -96,12 +107,14 @@ export class DB implements HyperDB {
   tables: TableDefinition<any, any>[] = [];
   traits: Trait[] = [];
   options: CodecOptions;
+  private id: string;
 
   constructor(
     driver: DBDriver,
     tables: TableDefinition<any, any>[] = [],
     traitsOrOptions: Trait[] | Partial<CodecOptions> = [],
     options: Partial<CodecOptions> = {},
+    id: string = createDBId(),
   ) {
     this.tables = tables;
     this.traits = Array.isArray(traitsOrOptions) ? traitsOrOptions : [];
@@ -110,6 +123,7 @@ export class DB implements HyperDB {
       ...(Array.isArray(traitsOrOptions) ? options : traitsOrOptions),
     };
     this.driver = driver;
+    this.id = id;
   }
 
   withTraits(...traits: Trait[]): HyperDB {
@@ -118,11 +132,16 @@ export class DB implements HyperDB {
       this.tables,
       [...this.traits, ...traits],
       this.options,
+      this.id,
     );
   }
 
   getTraits(): Trait[] {
     return this.traits;
+  }
+
+  getId(): string {
+    return this.id;
   }
 
   *loadTables(tables: TableDefinition<any, any>[]): Generator<DBCmd, void> {

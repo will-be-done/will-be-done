@@ -134,14 +134,14 @@ function makeIncomingCreate(
   ];
 }
 
-const getRowSelector = selector(function* (id: string) {
+const getRowSelector = selector(function* getRowSelector(id: string) {
   const rows = yield* selectFrom(testTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
   return rows[0] as Row | undefined;
 });
 
-const getChangeSelector = selector(function* (entityId: string) {
+const getChangeSelector = selector(function* getChangeSelector(entityId: string) {
   const changes = yield* selectFrom(changesTable, "byEntityIdAndTableName")
       .where((q) => q.eq("entityId", entityId).eq("tableName", "testItems"))
       .limit(1);

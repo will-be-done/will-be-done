@@ -24,19 +24,19 @@ export const spacesTable = defineTable("spaces", {
   .index("byIds", ["id"]);
 export type Space = ExtractSchema<typeof spacesTable>;
 
-const getSpaceById = selector(function* (id: string) {
+const getSpaceById = selector(function* getSpaceById(id: string) {
   const spaces = yield* selectFrom(spacesTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
   return spaces[0] as Space | undefined;
 });
 
-const listSpaces = selector(function* () {
+const listSpaces = selector(function* listSpaces() {
   const spaces = yield* selectFrom(spacesTable, "byIds");
   return spaces as Space[];
 });
 
-const createSpace = action(function* (name: string) {
+const createSpace = action(function* createSpace(name: string) {
   const spaceId = uuidv7();
   const now = new Date().toISOString();
   const space: Space = {
@@ -52,7 +52,7 @@ const createSpace = action(function* (name: string) {
   return space;
 });
 
-const updateSpace = action(function* (id: string, name: string) {
+const updateSpace = action(function* updateSpace(id: string, name: string) {
   const space = yield* getSpaceById(id);
   if (!space) {
     return null as Space | null;
@@ -69,7 +69,7 @@ const updateSpace = action(function* (id: string, name: string) {
   return updatedSpace as Space | null;
 });
 
-const deleteSpace = action(function* (id: string) {
+const deleteSpace = action(function* deleteSpace(id: string) {
   const space = yield* getSpaceById(id);
   if (!space) {
     return false;

@@ -56,7 +56,7 @@ export const defaultProjectCategory: ProjectCategory = {
   createdAt: 0,
 };
 
-export const byId = selector(function* (id: string) {
+export const byId = selector(function* byId(id: string) {
   const tasks = yield* selectFrom(projectCategoriesTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
@@ -64,31 +64,31 @@ export const byId = selector(function* (id: string) {
   return tasks[0] as ProjectCategory | undefined;
 });
 
-export const byIdOrDefault = selector(function* (id: string) {
+export const byIdOrDefault = selector(function* byIdOrDefault(id: string) {
   return (yield* byId(id)) || defaultProjectCategory;
 });
 
-export const all = selector(function* () {
+export const all = selector(function* all() {
   const tasks = yield* selectFrom(projectCategoriesTable, "byProjectIdOrderToken");
   return tasks;
 });
 
-export const inboxCategoryId = selector(function* () {
+export const inboxCategoryId = selector(function* inboxCategoryId() {
   return yield* genUUIDV5(projectCategoryType, "inbox");
 });
 
-export const byProjectIds = selector(function* (projectIds: string[]) {
+export const byProjectIds = selector(function* byProjectIds(projectIds: string[]) {
   const categories = yield* selectFrom(projectCategoriesTable, "byProjectIdOrderToken").where((q) =>
       projectIds.map((id) => q.eq("projectId", id)),
     );
   return categories;
 });
 
-export const byProjectId = selector(function* (projectId: string) {
+export const byProjectId = selector(function* byProjectId(projectId: string) {
   return yield* byProjectIds([projectId]);
 });
 
-export const projectOfCategory = selector(function* (
+export const projectOfCategory = selector(function* projectOfCategory(
   categoryId: string,
 ): Generator<unknown, Project | undefined, unknown> {
   const category = yield* byId(categoryId);
@@ -97,7 +97,7 @@ export const projectOfCategory = selector(function* (
   return yield* projectsSlice.byId(category.projectId);
 });
 
-export const projectOfCategoryOrDefault = selector(function* (
+export const projectOfCategoryOrDefault = selector(function* projectOfCategoryOrDefault(
   categoryId: string,
 ): Generator<unknown, Project, unknown> {
   const category = yield* byId(categoryId);
@@ -106,18 +106,18 @@ export const projectOfCategoryOrDefault = selector(function* (
   return yield* projectsSlice.byIdOrDefault(category.projectId);
 });
 
-export const firstChild = selector(function* (projectId: string) {
+export const firstChild = selector(function* firstChild(projectId: string) {
   return (yield* byProjectId(projectId))[0] as ProjectCategory | undefined;
 });
 
-export const lastChild = selector(function* (projectId: string) {
+export const lastChild = selector(function* lastChild(projectId: string) {
   const result = yield* byProjectId(projectId);
   if (result.length === 0) return undefined as ProjectCategory | undefined;
 
   return result[result.length - 1] as ProjectCategory | undefined;
 });
 
-export const updateCategory = action(function* (
+export const updateCategory = action(function* updateCategory(
   categoryId: string,
   category: Partial<ProjectCategory>,
 ): Generator<unknown, void, unknown> {
@@ -127,7 +127,7 @@ export const updateCategory = action(function* (
   yield* upsert(projectCategoriesTable, [{ ...categoryInState, ...category }]);
 });
 
-export const siblings = selector(function* (categoryId: string) {
+export const siblings = selector(function* siblings(categoryId: string) {
   const item = yield* byId(categoryId);
   if (!item)
     return [undefined, undefined] as [
@@ -157,7 +157,7 @@ export const siblings = selector(function* (categoryId: string) {
   ];
 });
 
-export const moveLeft = action(function* (
+export const moveLeft = action(function* moveLeft(
   categoryId: string,
 ): Generator<unknown, void, unknown> {
   const [up] = yield* siblings(categoryId);
@@ -173,7 +173,7 @@ export const moveLeft = action(function* (
   });
 });
 
-export const moveRight = action(function* (
+export const moveRight = action(function* moveRight(
   categoryId: string,
 ): Generator<unknown, void, unknown> {
   const [_up, down] = yield* siblings(categoryId);
@@ -191,7 +191,7 @@ export const moveRight = action(function* (
   });
 });
 
-export const createCategory = action(function* (
+export const createCategory = action(function* createCategory(
   categoryDraft: Partial<ProjectCategory> & {
     projectId: string;
     title: string;
@@ -223,7 +223,7 @@ export const createCategory = action(function* (
   return category;
 });
 
-export const createTask = action(function* (
+export const createTask = action(function* createTask(
   categoryId: string,
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]
@@ -244,7 +244,7 @@ export const createTask = action(function* (
   });
 });
 
-export const deleteCategories = action(function* (
+export const deleteCategories = action(function* deleteCategories(
   ids: string[],
 ): Generator<unknown, void, unknown> {
   const idsToDelete: string[] = [];
@@ -265,7 +265,7 @@ export const deleteCategories = action(function* (
   yield* deleteRows(projectCategoriesTable, ids);
 });
 
-export const handleDrop = action(function* (
+export const handleDrop = action(function* handleDrop(
   categoryId: string,
   dropId: string,
   dropModelType: AnyModelType,
@@ -313,7 +313,7 @@ export const handleDrop = action(function* (
   }
 });
 
-export const canDrop = selector(function* (
+export const canDrop = selector(function* canDrop(
   _categoryId: string,
   dropId: string,
   dropModelType: AnyModelType,

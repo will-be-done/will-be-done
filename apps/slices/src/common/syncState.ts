@@ -16,7 +16,7 @@ export const syncStateTable = defineTable("syncState", {
 });
 export type SyncState = ExtractSchema<typeof syncStateTable>;
 
-const getOrDefault = selector(function* () {
+const getOrDefault = selector(function* getOrDefault() {
   const currentSyncState = (yield* selectFrom(syncStateTable, "byId").where((q) => q.eq("id", syncStateId)))[0];
 
   return (currentSyncState ?? {
@@ -26,7 +26,7 @@ const getOrDefault = selector(function* () {
   }) as SyncState;
 });
 
-const updateSyncState = action(function* (updates: Partial<SyncState>) {
+const updateSyncState = action(function* updateSyncState(updates: Partial<SyncState>) {
   const currentSyncState = yield* getOrDefault();
   return yield* upsert(syncStateTable, [
     {

@@ -45,7 +45,7 @@ export const changesTable = defineTable("changes", {
   .index("byUpdatedAt", ["updatedAt"]);
 export type Change = ExtractSchema<typeof changesTable>;
 
-const byIdAndName = selector(function* (entityId: string, tableName: string) {
+const byIdAndName = selector(function* byIdAndName(entityId: string, tableName: string) {
   const changes = yield* selectFrom(changesTable, "byEntityIdAndTableName")
       .where((q) => q.eq("entityId", entityId).eq("tableName", tableName))
       .limit(1);
@@ -53,13 +53,13 @@ const byIdAndName = selector(function* (entityId: string, tableName: string) {
   return changes[0] as Change | undefined;
 });
 
-const allChangesAfter = selector(function* (after: string) {
+const allChangesAfter = selector(function* allChangesAfter(after: string) {
   return (yield* selectFrom(changesTable, "byUpdatedAt").where((q) =>
       q.gt("updatedAt", after),
     )) as Change[];
 });
 
-const getChangesetAfter = selector(function* (
+const getChangesetAfter = selector(function* getChangesetAfter(
   after: string,
   registeredSyncableTableNameMap: Record<string, TableDefinition>,
 ) {
@@ -129,7 +129,7 @@ const getChangesetAfter = selector(function* (
   return { changesets, maxClock };
 });
 
-const insertChangeFromInsert = action(function* (
+const insertChangeFromInsert = action(function* insertChangeFromInsert(
   tableDef: TableDefinition,
   row: Row,
   clientId: string,
@@ -158,7 +158,7 @@ const insertChangeFromInsert = action(function* (
   return newChange;
 });
 
-const insertChangeFromUpdate = action(function* (
+const insertChangeFromUpdate = action(function* insertChangeFromUpdate(
   tableDef: TableDefinition,
   oldRow: Row,
   newRow: Row,
@@ -205,7 +205,7 @@ const insertChangeFromUpdate = action(function* (
   return newChange as Change | undefined;
 });
 
-const insertChangeFromDelete = action(function* (
+const insertChangeFromDelete = action(function* insertChangeFromDelete(
   tableDef: TableDefinition,
   row: Row,
   clientId: string,
@@ -235,7 +235,7 @@ const insertChangeFromDelete = action(function* (
   return deletedChange;
 });
 
-const mergeChangesAction = action(function* (
+const mergeChangesAction = action(function* mergeChangesAction(
   input: ChangesetArrayType,
   nextClock: () => string,
   clientId: string,

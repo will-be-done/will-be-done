@@ -3,13 +3,13 @@ import { defaultTask } from "./cardsTasks";
 import { AnyModel, AnyModelType, appTypeSlicesMap } from "./maps";
 
 // Selectors and actions
-export const byId = selector(function* (id: string, modelType: AnyModelType) {
+export const byId = selector(function* byId(id: string, modelType: AnyModelType) {
   const slice = appTypeSlicesMap[modelType];
   if (!slice) throw new Error(`Unknown model type: ${modelType}`);
   return (yield* slice.byId(id)) as AnyModel | undefined;
 });
 
-export const byIdOrDefault = selector(function* (
+export const byIdOrDefault = selector(function* byIdOrDefault(
   id: string,
   modelType: AnyModelType,
 ) {
@@ -21,7 +21,7 @@ export const byIdOrDefault = selector(function* (
   return entity;
 });
 
-export const canDrop = selector(function* (
+export const canDrop = selector(function* canDrop(
   id: string,
   modelType: AnyModelType,
   dropId: string,
@@ -42,7 +42,7 @@ export const canDrop = selector(function* (
   return yield* modelSlice.canDrop(id, dropId, dropModelType);
 });
 
-export const handleDrop = action(function* (
+export const handleDrop = action(function* handleDrop(
   id: string,
   modelType: AnyModelType,
   dropId: string,
@@ -65,7 +65,7 @@ export const handleDrop = action(function* (
   yield* modelSlice.handleDrop(id, dropId, dropModelType, edge);
 });
 
-export const deleteModel = action(function* (
+export const deleteModel = action(function* deleteModel(
   id: string,
   modelType: AnyModelType,
 ): Generator<unknown, void, unknown> {
