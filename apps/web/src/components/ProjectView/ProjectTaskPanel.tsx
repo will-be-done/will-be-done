@@ -2,10 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb-lib";
 import { flushSync } from "react-dom";
 import {
-  appSlice,
-  projectsSlice,
-  projectCategoriesSlice,
-  projectCategoryCardsSlice,
+  appCanDrop,
+  createCategory,
+  createProjectCategoryTask,
+  deleteCategories,
+  doneProjectCategoryCardsForDisplay,
+  moveLeft,
+  moveRight,
+  projectByIdOrDefault,
+  projectCategoriesByProjectId,
+  projectCategoryByIdOrDefault,
+  projectCategoryCardsForDisplayChildren,
+  updateCategory,
 } from "@will-be-done/slices/space";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
 import {
@@ -70,17 +78,17 @@ const CategorySection = ({
   const [isPlaceholderFocused, setIsPlaceholderFocused] = useState(false);
 
   const category = useSyncSelector(
-    () => projectCategoriesSlice.byIdOrDefault(categoryId),
+    () => projectCategoryByIdOrDefault(categoryId),
     [categoryId],
   );
 
   const cardsForDisplay = useSyncSelector(
-    () => projectCategoryCardsSlice.childrenForDisplay(category.id),
+    () => projectCategoryCardsForDisplayChildren(category.id),
     [category.id],
   );
 
   const doneCardsForDisplay = useSyncSelector(
-    () => projectCategoryCardsSlice.doneChildrenForDisplay(categoryId),
+    () => doneProjectCategoryCardsForDisplay(categoryId),
     [categoryId],
   );
 
@@ -98,7 +106,7 @@ const CategorySection = ({
         const data = source.data;
         if (!isModelDNDData(data)) return false;
         return select(
-          appSlice.canDrop(
+          appCanDrop(
             categoryId,
             category.type,
             data.modelId,
@@ -123,7 +131,7 @@ const CategorySection = ({
     const newTitle = await promptDialog("Section name", category.title);
     if (newTitle == null || newTitle === "") return;
     dispatch(
-      projectCategoriesSlice.updateCategory(categoryId, { title: newTitle }),
+      updateCategory(categoryId, { title: newTitle }),
     );
   };
 
@@ -135,7 +143,7 @@ const CategorySection = ({
     // eslint-disable-next-line react-dom/no-flush-sync -- iOS opens the keyboard only when the editable task is focused during the tap.
     flushSync(() => {
       const task = dispatch(
-        projectCategoriesSlice.createTask(categoryId, "prepend"),
+        createProjectCategoryTask(categoryId, "prepend"),
       );
       focusKey = buildFocusKey(task.id, "task");
       useFocusStore.getState().editByKey(focusKey);
@@ -153,7 +161,7 @@ const CategorySection = ({
 
   const handleDelete = () => {
     if (confirm(`Delete category "${category.title}"?`)) {
-      dispatch(projectCategoriesSlice.deleteCategories([categoryId]));
+      dispatch(deleteCategories([categoryId]));
     }
   };
 
@@ -180,7 +188,7 @@ const CategorySection = ({
           <button
             type="button"
             onClick={() =>
-              dispatch(projectCategoriesSlice.moveLeft(categoryId))
+              dispatch(moveLeft(categoryId))
             }
             className="w-5 h-5 flex items-center justify-center text-content-tinted hover:text-primary transition-colors cursor-pointer rounded"
             title="Move up"
@@ -190,7 +198,7 @@ const CategorySection = ({
           <button
             type="button"
             onClick={() =>
-              dispatch(projectCategoriesSlice.moveRight(categoryId))
+              dispatch(moveRight(categoryId))
             }
             className="w-5 h-5 flex items-center justify-center text-content-tinted hover:text-primary transition-colors cursor-pointer rounded"
             title="Move down"
@@ -322,12 +330,12 @@ export const ProjectTaskPanel = ({
 }) => {
   const dispatch = useDispatch();
   const project = useSyncSelector(
-    () => projectsSlice.byIdOrDefault(projectId),
+    () => projectByIdOrDefault(projectId),
     [projectId],
   );
 
   const categories = useSyncSelector(
-    () => projectCategoriesSlice.byProjectId(projectId),
+    () => projectCategoriesByProjectId(projectId),
     [projectId],
   );
 
@@ -335,7 +343,7 @@ export const ProjectTaskPanel = ({
     const title = await promptDialog("Section name");
     if (!title) return;
     dispatch(
-      projectCategoriesSlice.createCategory({ projectId, title }, "append"),
+      createCategory({ projectId, title }, "append"),
     );
   };
 

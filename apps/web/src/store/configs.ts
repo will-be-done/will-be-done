@@ -1,9 +1,9 @@
 import { changesTable, syncStateTable } from "@will-be-done/slices/common";
 import {
-  backupSlice,
-  cardsTasksSlice,
-  cardsTaskTemplatesSlice,
-  projectsSlice,
+  allTasks,
+  createInboxIfNotExists,
+  generateTasksFromTemplates,
+  loadSpaceBackup,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
   type Task,
@@ -31,11 +31,11 @@ export const spaceDBConfig = (dbId: string) => {
     syncableDBTables: registeredSpaceSyncableTables,
     tableNameMap: registeredSpaceSyncableTableNameMap,
     afterInit: (db: HyperDB) => {
-      syncDispatch(db, projectsSlice.createInboxIfNotExists());
+      syncDispatch(db, createInboxIfNotExists());
 
-      syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      syncDispatch(db, generateTasksFromTemplates());
       setInterval(() => {
-        syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+        syncDispatch(db, generateTasksFromTemplates());
       }, 60 * 1000);
     },
   } satisfies SyncConfig;
@@ -46,22 +46,22 @@ export const demoSpaceDBConfig = () => {
     ...spaceDBConfig(demoDbId),
     disableSync: true,
     afterInit: async (db: HyperDB) => {
-      syncDispatch(db, projectsSlice.createInboxIfNotExists());
+      syncDispatch(db, createInboxIfNotExists());
       const tasks = runSelector<Task[]>(
         db,
         function* () {
-          return yield* cardsTasksSlice.all();
+          return yield* allTasks();
         },
         [],
       );
 
       if (tasks.length === 0) {
-        syncDispatch(db, backupSlice.loadBackup(generateDemoBackup()));
+        syncDispatch(db, loadSpaceBackup(generateDemoBackup()));
       }
 
-      syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+      syncDispatch(db, generateTasksFromTemplates());
       setInterval(() => {
-        syncDispatch(db, cardsTaskTemplatesSlice.generateTasksFromTemplates());
+        syncDispatch(db, generateTasksFromTemplates());
       }, 60 * 1000);
     },
   } satisfies SyncConfig;

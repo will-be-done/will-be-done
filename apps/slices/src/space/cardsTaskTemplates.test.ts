@@ -14,9 +14,9 @@ import { tasksTable, type Task } from "./cardsTasks";
 import {
   taskTemplatesTable,
   type TaskTemplate,
-  newTasksInRange,
-  newTasksToGenForTemplate,
-  createFromTask,
+  taskTemplateNewTasksInRange,
+  newTasksToGenForTaskTemplate,
+  createTaskTemplateFromTask,
 } from "./cardsTaskTemplates";
 import { dbIdTrait } from "@/traits";
 import { checklistItemsTable } from "./checklistItems";
@@ -60,7 +60,7 @@ function getNewTasks(db: DB, templateId: string, toDate: Date): Task[] {
   return runSelector<Task[]>(
     db,
     function* () {
-      return yield* newTasksToGenForTemplate(templateId, toDate);
+      return yield* newTasksToGenForTaskTemplate(templateId, toDate);
     },
     [],
   );
@@ -70,7 +70,7 @@ function getNewTasksInRange(db: DB, fromDate: Date, toDate: Date): Task[] {
   return runSelector<Task[]>(
     db,
     function* () {
-      return yield* newTasksInRange(fromDate, toDate);
+      return yield* taskTemplateNewTasksInRange(fromDate, toDate);
     },
     [],
   );
@@ -459,7 +459,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       db,
       action(function* () {
         yield* insert(tasksTable, [task]);
-        return yield* createFromTask(task, {});
+        return yield* createTaskTemplateFromTask(task, {});
       })(),
     ) as TaskTemplate;
 

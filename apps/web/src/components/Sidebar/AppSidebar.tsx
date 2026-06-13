@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useSyncSelector, useDispatch } from "@will-be-done/hyperdb-lib";
 import {
-  backupSlice,
-  projectsAllSlice,
-  projectsSlice,
+  createProject,
+  inboxProject,
+  loadSpaceBackup,
+  notDoneTasksCountExceptDailiesCount,
+  projectChildrenIdsWithoutInbox,
 } from "@will-be-done/slices/space";
 import { SidebarProjectItem } from "./SidebarProjectItem.tsx";
 import { SpaceBlock } from "./SpaceBlock.tsx";
@@ -136,7 +138,7 @@ const InboxNavItem = ({ inboxId }: { inboxId: string }) => {
   const closeMobile = useCloseMobileOnNav();
 
   const notDoneCount = useSyncSelector(
-    () => projectsSlice.notDoneTasksCountExceptDailiesCount(inboxId, []),
+    () => notDoneTasksCountExceptDailiesCount(inboxId, []),
     [inboxId],
   );
 
@@ -186,16 +188,16 @@ const NavStrip = () => {
 
 export const AppSidebar = () => {
   const dispatch = useDispatch();
-  const inbox = useSyncSelector(() => projectsAllSlice.inbox(), []);
+  const inbox = useSyncSelector(() => inboxProject(), []);
   const projectIdsWithoutInbox = useSyncSelector(
-    () => projectsAllSlice.childrenIdsWithoutInbox(),
+    () => projectChildrenIdsWithoutInbox(),
     [],
   );
 
   const handleAddProjectClick = async () => {
     const title = await promptDialog("Enter project title");
     if (title) {
-      dispatch(projectsSlice.create({ title }, "append"));
+      dispatch(createProject({ title }, "append"));
     }
   };
 
@@ -261,7 +263,7 @@ const GenerateTestDataButton = () => {
     const l = parseInt(todo, 10) || 0;
 
     const backup = generateTestBackup(n, m, k, l);
-    dispatch(backupSlice.loadBackup(backup));
+    dispatch(loadSpaceBackup(backup));
     setOpen(false);
   };
 

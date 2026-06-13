@@ -13,16 +13,25 @@ import {
 } from "@will-be-done/hyperdb-lib";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
-import { appSlice } from ".";
-import { cardsTaskTemplatesSlice } from ".";
-import { checklistItemsSlice } from ".";
+import { appById, appDeleteModel } from "./app";
+import {
+  checklistItemCanDropOnParent,
+  checklistItemHandleDropOnParent,
+  copyItems,
+  deleteForParents,
+} from "./checklistItems";
+import { deleteDailyProjections } from "./dailyListsProjections";
+import { firstProjectCategoryChild } from "./projectsCategories";
+import {
+  projectCategoryCardSiblings,
+} from "./projectsCategoriesCards";
+import {
+  updateTemplate,
+} from "./cardsTaskTemplates";
 import { isTaskTemplate, TaskTemplate } from "./cardsTaskTemplates";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerModelSlice, AnyModelType } from "./maps";
-import { projectCategoryCardsSlice } from ".";
-import { dailyListsProjectionsSlice } from ".";
 import { isTaskProjection } from "./dailyListsProjections";
-import { projectCategoriesSlice } from ".";
 
 // Type definitions
 export const taskType = "task";
@@ -73,31 +82,35 @@ export const defaultTask: Task = {
 registerSpaceSyncableTable(tasksTable, taskType);
 
 // Selectors and actions
-export const byId = selector(function* byId(id: string) {
+export const taskById = selector(function* taskById(id: string) {
   const tasks = yield* selectFrom(tasksTable, "byId")
-      .where((q) => q.eq("id", id))
-      .limit(1);
+    .where((q) => q.eq("id", id))
+    .limit(1);
 
   return tasks[0] as Task | undefined;
 });
 
-export const exists = selector(function* exists(id: string) {
-  return !!(yield* byId(id));
+export const taskExists = selector(function* taskExists(id: string) {
+  return !!(yield* taskById(id));
 });
 
-export const byIdOrDefault = selector(function* byIdOrDefault(id: string) {
-  return (yield* byId(id)) || defaultTask;
+export const taskByIdOrDefault = selector(function* taskByIdOrDefault(
+  id: string,
+) {
+  return (yield* taskById(id)) || defaultTask;
 });
 
-export const taskIdsOfTemplateId = selector(function* taskIdsOfTemplateId(ids: string[]) {
+export const taskIdsOfTemplateId = selector(function* taskIdsOfTemplateId(
+  ids: string[],
+) {
   const tasks = yield* selectFrom(tasksTable, "byTemplateId").where((q) =>
-      ids.map((id) => q.eq("templateId", id)),
-    );
+    ids.map((id) => q.eq("templateId", id)),
+  );
 
   return tasks.map((t) => t.id);
 });
 
-export const all = selector(function* all() {
+export const allTasks = selector(function* allTasks() {
   const tasks = yield* selectFrom(tasksTable, "byCategoryIdOrderStates");
   return tasks;
 });
@@ -105,13 +118,16 @@ export const all = selector(function* all() {
 export const deleteTasks = action(function* deleteTasks(
   ids: string[],
 ): Generator<unknown, void, unknown> {
-  yield* checklistItemsSlice.deleteForParents(ids, taskType);
+  yield* deleteForParents(ids, taskType);
   yield* deleteRows(tasksTable, ids);
-  yield* dailyListsProjectionsSlice.deleteProjections(ids);
+  yield* deleteDailyProjections(ids);
 });
 
-export const updateTask = action(function* updateTask(id: string, task: Partial<Task>) {
-  const taskInState = yield* byId(id);
+export const updateTask = action(function* updateTask(
+  id: string,
+  task: Partial<Task>,
+) {
+  const taskInState = yield* taskById(id);
   if (!taskInState) throw new Error("Task not found");
 
   yield* upsert(tasksTable, [{ ...taskInState, ...task }]);
@@ -140,15 +156,15 @@ export const createTask = action(function* createTask(
   return newTask;
 });
 
-export const canDrop = selector(function* canDrop(
+export const taskCanDrop = selector(function* taskCanDrop(
   taskId: string,
   dropId: string,
   dropModelType: AnyModelType,
 ) {
-  const model = yield* appSlice.byId(dropId, dropModelType);
+  const model = yield* appById(dropId, dropModelType);
   if (!model) return false;
 
-  const task = yield* byId(taskId);
+  const task = yield* taskById(taskId);
   if (!task) return false;
 
   if (task.state === "done") {
@@ -160,17 +176,12 @@ export const canDrop = selector(function* canDrop(
   }
 
   if (isTaskProjection(model)) {
-    const droppedTask = yield* byId(model.id);
+    const droppedTask = yield* taskById(model.id);
     return droppedTask !== undefined && droppedTask.state === "todo";
   }
 
   if (
-    yield* checklistItemsSlice.canDropOnParent(
-      taskId,
-      taskType,
-      dropId,
-      dropModelType,
-    )
+    yield* checklistItemCanDropOnParent(taskId, taskType, dropId, dropModelType)
   ) {
     return true;
   }
@@ -178,21 +189,21 @@ export const canDrop = selector(function* canDrop(
   return isTask(model) || isTaskTemplate(model);
 });
 
-export const handleDrop = action(function* handleDrop(
+export const taskHandleDrop = action(function* taskHandleDrop(
   taskId: string,
   dropId: string,
   dropModelType: AnyModelType,
   edge: "top" | "bottom",
 ): Generator<unknown, void, unknown> {
-  if (!(yield* canDrop(taskId, dropId, dropModelType))) return;
+  if (!(yield* taskCanDrop(taskId, dropId, dropModelType))) return;
 
-  const task = yield* byId(taskId);
+  const task = yield* taskById(taskId);
   if (!task) return shouldNeverHappen("task not found");
 
-  const dropItem = yield* appSlice.byId(dropId, dropModelType);
+  const dropItem = yield* appById(dropId, dropModelType);
   if (!dropItem) return shouldNeverHappen("drop item not found");
 
-  const [up, down] = yield* projectCategoryCardsSlice.siblings(taskId);
+  const [up, down] = yield* projectCategoryCardSiblings(taskId);
 
   let between: [string | undefined, string | undefined] = [
     task.orderToken,
@@ -214,13 +225,13 @@ export const handleDrop = action(function* handleDrop(
       orderToken: orderToken,
     });
   } else if (isTaskTemplate(dropItem)) {
-    yield* cardsTaskTemplatesSlice.updateTemplate(dropItem.id, {
+    yield* updateTemplate(dropItem.id, {
       projectCategoryId: task.projectCategoryId,
       orderToken: orderToken,
     });
   } else if (isTaskProjection(dropItem)) {
     // When dropping a projection onto a task, move the underlying task
-    const droppedTask = yield* byId(dropItem.id);
+    const droppedTask = yield* taskById(dropItem.id);
     if (droppedTask) {
       yield* updateTask(droppedTask.id, {
         projectCategoryId: task.projectCategoryId,
@@ -229,14 +240,9 @@ export const handleDrop = action(function* handleDrop(
       // Keep the projection in the daily list
     }
   } else if (
-    yield* checklistItemsSlice.canDropOnParent(
-      taskId,
-      taskType,
-      dropId,
-      dropModelType,
-    )
+    yield* checklistItemCanDropOnParent(taskId, taskType, dropId, dropModelType)
   ) {
-    yield* checklistItemsSlice.handleDropOnParent(
+    yield* checklistItemHandleDropOnParent(
       taskId,
       taskType,
       dropId,
@@ -248,14 +254,14 @@ export const handleDrop = action(function* handleDrop(
   }
 });
 
-export const moveToProject = action(function* moveToProject(
+export const moveTaskToProject = action(function* moveTaskToProject(
   taskId: string,
   projectId: string,
 ): Generator<unknown, void, unknown> {
-  const task = yield* byId(taskId);
+  const task = yield* taskById(taskId);
   if (!task) throw new Error("Task not found");
 
-  const firstCategory = yield* projectCategoriesSlice.firstChild(projectId);
+  const firstCategory = yield* firstProjectCategoryChild(projectId);
   if (!firstCategory) throw new Error("No categories found");
 
   yield* upsert(tasksTable, [
@@ -266,8 +272,10 @@ export const moveToProject = action(function* moveToProject(
   ]);
 });
 
-export const toggleState = action(function* toggleState(taskId: string) {
-  const task = yield* byId(taskId);
+export const toggleTaskState = action(function* toggleTaskState(
+  taskId: string,
+) {
+  const task = yield* taskById(taskId);
   if (!task) throw new Error("Task not found");
 
   yield* upsert(tasksTable, [
@@ -279,17 +287,12 @@ export const toggleState = action(function* toggleState(taskId: string) {
   ]);
 });
 
-export const createFromTemplate = action(function* createFromTemplate(
+export const createTaskFromTemplate = action(function* createTaskFromTemplate(
   taskTemplate: TaskTemplate,
 ) {
   const newId = uuidv7();
-  yield* checklistItemsSlice.copyItems(
-    taskTemplate.id,
-    "template",
-    newId,
-    taskType,
-  );
-  yield* appSlice.deleteModel(taskTemplate.id, taskTemplate.type);
+  yield* copyItems(taskTemplate.id, "template", newId, taskType);
+  yield* appDeleteModel(taskTemplate.id, taskTemplate.type);
 
   const newTask: Task = {
     id: newId,
@@ -310,30 +313,32 @@ export const createFromTemplate = action(function* createFromTemplate(
   return newTask;
 });
 
-export const deleteByIds = action(function* deleteByIds(ids: string[]) {
+export const deleteTasksByIds = action(function* deleteTasksByIds(
+  ids: string[],
+) {
   yield* deleteTasks(ids);
 });
 
-export const deleteById = action(function* deleteById(id: string) {
+export const deleteTaskById = action(function* deleteTaskById(id: string) {
   yield* deleteTasks([id]);
 });
 
 // Local slice object for registerModelSlice (not exported)
 const cardsTasksSlice = {
-  byId,
-  exists,
-  byIdOrDefault,
+  byId: taskById,
+  taskExists,
+  taskByIdOrDefault,
   taskIdsOfTemplateId,
-  all,
+  allTasks,
   delete: deleteTasks,
   update: updateTask,
   createTask,
-  canDrop,
-  handleDrop,
-  moveToProject,
-  toggleState,
-  createFromTemplate,
-  deleteByIds,
-  deleteById,
+  canDrop: taskCanDrop,
+  handleDrop: taskHandleDrop,
+  moveTaskToProject,
+  toggleTaskState,
+  createTaskFromTemplate,
+  deleteTasksByIds,
+  deleteTaskById,
 };
 registerModelSlice(cardsTasksSlice, tasksTable, taskType);

@@ -3,17 +3,17 @@ import { defaultTask } from "./cardsTasks";
 import { AnyModel, AnyModelType, appTypeSlicesMap } from "./maps";
 
 // Selectors and actions
-export const byId = selector(function* byId(id: string, modelType: AnyModelType) {
+export const appById = selector(function* appById(id: string, modelType: AnyModelType) {
   const slice = appTypeSlicesMap[modelType];
   if (!slice) throw new Error(`Unknown model type: ${modelType}`);
   return (yield* slice.byId(id)) as AnyModel | undefined;
 });
 
-export const byIdOrDefault = selector(function* byIdOrDefault(
+export const appByIdOrDefault = selector(function* appByIdOrDefault(
   id: string,
   modelType: AnyModelType,
 ) {
-  const entity = yield* byId(id, modelType);
+  const entity = yield* appById(id, modelType);
   if (!entity) {
     return defaultTask as AnyModel;
   }
@@ -21,7 +21,7 @@ export const byIdOrDefault = selector(function* byIdOrDefault(
   return entity;
 });
 
-export const canDrop = selector(function* canDrop(
+export const appCanDrop = selector(function* appCanDrop(
   id: string,
   modelType: AnyModelType,
   dropId: string,
@@ -30,7 +30,7 @@ export const canDrop = selector(function* canDrop(
   const slice = appTypeSlicesMap[modelType];
   if (!slice) throw new Error(`Unknown model type: ${modelType}`);
 
-  const model = yield* byId(id, modelType);
+  const model = yield* appById(id, modelType);
   if (!model) {
     // For virtual models (e.g. stash) that have no DB row, use modelType directly
     return yield* slice.canDrop(id, dropId, dropModelType);
@@ -42,7 +42,7 @@ export const canDrop = selector(function* canDrop(
   return yield* modelSlice.canDrop(id, dropId, dropModelType);
 });
 
-export const handleDrop = action(function* handleDrop(
+export const appHandleDrop = action(function* appHandleDrop(
   id: string,
   modelType: AnyModelType,
   dropId: string,
@@ -52,7 +52,7 @@ export const handleDrop = action(function* handleDrop(
   const slice = appTypeSlicesMap[modelType];
   if (!slice) throw new Error(`Unknown model type: ${modelType}`);
 
-  const model = yield* byId(id, modelType);
+  const model = yield* appById(id, modelType);
   if (!model) {
     // For virtual models (e.g. stash) that have no DB row, use modelType directly
     yield* slice.handleDrop(id, dropId, dropModelType, edge);
@@ -65,11 +65,11 @@ export const handleDrop = action(function* handleDrop(
   yield* modelSlice.handleDrop(id, dropId, dropModelType, edge);
 });
 
-export const deleteModel = action(function* deleteModel(
+export const appDeleteModel = action(function* appDeleteModel(
   id: string,
   modelType: AnyModelType,
 ): Generator<unknown, void, unknown> {
-  const model = yield* byId(id, modelType);
+  const model = yield* appById(id, modelType);
   if (!model) return;
 
   const slice = appTypeSlicesMap[model.type];

@@ -3,7 +3,9 @@ import { Trash2, Info } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
-import { appSlice } from "@will-be-done/slices/space";
+import {
+  appDeleteModel,
+} from "@will-be-done/slices/space";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { cn } from "@/lib/utils";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
@@ -25,7 +27,7 @@ export const MobileTaskToolbar = () => {
     if (!focusKey || !parsed) return;
     if (!confirm("Delete this task?")) return;
     const [upKey, downKey] = getDOMSiblings(focusKey as string);
-    dispatch(appSlice.deleteModel(parsed.id, parsed.type));
+    dispatch(appDeleteModel(parsed.id, parsed.type));
     if (downKey) {
       useFocusStore.getState().focusByKey(downKey);
     } else if (upKey) {

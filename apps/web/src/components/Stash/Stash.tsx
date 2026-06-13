@@ -4,10 +4,12 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { useDispatch, useSelect, useSyncSelector } from "@will-be-done/hyperdb-lib";
 import { flushSync } from "react-dom";
 import {
-  appSlice,
-  projectsSlice,
-  stashProjectionsSlice,
+  appCanDrop,
+  createTaskInStash,
+  doneStashProjectionChildrenIds,
+  inboxProjectId,
   STASH_ID,
+  stashProjectionChildrenIds,
   stashType,
 } from "@will-be-done/slices/space";
 import { TaskComp } from "@/components/Task/Task.tsx";
@@ -31,12 +33,12 @@ import {
 
 const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
   const taskIds = useSyncSelector(
-    () => stashProjectionsSlice.childrenIds(),
+    () => stashProjectionChildrenIds(),
     [],
   );
 
   const doneTaskIds = useSyncSelector(
-    () => stashProjectionsSlice.doneChildrenIds(),
+    () => doneStashProjectionChildrenIds(),
     [],
   );
 
@@ -101,9 +103,9 @@ export const Stash = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dispatch = useDispatch();
   const select = useSelect();
-  const inboxId = useSyncSelector(() => projectsSlice.inboxProjectId(), []);
+  const inboxId = useSyncSelector(() => inboxProjectId(), []);
   const stashTaskIds = useSyncSelector(
-    () => stashProjectionsSlice.childrenIds(),
+    () => stashProjectionChildrenIds(),
     [],
   );
   const stashTaskCount = stashTaskIds.length;
@@ -150,7 +152,7 @@ export const Stash = () => {
           if (!isModelDNDData(data)) return false;
 
           return select(
-            appSlice.canDrop(STASH_ID, stashType, data.modelId, data.modelType),
+            appCanDrop(STASH_ID, stashType, data.modelId, data.modelType),
           );
         },
         getIsSticky: () => true,
@@ -170,7 +172,7 @@ export const Stash = () => {
     // eslint-disable-next-line react-dom/no-flush-sync -- iOS opens the keyboard only when the editable task is focused during the tap.
     flushSync(() => {
       const task = dispatch(
-        stashProjectionsSlice.createTaskInStash(inboxId, "prepend", "prepend"),
+        createTaskInStash(inboxId, "prepend", "prepend"),
       );
 
       focusKey = buildFocusKey(task.id, "stashProjection");

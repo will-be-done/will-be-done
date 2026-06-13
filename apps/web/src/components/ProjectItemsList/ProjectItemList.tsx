@@ -3,17 +3,26 @@ import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { useMemo, useState } from "react";
 import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb-lib";
 import {
-  dailyListsSlice,
-  projectCategoriesSlice,
-  stashProjectionsSlice,
+  createCategory,
+  createProjectCategoryTask,
+  dailyListAllTaskIds,
+  deleteCategories,
+  doneProjectCategoryCardsForDisplay,
+  moveLeft,
+  moveRight,
   type Project,
+  projectCategoriesByProjectId,
   type ProjectCategory,
+  projectCategoryCardsForDisplayChildren,
+  projectCategorySiblings,
+  stashProjectionAllTaskIds,
+  updateCategory,
 } from "@will-be-done/slices/space";
 import {
   TasksColumn,
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
-import { projectCategoryCardsSlice } from "@will-be-done/slices/space";
+
 import {
   AddLeftIcon,
   AddRightIcon,
@@ -36,11 +45,11 @@ const ProjectTasksColumn = ({
   const dispatch = useDispatch();
 
   const cardsForDisplay = useSyncSelector(
-    () => projectCategoryCardsSlice.childrenForDisplay(category.id),
+    () => projectCategoryCardsForDisplayChildren(category.id),
     [category.id],
   );
   const doneCardsForDisplay = useSyncSelector(
-    () => projectCategoryCardsSlice.doneChildrenForDisplay(category.id),
+    () => doneProjectCategoryCardsForDisplay(category.id),
     [category.id],
   );
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
@@ -53,7 +62,7 @@ const ProjectTasksColumn = ({
     }
 
     const task = dispatch(
-      projectCategoriesSlice.createTask(category.id, "prepend"),
+      createProjectCategoryTask(category.id, "prepend"),
     );
 
     useFocusStore.getState().editByKey(buildFocusKey(task.id, task.type));
@@ -101,11 +110,11 @@ const ProjectTasksColumn = ({
                 if (!title) return;
 
                 const [left, _right] = dispatch(
-                  projectCategoriesSlice.siblings(category.id),
+                  projectCategorySiblings(category.id),
                 );
 
                 dispatch(
-                  projectCategoriesSlice.createCategory(
+                  createCategory(
                     {
                       projectId: category.projectId,
                       title,
@@ -128,11 +137,11 @@ const ProjectTasksColumn = ({
                 if (!title) return;
 
                 const [_left, right] = dispatch(
-                  projectCategoriesSlice.siblings(category.id),
+                  projectCategorySiblings(category.id),
                 );
 
                 dispatch(
-                  projectCategoriesSlice.createCategory(
+                  createCategory(
                     {
                       projectId: category.projectId,
                       title,
@@ -150,7 +159,7 @@ const ProjectTasksColumn = ({
             type="button"
             title="Move column to the left"
             onClick={() => {
-              dispatch(projectCategoriesSlice.moveLeft(category.id));
+              dispatch(moveLeft(category.id));
             }}
           >
             <MoveLeftIcon className="rotate-180" />
@@ -160,7 +169,7 @@ const ProjectTasksColumn = ({
             type="button"
             title="Move column to the right"
             onClick={() => {
-              dispatch(projectCategoriesSlice.moveRight(category.id));
+              dispatch(moveRight(category.id));
             }}
           >
             <MoveRightIcon className="rotate-180" />
@@ -175,7 +184,7 @@ const ProjectTasksColumn = ({
               );
               if (!confirmed) return;
 
-              dispatch(projectCategoriesSlice.deleteCategories([category.id]));
+              dispatch(deleteCategories([category.id]));
             }}
           >
             <TrashIcon className="rotate-180" />
@@ -193,7 +202,7 @@ const ProjectTasksColumn = ({
                 if (!newTitle) return;
 
                 dispatch(
-                  projectCategoriesSlice.updateCategory(category.id, {
+                  updateCategory(category.id, {
                     title: newTitle,
                   }),
                 );
@@ -263,19 +272,19 @@ export const ProjectItemsList = ({
   exceptStash?: boolean;
 }) => {
   const categories = useSyncSelector(
-    () => projectCategoriesSlice.byProjectId(project.id),
+    () => projectCategoriesByProjectId(project.id),
     [project.id],
   );
   const exceptTaskIds = useSyncSelector(
     function* () {
-      const dailyTaskIds = yield* dailyListsSlice.allTaskIds(
+      const dailyTaskIds = yield* dailyListAllTaskIds(
         exceptDailyListIds ?? [],
       );
       if (!exceptStash) {
         return dailyTaskIds;
       }
 
-      const stashTaskIds = yield* stashProjectionsSlice.allTaskIds();
+      const stashTaskIds = yield* stashProjectionAllTaskIds();
       return new Set([...dailyTaskIds, ...stashTaskIds]);
     },
     [exceptDailyListIds, exceptStash],

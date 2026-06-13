@@ -1,6 +1,9 @@
 import { useState, useRef } from "react";
 import { useDispatch } from "@will-be-done/hyperdb-lib";
-import { backupSlice } from "@will-be-done/slices/space";
+import {
+  getSpaceBackup,
+  loadSpaceBackup,
+} from "@will-be-done/slices/space";
 import { Download, Upload, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 
@@ -12,7 +15,7 @@ export function BackupSection() {
   const [importSuccess, setImportSuccess] = useState(false);
 
   const handleExport = () => {
-    const backup = dispatch(backupSlice.getBackup());
+    const backup = dispatch(getSpaceBackup());
     const json = JSON.stringify(backup, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -44,9 +47,9 @@ export function BackupSection() {
       try {
         const text = await file.text();
         const parsed = JSON.parse(text) as Parameters<
-          typeof backupSlice.loadBackup
+          typeof loadSpaceBackup
         >[0];
-        dispatch(backupSlice.loadBackup(parsed));
+        dispatch(loadSpaceBackup(parsed));
         setImportSuccess(true);
       } catch {
         setImportError(

@@ -6,7 +6,10 @@ import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
 import { useSelect } from "@will-be-done/hyperdb-lib";
-import { appSlice, AnyModelType } from "@will-be-done/slices/space";
+import {
+  AnyModelType,
+  appCanDrop,
+} from "@will-be-done/slices/space";
 import { PlusIcon } from "@/components/ui/icons.tsx";
 import { buildFocusKey } from "@/store/focusSlice.ts";
 
@@ -96,7 +99,7 @@ export const TasksColumn = ({
           if (!isModelDNDData(data)) return false;
 
           return select(
-            appSlice.canDrop(
+            appCanDrop(
               columnModelId,
               columnModelType,
               data.modelId,

@@ -26,7 +26,18 @@ import {
   useDispatch,
   useSyncSelector,
 } from "@will-be-done/hyperdb-lib";
-import { projectsAllSlice, projectsSlice } from "@will-be-done/slices/space";
+import {
+  createProject,
+  deleteProjects,
+  inboxProject,
+  inboxProjectId as getInboxProjectId,
+  notDoneTasksCountExceptDailiesAndStashCount,
+  overdueTasksCountExceptDailiesAndStashCount,
+  projectByIdOrDefault,
+  projectCanDrop,
+  projectChildrenIdsWithoutInbox,
+  updateProject,
+} from "@will-be-done/slices/space";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 import {
@@ -138,7 +149,7 @@ const ProjectItem = function ProjectItemComp({
 }) {
   const db = useDB();
   const project = useSyncSelector(
-    () => projectsSlice.byIdOrDefault(projectId),
+    () => projectByIdOrDefault(projectId),
     [projectId],
   );
   const focusItemKey = buildFocusKey(project.id, project.type, "ProjectItem");
@@ -187,7 +198,7 @@ const ProjectItem = function ProjectItemComp({
 
       const [upKey, downKey] = getDOMSiblings(focusItemKey);
 
-      dispatch(projectsSlice.deleteProjects([project.id]));
+      dispatch(deleteProjects([project.id]));
 
       if (downKey) {
         useFocusStore.getState().focusByKey(downKey);
@@ -257,7 +268,7 @@ const ProjectItem = function ProjectItemComp({
 
           return select(
             db,
-            projectsSlice.canDrop(project.id, data.modelId, data.modelType),
+            projectCanDrop(project.id, data.modelId, data.modelType),
           );
         },
         getIsSticky: () => true,
@@ -309,7 +320,7 @@ const ProjectItem = function ProjectItemComp({
 
   const overdueTasksCount = useSyncSelector(
     () =>
-      projectsSlice.overdueTasksCountExceptDailiesAndStashCount(
+      overdueTasksCountExceptDailiesAndStashCount(
         project.id,
         exceptDailyListIds,
         currentDate,
@@ -318,7 +329,7 @@ const ProjectItem = function ProjectItemComp({
   );
   const notDoneTasksCount = useSyncSelector(
     () =>
-      projectsSlice.notDoneTasksCountExceptDailiesAndStashCount(
+      notDoneTasksCountExceptDailiesAndStashCount(
         project.id,
         exceptDailyListIds,
       ),
@@ -346,7 +357,7 @@ const ProjectItem = function ProjectItemComp({
     }
 
     dispatch(
-      projectsSlice.updateProject(project.id, {
+      updateProject(project.id, {
         title: newTitle,
       }),
     );
@@ -357,12 +368,12 @@ const ProjectItem = function ProjectItemComp({
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice.deleteProjects([project.id]));
+      dispatch(deleteProjects([project.id]));
     }
   };
 
   const inboxProjectId = useSyncSelector(
-    () => projectsSlice.inboxProjectId(),
+    () => getInboxProjectId(),
     [],
   );
 
@@ -400,7 +411,7 @@ const ProjectItem = function ProjectItemComp({
               className="h-[326px] rounded-lg shadow-md"
               onEmojiSelect={({ emoji }) => {
                 dispatch(
-                  projectsSlice.updateProject(project.id, {
+                  updateProject(project.id, {
                     icon: emoji,
                   }),
                 );
@@ -535,10 +546,10 @@ export const ProjectView = ({
   const project = useSyncSelector(
     function* () {
       if (selectedProjectId == "inbox") {
-        return yield* projectsAllSlice.inbox();
+        return yield* inboxProject();
       }
 
-      return yield* projectsSlice.byIdOrDefault(selectedProjectId);
+      return yield* projectByIdOrDefault(selectedProjectId);
     },
     [selectedProjectId],
   );
@@ -553,9 +564,9 @@ export const ProjectView = ({
   //   [exceptDailyListIds, project.id],
   // );
 
-  const inboxProjectId = useSyncSelector(() => projectsAllSlice.inbox(), []);
+  const inboxProjectId = useSyncSelector(() => inboxProject(), []);
   const projectIdsWithoutInbox = useSyncSelector(
-    () => projectsAllSlice.childrenIdsWithoutInbox(),
+    () => projectChildrenIdsWithoutInbox(),
     [],
   );
 
@@ -563,7 +574,7 @@ export const ProjectView = ({
     const title = await promptDialog("Enter project title");
 
     if (title) {
-      dispatch(projectsSlice.create({ title }, "append"));
+      dispatch(createProject({ title }, "append"));
     }
   };
 

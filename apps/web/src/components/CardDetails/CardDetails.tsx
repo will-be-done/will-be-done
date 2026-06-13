@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 import { useSyncSelector } from "@will-be-done/hyperdb-lib";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import {
-  projectCategoryCardsSlice,
-  cardsSlice,
+  cardExists,
   isTask,
   isTaskTemplate,
+  projectCategoryCardById,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { TaskBody } from "./TaskBody.tsx";
@@ -35,7 +35,7 @@ export function CardDetails() {
   const isVisible = useSyncSelector(
     function*() {
       if (!cardId) return false;
-      return yield* cardsSlice.exists(cardId);
+      return yield* cardExists(cardId);
     },
     [cardId],
   );
@@ -206,7 +206,7 @@ export function CardDetailsPage({
 }) {
   const isVisible = useSyncSelector(
     function*() {
-      return yield* cardsSlice.exists(cardId);
+      return yield* cardExists(cardId);
     },
     [cardId],
   );
@@ -321,7 +321,7 @@ function CardDetailsBody({
   onCardIdChange?: (cardId: string) => void;
 }) {
   const card = useSyncSelector(
-    () => projectCategoryCardsSlice.byId(cardId),
+    () => projectCategoryCardById(cardId),
     [cardId],
   );
 
