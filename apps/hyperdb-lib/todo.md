@@ -13,13 +13,14 @@ TODO:
 1. DONE Use driver-edge-cases to runtime. driver-edge-cases.test.ts covers runtime DB/SyncDB. Also why db.ts and index.ts?
 1. DONE Ask if that approach overall good. Passing data with tree
 1. DONE check that utf8 sorting of string is same in js
-1. devtool 
+1. DONE devtool 
 1. DONE Add firstOr(), first()
 1. DONE Check devtool for tansatack table
 1. DONE IMPORTANT - check how to make sure that devtool will have named queries/mutations
 1. DONE Rename selector -> query; action -> mutation?
-1. DONE better naming query/mutation. But if name query, then what is selectFrom() - . Actualyy maybe current naming is good. Action, selectors, query = selecFrom, mutation = insert/upsert/delete
-1. Value - add bignit/arraybuffer support
+1. DONE better naming query/mutation. But if name query, then what is selectFrom() - . Actually maybe current naming is good. Action, selectors, query = selectFrom, mutation = insert/upsert/delete
+1. DONE Value - add bigint/arraybuffer support
+1. Integrate to will be done
 1. Maybe rename trait -> context?
 1. Refactor UI with claude code
 1. Generate docs
@@ -28,7 +29,7 @@ TODO for devtool:
 1. Polisj UI. Remove flickering. Maybe adopt UI from livestore
 2. Rename data -> query
 3. Mutation - show button display diff. Also, add pagination if too much mutations
-1. Data change?
+4. Data diff/change?
 
 Then:
 1. Nested index

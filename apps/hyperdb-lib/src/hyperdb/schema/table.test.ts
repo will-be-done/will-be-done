@@ -24,10 +24,7 @@ describe("defineTable", () => {
     });
 
     const projectIds = ["project-1", "project-2"];
-    const query = selectFrom(
-      projectCategoriesTable,
-      "byProjectIdOrderToken",
-    )
+    const query = selectFrom(projectCategoriesTable, "byProjectIdOrderToken")
       .where((q) => projectIds.map((id) => q.eq("projectId", id)))
       .toQuery();
 
@@ -127,7 +124,7 @@ describe("defineTable", () => {
         id: v.string(),
         tags: v.array(v.string()),
       }).index("byTags", ["tags"] as any),
-    ).toThrow(/not SQLite-comparable/);
+    ).toThrow(/not comparable/);
 
     expect(() =>
       defineTable("badHash", {
@@ -247,7 +244,7 @@ describe("defineTable", () => {
 
     expect(() =>
       documentsTable.index("byMetadata", ["metadata"] as any),
-    ).toThrow(/not SQLite-comparable/);
+    ).toThrow(/not comparable/);
   });
 
   it("runtime-validates overlapping union index column value types", () => {
@@ -290,8 +287,8 @@ describe("defineTable", () => {
       ),
     );
 
-    expect(() =>
-      mixedComparableTable.index("byName", ["name"] as any),
-    ).toThrow(/not SQLite-comparable/);
+    expect(() => mixedComparableTable.index("byName", ["name"] as any)).toThrow(
+      /not comparable/,
+    );
   });
 });

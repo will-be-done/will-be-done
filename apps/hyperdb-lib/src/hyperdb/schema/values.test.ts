@@ -87,9 +87,9 @@ describe("validators", () => {
       /undefined is not a valid stored value at <root>/,
     );
 
-    expect(() =>
-      assertValid(v.array(v.string()), ["ok", undefined]),
-    ).toThrow(/undefined is not a valid stored value at \[1\]/);
+    expect(() => assertValid(v.array(v.string()), ["ok", undefined])).toThrow(
+      /undefined is not a valid stored value at \[1\]/,
+    );
   });
 
   it("rejects missing required fields, unexpected fields, and invalid object keys", () => {
@@ -104,12 +104,12 @@ describe("validators", () => {
     expect(() =>
       assertValid(validator, { id: "1", _private: true, extra: "nope" }),
     ).toThrow(/unexpected object field extra at extra/);
-    expect(() =>
-      assertValid(v.any(), { "": "empty" }),
-    ).toThrow(/object keys cannot be empty or start with \$ at \[""\]/);
-    expect(() =>
-      assertValid(v.any(), { $bad: "bad" }),
-    ).toThrow(/object keys cannot be empty or start with \$ at \$bad/);
+    expect(() => assertValid(v.any(), { "": "empty" })).toThrow(
+      /object keys cannot be empty or start with \$ at \[""\]/,
+    );
+    expect(() => assertValid(v.any(), { $bad: "bad" })).toThrow(
+      /object keys cannot be empty or start with \$ at \$bad/,
+    );
 
     expect(assertValid(validator, { id: "1", _private: true })).toEqual({
       id: "1",
@@ -125,7 +125,7 @@ describe("validators", () => {
       "z-9": false,
     });
 
-    expect(() => assertValid(validator, { "ключ": true })).toThrow(
+    expect(() => assertValid(validator, { ключ: true })).toThrow(
       /record keys must be non-empty ASCII keys/,
     );
     expect(() => assertValid(validator, { $bad: true })).toThrow(
@@ -144,10 +144,49 @@ describe("validators", () => {
     );
 
     const bytes = new ArrayBuffer(2);
-    expect(assertValid(v.any(), { ok: [1, "two", true, null], bytes })).toEqual({
-      ok: [1, "two", true, null],
-      bytes,
-    });
+    expect(assertValid(v.any(), { ok: [1, "two", true, null], bytes })).toEqual(
+      {
+        ok: [1, "two", true, null],
+        bytes,
+      },
+    );
+  });
+
+  it("validates bigint values", () => {
+    expect(assertValid(v.bigint(), 1n)).toBe(1n);
+    expect(() => assertValid(v.bigint(), 1)).toThrow(/expected bigint/);
+    expect(() => assertValid(v.bigint(), "1")).toThrow(/expected bigint/);
+    expect(() => assertValid(v.bigint(), null)).toThrow(/expected bigint/);
+    expect(() => assertValid(v.bigint(), undefined)).toThrow(
+      /undefined is not a valid stored value at <root>/,
+    );
+  });
+
+  it("validates ArrayBuffer values", () => {
+    const bytes = new ArrayBuffer(2);
+
+    expect(assertValid(v.arrayBuffer(), bytes)).toBe(bytes);
+    expect(() => assertValid(v.arrayBuffer(), [1, 2])).toThrow(
+      /expected ArrayBuffer/,
+    );
+    expect(() => assertValid(v.arrayBuffer(), "bytes")).toThrow(
+      /expected ArrayBuffer/,
+    );
+    expect(() => assertValid(v.arrayBuffer(), null)).toThrow(
+      /expected ArrayBuffer/,
+    );
+    expect(() => assertValid(v.arrayBuffer(), undefined)).toThrow(
+      /undefined is not a valid stored value at <root>/,
+    );
+  });
+
+  it("normalizes ArrayBufferView values to exact ArrayBuffers", () => {
+    const source = new Uint8Array([9, 1, 2, 8]);
+    const view = source.subarray(1, 3);
+    const normalized = assertValid(v.arrayBuffer(), view);
+
+    expect(normalized).toBeInstanceOf(ArrayBuffer);
+    expect(Array.from(new Uint8Array(normalized))).toEqual([1, 2]);
   });
 
   it("rejects non-finite numbers", () => {

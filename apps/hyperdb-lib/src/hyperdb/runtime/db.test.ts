@@ -67,6 +67,16 @@ const writeSemanticsTable = defineTable("writeSemantics", {
   optionalValue: v.optional(v.string()),
 });
 
+const mutableBytesHashTable = defineTable("mutableBytesHash", {
+  id: v.string(),
+  value: v.arrayBuffer(),
+}).index("byValueHash", ["value"], { type: "hash" });
+
+const bigintHashErrorTable = defineTable("bigintHashError", {
+  id: v.string(),
+  value: v.bigint(),
+}).index("byValueHash", ["value"], { type: "hash" });
+
 describe("db", async () => {
   for (const driver of [
     await initSqlJsWasm(),
@@ -305,6 +315,51 @@ describe("db", async () => {
       ).toEqual([]);
     });
   }
+
+  it("removes hash index buckets by the original binary key for mutable views", () => {
+    const db = new SyncDB(new DB(new BptreeInmemDriver()));
+    db.loadTables([mutableBytesHashTable]);
+    const value = new Uint8Array([0, 1]);
+    const original = new Uint8Array([0, 1]).buffer;
+    const updated = new Uint8Array([0, 3]).buffer;
+
+    db.insert(mutableBytesHashTable, [{ id: "bytes", value }]);
+    value[1] = 2;
+
+    db.upsert(mutableBytesHashTable, [{ id: "bytes", value: updated }]);
+
+    expect(
+      db.intervalScan(mutableBytesHashTable, "byValueHash", [
+        { eq: [{ col: "value", val: original }] },
+      ]),
+    ).toEqual([]);
+    expect(
+      db.intervalScan(mutableBytesHashTable, "byValueHash", [
+        { eq: [{ col: "value", val: updated }] },
+      ]),
+    ).toEqual([{ id: "bytes", value: updated }]);
+
+    db.delete(mutableBytesHashTable, ["bytes"]);
+
+    expect(
+      db.intervalScan(mutableBytesHashTable, "byValueHash", [
+        { eq: [{ col: "value", val: updated }] },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("reports invalid bigint hash bounds without stringify failures", () => {
+    const db = new SyncDB(new DB(new BptreeInmemDriver()));
+    db.loadTables([bigintHashErrorTable]);
+
+    expect(() =>
+      db.intervalScan(bigintHashErrorTable, "byValueHash", [
+        { lte: [{ col: "value", val: 1n }] },
+      ]),
+    ).toThrow(
+      /Hash index should have exactly one equality condition.*\["1"\]/,
+    );
+  });
 
   // for (const driver of [
   // ]) {
