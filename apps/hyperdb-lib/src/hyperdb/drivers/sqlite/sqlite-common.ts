@@ -55,6 +55,21 @@ export function sqliteIndexSortKeyColumn(indexName: string): string {
   return columnName;
 }
 
+export function sqliteIndexIdentifier(
+  tableName: string,
+  indexName: string,
+): string {
+  assertSafeIdentifier("Table name", tableName);
+  assertSafeIdentifier("Index name", indexName);
+  const indexIdentifier = `idx_${tableName}_${indexName}_sort_key`;
+  assertSafeIdentifier("SQLite index name", indexIdentifier);
+  return indexIdentifier;
+}
+
+export function isSqliteSortKeyColumn(columnName: string): boolean {
+  return columnName.startsWith("idx_") && columnName.endsWith("_sort_key");
+}
+
 export function sqliteIndexSortColumns(
   indexColumns: readonly (string | number | symbol)[],
 ): string[] {
@@ -327,8 +342,7 @@ export function createIndexSQL(
   indexName: string,
 ): string {
   const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
-  const indexIdentifier = `idx_${tableName}_${indexName}_sort_key`;
-  assertSafeIdentifier("SQLite index name", indexIdentifier);
+  const indexIdentifier = sqliteIndexIdentifier(tableName, indexName);
   const sql = `
     CREATE INDEX IF NOT EXISTS ${indexIdentifier}
     ON ${tableName}(${sortKeyColumn}, id)
@@ -340,12 +354,30 @@ export function createIndexSQL(
   return sql;
 }
 
+export function dropIndexSQL(indexIdentifier: string): string {
+  assertSafeIdentifier("SQLite index name", indexIdentifier);
+  return `DROP INDEX IF EXISTS ${indexIdentifier}`;
+}
+
 export function addSortKeyColumnSQL(
   tableName: string,
   sortKeyColumn: string,
 ): string {
   assertSafeIdentifier("Sort-key column name", sortKeyColumn);
   const sql = `ALTER TABLE ${tableName} ADD COLUMN ${sortKeyColumn} TEXT`
+    .trim()
+    .replace(/\n+/g, " ");
+
+  return sql;
+}
+
+export function dropSortKeyColumnSQL(
+  tableName: string,
+  sortKeyColumn: string,
+): string {
+  assertSafeIdentifier("Table name", tableName);
+  assertSafeIdentifier("Sort-key column name", sortKeyColumn);
+  const sql = `ALTER TABLE ${tableName} DROP COLUMN ${sortKeyColumn}`
     .trim()
     .replace(/\n+/g, " ");
 

@@ -138,7 +138,7 @@ const insertChangeFromInsert = action(function* (
     updatedAt: createdAt,
   };
 
-  yield* insert(changesTable, [newChange]);
+  yield* upsert(changesTable, [newChange]);
 
   return newChange;
 });
@@ -185,7 +185,7 @@ const insertChangeFromUpdate = action(function* (
     updatedAt: updatedAt,
   };
 
-  yield* insert(changesTable, [newChange]);
+  yield* upsert(changesTable, [newChange]);
 
   return newChange as Change | undefined;
 });
@@ -215,7 +215,7 @@ const insertChangeFromDelete = action(function* (
     updatedAt: deletedAt,
   };
 
-  yield* insert(changesTable, [deletedChange]);
+  yield* upsert(changesTable, [deletedChange]);
 
   return deletedChange;
 });
@@ -363,7 +363,7 @@ const mergeChangesAction = action(function* (
 
   console.log("changes to persist after merge", allChanges);
 
-  yield* insert(changesTable, allChanges);
+  yield* upsert(changesTable, allChanges);
 });
 
 export const changesSlice = {

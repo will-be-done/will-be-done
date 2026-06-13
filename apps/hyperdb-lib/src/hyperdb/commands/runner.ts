@@ -140,6 +140,8 @@ export function* runCommandGenerator<TReturn>(
       endTraceError(traceContext, error);
     }
 
+    console.error(error);
+
     throw error;
   }
 }

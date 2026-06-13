@@ -16,10 +16,14 @@ import {
   buildDeleteSQL,
   createTableSQL,
   createIndexSQL,
+  dropIndexSQL,
   addSortKeyColumnSQL,
+  dropSortKeyColumnSQL,
   chunkArray,
   CHUNK_SIZE,
   sqliteIndexSortKeyColumn,
+  sqliteIndexIdentifier,
+  isSqliteSortKeyColumn,
   assertSafeTableDefinition,
   buildRowInsertParams,
   getSqliteIndexSortKeyValue,
@@ -353,6 +357,8 @@ export class SqlDriver implements DBDriver {
         }
 
         this.createTable(tableDef);
+        this.dropStaleSortKeyIndexes(tableDef);
+        this.dropStaleSortKeyColumns(tableDef);
         this.addMissingSortKeyColumns(tableDef);
         this.backfillSortKeyColumns(tableDef);
         this.createIndexes(tableDef);
@@ -376,6 +382,58 @@ export class SqlDriver implements DBDriver {
       return new Set(q.values([]).map((row) => String(row[1])));
     } finally {
       q.finalize();
+    }
+  }
+
+  private getTableIndexNames(tableName: string): Set<string> {
+    const q = this.db.prepare(`PRAGMA index_list(${tableName})`);
+    try {
+      return new Set(q.values([]).map((row) => String(row[1])));
+    } finally {
+      q.finalize();
+    }
+  }
+
+  private getExpectedSortKeyColumns(tableDef: TableDefinition<any>): Set<string> {
+    return new Set(
+      Object.keys(tableDef.indexes).map((indexName) =>
+        sqliteIndexSortKeyColumn(indexName),
+      ),
+    );
+  }
+
+  private getExpectedIndexNames(tableDef: TableDefinition<any>): Set<string> {
+    return new Set(
+      Object.keys(tableDef.indexes).map((indexName) =>
+        sqliteIndexIdentifier(tableDef.tableName, indexName),
+      ),
+    );
+  }
+
+  private isGeneratedIndexName(tableName: string, indexName: string): boolean {
+    return (
+      indexName.startsWith(`idx_${tableName}_`) &&
+      indexName.endsWith("_sort_key")
+    );
+  }
+
+  private dropStaleSortKeyIndexes(tableDef: TableDefinition<any>): void {
+    const expectedIndexes = this.getExpectedIndexNames(tableDef);
+    for (const indexName of this.getTableIndexNames(tableDef.tableName)) {
+      if (!this.isGeneratedIndexName(tableDef.tableName, indexName)) continue;
+      if (expectedIndexes.has(indexName)) continue;
+
+      this.db.exec(dropIndexSQL(indexName));
+    }
+  }
+
+  private dropStaleSortKeyColumns(tableDef: TableDefinition<any>): void {
+    const expectedColumns = this.getExpectedSortKeyColumns(tableDef);
+    for (const columnName of this.getTableColumns(tableDef.tableName)) {
+      if (!isSqliteSortKeyColumn(columnName)) continue;
+      if (expectedColumns.has(columnName)) continue;
+
+      this.db.exec(dropSortKeyColumnSQL(tableDef.tableName, columnName));
     }
   }
 

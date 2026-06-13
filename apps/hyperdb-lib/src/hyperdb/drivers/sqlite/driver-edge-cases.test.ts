@@ -29,6 +29,18 @@ const sortKeyBackfillTableV2 = defineTable("driverEdgeSortKeyBackfill", {
   title: v.string(),
 }).index("byTitle", ["title"]);
 
+const pruneSortKeysTableV1 = defineTable("driverEdgePruneSortKeys", {
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+}).index("byTitle", ["title"]);
+
+const pruneSortKeysTableV2 = defineTable("driverEdgePruneSortKeys", {
+  id: v.string(),
+  title: v.string(),
+  state: v.union(v.literal("todo"), v.literal("done")),
+}).index("byState", ["state"]);
+
 const multiColumnHashTable = {
   tableName: "driverEdgeMultiColumnHash",
   schema: {},
@@ -110,6 +122,45 @@ describe("SQLite driver edge case regressions", () => {
         { eq: [{ col: "title", val: "A" }] },
       ]),
     ).toEqual([{ id: "task-a", title: "A" }]);
+  });
+
+  it("drops sort-key indexes and columns that are no longer in the schema", async () => {
+    const { driver, sqldb } = await createInspectableSqlDriver();
+    const db = new SyncDB(new DB(driver));
+
+    db.loadTables([pruneSortKeysTableV1]);
+    db.insert(pruneSortKeysTableV1, [
+      { id: "task-a", title: "A", state: "todo" },
+      { id: "task-b", title: "B", state: "done" },
+    ]);
+
+    db.loadTables([pruneSortKeysTableV2]);
+
+    const columns = sqliteRows(
+      sqldb,
+      "PRAGMA table_info(driverEdgePruneSortKeys)",
+    ).map((row) => String(row[1]));
+    expect(columns).toEqual([
+      "id",
+      "data",
+      "idx_byId_sort_key",
+      "idx_byState_sort_key",
+    ]);
+
+    const indexNames = sqliteRows(
+      sqldb,
+      "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'driverEdgePruneSortKeys'",
+    ).map(([name]) => String(name));
+    expect(indexNames).toContain("idx_driverEdgePruneSortKeys_byState_sort_key");
+    expect(indexNames).not.toContain(
+      "idx_driverEdgePruneSortKeys_byTitle_sort_key",
+    );
+
+    expect(
+      db.intervalScan(pruneSortKeysTableV2, "byState", [
+        { eq: [{ col: "state", val: "done" }] },
+      ]),
+    ).toEqual([{ id: "task-b", title: "B", state: "done" }]);
   });
 
   it("supports tuple equality bounds for direct multi-column hash definitions", async () => {
