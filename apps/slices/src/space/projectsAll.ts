@@ -1,47 +1,50 @@
-import { runQuery, selectFrom, selector } from "@will-be-done/hyperdb";
-import { projectsSlice } from ".";
+import { selectFrom, selector } from "@will-be-done/hyperdb-lib";
+import {
+  inboxProjectId,
+  projectById,
+} from "./projects";
 import { type Project, projectsTable, defaultProject } from "./projects";
 
-export const all = selector(function* () {
-  const projects = yield* runQuery(selectFrom(projectsTable, "byOrderToken"));
+export const allProjects = selector(function* allProjects() {
+  const projects = yield* selectFrom(projectsTable, "byOrderToken");
   return projects;
 });
 
-export const allSorted = selector(function* () {
-  const projects = yield* runQuery(selectFrom(projectsTable, "byOrderToken"));
+export const allProjectsSorted = selector(function* allProjectsSorted() {
+  const projects = yield* selectFrom(projectsTable, "byOrderToken");
   return projects;
 });
 
-export const childrenIds = selector(function* () {
-  return (yield* allSorted()).map((p) => p.id);
+export const projectChildrenIds = selector(function* projectChildrenIds() {
+  return (yield* allProjectsSorted()).map((p) => p.id);
 });
 
-export const childrenIdsWithoutInbox = selector(function* () {
-  const projects = yield* allSorted();
+export const projectChildrenIdsWithoutInbox = selector(function* projectChildrenIdsWithoutInbox() {
+  const projects = yield* allProjectsSorted();
   return projects.filter((p) => !p.isInbox).map((p) => p.id);
 });
 
-export const firstChild = selector(function* () {
-  const ids = yield* childrenIds();
+export const firstProjectChild = selector(function* firstProjectChild() {
+  const ids = yield* projectChildrenIds();
   const firstChildId = ids[0];
-  return firstChildId ? yield* projectsSlice.byId(firstChildId) : undefined;
+  return firstChildId ? yield* projectById(firstChildId) : undefined;
 });
 
-export const lastChild = selector(function* () {
-  const ids = yield* childrenIds();
+export const lastProjectChild = selector(function* lastProjectChild() {
+  const ids = yield* projectChildrenIds();
   const lastChildId = ids[ids.length - 1];
-  return lastChildId ? yield* projectsSlice.byId(lastChildId) : undefined;
+  return lastChildId ? yield* projectById(lastChildId) : undefined;
 });
 
-export const inbox = selector(function* () {
+export const inboxProject = selector(function* inboxProject() {
   return (
-    (yield* projectsSlice.byId(yield* projectsSlice.inboxProjectId())) ||
+    (yield* projectById(yield* inboxProjectId())) ||
     defaultProject
   );
 });
 
-export const siblings = selector(function* (projectId: string) {
-  const ids = yield* childrenIds();
+export const projectSiblings = selector(function* projectSiblings(projectId: string) {
+  const ids = yield* projectChildrenIds();
   const index = ids.findIndex((id) => id === projectId);
 
   if (index === -1)
@@ -50,14 +53,14 @@ export const siblings = selector(function* (projectId: string) {
   const beforeId = index > 0 ? ids[index - 1] : undefined;
   const afterId = index < ids.length - 1 ? ids[index + 1] : undefined;
 
-  const before = beforeId ? yield* projectsSlice.byId(beforeId) : undefined;
-  const after = afterId ? yield* projectsSlice.byId(afterId) : undefined;
+  const before = beforeId ? yield* projectById(beforeId) : undefined;
+  const after = afterId ? yield* projectById(afterId) : undefined;
 
   return [before, after] as [Project | undefined, Project | undefined];
 });
 
-export const dropdownProjectsList = selector(function* () {
-  const projects = yield* allSorted();
+export const dropdownProjectsList = selector(function* dropdownProjectsList() {
+  const projects = yield* allProjectsSorted();
   return projects.map((p) => {
     return { value: p.id, label: p.title };
   });

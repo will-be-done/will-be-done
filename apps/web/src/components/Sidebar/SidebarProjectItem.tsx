@@ -1,6 +1,11 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { useSyncSelector, useDB, select } from "@will-be-done/hyperdb";
-import { projectsSlice } from "@will-be-done/slices/space";
+import { useSyncSelector, useDB, select } from "@will-be-done/hyperdb-lib";
+import {
+  notDoneTasksCountExceptDailiesCount,
+  overdueTasksCountExceptDailiesCount,
+  projectByIdOrDefault,
+  projectCanDrop,
+} from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useCurrentDate } from "../DaysBoard/hooks.tsx";
@@ -66,20 +71,20 @@ export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
   const { isMobile, setOpenMobile } = useSidebar();
 
   const project = useSyncSelector(
-    () => projectsSlice.byIdOrDefault(projectId),
+    () => projectByIdOrDefault(projectId),
     [projectId],
   );
 
   const currentDate = useCurrentDate();
 
   const notDoneCount = useSyncSelector(
-    () => projectsSlice.notDoneTasksCountExceptDailiesCount(projectId, []),
+    () => notDoneTasksCountExceptDailiesCount(projectId, []),
     [projectId],
   );
 
   const overdueCount = useSyncSelector(
     () =>
-      projectsSlice.overdueTasksCountExceptDailiesCount(
+      overdueTasksCountExceptDailiesCount(
         projectId,
         [],
         currentDate,
@@ -135,7 +140,7 @@ export const SidebarProjectItem = ({ projectId }: { projectId: string }) => {
           if (!isModelDNDData(data)) return false;
           return select(
             db,
-            projectsSlice.canDrop(project.id, data.modelId, data.modelType),
+            projectCanDrop(project.id, data.modelId, data.modelType),
           );
         },
         getIsSticky: () => true,

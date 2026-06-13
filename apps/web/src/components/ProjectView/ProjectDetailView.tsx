@@ -1,5 +1,10 @@
-import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb";
-import { projectsSlice } from "@will-be-done/slices/space";
+import { useDispatch, useSyncSelector } from "@will-be-done/hyperdb-lib";
+import {
+  deleteProjects,
+  inboxProjectId as getInboxProjectId,
+  projectByIdOrDefault,
+  updateProject,
+} from "@will-be-done/slices/space";
 import { ProjectTaskPanel } from "@/components/ProjectView/ProjectTaskPanel.tsx";
 import { ProjectItemsList } from "@/components/ProjectItemsList/ProjectItemList.tsx";
 import {
@@ -57,7 +62,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
     [projectId],
   );
   const project = useSyncSelector(
-    () => projectsSlice.byIdOrDefault(projectId),
+    () => projectByIdOrDefault(projectId),
     [projectId],
   );
 
@@ -66,7 +71,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
       "Are you sure you want to delete this project?",
     );
     if (shouldDelete) {
-      dispatch(projectsSlice.deleteProjects([project.id]));
+      dispatch(deleteProjects([project.id]));
     }
   };
 
@@ -76,7 +81,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
       project.title,
     );
     if (newTitle == "" || newTitle == null) return;
-    dispatch(projectsSlice.updateProject(project.id, { title: newTitle }));
+    dispatch(updateProject(project.id, { title: newTitle }));
   };
 
   const isSmallScreen = useIsSmallScreen();
@@ -106,7 +111,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
                   className="h-[326px] rounded-lg shadow-md"
                   onEmojiSelect={({ emoji }) => {
                     dispatch(
-                      projectsSlice.updateProject(project.id, { icon: emoji }),
+                      updateProject(project.id, { icon: emoji }),
                     );
                   }}
                 >
@@ -158,7 +163,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const inboxProjectId = useSyncSelector(
-    () => projectsSlice.inboxProjectId(),
+    () => getInboxProjectId(),
     [],
   );
   const stashOffset = useStashDesktopOffset();

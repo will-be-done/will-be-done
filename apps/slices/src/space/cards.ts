@@ -1,52 +1,61 @@
-import { action, selector } from "@will-be-done/hyperdb";
+import { action, selector } from "@will-be-done/hyperdb-lib";
 import { assertUnreachable } from "./utils";
-import { cardsTasksSlice } from ".";
-import { type Task, defaultTask, isTask } from "./cardsTasks";
-import { cardsTaskTemplatesSlice } from ".";
+import {
+  createDailyProjectionSibling,
+  deleteDailyProjections,
+} from "./dailyListsProjections";
+import { createSiblingTask } from "./projectsCategoriesCards";
+import {
+  createStashProjectionSibling,
+  deleteStashProjections,
+} from "./stashProjections";
+import { deleteTasksByIds, taskById, type Task, defaultTask, isTask } from "./cardsTasks";
+import { deleteTemplates, taskTemplateById } from "./cardsTaskTemplates";
+
 import { type TaskTemplate, isTaskTemplate } from "./cardsTaskTemplates";
 import { AnyModel, appTypeSlicesMap } from "./maps";
-import { projectCategoryCardsSlice } from ".";
-import { dailyListsProjectionsSlice } from ".";
+
+
 import { isTaskProjection, TaskProjection } from "./dailyListsProjections";
 import { isStashProjection, StashProjection } from "./stashProjections";
-import { stashProjectionsSlice } from ".";
+
 
 export type CardWrapper = Task | TaskTemplate | TaskProjection | StashProjection;
 export type CardWrapperType = CardWrapper["type"];
 
-export const byId = selector(function* (id: string) {
-  const tasks = yield* cardsTasksSlice.byId(id);
+export const cardById = selector(function* cardById(id: string) {
+  const tasks = yield* taskById(id);
   if (tasks) return tasks;
 
-  const templates = yield* cardsTaskTemplatesSlice.byId(id);
+  const templates = yield* taskTemplateById(id);
   if (templates) return templates;
 
   return undefined as CardWrapper | undefined;
 });
 
-export const exists = selector(function* (id: string) {
-  return !!(yield* byId(id));
+export const cardExists = selector(function* cardExists(id: string) {
+  return !!(yield* cardById(id));
 });
 
-export const createSiblingCard = action(function* (
+export const createSiblingCard = action(function* createSiblingCard(
   taskBox: Task | TaskTemplate | TaskProjection | StashProjection,
   position: "before" | "after",
   taskParams?: Partial<Task>,
 ) {
   if (isTaskProjection(taskBox)) {
-    return yield* dailyListsProjectionsSlice.createSibling(
+    return yield* createDailyProjectionSibling(
       taskBox.id,
       position,
       taskParams,
     );
   } else if (isStashProjection(taskBox)) {
-    return yield* stashProjectionsSlice.createSibling(
+    return yield* createStashProjectionSibling(
       taskBox.id,
       position,
       taskParams,
     );
   } else if (isTask(taskBox) || isTaskTemplate(taskBox)) {
-    return yield* projectCategoryCardsSlice.createSiblingTask(
+    return yield* createSiblingTask(
       taskBox.id,
       position,
       taskParams,
@@ -56,7 +65,7 @@ export const createSiblingCard = action(function* (
   }
 });
 
-export const cardWrapperId = selector(function* (
+export const cardWrapperId = selector(function* cardWrapperId(
   id: string,
   modelType: CardWrapperType,
 ) {
@@ -66,7 +75,7 @@ export const cardWrapperId = selector(function* (
   return (yield* slice.byId(id)) as CardWrapper;
 });
 
-export const cardWrapperIdOrDefault = selector(function* (
+export const cardWrapperIdOrDefault = selector(function* cardWrapperIdOrDefault(
   id: string,
   modelType: CardWrapperType,
 ) {
@@ -78,13 +87,13 @@ export const cardWrapperIdOrDefault = selector(function* (
   return entity;
 });
 
-export const taskOfModel = selector(function* (model: AnyModel) {
+export const taskOfModel = selector(function* taskOfModel(model: AnyModel) {
   if (isTaskProjection(model)) {
-    return yield* cardsTasksSlice.byId(model.id);
+    return yield* taskById(model.id);
   }
 
   if (isStashProjection(model)) {
-    return yield* cardsTasksSlice.byId(model.id);
+    return yield* taskById(model.id);
   }
 
   if (isTask(model)) {
@@ -94,9 +103,9 @@ export const taskOfModel = selector(function* (model: AnyModel) {
   return undefined as Task | undefined;
 });
 
-export const deleteByIds = action(function* (ids: string[]) {
-  yield* cardsTasksSlice.deleteByIds(ids);
-  yield* cardsTaskTemplatesSlice.deleteTemplates(ids);
-  yield* dailyListsProjectionsSlice.deleteProjections(ids);
-  yield* stashProjectionsSlice.deleteProjections(ids);
+export const deleteCardsByIds = action(function* deleteCardsByIds(ids: string[]) {
+  yield* deleteTasksByIds(ids);
+  yield* deleteTemplates(ids);
+  yield* deleteDailyProjections(ids);
+  yield* deleteStashProjections(ids);
 });

@@ -1,56 +1,65 @@
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
   Row,
-  runQuery,
   selectFrom,
   selector,
-  table,
   TableDefinition,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { isEqual } from "es-toolkit";
 import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
 
-export type Change = {
+type PrimitiveRow = Record<string, string | number | boolean | null> & {
   id: string;
-  entityId: string;
-  tableName: string;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-  clientId: string;
-  changes: Record<string, string>;
 };
-export const changesTable = table<Change>("changes").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byEntityId: { cols: ["entityId"], type: "hash" },
-  byEntityIdAndTableName: { cols: ["entityId", "tableName"], type: "btree" },
-  byUpdatedAt: { cols: ["updatedAt"], type: "btree" },
-});
 
-const byIdAndName = selector(function* (entityId: string, tableName: string) {
-  const changes = yield* runQuery(
-    selectFrom(changesTable, "byEntityIdAndTableName")
+const SELECT_OR_CHUNK_SIZE = 400;
+
+const chunkArray = <T>(items: T[], chunkSize: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
+export const changesTable = defineTable("changes", {
+  id: v.string(),
+  entityId: v.string(),
+  tableName: v.string(),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+  deletedAt: v.union(v.string(), v.null()),
+  clientId: v.string(),
+  changes: v.record(v.string(), v.string()),
+})
+  .index("byEntityId", ["entityId"], { type: "hash" })
+  .index("byEntityIdAndTableName", ["entityId", "tableName"])
+  .index("byUpdatedAt", ["updatedAt"]);
+export type Change = ExtractSchema<typeof changesTable>;
+
+const byIdAndName = selector(function* byIdAndName(entityId: string, tableName: string) {
+  const changes = yield* selectFrom(changesTable, "byEntityIdAndTableName")
       .where((q) => q.eq("entityId", entityId).eq("tableName", tableName))
-      .limit(1),
-  );
+      .limit(1);
 
   return changes[0] as Change | undefined;
 });
 
-const allChangesAfter = selector(function* (after: string) {
-  return (yield* runQuery(
-    selectFrom(changesTable, "byUpdatedAt").where((q) =>
+const allChangesAfter = selector(function* allChangesAfter(after: string) {
+  return (yield* selectFrom(changesTable, "byUpdatedAt").where((q) =>
       q.gt("updatedAt", after),
-    ),
-  )) as Change[];
+    )) as Change[];
 });
 
-const getChangesetAfter = selector(function* (
+const getChangesetAfter = selector(function* getChangesetAfter(
   after: string,
   registeredSyncableTableNameMap: Record<string, TableDefinition>,
 ) {
@@ -77,11 +86,14 @@ const getChangesetAfter = selector(function* (
       continue;
     }
 
-    const rows = yield* runQuery(
-      selectFrom(table, "byId").where((q) =>
-        changes.map((c) => q.eq("id", c.entityId)),
-      ),
-    );
+    const rows: Row[] = [];
+    for (const changesChunk of chunkArray(changes, SELECT_OR_CHUNK_SIZE)) {
+      rows.push(
+        ...(yield* selectFrom(table, "byId").where((q) =>
+          changesChunk.map((c) => q.eq("id", c.entityId)),
+        )),
+      );
+    }
     const rowsMap = new Map(rows.map((r) => [r.id, r]));
 
     const data = changes
@@ -102,7 +114,7 @@ const getChangesetAfter = selector(function* (
         }
 
         return {
-          row: row,
+          row: row as PrimitiveRow,
           change: c,
         };
       })
@@ -117,7 +129,7 @@ const getChangesetAfter = selector(function* (
   return { changesets, maxClock };
 });
 
-const insertChangeFromInsert = action(function* (
+const insertChangeFromInsert = action(function* insertChangeFromInsert(
   tableDef: TableDefinition,
   row: Row,
   clientId: string,
@@ -141,12 +153,12 @@ const insertChangeFromInsert = action(function* (
     updatedAt: createdAt,
   };
 
-  yield* insert(changesTable, [newChange]);
+  yield* upsert(changesTable, [newChange]);
 
   return newChange;
 });
 
-const insertChangeFromUpdate = action(function* (
+const insertChangeFromUpdate = action(function* insertChangeFromUpdate(
   tableDef: TableDefinition,
   oldRow: Row,
   newRow: Row,
@@ -188,12 +200,12 @@ const insertChangeFromUpdate = action(function* (
     updatedAt: updatedAt,
   };
 
-  yield* insert(changesTable, [newChange]);
+  yield* upsert(changesTable, [newChange]);
 
   return newChange as Change | undefined;
 });
 
-const insertChangeFromDelete = action(function* (
+const insertChangeFromDelete = action(function* insertChangeFromDelete(
   tableDef: TableDefinition,
   row: Row,
   clientId: string,
@@ -218,12 +230,12 @@ const insertChangeFromDelete = action(function* (
     updatedAt: deletedAt,
   };
 
-  yield* insert(changesTable, [deletedChange]);
+  yield* upsert(changesTable, [deletedChange]);
 
   return deletedChange;
 });
 
-const mergeChangesAction = action(function* (
+const mergeChangesAction = action(function* mergeChangesAction(
   input: ChangesetArrayType,
   nextClock: () => string,
   clientId: string,
@@ -241,30 +253,34 @@ const mergeChangesAction = action(function* (
       throw new Error("Unknown table: " + changeset.tableName);
     }
 
-    const currentChanges = yield* runQuery(
-      selectFrom(changesTable, "byEntityIdAndTableName").where((q) =>
-        changeset.data.map((c) =>
-          q
-            .eq("entityId", c.change.entityId)
-            .eq("tableName", changeset.tableName),
-        ),
-      ),
-    );
+    const currentChanges: Change[] = [];
+    for (const dataChunk of chunkArray(changeset.data, SELECT_OR_CHUNK_SIZE)) {
+      currentChanges.push(
+        ...((yield* selectFrom(changesTable, "byEntityIdAndTableName").where(
+          (q) =>
+            dataChunk.map((c) =>
+              q
+                .eq("entityId", c.change.entityId)
+                .eq("tableName", changeset.tableName),
+            ),
+        )) as Change[]),
+      );
+    }
     const currentChangesMap = new Map(
       currentChanges.map((c) => [c.entityId, c as Change]),
     );
 
-    const currentRows = yield* runQuery(
-      selectFrom(table, "byId").where((q) =>
-        changeset.data.map((c) => q.eq("id", c.change.entityId)),
-      ),
-    );
+    const currentRows: Row[] = [];
+    for (const dataChunk of chunkArray(changeset.data, SELECT_OR_CHUNK_SIZE)) {
+      currentRows.push(
+        ...(yield* selectFrom(table, "byId").where((q) =>
+          dataChunk.map((c) => q.eq("id", c.change.entityId)),
+        )),
+      );
+    }
     const currentRowsMap = new Map(currentRows.map((r) => [r.id, r]));
 
-    for (const {
-      change: incomingChange,
-      row: incomingRow,
-    } of changeset.data) {
+    for (const { change: incomingChange, row: incomingRow } of changeset.data) {
       const currentChanges = currentChangesMap.get(incomingChange.entityId);
       const currentRow = currentRowsMap.get(incomingChange.entityId);
 
@@ -367,13 +383,11 @@ const mergeChangesAction = action(function* (
     }
 
     yield* insert(table, toInsertRows);
-    yield* update(table, toUpdateRows);
+    yield* upsert(table, toUpdateRows);
     yield* deleteRows(table, toDeleteRows);
   }
 
-  console.log("changes to persist after merge", allChanges);
-
-  yield* insert(changesTable, allChanges);
+  yield* upsert(changesTable, allChanges);
 });
 
 export const changesSlice = {
@@ -393,9 +407,11 @@ const mergeChanges = (
   bRow: Row,
 ): { mergedChanges: Record<string, string>; mergedRow: Row } => {
   const mergedChanges: Record<string, string> = {};
+  const primitiveARow = aRow as PrimitiveRow;
+  const primitiveBRow = bRow as PrimitiveRow;
   // Start with aRow as the base. Unchanged fields will be preserved.
-  const mergedRow: Record<string, string | number | boolean | null> = {
-    ...aRow,
+  const mergedRow: PrimitiveRow = {
+    ...primitiveARow,
   };
 
   // Get all unique keys from both change objects
@@ -414,21 +430,21 @@ const mergeChanges = (
       if (changeTimestampA > changeTimestampB) {
         // A is the winner
         winningTimestamp = changeTimestampA;
-        winningValue = aRow[key]!;
+        winningValue = primitiveARow[key]!;
       } else {
         // B is the winner (or they are equal, B wins the tie)
         winningTimestamp = changeTimestampB;
-        winningValue = bRow[key]!;
+        winningValue = primitiveBRow[key]!;
       }
     } else if (changeTimestampA !== undefined) {
       // --- Key was only changed in A ---
       winningTimestamp = changeTimestampA;
-      winningValue = aRow[key]!;
+      winningValue = primitiveARow[key]!;
     } else {
       // --- Key was only changed in B ---
       // We can assert changeTimestampB is not undefined here.
       winningTimestamp = changeTimestampB!;
-      winningValue = bRow[key]!;
+      winningValue = primitiveBRow[key]!;
     }
 
     // Update the merged results with the winning data

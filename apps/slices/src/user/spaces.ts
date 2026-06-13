@@ -1,45 +1,42 @@
 import {
   action,
   deleteRows,
+  defineTable,
+  type ExtractSchema,
   insert,
-  runQuery,
   selectFrom,
   selector,
-  table,
-  update,
-} from "@will-be-done/hyperdb";
+  upsert,
+  v,
+} from "@will-be-done/hyperdb-lib";
 import { uuidv7 } from "uuidv7";
 import { registerUserSyncableTable } from "./syncMap";
 
 export const spacesTableType = "space";
-export type Space = {
-  id: string;
-  type: typeof spacesTableType;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-};
 
-export const spacesTable = table<Space>("spaces").withIndexes({
-  byId: { cols: ["id"], type: "hash" },
-  byIds: { cols: ["id"], type: "btree" },
-});
+export const spacesTable = defineTable("spaces", {
+  id: v.string(),
+  type: v.literal(spacesTableType),
+  name: v.string(),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+})
+  .index("byIds", ["id"]);
+export type Space = ExtractSchema<typeof spacesTable>;
 
-const getSpaceById = selector(function* (id: string) {
-  const spaces = yield* runQuery(
-    selectFrom(spacesTable, "byId")
+const getSpaceById = selector(function* getSpaceById(id: string) {
+  const spaces = yield* selectFrom(spacesTable, "byId")
       .where((q) => q.eq("id", id))
-      .limit(1),
-  );
+      .limit(1);
   return spaces[0] as Space | undefined;
 });
 
-const listSpaces = selector(function* () {
-  const spaces = yield* runQuery(selectFrom(spacesTable, "byIds"));
+const listSpaces = selector(function* listSpaces() {
+  const spaces = yield* selectFrom(spacesTable, "byIds");
   return spaces as Space[];
 });
 
-const createSpace = action(function* (name: string) {
+const createSpace = action(function* createSpace(name: string) {
   const spaceId = uuidv7();
   const now = new Date().toISOString();
   const space: Space = {
@@ -55,7 +52,7 @@ const createSpace = action(function* (name: string) {
   return space;
 });
 
-const updateSpace = action(function* (id: string, name: string) {
+const updateSpace = action(function* updateSpace(id: string, name: string) {
   const space = yield* getSpaceById(id);
   if (!space) {
     return null as Space | null;
@@ -67,12 +64,12 @@ const updateSpace = action(function* (id: string, name: string) {
     updatedAt: new Date().toISOString(),
   };
 
-  yield* update(spacesTable, [updatedSpace]);
+  yield* upsert(spacesTable, [updatedSpace]);
 
   return updatedSpace as Space | null;
 });
 
-const deleteSpace = action(function* (id: string) {
+const deleteSpace = action(function* deleteSpace(id: string) {
   const space = yield* getSpaceById(id);
   if (!space) {
     return false;

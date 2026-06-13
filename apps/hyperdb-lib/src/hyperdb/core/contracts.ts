@@ -30,6 +30,7 @@ export interface HyperDB {
   ): Generator<DBCmd, void>;
   withTraits(...trait: Trait[]): HyperDB;
   getTraits(): Trait[];
+  getId(): string;
 
   beginTx(): Generator<DBCmd, HyperDBTx>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

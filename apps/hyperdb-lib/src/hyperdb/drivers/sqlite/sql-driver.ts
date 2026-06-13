@@ -16,13 +16,18 @@ import {
   buildDeleteSQL,
   createTableSQL,
   createIndexSQL,
+  dropIndexSQL,
   addSortKeyColumnSQL,
+  dropSortKeyColumnSQL,
   chunkArray,
   CHUNK_SIZE,
+  getSqliteDeleteChunkSize,
+  getSqliteInsertChunkSize,
   sqliteIndexSortKeyColumn,
+  sqliteIndexIdentifier,
+  isSqliteSortKeyColumn,
   assertSafeTableDefinition,
   buildRowInsertParams,
-  getSqliteIndexSortKeyValue,
   parseSqliteStoredRow,
   type SqlValue,
   type BindParams,
@@ -48,7 +53,7 @@ function performInsertOperation(
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunkArray(values, CHUNK_SIZE);
+  const allValues = chunkArray(values, getSqliteInsertChunkSize(tableDef));
   for (const chunk of allValues) {
     const insertSQL = buildInsertSQL(tableDef, chunk.length);
 
@@ -66,7 +71,7 @@ function performUpsertOperation(
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunkArray(values, CHUNK_SIZE);
+  const allValues = chunkArray(values, getSqliteInsertChunkSize(tableDef));
   for (const chunk of allValues) {
     const upsertSQL = buildInsertSQL(tableDef, chunk.length, {
       replace: true,
@@ -86,7 +91,7 @@ function performDeleteOperation(
 ): void {
   if (values.length === 0) return;
 
-  const allValues = chunkArray(values, CHUNK_SIZE);
+  const allValues = chunkArray(values, getSqliteDeleteChunkSize());
   for (const chunk of allValues) {
     const deleteSQL = buildDeleteSQL(tableDef.tableName, chunk.length);
     db.exec(deleteSQL, chunk);
@@ -353,6 +358,8 @@ export class SqlDriver implements DBDriver {
         }
 
         this.createTable(tableDef);
+        this.dropStaleSortKeyIndexes(tableDef);
+        this.dropStaleSortKeyColumns(tableDef);
         this.addMissingSortKeyColumns(tableDef);
         this.backfillSortKeyColumns(tableDef);
         this.createIndexes(tableDef);
@@ -379,6 +386,58 @@ export class SqlDriver implements DBDriver {
     }
   }
 
+  private getTableIndexNames(tableName: string): Set<string> {
+    const q = this.db.prepare(`PRAGMA index_list(${tableName})`);
+    try {
+      return new Set(q.values([]).map((row) => String(row[1])));
+    } finally {
+      q.finalize();
+    }
+  }
+
+  private getExpectedSortKeyColumns(tableDef: TableDefinition<any>): Set<string> {
+    return new Set(
+      Object.keys(tableDef.indexes).map((indexName) =>
+        sqliteIndexSortKeyColumn(indexName),
+      ),
+    );
+  }
+
+  private getExpectedIndexNames(tableDef: TableDefinition<any>): Set<string> {
+    return new Set(
+      Object.keys(tableDef.indexes).map((indexName) =>
+        sqliteIndexIdentifier(tableDef.tableName, indexName),
+      ),
+    );
+  }
+
+  private isGeneratedIndexName(tableName: string, indexName: string): boolean {
+    return (
+      indexName.startsWith(`idx_${tableName}_`) &&
+      indexName.endsWith("_sort_key")
+    );
+  }
+
+  private dropStaleSortKeyIndexes(tableDef: TableDefinition<any>): void {
+    const expectedIndexes = this.getExpectedIndexNames(tableDef);
+    for (const indexName of this.getTableIndexNames(tableDef.tableName)) {
+      if (!this.isGeneratedIndexName(tableDef.tableName, indexName)) continue;
+      if (expectedIndexes.has(indexName)) continue;
+
+      this.db.exec(dropIndexSQL(indexName));
+    }
+  }
+
+  private dropStaleSortKeyColumns(tableDef: TableDefinition<any>): void {
+    const expectedColumns = this.getExpectedSortKeyColumns(tableDef);
+    for (const columnName of this.getTableColumns(tableDef.tableName)) {
+      if (!isSqliteSortKeyColumn(columnName)) continue;
+      if (expectedColumns.has(columnName)) continue;
+
+      this.db.exec(dropSortKeyColumnSQL(tableDef.tableName, columnName));
+    }
+  }
+
   private addMissingSortKeyColumns(tableDef: TableDefinition<any>): void {
     const existingColumns = this.getTableColumns(tableDef.tableName);
     for (const indexName of Object.keys(tableDef.indexes)) {
@@ -396,20 +455,15 @@ export class SqlDriver implements DBDriver {
     for (const indexName of Object.keys(tableDef.indexes)) {
       const sortKeyColumn = sqliteIndexSortKeyColumn(indexName);
       const q = this.db.prepare(
-        `SELECT id, data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`,
+        `SELECT data FROM ${tableDef.tableName} WHERE ${sortKeyColumn} IS NULL`,
       );
 
       try {
-        for (const [id, data] of q.values([])) {
-          const row = parseSqliteStoredRow(String(data));
-          const sortKeyValue = getSqliteIndexSortKeyValue(
+        for (const chunk of chunkArray(q.values([]), CHUNK_SIZE)) {
+          performUpsertOperation(
+            this.db,
             tableDef,
-            indexName,
-            row,
-          );
-          this.db.exec(
-            `UPDATE ${tableDef.tableName} SET ${sortKeyColumn} = ? WHERE id = ? AND ${sortKeyColumn} IS NULL`,
-            [sortKeyValue, id],
+            chunk.map(([data]) => parseSqliteStoredRow(String(data))),
           );
         }
       } finally {

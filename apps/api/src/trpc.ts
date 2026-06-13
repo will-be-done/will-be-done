@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { FastifyRequest, FastifyReply } from "fastify";
-import { syncDispatch } from "@will-be-done/hyperdb";
+import { syncDispatch } from "@will-be-done/hyperdb-lib";
 import { getMainHyperDB } from "./db/db";
 import { authSlice } from "./slices/authSlice";
 

@@ -29,8 +29,8 @@
     "wa-sqlite": "github:rhashimoto/wa-sqlite#idbbatchatomic-skip-writes"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

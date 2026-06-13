@@ -117,6 +117,10 @@ export class SubscribableDBTx implements HyperDBTx {
     return [...this.traits, ...this.subDb.getTraits()];
   }
 
+  getId(): string {
+    return this.subDb.getId();
+  }
+
   *loadTables(): Generator<DBCmd, void> {
     throw new Error("Not supported");
   }
@@ -471,6 +475,10 @@ export class SubscribableDB implements HyperDB {
 
   getTraits(): Trait[] {
     return [...this.traits, ...this.db.getTraits()];
+  }
+
+  getId(): string {
+    return this.db.getId();
   }
 
   afterInsert(cb: AfterInsertSub): () => void {

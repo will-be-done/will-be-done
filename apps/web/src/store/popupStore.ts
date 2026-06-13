@@ -3,7 +3,7 @@ import {
   asyncDispatch,
   DB,
   execAsync,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import {
   changesSlice,
   changesTable,
@@ -12,8 +12,9 @@ import {
 } from "@will-be-done/slices/common";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import {
-  projectsSlice,
-  projectCategoriesSlice,
+  createInboxIfNotExists,
+  createProjectCategoryTask,
+  firstProjectCategoryChild,
   registeredSpaceSyncableTables,
   tasksTable,
 } from "@will-be-done/slices/space";
@@ -66,7 +67,7 @@ export async function initPopupStore(spaceId: string) {
   await execAsync(asyncDB.loadTables(persistDBTables));
 
   // Ensure inbox exists
-  await asyncDispatch(asyncDB, projectsSlice.createInboxIfNotExists());
+  await asyncDispatch(asyncDB, createInboxIfNotExists());
 
   return {
     async createInboxTask(title: string) {
@@ -74,10 +75,10 @@ export async function initPopupStore(spaceId: string) {
         asyncDB,
         (function* () {
           // Get inbox project
-          const inbox = yield* projectsSlice.createInboxIfNotExists();
+          const inbox = yield* createInboxIfNotExists();
 
           // Get first category of inbox
-          const inboxCategory = yield* projectCategoriesSlice.firstChild(
+          const inboxCategory = yield* firstProjectCategoryChild(
             inbox.id,
           );
           if (!inboxCategory) {
@@ -85,7 +86,7 @@ export async function initPopupStore(spaceId: string) {
           }
 
           // Create task at the top (prepend)
-          const task = yield* projectCategoriesSlice.createTask(
+          const task = yield* createProjectCategoryTask(
             inboxCategory.id,
             "prepend",
             { title },

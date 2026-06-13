@@ -2,27 +2,36 @@ import {
   action,
   deleteRows,
   insert,
-  runQuery,
   selectFrom,
   selector,
-} from "@will-be-done/hyperdb";
+} from "@will-be-done/hyperdb-lib";
 import { getDMY } from "./utils";
-import { cardsTasksSlice } from ".";
+import { allChecklistItems } from "./checklistItems";
+import { allProjectCategories } from "./projectsCategories";
+import { allProjects } from "./projectsAll";
+import { allTasks } from "./cardsTasks";
+import { allTaskTemplates } from "./cardsTaskTemplates";
+import { dailyListAllIds, dailyListById, dailyListGetId } from "./dailyLists";
+import {
+  dailyProjectionAllIds,
+  dailyProjectionById,
+} from "./dailyListsProjections";
+import { inboxProjectId as getInboxProjectId } from "./projects";
 import { type Task, taskType } from "./cardsTasks";
-import { cardsTaskTemplatesSlice } from ".";
+
 import { type TaskTemplate, taskTemplateType } from "./cardsTaskTemplates";
-import { dailyListsSlice } from ".";
+
 import { dailyListType, type DailyList } from "./dailyLists";
-import { projectsAllSlice } from ".";
-import { projectsSlice } from ".";
+
+
 import { projectType, type Project } from "./projects";
 import { AnyModel, appTypeTablesMap } from "./maps";
 import { registeredSpaceSyncableTables } from "./syncMap";
 import { ProjectCategory, projectCategoryType } from "./projectsCategories";
-import { dailyListsProjectionsSlice } from ".";
+
 import { projectionType, TaskProjection } from "./dailyListsProjections";
-import { projectCategoriesSlice } from ".";
-import { checklistItemsSlice } from ".";
+
+
 import {
   ChecklistItem,
   ChecklistItemState,
@@ -110,18 +119,18 @@ export interface Backup {
   checklistItems?: ChecklistItemBackup[];
 }
 
-const getNewModels = action(function* (backup: Backup) {
+const getNewModels = action(function* getNewModels(backup: Backup) {
   const models: AnyModel[] = [];
 
   const inboxProjectIdInBackup = backup.projects.find((p) => p.isInbox)?.id;
-  const inboxProjectId = yield* projectsSlice.inboxProjectId();
+  const inboxProjectId = yield* getInboxProjectId();
 
   // First, create all projects
   for (const projectBackup of backup.projects) {
     const project: Project = {
       type: projectType,
       id: projectBackup.isInbox
-        ? yield* projectsSlice.inboxProjectId()
+        ? yield* getInboxProjectId()
         : projectBackup.id,
       title: projectBackup.title,
       icon: projectBackup.icon,
@@ -202,7 +211,7 @@ const getNewModels = action(function* (backup: Backup) {
 
     const dailyList: DailyList = {
       type: dailyListType,
-      id: yield* dailyListsSlice.getId(dailyListBackup.date),
+      id: yield* dailyListGetId(dailyListBackup.date),
       date: dailyListBackup.date,
     };
 
@@ -320,9 +329,9 @@ const getNewModels = action(function* (backup: Backup) {
   return models;
 });
 
-export const loadBackup = selector(function* (backup: Backup) {
+export const loadSpaceBackup = selector(function* loadSpaceBackup(backup: Backup) {
   for (const table of registeredSpaceSyncableTables) {
-    const allIds = (yield* runQuery(selectFrom(table, "byIds"))).map(
+    const allIds = (yield* selectFrom(table, "byIds")).map(
       (r) => r.id,
     );
 
@@ -330,23 +339,34 @@ export const loadBackup = selector(function* (backup: Backup) {
   }
 
   const models = yield* getNewModels(backup);
+  const modelsByTable = new Map<
+    (typeof registeredSpaceSyncableTables)[number],
+    AnyModel[]
+  >();
 
   for (const model of models) {
-    yield* insert(appTypeTablesMap[model.type], [model]);
+    const table = appTypeTablesMap[model.type];
+    const tableModels = modelsByTable.get(table) || [];
+    tableModels.push(model);
+    modelsByTable.set(table, tableModels);
+  }
+
+  for (const [table, tableModels] of modelsByTable) {
+    yield* insert(table, tableModels);
   }
 });
 
-export const getBackup = selector(function* () {
-  const tasks: Task[] = yield* cardsTasksSlice.all();
-  const projects: Project[] = yield* projectsAllSlice.all();
-  const taskTemplates: TaskTemplate[] = yield* cardsTaskTemplatesSlice.all();
-  const checklistItems: ChecklistItem[] = yield* checklistItemsSlice.all();
+export const getSpaceBackup = selector(function* getSpaceBackup() {
+  const tasks: Task[] = yield* allTasks();
+  const projects: Project[] = yield* allProjects();
+  const taskTemplates: TaskTemplate[] = yield* allTaskTemplates();
+  const checklistItems: ChecklistItem[] = yield* allChecklistItems();
   const dailyLists: DailyList[] = [];
 
   // Get all daily lists
-  const allDailyListIds = yield* dailyListsSlice.allIds();
+  const allDailyListIds = yield* dailyListAllIds();
   for (const id of allDailyListIds) {
-    const dailyList = yield* dailyListsSlice.byId(id);
+    const dailyList = yield* dailyListById(id);
     if (dailyList) {
       dailyLists.push(dailyList);
     }
@@ -354,15 +374,15 @@ export const getBackup = selector(function* () {
 
   // Get all projections
   const projections: TaskProjection[] = [];
-  const allProjectionIds = yield* dailyListsProjectionsSlice.allIds();
+  const allProjectionIds = yield* dailyProjectionAllIds();
   for (const id of allProjectionIds) {
-    const projection = yield* dailyListsProjectionsSlice.byId(id);
+    const projection = yield* dailyProjectionById(id);
     if (projection) {
       projections.push(projection);
     }
   }
 
-  const allCategories = yield* projectCategoriesSlice.all();
+  const allCategories = yield* allProjectCategories();
 
   return {
     projectCategories: allCategories.map((group) => ({

@@ -52,7 +52,11 @@ export function* runCommandGenerator<TReturn>(
 ): Generator<DBCmd, TReturn, unknown> {
   const traceContext =
     options.traceContext ??
-    startRootTrace(getGeneratorTraceMeta(gen) ?? anonymousTraceMeta());
+    startRootTrace(
+      getGeneratorTraceMeta(gen) ?? anonymousTraceMeta(),
+      undefined,
+      db,
+    );
   const ownsTraceContext = traceContext !== undefined && !options.traceContext;
   const scopedDB = traceContext ? withTraceContextTrait(db, traceContext) : db;
 
@@ -139,6 +143,8 @@ export function* runCommandGenerator<TReturn>(
     if (ownsTraceContext) {
       endTraceError(traceContext, error);
     }
+
+    console.error(error);
 
     throw error;
   }

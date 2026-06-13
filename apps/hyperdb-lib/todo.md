@@ -30,6 +30,9 @@ TODO for devtool:
 2. Rename data -> query
 3. Mutation - show button display diff. Also, add pagination if too much mutations
 4. Data diff/change?
+1. Display how much rows were selected during query in general list
+1. Keep same tab open when change action/selector
+1. Why does it have "2" postfix?
 
 Then:
 1. Nested index

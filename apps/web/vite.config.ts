@@ -45,8 +45,23 @@ export default defineConfig({
     }),
   ],
   resolve: {
+    dedupe: ["react", "react-dom"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "react/jsx-dev-runtime": path.resolve(
+        __dirname,
+        "node_modules/react/jsx-dev-runtime.js",
+      ),
+      "react/jsx-runtime": path.resolve(
+        __dirname,
+        "node_modules/react/jsx-runtime.js",
+      ),
+      react: path.resolve(__dirname, "node_modules/react"),
+      "react-dom/client": path.resolve(
+        __dirname,
+        "node_modules/react-dom/client.js",
+      ),
+      "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
     },
   },
   server: {

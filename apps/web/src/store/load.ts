@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import {
+  action,
   asyncDispatch,
   BptreeInmemDriver,
   DB,
@@ -7,15 +8,15 @@ import {
   execAsync,
   execSync,
   HyperDB,
-  insert,
-  runQuery,
+  Row,
   runSelectorAsync,
   selectFrom,
   type Op,
   SubscribableDB,
   syncDispatch,
   TableDefinition,
-} from "@will-be-done/hyperdb";
+  upsert,
+} from "@will-be-done/hyperdb-lib";
 import AwaitLock from "await-lock";
 import {
   changesSlice,
@@ -31,7 +32,7 @@ import {
   createLeaderElection,
   LeaderElector,
 } from "broadcast-channel";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators.ts";
+import { noop } from "@will-be-done/hyperdb-lib";
 import { trpcClient } from "@/lib/trpc.ts";
 import { State } from "@/utils/State.ts";
 import { AutoBackuper } from "./autoBackup.ts";
@@ -155,13 +156,26 @@ export const initDbStore = async (
 
       yield* noop();
     });
-    syncSubDb.afterUpdate(function* (db, table, traits, ops) {
+    syncSubDb.afterUpsert(function* (db, table, traits, ops) {
       if (table === changesTable) return;
       if (traits.some((t) => t.type === "skip-sync")) {
         return;
       }
 
       for (const op of ops) {
+        if (!op.oldValue) {
+          syncDispatch(
+            db,
+            changesSlice.insertChangeFromInsert(
+              op.table,
+              op.newValue,
+              getClientId(dbName),
+              nextClock,
+            ),
+          );
+          continue;
+        }
+
         syncDispatch(
           db,
           changesSlice.insertChangeFromUpdate(
@@ -202,7 +216,7 @@ export const initDbStore = async (
 
     for (const table of syncConfig.syncableDBTables) {
       const res = await runSelectorAsync(asyncDB, function* () {
-        return yield* runQuery(selectFrom(table, "byIds"));
+        return yield* selectFrom(table, "byIds");
       });
 
       // no need to broadcast to sub db
@@ -232,6 +246,15 @@ export const initDbStore = async (
 
     const pendingPersistBatches = new State<Op[][]>([]);
 
+    const describePersistOp = (op: Op) => ({
+      type: op.type,
+      tableName: op.table.tableName,
+      oldId: "oldValue" in op ? op.oldValue?.id : undefined,
+      newId: "newValue" in op ? op.newValue.id : undefined,
+      oldValue: "oldValue" in op ? op.oldValue : undefined,
+      newValue: "newValue" in op ? op.newValue : undefined,
+    });
+
     const persistBatch = async (ops: Op[]) => {
       type RowType = Record<string, string | number | boolean | null> & {
         id: string;
@@ -241,66 +264,159 @@ export const initDbStore = async (
         Array<{ row?: RowType; change: Change }>
       >();
 
+      const createInsertChange = (table: TableDefinition, row: Row): Change => {
+        const createdAt = nextClock();
+        const changes: Record<string, string> = {};
+        for (const col of Object.keys(row)) {
+          changes[col] = createdAt;
+        }
+
+        return {
+          id: `${table.tableName}:${row.id}`,
+          entityId: row.id,
+          tableName: table.tableName,
+          deletedAt: null,
+          clientId: getClientId(dbName),
+          changes,
+          createdAt,
+          updatedAt: createdAt,
+        };
+      };
+
+      const appendPersistedChange = (
+        tableName: string,
+        row: RowType | undefined,
+        change: Change,
+      ) => {
+        if (!changesByTable.has(tableName)) {
+          changesByTable.set(tableName, []);
+        }
+
+        changesByTable.get(tableName)!.push({ row, change });
+      };
+
+      const persistInsertRun = async (
+        tx: HyperDB,
+        table: TableDefinition,
+        rows: Row[],
+      ) => {
+        await execAsync(tx.insert(table, rows));
+        const changes = rows.map((row) => createInsertChange(table, row));
+        await execAsync(tx.upsert(changesTable, changes));
+
+        for (let i = 0; i < rows.length; i++) {
+          appendPersistedChange(
+            table.tableName,
+            rows[i] as RowType,
+            changes[i]!,
+          );
+        }
+      };
+
       const tx = await execAsync(asyncDB.beginTx());
       let committed = false;
       try {
-        for (const op of ops) {
-          if (op.table == changesTable) continue;
+        try {
+          for (let opIndex = 0; opIndex < ops.length; opIndex++) {
+            const op = ops[opIndex]!;
+            if (op.table == changesTable) continue;
 
-          let change: Change | undefined;
+            let change: Change | undefined;
 
-          if (op.type === "insert") {
-            await execAsync(tx.insert(op.table, [op.newValue]));
-            change = await asyncDispatch(
-              tx,
-              changesSlice.insertChangeFromInsert(
-                op.table,
-                op.newValue,
-                getClientId(dbName),
-                nextClock,
-              ),
-            );
-          } else if (op.type === "update") {
-            await execAsync(tx.update(op.table, [op.newValue]));
-            change = await asyncDispatch(
-              tx,
-              changesSlice.insertChangeFromUpdate(
-                op.table,
-                op.oldValue,
-                op.newValue,
-                getClientId(dbName),
-                nextClock,
-              ),
-            );
-          } else if (op.type === "delete") {
-            await execAsync(tx.delete(op.table, [op.oldValue.id]));
-            change = await asyncDispatch(
-              tx,
-              changesSlice.insertChangeFromDelete(
-                op.table,
-                op.oldValue,
-                getClientId(dbName),
-                nextClock,
-              ),
-            );
-          }
+            try {
+              if (op.type === "insert") {
+                const rows = [op.newValue as Row];
+                while (
+                  opIndex + 1 < ops.length &&
+                  ops[opIndex + 1]!.type === "insert" &&
+                  ops[opIndex + 1]!.table === op.table
+                ) {
+                  opIndex++;
+                  const nextOp = ops[opIndex]!;
+                  if (nextOp.type !== "insert") {
+                    break;
+                  }
+                  rows.push(nextOp.newValue as Row);
+                }
 
-          if (change) {
-            const tableName = op.table.tableName;
-            if (!changesByTable.has(tableName)) {
-              changesByTable.set(tableName, []);
+                await persistInsertRun(tx, op.table, rows);
+                continue;
+              } else if (op.type === "upsert") {
+                await execAsync(tx.upsert(op.table, [op.newValue]));
+                change = await asyncDispatch(
+                  tx,
+                  op.oldValue
+                    ? changesSlice.insertChangeFromUpdate(
+                        op.table,
+                        op.oldValue,
+                        op.newValue,
+                        getClientId(dbName),
+                        nextClock,
+                      )
+                    : changesSlice.insertChangeFromInsert(
+                        op.table,
+                        op.newValue,
+                        getClientId(dbName),
+                        nextClock,
+                      ),
+                );
+              } else if (op.type === "delete") {
+                await execAsync(tx.delete(op.table, [op.oldValue.id]));
+                change = await asyncDispatch(
+                  tx,
+                  changesSlice.insertChangeFromDelete(
+                    op.table,
+                    op.oldValue,
+                    getClientId(dbName),
+                    nextClock,
+                  ),
+                );
+              }
+            } catch (error) {
+              console.error("Failed while persisting local op", {
+                op: describePersistOp(op),
+                error,
+              });
+              throw error;
             }
 
-            const row = op.type === "delete" ? undefined : op.newValue;
-            changesByTable.get(tableName)!.push({ row, change });
+            if (change) {
+              const tableName = op.table.tableName;
+              const row =
+                op.type === "delete" ? undefined : (op.newValue as RowType);
+              appendPersistedChange(tableName, row, change);
+            }
           }
+        } catch (error) {
+          console.error("Failed to persist local batch", {
+            opCount: ops.length,
+            ops: ops.map(describePersistOp),
+            error,
+          });
+          throw error;
         }
 
-        await execAsync(tx.commit());
+        try {
+          await execAsync(tx.commit());
+        } catch (error) {
+          console.error("Failed to commit local persist transaction", {
+            opCount: ops.length,
+            ops: ops.map(describePersistOp),
+            error,
+          });
+          throw error;
+        }
         committed = true;
       } finally {
         if (!committed) {
-          await execAsync(tx.rollback());
+          try {
+            await execAsync(tx.rollback());
+          } catch (rollbackError) {
+            console.error("Failed to rollback local persist transaction", {
+              rollbackError,
+              ops: ops.map(describePersistOp),
+            });
+          }
         }
       }
 
@@ -424,6 +540,101 @@ export const initDbStore = async (
 type ChangePersistedEvent = {
   changeset: ChangesetArrayType;
 };
+
+const applyServerChangesIfNoClientChanges = action(
+  function* applyServerChangesIfNoClientChanges(
+    syncConfig: SyncConfig,
+    syncState: { lastSentClock: string },
+    serverChanges: { changesets: ChangesetArrayType; maxClock: string },
+    nextClock: () => string,
+    clientId: string,
+  ) {
+    const { changesets } = yield* changesSlice.getChangesetAfter(
+      syncState.lastSentClock,
+      syncConfig.tableNameMap,
+    );
+    if (changesets.length !== 0) {
+      console.log(
+        "some new client changes appeared, skipping server changes apply",
+      );
+
+      return;
+    }
+
+    const allChanges: Change[] = [];
+
+    let maxNewClientClock = "";
+
+    for (const changeset of serverChanges.changesets) {
+      const toDeleteRows: string[] = [];
+      const toUpsertRows: { id: string; [key: string]: unknown }[] = [];
+
+      const table = syncConfig.tableNameMap[changeset.tableName];
+      if (!table) {
+        throw new Error("Unknown table: " + changeset.tableName);
+      }
+
+      for (const { change, row } of changeset.data) {
+        if (change.deletedAt != null) {
+          toDeleteRows.push(change.entityId);
+        } else if (row) {
+          toUpsertRows.push(row);
+        }
+
+        const currentClock = nextClock();
+
+        if (currentClock > maxNewClientClock) {
+          maxNewClientClock = currentClock;
+        }
+
+        allChanges.push({
+          id: change.id,
+          entityId: change.entityId,
+          tableName: table.tableName,
+          // TODO: use local createdAt value. Or maybe not?
+          createdAt: change?.createdAt,
+          updatedAt: currentClock,
+          deletedAt: change?.deletedAt,
+          clientId,
+          changes: change.changes,
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      yield* upsert(table, toUpsertRows as any);
+      yield* deleteRows(table, toDeleteRows);
+    }
+
+    yield* upsert(changesTable, allChanges);
+    console.log("set clock", serverChanges.maxClock, maxNewClientClock);
+
+    yield* syncSlice.update({
+      lastServerAppliedClock: serverChanges.maxClock,
+      lastSentClock: maxNewClientClock,
+    });
+  },
+);
+
+const getChangesToSendToServer = action(function* getChangesToSendToServer(
+  syncConfig: SyncConfig,
+) {
+  const currentSyncState = yield* syncSlice.getOrDefault();
+
+  console.log(
+    "get clock",
+    currentSyncState.lastServerAppliedClock,
+    currentSyncState.lastSentClock,
+  );
+
+  const { changesets, maxClock } = yield* changesSlice.getChangesetAfter(
+    currentSyncState.lastSentClock,
+    syncConfig.tableNameMap,
+  );
+
+  console.log("new client changes", changesets, maxClock);
+
+  return { changesets, maxClock };
+});
 
 class Syncer {
   private electionChannel: BroadcastChannel;
@@ -604,76 +815,15 @@ class Syncer {
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const that = this;
     await asyncDispatch(
       this.persistentDB,
-      (function* () {
-        const { changesets } = yield* changesSlice.getChangesetAfter(
-          syncState.lastSentClock,
-          that.syncConfig.tableNameMap,
-        );
-        if (changesets.length !== 0) {
-          console.log(
-            "some new client changes appeared, skipping server changes apply",
-          );
-
-          return;
-        }
-
-        const allChanges: Change[] = [];
-
-        let maxNewClientClock = "";
-
-        for (const changeset of serverChanges.changesets) {
-          const toDeleteRows: string[] = [];
-          // const toUpdateRows: AppSyncableModel[] = [];
-          const toInsertRows: { id: string; [key: string]: unknown }[] = [];
-
-          const table = that.syncConfig.tableNameMap[changeset.tableName];
-          if (!table) {
-            throw new Error("Unknown table: " + changeset.tableName);
-          }
-
-          for (const { change, row } of changeset.data) {
-            if (change.deletedAt != null) {
-              toDeleteRows.push(change.entityId);
-            } else if (row) {
-              toInsertRows.push(row);
-            }
-
-            const currentClock = that.nextClock();
-
-            if (currentClock > maxNewClientClock) {
-              maxNewClientClock = currentClock;
-            }
-
-            allChanges.push({
-              id: change.id,
-              entityId: change.entityId,
-              tableName: table.tableName,
-              // TODO: use local createdAt value. Or maybe not?
-              createdAt: change?.createdAt,
-              updatedAt: currentClock,
-              deletedAt: change?.deletedAt,
-              clientId: that.clientId,
-              changes: change.changes,
-            });
-          }
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          yield* insert(table, toInsertRows as any);
-          yield* deleteRows(table, toDeleteRows);
-        }
-
-        yield* insert(changesTable, allChanges);
-        console.log("set clock", serverChanges.maxClock, maxNewClientClock);
-
-        yield* syncSlice.update({
-          lastServerAppliedClock: serverChanges.maxClock,
-          lastSentClock: maxNewClientClock,
-        });
-      })(),
+      applyServerChangesIfNoClientChanges(
+        this.syncConfig,
+        syncState,
+        serverChanges,
+        this.nextClock,
+        this.clientId,
+      ),
     );
 
     try {
@@ -684,28 +834,9 @@ class Syncer {
   }
 
   private async sendChangesToServer() {
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const that = this;
     const { changesets, maxClock } = await asyncDispatch(
       this.persistentDB,
-      (function* () {
-        const currentSyncState = yield* syncSlice.getOrDefault();
-
-        console.log(
-          "get clock",
-          currentSyncState.lastServerAppliedClock,
-          currentSyncState.lastSentClock,
-        );
-
-        const { changesets, maxClock } = yield* changesSlice.getChangesetAfter(
-          currentSyncState.lastSentClock,
-          that.syncConfig.tableNameMap,
-        );
-
-        console.log("new client changes", changesets, maxClock);
-
-        return { changesets, maxClock };
-      })(),
+      getChangesToSendToServer(this.syncConfig),
     );
 
     if (changesets.length === 0) {

@@ -28,7 +28,7 @@
     "@fastify/websocket": "^11.2.0",
     "@trpc/client": "^11.7.2",
     "@trpc/server": "^11.7.2",
-    "@will-be-done/hyperdb": "workspace:*",
+    "@will-be-done/hyperdb-lib": "workspace:*",
     "@will-be-done/slices": "workspace:*",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",

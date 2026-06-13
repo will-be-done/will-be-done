@@ -7,6 +7,7 @@ import React, {
 import { css, setup, styled } from "goober";
 import type { SubscribableDB } from "../hyperdb/runtime/subscribable-db";
 import {
+  getTraceDBInfo,
   hyperDBTraceStore,
   safeSerialize,
   type MutationEvent,
@@ -45,6 +46,7 @@ export type HyperDBDevtoolsPanelProps = {
 };
 
 const storageKey = "hyperdb-devtools-open";
+const unassignedDBId = "__hyperdb_unassigned__";
 
 const readStoredOpenState = (initialIsOpen: boolean): boolean => {
   try {
@@ -76,6 +78,37 @@ const useTraces = (maxTraces: number): RootTrace[] => {
     hyperDBTraceStore.getSnapshot,
     hyperDBTraceStore.getSnapshot,
   );
+};
+
+type TraceDBOption = {
+  id: string;
+  label: string;
+  traceCount: number;
+};
+
+const traceDBId = (trace: RootTrace): string =>
+  trace.dbId ?? unassignedDBId;
+
+const getTraceDBOptions = (traces: RootTrace[]): TraceDBOption[] => {
+  const optionMap = new Map<string, TraceDBOption>();
+
+  for (const trace of traces) {
+    const id = traceDBId(trace);
+    const existing = optionMap.get(id);
+
+    if (existing) {
+      existing.traceCount += 1;
+      continue;
+    }
+
+    optionMap.set(id, {
+      id,
+      label: trace.dbLabel ?? "Unknown DB",
+      traceCount: 1,
+    });
+  }
+
+  return [...optionMap.values()];
 };
 
 const panelPositionStyle = (position: HyperDBDevtoolsPosition): string => {
@@ -317,6 +350,31 @@ const Button = styled("button")`
     background: var(--hdb-soft);
     color: var(--hdb-text);
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--hdb-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+  }
+`;
+
+const DBSelect = styled("select")`
+  box-sizing: border-box;
+  max-width: 150px;
+  height: 24px;
+  border: 1px solid var(--hdb-border);
+  border-radius: 6px;
+  padding: 0 24px 0 8px;
+  background: var(--hdb-panel);
+  color: var(--hdb-text);
+  font:
+    700 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  cursor: pointer;
 
   &:focus-visible {
     outline: 2px solid var(--hdb-blue);
@@ -858,15 +916,15 @@ const identifierPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const formatIdentifier = (identifier: string): string =>
   identifierPattern.test(identifier)
     ? identifier
-    : `"${identifier.replaceAll('"', '""')}"`;
+    : `"${identifier.replace(/"/g, '""')}"`;
 
 const formatLiteral = (value: unknown): string => {
-  if (typeof value === "string") return `'${value.replaceAll("'", "''")}'`;
+  if (typeof value === "string") return `'${value.replace(/'/g, "''")}'`;
   if (typeof value === "number")
     return Number.isFinite(value) ? String(value) : "NULL";
   if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
   if (value === null) return "NULL";
-  return `'${safeSerialize(value).text.replaceAll("'", "''")}'`;
+  return `'${safeSerialize(value).text.replace(/'/g, "''")}'`;
 };
 
 const formatWhereClause = (
@@ -1237,13 +1295,65 @@ const DevtoolsPanelInner = ({
   embedded = false,
   onClose,
 }: HyperDBDevtoolsPanelProps) => {
-  void db;
+  const currentDBInfo = useMemo(() => (db ? getTraceDBInfo(db) : undefined), [
+    db,
+  ]);
   const traces = useTraces(maxTraces);
-  const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>();
-  const selectedTrace = useMemo(
-    () => traces.find((trace) => trace.id === selectedTraceId) ?? traces[0],
-    [selectedTraceId, traces],
+  const dbOptions = useMemo(() => getTraceDBOptions(traces), [traces]);
+  const hasMultipleDBs = dbOptions.length > 1;
+  const [selectedDBId, setSelectedDBId] = useState<string | undefined>(
+    currentDBInfo?.id,
   );
+  const [selectedTraceId, setSelectedTraceId] = useState<string | undefined>();
+  const fallbackDBId =
+    dbOptions.find((option) => option.id === currentDBInfo?.id)?.id ??
+    dbOptions[0]?.id;
+  const activeDBId =
+    hasMultipleDBs && selectedDBId
+      ? dbOptions.some((option) => option.id === selectedDBId)
+        ? selectedDBId
+        : fallbackDBId
+      : hasMultipleDBs
+        ? fallbackDBId
+        : undefined;
+  const visibleTraces = useMemo(
+    () =>
+      activeDBId
+        ? traces.filter((trace) => traceDBId(trace) === activeDBId)
+        : traces,
+    [activeDBId, traces],
+  );
+  const selectedTrace = useMemo(
+    () =>
+      visibleTraces.find((trace) => trace.id === selectedTraceId) ??
+      visibleTraces[0],
+    [selectedTraceId, visibleTraces],
+  );
+
+  useEffect(() => {
+    if (!hasMultipleDBs) return;
+    if (activeDBId && activeDBId !== selectedDBId) {
+      setSelectedDBId(activeDBId);
+    }
+  }, [activeDBId, hasMultipleDBs, selectedDBId]);
+
+  useEffect(() => {
+    if (!selectedTraceId) return;
+    if (!visibleTraces.some((trace) => trace.id === selectedTraceId)) {
+      setSelectedTraceId(undefined);
+    }
+  }, [selectedTraceId, visibleTraces]);
+
+  const clearVisibleTraces = () => {
+    if (hasMultipleDBs && activeDBId) {
+      hyperDBTraceStore.clearDB(
+        activeDBId === unassignedDBId ? undefined : activeDBId,
+      );
+      return;
+    }
+
+    hyperDBTraceStore.clear();
+  };
 
   return (
     <Shell position={position} embedded={embedded} theme={theme}>
@@ -1254,8 +1364,24 @@ const DevtoolsPanelInner = ({
             HyperDB
           </Title>
           <ToolbarActions>
-            <TraceCount>{traces.length} traces</TraceCount>
-            <Button onClick={() => hyperDBTraceStore.clear()}>Clear</Button>
+            {hasMultipleDBs ? (
+              <DBSelect
+                aria-label="HyperDB database"
+                value={activeDBId}
+                onChange={(event) => {
+                  setSelectedDBId(event.currentTarget.value);
+                  setSelectedTraceId(undefined);
+                }}
+              >
+                {dbOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </DBSelect>
+            ) : null}
+            <TraceCount>{visibleTraces.length} traces</TraceCount>
+            <Button onClick={clearVisibleTraces}>Clear</Button>
             {onClose ? (
               <Button aria-label="Close HyperDB Devtools" onClick={onClose}>
                 Close
@@ -1264,10 +1390,10 @@ const DevtoolsPanelInner = ({
           </ToolbarActions>
         </Toolbar>
         <Rows>
-          {traces.length === 0 ? (
+          {visibleTraces.length === 0 ? (
             <Empty>No traces</Empty>
           ) : (
-            traces.map((trace) => (
+            visibleTraces.map((trace) => (
               <TraceRow
                 key={trace.id}
                 selected={trace.id === selectedTrace?.id}

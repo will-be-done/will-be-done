@@ -23,6 +23,7 @@ import { refVar, type RefVar } from "../utils";
 type OriginalDB = {
   options: CodecOptions;
   getTraits(): Trait[];
+  getId(): string;
 };
 
 function* performScan(
@@ -135,6 +136,10 @@ export class DBTx implements HyperDBTx {
 
   getTraits(): Trait[] {
     return [...this.traits, ...this.originalDB.getTraits()];
+  }
+
+  getId(): string {
+    return this.originalDB.getId();
   }
 
   *beginTx(): Generator<DBCmd, HyperDBTx> {

@@ -1,6 +1,9 @@
 import { useState, useRef } from "react";
-import { useDispatch } from "@will-be-done/hyperdb";
-import { backupSlice, parseTickTickCSV } from "@will-be-done/slices/space";
+import { useDispatch } from "@will-be-done/hyperdb-lib";
+import {
+  loadSpaceBackup,
+  parseTickTickCSV,
+} from "@will-be-done/slices/space";
 import { Upload, Download, AlertTriangle, CheckCircle } from "lucide-react";
 import { trpcClient } from "@/lib/trpc";
 
@@ -36,7 +39,7 @@ export function ImportSection() {
       try {
         const text = await file.text();
         const backup = parseTickTickCSV(text);
-        dispatch(backupSlice.loadBackup(backup));
+        dispatch(loadSpaceBackup(backup));
         setTickTickSuccess(true);
       } catch {
         setTickTickError(
@@ -66,7 +69,7 @@ export function ImportSection() {
         const backup = await trpcClient.importTodoist.mutate({
           apiToken: todoistToken.trim(),
         });
-        dispatch(backupSlice.loadBackup(backup));
+        dispatch(loadSpaceBackup(backup));
         setTodoistSuccess(true);
         setTodoistToken("");
       } catch {

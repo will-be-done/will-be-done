@@ -8,19 +8,20 @@ import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import {
-  appSlice,
   AnyModelType,
-  projectCategoriesSlice,
-  dailyListType,
-  projectType,
-  taskType,
-  taskTemplateType,
+  appById,
+  appHandleDrop,
   checklistItemType,
+  dailyListType,
+  projectCategoryType,
   projectionType,
+  projectType,
   stashProjectionType,
   stashType,
+  taskTemplateType,
+  taskType,
 } from "@will-be-done/slices/space";
-import { select, useDB, useDispatch } from "@will-be-done/hyperdb";
+import { select, useDB, useDispatch } from "@will-be-done/hyperdb-lib";
 import { FocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   getDOMSiblings,
@@ -184,7 +185,7 @@ export function GlobalListener() {
             taskTemplateType,
             stashType,
             dailyListType,
-            projectCategoriesSlice.projectCategoryType,
+            projectCategoryType,
             projectType,
           ];
 
@@ -194,7 +195,7 @@ export function GlobalListener() {
             }
             const entity = select(
               db,
-              appSlice.byId(t.data.modelId, t.data.modelType),
+              appById(t.data.modelId, t.data.modelType),
             );
             if (!entity) {
               // Virtual models (e.g. stash) have no DB row — use DnD data directly
@@ -242,7 +243,7 @@ export function GlobalListener() {
           }
 
           dispatch(
-            appSlice.handleDrop(
+            appHandleDrop(
               targetItemInfo[1].id,
               targetItemInfo[1].type,
               source.data.modelId,

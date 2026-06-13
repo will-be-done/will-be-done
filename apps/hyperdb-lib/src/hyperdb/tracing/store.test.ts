@@ -8,6 +8,10 @@ import {
   startRootTrace,
 } from "./store";
 
+const flushTraceNotifications = async (): Promise<void> => {
+  await Promise.resolve();
+};
+
 describe("devtool tracing store", () => {
   it("activates and deactivates with listeners", () => {
     const store = new HyperDBTraceStore();
@@ -54,7 +58,7 @@ describe("devtool tracing store", () => {
     unsubscribe();
   });
 
-  it("does not notify when max trace count is unchanged", () => {
+  it("does not notify when max trace count is unchanged", async () => {
     const store = new HyperDBTraceStore(2);
     let notifyCount = 0;
     const unsubscribe = store.subscribe(() => {
@@ -65,6 +69,29 @@ describe("devtool tracing store", () => {
     expect(notifyCount).toBe(0);
 
     store.setMaxTraces(3);
+    await flushTraceNotifications();
+    expect(notifyCount).toBe(1);
+
+    unsubscribe();
+  });
+
+  it("coalesces listener notifications into a microtask", async () => {
+    const store = new HyperDBTraceStore();
+    let notifyCount = 0;
+    const unsubscribe = store.subscribe(() => {
+      notifyCount += 1;
+    });
+
+    const context = startRootTrace(
+      createTraceFrameMeta("action", "coalesced", []),
+      store,
+    )!;
+    endTraceSuccess(context);
+
+    expect(store.getSnapshot()[0]?.status).toBe("success");
+    expect(notifyCount).toBe(0);
+
+    await flushTraceNotifications();
     expect(notifyCount).toBe(1);
 
     unsubscribe();

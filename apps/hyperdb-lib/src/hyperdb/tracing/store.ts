@@ -72,6 +72,8 @@ export type MutationEvent = {
 
 export type RootTrace = {
   id: string;
+  dbId?: string;
+  dbLabel?: string;
   kind: TraceKind;
   name: string;
   args: unknown[];
@@ -93,6 +95,13 @@ export type SerializedValue = {
 type TraceListener = () => void;
 
 let idCounter = 0;
+let dbCounter = 0;
+const dbIds = new WeakMap<object, string>();
+const dbLabels = new Map<string, string>();
+
+type TraceDBIdentified = {
+  getId?: () => string;
+};
 
 const nextId = (prefix: string): string => {
   idCounter += 1;
@@ -112,6 +121,41 @@ export const summarizeError = (error: unknown): TraceError => {
 
   return {
     message: typeof error === "string" ? error : safeSerialize(error).text,
+  };
+};
+
+export type TraceDBInfo = {
+  id: string;
+  label: string;
+};
+
+export const getTraceDBInfo = (db: object): TraceDBInfo => {
+  const explicitId = (db as TraceDBIdentified).getId?.();
+
+  if (explicitId) {
+    if (!dbLabels.has(explicitId)) {
+      dbCounter += 1;
+      dbLabels.set(explicitId, `DB ${dbCounter}`);
+    }
+
+    return {
+      id: explicitId,
+      label: dbLabels.get(explicitId) ?? explicitId,
+    };
+  }
+
+  let id = dbIds.get(db);
+
+  if (!id) {
+    dbCounter += 1;
+    id = `db-${dbCounter}`;
+    dbIds.set(db, id);
+    dbLabels.set(id, `DB ${dbCounter}`);
+  }
+
+  return {
+    id,
+    label: dbLabels.get(id) ?? id,
   };
 };
 
@@ -159,6 +203,7 @@ export class HyperDBTraceStore {
   private traces: RootTrace[] = [];
   private listeners = new Set<TraceListener>();
   private activeListenerCount = 0;
+  private notifyQueued = false;
   private maxTraces: number;
 
   constructor(maxTraces = 200) {
@@ -199,6 +244,14 @@ export class HyperDBTraceStore {
     this.notify();
   };
 
+  clearDB = (dbId: string | undefined): void => {
+    const nextTraces = this.traces.filter((trace) => trace.dbId !== dbId);
+    if (nextTraces.length === this.traces.length) return;
+
+    this.traces = nextTraces;
+    this.notify();
+  };
+
   addTrace = (trace: RootTrace): void => {
     this.traces = [trace, ...this.traces];
     this.trim();
@@ -206,9 +259,16 @@ export class HyperDBTraceStore {
   };
 
   notify = (): void => {
-    for (const listener of this.listeners) {
-      listener();
-    }
+    if (this.notifyQueued) return;
+
+    this.notifyQueued = true;
+    queueMicrotask(() => {
+      this.notifyQueued = false;
+
+      for (const listener of [...this.listeners]) {
+        listener();
+      }
+    });
   };
 
   private trim(): void {
@@ -276,13 +336,17 @@ const finishFrame = (
 export const startRootTrace = (
   meta: TraceFrameMeta,
   store = hyperDBTraceStore,
+  db?: object,
 ): TraceContext | undefined => {
   if (!store.isActive()) return undefined;
 
   const startedAt = wallClockNow();
   const rootFrame = createFrame(meta, startedAt);
+  const dbInfo = db ? getTraceDBInfo(db) : undefined;
   const trace: RootTrace = {
     id: nextId("trace"),
+    dbId: dbInfo?.id,
+    dbLabel: dbInfo?.label,
     kind: meta.kind,
     name: meta.name,
     args: meta.args,
