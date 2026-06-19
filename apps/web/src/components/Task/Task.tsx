@@ -96,6 +96,7 @@ import {
   useCardDetailsEditRequest,
   useCardDetailsOpen,
 } from "@/components/CardDetails/CardDetailsStore.ts";
+import { useRetainedCardsStore } from "@/store/taskRetentionStore.ts";
 
 export const DropTaskIndicator = ({
   direction,
@@ -499,7 +500,10 @@ export const PreloadedTaskComp = ({
       return;
     }
 
-    const [upKey, downKey] = getDOMSiblings(focusableItemKey);
+    const shouldKeepTaskFocused = isFocused || isEditing;
+    const [upKey, downKey] = shouldKeepTaskFocused
+      ? [null, null]
+      : getDOMSiblings(focusableItemKey);
 
     dispatch(
       appHandleDrop({
@@ -511,6 +515,8 @@ export const PreloadedTaskComp = ({
       }),
     );
 
+    if (shouldKeepTaskFocused) return;
+
     if (downKey) {
       useFocusStore.getState().focusByKey(downKey);
     } else if (upKey) {
@@ -518,7 +524,15 @@ export const PreloadedTaskComp = ({
     } else {
       useFocusStore.getState().resetFocus();
     }
-  }, [card, cardWrapper.id, cardWrapper.type, dispatch, focusableItemKey]);
+  }, [
+    card,
+    cardWrapper.id,
+    cardWrapper.type,
+    dispatch,
+    focusableItemKey,
+    isEditing,
+    isFocused,
+  ]);
 
   const handleConvertToTemplate = useCallback(() => {
     if (!isTask(card) || card.templateId) return;
@@ -1063,6 +1077,9 @@ export const PreloadedTaskComp = ({
   //
   // console.log("isHidden", isHidden);
 
+  const hasOpenTaskOverlay =
+    isActionsOpen || isDatePickerOpen || isMoveModalOpen || isRepeatModalOpen;
+
   return (
     <div className="relative">
       {closestEdge == "top" && <DropTaskIndicator direction="top" />}
@@ -1097,6 +1114,10 @@ export const PreloadedTaskComp = ({
           }
 
           event.currentTarget.removeAttribute("data-suppress-focus-visible");
+          if (hasOpenTaskOverlay) return;
+          if (useFocusStore.getState().isFocusDisabled) return;
+
+          useRetainedCardsStore.getState().clearCard(focusableItemKey);
         }}
         onPointerDownCapture={suspendCardDragForInput}
         onPointerUpCapture={restoreCardDrag}

@@ -42,6 +42,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
+import { useRetainedCardsForDisplayList } from "@/store/taskRetentionStore.ts";
 
 const ChevronLeft = () => (
   <svg
@@ -110,6 +111,16 @@ const SingleDayColumn = ({
   const doneCardsForDisplay = useSyncSelector({
     selector: doneDailyProjectionChildrenForDisplay,
     args: { dailyListId: dailyListId },
+  });
+  const renderedCards = useMemo(
+    () => [...cardsForDisplay, ...doneCardsForDisplay],
+    [cardsForDisplay, doneCardsForDisplay],
+  );
+  const focusedKey = useFocusStore((state) => state.focusItemKey);
+  const { displayItems } = useRetainedCardsForDisplayList({
+    listKey: `date-view:${dailyListId}`,
+    renderedItems: renderedCards,
+    focusedKey,
   });
 
   const select = useSelect();
@@ -252,22 +263,7 @@ const SingleDayColumn = ({
         ref={scrollableRef}
         className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
       >
-        {cardsForDisplay.map((displayData) => (
-          <PreloadedTaskComp
-            key={displayData.cardWrapper.id}
-            card={displayData.card}
-            category={displayData.category}
-            cardWrapper={displayData.cardWrapper}
-            project={displayData.project}
-            lastScheduleTime={displayData.lastScheduleTime}
-            hasCheclistItems={displayData.hasChecklist}
-            alwaysShowProject
-            displayLastScheduleTime
-            centerScheduleDate
-          />
-        ))}
-
-        {doneCardsForDisplay.map((displayData) => (
+        {displayItems.map((displayData) => (
           <PreloadedTaskComp
             key={displayData.cardWrapper.id}
             card={displayData.card}

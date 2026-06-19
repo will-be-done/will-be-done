@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
@@ -34,6 +34,7 @@ import {
   useStashOpen,
   useStashSize,
 } from "../DaysBoard/StashStore.ts";
+import { useRetainedCardsStore } from "@/store/taskRetentionStore.ts";
 
 const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
   const taskIds = useSyncSelector({
@@ -45,6 +46,20 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
     selector: doneStashProjectionChildrenIds,
     args: {},
   });
+  const retainedCards = useRetainedCardsStore((state) => state.cardsByFocusKey);
+  const retainedCardIdSet = useMemo(() => {
+    return new Set(
+      Object.values(retainedCards).map((item) => item.displayData.card.id),
+    );
+  }, [retainedCards]);
+  const visibleTaskIds = useMemo(
+    () => taskIds.filter((id) => !retainedCardIdSet.has(id)),
+    [retainedCardIdSet, taskIds],
+  );
+  const visibleDoneTaskIds = useMemo(
+    () => doneTaskIds.filter((id) => !retainedCardIdSet.has(id)),
+    [doneTaskIds, retainedCardIdSet],
+  );
 
   return (
     <TasksColumn
@@ -79,7 +94,7 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
           </span>
           <span>Add task</span>
         </button>
-        {taskIds.map((id) => (
+        {visibleTaskIds.map((id) => (
           <TaskComp
             key={id}
             taskId={id}
@@ -88,7 +103,7 @@ const StashColumnView = ({ onTaskAdd }: { onTaskAdd: () => void }) => {
             alwaysShowProject
           />
         ))}
-        {doneTaskIds.map((id) => (
+        {visibleDoneTaskIds.map((id) => (
           <TaskComp
             key={id}
             taskId={id}

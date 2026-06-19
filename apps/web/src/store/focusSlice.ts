@@ -1,5 +1,6 @@
 import { shouldNeverHappen } from "@/utils.ts";
 import { create } from "zustand";
+import { useRetainedCardsStore } from "./taskRetentionStore";
 
 export type FocusKey = string & { __brand: never };
 
@@ -134,8 +135,12 @@ export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
   enableFocus: () => set({ isFocusDisabled: false }),
 
   focusByKey: (key: FocusKey, skipElFocus = false) => {
-    if (get().focusItemKey === key) return;
+    const previousFocusKey = get().focusItemKey;
+    if (previousFocusKey === key) return;
 
+    if (previousFocusKey) {
+      useRetainedCardsStore.getState().clearCard(previousFocusKey);
+    }
     set({ focusItemKey: key, editItemKey: null });
 
     if (skipElFocus) return;
@@ -169,11 +174,23 @@ export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
   },
 
   editByKey: (key: FocusKey) => {
+    const previousFocusKey = get().focusItemKey;
+    if (previousFocusKey !== key && previousFocusKey) {
+      useRetainedCardsStore.getState().clearCard(previousFocusKey);
+    }
+
     if (get().editItemKey === key) return;
 
     set({ focusItemKey: key, editItemKey: key });
   },
 
-  resetFocus: () => set({ focusItemKey: null, editItemKey: null }),
+  resetFocus: () => {
+    const previousFocusKey = get().focusItemKey;
+    if (previousFocusKey) {
+      useRetainedCardsStore.getState().clearCard(previousFocusKey);
+    }
+
+    set({ focusItemKey: null, editItemKey: null });
+  },
   resetEdit: () => set({ editItemKey: null }),
 }));

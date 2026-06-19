@@ -1,11 +1,7 @@
 import { PreloadedTaskComp } from "../Task/Task.tsx";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { useMemo, useState } from "react";
-import {
-  useDispatch,
-  useSyncSelector,
-  v,
-} from "@will-be-done/hyperdb-lib";
+import { useDispatch, useSyncSelector, v } from "@will-be-done/hyperdb-lib";
 import { selector } from "@/store/builders.ts";
 import {
   createCategory,
@@ -27,6 +23,7 @@ import {
   TasksColumn,
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
+import { useRetainedCardsForDisplayList } from "@/store/taskRetentionStore.ts";
 
 const projectItemsExceptTaskIds = selector({
   name: "projectItemsExceptTaskIds",
@@ -80,9 +77,45 @@ const ProjectTasksColumn = ({
     args: { projectCategoryId: category.id },
   });
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
+  const handleHideClick = () => setIsHiddenClicked((v) => !v);
+
+  const [isShowMore, setIsShowMore] = useState(false);
+
+  const visibleCardsForDisplay = useMemo(() => {
+    return exceptTaskIds
+      ? cardsForDisplay.filter(
+          (displayData) => !exceptTaskIds.has(displayData.card.id),
+        )
+      : [];
+  }, [cardsForDisplay, exceptTaskIds]);
+
+  const finalDoneIds = useMemo(() => {
+    const ids = (() => {
+      if (isShowMore) {
+        return doneCardsForDisplay;
+      }
+      return doneCardsForDisplay.slice(0, 5);
+    })();
+
+    return exceptTaskIds
+      ? ids.filter((displayData) => !exceptTaskIds.has(displayData.card.id))
+      : ids;
+  }, [doneCardsForDisplay, exceptTaskIds, isShowMore]);
+  const renderedCards = useMemo(
+    () => [...visibleCardsForDisplay, ...finalDoneIds],
+    [finalDoneIds, visibleCardsForDisplay],
+  );
+  const focusedKey = useFocusStore((state) => state.focusItemKey);
+  const { displayItems, retainedItems } = useRetainedCardsForDisplayList({
+    listKey: `project-items-list:${category.id}`,
+    renderedItems: renderedCards,
+    focusedKey,
+  });
   const isHidden =
     isHiddenClicked ||
-    (doneCardsForDisplay.length == 0 && cardsForDisplay.length == 0);
+    (retainedItems.length == 0 &&
+      doneCardsForDisplay.length == 0 &&
+      cardsForDisplay.length == 0);
   const handleAddClick = () => {
     if (isHidden) {
       setIsHiddenClicked(false);
@@ -97,22 +130,6 @@ const ProjectTasksColumn = ({
 
     useFocusStore.getState().editByKey(buildFocusKey(task.id, task.type));
   };
-  const handleHideClick = () => setIsHiddenClicked((v) => !v);
-
-  const [isShowMore, setIsShowMore] = useState(false);
-
-  const finalDoneIds = useMemo(() => {
-    const ids = (() => {
-      if (isShowMore) {
-        return doneCardsForDisplay;
-      }
-      return doneCardsForDisplay.slice(0, 5);
-    })();
-
-    return exceptTaskIds
-      ? ids.filter((displayData) => !exceptTaskIds.has(displayData.card.id))
-      : ids;
-  }, [doneCardsForDisplay, exceptTaskIds, isShowMore]);
 
   return (
     <TasksColumn
@@ -248,27 +265,7 @@ const ProjectTasksColumn = ({
       }
     >
       <div className="flex flex-col gap-4 w-full py-4">
-        {(exceptTaskIds
-          ? cardsForDisplay.filter(
-              (displayData) => !exceptTaskIds.has(displayData.card.id),
-            )
-          : []
-        ).map((displayData) => {
-          return (
-            <PreloadedTaskComp
-              key={displayData.cardWrapper.id}
-              card={displayData.card}
-              category={displayData.category}
-              cardWrapper={displayData.cardWrapper}
-              project={displayData.project}
-              lastScheduleTime={displayData.lastScheduleTime}
-              displayedUnderProjectId={project.id}
-              hasCheclistItems={displayData.hasChecklist}
-              displayLastScheduleTime
-            />
-          );
-        })}
-        {finalDoneIds.map((displayData) => {
+        {displayItems.map((displayData) => {
           return (
             <PreloadedTaskComp
               key={displayData.cardWrapper.id}

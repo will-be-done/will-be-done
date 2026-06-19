@@ -31,6 +31,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import invariant from "tiny-invariant";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
+import { useRetainedCardsForDisplayList } from "@/store/taskRetentionStore.ts";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -130,6 +131,16 @@ const CategorySection = ({
     if (isShowMore) return doneCardsForDisplay;
     return doneCardsForDisplay.slice(0, 3);
   }, [doneCardsForDisplay, isShowMore]);
+  const renderedCards = useMemo(
+    () => [...cardsForDisplay, ...visibleDoneIds],
+    [cardsForDisplay, visibleDoneIds],
+  );
+  const focusedKey = useFocusStore((state) => state.focusItemKey);
+  const { displayItems } = useRetainedCardsForDisplayList({
+    listKey: `project-task-panel:${categoryId}`,
+    renderedItems: renderedCards,
+    focusedKey,
+  });
 
   const handleTitleClick = async () => {
     const newTitle = await promptDialog("Section name", category.title);
@@ -241,20 +252,7 @@ const CategorySection = ({
         className="relative"
       >
         <div className="flex flex-col gap-2">
-          {cardsForDisplay.map((displayData) => (
-            <PreloadedTaskComp
-              key={displayData.cardWrapper.id}
-              card={displayData.card}
-              category={displayData.category}
-              cardWrapper={displayData.cardWrapper}
-              project={displayData.project}
-              lastScheduleTime={displayData.lastScheduleTime}
-              displayedUnderProjectId={projectId}
-              hasCheclistItems={displayData.hasChecklist}
-              displayLastScheduleTime
-            />
-          ))}
-          {visibleDoneIds.map((displayData) => (
+          {displayItems.map((displayData) => (
             <PreloadedTaskComp
               key={displayData.cardWrapper.id}
               card={displayData.card}

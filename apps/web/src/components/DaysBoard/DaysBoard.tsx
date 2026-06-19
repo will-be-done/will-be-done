@@ -33,6 +33,7 @@ import { Stash } from "@/components/Stash/Stash.tsx";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { useCardDetailsOpen } from "@/components/CardDetails/CardDetailsStore.ts";
+import { useRetainedCardsForDisplayList } from "@/store/taskRetentionStore.ts";
 
 const ColumnView = ({
   dailyListId,
@@ -59,6 +60,16 @@ const ColumnView = ({
     selector: doneDailyProjectionChildrenForDisplay,
     args: { dailyListId: dailyListId },
   });
+  const renderedCards = useMemo(
+    () => [...cardsForDisplay, ...doneCardsForDisplay],
+    [cardsForDisplay, doneCardsForDisplay],
+  );
+  const focusedKey = useFocusStore((state) => state.focusItemKey);
+  const { displayItems, retainedItems } = useRetainedCardsForDisplayList({
+    listKey: `days-board:${dailyListId}`,
+    renderedItems: renderedCards,
+    focusedKey,
+  });
 
   // const [isHiddenClicked, setIsHiddenClicked] = useState(false);
 
@@ -69,7 +80,9 @@ const ColumnView = ({
   const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
   const isHidden =
     isManuallyHidden ||
-    (cardsForDisplay.length == 0 && doneCardsForDisplay.length == 0);
+    (retainedItems.length == 0 &&
+      cardsForDisplay.length == 0 &&
+      doneCardsForDisplay.length == 0);
   const handleHideClick = () => toggleIsHidden(dailyListId);
 
   const handleAddClick = () => {
@@ -113,22 +126,7 @@ const ColumnView = ({
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
-        {cardsForDisplay.map((displayData) => {
-          return (
-            <PreloadedTaskComp
-              key={displayData.cardWrapper.id}
-              card={displayData.card}
-              category={displayData.category}
-              cardWrapper={displayData.cardWrapper}
-              project={displayData.project}
-              lastScheduleTime={displayData.lastScheduleTime}
-              hasCheclistItems={displayData.hasChecklist}
-              alwaysShowProject
-            />
-          );
-        })}
-
-        {doneCardsForDisplay.map((displayData) => {
+        {displayItems.map((displayData) => {
           return (
             <PreloadedTaskComp
               key={displayData.cardWrapper.id}
