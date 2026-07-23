@@ -20,12 +20,12 @@ export function generateTestBackup(
   // Pre-generate enough ordering keys
   const totalProjects = projects + 1; // +1 for inbox
   const totalSections = totalProjects * sections;
-  const tasksPerCat = doneTasks + todoTasks;
-  const maxKeys = Math.max(totalProjects, totalSections, tasksPerCat, 1);
+  const tasksPerSection = doneTasks + todoTasks;
+  const maxKeys = Math.max(totalProjects, totalSections, tasksPerSection, 1);
   const K = generateNKeysBetween(null, null, maxKeys);
 
   const backupProjects: Backup["projects"] = [];
-  const backupSections: Backup["taskSections"] = [];
+  const backupSections: Backup["projectSections"] = [];
   const backupTasks: Backup["tasks"] = [];
 
   // Inbox project
@@ -43,7 +43,9 @@ export function generateTestBackup(
   const sectionKeys =
     sections > 0 ? generateNKeysBetween(null, null, sections) : [];
   const taskKeys =
-    tasksPerCat > 0 ? generateNKeysBetween(null, null, tasksPerCat) : [];
+    tasksPerSection > 0
+      ? generateNKeysBetween(null, null, tasksPerSection)
+      : [];
 
   // Add inbox sections + tasks
   for (let c = 0; c < sections; c++) {
@@ -90,7 +92,7 @@ export function generateTestBackup(
         id: `tk-test-${prefix}-done-${d}`,
         title: `Done task ${d + 1}`,
         state: "done",
-        taskSectionId: sectionId,
+        projectSectionId: sectionId,
         orderToken: taskKeys[idx],
         lastToggledAt: now - 50_000 + d,
         createdAt: now - 600_000 + idx,
@@ -104,7 +106,7 @@ export function generateTestBackup(
         id: `tk-test-${prefix}-todo-${t}`,
         title: `Todo task ${t + 1}`,
         state: "todo",
-        taskSectionId: sectionId,
+        projectSectionId: sectionId,
         orderToken: taskKeys[idx],
         lastToggledAt: 0,
         createdAt: now - 600_000 + idx,
@@ -117,7 +119,7 @@ export function generateTestBackup(
 
   return {
     projects: backupProjects,
-    taskSections: backupSections,
+    projectSections: backupSections,
     tasks: backupTasks,
     taskTemplates: [],
     dailyLists: [],

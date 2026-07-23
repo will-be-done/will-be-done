@@ -18,9 +18,9 @@ import {
 import { createProjectionInDailyList } from "./dailyListsProjections";
 import {
   createTaskCardAfter,
-  taskSectionCardSiblings,
-} from "./taskSectionCards";
-import { firstTaskSectionChild } from "./taskSections";
+  projectSectionCardSiblings,
+} from "./projectSectionCards";
+import { firstProjectSectionChild } from "./projectSections";
 import {
   deleteTasks,
   taskById,
@@ -52,7 +52,7 @@ export const defaultTaskTemplate: TaskTemplate = {
   repeatRuleDtStart: 0,
   createdAt: 0,
   lastGeneratedAt: 0,
-  taskSectionId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
+  projectSectionId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
 };
 
 // Template utility functions
@@ -83,7 +83,7 @@ const templateToTask = selector({
       title: tmpl.title,
       content: "",
       state: "todo",
-      taskSectionId: tmpl.taskSectionId,
+      projectSectionId: tmpl.projectSectionId,
       orderToken: tmpl.orderToken,
       lastToggledAt: epoch,
       nature: tmpl.nature,
@@ -235,7 +235,7 @@ export const allTaskTemplates = selector({
   handler: function* allTaskTemplates() {
     const templates = yield* selectFrom(
       taskTemplatesTable,
-      "byTaskSectionIdOrderStates",
+      "byProjectSectionIdOrderStates",
     );
     return templates;
   },
@@ -426,7 +426,7 @@ export const createTaskTemplate = action({
     now: v.number(),
     template: v.required(v.partial(taskTemplatesTable.v()), [
       "orderToken",
-      "taskSectionId",
+      "projectSectionId",
     ]),
   },
   handler: function* createTaskTemplate({ now, template }) {
@@ -513,7 +513,7 @@ export const createTaskTemplateFromTask = action({
       repeatRule: defaultRule,
       repeatRuleDtStart: now,
       lastGeneratedAt: now,
-      taskSectionId: task.taskSectionId,
+      projectSectionId: task.projectSectionId,
       ...data,
     };
 
@@ -557,7 +557,7 @@ export const taskTemplateHandleDrop = action({
 
     const orderToken = generateKeyPositionedBetween(
       template,
-      yield* taskSectionCardSiblings({ cardId: taskTemplateId }),
+      yield* projectSectionCardSiblings({ cardId: taskTemplateId }),
       edge === "top" ? "before" : "after",
     );
 
@@ -565,7 +565,7 @@ export const taskTemplateHandleDrop = action({
       yield* updateTask({
         id: dropItem.id,
         task: {
-          taskSectionId: template.taskSectionId,
+          projectSectionId: template.projectSectionId,
           orderToken,
         },
       });
@@ -573,7 +573,7 @@ export const taskTemplateHandleDrop = action({
       yield* updateTemplate({
         id: dropItem.id,
         template: {
-          taskSectionId: template.taskSectionId,
+          projectSectionId: template.projectSectionId,
           orderToken,
         },
       });
@@ -583,7 +583,7 @@ export const taskTemplateHandleDrop = action({
         yield* updateTask({
           id: droppedTask.id,
           task: {
-            taskSectionId: template.taskSectionId,
+            projectSectionId: template.projectSectionId,
             orderToken,
           },
         });
@@ -678,13 +678,13 @@ export const moveTemplateToProject = action({
     const template = yield* taskTemplateById({ id: templateId });
     if (!template) throw new Error("Template not found");
 
-    const firstSection = yield* firstTaskSectionChild({ projectId });
+    const firstSection = yield* firstProjectSectionChild({ projectId });
     if (!firstSection) throw new Error("No sections found");
 
     yield* updateTemplate({
       id: templateId,
       template: {
-        taskSectionId: firstSection.id,
+        projectSectionId: firstSection.id,
       },
     });
   },

@@ -22,27 +22,27 @@ import {
 } from "./projects";
 import {
   installProjectTaskStatsHooks,
-  migrateTaskSectionTaskStats,
+  migrateProjectSectionTaskStats,
   migrateScheduledTodoTasks,
   projectTasksCount,
   projectsWithTaskStats,
-  rebuildTaskSectionTaskStats,
+  rebuildProjectSectionTaskStats,
   rebuildScheduledTodoTasks,
 } from "./taskStats";
 import {
-  createTaskSection,
+  createProjectSection,
   createTaskInSection,
-  taskSectionsByProjectId,
-} from "./taskSections";
-import { taskSectionCardIds } from "./taskSectionCards";
+  projectSectionsByProjectId,
+} from "./projectSections";
+import { projectSectionCardIds } from "./projectSectionCards";
 import { taskById, updateTask } from "./cardsTasks";
 import {
   DailyList,
   dailyListsTable,
   Project,
-  taskSectionsTable,
-  taskSectionTaskStatsTable,
-  TaskSection,
+  projectSectionsTable,
+  projectSectionTaskStatsTable,
+  ProjectSection,
   projectsTable,
   scheduledTodoTasksTable,
   spaceMigrationsTable,
@@ -77,8 +77,8 @@ function createDB() {
   execSync(
     db.loadTables([
       dailyListsTable,
-      taskSectionsTable,
-      taskSectionTaskStatsTable,
+      projectSectionsTable,
+      projectSectionTaskStatsTable,
       projectsTable,
       scheduledTodoTasksTable,
       spaceMigrationsTable,
@@ -114,10 +114,10 @@ function createProject(
     }),
   ) as Project;
 
-  const section = runSelector<TaskSection>(
+  const section = runSelector<ProjectSection>(
     db,
     function* () {
-      return (yield* taskSectionsByProjectId({
+      return (yield* projectSectionsByProjectId({
         projectId: project.id,
       }))[0];
     },
@@ -129,13 +129,13 @@ function createProject(
 
 function createTask(
   db: DB | SubscribableDB,
-  taskSectionId: string,
+  projectSectionId: string,
   id: string,
 ) {
   return syncDispatch(
     db,
     createTaskInSection({
-      taskSectionId,
+      projectSectionId,
       position: "append",
       taskAttrs: { id },
     }),
@@ -181,7 +181,7 @@ describe("project task stats cache", () => {
       updateTask({ id: completedTask.id, task: { state: "done" } }),
     );
 
-    syncDispatch(db, rebuildTaskSectionTaskStats({}));
+    syncDispatch(db, rebuildProjectSectionTaskStats({}));
 
     const count = runSelector<number>(
       db,
@@ -208,7 +208,7 @@ describe("project task stats cache", () => {
       updateTask({ id: completedTask.id, task: { state: "done" } }),
     );
 
-    syncDispatch(db, migrateTaskSectionTaskStats({}));
+    syncDispatch(db, migrateProjectSectionTaskStats({}));
 
     const migratedCount = runSelector<number>(
       db,
@@ -220,7 +220,7 @@ describe("project task stats cache", () => {
     expect(migratedCount).toBe(1);
 
     createTask(db, section.id, "post-migration-task-without-hook");
-    syncDispatch(db, migrateTaskSectionTaskStats({}));
+    syncDispatch(db, migrateProjectSectionTaskStats({}));
 
     const countAfterSecondMigration = runSelector<number>(
       db,
@@ -492,8 +492,8 @@ describe("moving stashed tasks through app drops", () => {
     const taskIds = runSelector<string[]>(
       db,
       function* () {
-        return yield* taskSectionCardIds({
-          taskSectionId: section.id,
+        return yield* projectSectionCardIds({
+          projectSectionId: section.id,
         });
       },
       [],
@@ -519,14 +519,14 @@ describe("moving stashed tasks through app drops", () => {
     const { project, section } = createProject(db);
     const targetSection = syncDispatch(
       db,
-      createTaskSection({
+      createProjectSection({
         sectionDraft: {
           projectId: project.id,
           title: "Target",
         },
         position: "append",
       }),
-    ) as TaskSection;
+    ) as ProjectSection;
     const stashedTask = createTask(db, section.id, "stashed-drop-task");
 
     syncDispatch(
@@ -577,7 +577,7 @@ describe("moving stashed tasks through app drops", () => {
       [],
     );
 
-    expect(movedTask?.taskSectionId).toBe(targetSection.id);
+    expect(movedTask?.projectSectionId).toBe(targetSection.id);
     expect(stashProjection).toBeUndefined();
   });
 
@@ -648,14 +648,14 @@ describe("moving stashed tasks through app drops", () => {
     const targetTaskIds = runSelector<string[]>(
       db,
       function* () {
-        return yield* taskSectionCardIds({
-          taskSectionId: targetSection.id,
+        return yield* projectSectionCardIds({
+          projectSectionId: targetSection.id,
         });
       },
       [],
     );
 
-    expect(movedTask?.taskSectionId).toBe(targetSection.id);
+    expect(movedTask?.projectSectionId).toBe(targetSection.id);
     expect(targetTaskIds).toEqual([targetTask.id, stashedTask.id]);
     expect(stashProjection).toBeUndefined();
   });

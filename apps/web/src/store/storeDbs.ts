@@ -5,10 +5,10 @@ import { getDevtoolsEnabled } from "@/lib/devtools";
 import { openPersistentDriver } from "./persistentDriver";
 import type { SyncConfig } from "./syncTypes";
 import {
-  isTaskSectionStorageMigrationApplied,
-  migrateLegacyTaskSections,
+  isProjectSectionStorageMigrationApplied,
+  migrateLegacyProjectSections,
   spaceMigrationsTable,
-  taskSectionStorageMigrationTables,
+  projectSectionStorageMigrationTables,
 } from "@will-be-done/slices/space";
 import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 
@@ -65,15 +65,15 @@ export const createStoreDbs = async (
       const migrationDB = createPersistentDB("migration");
       await execAsync(migrationDB.loadTables([spaceMigrationsTable]));
       const migrationApplied = await selectAsync(migrationDB, {
-        selector: isTaskSectionStorageMigrationApplied,
+        selector: isProjectSectionStorageMigrationApplied,
         args: {},
       });
 
       if (!migrationApplied) {
         await execAsync(
-          migrationDB.loadTables(taskSectionStorageMigrationTables),
+          migrationDB.loadTables(projectSectionStorageMigrationTables),
         );
-        await asyncDispatch(migrationDB, migrateLegacyTaskSections({}));
+        await asyncDispatch(migrationDB, migrateLegacyProjectSections({}));
       }
     }
 

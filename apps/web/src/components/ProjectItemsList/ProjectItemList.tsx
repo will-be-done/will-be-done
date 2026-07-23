@@ -5,18 +5,18 @@ import { addDays, startOfDay } from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
-  createTaskSection,
+  createProjectSection,
   createTaskInSection,
-  deleteTaskSections,
-  doneTaskSectionCardsForDisplay,
+  deleteProjectSections,
+  doneProjectSectionCardsForDisplay,
   moveLeft,
   moveRight,
   type Project,
-  taskSectionsByProjectId,
-  type TaskSection,
-  taskSectionCardsForDisplayChildren,
-  taskSectionSiblings,
-  updateTaskSection,
+  projectSectionsByProjectId,
+  type ProjectSection,
+  projectSectionCardsForDisplayChildren,
+  projectSectionSiblings,
+  updateProjectSection,
 } from "@will-be-done/slices/space";
 import {
   TasksColumn,
@@ -39,7 +39,7 @@ const ProjectTasksColumn = ({
   weekDayTimes,
 }: {
   project: Project;
-  section: TaskSection;
+  section: ProjectSection;
   weekDayTimes?: Set<number>;
 }) => {
   const dispatch = useAsyncDispatch();
@@ -49,16 +49,16 @@ const ProjectTasksColumn = ({
     !!weekDayTimes?.has(startOfDay(lastScheduleTime).getTime());
 
   const { data: cardsForDisplay = [] } = useAsyncSelector({
-    selector: taskSectionCardsForDisplayChildren,
-    args: { taskSectionId: section.id },
+    selector: projectSectionCardsForDisplayChildren,
+    args: { projectSectionId: section.id },
   });
   const [isHiddenClicked, setIsHiddenClicked] = useState(false);
   const handleHideClick = () => setIsHiddenClicked((v) => !v);
 
   const [isShowMore, setIsShowMore] = useState(false);
   const { data: doneCardsForDisplay = [] } = useAsyncSelector({
-    selector: doneTaskSectionCardsForDisplay,
-    args: { taskSectionId: section.id, limited: !isShowMore },
+    selector: doneProjectSectionCardsForDisplay,
+    args: { projectSectionId: section.id, limited: !isShowMore },
   });
 
   const isHidden =
@@ -72,7 +72,7 @@ const ProjectTasksColumn = ({
     void (async () => {
       const task = await dispatch(
         createTaskInSection({
-          taskSectionId: section.id,
+          projectSectionId: section.id,
           position: "prepend",
         }),
       );
@@ -114,11 +114,11 @@ const ProjectTasksColumn = ({
                 if (!title) return;
 
                 const [left, _right] = await dispatch(
-                  taskSectionSiblings({ taskSectionId: section.id }),
+                  projectSectionSiblings({ projectSectionId: section.id }),
                 );
 
                 await dispatch(
-                  createTaskSection({
+                  createProjectSection({
                     sectionDraft: {
                       projectId: section.projectId,
                       title,
@@ -141,11 +141,11 @@ const ProjectTasksColumn = ({
                 if (!title) return;
 
                 const [_left, right] = await dispatch(
-                  taskSectionSiblings({ taskSectionId: section.id }),
+                  projectSectionSiblings({ projectSectionId: section.id }),
                 );
 
                 await dispatch(
-                  createTaskSection({
+                  createProjectSection({
                     sectionDraft: {
                       projectId: section.projectId,
                       title,
@@ -163,7 +163,7 @@ const ProjectTasksColumn = ({
             type="button"
             title="Move column to the left"
             onClick={() => {
-              void dispatch(moveLeft({ taskSectionId: section.id }));
+              void dispatch(moveLeft({ projectSectionId: section.id }));
             }}
           >
             <MoveLeftIcon className="rotate-180" />
@@ -173,7 +173,7 @@ const ProjectTasksColumn = ({
             type="button"
             title="Move column to the right"
             onClick={() => {
-              void dispatch(moveRight({ taskSectionId: section.id }));
+              void dispatch(moveRight({ projectSectionId: section.id }));
             }}
           >
             <MoveRightIcon className="rotate-180" />
@@ -188,7 +188,7 @@ const ProjectTasksColumn = ({
               );
               if (!confirmed) return;
 
-              void dispatch(deleteTaskSections({ ids: [section.id] }));
+              void dispatch(deleteProjectSections({ ids: [section.id] }));
             }}
           >
             <TrashIcon className="rotate-180" />
@@ -206,8 +206,8 @@ const ProjectTasksColumn = ({
                 if (!newTitle) return;
 
                 await dispatch(
-                  updateTaskSection({
-                    taskSectionId: section.id,
+                  updateProjectSection({
+                    projectSectionId: section.id,
                     section: {
                       title: newTitle,
                     },
@@ -276,7 +276,7 @@ export const ProjectItemsList = ({
   selectedDate?: Date;
 }) => {
   const { data: sections = [] } = useAsyncSelector({
-    selector: taskSectionsByProjectId,
+    selector: projectSectionsByProjectId,
     args: { projectId: project.id },
   });
 

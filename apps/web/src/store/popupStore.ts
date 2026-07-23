@@ -14,13 +14,13 @@ import { dbIdTrait } from "@will-be-done/slices/traits";
 import {
   createInboxIfNotExists,
   createTaskInSection,
-  firstTaskSectionChild,
+  firstProjectSectionChild,
   registeredSpaceSyncableTables,
   tasksTable,
-  isTaskSectionStorageMigrationApplied,
-  migrateLegacyTaskSections,
+  isProjectSectionStorageMigrationApplied,
+  migrateLegacyProjectSections,
   spaceMigrationsTable,
-  taskSectionStorageMigrationTables,
+  projectSectionStorageMigrationTables,
 } from "@will-be-done/slices/space";
 import { BroadcastChannel } from "broadcast-channel";
 import { authUtils } from "@/lib/auth";
@@ -52,12 +52,12 @@ export async function initPopupStore(spaceId: string) {
 
     await execAsync(db.loadTables([spaceMigrationsTable]));
     const migrationApplied = await selectAsync(db, {
-      selector: isTaskSectionStorageMigrationApplied,
+      selector: isProjectSectionStorageMigrationApplied,
       args: {},
     });
     if (!migrationApplied) {
-      await execAsync(db.loadTables(taskSectionStorageMigrationTables));
-      await asyncDispatch(db, migrateLegacyTaskSections({}));
+      await execAsync(db.loadTables(projectSectionStorageMigrationTables));
+      await asyncDispatch(db, migrateLegacyProjectSections({}));
     }
     await execAsync(db.loadTables(persistDBTables));
     return db;
@@ -75,7 +75,7 @@ export async function initPopupStore(spaceId: string) {
           const inbox = yield* createInboxIfNotExists({});
 
           // Get first section of inbox
-          const inboxSection = yield* firstTaskSectionChild({
+          const inboxSection = yield* firstProjectSectionChild({
             projectId: inbox.id,
           });
           if (!inboxSection) {
@@ -84,7 +84,7 @@ export async function initPopupStore(spaceId: string) {
 
           // Create task at the top (prepend)
           const task = yield* createTaskInSection({
-            taskSectionId: inboxSection.id,
+            projectSectionId: inboxSection.id,
             position: "prepend",
             taskAttrs: { title },
           });

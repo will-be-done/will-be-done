@@ -128,7 +128,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: lastGeneratedAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     // --- Run in UTC+3 (getTimezoneOffset returns -180) ---
@@ -171,7 +171,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: lastGeneratedAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     // Device A (UTC+3)
@@ -213,7 +213,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: lastGeneratedAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     // Device A (UTC+3)
@@ -260,7 +260,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: oneYearAgo,
       createdAt: oneYearAgo,
       lastGeneratedAt: oneYearAgo, // hasn't run in a year
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     const db = createDB(0); // UTC
@@ -297,7 +297,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: lastGeneratedAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     const db = createDB(0); // UTC
@@ -332,7 +332,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: createdAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     // User in UTC+3: it's March 2 00:05 local = March 1 21:05 UTC
@@ -372,7 +372,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: createdAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     // User in UTC+3: it's March 1 23:55 local = March 1 20:55 UTC
@@ -405,7 +405,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: createdAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     // UTC+3 client asking for 23:00 Mar 1 -> 01:00 Mar 2 local time.
@@ -441,7 +441,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       repeatRuleDtStart: createdAtEpoch,
       createdAt: createdAtEpoch,
       lastGeneratedAt: lastGeneratedAtEpoch,
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
     };
 
     // --- UTC+3 ---
@@ -473,7 +473,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
       title: "Converted daily task",
       content: "Task body",
       state: "todo",
-      taskSectionId: "section-1",
+      projectSectionId: "section-1",
       orderToken: "a0",
       lastToggledAt: now,
       nature: "green",
@@ -521,7 +521,7 @@ describe("cardsTaskTemplates timezone consistency", () => {
     expect(tasks[0].id).not.toBe(task.id);
     expect(tasks[0].templateId).toBe(template.id);
     expect(tasks[0].title).toBe(task.title);
-    expect(tasks[0].taskSectionId).toBe(task.taskSectionId);
+    expect(tasks[0].projectSectionId).toBe(task.projectSectionId);
     expect(tasks[0].templateDate).toBe(
       new Date("2026-03-04T00:00:00Z").getTime(),
     );

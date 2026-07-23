@@ -24,7 +24,7 @@ type VerticalEdge = Extract<Edge, "top" | "bottom">;
  *
  * data-column-model-id / data-column-model-type
  *   Set on data-focus-column elements. Identifies the backing model (e.g. a
- *   dailyList or taskSection) so tasks can be moved between columns.
+ *   dailyList or projectSection) so tasks can be moved between columns.
  *
  * data-focus-region-direction="row" | "column"
  *   Wraps a group of data-focus-column elements and controls how navigation

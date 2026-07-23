@@ -2,17 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
-  createTaskSection,
+  createProjectSection,
   createTaskInSection,
-  deleteTaskSections,
-  doneTaskSectionCardsForDisplay,
+  deleteProjectSections,
+  doneProjectSectionCardsForDisplay,
   moveLeft,
   moveRight,
   projectByIdOrDefault,
-  taskSectionsByProjectId,
-  taskSectionByIdOrDefault,
-  taskSectionCardsForDisplayChildren,
-  updateTaskSection,
+  projectSectionsByProjectId,
+  projectSectionByIdOrDefault,
+  projectSectionCardsForDisplayChildren,
+  updateProjectSection,
 } from "@will-be-done/slices/space";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
 import {
@@ -64,10 +64,10 @@ const TrashIcon = () => (
 );
 
 const SectionSection = ({
-  taskSectionId,
+  projectSectionId,
   projectId,
 }: {
-  taskSectionId: string;
+  projectSectionId: string;
   projectId: string;
 }) => {
   const dispatch = useAsyncDispatch();
@@ -76,19 +76,19 @@ const SectionSection = ({
   const [isPlaceholderFocused, setIsPlaceholderFocused] = useState(false);
 
   const { data: section } = useAsyncSelector({
-    selector: taskSectionByIdOrDefault,
-    args: { id: taskSectionId },
+    selector: projectSectionByIdOrDefault,
+    args: { id: projectSectionId },
   });
 
   const { data: cardsForDisplay = [] } = useAsyncSelector({
-    selector: taskSectionCardsForDisplayChildren,
-    args: { taskSectionId: section?.id ?? taskSectionId },
+    selector: projectSectionCardsForDisplayChildren,
+    args: { projectSectionId: section?.id ?? projectSectionId },
   });
 
   const [isShowMore, setIsShowMore] = useState(false);
   const { data: doneCardsForDisplay = [] } = useAsyncSelector({
-    selector: doneTaskSectionCardsForDisplay,
-    args: { taskSectionId: taskSectionId, limited: !isShowMore },
+    selector: doneProjectSectionCardsForDisplay,
+    args: { projectSectionId: projectSectionId, limited: !isShowMore },
   });
 
   useEffect(() => {
@@ -97,7 +97,7 @@ const SectionSection = ({
     return dropTargetForElements({
       element: columnRef.current,
       getData: (): DndModelData => ({
-        modelId: taskSectionId,
+        modelId: projectSectionId,
         modelType: section.type,
       }),
       canDrop: ({ source }) => {
@@ -111,7 +111,7 @@ const SectionSection = ({
       onDragStart: () => setIsDndOver(true),
       onDrop: () => setIsDndOver(false),
     });
-  }, [section, taskSectionId]);
+  }, [section, projectSectionId]);
 
   const visibleDoneIds = useMemo(() => {
     if (isShowMore) return doneCardsForDisplay;
@@ -123,7 +123,7 @@ const SectionSection = ({
     const newTitle = await promptDialog("Section name", section.title);
     if (newTitle == null || newTitle === "") return;
     await dispatch(
-      updateTaskSection({ taskSectionId, section: { title: newTitle } }),
+      updateProjectSection({ projectSectionId, section: { title: newTitle } }),
     );
   };
 
@@ -132,7 +132,7 @@ const SectionSection = ({
 
     void (async () => {
       const task = await dispatch(
-        createTaskInSection({ taskSectionId, position: "prepend" }),
+        createTaskInSection({ projectSectionId, position: "prepend" }),
       );
       const focusKey = buildFocusKey(task.id, "task");
       useFocusStore.getState().editByKey(focusKey);
@@ -148,7 +148,7 @@ const SectionSection = ({
   const handleDelete = () => {
     if (!section) return;
     if (confirm(`Delete section "${section.title}"?`)) {
-      void dispatch(deleteTaskSections({ ids: [taskSectionId] }));
+      void dispatch(deleteProjectSections({ ids: [projectSectionId] }));
     }
   };
 
@@ -177,7 +177,7 @@ const SectionSection = ({
           <button
             type="button"
             onClick={() =>
-              void dispatch(moveLeft({ taskSectionId: taskSectionId }))
+              void dispatch(moveLeft({ projectSectionId: projectSectionId }))
             }
             className="w-5 h-5 flex items-center justify-center text-content-tinted hover:text-primary transition-colors cursor-pointer rounded"
             title="Move up"
@@ -187,7 +187,7 @@ const SectionSection = ({
           <button
             type="button"
             onClick={() =>
-              void dispatch(moveRight({ taskSectionId: taskSectionId }))
+              void dispatch(moveRight({ projectSectionId: projectSectionId }))
             }
             className="w-5 h-5 flex items-center justify-center text-content-tinted hover:text-primary transition-colors cursor-pointer rounded"
             title="Move down"
@@ -227,7 +227,7 @@ const SectionSection = ({
       <div
         ref={columnRef}
         data-focus-column
-        data-column-model-id={taskSectionId}
+        data-column-model-id={projectSectionId}
         data-column-model-type={section.type}
         className="relative"
       >
@@ -271,7 +271,7 @@ const SectionSection = ({
         <div
           data-focus-placeholder
           data-focusable-key={buildFocusKey(
-            taskSectionId,
+            projectSectionId,
             section.type,
             "Column",
           )}
@@ -326,7 +326,7 @@ export const ProjectTaskPanel = ({
   });
 
   const { data: sections = [] } = useAsyncSelector({
-    selector: taskSectionsByProjectId,
+    selector: projectSectionsByProjectId,
     args: { projectId: projectId },
   });
 
@@ -334,7 +334,7 @@ export const ProjectTaskPanel = ({
     const title = await promptDialog("Section name");
     if (!title) return;
     await dispatch(
-      createTaskSection({
+      createProjectSection({
         sectionDraft: { projectId, title },
         position: "append",
       }),
@@ -347,7 +347,7 @@ export const ProjectTaskPanel = ({
         {sections.map((section) => (
           <SectionSection
             key={section.id}
-            taskSectionId={section.id}
+            projectSectionId={section.id}
             projectId={projectId}
           />
         ))}
@@ -373,7 +373,7 @@ export const ProjectTaskPanel = ({
         {sections.map((section) => (
           <SectionSection
             key={section.id}
-            taskSectionId={section.id}
+            projectSectionId={section.id}
             projectId={projectId}
           />
         ))}

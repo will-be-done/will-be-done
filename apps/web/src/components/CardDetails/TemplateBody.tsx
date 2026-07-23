@@ -7,8 +7,8 @@ import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   createTaskFromTemplate,
   moveTemplateToProject,
-  taskSectionsByProjectId,
-  projectOfTaskSectionOrDefault,
+  projectSectionsByProjectId,
+  projectOfProjectSectionOrDefault,
   type TaskTemplate,
   taskTemplateRuleText,
   updateTemplate,
@@ -47,11 +47,11 @@ export function TemplateBody({
   const openProject = useOpenProject();
 
   const { data: project } = useAsyncSelector({
-    selector: projectOfTaskSectionOrDefault,
-    args: { taskSectionId: template.taskSectionId },
+    selector: projectOfProjectSectionOrDefault,
+    args: { projectSectionId: template.projectSectionId },
   });
-  const { data: taskSections = [] } = useAsyncSelector({
-    selector: taskSectionsByProjectId,
+  const { data: projectSections = [] } = useAsyncSelector({
+    selector: projectSectionsByProjectId,
     args: { projectId: project?.id ?? "" },
     enabled: !!project,
     defaultValue: [],
@@ -159,14 +159,14 @@ export function TemplateBody({
         />
 
         <SectionDetailRow
-          taskSectionId={template.taskSectionId}
-          taskSections={taskSections}
-          onChange={(taskSectionId) =>
+          projectSectionId={template.projectSectionId}
+          projectSections={projectSections}
+          onChange={(projectSectionId) =>
             void dispatch(
               updateTemplate({
                 id: templateId,
                 template: {
-                  taskSectionId: taskSectionId,
+                  projectSectionId: projectSectionId,
                 },
               }),
             )

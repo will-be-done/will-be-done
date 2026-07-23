@@ -185,7 +185,7 @@ export function generateDemoBackup(): Backup {
 
   // ── Sections ──────────────────────────────────────────────────────────────
   // orderToken only needs to be unique within a project; reuse K[0]/K[1]/K[2].
-  const taskSections = [
+  const projectSections = [
     {
       id: "c-inbox",
       title: "Miscellaneous",
@@ -1175,7 +1175,7 @@ export function generateDemoBackup(): Backup {
     id: tk.id,
     title: tk.title,
     state: tk.done ? ("done" as const) : ("todo" as const),
-    taskSectionId: tk.sectionId,
+    projectSectionId: tk.sectionId,
     orderToken: K[i % K.length],
     lastToggledAt: tk.done ? t(500_000 - i * 10_000) : 0,
     createdAt: t(5_000_000 - i * 50_000),
@@ -1298,7 +1298,7 @@ export function generateDemoBackup(): Backup {
 
   return {
     projects,
-    taskSections,
+    projectSections,
     tasks: backupTasks,
     taskTemplates: [],
     dailyLists,

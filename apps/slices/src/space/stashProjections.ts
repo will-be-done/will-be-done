@@ -14,9 +14,9 @@ import { appById } from "./app";
 import { createProjectTask } from "./projects";
 import {
   createSiblingTask,
-  taskSectionCardsForDisplay,
+  projectSectionCardsForDisplay,
   type CardForDisplay,
-} from "./taskSectionCards";
+} from "./projectSectionCards";
 import { deleteDailyProjections } from "./dailyListsProjections";
 import { taskById, taskByIdOrDefault } from "./cardsTasks";
 import { orderPositionArg } from "./utils";
@@ -160,7 +160,7 @@ export const stashProjectionChildrenForDisplay = selector({
       }
     }
 
-    return yield* taskSectionCardsForDisplay({ cards, cardWrappers });
+    return yield* projectSectionCardsForDisplay({ cards, cardWrappers });
   },
 });
 
@@ -221,7 +221,7 @@ export const doneStashProjectionChildrenForDisplay = selector({
       (a, b) => b.card.lastToggledAt - a.card.lastToggledAt,
     );
 
-    return yield* taskSectionCardsForDisplay({
+    return yield* projectSectionCardsForDisplay({
       cards: cardsWithProjections.map(({ card }) => card),
       cardWrappers: cardsWithProjections.map(({ cardWrapper }) => cardWrapper),
     });

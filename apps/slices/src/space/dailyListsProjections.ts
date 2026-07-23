@@ -20,9 +20,9 @@ import { appById } from "./app";
 import { dailyListById, createDailyListIfNotPresent } from "./dailyLists";
 import {
   createSiblingTask,
-  taskSectionCardsForDisplay,
+  projectSectionCardsForDisplay,
   type CardForDisplay,
-} from "./taskSectionCards";
+} from "./projectSectionCards";
 import { deleteStashProjections } from "./stashProjections";
 import { taskById } from "./cardsTasks";
 import { parse } from "date-fns";
@@ -160,7 +160,7 @@ export const dailyProjectionChildrenForDisplay = selector({
       }
     }
 
-    return yield* taskSectionCardsForDisplay({ cards, cardWrappers });
+    return yield* projectSectionCardsForDisplay({ cards, cardWrappers });
   },
 });
 
@@ -230,7 +230,7 @@ export const doneDailyProjectionChildrenForDisplay = selector({
       (a, b) => b.card.lastToggledAt - a.card.lastToggledAt,
     );
 
-    return yield* taskSectionCardsForDisplay({
+    return yield* projectSectionCardsForDisplay({
       cards: cardsWithProjections.map(({ card }) => card),
       cardWrappers: cardsWithProjections.map(({ cardWrapper }) => cardWrapper),
     });

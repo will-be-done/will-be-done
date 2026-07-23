@@ -27,8 +27,8 @@ import {
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import fs from "fs";
 import {
-  migrateLegacyTaskSections,
-  taskSectionStorageMigrationTables,
+  migrateLegacyProjectSections,
+  projectSectionStorageMigrationTables,
 } from "@will-be-done/slices/space";
 
 export interface DBConfig {
@@ -97,8 +97,8 @@ const getDB = (dbType: string, dbId: string) => {
 
   const db = new DB(sqliteDriver, { traits: [dbIdTrait(dbType, dbId)] });
   if (dbType === "space") {
-    execSync(db.loadTables(taskSectionStorageMigrationTables));
-    syncDispatch(db, migrateLegacyTaskSections({}));
+    execSync(db.loadTables(projectSectionStorageMigrationTables));
+    syncDispatch(db, migrateLegacyProjectSections({}));
   }
 
   return db;

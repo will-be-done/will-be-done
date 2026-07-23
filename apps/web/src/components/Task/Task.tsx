@@ -56,12 +56,12 @@ import {
   moveTaskToProject,
   moveTemplateToProject,
   Project,
-  TaskSection,
-  taskSectionByIdOrDefault,
-  taskSectionCardByIdOrDefault,
-  taskSectionType,
+  ProjectSection,
+  projectSectionByIdOrDefault,
+  projectSectionCardByIdOrDefault,
+  projectSectionType,
   projectionType,
-  projectOfTaskSectionOrDefault,
+  projectOfProjectSectionOrDefault,
   removeFromDailyList,
   STASH_ID,
   stashProjectionType,
@@ -125,7 +125,7 @@ const getFocusKeyForColumnMoveTarget = (
   }
 
   if (
-    targetColumnModelType === taskSectionType &&
+    targetColumnModelType === projectSectionType &&
     (sourceModelType === projectionType ||
       sourceModelType === stashProjectionType)
   ) {
@@ -151,7 +151,7 @@ export const PreloadedTaskComp = ({
   isOnTimeline,
 }: {
   card: Card;
-  section: TaskSection;
+  section: ProjectSection;
   cardWrapper: CardWrapper;
   project: Project;
   lastScheduleTime: Date | undefined;
@@ -283,11 +283,11 @@ export const PreloadedTaskComp = ({
         : undefined;
 
       const upTask =
-        upModel?.type !== taskSectionType && upModel
+        upModel?.type !== projectSectionType && upModel
           ? await select({ selector: taskOfModel, args: { model: upModel } })
           : undefined;
       const downTask =
-        downModel?.type !== taskSectionType && downModel
+        downModel?.type !== projectSectionType && downModel
           ? await select({ selector: taskOfModel, args: { model: downModel } })
           : undefined;
 
@@ -1434,12 +1434,12 @@ export const TaskComp = ({
   centerScheduleDate?: boolean;
 }) => {
   const { data: card } = useAsyncSelector({
-    selector: taskSectionCardByIdOrDefault,
+    selector: projectSectionCardByIdOrDefault,
     args: { id: taskId },
   });
   const { data: section } = useAsyncSelector({
-    selector: taskSectionByIdOrDefault,
-    args: { id: card?.taskSectionId ?? "" },
+    selector: projectSectionByIdOrDefault,
+    args: { id: card?.projectSectionId ?? "" },
     enabled: !!card,
   });
   const { data: cardWrapper } = useAsyncSelector({
@@ -1447,8 +1447,8 @@ export const TaskComp = ({
     args: { id: cardWrapperId, modelType: cardWrapperType },
   });
   const { data: project } = useAsyncSelector({
-    selector: projectOfTaskSectionOrDefault,
-    args: { taskSectionId: card?.taskSectionId ?? "" },
+    selector: projectOfProjectSectionOrDefault,
+    args: { projectSectionId: card?.projectSectionId ?? "" },
     enabled: !!card,
   });
   const { data: lastScheduleTime } = useAsyncSelector({

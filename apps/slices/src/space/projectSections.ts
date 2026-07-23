@@ -16,11 +16,11 @@ import { uuidv7 } from "uuidv7";
 import { appById } from "./app";
 import { deleteCardsByIds } from "./cards";
 import {
-  firstTaskSectionCard,
-  lastTaskSectionCard,
-  taskSectionCardByIdOrDefault,
-  taskSectionCardIds,
-} from "./taskSectionCards";
+  firstProjectSectionCard,
+  lastProjectSectionCard,
+  projectSectionCardByIdOrDefault,
+  projectSectionCardIds,
+} from "./projectSectionCards";
 import { projectById, projectByIdOrDefault } from "./projects";
 import { createTask, taskById, updateTask } from "./cardsTasks";
 import { updateTemplate } from "./cardsTaskTemplates";
@@ -29,9 +29,9 @@ import { noop } from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { genUUIDV5 } from "../traits";
 import {
-  taskSectionType,
-  taskSectionsTable,
-  TaskSection,
+  projectSectionType,
+  projectSectionsTable,
+  ProjectSection,
   tasksTable,
   Task,
   possibleModelType,
@@ -42,8 +42,8 @@ import {
   taskTemplatesTable,
 } from "./tables";
 
-export const defaultTaskSection: TaskSection = {
-  type: taskSectionType,
+export const defaultProjectSection: ProjectSection = {
+  type: projectSectionType,
   id: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
   title: "",
   projectId: "",
@@ -51,182 +51,188 @@ export const defaultTaskSection: TaskSection = {
   createdAt: 0,
 };
 
-export const taskSectionById = selector({
-  name: "taskSectionById",
+export const projectSectionById = selector({
+  name: "projectSectionById",
   args: { id: v.string() },
-  handler: function* taskSectionById({ id }) {
-    const tasks = yield* selectFrom(taskSectionsTable, "byId")
+  handler: function* projectSectionById({ id }) {
+    const tasks = yield* selectFrom(projectSectionsTable, "byId")
       .where((q) => q.eq("id", id))
       .limit(1);
 
-    return tasks[0] as TaskSection | undefined;
+    return tasks[0] as ProjectSection | undefined;
   },
 });
 
-export const taskSectionByIdOrDefault = selector({
-  name: "taskSectionByIdOrDefault",
+export const projectSectionByIdOrDefault = selector({
+  name: "projectSectionByIdOrDefault",
   args: { id: v.string() },
-  handler: function* taskSectionByIdOrDefault({ id }) {
-    return (yield* taskSectionById({ id })) || defaultTaskSection;
+  handler: function* projectSectionByIdOrDefault({ id }) {
+    return (yield* projectSectionById({ id })) || defaultProjectSection;
   },
 });
 
-export const allTaskSections = selector({
-  name: "allTaskSections",
+export const allProjectSections = selector({
+  name: "allProjectSections",
   args: {},
-  handler: function* allTaskSections() {
-    const tasks = yield* selectFrom(taskSectionsTable, "byProjectIdOrderToken");
+  handler: function* allProjectSections() {
+    const tasks = yield* selectFrom(
+      projectSectionsTable,
+      "byProjectIdOrderToken",
+    );
     return tasks;
   },
 });
 
-export const inboxTaskSectionId = selector({
-  name: "inboxTaskSectionId",
+export const inboxProjectSectionId = selector({
+  name: "inboxProjectSectionId",
   args: {},
-  handler: function* inboxTaskSectionId() {
+  handler: function* inboxProjectSectionId() {
     // Keep the historical UUID namespace stable so existing inbox sections
-    // retain their identity after the ProjectCategory -> TaskSection rename.
+    // retain their identity after the ProjectCategory -> ProjectSection rename.
     return yield* genUUIDV5("projectCategory", "inbox");
   },
 });
 
-export const taskSectionsByProjectIds = selector({
-  name: "taskSectionsByProjectIds",
+export const projectSectionsByProjectIds = selector({
+  name: "projectSectionsByProjectIds",
   args: { projectIds: v.array(v.string()) },
-  handler: function* taskSectionsByProjectIds({ projectIds }) {
+  handler: function* projectSectionsByProjectIds({ projectIds }) {
     const sections = yield* selectFrom(
-      taskSectionsTable,
+      projectSectionsTable,
       "byProjectIdOrderToken",
     ).where((q) => projectIds.map((id) => q.eq("projectId", id)));
     return sections;
   },
 });
 
-export const taskSectionsByProjectId = selector({
-  name: "taskSectionsByProjectId",
+export const projectSectionsByProjectId = selector({
+  name: "projectSectionsByProjectId",
   args: { projectId: v.string() },
-  handler: function* taskSectionsByProjectId({ projectId }) {
-    return yield* taskSectionsByProjectIds({ projectIds: [projectId] });
+  handler: function* projectSectionsByProjectId({ projectId }) {
+    return yield* projectSectionsByProjectIds({ projectIds: [projectId] });
   },
 });
 
-export const projectOfTaskSection = selector({
-  name: "projectOfTaskSection",
-  args: { taskSectionId: v.string() },
-  handler: function* projectOfTaskSection({
-    taskSectionId,
+export const projectOfProjectSection = selector({
+  name: "projectOfProjectSection",
+  args: { projectSectionId: v.string() },
+  handler: function* projectOfProjectSection({
+    projectSectionId,
   }): Generator<unknown, Project | undefined, unknown> {
-    const section = yield* taskSectionById({ id: taskSectionId });
+    const section = yield* projectSectionById({ id: projectSectionId });
     if (!section) return undefined;
 
     return yield* projectById({ id: section.projectId });
   },
 });
 
-export const projectOfTaskSectionOrDefault = selector({
-  name: "projectOfTaskSectionOrDefault",
-  args: { taskSectionId: v.string() },
-  handler: function* projectOfTaskSectionOrDefault({
-    taskSectionId,
+export const projectOfProjectSectionOrDefault = selector({
+  name: "projectOfProjectSectionOrDefault",
+  args: { projectSectionId: v.string() },
+  handler: function* projectOfProjectSectionOrDefault({
+    projectSectionId,
   }): Generator<unknown, Project, unknown> {
-    const section = yield* taskSectionById({ id: taskSectionId });
+    const section = yield* projectSectionById({ id: projectSectionId });
     if (!section) return defaultProject;
 
     return yield* projectByIdOrDefault({ id: section.projectId });
   },
 });
 
-export const firstTaskSectionChild = selector({
-  name: "firstTaskSectionChild",
+export const firstProjectSectionChild = selector({
+  name: "firstProjectSectionChild",
   args: { projectId: v.string() },
-  handler: function* firstTaskSectionChild({ projectId }) {
-    return (yield* taskSectionsByProjectId({ projectId }))[0] as
-      | TaskSection
+  handler: function* firstProjectSectionChild({ projectId }) {
+    return (yield* projectSectionsByProjectId({ projectId }))[0] as
+      | ProjectSection
       | undefined;
   },
 });
 
-export const lastTaskSectionChild = selector({
-  name: "lastTaskSectionChild",
+export const lastProjectSectionChild = selector({
+  name: "lastProjectSectionChild",
   args: { projectId: v.string() },
-  handler: function* lastTaskSectionChild({ projectId }) {
-    const result = yield* taskSectionsByProjectId({ projectId });
-    if (result.length === 0) return undefined as TaskSection | undefined;
+  handler: function* lastProjectSectionChild({ projectId }) {
+    const result = yield* projectSectionsByProjectId({ projectId });
+    if (result.length === 0) return undefined as ProjectSection | undefined;
 
-    return result[result.length - 1] as TaskSection | undefined;
+    return result[result.length - 1] as ProjectSection | undefined;
   },
 });
 
-export const updateTaskSection = action({
-  name: "updateTaskSection",
+export const updateProjectSection = action({
+  name: "updateProjectSection",
   args: {
-    taskSectionId: v.string(),
-    section: v.partial(taskSectionsTable.v()),
+    projectSectionId: v.string(),
+    section: v.partial(projectSectionsTable.v()),
   },
-  handler: function* updateTaskSection({
-    taskSectionId,
+  handler: function* updateProjectSection({
+    projectSectionId,
     section,
   }): Generator<unknown, void, unknown> {
-    const sectionInState = yield* taskSectionById({ id: taskSectionId });
+    const sectionInState = yield* projectSectionById({ id: projectSectionId });
     if (!sectionInState) throw new Error("Section not found");
 
-    yield* upsert(taskSectionsTable, [{ ...sectionInState, ...section }]);
+    yield* upsert(projectSectionsTable, [{ ...sectionInState, ...section }]);
   },
 });
 
-export const taskSectionSiblings = selector({
-  name: "taskSectionSiblings",
-  args: { taskSectionId: v.string() },
-  handler: function* taskSectionSiblings({ taskSectionId }) {
-    const item = yield* taskSectionById({ id: taskSectionId });
+export const projectSectionSiblings = selector({
+  name: "projectSectionSiblings",
+  args: { projectSectionId: v.string() },
+  handler: function* projectSectionSiblings({ projectSectionId }) {
+    const item = yield* projectSectionById({ id: projectSectionId });
     if (!item)
       return [undefined, undefined] as [
-        TaskSection | undefined,
-        TaskSection | undefined,
+        ProjectSection | undefined,
+        ProjectSection | undefined,
       ];
 
-    const sortedTaskSections = yield* selectFrom(
-      taskSectionsTable,
+    const sortedProjectSections = yield* selectFrom(
+      projectSectionsTable,
       "byProjectIdOrderToken",
     ).where((q) => q.eq("projectId", item.projectId));
 
-    const index = sortedTaskSections.findIndex((p) => p.id === taskSectionId);
+    const index = sortedProjectSections.findIndex(
+      (p) => p.id === projectSectionId,
+    );
 
-    const beforeId = index > 0 ? sortedTaskSections[index - 1].id : undefined;
+    const beforeId =
+      index > 0 ? sortedProjectSections[index - 1].id : undefined;
     const afterId =
-      index < sortedTaskSections.length - 1
-        ? sortedTaskSections[index + 1].id
+      index < sortedProjectSections.length - 1
+        ? sortedProjectSections[index + 1].id
         : undefined;
 
     const before = beforeId
-      ? yield* taskSectionByIdOrDefault({ id: beforeId })
+      ? yield* projectSectionByIdOrDefault({ id: beforeId })
       : undefined;
     const after = afterId
-      ? yield* taskSectionByIdOrDefault({ id: afterId })
+      ? yield* projectSectionByIdOrDefault({ id: afterId })
       : undefined;
 
     return [before, after] as [
-      TaskSection | undefined,
-      TaskSection | undefined,
+      ProjectSection | undefined,
+      ProjectSection | undefined,
     ];
   },
 });
 
 export const moveLeft = action({
   name: "moveLeft",
-  args: { taskSectionId: v.string() },
+  args: { projectSectionId: v.string() },
   handler: function* moveLeft({
-    taskSectionId,
+    projectSectionId,
   }): Generator<unknown, void, unknown> {
-    const [up] = yield* taskSectionSiblings({ taskSectionId });
+    const [up] = yield* projectSectionSiblings({ projectSectionId });
     const [up2] = up
-      ? yield* taskSectionSiblings({ taskSectionId: up?.id })
+      ? yield* projectSectionSiblings({ projectSectionId: up?.id })
       : [undefined, undefined];
 
     if (!up) return;
 
-    yield* updateTaskSection({
-      taskSectionId,
+    yield* updateProjectSection({
+      projectSectionId,
       section: {
         orderToken: generateJitteredKeyBetween(
           up2?.orderToken || null,
@@ -239,19 +245,19 @@ export const moveLeft = action({
 
 export const moveRight = action({
   name: "moveRight",
-  args: { taskSectionId: v.string() },
+  args: { projectSectionId: v.string() },
   handler: function* moveRight({
-    taskSectionId,
+    projectSectionId,
   }): Generator<unknown, void, unknown> {
-    const [_up, down] = yield* taskSectionSiblings({ taskSectionId });
+    const [_up, down] = yield* projectSectionSiblings({ projectSectionId });
     const [_up2, down2] = down
-      ? yield* taskSectionSiblings({ taskSectionId: down?.id })
+      ? yield* projectSectionSiblings({ projectSectionId: down?.id })
       : [undefined, undefined];
 
     if (!down) return;
 
-    yield* updateTaskSection({
-      taskSectionId,
+    yield* updateProjectSection({
+      projectSectionId,
       section: {
         orderToken: generateJitteredKeyBetween(
           down.orderToken,
@@ -262,32 +268,32 @@ export const moveRight = action({
   },
 });
 
-export const createTaskSection = action({
-  name: "createTaskSection",
+export const createProjectSection = action({
+  name: "createProjectSection",
   args: {
-    sectionDraft: v.required(v.partial(taskSectionsTable.v()), [
+    sectionDraft: v.required(v.partial(projectSectionsTable.v()), [
       "title",
       "projectId",
     ]),
     position: orderPositionArg,
   },
-  handler: function* createTaskSection({
+  handler: function* createProjectSection({
     sectionDraft,
     position,
-  }): Generator<unknown, TaskSection, unknown> {
+  }): Generator<unknown, ProjectSection, unknown> {
     const orderToken = yield* generateOrderTokenPositioned(
       sectionDraft.projectId,
       {
-        firstChild: (projectId) => firstTaskSectionChild({ projectId }),
-        lastChild: (projectId) => lastTaskSectionChild({ projectId }),
+        firstChild: (projectId) => firstProjectSectionChild({ projectId }),
+        lastChild: (projectId) => lastProjectSectionChild({ projectId }),
       },
       normalizeOrderPosition(position),
     );
 
     const id = sectionDraft.id || uuidv7();
 
-    const section: TaskSection = {
-      type: taskSectionType,
+    const section: ProjectSection = {
+      type: projectSectionType,
       id,
       title: sectionDraft.title,
       projectId: sectionDraft.projectId,
@@ -295,7 +301,7 @@ export const createTaskSection = action({
       createdAt: Date.now(),
     };
 
-    yield* insert(taskSectionsTable, [section]);
+    yield* insert(projectSectionsTable, [section]);
 
     return section;
   },
@@ -304,20 +310,22 @@ export const createTaskSection = action({
 export const createTaskInSection = action({
   name: "createTaskInSection",
   args: {
-    taskSectionId: v.string(),
+    projectSectionId: v.string(),
     position: orderPositionArg,
     taskAttrs: v.optional(v.partial(tasksTable.v())),
   },
   handler: function* createTaskInSection({
-    taskSectionId,
+    projectSectionId,
     position,
     taskAttrs,
   }): Generator<unknown, Task, unknown> {
     const orderToken = yield* generateOrderTokenPositioned(
-      taskSectionId,
+      projectSectionId,
       {
-        firstChild: (taskSectionId) => firstTaskSectionCard({ taskSectionId }),
-        lastChild: (taskSectionId) => lastTaskSectionCard({ taskSectionId }),
+        firstChild: (projectSectionId) =>
+          firstProjectSectionCard({ projectSectionId }),
+        lastChild: (projectSectionId) =>
+          lastProjectSectionCard({ projectSectionId }),
       },
       normalizeOrderPosition(position),
     );
@@ -326,38 +334,40 @@ export const createTaskInSection = action({
       task: {
         ...taskAttrs,
         orderToken: orderToken,
-        taskSectionId: taskSectionId,
+        projectSectionId: projectSectionId,
       },
     });
   },
 });
 
-export const deleteTaskSections = action({
-  name: "deleteTaskSections",
+export const deleteProjectSections = action({
+  name: "deleteProjectSections",
   args: { ids: v.array(v.string()) },
-  handler: function* deleteTaskSections({
+  handler: function* deleteProjectSections({
     ids,
   }): Generator<unknown, void, unknown> {
     const idsToDelete: string[] = [];
 
-    for (const taskSectionId of ids) {
+    for (const projectSectionId of ids) {
       const templatesIds = (yield* selectFrom(
         taskTemplatesTable,
-        "byTaskSectionIdOrderStates",
-      ).where((q) => q.eq("taskSectionId", taskSectionId))).map((t) => t.id);
+        "byProjectSectionIdOrderStates",
+      ).where((q) => q.eq("projectSectionId", projectSectionId))).map(
+        (t) => t.id,
+      );
 
       const taskIds = (yield* selectFrom(
         tasksTable,
-        "byTaskSectionIdOrderStates",
+        "byProjectSectionIdOrderStates",
       ).where((q) =>
-        q.eq("taskSectionId", taskSectionId).eq("state", "todo"),
+        q.eq("projectSectionId", projectSectionId).eq("state", "todo"),
       )).map((t) => t.id);
 
       const doneTaskIds = (yield* selectFrom(
         tasksTable,
-        "byTaskSectionIdOrderStates",
+        "byProjectSectionIdOrderStates",
       ).where((q) =>
-        q.eq("taskSectionId", taskSectionId).eq("state", "done"),
+        q.eq("projectSectionId", projectSectionId).eq("state", "done"),
       )).map((t) => t.id);
 
       idsToDelete.push(...templatesIds);
@@ -369,20 +379,20 @@ export const deleteTaskSections = action({
       yield* deleteCardsByIds({ ids: idsToDelete });
     }
 
-    yield* deleteRows(taskSectionsTable, ids);
+    yield* deleteRows(projectSectionsTable, ids);
   },
 });
 
-export const taskSectionHandleDrop = action({
-  name: "taskSectionHandleDrop",
+export const projectSectionHandleDrop = action({
+  name: "projectSectionHandleDrop",
   args: {
-    taskSectionId: v.string(),
+    projectSectionId: v.string(),
     dropId: v.string(),
     dropModelType: possibleModelType,
     edge: v.union(v.literal("top"), v.literal("bottom")),
   },
-  handler: function* taskSectionHandleDrop({
-    taskSectionId,
+  handler: function* projectSectionHandleDrop({
+    projectSectionId,
     dropId,
     dropModelType,
     edge,
@@ -393,19 +403,19 @@ export const taskSectionHandleDrop = action({
     });
     if (!dropItem) return;
 
-    const childrenIds = yield* taskSectionCardIds({
-      taskSectionId: taskSectionId,
+    const childrenIds = yield* projectSectionCardIds({
+      projectSectionId: projectSectionId,
     });
     let orderToken: string;
     if (childrenIds.length === 0) {
       orderToken = generateJitteredKeyBetween(null, null);
     } else if (edge === "top") {
-      const first = yield* taskSectionCardByIdOrDefault({
+      const first = yield* projectSectionCardByIdOrDefault({
         id: childrenIds[0],
       });
       orderToken = generateJitteredKeyBetween(null, first.orderToken || null);
     } else {
-      const last = yield* taskSectionCardByIdOrDefault({
+      const last = yield* projectSectionCardByIdOrDefault({
         id: childrenIds[childrenIds.length - 1],
       });
       orderToken = generateJitteredKeyBetween(last.orderToken || null, null);
@@ -415,7 +425,7 @@ export const taskSectionHandleDrop = action({
       yield* updateTask({
         id: dropItem.id,
         task: {
-          taskSectionId: taskSectionId,
+          projectSectionId: projectSectionId,
           orderToken,
         },
       });
@@ -423,7 +433,7 @@ export const taskSectionHandleDrop = action({
       yield* updateTemplate({
         id: dropItem.id,
         template: {
-          taskSectionId: taskSectionId,
+          projectSectionId: projectSectionId,
           orderToken,
         },
       });
@@ -434,7 +444,7 @@ export const taskSectionHandleDrop = action({
         yield* updateTask({
           id: task.id,
           task: {
-            taskSectionId: taskSectionId,
+            projectSectionId: projectSectionId,
             orderToken,
           },
         });
@@ -444,15 +454,15 @@ export const taskSectionHandleDrop = action({
   },
 });
 
-export const taskSectionCanDrop = selector({
-  name: "taskSectionCanDrop",
+export const projectSectionCanDrop = selector({
+  name: "projectSectionCanDrop",
   args: {
-    _taskSectionId: v.string(),
+    _projectSectionId: v.string(),
     dropId: v.string(),
     dropModelType: possibleModelType,
   },
-  handler: function* taskSectionCanDrop({
-    _taskSectionId,
+  handler: function* projectSectionCanDrop({
+    _projectSectionId,
     dropId,
     dropModelType,
   }): Generator<unknown, boolean, unknown> {
@@ -477,11 +487,15 @@ export const taskSectionCanDrop = selector({
   },
 });
 
-const taskSectionsSlice = {
-  byId: taskSectionById,
-  delete: deleteTaskSections,
-  handleDrop: taskSectionHandleDrop,
-  canDrop: taskSectionCanDrop,
+const projectSectionsSlice = {
+  byId: projectSectionById,
+  delete: deleteProjectSections,
+  handleDrop: projectSectionHandleDrop,
+  canDrop: projectSectionCanDrop,
 };
 
-registerModelSlice(taskSectionsSlice, taskSectionsTable, taskSectionType);
+registerModelSlice(
+  projectSectionsSlice,
+  projectSectionsTable,
+  projectSectionType,
+);

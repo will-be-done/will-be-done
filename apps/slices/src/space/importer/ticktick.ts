@@ -107,7 +107,7 @@ function toDateString(isoStr: string): string {
  *
  * Mapping:
  *   Folder/List → Project (title = "Folder/List", one project per unique pair)
- *   Each Project gets one default TaskSection (titled after the List)
+ *   Each Project gets one default ProjectSection (titled after the List)
  *   Repeat + Status=0 → TaskTemplate (recurring active)
  *   Otherwise   → Task (state based on Status: 0=todo, 1/2=done)
  */
@@ -137,7 +137,7 @@ export function parseTickTickCSV(csv: string): Backup {
   }
 
   // Each (folder, list) pair → one Project titled "Folder/List"
-  // and one default TaskSection within it.
+  // and one default ProjectSection within it.
   const projectsMap = new Map<
     string,
     { id: string; title: string; createdAt: number; orderToken: string }
@@ -240,7 +240,7 @@ export function parseTickTickCSV(csv: string): Backup {
         repeatRuleDtStart: startDateStr ? parseEpoch(startDateStr) : createdAt,
         createdAt,
         lastGeneratedAt: createdAt,
-        taskSectionId: section.id,
+        projectSectionId: section.id,
       });
     } else {
       // Regular task or completed recurring instance → Task
@@ -250,7 +250,7 @@ export function parseTickTickCSV(csv: string): Backup {
         title,
         content: content || "",
         state: isActive ? "todo" : "done",
-        taskSectionId: section.id,
+        projectSectionId: section.id,
         orderToken,
         lastToggledAt,
         createdAt,
@@ -288,7 +288,7 @@ export function parseTickTickCSV(csv: string): Backup {
       createdAt: p.createdAt,
     })),
 
-    taskSections: [...sectionsMap.values()].map((c) => ({
+    projectSections: [...sectionsMap.values()].map((c) => ({
       id: c.id,
       title: c.title,
       projectId: c.projectId,

@@ -19,8 +19,8 @@ import {
   deleteForParents,
 } from "./checklistItems";
 import { deleteDailyProjections } from "./dailyListsProjections";
-import { firstTaskSectionChild } from "./taskSections";
-import { taskSectionCardSiblings } from "./taskSectionCards";
+import { firstProjectSectionChild } from "./projectSections";
+import { projectSectionCardSiblings } from "./projectSectionCards";
 import { updateTemplate } from "./cardsTaskTemplates";
 import { registerModelSlice } from "./maps";
 import {
@@ -37,7 +37,7 @@ import {
 
 export const defaultTask: Task = {
   type: taskType,
-  taskSectionId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
+  projectSectionId: "abeee7aa-8bf4-4a5f-9167-ce42ad6187b6",
   id: "17748950-3b32-4893-8fa8-ccdb269f7c52",
   title: "default task",
   state: "todo",
@@ -120,7 +120,10 @@ export const allTasks = selector({
   name: "allTasks",
   args: {},
   handler: function* allTasks() {
-    const tasks = yield* selectFrom(tasksTable, "byTaskSectionIdOrderStates");
+    const tasks = yield* selectFrom(
+      tasksTable,
+      "byProjectSectionIdOrderStates",
+    );
     return tasks;
   },
 });
@@ -157,7 +160,7 @@ export const createTask = action({
   args: {
     task: v.required(v.partial(tasksTable.v()), [
       "orderToken",
-      "taskSectionId",
+      "projectSectionId",
     ]),
   },
   handler: function* createTask({ task }) {
@@ -259,7 +262,7 @@ export const taskHandleDrop = action({
     });
     if (!dropItem) return shouldNeverHappen("drop item not found");
 
-    const [up, down] = yield* taskSectionCardSiblings({ cardId: taskId });
+    const [up, down] = yield* projectSectionCardSiblings({ cardId: taskId });
 
     let between: [string | undefined, string | undefined] = [
       task.orderToken,
@@ -279,7 +282,7 @@ export const taskHandleDrop = action({
       yield* updateTask({
         id: dropItem.id,
         task: {
-          taskSectionId: task.taskSectionId,
+          projectSectionId: task.projectSectionId,
           orderToken: orderToken,
         },
       });
@@ -287,7 +290,7 @@ export const taskHandleDrop = action({
       yield* updateTemplate({
         id: dropItem.id,
         template: {
-          taskSectionId: task.taskSectionId,
+          projectSectionId: task.projectSectionId,
           orderToken: orderToken,
         },
       });
@@ -298,7 +301,7 @@ export const taskHandleDrop = action({
         yield* updateTask({
           id: droppedTask.id,
           task: {
-            taskSectionId: task.taskSectionId,
+            projectSectionId: task.projectSectionId,
             orderToken: orderToken,
           },
         });
@@ -338,13 +341,13 @@ export const moveTaskToProject = action({
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 
-    const firstSection = yield* firstTaskSectionChild({ projectId });
+    const firstSection = yield* firstProjectSectionChild({ projectId });
     if (!firstSection) throw new Error("No sections found");
 
     yield* upsert(tasksTable, [
       {
         ...task,
-        taskSectionId: firstSection.id,
+        projectSectionId: firstSection.id,
       },
     ]);
   },
@@ -387,7 +390,7 @@ export const createTaskFromTemplate = action({
       id: newId,
       title: taskTemplate.title,
       state: "todo",
-      taskSectionId: taskTemplate.taskSectionId,
+      projectSectionId: taskTemplate.projectSectionId,
       type: taskType,
       orderToken: taskTemplate.orderToken,
       lastToggledAt: Date.now(),

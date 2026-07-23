@@ -29,7 +29,7 @@ export const parseColumnKey = (
     | "dailyList"
     | "project"
     | "task"
-    | "taskSection"
+    | "projectSection"
     | "projection";
   id: string;
   component?: string;
@@ -44,7 +44,7 @@ export const parseColumnKey = (
       | "dailyList"
       | "project"
       | "task"
-      | "taskSection"
+      | "projectSection"
       | "projection",
     id,
     component,

@@ -85,10 +85,10 @@ describe("buildBackup", () => {
 
   // -- Sections ---------------------------------------------------------
 
-  describe("taskSections", () => {
+  describe("projectSections", () => {
     it("creates a default 'Tasks' section for each project", () => {
       for (const proj of backup.projects) {
-        const sections = backup.taskSections.filter(
+        const sections = backup.projectSections.filter(
           (c) => c.projectId === proj.id,
         );
         expect(sections.length).toBeGreaterThanOrEqual(1);
@@ -98,7 +98,7 @@ describe("buildBackup", () => {
 
     it("Test project has 4 sections (1 default + 3 sections)", () => {
       const testProj = backup.projects.find((p) => p.title === "Test project")!;
-      const sections = backup.taskSections.filter(
+      const sections = backup.projectSections.filter(
         (c) => c.projectId === testProj.id,
       );
       expect(sections).toHaveLength(4);
@@ -112,7 +112,7 @@ describe("buildBackup", () => {
 
     it("sections within a project are ordered by sectionOrder", () => {
       const testProj = backup.projects.find((p) => p.title === "Test project")!;
-      const sections = backup.taskSections.filter(
+      const sections = backup.projectSections.filter(
         (c) => c.projectId === testProj.id,
       );
       const tokens = sections.map((c) => c.orderToken);
@@ -151,19 +151,21 @@ describe("buildBackup", () => {
     it("tasks with no section go to default section", () => {
       // "Task 1" is in project "Топ лего" with no section
       const legoProj = backup.projects.find((p) => p.title === "Топ лего")!;
-      const defaultCat = backup.taskSections.find(
+      const defaultSection = backup.projectSections.find(
         (c) => c.projectId === legoProj.id && c.title === "Tasks",
       )!;
       const task = backup.tasks.find((t) => t.title === "Task 1");
-      expect(task!.taskSectionId).toBe(defaultCat.id);
+      expect(task!.projectSectionId).toBe(defaultSection.id);
     });
 
     it("tasks within a section are sorted by childOrder", () => {
       // Pick a section with multiple tasks and verify orderToken ordering
-      const sectionIds = [...new Set(backup.tasks.map((t) => t.taskSectionId))];
+      const sectionIds = [
+        ...new Set(backup.tasks.map((t) => t.projectSectionId)),
+      ];
       for (const sectionId of sectionIds) {
         const sectionTasks = backup.tasks.filter(
-          (t) => t.taskSectionId === sectionId,
+          (t) => t.projectSectionId === sectionId,
         );
         if (sectionTasks.length < 2) continue;
         const tokens = sectionTasks.map((t) => t.orderToken);

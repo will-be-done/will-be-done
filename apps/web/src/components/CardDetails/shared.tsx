@@ -143,22 +143,22 @@ export function ProjectDetailRow({
 // ─── SectionDetailRow ────────────────────────────────────────────────────────
 
 export function SectionDetailRow({
-  taskSectionId,
-  taskSections,
+  projectSectionId,
+  projectSections,
   onChange,
 }: {
-  taskSectionId: string;
-  taskSections: { id: string; title: string }[];
-  onChange: (taskSectionId: string) => void;
+  projectSectionId: string;
+  projectSections: { id: string; title: string }[];
+  onChange: (projectSectionId: string) => void;
 }) {
   return (
     <DetailRow icon={<Hash className="h-3 w-3 shrink-0" />} label="Section">
       <select
-        value={taskSectionId}
+        value={projectSectionId}
         onChange={(e) => onChange(e.target.value)}
         className="bg-transparent text-content text-xs focus:outline-none cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors"
       >
-        {taskSections.map((section) => (
+        {projectSections.map((section) => (
           <option
             key={section.id}
             value={section.id}

@@ -16,8 +16,8 @@ import {
   dailyProjectionDateOfTask,
   deleteTemplates,
   moveTaskToProject,
-  taskSectionsByProjectId,
-  projectOfTaskSectionOrDefault,
+  projectSectionsByProjectId,
+  projectOfProjectSectionOrDefault,
   type Task,
   taskTemplateById,
   taskTemplateRuleText,
@@ -59,11 +59,11 @@ export function TaskBody({
   const openProject = useOpenProject();
 
   const { data: project } = useAsyncSelector({
-    selector: projectOfTaskSectionOrDefault,
-    args: { taskSectionId: task.taskSectionId },
+    selector: projectOfProjectSectionOrDefault,
+    args: { projectSectionId: task.projectSectionId },
   });
-  const { data: taskSections = [] } = useAsyncSelector({
-    selector: taskSectionsByProjectId,
+  const { data: projectSections = [] } = useAsyncSelector({
+    selector: projectSectionsByProjectId,
     args: { projectId: project?.id ?? "" },
     enabled: !!project,
     defaultValue: [],
@@ -201,14 +201,14 @@ export function TaskBody({
         />
 
         <SectionDetailRow
-          taskSectionId={task.taskSectionId}
-          taskSections={taskSections}
-          onChange={(taskSectionId) =>
+          projectSectionId={task.projectSectionId}
+          projectSections={projectSections}
+          onChange={(projectSectionId) =>
             void dispatch(
               updateTask({
                 id: taskId,
                 task: {
-                  taskSectionId: taskSectionId,
+                  projectSectionId: projectSectionId,
                 },
               }),
             )
