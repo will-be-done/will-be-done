@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { authenticateBearerToken } from "../../services/authentication";
+import { authenticateRequest } from "../../services/authentication";
 import {
   createChecklistItem,
   deleteChecklistItem,
@@ -43,7 +43,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const checklistItems = listChecklistItems({
@@ -86,7 +86,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const checklistItem = createChecklistItem({
@@ -128,7 +128,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const checklistItems = listChecklistItems({
@@ -171,7 +171,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const checklistItem = createChecklistItem({
@@ -213,7 +213,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const checklistItem = getChecklistItem({
@@ -254,7 +254,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const checklistItem = updateChecklistItem({
@@ -295,7 +295,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         deleteChecklistItem({
@@ -337,7 +337,7 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const checklistItem = moveChecklistItem({

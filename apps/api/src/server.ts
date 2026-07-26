@@ -71,6 +71,19 @@ export function createServer({
       title: "Will Be Done API",
       url: "/api/openapi.json",
       persistAuth: true,
+      authentication: {
+        preferredSecurityScheme: "bearerAuth",
+      },
+      onBeforeRequest: ({ request }) => {
+        try {
+          const token = globalThis.localStorage?.getItem("auth_token");
+          if (token) {
+            request.headers.set("Authorization", `Bearer ${token}`);
+          }
+        } catch {
+          // localStorage may be unavailable in restricted browser contexts.
+        }
+      },
       mcp: {
         disabled: true,
       },

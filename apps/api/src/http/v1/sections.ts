@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { authenticateBearerToken } from "../../services/authentication";
+import { authenticateRequest } from "../../services/authentication";
 import {
   createProjectSection,
   deleteProjectSection,
@@ -42,7 +42,7 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -85,7 +85,7 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const section = createProjectSection({
@@ -128,7 +128,7 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const section = updateProjectSection({
@@ -170,7 +170,7 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         deleteProjectSection({
@@ -212,7 +212,7 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
         const section = moveProjectSection({

@@ -15,6 +15,9 @@ export const tokensTable = defineTable("tokens", {
   id: v.string(),
   userId: v.string(),
   createdAt: v.string(),
+  lastUsedAt: v.optional(v.string()),
+  lastUsedIp: v.optional(v.string()),
+  lastUsedUserAgent: v.optional(v.string()),
 }).index("byUserId", ["userId"]);
 export type Token = ExtractSchema<typeof tokensTable>;
 

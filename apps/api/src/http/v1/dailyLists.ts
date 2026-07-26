@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { authenticateBearerToken } from "../../services/authentication";
+import { authenticateRequest } from "../../services/authentication";
 import { DatabaseAccessDeniedError } from "../../services/databaseAccess";
 import { listDailyListItems } from "../../services/dailyLists";
 import {
@@ -33,7 +33,7 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {

@@ -1,18 +1,30 @@
 import { useState } from "react";
 import { Dialog, DialogPanel } from "@headlessui/react";
-import { HardDrive, X, ArrowDownToLine, SlidersHorizontal } from "lucide-react";
+import {
+  HardDrive,
+  X,
+  ArrowDownToLine,
+  SlidersHorizontal,
+  KeyRound,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BackupSection } from "./BackupSection";
 import { GeneralSection } from "./GeneralSection";
 import { ImportSection } from "./ImportSection";
+import { TokenSection } from "./TokenSection";
 
-type Section = "general" | "data" | "import";
+type Section = "general" | "tokens" | "data" | "import";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   {
     id: "general",
     label: "General",
     icon: <SlidersHorizontal className="h-5 w-5" />,
+  },
+  {
+    id: "tokens",
+    label: "Tokens",
+    icon: <KeyRound className="h-5 w-5" />,
   },
   {
     id: "data",
@@ -66,7 +78,7 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
           </div>
 
           {/* Top tab nav */}
-          <div className="flex gap-1 overflow-x-auto px-4 pt-4 pb-0 scrollbar-none flex-shrink-0">
+          <div className="flex gap-1 overflow-x-auto px-4 pt-4 pb-1 scrollbar-none flex-shrink-0">
             {SECTIONS.map((s) => (
               <button
                 key={s.id}
@@ -87,11 +99,12 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
           </div>
 
           {/* Divider */}
-          <div className="mx-0 mt-3 h-px bg-dialog-border flex-shrink-0" />
+          <div className="mx-0 mt-2 h-px bg-dialog-border flex-shrink-0" />
 
           {/* Content — fills remaining height, scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {activeSection === "general" && <GeneralSection />}
+            {activeSection === "tokens" && <TokenSection />}
             {activeSection === "data" && <BackupSection />}
             {activeSection === "import" && <ImportSection />}
           </div>

@@ -36,6 +36,10 @@ describe("API documentation", () => {
       expect(docsResponse.statusCode).toBe(200);
       expect(docsResponse.headers["content-type"]).toContain("text/html");
       expect(docsResponse.body).toContain("Scalar");
+      expect(docsResponse.body).toContain("auth_token");
+      expect(docsResponse.body).toContain(
+        '"preferredSecurityScheme": "bearerAuth"',
+      );
       expect(docsResponse.body).toContain("/api/openapi.json");
 
       expect(openApiResponse.statusCode).toBe(200);

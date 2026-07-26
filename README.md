@@ -42,6 +42,26 @@ projects, schedules, and other data.
 - **Self-hosted with Docker:** open `/api/docs` on your server, for example
   [http://localhost:3000/api/docs](http://localhost:3000/api/docs).
 
+### Create an API token
+
+1. Sign in and open a space.
+2. Open **Space Settings**, select **Tokens**, and click **Create token**.
+3. Copy the new token and store it securely. Tokens remain active until you
+   delete them from the same settings page.
+
+Send the token as a Bearer credential:
+
+```bash
+curl \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  https://app.will-be-done.app/api/v1/spaces
+```
+
+When you open the Scalar documentation in the same browser and on the same
+server where you are signed in, it automatically uses the current session
+token stored by the web app. If no current token is available, you can enter
+one through Scalar's **Authentication** controls.
+
 ## Self-Host With Docker
 
 Run the server:
