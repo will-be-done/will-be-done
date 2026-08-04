@@ -1,5 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { syncDispatch } from "@will-be-done/hyperdb";
+import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
 import { authenticateBearerToken } from "../../services/authentication";
 import {
   convertTaskTemplateToTask,
@@ -10,8 +12,9 @@ import {
   moveTaskTemplate,
   updateTaskTemplate,
 } from "../../services/taskTemplates";
+import { getSpaceDatabase } from "../../services/databaseAccess";
+import { getEnvConfig } from "../../env";
 import { sendError as handleError, unauthorized } from "../errors";
-import { generateSpaceTasksIfDue } from "../../services/databaseAccess";
 import {
   ConvertTaskToTemplateBodySchema,
   CreateTaskTemplateBodySchema,
@@ -58,11 +61,18 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
           userId: user.id,
           ...request.body,
         });
-        generateSpaceTasksIfDue({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          force: true,
-        });
+        try {
+          syncDispatch(
+            getSpaceDatabase(request.params.spaceId, user.id),
+            generateSpaceTasksIfDue({
+              toDate: Date.now(),
+              intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
+              force: true,
+            }),
+          );
+        } catch (error) {
+          request.log.error(error, "Failed to generate recurring tasks");
+        }
         return reply.code(201).send({ template });
       } catch (error) {
         return handleError(
@@ -147,11 +157,18 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
           userId: user.id,
           updates: request.body,
         });
-        generateSpaceTasksIfDue({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          force: true,
-        });
+        try {
+          syncDispatch(
+            getSpaceDatabase(request.params.spaceId, user.id),
+            generateSpaceTasksIfDue({
+              toDate: Date.now(),
+              intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
+              force: true,
+            }),
+          );
+        } catch (error) {
+          request.log.error(error, "Failed to generate recurring tasks");
+        }
         return reply.code(200).send({ template });
       } catch (error) {
         return handleError(

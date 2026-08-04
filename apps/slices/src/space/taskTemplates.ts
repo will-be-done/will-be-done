@@ -616,13 +616,18 @@ export const taskTemplateHandleDrop = action({
   },
 });
 
-export const generateTasksFromTemplates = action({
-  name: "generateTasksFromTemplates",
-  args: {
-    toDate: v.number(),
-  },
-  handler: function* generateTasksFromTemplates({ toDate }) {
-    const newTasks = yield* newTasksToGenForTaskTemplates({
+function* generateTasksForTemplateIds({
+  templateIds,
+  toDate,
+}: {
+  templateIds: string[];
+  toDate: number;
+}) {
+  let generatedCount = 0;
+
+  for (const templateId of templateIds) {
+    const newTasks = yield* newTasksToGenForTaskTemplate({
+      templateId,
       toDate,
     });
 
@@ -631,12 +636,9 @@ export const generateTasksFromTemplates = action({
         throw new Error("TemplateId is null");
       }
 
-      // Create task item after the template item in the project section
       yield* createTaskAfterSectionItem({
         itemId: task.templateId,
-        taskParams: {
-          ...task,
-        },
+        taskParams: { ...task },
       });
       yield* copyItems({
         fromParentId: task.templateId,
@@ -645,24 +647,55 @@ export const generateTasksFromTemplates = action({
         toParentType: taskType,
       });
 
-      // Create entry at top of daily list for the task's date
       const localDate = fromUTC(new Date(task.createdAt));
-      const dmy = getDMY(localDate);
       yield* createEntryInDailyList({
         taskId: task.id,
-        date: dmy,
+        date: getDMY(localDate),
       });
+      generatedCount += 1;
     }
 
-    const templateIdsToUpdate = new Set(
-      newTasks.filter((t) => t.templateId !== null).map((t) => t.templateId!),
-    );
-    for (const templateId of templateIdsToUpdate) {
-      yield* updateTemplate({
-        id: templateId,
-        template: { lastGeneratedAt: toDate },
-      });
-    }
+    // lastGeneratedAt is a generation checkpoint, not the last occurrence.
+    // Advancing it even when no task is due prevents rescanning the template on
+    // every access between occurrences.
+    yield* updateTemplate({
+      id: templateId,
+      template: { lastGeneratedAt: toDate },
+    });
+  }
+
+  return generatedCount;
+}
+
+export const generateTasksFromTemplates = action({
+  name: "generateTasksFromTemplates",
+  args: { toDate: v.number() },
+  handler: function* generateTasksFromTemplates({ toDate }) {
+    const templateIds = yield* taskTemplateIds({});
+    return yield* generateTasksForTemplateIds({ templateIds, toDate });
+  },
+});
+
+export const generateSpaceTasksIfDue = action({
+  name: "generateSpaceTasksIfDue",
+  args: {
+    toDate: v.number(),
+    intervalMs: v.number(),
+    force: v.boolean(),
+  },
+  handler: function* generateSpaceTasksIfDue({ toDate, intervalMs, force }) {
+    if (intervalMs < 0) throw new Error("intervalMs cannot be negative");
+
+    const templates = force
+      ? yield* selectFrom(taskTemplatesTable, "byLastGeneratedAt")
+      : yield* selectFrom(taskTemplatesTable, "byLastGeneratedAt").where((q) =>
+          q.lte("lastGeneratedAt", toDate - intervalMs),
+        );
+
+    return yield* generateTasksForTemplateIds({
+      templateIds: templates.map((template) => template.id),
+      toDate,
+    });
   },
 });
 

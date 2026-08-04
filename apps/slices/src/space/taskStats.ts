@@ -24,6 +24,7 @@ import {
   tasksTable,
 } from "./tables";
 import { projectSectionsByProjectId } from "./projectSections";
+import { tasksByIds } from "./tasks";
 import { dailyDateFormat } from "./utils";
 import { parse } from "date-fns";
 
@@ -277,6 +278,76 @@ export const allScheduledTodoTasks = selector({
       scheduledTodoTasksTable,
       "byScheduledAt",
     )) as ScheduledTodoTask[];
+  },
+});
+
+export type ScheduledTodoTaskPageItem = {
+  task: Task;
+  scheduledAt: number;
+};
+
+export const listScheduledTasks = selector({
+  name: "listScheduledTasks",
+  args: {
+    fromInclusive: v.number(),
+    toExclusive: v.number(),
+    cursorScheduledAt: v.union(v.number(), v.null()),
+    cursorId: v.union(v.string(), v.null()),
+    limit: v.number(),
+  },
+  handler: function* listScheduledTasks({
+    fromInclusive,
+    toExclusive,
+    cursorScheduledAt,
+    cursorId,
+    limit,
+  }): Generator<unknown, ScheduledTodoTaskPageItem[], unknown> {
+    if (
+      cursorScheduledAt !== null &&
+      (cursorScheduledAt < fromInclusive || cursorScheduledAt >= toExclusive)
+    ) {
+      return [];
+    }
+
+    const query = selectFrom(scheduledTodoTasksTable, "byScheduledAtId").order(
+      "asc",
+    );
+    let rows: ScheduledTodoTask[];
+    if (cursorScheduledAt === null || cursorId === null) {
+      rows = yield* query
+        .where((q) =>
+          q.gte("scheduledAt", fromInclusive).lt("scheduledAt", toExclusive),
+        )
+        .limit(limit);
+    } else {
+      const remainingAtCursor = (yield* selectFrom(
+        scheduledTodoTasksTable,
+        "byScheduledAtId",
+      )
+        .where((q) => q.eq("scheduledAt", cursorScheduledAt))
+        .order("asc")).filter((row) => row.id > cursorId);
+      const nextRows = remainingAtCursor.slice(0, limit);
+
+      if (nextRows.length < limit) {
+        nextRows.push(
+          ...(yield* query
+            .where((q) =>
+              q
+                .gt("scheduledAt", cursorScheduledAt)
+                .lt("scheduledAt", toExclusive),
+            )
+            .limit(limit - nextRows.length)),
+        );
+      }
+      rows = nextRows;
+    }
+
+    const tasks = yield* tasksByIds({ ids: rows.map((row) => row.id) });
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    return rows.flatMap((row) => {
+      const task = taskById.get(row.id);
+      return task ? [{ task, scheduledAt: row.scheduledAt }] : [];
+    });
   },
 });
 

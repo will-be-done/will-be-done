@@ -3525,60 +3525,10 @@
     "/api/v1/spaces/{spaceId}/tasks": {
       "get": {
         "operationId": "listTasks",
-        "summary": "Search tasks in a space",
+        "summary": "List tasks in a space",
         "tags": ["Tasks"],
-        "description": "Returns tasks ordered by creation time descending. The cursor is opaque and must be reused with the same filters.",
+        "description": "Returns tasks ordered by creation time descending with opaque cursor pagination.",
         "parameters": [
-          {
-            "schema": { "type": "string", "enum": ["todo", "done"] },
-            "in": "query",
-            "name": "state",
-            "required": false
-          },
-          {
-            "schema": { "type": "string", "minLength": 1 },
-            "in": "query",
-            "name": "sectionId",
-            "required": false
-          },
-          {
-            "schema": { "type": "string", "minLength": 1 },
-            "in": "query",
-            "name": "projectId",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "date",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-            },
-            "in": "query",
-            "name": "scheduledFrom",
-            "required": false
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "date",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
-            },
-            "in": "query",
-            "name": "scheduledTo",
-            "required": false
-          },
-          {
-            "schema": { "type": "string", "enum": ["red", "green", "unknown"] },
-            "in": "query",
-            "name": "nature",
-            "required": false
-          },
-          {
-            "schema": { "type": "string", "minLength": 1 },
-            "in": "query",
-            "name": "search",
-            "required": false
-          },
           {
             "schema": { "type": "string", "minLength": 1 },
             "in": "query",

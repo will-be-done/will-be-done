@@ -64,6 +64,11 @@ describe("API documentation", () => {
           get: { operationId: "listScheduledTasks" },
         },
       });
+      expect(
+        openApiDocument.paths["/api/v1/spaces/{spaceId}/tasks"].get.parameters
+          .map((parameter: { name: string }) => parameter.name)
+          .sort(),
+      ).toEqual(["cursor", "limit", "spaceId"]);
       expect(badRequestResponse.statusCode).toBe(400);
       expect(badRequestResponse.json()).toMatchObject({
         code: "BAD_REQUEST",

@@ -38,9 +38,9 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
     {
       schema: {
         operationId: "listTasks",
-        summary: "Search tasks in a space",
+        summary: "List tasks in a space",
         description:
-          "Returns tasks ordered by creation time descending. The cursor is opaque and must be reused with the same filters.",
+          "Returns tasks ordered by creation time descending with opaque cursor pagination.",
         tags: ["Tasks"],
         security: [{ bearerAuth: [] }],
         params: SpaceParamsSchema,

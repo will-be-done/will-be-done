@@ -1,9 +1,8 @@
 import { selectSync } from "@will-be-done/hyperdb";
 import {
-  allScheduledTodoTasks,
-  allTasks,
   dailyDateFormat,
   getDMY,
+  listScheduledTasks as listScheduledTasksSelector,
 } from "@will-be-done/slices/space";
 import { addDays, parse } from "date-fns";
 import { getSpaceDatabase } from "./databaseAccess";
@@ -37,50 +36,32 @@ export function listScheduledTasks({
   const exclusiveEnd = to
     ? addDays(parse(to, dailyDateFormat, new Date()), 1).getTime()
     : undefined;
-
-  let rows = selectSync(db, {
-    selector: allScheduledTodoTasks,
-    args: {},
-  }).filter((row) =>
-    scope === "overdue"
-      ? row.scheduledAt < boundary
-      : row.scheduledAt >= boundary &&
-        (exclusiveEnd === undefined || row.scheduledAt < exclusiveEnd),
-  );
-  rows.sort(
-    (left, right) =>
-      left.scheduledAt - right.scheduledAt || left.id.localeCompare(right.id),
-  );
-
-  if (cursor !== undefined) {
-    const decoded = decodeNumericCursor(cursor);
-    rows = rows.filter(
-      (row) =>
-        row.scheduledAt > decoded.sort ||
-        (row.scheduledAt === decoded.sort && row.id > decoded.id),
-    );
-  }
-
-  const tasksById = new Map(
-    selectSync(db, { selector: allTasks, args: {} }).map((task) => [
-      task.id,
-      task,
-    ]),
-  );
-  const matchingRows = rows.filter((row) => tasksById.has(row.id));
-  const page = matchingRows.slice(0, limit);
+  const decodedCursor = cursor ? decodeNumericCursor(cursor) : null;
+  const rows = selectSync(db, {
+    selector: listScheduledTasksSelector,
+    args: {
+      fromInclusive: scope === "overdue" ? Number.MIN_SAFE_INTEGER : boundary,
+      toExclusive:
+        scope === "overdue"
+          ? boundary
+          : (exclusiveEnd ?? Number.MAX_SAFE_INTEGER),
+      cursorScheduledAt: decodedCursor?.sort ?? null,
+      cursorId: decodedCursor?.id ?? null,
+      limit: limit + 1,
+    },
+  });
+  const page = rows.slice(0, limit);
   const last = page.at(-1);
   return {
     tasks: page.map((row) =>
-      toPublicTask(
-        db,
-        tasksById.get(row.id)!,
-        getDMY(new Date(row.scheduledAt)),
-      ),
+      toPublicTask(db, row.task, getDMY(new Date(row.scheduledAt))),
     ),
     nextCursor:
-      matchingRows.length > limit && last
-        ? encodeNumericCursor({ sort: last.scheduledAt, id: last.id })
+      rows.length > limit && last
+        ? encodeNumericCursor({
+            sort: last.scheduledAt,
+            id: last.task.id,
+          })
         : null,
   };
 }

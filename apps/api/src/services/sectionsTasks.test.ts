@@ -706,7 +706,7 @@ describe("section and task services", () => {
     ).toBeNull();
   });
 
-  test("searches and paginates tasks and lists daily-list ranges", () => {
+  test("paginates tasks and lists daily-list ranges", () => {
     setUpDatabases();
     scheduleTask({
       spaceId: "space-1",
@@ -724,36 +724,24 @@ describe("section and task services", () => {
     const firstPage = listSpaceTasks({
       spaceId: "space-1",
       userId: "user-1",
-      state: "todo",
-      projectId: "project-1",
-      scheduledFrom: "2026-08-01",
-      scheduledTo: "2026-08-05",
       limit: 1,
     });
     expect(firstPage.tasks).toHaveLength(1);
+    expect(firstPage.tasks[0]).toMatchObject({
+      id: "task-c",
+      scheduledDate: "2026-08-05",
+    });
     expect(firstPage.nextCursor).not.toBeNull();
     const secondPage = listSpaceTasks({
       spaceId: "space-1",
       userId: "user-1",
-      state: "todo",
-      projectId: "project-1",
-      scheduledFrom: "2026-08-01",
-      scheduledTo: "2026-08-05",
       cursor: firstPage.nextCursor!,
       limit: 1,
     });
-    expect(secondPage.tasks).toHaveLength(1);
-    expect(secondPage.tasks[0].id).not.toBe(firstPage.tasks[0].id);
-
-    expect(
-      listSpaceTasks({
-        spaceId: "space-1",
-        userId: "user-1",
-        nature: "green",
-        search: "c",
-        limit: 50,
-      }).tasks.map((task) => task.id),
-    ).toEqual(["task-c"]);
+    expect(secondPage.tasks[0]).toMatchObject({
+      id: "task-a",
+      scheduledDate: "2026-08-01",
+    });
 
     expect(
       listDailyListsInRange({
@@ -781,15 +769,25 @@ describe("section and task services", () => {
     });
     syncDispatch(spaceDB, rebuildScheduledTodoTasks({}));
 
+    const firstOverduePage = listScheduledTasks({
+      spaceId: "space-1",
+      userId: "user-1",
+      scope: "overdue",
+      relativeTo: "2026-08-06",
+      limit: 1,
+    });
+    expect(firstOverduePage.tasks.map((task) => task.id)).toEqual(["task-a"]);
+    expect(firstOverduePage.nextCursor).not.toBeNull();
     expect(
       listScheduledTasks({
         spaceId: "space-1",
         userId: "user-1",
         scope: "overdue",
-        relativeTo: "2026-08-03",
-        limit: 50,
+        relativeTo: "2026-08-06",
+        cursor: firstOverduePage.nextCursor!,
+        limit: 1,
       }).tasks.map((task) => task.id),
-    ).toEqual(["task-a"]);
+    ).toEqual(["task-c"]);
     expect(
       listScheduledTasks({
         spaceId: "space-1",

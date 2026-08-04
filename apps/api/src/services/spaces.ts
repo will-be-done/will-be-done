@@ -9,7 +9,7 @@ import {
 import { userDBConfig } from "../db/configs";
 import { getHyperDB, getMainHyperDB } from "../db/db";
 import { deleteDb } from "../slices/dbSlice";
-import { forgetSpaceAccessState, getSpaceDatabase } from "./databaseAccess";
+import { getSpaceDatabase } from "./databaseAccess";
 
 export interface PublicSpace {
   id: string;
@@ -92,7 +92,6 @@ export function deleteUserSpace({
   if (!deleted) return false;
 
   syncDispatch(mainDB, deleteDb({ id: spaceId, type: "space" }));
-  forgetSpaceAccessState(spaceId);
   return true;
 }
 

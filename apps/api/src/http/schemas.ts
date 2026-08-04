@@ -314,25 +314,10 @@ export const TaskResponseSchema = z.object({ task: TaskSchema });
 
 export const ListSpaceTasksQuerySchema = z
   .object({
-    state: TaskStateSchema.optional(),
-    sectionId: z.string().min(1).optional(),
-    projectId: z.string().min(1).optional(),
-    scheduledFrom: z.iso.date().optional(),
-    scheduledTo: z.iso.date().optional(),
-    nature: TaskNatureSchema.optional(),
-    search: z.string().trim().min(1).optional(),
     cursor: z.string().min(1).optional(),
     limit: z.coerce.number().int().min(1).max(200).default(50),
   })
-  .strict()
-  .refine(
-    ({ scheduledFrom, scheduledTo }) =>
-      !scheduledFrom || !scheduledTo || scheduledFrom <= scheduledTo,
-    {
-      message: "scheduledFrom must be on or before scheduledTo",
-      path: ["scheduledTo"],
-    },
-  );
+  .strict();
 
 export const PaginatedTasksResponseSchema = z.object({
   tasks: z.array(TaskSchema),
@@ -397,12 +382,12 @@ export const DailyListsRangeResponseSchema = z.object({
 export const ScheduledTasksQuerySchema = z
   .object({
     scope: z.enum(["overdue", "upcoming"]),
-    relativeTo: z
-      .iso.date()
+    relativeTo: z.iso
+      .date()
       .optional()
       .describe("Boundary date; defaults to today"),
-    to: z
-      .iso.date()
+    to: z.iso
+      .date()
       .optional()
       .describe("Inclusive end date for upcoming tasks"),
     cursor: z.string().min(1).optional(),

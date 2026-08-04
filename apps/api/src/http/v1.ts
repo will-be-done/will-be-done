@@ -7,8 +7,11 @@ import { dailyListRoutes } from "./v1/dailyLists";
 import { taskTemplateRoutes } from "./v1/taskTemplates";
 import { checklistItemRoutes } from "./v1/checklistItems";
 import { authenticateBearerToken } from "../services/authentication";
-import { generateSpaceTasksIfDue } from "../services/databaseAccess";
+import { getSpaceDatabase } from "../services/databaseAccess";
 import { sendError } from "./errors";
+import { syncDispatch } from "@will-be-done/hyperdb";
+import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
+import { getEnvConfig } from "../env";
 
 export const v1Routes: FastifyPluginAsyncZod = async (server) => {
   server.setErrorHandler((error, _request, reply) => {
@@ -28,10 +31,24 @@ export const v1Routes: FastifyPluginAsyncZod = async (server) => {
     const user = authenticateBearerToken(request.headers.authorization);
     if (!user) return;
 
+    let db;
     try {
-      generateSpaceTasksIfDue({ spaceId, userId: user.id });
+      db = getSpaceDatabase(spaceId, user.id);
     } catch (error) {
       return sendError(request, reply, error, "Failed to prepare space data");
+    }
+
+    try {
+      syncDispatch(
+        db,
+        generateSpaceTasksIfDue({
+          toDate: Date.now(),
+          intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
+          force: false,
+        }),
+      );
+    } catch (error) {
+      request.log.error(error, "Failed to generate recurring tasks");
     }
   });
 

@@ -35,6 +35,7 @@ export const tasksTable = defineTable("tasks", {
     "state",
     "lastToggledAt",
   ])
+  .index("byCreatedAtId", ["createdAt", "id"])
   .index("byTemplateId", ["templateId"]);
 registerSpaceSyncableTable(tasksTable, taskType);
 
@@ -59,7 +60,8 @@ export const taskTemplatesTable = defineTable("task_templates", {
   ),
 })
   .index("byIds", ["id"])
-  .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"]);
+  .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"])
+  .index("byLastGeneratedAt", ["lastGeneratedAt"]);
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
 export type TaskTemplate = ExtractSchema<typeof taskTemplatesTable>;
 export const isTaskTemplate = isObjectType<TaskTemplate>(taskTemplateType);
@@ -145,6 +147,7 @@ export const scheduledTodoTasksTable = defineTable("scheduled_todo_tasks", {
 })
   .index("byIds", ["id"])
   .index("byScheduledAt", ["scheduledAt"])
+  .index("byScheduledAtId", ["scheduledAt", "id"])
   .index("byProjectSectionId", ["projectSectionId"]);
 export type ScheduledTodoTask = ExtractSchema<typeof scheduledTodoTasksTable>;
 
