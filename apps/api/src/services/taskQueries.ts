@@ -1,12 +1,8 @@
 import { selectSync } from "@will-be-done/hyperdb";
-import {
-  dailyEntriesByIds,
-  dailyListsByIds,
-  tasksPageByCreatedAt,
-} from "@will-be-done/slices/space";
+import { tasksPageByCreatedAt } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import { decodeNumericCursor, encodeNumericCursor } from "./pagination";
-import { toPublicTask, type PublicTask } from "./tasks";
+import { getTaskScheduledDates, toPublicTask, type PublicTask } from "./tasks";
 
 export interface TaskSearchResult {
   tasks: PublicTask[];
@@ -35,26 +31,9 @@ export function listSpaceTasks({
     },
   });
   const page = tasks.slice(0, limit);
-
-  const entries = selectSync(db, {
-    selector: dailyEntriesByIds,
-    args: { ids: page.map((task) => task.id) },
-  });
-  const dailyListIds = [...new Set(entries.map((entry) => entry.dailyListId))];
-  const dailyLists = dailyListIds.length
-    ? selectSync(db, {
-        selector: dailyListsByIds,
-        args: { ids: dailyListIds },
-      })
-    : [];
-  const dateByDailyListId = new Map(
-    dailyLists.map((dailyList) => [dailyList.id, dailyList.date]),
-  );
-  const scheduledDateByTaskId = new Map(
-    entries.map((entry) => [
-      entry.id,
-      dateByDailyListId.get(entry.dailyListId) ?? null,
-    ]),
+  const scheduledDateByTaskId = getTaskScheduledDates(
+    db,
+    page.map((task) => task.id),
   );
   const last = page.at(-1);
   return {

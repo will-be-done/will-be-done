@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { syncDispatch } from "@will-be-done/hyperdb";
-import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
+import { generateTasksForTemplate } from "@will-be-done/slices/space";
 import { authenticateBearerToken } from "../../services/authentication";
 import {
   convertTaskTemplateToTask,
@@ -13,7 +13,6 @@ import {
   updateTaskTemplate,
 } from "../../services/taskTemplates";
 import { getSpaceDatabase } from "../../services/databaseAccess";
-import { getEnvConfig } from "../../env";
 import { sendError as handleError, unauthorized } from "../errors";
 import {
   ConvertTaskToTemplateBodySchema,
@@ -64,10 +63,9 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
         try {
           syncDispatch(
             getSpaceDatabase(request.params.spaceId, user.id),
-            generateSpaceTasksIfDue({
+            generateTasksForTemplate({
+              templateId: template.id,
               toDate: Date.now(),
-              intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
-              force: true,
             }),
           );
         } catch (error) {
@@ -160,10 +158,9 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
         try {
           syncDispatch(
             getSpaceDatabase(request.params.spaceId, user.id),
-            generateSpaceTasksIfDue({
+            generateTasksForTemplate({
+              templateId: template.id,
               toDate: Date.now(),
-              intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
-              force: true,
             }),
           );
         } catch (error) {

@@ -527,7 +527,10 @@ export const createTaskTemplateFromTask = action({
     };
 
     yield* insert(taskTemplatesTable, [template]);
-    yield* generateTasksFromTemplates({ toDate: now });
+    yield* generateTasksForTemplateIds({
+      templateIds: [template.id],
+      toDate: now,
+    });
     return template;
   },
 });
@@ -673,6 +676,17 @@ export const generateTasksFromTemplates = action({
   handler: function* generateTasksFromTemplates({ toDate }) {
     const templateIds = yield* taskTemplateIds({});
     return yield* generateTasksForTemplateIds({ templateIds, toDate });
+  },
+});
+
+export const generateTasksForTemplate = action({
+  name: "generateTasksForTemplate",
+  args: { templateId: v.string(), toDate: v.number() },
+  handler: function* generateTasksForTemplate({ templateId, toDate }) {
+    return yield* generateTasksForTemplateIds({
+      templateIds: [templateId],
+      toDate,
+    });
   },
 });
 

@@ -743,14 +743,29 @@ describe("section and task services", () => {
       scheduledDate: "2026-08-01",
     });
 
+    const dailyLists = listDailyListsInRange({
+      spaceId: "space-1",
+      userId: "user-1",
+      from: "2026-08-01",
+      to: "2026-08-03",
+    });
+    expect(dailyLists.map((dailyList) => dailyList.date)).toEqual([
+      "2026-08-01",
+    ]);
+    expect(dailyLists[0].items.map((task) => task.id)).toEqual(["task-a"]);
+
     expect(
-      listDailyListsInRange({
+      listSectionItems({
         spaceId: "space-1",
+        sectionId: "section-1",
         userId: "user-1",
-        from: "2026-08-01",
-        to: "2026-08-03",
-      }).map((dailyList) => dailyList.date),
-    ).toEqual(["2026-08-01"]);
+      })
+        .filter((item) => item.type === "task")
+        .map((task) => [task.id, task.scheduledDate]),
+    ).toEqual([
+      ["task-a", "2026-08-01"],
+      ["task-c", "2026-08-05"],
+    ]);
   });
 
   test("lists overdue and upcoming tasks from the scheduled index", () => {
