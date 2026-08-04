@@ -133,6 +133,15 @@ function createRuleFromString(ruleString: string): RRule {
   return RRule.fromString(ruleString.trim());
 }
 
+export function isValidTaskTemplateRule(ruleString: string): boolean {
+  try {
+    createRuleFromString(ruleString);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function createRuleWithDtstart(ruleString: string, dtstart: Date): RRule {
   const options = RRule.parseString(ruleString.trim());
   return new RRule({ ...options, dtstart });

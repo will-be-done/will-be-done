@@ -4,6 +4,7 @@ import { authenticateBearerToken } from "../../services/authentication";
 import {
   createUserSpace,
   deleteUserSpace,
+  getUserSpace,
   listUserSpaces,
   updateUserSpace,
 } from "../../services/spaces";
@@ -97,6 +98,50 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
         return reply.code(500).send({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to create space",
+        });
+      }
+    },
+  );
+
+  server.get(
+    "/spaces/:spaceId",
+    {
+      schema: {
+        operationId: "getSpace",
+        summary: "Get a space",
+        tags: ["Spaces"],
+        security: [{ bearerAuth: [] }],
+        params: SpaceParamsSchema,
+        response: {
+          200: SpaceResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = authenticateBearerToken(request.headers.authorization);
+      if (!user) return unauthorized(reply);
+
+      try {
+        const space = getUserSpace({
+          userId: user.id,
+          spaceId: request.params.spaceId,
+        });
+        if (!space) {
+          return reply
+            .code(404)
+            .send({ code: "NOT_FOUND", message: "Space not found" });
+        }
+        return reply.code(200).send({ space });
+      } catch (error) {
+        request.log.error(error, "Failed to get space");
+        return reply.code(500).send({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to get space",
         });
       }
     },

@@ -46,11 +46,42 @@ describe("API documentation", () => {
           title: "Will Be Done API",
         },
       });
+      expect(openApiDocument.paths).toMatchObject({
+        "/api/v1/spaces/{spaceId}": { get: { operationId: "getSpace" } },
+        "/api/v1/spaces/{spaceId}/projects/{projectId}": {
+          get: { operationId: "getProject" },
+        },
+        "/api/v1/spaces/{spaceId}/sections/{sectionId}": {
+          get: { operationId: "getProjectSection" },
+        },
+        "/api/v1/spaces/{spaceId}/tasks": {
+          get: { operationId: "listTasks" },
+        },
+        "/api/v1/spaces/{spaceId}/daily-lists": {
+          get: { operationId: "listDailyLists" },
+        },
+        "/api/v1/spaces/{spaceId}/scheduled-tasks": {
+          get: { operationId: "listScheduledTasks" },
+        },
+      });
       expect(badRequestResponse.statusCode).toBe(400);
       expect(badRequestResponse.json()).toMatchObject({
         code: "BAD_REQUEST",
         message: expect.any(String),
       });
+
+      const invalidRuleResponse = await server.inject({
+        method: "POST",
+        url: "/api/v1/spaces/space-1/sections/section-1/task-templates",
+        payload: { title: "Invalid", repeatRule: "not-an-rrule" },
+      });
+      expect(invalidRuleResponse.statusCode).toBe(400);
+
+      const invalidRangeResponse = await server.inject({
+        method: "GET",
+        url: "/api/v1/spaces/space-1/daily-lists?from=2026-08-10&to=2026-08-01",
+      });
+      expect(invalidRangeResponse.statusCode).toBe(400);
 
       const methods = new Set([
         "get",

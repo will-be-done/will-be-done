@@ -9,6 +9,7 @@ import {
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "@will-be-done/slices/traits";
+import { spacesTable, spacesTableType } from "@will-be-done/slices/user";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import {
   checklistItemsTable,
@@ -20,6 +21,8 @@ import {
   projectSectionType,
   projectType,
   dailyEntriesTable,
+  rebuildScheduledTodoTasks,
+  scheduledTodoTasksTable,
   tasksTable,
   taskTemplatesTable,
   taskTemplateType,
@@ -30,13 +33,14 @@ import {
   type TaskTemplate,
 } from "@will-be-done/slices/space";
 import * as databases from "../db/db";
-import { dbsTable } from "../slices/dbSlice";
+import { dbsTable, getDbByIdOrCreate } from "../slices/dbSlice";
 import {
   createProjectSection,
   deleteProjectSection,
   listProjectSections,
   moveProjectSection,
   updateProjectSection,
+  getProjectSection,
 } from "./sections";
 import { listSectionItems } from "./items";
 import {
@@ -57,9 +61,10 @@ import {
   listSpaceProjects,
   moveSpaceProject,
   updateSpaceProject,
+  getSpaceProject,
 } from "./projects";
 import { clearTaskSchedule, scheduleTask } from "./scheduling";
-import { listDailyListItems } from "./dailyLists";
+import { listDailyListItems, listDailyListsInRange } from "./dailyLists";
 import {
   convertTaskTemplateToTask,
   convertTaskToTemplate,
@@ -77,6 +82,8 @@ import {
   moveChecklistItem,
   updateChecklistItem,
 } from "./checklistItems";
+import { listSpaceTasks } from "./taskQueries";
+import { listScheduledTasks } from "./scheduledTasks";
 
 const action = createAction();
 const orderA = generateJitteredKeyBetween(null, null);
@@ -107,6 +114,21 @@ const seedInboxProject = action({
         title: "Inbox",
         orderToken: orderA,
         createdAt: 100,
+      },
+    ]);
+  },
+});
+const seedSpaceMembership = action({
+  name: "seedApiSectionTaskTestSpaceMembership",
+  args: {},
+  handler: function* () {
+    yield* insert(spacesTable, [
+      {
+        id: "space-1",
+        type: spacesTableType,
+        name: "Space",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
       },
     ]);
   },
@@ -222,10 +244,21 @@ const seedDomain = action({
 
 function setUpDatabases() {
   const mainDB = new DB(new BptreeInmemDriver());
+  const userDB = new DB(new BptreeInmemDriver());
   const spaceDB = new DB(new BptreeInmemDriver(), {
     traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
   });
   execSync(mainDB.loadTables([dbsTable]));
+  syncDispatch(
+    mainDB,
+    getDbByIdOrCreate({
+      id: "space-1",
+      type: "space",
+      userId: "user-1",
+    }),
+  );
+  execSync(userDB.loadTables([spacesTable]));
+  syncDispatch(userDB, seedSpaceMembership({}));
   execSync(
     spaceDB.loadTables([
       projectsTable,
@@ -235,14 +268,16 @@ function setUpDatabases() {
       checklistItemsTable,
       dailyListsTable,
       dailyEntriesTable,
+      scheduledTodoTasksTable,
     ]),
   );
   syncDispatch(spaceDB, seedDomain({}));
 
   spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
-  spyOn(databases, "getHyperDB").mockImplementation(
-    () =>
-      ({ db: spaceDB }) as unknown as ReturnType<typeof databases.getHyperDB>,
+  spyOn(databases, "getHyperDB").mockImplementation((config) =>
+    config.dbType === "user"
+      ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
+      : ({ db: spaceDB } as unknown as ReturnType<typeof databases.getHyperDB>),
   );
   return { spaceDB };
 }
@@ -281,6 +316,25 @@ describe("section and task services", () => {
         userId: "user-1",
       }),
     ).toThrow(ResourceNotFoundError);
+  });
+
+  test("gets individual projects and sections", () => {
+    setUpDatabases();
+
+    expect(
+      getSpaceProject({
+        spaceId: "space-1",
+        projectId: "project-1",
+        userId: "user-1",
+      }),
+    ).toMatchObject({ id: "project-1", title: "Project" });
+    expect(
+      getProjectSection({
+        spaceId: "space-1",
+        sectionId: "section-2",
+        userId: "user-1",
+      }),
+    ).toMatchObject({ id: "section-2", projectId: "project-1" });
   });
 
   test("lists todo tasks and templates as items, or done tasks only", () => {
@@ -650,6 +704,102 @@ describe("section and task services", () => {
         userId: "user-1",
       }).scheduledDate,
     ).toBeNull();
+  });
+
+  test("searches and paginates tasks and lists daily-list ranges", () => {
+    setUpDatabases();
+    scheduleTask({
+      spaceId: "space-1",
+      taskId: "task-a",
+      userId: "user-1",
+      date: "2026-08-01",
+    });
+    scheduleTask({
+      spaceId: "space-1",
+      taskId: "task-c",
+      userId: "user-1",
+      date: "2026-08-05",
+    });
+
+    const firstPage = listSpaceTasks({
+      spaceId: "space-1",
+      userId: "user-1",
+      state: "todo",
+      projectId: "project-1",
+      scheduledFrom: "2026-08-01",
+      scheduledTo: "2026-08-05",
+      limit: 1,
+    });
+    expect(firstPage.tasks).toHaveLength(1);
+    expect(firstPage.nextCursor).not.toBeNull();
+    const secondPage = listSpaceTasks({
+      spaceId: "space-1",
+      userId: "user-1",
+      state: "todo",
+      projectId: "project-1",
+      scheduledFrom: "2026-08-01",
+      scheduledTo: "2026-08-05",
+      cursor: firstPage.nextCursor!,
+      limit: 1,
+    });
+    expect(secondPage.tasks).toHaveLength(1);
+    expect(secondPage.tasks[0].id).not.toBe(firstPage.tasks[0].id);
+
+    expect(
+      listSpaceTasks({
+        spaceId: "space-1",
+        userId: "user-1",
+        nature: "green",
+        search: "c",
+        limit: 50,
+      }).tasks.map((task) => task.id),
+    ).toEqual(["task-c"]);
+
+    expect(
+      listDailyListsInRange({
+        spaceId: "space-1",
+        userId: "user-1",
+        from: "2026-08-01",
+        to: "2026-08-03",
+      }).map((dailyList) => dailyList.date),
+    ).toEqual(["2026-08-01"]);
+  });
+
+  test("lists overdue and upcoming tasks from the scheduled index", () => {
+    const { spaceDB } = setUpDatabases();
+    scheduleTask({
+      spaceId: "space-1",
+      taskId: "task-a",
+      userId: "user-1",
+      date: "2026-08-01",
+    });
+    scheduleTask({
+      spaceId: "space-1",
+      taskId: "task-c",
+      userId: "user-1",
+      date: "2026-08-05",
+    });
+    syncDispatch(spaceDB, rebuildScheduledTodoTasks({}));
+
+    expect(
+      listScheduledTasks({
+        spaceId: "space-1",
+        userId: "user-1",
+        scope: "overdue",
+        relativeTo: "2026-08-03",
+        limit: 50,
+      }).tasks.map((task) => task.id),
+    ).toEqual(["task-a"]);
+    expect(
+      listScheduledTasks({
+        spaceId: "space-1",
+        userId: "user-1",
+        scope: "upcoming",
+        relativeTo: "2026-08-03",
+        to: "2026-08-06",
+        limit: 50,
+      }).tasks.map((task) => task.id),
+    ).toEqual(["task-c"]);
   });
 
   test("creates, updates, moves, and deletes task templates", () => {

@@ -4,6 +4,7 @@ import { authenticateBearerToken } from "../../services/authentication";
 import {
   createProjectSection,
   deleteProjectSection,
+  getProjectSection,
   listProjectSections,
   moveProjectSection,
   updateProjectSection,
@@ -101,6 +102,46 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
           reply,
           error,
           "Failed to create project section",
+        );
+      }
+    },
+  );
+
+  server.get(
+    "/spaces/:spaceId/sections/:sectionId",
+    {
+      schema: {
+        operationId: "getProjectSection",
+        summary: "Get a project section",
+        tags: ["Project sections"],
+        security: [{ bearerAuth: [] }],
+        params: SectionParamsSchema,
+        response: {
+          200: ProjectSectionResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = authenticateBearerToken(request.headers.authorization);
+      if (!user) return unauthorized(reply);
+      try {
+        const section = getProjectSection({
+          spaceId: request.params.spaceId,
+          sectionId: request.params.sectionId,
+          userId: user.id,
+        });
+        return reply.code(200).send({ section });
+      } catch (error) {
+        return sendSectionError(
+          request,
+          reply,
+          error,
+          "Failed to get project section",
         );
       }
     },

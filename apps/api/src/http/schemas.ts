@@ -1,4 +1,12 @@
 import { z } from "zod";
+import { isValidTaskTemplateRule } from "@will-be-done/slices/space";
+
+const RepeatRuleSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine(isValidTaskTemplateRule, "Invalid RFC 5545 recurrence rule")
+  .describe("RFC 5545 recurrence rule");
 
 export const ErrorResponseSchema = z
   .object({
@@ -240,7 +248,7 @@ export const CreateTaskTemplateBodySchema = z
     title: z.string().trim().min(1),
     content: z.string().nullable().optional(),
     nature: TaskNatureSchema.nullable().optional(),
-    repeatRule: z.string().trim().min(1).optional(),
+    repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
     placement: PlacementSchema.optional(),
   })
@@ -251,7 +259,7 @@ export const UpdateTaskTemplateBodySchema = z
     title: z.string().trim().min(1).optional(),
     content: z.string().nullable().optional(),
     nature: TaskNatureSchema.nullable().optional(),
-    repeatRule: z.string().trim().min(1).optional(),
+    repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
   })
   .strict()
@@ -264,7 +272,7 @@ export const ConvertTaskToTemplateBodySchema = z
     title: z.string().trim().min(1).optional(),
     content: z.string().nullable().optional(),
     nature: TaskNatureSchema.nullable().optional(),
-    repeatRule: z.string().trim().min(1).optional(),
+    repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
   })
   .strict();
@@ -304,6 +312,33 @@ export const CreateTaskBodySchema = z
 
 export const TaskResponseSchema = z.object({ task: TaskSchema });
 
+export const ListSpaceTasksQuerySchema = z
+  .object({
+    state: TaskStateSchema.optional(),
+    sectionId: z.string().min(1).optional(),
+    projectId: z.string().min(1).optional(),
+    scheduledFrom: z.iso.date().optional(),
+    scheduledTo: z.iso.date().optional(),
+    nature: TaskNatureSchema.optional(),
+    search: z.string().trim().min(1).optional(),
+    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict()
+  .refine(
+    ({ scheduledFrom, scheduledTo }) =>
+      !scheduledFrom || !scheduledTo || scheduledFrom <= scheduledTo,
+    {
+      message: "scheduledFrom must be on or before scheduledTo",
+      path: ["scheduledTo"],
+    },
+  );
+
+export const PaginatedTasksResponseSchema = z.object({
+  tasks: z.array(TaskSchema),
+  nextCursor: z.string().nullable(),
+});
+
 export const ScheduleTaskBodySchema = z
   .object({
     date: z.iso.date().describe("Schedule date in YYYY-MM-DD format"),
@@ -328,6 +363,60 @@ export const DailyListItemsQuerySchema = z.object({
 export const DailyListItemsResponseSchema = z.object({
   items: z.array(TaskSchema),
 });
+
+export const DailyListsRangeQuerySchema = z
+  .object({
+    from: z.iso.date(),
+    to: z.iso.date(),
+    state: TaskStateSchema.optional().default("todo"),
+  })
+  .strict()
+  .refine(({ from, to }) => from <= to, {
+    message: "from must be on or before to",
+    path: ["to"],
+  })
+  .refine(
+    ({ from, to }) =>
+      Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`) <=
+      366 * 24 * 60 * 60 * 1000,
+    {
+      message: "Date range cannot exceed 366 days",
+      path: ["to"],
+    },
+  );
+
+export const DailyListSchema = z.object({
+  date: z.iso.date(),
+  items: z.array(TaskSchema),
+});
+
+export const DailyListsRangeResponseSchema = z.object({
+  dailyLists: z.array(DailyListSchema),
+});
+
+export const ScheduledTasksQuerySchema = z
+  .object({
+    scope: z.enum(["overdue", "upcoming"]),
+    relativeTo: z
+      .iso.date()
+      .optional()
+      .describe("Boundary date; defaults to today"),
+    to: z
+      .iso.date()
+      .optional()
+      .describe("Inclusive end date for upcoming tasks"),
+    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict()
+  .refine(({ scope, to }) => scope === "upcoming" || to === undefined, {
+    message: "to is only supported for upcoming tasks",
+    path: ["to"],
+  })
+  .refine(({ relativeTo, to }) => !relativeTo || !to || relativeTo <= to, {
+    message: "relativeTo must be on or before to",
+    path: ["to"],
+  });
 
 export const UpdateTaskBodySchema = z
   .object({

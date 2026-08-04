@@ -11,6 +11,7 @@ import {
   updateTaskTemplate,
 } from "../../services/taskTemplates";
 import { sendError as handleError, unauthorized } from "../errors";
+import { generateSpaceTasksIfDue } from "../../services/databaseAccess";
 import {
   ConvertTaskToTemplateBodySchema,
   CreateTaskTemplateBodySchema,
@@ -56,6 +57,11 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
           sectionId: request.params.sectionId,
           userId: user.id,
           ...request.body,
+        });
+        generateSpaceTasksIfDue({
+          spaceId: request.params.spaceId,
+          userId: user.id,
+          force: true,
         });
         return reply.code(201).send({ template });
       } catch (error) {
@@ -140,6 +146,11 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
           templateId: request.params.templateId,
           userId: user.id,
           updates: request.body,
+        });
+        generateSpaceTasksIfDue({
+          spaceId: request.params.spaceId,
+          userId: user.id,
+          force: true,
         });
         return reply.code(200).send({ template });
       } catch (error) {

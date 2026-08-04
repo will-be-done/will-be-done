@@ -269,6 +269,17 @@ export const projectTasksCount = selector({
   },
 });
 
+export const allScheduledTodoTasks = selector({
+  name: "allScheduledTodoTasks",
+  args: {},
+  handler: function* allScheduledTodoTasks() {
+    return (yield* selectFrom(
+      scheduledTodoTasksTable,
+      "byScheduledAt",
+    )) as ScheduledTodoTask[];
+  },
+});
+
 export type ProjectWithTaskStats = {
   project: Project;
   notDoneCount: number;
