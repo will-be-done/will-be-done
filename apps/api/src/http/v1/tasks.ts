@@ -130,7 +130,7 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
         summary: "List section items",
         description:
           "Returns todo tasks and templates in display order by default. When taskState is done, returns completed tasks only.",
-        tags: ["Items"],
+        tags: ["Project sections"],
         security: [{ bearerAuth: [] }],
         params: SectionTasksParamsSchema,
         querystring: ListSectionItemsQuerySchema,

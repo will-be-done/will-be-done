@@ -69,6 +69,11 @@ describe("API documentation", () => {
           .map((parameter: { name: string }) => parameter.name)
           .sort(),
       ).toEqual(["cursor", "limit", "spaceId"]);
+      expect(
+        openApiDocument.paths[
+          "/api/v1/spaces/{spaceId}/sections/{sectionId}/items"
+        ].get.tags,
+      ).toEqual(["Project sections"]);
       expect(badRequestResponse.statusCode).toBe(400);
       expect(badRequestResponse.json()).toMatchObject({
         code: "BAD_REQUEST",

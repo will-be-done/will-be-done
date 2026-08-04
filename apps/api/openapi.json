@@ -4056,7 +4056,7 @@
       "get": {
         "operationId": "listSectionItems",
         "summary": "List section items",
-        "tags": ["Items"],
+        "tags": ["Project sections"],
         "description": "Returns todo tasks and templates in display order by default. When taskState is done, returns completed tasks only.",
         "parameters": [
           {
