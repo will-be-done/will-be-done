@@ -63,6 +63,14 @@ describe("API documentation", () => {
         "/api/v1/spaces/{spaceId}/scheduled-tasks": {
           get: { operationId: "listScheduledTasks" },
         },
+        "/api/v1/spaces/{spaceId}/stash/tasks": {
+          get: { operationId: "listStashTasks" },
+          post: { operationId: "createStashTask" },
+        },
+        "/api/v1/spaces/{spaceId}/stash/tasks/{taskId}": {
+          put: { operationId: "putTaskInStash" },
+          delete: { operationId: "removeTaskFromStash" },
+        },
       });
       expect(
         openApiDocument.paths["/api/v1/spaces/{spaceId}/tasks"].get.parameters
@@ -74,6 +82,23 @@ describe("API documentation", () => {
           "/api/v1/spaces/{spaceId}/sections/{sectionId}/items"
         ].get.tags,
       ).toEqual(["Project sections"]);
+      expect(
+        openApiDocument.paths[
+          "/api/v1/spaces/{spaceId}/stash/tasks"
+        ].get.parameters
+          .map((parameter: { name: string }) => parameter.name)
+          .sort(),
+      ).toEqual(["spaceId", "state"]);
+      expect(
+        openApiDocument.paths["/api/v1/spaces/{spaceId}/stash/tasks"].get.tags,
+      ).toEqual(["Stash"]);
+      expect(
+        openApiDocument.paths["/api/v1/spaces/{spaceId}/stash/tasks/{taskId}"]
+          .put.tags,
+      ).toEqual(["Stash"]);
+      expect(JSON.stringify(openApiDocument.paths)).not.toContain(
+        '"tags":["Items"]',
+      );
       expect(badRequestResponse.statusCode).toBe(400);
       expect(badRequestResponse.json()).toMatchObject({
         code: "BAD_REQUEST",

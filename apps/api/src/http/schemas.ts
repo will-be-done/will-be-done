@@ -198,6 +198,8 @@ export const TaskParamsSchema = z.object({
   taskId: z.string().min(1).describe("Task identifier"),
 });
 
+export const StashTaskParamsSchema = TaskParamsSchema;
+
 export const TaskStateSchema = z.enum(["todo", "done"]);
 export const TaskNatureSchema = z.enum(["red", "green", "unknown"]);
 
@@ -310,7 +312,25 @@ export const CreateTaskBodySchema = z
   })
   .strict();
 
+export const CreateStashTaskBodySchema = CreateTaskBodySchema;
+
+export const PutStashTaskBodySchema = z
+  .object({
+    placement: PlacementSchema.optional(),
+  })
+  .strict();
+
 export const TaskResponseSchema = z.object({ task: TaskSchema });
+
+export const ListStashTasksQuerySchema = z
+  .object({
+    state: TaskStateSchema.optional().default("todo"),
+  })
+  .strict();
+
+export const ListStashTasksResponseSchema = z.object({
+  tasks: z.array(TaskSchema),
+});
 
 export const ListSpaceTasksQuerySchema = z
   .object({
