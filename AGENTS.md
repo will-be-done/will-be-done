@@ -57,3 +57,7 @@ For API handlers, request hooks, and user-triggered actions:
 
 When adding new functionality to `apps/slices`, also check whether it should be exposed through
 the v1 HTTP API in `apps/api/src/http/v1`, and update the API when appropriate.
+
+Every new v1 HTTP API method must be covered by an API E2E test in `apps/api/src/e2e`. The test
+must call the method through the generated OpenAPI client and run against the real Fastify server
+and database.

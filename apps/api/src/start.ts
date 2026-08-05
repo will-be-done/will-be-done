@@ -3,7 +3,7 @@ import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
-import { getMainHyperDB } from "./db/db";
+import { closeDatabases, getMainHyperDB } from "./db/db";
 import { getEnvConfig } from "./env";
 import { createServer } from "./server";
 
@@ -113,6 +113,7 @@ const start = async () => {
             }
 
             await server.close();
+            closeDatabases();
             server.log.info("Server closed successfully");
             process.exit(0);
           } catch (error) {
