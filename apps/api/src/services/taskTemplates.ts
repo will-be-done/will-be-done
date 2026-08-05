@@ -1,7 +1,7 @@
 import {
+  asyncDispatch,
   createAction,
-  selectSync,
-  syncDispatch,
+  selectAsync,
   upsert,
 } from "@will-be-done/hyperdb";
 import {
@@ -39,11 +39,11 @@ const replaceTaskTemplate = action({
   },
 });
 
-function applyUpdates(
-  db: ReturnType<typeof getSpaceDatabase>,
+async function applyUpdates(
+  db: Awaited<ReturnType<typeof getSpaceDatabase>>,
   current: TaskTemplate,
   updates: TaskTemplateUpdates,
-): TaskTemplate {
+): Promise<TaskTemplate> {
   const next: TaskTemplate = {
     ...current,
     ...(updates.title === undefined ? {} : { title: updates.title }),
@@ -61,11 +61,11 @@ function applyUpdates(
   if (updates.content === null) delete next.content;
   if (updates.nature === null) delete next.nature;
 
-  syncDispatch(db, replaceTaskTemplate({ template: next }));
+  await asyncDispatch(db, replaceTaskTemplate({ template: next }));
   return next;
 }
 
-export function getTaskTemplate({
+export async function getTaskTemplate({
   spaceId,
   templateId,
   userId,
@@ -73,9 +73,9 @@ export function getTaskTemplate({
   spaceId: string;
   templateId: string;
   userId: string;
-}): PublicTaskTemplate {
-  const db = getSpaceDatabase(spaceId, userId);
-  const template = selectSync(db, {
+}): Promise<PublicTaskTemplate> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const template = await selectAsync(db, {
     selector: taskTemplateById,
     args: { id: templateId },
   });
@@ -83,7 +83,7 @@ export function getTaskTemplate({
   return toPublicTaskTemplate(template);
 }
 
-export function createSectionTaskTemplate({
+export async function createSectionTaskTemplate({
   spaceId,
   sectionId,
   userId,
@@ -103,11 +103,11 @@ export function createSectionTaskTemplate({
   repeatRule?: string;
   repeatRuleDtStart?: number;
   placement?: Placement;
-}): PublicTaskTemplate {
-  const db = getSpaceDatabase(spaceId, userId);
-  requireSection(db, sectionId);
+}): Promise<PublicTaskTemplate> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  await requireSection(db, sectionId);
   const now = Date.now();
-  const template = syncDispatch(
+  const template = await asyncDispatch(
     db,
     createTaskTemplate({
       now,
@@ -115,7 +115,7 @@ export function createSectionTaskTemplate({
         title,
         projectSectionId: sectionId,
         orderToken: resolveOrderToken({
-          entities: itemsInSection(db, sectionId),
+          entities: await itemsInSection(db, sectionId),
           placement,
         }),
         ...(typeof content === "string" ? { content } : {}),
@@ -128,7 +128,7 @@ export function createSectionTaskTemplate({
   return toPublicTaskTemplate(template);
 }
 
-export function updateTaskTemplate({
+export async function updateTaskTemplate({
   spaceId,
   templateId,
   userId,
@@ -138,17 +138,17 @@ export function updateTaskTemplate({
   templateId: string;
   userId: string;
   updates: TaskTemplateUpdates;
-}): PublicTaskTemplate {
-  const db = getSpaceDatabase(spaceId, userId);
-  const current = selectSync(db, {
+}): Promise<PublicTaskTemplate> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const current = await selectAsync(db, {
     selector: taskTemplateById,
     args: { id: templateId },
   });
   if (!current) throw new ResourceNotFoundError("Task template");
-  return toPublicTaskTemplate(applyUpdates(db, current, updates));
+  return toPublicTaskTemplate(await applyUpdates(db, current, updates));
 }
 
-export function moveTaskTemplate({
+export async function moveTaskTemplate({
   spaceId,
   templateId,
   userId,
@@ -160,23 +160,23 @@ export function moveTaskTemplate({
   userId: string;
   projectSectionId: string;
   placement: Placement;
-}): PublicTaskTemplate {
-  const db = getSpaceDatabase(spaceId, userId);
-  const current = selectSync(db, {
+}): Promise<PublicTaskTemplate> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const current = await selectAsync(db, {
     selector: taskTemplateById,
     args: { id: templateId },
   });
   if (!current) throw new ResourceNotFoundError("Task template");
-  requireSection(db, projectSectionId);
+  await requireSection(db, projectSectionId);
 
-  const updated = syncDispatch(
+  const updated = await asyncDispatch(
     db,
     updateTemplate({
       id: templateId,
       template: {
         projectSectionId,
         orderToken: resolveOrderToken({
-          entities: itemsInSection(db, projectSectionId, templateId),
+          entities: await itemsInSection(db, projectSectionId, templateId),
           placement,
         }),
       },
@@ -185,7 +185,7 @@ export function moveTaskTemplate({
   return toPublicTaskTemplate(updated);
 }
 
-export function deleteTaskTemplate({
+export async function deleteTaskTemplate({
   spaceId,
   templateId,
   userId,
@@ -193,17 +193,17 @@ export function deleteTaskTemplate({
   spaceId: string;
   templateId: string;
   userId: string;
-}): void {
-  const db = getSpaceDatabase(spaceId, userId);
-  const template = selectSync(db, {
+}): Promise<void> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const template = await selectAsync(db, {
     selector: taskTemplateById,
     args: { id: templateId },
   });
   if (!template) throw new ResourceNotFoundError("Task template");
-  syncDispatch(db, deleteTemplates({ taskTemplateIds: [templateId] }));
+  await asyncDispatch(db, deleteTemplates({ taskTemplateIds: [templateId] }));
 }
 
-export function convertTaskToTemplate({
+export async function convertTaskToTemplate({
   spaceId,
   taskId,
   userId,
@@ -213,13 +213,16 @@ export function convertTaskToTemplate({
   taskId: string;
   userId: string;
   updates: TaskTemplateUpdates;
-}): PublicTaskTemplate {
-  const db = getSpaceDatabase(spaceId, userId);
-  const task = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<PublicTaskTemplate> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const task = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!task) throw new ResourceNotFoundError("Task");
 
   const now = Date.now();
-  let template = syncDispatch(
+  let template = await asyncDispatch(
     db,
     createTaskTemplateFromTask({
       task,
@@ -242,7 +245,7 @@ export function convertTaskToTemplate({
   );
 
   if (updates.content === null || updates.nature === null) {
-    template = applyUpdates(db, template, {
+    template = await applyUpdates(db, template, {
       ...(updates.content === null ? { content: null } : {}),
       ...(updates.nature === null ? { nature: null } : {}),
     });
@@ -250,7 +253,7 @@ export function convertTaskToTemplate({
   return toPublicTaskTemplate(template);
 }
 
-export function convertTaskTemplateToTask({
+export async function convertTaskTemplateToTask({
   spaceId,
   templateId,
   userId,
@@ -258,17 +261,17 @@ export function convertTaskTemplateToTask({
   spaceId: string;
   templateId: string;
   userId: string;
-}): PublicTask {
-  const db = getSpaceDatabase(spaceId, userId);
-  const template = selectSync(db, {
+}): Promise<PublicTask> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const template = await selectAsync(db, {
     selector: taskTemplateById,
     args: { id: templateId },
   });
   if (!template) throw new ResourceNotFoundError("Task template");
 
-  const task = syncDispatch(
+  const task = await asyncDispatch(
     db,
     createTaskFromTemplate({ taskTemplate: template }),
   );
-  return toPublicTask(db, task);
+  return toPublicTask(task, null);
 }

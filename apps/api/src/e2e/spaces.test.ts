@@ -10,7 +10,7 @@ import { createAuthorization, requestOptions } from "./harness";
 import { coverOperation } from "./operationCoverage";
 
 test("covers every space operation and authentication boundaries", async () => {
-  const options = requestOptions(createAuthorization());
+  const options = requestOptions(await createAuthorization());
   const created = await coverOperation(
     "createSpace",
     createSpace({ name: "Space operations" }, options),
@@ -35,7 +35,7 @@ test("covers every space operation and authentication boundaries", async () => {
   );
   expect(updated.data.space.name).toBe("Updated space");
 
-  const otherUserOptions = requestOptions(createAuthorization());
+  const otherUserOptions = requestOptions(await createAuthorization());
   expect((await getSpace(space.id, otherUserOptions)).status).toBe(404);
 
   const unauthorized = await listSpaces({

@@ -1,7 +1,7 @@
 import {
+  asyncDispatch,
   createAction,
-  selectSync,
-  syncDispatch,
+  selectAsync,
   upsert,
 } from "@will-be-done/hyperdb";
 import {
@@ -43,7 +43,7 @@ export interface PublicTask {
   scheduledDate: string | null;
 }
 
-type SpaceDatabase = ReturnType<typeof getSpaceDatabase>;
+type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
 
 const action = createAction();
 const replaceTask = action({
@@ -54,38 +54,38 @@ const replaceTask = action({
   },
 });
 
-export function getTaskScheduledDate(
+export async function getTaskScheduledDate(
   db: SpaceDatabase,
   taskId: string,
   knownScheduledDate?: string | null,
-): string | null {
+): Promise<string | null> {
   if (knownScheduledDate !== undefined) return knownScheduledDate;
 
-  const entry = selectSync(db, {
+  const entry = await selectAsync(db, {
     selector: dailyEntryByTaskId,
     args: { taskId },
   });
   if (!entry) return null;
 
-  const dailyList = selectSync(db, {
+  const dailyList = await selectAsync(db, {
     selector: dailyListById,
     args: { id: entry.dailyListId },
   });
   return dailyList?.date ?? null;
 }
 
-export function getTaskScheduledDates(
+export async function getTaskScheduledDates(
   db: SpaceDatabase,
   taskIds: string[],
-): Map<string, string | null> {
+): Promise<Map<string, string | null>> {
   if (taskIds.length === 0) return new Map();
 
-  const entries = selectSync(db, {
+  const entries = await selectAsync(db, {
     selector: dailyEntriesByIds,
     args: { ids: taskIds },
   });
   const dailyListIds = [...new Set(entries.map((entry) => entry.dailyListId))];
-  const dailyLists = selectSync(db, {
+  const dailyLists = await selectAsync(db, {
     selector: dailyListsByIds,
     args: { ids: dailyListIds },
   });
@@ -106,9 +106,8 @@ export function getTaskScheduledDates(
 }
 
 export function toPublicTask(
-  db: SpaceDatabase,
   task: Task,
-  knownScheduledDate?: string | null,
+  scheduledDate: string | null,
 ): PublicTask {
   return {
     type: "task",
@@ -120,11 +119,11 @@ export function toPublicTask(
     nature: task.nature ?? "unknown",
     createdAt: task.createdAt,
     lastToggledAt: task.lastToggledAt,
-    scheduledDate: getTaskScheduledDate(db, task.id, knownScheduledDate),
+    scheduledDate,
   };
 }
 
-export function getTask({
+export async function getTask({
   spaceId,
   taskId,
   userId,
@@ -132,14 +131,17 @@ export function getTask({
   spaceId: string;
   taskId: string;
   userId: string;
-}): PublicTask {
-  const db = getSpaceDatabase(spaceId, userId);
-  const task = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<PublicTask> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const task = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!task) throw new ResourceNotFoundError("Task");
-  return toPublicTask(db, task);
+  return toPublicTask(task, await getTaskScheduledDate(db, task.id));
 }
 
-export function createSectionTask({
+export async function createSectionTask({
   spaceId,
   sectionId,
   userId,
@@ -155,18 +157,18 @@ export function createSectionTask({
   content?: string;
   nature?: PublicTaskNature;
   placement?: Placement;
-}): PublicTask {
-  const db = getSpaceDatabase(spaceId, userId);
-  requireSection(db, sectionId);
+}): Promise<PublicTask> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  await requireSection(db, sectionId);
   const position = resolveCreatePosition({
     entities:
       placement.kind === "before" || placement.kind === "after"
-        ? itemsInSection(db, sectionId)
+        ? await itemsInSection(db, sectionId)
         : [],
     placement,
   });
 
-  const task = syncDispatch(
+  const task = await asyncDispatch(
     db,
     createTaskInSection({
       projectSectionId: sectionId,
@@ -178,10 +180,10 @@ export function createSectionTask({
       },
     }),
   );
-  return toPublicTask(db, task);
+  return toPublicTask(task, null);
 }
 
-export function updateTask({
+export async function updateTask({
   spaceId,
   taskId,
   userId,
@@ -196,9 +198,12 @@ export function updateTask({
     state?: PublicTaskState;
     nature?: PublicTaskNature | null;
   };
-}): PublicTask {
-  const db = getSpaceDatabase(spaceId, userId);
-  const current = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<PublicTask> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const current = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!current) throw new ResourceNotFoundError("Task");
 
   const next: Task = {
@@ -216,12 +221,12 @@ export function updateTask({
   if (updates.content === null) delete next.content;
   if (updates.nature === null) delete next.nature;
 
-  syncDispatch(db, replaceTask({ task: next }));
+  await asyncDispatch(db, replaceTask({ task: next }));
 
-  return getTask({ spaceId, taskId, userId });
+  return toPublicTask(next, await getTaskScheduledDate(db, taskId));
 }
 
-export function moveTask({
+export async function moveTask({
   spaceId,
   taskId,
   userId,
@@ -233,23 +238,26 @@ export function moveTask({
   userId: string;
   projectSectionId: string;
   placement: Placement;
-}): PublicTask {
-  const db = getSpaceDatabase(spaceId, userId);
-  const current = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<PublicTask> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const current = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!current) throw new ResourceNotFoundError("Task");
   if (current.state === "done") {
     throw new InvalidPlacementError("Completed tasks cannot be moved");
   }
-  requireSection(db, projectSectionId);
+  await requireSection(db, projectSectionId);
 
-  syncDispatch(
+  await asyncDispatch(
     db,
     updateTaskAction({
       id: taskId,
       task: {
         projectSectionId,
         orderToken: resolveOrderToken({
-          entities: itemsInSection(db, projectSectionId, taskId),
+          entities: await itemsInSection(db, projectSectionId, taskId),
           placement,
         }),
       },
@@ -258,7 +266,7 @@ export function moveTask({
   return getTask({ spaceId, taskId, userId });
 }
 
-export function deleteTask({
+export async function deleteTask({
   spaceId,
   taskId,
   userId,
@@ -266,9 +274,12 @@ export function deleteTask({
   spaceId: string;
   taskId: string;
   userId: string;
-}): void {
-  const db = getSpaceDatabase(spaceId, userId);
-  const task = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<void> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const task = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!task) throw new ResourceNotFoundError("Task");
-  syncDispatch(db, deleteTaskById({ id: taskId }));
+  await asyncDispatch(db, deleteTaskById({ id: taskId }));
 }

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { expect } from "bun:test";
-import { syncDispatch } from "@will-be-done/hyperdb";
+import { asyncDispatch } from "@will-be-done/hyperdb";
 import { createAppRouter } from "../appRouter";
 import { closeDatabases, getMainHyperDB } from "../db/db";
 import {
@@ -37,7 +37,7 @@ export function expectResponseStatus<
 export async function startTestServer(): Promise<FastifyInstance> {
   if (activeTestServer) return activeTestServer;
 
-  const mainDB = getMainHyperDB();
+  const mainDB = await getMainHyperDB();
   const server = createServer({
     appRouter: createAppRouter({ mainDB, captchaConfig: null }),
     logger: false,
@@ -54,7 +54,7 @@ export async function startTestServer(): Promise<FastifyInstance> {
 export async function stopTestServer() {
   await activeTestServer?.close();
   activeTestServer = undefined;
-  closeDatabases();
+  await closeDatabases();
 }
 
 export async function restartTestServer(): Promise<FastifyInstance> {
@@ -62,9 +62,9 @@ export async function restartTestServer(): Promise<FastifyInstance> {
   return startTestServer();
 }
 
-export function createAuthorization(): string {
-  const auth = syncDispatch(
-    getMainHyperDB(),
+export async function createAuthorization(): Promise<string> {
+  const auth = await asyncDispatch(
+    await getMainHyperDB(),
     register({
       email: `api-client-e2e-${crypto.randomUUID()}@example.com`,
       hashedPassword: "unused-by-api-e2e",

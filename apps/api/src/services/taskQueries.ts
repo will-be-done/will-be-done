@@ -1,4 +1,4 @@
-import { selectSync } from "@will-be-done/hyperdb";
+import { selectAsync } from "@will-be-done/hyperdb";
 import { tasksPageByCreatedAt } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import { decodeNumericCursor, encodeNumericCursor } from "./pagination";
@@ -9,7 +9,7 @@ export interface TaskSearchResult {
   nextCursor: string | null;
 }
 
-export function listSpaceTasks({
+export async function listSpaceTasks({
   spaceId,
   userId,
   cursor,
@@ -19,10 +19,10 @@ export function listSpaceTasks({
   userId: string;
   cursor?: string;
   limit: number;
-}): TaskSearchResult {
-  const db = getSpaceDatabase(spaceId, userId);
+}): Promise<TaskSearchResult> {
+  const db = await getSpaceDatabase(spaceId, userId);
   const decodedCursor = cursor ? decodeNumericCursor(cursor) : null;
-  const tasks = selectSync(db, {
+  const tasks = await selectAsync(db, {
     selector: tasksPageByCreatedAt,
     args: {
       cursorCreatedAt: decodedCursor?.sort ?? null,
@@ -31,14 +31,14 @@ export function listSpaceTasks({
     },
   });
   const page = tasks.slice(0, limit);
-  const scheduledDateByTaskId = getTaskScheduledDates(
+  const scheduledDateByTaskId = await getTaskScheduledDates(
     db,
     page.map((task) => task.id),
   );
   const last = page.at(-1);
   return {
     tasks: page.map((task) =>
-      toPublicTask(db, task, scheduledDateByTaskId.get(task.id) ?? null),
+      toPublicTask(task, scheduledDateByTaskId.get(task.id) ?? null),
     ),
     nextCursor:
       tasks.length > limit && last

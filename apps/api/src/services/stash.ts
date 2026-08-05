@@ -1,4 +1,4 @@
-import { selectSync, syncDispatch } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
   addToStash,
   allStashEntriesOrdered,
@@ -14,13 +14,14 @@ import { ConflictError, ResourceNotFoundError } from "./errors";
 import { resolveCreatePosition, type Placement } from "./placement";
 import {
   getTaskScheduledDates,
+  getTaskScheduledDate,
   toPublicTask,
   type PublicTask,
   type PublicTaskNature,
   type PublicTaskState,
 } from "./tasks";
 
-export function listStashTasks({
+export async function listStashTasks({
   spaceId,
   userId,
   state = "todo",
@@ -28,23 +29,23 @@ export function listStashTasks({
   spaceId: string;
   userId: string;
   state?: PublicTaskState;
-}): PublicTask[] {
-  const db = getSpaceDatabase(spaceId, userId);
-  const tasks = selectSync(db, {
+}): Promise<PublicTask[]> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const tasks = await selectAsync(db, {
     selector: stashTasksByState,
     args: { state },
   });
-  const scheduledDates = getTaskScheduledDates(
+  const scheduledDates = await getTaskScheduledDates(
     db,
     tasks.map((task) => task.id),
   );
 
   return tasks.map((task) =>
-    toPublicTask(db, task, scheduledDates.get(task.id) ?? null),
+    toPublicTask(task, scheduledDates.get(task.id) ?? null),
   );
 }
 
-export function putTaskInStash({
+export async function putTaskInStash({
   spaceId,
   taskId,
   userId,
@@ -54,36 +55,41 @@ export function putTaskInStash({
   taskId: string;
   userId: string;
   placement?: Placement;
-}): PublicTask {
-  const db = getSpaceDatabase(spaceId, userId);
-  const task = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<PublicTask> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const task = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!task) throw new ResourceNotFoundError("Task");
   if (task.state === "done") {
     throw new ConflictError("Completed tasks cannot be added to the stash");
   }
 
-  const existingEntry = selectSync(db, {
+  const existingEntry = await selectAsync(db, {
     selector: stashEntryById,
     args: { id: taskId },
   });
   if (existingEntry && placement === undefined) {
-    return toPublicTask(db, task);
+    return toPublicTask(task, await getTaskScheduledDate(db, task.id));
   }
 
-  const entries = selectSync(db, {
-    selector: allStashEntriesOrdered,
-    args: {},
-  }).filter((entry) => entry.id !== taskId);
+  const entries = (
+    await selectAsync(db, {
+      selector: allStashEntriesOrdered,
+      args: {},
+    })
+  ).filter((entry) => entry.id !== taskId);
   const position = resolveCreatePosition({
     entities: entries,
     placement: placement ?? { kind: "first" },
   });
 
-  syncDispatch(db, addToStash({ taskId, position }));
-  return toPublicTask(db, task);
+  await asyncDispatch(db, addToStash({ taskId, position }));
+  return toPublicTask(task, await getTaskScheduledDate(db, task.id));
 }
 
-export function removeTaskFromStash({
+export async function removeTaskFromStash({
   spaceId,
   taskId,
   userId,
@@ -91,18 +97,18 @@ export function removeTaskFromStash({
   spaceId: string;
   taskId: string;
   userId: string;
-}): void {
-  const db = getSpaceDatabase(spaceId, userId);
-  const entry = selectSync(db, {
+}): Promise<void> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const entry = await selectAsync(db, {
     selector: stashEntryById,
     args: { id: taskId },
   });
   if (!entry) throw new ResourceNotFoundError("Stash task");
 
-  syncDispatch(db, removeFromStash({ taskId }));
+  await asyncDispatch(db, removeFromStash({ taskId }));
 }
 
-export function createStashTask({
+export async function createStashTask({
   spaceId,
   userId,
   title,
@@ -116,16 +122,19 @@ export function createStashTask({
   content?: string;
   nature?: PublicTaskNature;
   placement?: Placement;
-}): PublicTask {
-  const db = getSpaceDatabase(spaceId, userId);
-  const entries = selectSync(db, {
+}): Promise<PublicTask> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const entries = await selectAsync(db, {
     selector: allStashEntriesOrdered,
     args: {},
   });
   const position = resolveCreatePosition({ entities: entries, placement });
-  const projectId = selectSync(db, { selector: inboxProjectId, args: {} });
+  const projectId = await selectAsync(db, {
+    selector: inboxProjectId,
+    args: {},
+  });
 
-  const task = syncDispatch(
+  const task = await asyncDispatch(
     db,
     createTaskInStash({
       projectId,
@@ -139,5 +148,5 @@ export function createStashTask({
     }),
   );
 
-  return toPublicTask(db, task, null);
+  return toPublicTask(task, null);
 }

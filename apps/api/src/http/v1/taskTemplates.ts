@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { syncDispatch } from "@will-be-done/hyperdb";
+import { asyncDispatch } from "@will-be-done/hyperdb";
 import { generateTasksForTemplate } from "@will-be-done/slices/space";
 import { authenticateRequest } from "../../services/authentication";
 import {
@@ -50,19 +50,19 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const template = createSectionTaskTemplate({
+        const template = await createSectionTaskTemplate({
           spaceId: request.params.spaceId,
           sectionId: request.params.sectionId,
           userId: user.id,
           ...request.body,
         });
         try {
-          syncDispatch(
-            getSpaceDatabase(request.params.spaceId, user.id),
+          await asyncDispatch(
+            await getSpaceDatabase(request.params.spaceId, user.id),
             generateTasksForTemplate({
               templateId: template.id,
               toDate: Date.now(),
@@ -103,11 +103,11 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const template = getTaskTemplate({
+        const template = await getTaskTemplate({
           spaceId: request.params.spaceId,
           templateId: request.params.templateId,
           userId: user.id,
@@ -145,19 +145,19 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const template = updateTaskTemplate({
+        const template = await updateTaskTemplate({
           spaceId: request.params.spaceId,
           templateId: request.params.templateId,
           userId: user.id,
           updates: request.body,
         });
         try {
-          syncDispatch(
-            getSpaceDatabase(request.params.spaceId, user.id),
+          await asyncDispatch(
+            await getSpaceDatabase(request.params.spaceId, user.id),
             generateTasksForTemplate({
               templateId: template.id,
               toDate: Date.now(),
@@ -198,11 +198,11 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        deleteTaskTemplate({
+        await deleteTaskTemplate({
           spaceId: request.params.spaceId,
           templateId: request.params.templateId,
           userId: user.id,
@@ -241,11 +241,11 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const template = moveTaskTemplate({
+        const template = await moveTaskTemplate({
           spaceId: request.params.spaceId,
           templateId: request.params.templateId,
           userId: user.id,
@@ -284,11 +284,11 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const template = convertTaskToTemplate({
+        const template = await convertTaskToTemplate({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
@@ -326,11 +326,11 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const task = convertTaskTemplateToTask({
+        const task = await convertTaskTemplateToTask({
           spaceId: request.params.spaceId,
           templateId: request.params.templateId,
           userId: user.id,

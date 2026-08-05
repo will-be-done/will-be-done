@@ -3,6 +3,13 @@ import { z } from "zod";
 const EnvConfigSchema = z.object({
   WBD_STORAGE_PATH: z.string().default("/var/lib/will-be-done"),
   WBD_DB_PATH: z.string().optional(),
+  WBD_DB_ENGINE: z.enum(["sqlite", "turso"]).default("sqlite"),
+  WBD_TURSO_ORG: z.string().optional(),
+  WBD_TURSO_PLATFORM_TOKEN: z.string().optional(),
+  WBD_TURSO_GROUP: z.string().default("default"),
+  WBD_TURSO_DATABASE_PREFIX: z.string().default("wbd"),
+  WBD_TURSO_MAIN_DATABASE_URL: z.string().optional(),
+  WBD_TURSO_AUTH_TOKEN: z.string().optional(),
   WBD_TASK_GENERATION_INTERVAL_MS: z.coerce
     .number()
     .int()
@@ -14,6 +21,13 @@ let envConfig:
   | {
       WBD_STORAGE_PATH: string;
       WBD_DB_PATH: string;
+      WBD_DB_ENGINE: "sqlite" | "turso";
+      WBD_TURSO_ORG?: string;
+      WBD_TURSO_PLATFORM_TOKEN?: string;
+      WBD_TURSO_GROUP: string;
+      WBD_TURSO_DATABASE_PREFIX: string;
+      WBD_TURSO_MAIN_DATABASE_URL?: string;
+      WBD_TURSO_AUTH_TOKEN?: string;
       WBD_TASK_GENERATION_INTERVAL_MS: number;
     }
   | undefined;
@@ -24,13 +38,44 @@ export function getEnvConfig() {
   const parsed = EnvConfigSchema.parse({
     WBD_STORAGE_PATH: process.env.WBD_STORAGE_PATH,
     WBD_DB_PATH: process.env.WBD_DB_PATH,
+    WBD_DB_ENGINE: process.env.WBD_DB_ENGINE,
+    WBD_TURSO_ORG: process.env.WBD_TURSO_ORG,
+    WBD_TURSO_PLATFORM_TOKEN: process.env.WBD_TURSO_PLATFORM_TOKEN,
+    WBD_TURSO_GROUP: process.env.WBD_TURSO_GROUP,
+    WBD_TURSO_DATABASE_PREFIX: process.env.WBD_TURSO_DATABASE_PREFIX,
+    WBD_TURSO_MAIN_DATABASE_URL: process.env.WBD_TURSO_MAIN_DATABASE_URL,
+    WBD_TURSO_AUTH_TOKEN: process.env.WBD_TURSO_AUTH_TOKEN,
     WBD_TASK_GENERATION_INTERVAL_MS:
       process.env.WBD_TASK_GENERATION_INTERVAL_MS,
   });
 
+  if (parsed.WBD_DB_ENGINE === "turso") {
+    const missing = [
+      ["WBD_TURSO_ORG", parsed.WBD_TURSO_ORG],
+      ["WBD_TURSO_PLATFORM_TOKEN", parsed.WBD_TURSO_PLATFORM_TOKEN],
+      ["WBD_TURSO_MAIN_DATABASE_URL", parsed.WBD_TURSO_MAIN_DATABASE_URL],
+      ["WBD_TURSO_AUTH_TOKEN", parsed.WBD_TURSO_AUTH_TOKEN],
+    ]
+      .filter(([, value]) => !value?.trim())
+      .map(([name]) => name);
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required Turso environment variables: ${missing.join(", ")}`,
+      );
+    }
+  }
+
   envConfig = {
     WBD_STORAGE_PATH: parsed.WBD_STORAGE_PATH,
     WBD_DB_PATH: parsed.WBD_DB_PATH ?? `${parsed.WBD_STORAGE_PATH}/db`,
+    WBD_DB_ENGINE: parsed.WBD_DB_ENGINE,
+    WBD_TURSO_ORG: parsed.WBD_TURSO_ORG,
+    WBD_TURSO_PLATFORM_TOKEN: parsed.WBD_TURSO_PLATFORM_TOKEN,
+    WBD_TURSO_GROUP: parsed.WBD_TURSO_GROUP,
+    WBD_TURSO_DATABASE_PREFIX: parsed.WBD_TURSO_DATABASE_PREFIX,
+    WBD_TURSO_MAIN_DATABASE_URL: parsed.WBD_TURSO_MAIN_DATABASE_URL,
+    WBD_TURSO_AUTH_TOKEN: parsed.WBD_TURSO_AUTH_TOKEN,
     WBD_TASK_GENERATION_INTERVAL_MS: parsed.WBD_TASK_GENERATION_INTERVAL_MS,
   };
 

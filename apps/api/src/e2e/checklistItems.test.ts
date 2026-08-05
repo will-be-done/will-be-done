@@ -19,7 +19,7 @@ import { coverOperation } from "./operationCoverage";
 
 test("covers every checklist-item operation for tasks and templates", async () => {
   const { space, projectSection, task, options } = await createTaskFixture(
-    createAuthorization(),
+    await createAuthorization(),
   );
   const template = expectResponseStatus(
     await createTaskTemplate(

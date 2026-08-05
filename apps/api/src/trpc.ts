@@ -26,14 +26,14 @@ export async function createContext({
 }): Promise<Context> {
   // First try Authorization header (HTTP requests)
   if (req.headers.authorization) {
-    return { user: authenticateRequest(req) };
+    return { user: await authenticateRequest(req) };
   }
 
   // Then try URL query parameter (WebSocket connections)
   const url = new URL(req.url || "", "http://localhost");
   const token = url.searchParams.get("token");
   if (token) {
-    return { user: authenticateRequest(req, `Bearer ${token}`) };
+    return { user: await authenticateRequest(req, `Bearer ${token}`) };
   }
 
   return { user: null };

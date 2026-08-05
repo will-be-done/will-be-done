@@ -41,11 +41,11 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const result = listDailyListsInRange({
+        const result = await listDailyListsInRange({
           spaceId: request.params.spaceId,
           userId: user.id,
           ...request.query,
@@ -100,11 +100,11 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const items = listDailyListItems({
+        const items = await listDailyListItems({
           spaceId: request.params.spaceId,
           userId: user.id,
           date: request.params.date,

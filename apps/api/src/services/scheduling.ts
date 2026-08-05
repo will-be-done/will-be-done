@@ -1,4 +1,4 @@
-import { selectSync, syncDispatch } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
   dailyListByDate,
   dailyEntryByTaskId,
@@ -17,7 +17,7 @@ export interface ScheduledTaskResponse {
   date: string;
 }
 
-export function scheduleTask({
+export async function scheduleTask({
   spaceId,
   taskId,
   userId,
@@ -29,25 +29,28 @@ export function scheduleTask({
   userId: string;
   date: string;
   placement?: Placement;
-}): ScheduledTaskResponse {
-  const db = getSpaceDatabase(spaceId, userId);
-  const task = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<ScheduledTaskResponse> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const task = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!task) throw new ResourceNotFoundError("Task");
 
-  const dailyList = selectSync(db, {
+  const dailyList = await selectAsync(db, {
     selector: dailyListByDate,
     args: { date },
   });
   let position: ReturnType<typeof resolveCreatePosition>;
   if (placement.kind === "before" || placement.kind === "after") {
-    const anchor = selectSync(db, {
+    const anchor = await selectAsync(db, {
       selector: dailyEntryByTaskId,
       args: { taskId: placement.anchorId },
     });
     if (!dailyList || !anchor || anchor.dailyListId !== dailyList.id) {
       position = resolveCreatePosition({ entities: [], placement });
     } else {
-      const [before, after] = selectSync(db, {
+      const [before, after] = await selectAsync(db, {
         selector: dailyEntrySiblings,
         args: { taskId: anchor.id },
       });
@@ -60,7 +63,7 @@ export function scheduleTask({
     position = resolveCreatePosition({ entities: [], placement });
   }
 
-  syncDispatch(
+  await asyncDispatch(
     db,
     scheduleTaskAction({
       taskId,
@@ -69,10 +72,10 @@ export function scheduleTask({
     }),
   );
 
-  return { task: toPublicTask(db, task), date };
+  return { task: toPublicTask(task, date), date };
 }
 
-export function clearTaskSchedule({
+export async function clearTaskSchedule({
   spaceId,
   taskId,
   userId,
@@ -80,10 +83,13 @@ export function clearTaskSchedule({
   spaceId: string;
   taskId: string;
   userId: string;
-}): void {
-  const db = getSpaceDatabase(spaceId, userId);
-  const task = selectSync(db, { selector: taskById, args: { id: taskId } });
+}): Promise<void> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const task = await selectAsync(db, {
+    selector: taskById,
+    args: { id: taskId },
+  });
   if (!task) throw new ResourceNotFoundError("Task");
 
-  syncDispatch(db, removeFromDailyList({ taskId }));
+  await asyncDispatch(db, removeFromDailyList({ taskId }));
 }

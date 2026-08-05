@@ -97,8 +97,8 @@ describe("v1 recurring-task preparation", () => {
     syncDispatch(spaceDB, seedTemplate({}));
 
     spyOn(Date, "now").mockReturnValue(now);
-    spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation((config) =>
+    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
+    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
       config.dbType === "user"
         ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
         : ({ db: spaceDB } as unknown as ReturnType<

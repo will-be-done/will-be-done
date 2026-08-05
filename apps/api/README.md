@@ -19,6 +19,34 @@ a space. Each template keeps a persisted generation checkpoint and is checked
 at most once every 60 seconds by default. Set
 `WBD_TASK_GENERATION_INTERVAL_MS` to change the interval (minimum 1000).
 
+## Database engines
+
+SQLite remains the default and needs no external service. To use Turso Cloud,
+set `WBD_DB_ENGINE=turso` and configure the `WBD_TURSO_*` variables documented
+in `.env.example`. The server keeps one main database plus separate user and
+space databases; missing user and space databases are provisioned in the
+configured Turso group on first access.
+
+`WBD_TURSO_AUTH_TOKEN` must be a full-access group token so it also covers
+databases provisioned after startup. The existing local SQLite S3 backup worker
+is not supported in Turso mode; use Turso backups/PITR instead.
+
+To migrate an existing installation, stop the API and first run a validation-only
+pass:
+
+```bash
+WBD_TURSO_ORG=your-org \
+WBD_TURSO_PLATFORM_TOKEN=your-platform-token \
+WBD_TURSO_GROUP=default \
+WBD_TURSO_DATABASE_PREFIX=wbd \
+pnpm --filter @will-be-done/api db:migrate:turso -- --db-path /path/to/db
+```
+
+Review the source-to-database mapping, then repeat with `--execute`. The command
+checkpoints and validates every `main-`, `user-`, and `space-*.sqlite` file,
+creates upload-only databases, and refuses to run if any destination already
+exists. It prints the main database URL needed by the runtime when complete.
+
 ## Public API
 
 The versioned HTTP API uses bearer-token authentication. Core read endpoints

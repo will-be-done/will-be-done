@@ -20,7 +20,7 @@ if (!databasePath) {
 
 test("persists generated-client mutations in the real database across restart", async () => {
   const { space, projectSection, options } = await createSectionFixture(
-    createAuthorization(),
+    await createAuthorization(),
   );
   const task = expectResponseStatus(
     await createSectionTask(
@@ -32,10 +32,13 @@ test("persists generated-client mutations in the real database across restart", 
     201,
   ).data.task;
 
-  const storedTask = selectSync(getHyperDB(spaceDBConfig(space.id)).db, {
-    selector: taskById,
-    args: { id: task.id },
-  });
+  const storedTask = selectSync(
+    (await getHyperDB(spaceDBConfig(space.id))).db,
+    {
+      selector: taskById,
+      args: { id: task.id },
+    },
+  );
   expect(storedTask).toMatchObject({
     id: task.id,
     title: "Persisted task",

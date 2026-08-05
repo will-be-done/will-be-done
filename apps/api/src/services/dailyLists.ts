@@ -1,4 +1,4 @@
-import { selectSync } from "@will-be-done/hyperdb";
+import { selectAsync } from "@will-be-done/hyperdb";
 import {
   dailyListByDate,
   dailyEntriesByDailyListIds,
@@ -11,7 +11,7 @@ import { getSpaceDatabase } from "./databaseAccess";
 import { decodeStringCursor, encodeStringCursor } from "./pagination";
 import { toPublicTask, type PublicTask } from "./tasks";
 
-export function listDailyListItems({
+export async function listDailyListItems({
   spaceId,
   userId,
   date,
@@ -21,18 +21,20 @@ export function listDailyListItems({
   userId: string;
   date: string;
   state?: "todo" | "done";
-}): PublicTask[] {
-  const db = getSpaceDatabase(spaceId, userId);
-  const dailyList = selectSync(db, {
+}): Promise<PublicTask[]> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const dailyList = await selectAsync(db, {
     selector: dailyListByDate,
     args: { date },
   });
   if (!dailyList) return [];
 
-  return selectSync(db, {
-    selector: dailyListTasksByState,
-    args: { dailyListId: dailyList.id, state },
-  }).map((task) => toPublicTask(db, task, dailyList.date));
+  return (
+    await selectAsync(db, {
+      selector: dailyListTasksByState,
+      args: { dailyListId: dailyList.id, state },
+    })
+  ).map((task) => toPublicTask(task, dailyList.date));
 }
 
 export interface PublicDailyList {
@@ -45,7 +47,7 @@ export interface DailyListSearchResult {
   nextCursor: string | null;
 }
 
-export function listDailyListsInRange({
+export async function listDailyListsInRange({
   spaceId,
   userId,
   from,
@@ -61,10 +63,10 @@ export function listDailyListsInRange({
   state?: "todo" | "done";
   cursor?: string;
   limit: number;
-}): DailyListSearchResult {
-  const db = getSpaceDatabase(spaceId, userId);
+}): Promise<DailyListSearchResult> {
+  const db = await getSpaceDatabase(spaceId, userId);
   const decodedCursor = cursor ? decodeStringCursor(cursor) : null;
-  const dailyLists = selectSync(db, {
+  const dailyLists = await selectAsync(db, {
     selector: dailyListsInDateRange,
     args: {
       from,
@@ -77,11 +79,11 @@ export function listDailyListsInRange({
   const page = dailyLists.slice(0, limit);
   if (page.length === 0) return { dailyLists: [], nextCursor: null };
 
-  const entries = selectSync(db, {
+  const entries = await selectAsync(db, {
     selector: dailyEntriesByDailyListIds,
     args: { dailyListIds: page.map((dailyList) => dailyList.id) },
   });
-  const tasks = selectSync(db, {
+  const tasks = await selectAsync(db, {
     selector: tasksByIds,
     args: { ids: entries.map((entry) => entry.id) },
   });
@@ -105,9 +107,7 @@ export function listDailyListsInRange({
 
     return {
       date: dailyList.date,
-      items: matchingTasks.map((task) =>
-        toPublicTask(db, task, dailyList.date),
-      ),
+      items: matchingTasks.map((task) => toPublicTask(task, dailyList.date)),
     };
   });
   const last = page.at(-1);

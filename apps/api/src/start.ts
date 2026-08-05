@@ -9,22 +9,28 @@ import { createServer } from "./server";
 
 dotenv.config();
 
-const appRouter = createAppRouter({
-  mainDB: getMainHyperDB(),
-  captchaConfig: getCaptchaConfig(),
-});
-const server = createServer({ appRouter });
-
 const start = async () => {
   try {
+    const env = getEnvConfig();
+    const backupConfig = getBackupConfig();
+    if (backupConfig?.WBD_BACKUP_S3_ENABLED && env.WBD_DB_ENGINE === "turso") {
+      throw new Error(
+        "The local SQLite S3 backup worker cannot run with WBD_DB_ENGINE=turso. Use Turso point-in-time recovery or disable WBD_BACKUP_S3_ENABLED.",
+      );
+    }
+
+    const appRouter = createAppRouter({
+      mainDB: await getMainHyperDB(),
+      captchaConfig: getCaptchaConfig(),
+    });
+    const server = createServer({ appRouter });
+
     console.log("Starting server...");
     const port = parseInt(process.env.PORT || "3000", 10);
     await server.listen({ port, host: "0.0.0.0" });
     console.log("Server started");
 
     let backupWorker: Worker | null = null;
-    const backupConfig = getBackupConfig();
-
     if (backupConfig?.WBD_BACKUP_S3_ENABLED) {
       try {
         console.log("[Backup] S3 backup system enabled, spawning worker...");
@@ -113,7 +119,7 @@ const start = async () => {
             }
 
             await server.close();
-            closeDatabases();
+            await closeDatabases();
             server.log.info("Server closed successfully");
             process.exit(0);
           } catch (error) {
@@ -124,7 +130,8 @@ const start = async () => {
       });
     }
   } catch (error) {
-    server.log.error(error);
+    console.error(error);
+    await closeDatabases();
     process.exit(1);
   }
 };

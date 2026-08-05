@@ -76,7 +76,7 @@ docker run -d \
 
 Then open http://localhost:3000 in your browser.
 
-The Docker server hosts the web app, stores server-side data under `/var/lib/will-be-done`, and provides sync for browser, PWA, and desktop clients.
+The Docker server hosts the web app, stores server-side data under `/var/lib/will-be-done`, and provides sync for browser, PWA, and desktop clients. SQLite is the default; the API can optionally use Turso Cloud when `WBD_DB_ENGINE=turso`. See [the API database configuration](apps/api/README.md#database-engines) for setup and migration instructions.
 
 ## Screenshots
 
@@ -169,7 +169,7 @@ The Docker server hosts the web app, stores server-side data under `/var/lib/wil
 **Import, backup, and ownership**
 
 - Self-hosted server in one Docker command.
-- SQLite storage.
+- SQLite storage by default, with optional Turso Cloud storage.
 - No external services required for a self-hosted setup.
 - Todoist import by API token.
 - TickTick import from CSV export.

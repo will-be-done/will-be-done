@@ -88,7 +88,7 @@ describe("token management", () => {
     );
 
     expect(
-      authenticateBearerToken(`Bearer ${registered.token}`, mainDB, {
+      await authenticateBearerToken(`Bearer ${registered.token}`, mainDB, {
         usedAt: "2026-07-26T12:00:00.000Z",
         ip: "203.0.113.10",
         userAgent: "WillBeDoneTest/1.0",
@@ -126,7 +126,7 @@ describe("token management", () => {
       register({ email: "proxy@example.com", hashedPassword: "hashed" }),
     );
     const getMainDbSpy = spyOn(databases, "getMainHyperDB").mockImplementation(
-      () => mainDB,
+      async () => mainDB,
     );
     const server = createServer({
       appRouter: createAppRouter({ mainDB, captchaConfig: null }),

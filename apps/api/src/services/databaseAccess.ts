@@ -1,4 +1,4 @@
-import { selectSync, syncDispatch, type DB } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import { spaceDBConfig } from "../db/configs";
 import { getHyperDB, getMainHyperDB } from "../db/db";
 import { getDbById, getDbByIdOrCreate } from "../slices/dbSlice";
@@ -15,7 +15,7 @@ export class DatabaseAccessDeniedError extends Error {
   }
 }
 
-export function ensureDatabaseAccessOrCreate(
+export async function ensureDatabaseAccessOrCreate(
   {
     dbId,
     dbType,
@@ -25,8 +25,8 @@ export function ensureDatabaseAccessOrCreate(
     dbType: DatabaseType;
     userId: string;
   },
-  mainDB: DB = getMainHyperDB(),
-): void {
+  mainDB?: DB,
+): Promise<void> {
   if (dbType === "user") {
     if (userId !== dbId) {
       throw new DatabaseAccessDeniedError(dbType);
@@ -34,8 +34,9 @@ export function ensureDatabaseAccessOrCreate(
     return;
   }
 
-  const userDb = getHyperDB(userDBConfig(userId)).db;
-  const space = selectSync(userDb, {
+  const resolvedMainDB = mainDB ?? (await getMainHyperDB());
+  const userDb = (await getHyperDB(userDBConfig(userId))).db;
+  const space = await selectAsync(userDb, {
     selector: getSpaceById,
     args: { id: dbId },
   });
@@ -43,7 +44,7 @@ export function ensureDatabaseAccessOrCreate(
     throw new ResourceNotFoundError("Space");
   }
 
-  const existing = selectSync(mainDB, {
+  const existing = await selectAsync(resolvedMainDB, {
     selector: getDbById,
     args: { id: dbId, type: dbType },
   });
@@ -55,17 +56,20 @@ export function ensureDatabaseAccessOrCreate(
     return;
   }
 
-  syncDispatch(mainDB, getDbByIdOrCreate({ id: dbId, type: dbType, userId }));
+  await asyncDispatch(
+    resolvedMainDB,
+    getDbByIdOrCreate({ id: dbId, type: dbType, userId }),
+  );
 }
 
-export function getSpaceDatabase(
+export async function getSpaceDatabase(
   spaceId: string,
   userId: string,
-  mainDB: DB = getMainHyperDB(),
+  mainDB?: DB,
 ) {
-  ensureDatabaseAccessOrCreate(
+  await ensureDatabaseAccessOrCreate(
     { dbId: spaceId, dbType: "space", userId },
     mainDB,
   );
-  return getHyperDB(spaceDBConfig(spaceId)).db;
+  return (await getHyperDB(spaceDBConfig(spaceId))).db;
 }

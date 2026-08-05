@@ -60,6 +60,12 @@ importers:
       '@trpc/server':
         specifier: ^11.7.2
         version: 11.18.0(typescript@5.9.3)
+      '@tursodatabase/api':
+        specifier: ^2.0.5
+        version: 2.0.5
+      '@tursodatabase/serverless':
+        specifier: ^1.4.0
+        version: 1.4.0
       '@will-be-done/hyperdb':
         specifier: ^0.4.3
         version: 0.4.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -3557,6 +3563,12 @@ packages:
       '@trpc/server': 11.18.0
       react: 19.2.7
       typescript: '>=5.7.2'
+
+  '@tursodatabase/api@2.0.5':
+    resolution: {integrity: sha512-Bp17LkleBhxMkLEEdzYjflVQEueavxyKaYifY3An3ZimXn6bKmcBUYGDpjzIe7rxqZVoswzlYOXA4jociI5Z1Q==}
+
+  '@tursodatabase/serverless@1.4.0':
+    resolution: {integrity: sha512-ZU3T76NG/E0NTKULqJ9TggJfbdPgRaChOS4HDOu3Srds7w7fSPie7jbPHzz+CLGrxs2TtMYtYB1lH5Bh6q1w7A==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -7599,6 +7611,9 @@ packages:
   webpack-virtual-modules@0.6.2:
     resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
 
+  whatwg-fetch@3.6.20:
+    resolution: {integrity: sha512-EqhiFU6daOA8kpjOWTL0olhVOF3i7OrFzSYiGsEMB8GcXS+RrzauAERX65xMeNWVqxA6HXH2m69Z9LaKKdisfg==}
+
   whatwg-url@7.1.0:
     resolution: {integrity: sha512-WUu7Rg1DroM7oQvGWfOiAK21n74Gg+T4elXEQYkOhtyLeWiJFoOGLXPKI/9gzIie9CtwVLm8wtw6YJdKyxSjeg==}
 
@@ -11109,6 +11124,12 @@ snapshots:
       '@trpc/server': 11.18.0(typescript@5.9.3)
       react: 19.2.7
       typescript: 5.9.3
+
+  '@tursodatabase/api@2.0.5':
+    dependencies:
+      whatwg-fetch: 3.6.20
+
+  '@tursodatabase/serverless@1.4.0': {}
 
   '@types/babel__core@7.20.5':
     dependencies:
@@ -15954,6 +15975,8 @@ snapshots:
   webidl-conversions@4.0.2: {}
 
   webpack-virtual-modules@0.6.2: {}
+
+  whatwg-fetch@3.6.20: {}
 
   whatwg-url@7.1.0:
     dependencies:

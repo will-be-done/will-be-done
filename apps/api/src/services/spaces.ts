@@ -1,4 +1,4 @@
-import { selectSync, syncDispatch, type DB } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import {
   createSpace,
   deleteSpace,
@@ -18,8 +18,8 @@ export interface PublicSpace {
   updatedAt: string;
 }
 
-function getUserDatabase(userId: string) {
-  return getHyperDB(userDBConfig(userId)).db;
+async function getUserDatabase(userId: string) {
+  return (await getHyperDB(userDBConfig(userId))).db;
 }
 
 function toPublicSpace({
@@ -31,8 +31,12 @@ function toPublicSpace({
   return { id, name, createdAt, updatedAt };
 }
 
-export function listUserSpaces({ userId }: { userId: string }): PublicSpace[] {
-  const spaces = selectSync(getUserDatabase(userId), {
+export async function listUserSpaces({
+  userId,
+}: {
+  userId: string;
+}): Promise<PublicSpace[]> {
+  const spaces = await selectAsync(await getUserDatabase(userId), {
     selector: listSpaces,
     args: {},
   });
@@ -40,41 +44,46 @@ export function listUserSpaces({ userId }: { userId: string }): PublicSpace[] {
   return spaces.map(toPublicSpace);
 }
 
-export function getUserSpace({
+export async function getUserSpace({
   userId,
   spaceId,
 }: {
   userId: string;
   spaceId: string;
-}): PublicSpace | null {
-  const space = selectSync(getUserDatabase(userId), {
+}): Promise<PublicSpace | null> {
+  const space = await selectAsync(await getUserDatabase(userId), {
     selector: getSpaceById,
     args: { id: spaceId },
   });
   return space ? toPublicSpace(space) : null;
 }
 
-export function createUserSpace({
+export async function createUserSpace({
   userId,
   name,
-  mainDB = getMainHyperDB(),
+  mainDB,
 }: {
   userId: string;
   name: string;
   mainDB?: DB;
-}): PublicSpace {
-  const space = syncDispatch(getUserDatabase(userId), createSpace({ name }));
+}): Promise<PublicSpace> {
+  const resolvedMainDB = mainDB ?? (await getMainHyperDB());
+  const userDB = await getUserDatabase(userId);
+  const space = await asyncDispatch(userDB, createSpace({ name }));
 
   try {
-    getSpaceDatabase(space.id, userId, mainDB);
+    await getSpaceDatabase(space.id, userId, resolvedMainDB);
   } catch (error) {
     try {
-      syncDispatch(getUserDatabase(userId), deleteSpace({ id: space.id }));
+      await asyncDispatch(userDB, deleteSpace({ id: space.id }));
     } catch (rollbackError) {
       console.error("Failed to roll back user space creation", rollbackError);
     }
     try {
-      syncDispatch(mainDB, deleteDb({ id: space.id, type: "space" }));
+      await asyncDispatch(
+        resolvedMainDB,
+        deleteDb({ id: space.id, type: "space" }),
+      );
     } catch (rollbackError) {
       console.error(
         "Failed to roll back space database registration",
@@ -87,27 +96,28 @@ export function createUserSpace({
   return toPublicSpace(space);
 }
 
-export function deleteUserSpace({
+export async function deleteUserSpace({
   userId,
   spaceId,
-  mainDB = getMainHyperDB(),
+  mainDB,
 }: {
   userId: string;
   spaceId: string;
   mainDB?: DB;
-}): boolean {
-  const userDB = getUserDatabase(userId);
-  const space = selectSync(userDB, {
+}): Promise<boolean> {
+  const resolvedMainDB = mainDB ?? (await getMainHyperDB());
+  const userDB = await getUserDatabase(userId);
+  const space = await selectAsync(userDB, {
     selector: getSpaceById,
     args: { id: spaceId },
   });
   if (!space) return false;
 
-  syncDispatch(mainDB, deleteDb({ id: spaceId, type: "space" }));
-  return syncDispatch(userDB, deleteSpace({ id: spaceId }));
+  await asyncDispatch(resolvedMainDB, deleteDb({ id: spaceId, type: "space" }));
+  return asyncDispatch(userDB, deleteSpace({ id: spaceId }));
 }
 
-export function updateUserSpace({
+export async function updateUserSpace({
   userId,
   spaceId,
   name,
@@ -115,9 +125,9 @@ export function updateUserSpace({
   userId: string;
   spaceId: string;
   name: string;
-}): PublicSpace | null {
-  const space = syncDispatch(
-    getUserDatabase(userId),
+}): Promise<PublicSpace | null> {
+  const space = await asyncDispatch(
+    await getUserDatabase(userId),
     updateSpace({ id: spaceId, name }),
   );
   return space ? toPublicSpace(space) : null;

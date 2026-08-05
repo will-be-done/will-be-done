@@ -19,7 +19,7 @@ import { coverOperation } from "./operationCoverage";
 
 test("covers every task-template operation and both conversions", async () => {
   const { space, project, projectSection, options } =
-    await createSectionFixture(createAuthorization());
+    await createSectionFixture(await createAuthorization());
   const repeatRuleDtStart = Date.UTC(2200, 0, 1);
 
   const created = await coverOperation(

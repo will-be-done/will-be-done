@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { selectSync, syncDispatch, type DB } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import {
   ChangesetArray,
   getChangesetAfter,
@@ -39,13 +39,13 @@ export function createAppRouter({
   mainDB,
   captchaConfig,
 }: AppRouterDependencies) {
-  const checkDatabaseAccess = (
+  const checkDatabaseAccess = async (
     dbId: string,
     dbType: "user" | "space",
     userId: string,
   ) => {
     try {
-      ensureDatabaseAccessOrCreate({ dbId, dbType, userId }, mainDB);
+      await ensureDatabaseAccessOrCreate({ dbId, dbType, userId }, mainDB);
     } catch (error) {
       if (error instanceof DatabaseAccessDeniedError) {
         throw new TRPCError({ code: "FORBIDDEN", message: error.message });
@@ -71,16 +71,16 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        checkDatabaseAccess(
+        await checkDatabaseAccess(
           opts.input.dbId,
           opts.input.dbType,
           opts.ctx.user.id,
         );
 
         const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
-        const { db } = getHyperDB(config);
+        const { db } = await getHyperDB(config);
 
-        return selectSync(db, {
+        return selectAsync(db, {
           selector: getChangesetAfter,
           args: {
             after: opts.input.lastServerUpdatedAt,
@@ -104,16 +104,16 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        checkDatabaseAccess(
+        await checkDatabaseAccess(
           opts.input.dbId,
           opts.input.dbType,
           opts.ctx.user.id,
         );
 
         const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
-        const { db, nextClock, clientId } = getHyperDB(config);
+        const { db, nextClock, clientId } = await getHyperDB(config);
 
-        syncDispatch(
+        await asyncDispatch(
           db.withTraits({ type: "skip-sync" }),
           mergeChanges({
             input: opts.input.changeset,
@@ -138,7 +138,7 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        checkDatabaseAccess(
+        await checkDatabaseAccess(
           opts.input.dbId,
           opts.input.dbType,
           opts.ctx.user.id,
@@ -169,14 +169,16 @@ export function createAppRouter({
         }
       }),
 
-    listTokens: protectedProcedure.query((opts) => {
+    listTokens: protectedProcedure.query(async (opts) => {
       if (!opts.ctx.user) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      return syncDispatch(
-        mainDB,
-        getTokensByUserId({ userId: opts.ctx.user.id }),
+      return (
+        await asyncDispatch(
+          mainDB,
+          getTokensByUserId({ userId: opts.ctx.user.id }),
+        )
       ).map(({ id, createdAt, lastUsedAt, lastUsedIp, lastUsedUserAgent }) => ({
         id,
         createdAt,
@@ -186,12 +188,12 @@ export function createAppRouter({
       }));
     }),
 
-    createToken: protectedProcedure.mutation((opts) => {
+    createToken: protectedProcedure.mutation(async (opts) => {
       if (!opts.ctx.user) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      const created = syncDispatch(
+      const created = await asyncDispatch(
         mainDB,
         generateToken({ userId: opts.ctx.user.id }),
       );
@@ -205,7 +207,7 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const deleted = syncDispatch(
+        const deleted = await asyncDispatch(
           mainDB,
           revokeToken({
             tokenId: opts.input.tokenId,
@@ -260,7 +262,7 @@ export function createAppRouter({
         }
 
         const hashedPassword = await Bun.password.hash(password);
-        return syncDispatch(mainDB, register({ email, hashedPassword }));
+        return asyncDispatch(mainDB, register({ email, hashedPassword }));
       }),
 
     importTodoist: protectedProcedure
@@ -276,7 +278,7 @@ export function createAppRouter({
       )
       .mutation(async (opts) => {
         const { email, password } = opts.input;
-        const user = syncDispatch(mainDB, getUserByEmail({ email }));
+        const user = await asyncDispatch(mainDB, getUserByEmail({ email }));
         if (!user) {
           throw new Error("Invalid credentials");
         }
@@ -286,7 +288,7 @@ export function createAppRouter({
           throw new Error("Invalid credentials");
         }
 
-        return syncDispatch(mainDB, generateToken({ userId: user.id }));
+        return asyncDispatch(mainDB, generateToken({ userId: user.id }));
       }),
   });
 }

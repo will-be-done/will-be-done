@@ -56,12 +56,12 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
         return reply.code(200).send(
-          listSpaceTasks({
+          await listSpaceTasks({
             spaceId: request.params.spaceId,
             userId: user.id,
             ...request.query,
@@ -96,12 +96,12 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
         return reply.code(200).send(
-          listScheduledTasks({
+          await listScheduledTasks({
             spaceId: request.params.spaceId,
             userId: user.id,
             scope: request.query.scope,
@@ -145,11 +145,11 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const items = listSectionItems({
+        const items = await listSectionItems({
           spaceId: request.params.spaceId,
           sectionId: request.params.sectionId,
           userId: user.id,
@@ -184,11 +184,11 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const task = createSectionTask({
+        const task = await createSectionTask({
           spaceId: request.params.spaceId,
           sectionId: request.params.sectionId,
           userId: user.id,
@@ -221,11 +221,11 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const task = getTask({
+        const task = await getTask({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
@@ -259,11 +259,11 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const task = updateTask({
+        const task = await updateTask({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
@@ -296,11 +296,11 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        deleteTask({
+        await deleteTask({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
@@ -332,11 +332,11 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        clearTaskSchedule({
+        await clearTaskSchedule({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
@@ -377,12 +377,12 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
         return reply.code(200).send(
-          scheduleTask({
+          await scheduleTask({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
             userId: user.id,
@@ -422,11 +422,11 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const task = moveTask({
+        const task = await moveTask({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
