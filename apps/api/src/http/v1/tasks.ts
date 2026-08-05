@@ -10,6 +10,9 @@ import {
   updateTask,
 } from "../../services/tasks";
 import { clearTaskSchedule, scheduleTask } from "../../services/scheduling";
+import { listSpaceTasks } from "../../services/taskQueries";
+import { listScheduledTasks } from "../../services/scheduledTasks";
+import { getDMY } from "@will-be-done/slices/space";
 import { sendError as handleTaskError, unauthorized } from "../errors";
 import {
   SectionTasksParamsSchema,
@@ -17,15 +20,108 @@ import {
   ErrorResponseSchema,
   ListSectionItemsQuerySchema,
   ListSectionItemsResponseSchema,
+  ListSpaceTasksQuerySchema,
   MoveTaskBodySchema,
+  PaginatedTasksResponseSchema,
   ScheduleTaskBodySchema,
   ScheduleTaskResponseSchema,
   TaskParamsSchema,
   TaskResponseSchema,
   UpdateTaskBodySchema,
+  ScheduledTasksQuerySchema,
+  SpaceParamsSchema,
 } from "../schemas";
 
 export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
+  server.get(
+    "/spaces/:spaceId/tasks",
+    {
+      schema: {
+        operationId: "listTasks",
+        summary: "List tasks in a space",
+        description:
+          "Returns tasks ordered by creation time descending with opaque cursor pagination.",
+        tags: ["Tasks"],
+        security: [{ bearerAuth: [] }],
+        params: SpaceParamsSchema,
+        querystring: ListSpaceTasksQuerySchema,
+        response: {
+          200: PaginatedTasksResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = authenticateBearerToken(request.headers.authorization);
+      if (!user) return unauthorized(reply);
+
+      try {
+        return reply.code(200).send(
+          listSpaceTasks({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            ...request.query,
+          }),
+        );
+      } catch (error) {
+        return handleTaskError(request, reply, error, "Failed to list tasks");
+      }
+    },
+  );
+
+  server.get(
+    "/spaces/:spaceId/scheduled-tasks",
+    {
+      schema: {
+        operationId: "listScheduledTasks",
+        summary: "List overdue or upcoming tasks",
+        description:
+          "Returns scheduled todo tasks ordered by schedule date. Overdue excludes relativeTo; upcoming includes it.",
+        tags: ["Tasks"],
+        security: [{ bearerAuth: [] }],
+        params: SpaceParamsSchema,
+        querystring: ScheduledTasksQuerySchema,
+        response: {
+          200: PaginatedTasksResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = authenticateBearerToken(request.headers.authorization);
+      if (!user) return unauthorized(reply);
+
+      try {
+        return reply.code(200).send(
+          listScheduledTasks({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            scope: request.query.scope,
+            relativeTo: request.query.relativeTo ?? getDMY(new Date()),
+            to: request.query.to,
+            cursor: request.query.cursor,
+            limit: request.query.limit,
+          }),
+        );
+      } catch (error) {
+        return handleTaskError(
+          request,
+          reply,
+          error,
+          "Failed to list scheduled tasks",
+        );
+      }
+    },
+  );
+
   server.get(
     "/spaces/:spaceId/sections/:sectionId/items",
     {
@@ -34,7 +130,7 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
         summary: "List section items",
         description:
           "Returns todo tasks and templates in display order by default. When taskState is done, returns completed tasks only.",
-        tags: ["Items"],
+        tags: ["Project sections"],
         security: [{ bearerAuth: [] }],
         params: SectionTasksParamsSchema,
         querystring: ListSectionItemsQuerySchema,

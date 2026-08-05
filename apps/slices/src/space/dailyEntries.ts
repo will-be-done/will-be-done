@@ -115,6 +115,21 @@ export const dailyEntriesByDailyListId = selector({
   },
 });
 
+export const dailyEntriesByDailyListIds = selector({
+  name: "dailyEntriesByDailyListIds",
+  args: { dailyListIds: v.array(v.string()) },
+  handler: function* dailyEntriesByDailyListIds({ dailyListIds }) {
+    if (dailyListIds.length === 0) return [];
+
+    return (yield* selectFrom(
+      dailyEntriesTable,
+      "byDailyListIdTokenOrdered",
+    ).where((q) =>
+      dailyListIds.map((dailyListId) => q.eq("dailyListId", dailyListId)),
+    )) as DailyEntry[];
+  },
+});
+
 export const dailyListTasksByState = selector({
   name: "dailyListTasksByState",
   args: {

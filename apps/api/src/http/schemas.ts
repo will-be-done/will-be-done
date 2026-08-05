@@ -1,4 +1,12 @@
 import { z } from "zod";
+import { isValidTaskTemplateRule } from "@will-be-done/slices/space";
+
+const RepeatRuleSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine(isValidTaskTemplateRule, "Invalid RFC 5545 recurrence rule")
+  .describe("RFC 5545 recurrence rule");
 
 export const ErrorResponseSchema = z
   .object({
@@ -74,7 +82,9 @@ export const CreateProjectBodySchema = z
   })
   .strict();
 
-export const ProjectResponseSchema = z.object({ project: ProjectSchema });
+export const ProjectResponseSchema = z
+  .object({ project: ProjectSchema })
+  .describe("Project details");
 
 export const UpdateProjectBodySchema = z
   .object({
@@ -126,7 +136,9 @@ export const UpdateSpaceBodySchema = z
     message: "At least one field must be provided",
   });
 
-export const SpaceResponseSchema = z.object({ space: SpaceSchema });
+export const SpaceResponseSchema = z
+  .object({ space: SpaceSchema })
+  .describe("Space details");
 
 export const ProjectSectionsParamsSchema = z.object({
   spaceId: z.string().min(1).describe("Space identifier"),
@@ -160,9 +172,11 @@ export const CreateProjectSectionBodySchema = z
   })
   .strict();
 
-export const ProjectSectionResponseSchema = z.object({
-  section: ProjectSectionSchema,
-});
+export const ProjectSectionResponseSchema = z
+  .object({
+    section: ProjectSectionSchema,
+  })
+  .describe("Project section details");
 
 export const UpdateProjectSectionBodySchema = z
   .object({
@@ -189,6 +203,8 @@ export const TaskParamsSchema = z.object({
   spaceId: z.string().min(1).describe("Space identifier"),
   taskId: z.string().min(1).describe("Task identifier"),
 });
+
+export const StashTaskParamsSchema = TaskParamsSchema;
 
 export const TaskStateSchema = z.enum(["todo", "done"]);
 export const TaskNatureSchema = z.enum(["red", "green", "unknown"]);
@@ -240,7 +256,7 @@ export const CreateTaskTemplateBodySchema = z
     title: z.string().trim().min(1),
     content: z.string().nullable().optional(),
     nature: TaskNatureSchema.nullable().optional(),
-    repeatRule: z.string().trim().min(1).optional(),
+    repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
     placement: PlacementSchema.optional(),
   })
@@ -251,7 +267,7 @@ export const UpdateTaskTemplateBodySchema = z
     title: z.string().trim().min(1).optional(),
     content: z.string().nullable().optional(),
     nature: TaskNatureSchema.nullable().optional(),
-    repeatRule: z.string().trim().min(1).optional(),
+    repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
   })
   .strict()
@@ -264,7 +280,7 @@ export const ConvertTaskToTemplateBodySchema = z
     title: z.string().trim().min(1).optional(),
     content: z.string().nullable().optional(),
     nature: TaskNatureSchema.nullable().optional(),
-    repeatRule: z.string().trim().min(1).optional(),
+    repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
   })
   .strict();
@@ -302,7 +318,43 @@ export const CreateTaskBodySchema = z
   })
   .strict();
 
-export const TaskResponseSchema = z.object({ task: TaskSchema });
+export const CreateStashTaskBodySchema = CreateTaskBodySchema;
+
+export const PutStashTaskBodySchema = z
+  .object({
+    placement: PlacementSchema.optional(),
+  })
+  .strict();
+
+export const TaskResponseSchema = z
+  .object({ task: TaskSchema })
+  .describe("Task details");
+
+export const ListStashTasksQuerySchema = z
+  .object({
+    state: TaskStateSchema.optional().default("todo"),
+  })
+  .strict();
+
+export const ListStashTasksResponseSchema = z
+  .object({
+    tasks: z.array(TaskSchema),
+  })
+  .describe("Tasks in stash display order");
+
+export const ListSpaceTasksQuerySchema = z
+  .object({
+    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict();
+
+export const PaginatedTasksResponseSchema = z
+  .object({
+    tasks: z.array(TaskSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .describe("Page of tasks with an optional continuation cursor");
 
 export const ScheduleTaskBodySchema = z
   .object({
@@ -328,6 +380,62 @@ export const DailyListItemsQuerySchema = z.object({
 export const DailyListItemsResponseSchema = z.object({
   items: z.array(TaskSchema),
 });
+
+export const DailyListsRangeQuerySchema = z
+  .object({
+    from: z.iso.date(),
+    to: z.iso.date(),
+    state: TaskStateSchema.optional().default("todo"),
+  })
+  .strict()
+  .refine(({ from, to }) => from <= to, {
+    message: "from must be on or before to",
+    path: ["to"],
+  })
+  .refine(
+    ({ from, to }) =>
+      Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`) <=
+      30 * 24 * 60 * 60 * 1000,
+    {
+      message: "Date range cannot exceed 30 days",
+      path: ["to"],
+    },
+  );
+
+export const DailyListSchema = z.object({
+  date: z.iso.date(),
+  items: z.array(TaskSchema),
+});
+
+export const DailyListsRangeResponseSchema = z
+  .object({
+    dailyLists: z.array(DailyListSchema),
+  })
+  .describe("Daily lists in ascending date order");
+
+export const ScheduledTasksQuerySchema = z
+  .object({
+    scope: z.enum(["overdue", "upcoming"]),
+    relativeTo: z.iso
+      .date()
+      .optional()
+      .describe("Boundary date; defaults to today"),
+    to: z.iso
+      .date()
+      .optional()
+      .describe("Inclusive end date for upcoming tasks"),
+    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict()
+  .refine(({ scope, to }) => scope === "upcoming" || to === undefined, {
+    message: "to is only supported for upcoming tasks",
+    path: ["to"],
+  })
+  .refine(({ relativeTo, to }) => !relativeTo || !to || relativeTo <= to, {
+    message: "relativeTo must be on or before to",
+    path: ["to"],
+  });
 
 export const UpdateTaskBodySchema = z
   .object({

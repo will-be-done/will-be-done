@@ -53,6 +53,24 @@ export function listProjectSections({
   }).map(toPublicProjectSection);
 }
 
+export function getProjectSection({
+  spaceId,
+  sectionId,
+  userId,
+}: {
+  spaceId: string;
+  sectionId: string;
+  userId: string;
+}): PublicProjectSection {
+  const db = getSpaceDatabase(spaceId, userId);
+  const section = selectSync(db, {
+    selector: projectSectionById,
+    args: { id: sectionId },
+  });
+  if (!section) throw new ResourceNotFoundError("Project section");
+  return toPublicProjectSection(section);
+}
+
 export function createProjectSection({
   spaceId,
   projectId,

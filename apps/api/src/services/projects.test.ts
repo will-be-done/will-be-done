@@ -4,6 +4,7 @@ import {
   DB,
   execSync,
   insert,
+  selectSync,
   syncDispatch,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
@@ -13,8 +14,10 @@ import {
   type Project,
 } from "@will-be-done/slices/space";
 import * as databases from "../db/db";
-import { dbsTable } from "../slices/dbSlice";
+import { dbsTable, getDbById, getDbByIdOrCreate } from "../slices/dbSlice";
 import { DatabaseAccessDeniedError } from "./databaseAccess";
+import { spacesTable, spacesTableType } from "@will-be-done/slices/user";
+import { ResourceNotFoundError } from "./errors";
 import { listSpaceProjects } from "./projects";
 
 const action = createAction();
@@ -46,6 +49,21 @@ const seedProjects = action({
     yield* insert(projectsTable, projects);
   },
 });
+const seedSpaceMembership = action({
+  name: "seedApiProjectTestSpaceMembership",
+  args: {},
+  handler: function* () {
+    yield* insert(spacesTable, [
+      {
+        id: "space-1",
+        type: spacesTableType,
+        name: "Space",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+  },
+});
 
 describe("listSpaceProjects", () => {
   afterEach(() => {
@@ -54,15 +72,29 @@ describe("listSpaceProjects", () => {
 
   test("returns public project fields in display order and enforces ownership", () => {
     const mainDB = new DB(new BptreeInmemDriver());
+    const userDB = new DB(new BptreeInmemDriver());
     const spaceDB = new DB(new BptreeInmemDriver());
     execSync(mainDB.loadTables([dbsTable]));
+    syncDispatch(
+      mainDB,
+      getDbByIdOrCreate({
+        id: "space-1",
+        type: "space",
+        userId: "user-1",
+      }),
+    );
+    execSync(userDB.loadTables([spacesTable]));
+    syncDispatch(userDB, seedSpaceMembership({}));
     execSync(spaceDB.loadTables([projectsTable]));
     syncDispatch(spaceDB, seedProjects({}));
 
     spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation(
-      () =>
-        ({ db: spaceDB }) as unknown as ReturnType<typeof databases.getHyperDB>,
+    spyOn(databases, "getHyperDB").mockImplementation((config) =>
+      config.dbType === "user"
+        ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
+        : ({
+            db: spaceDB,
+          } as unknown as ReturnType<typeof databases.getHyperDB>),
     );
     const projects = listSpaceProjects({
       spaceId: "space-1",
@@ -89,5 +121,60 @@ describe("listSpaceProjects", () => {
     expect(() =>
       listSpaceProjects({ spaceId: "space-1", userId: "another-user" }),
     ).toThrow(DatabaseAccessDeniedError);
+  });
+
+  test("registers database access for an authorized unregistered space", () => {
+    const mainDB = new DB(new BptreeInmemDriver());
+    const userDB = new DB(new BptreeInmemDriver());
+    const spaceDB = new DB(new BptreeInmemDriver());
+    execSync(mainDB.loadTables([dbsTable]));
+    execSync(userDB.loadTables([spacesTable]));
+    syncDispatch(userDB, seedSpaceMembership({}));
+    execSync(spaceDB.loadTables([projectsTable]));
+    syncDispatch(spaceDB, seedProjects({}));
+
+    spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
+    spyOn(databases, "getHyperDB").mockImplementation((config) =>
+      config.dbType === "user"
+        ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
+        : ({ db: spaceDB } as unknown as ReturnType<
+            typeof databases.getHyperDB
+          >),
+    );
+
+    expect(
+      listSpaceProjects({ spaceId: "space-1", userId: "user-1" }),
+    ).toHaveLength(2);
+    expect(
+      selectSync(mainDB, {
+        selector: getDbById,
+        args: { id: "space-1", type: "space" },
+      }),
+    ).toMatchObject({ id: "space-1", userId: "user-1" });
+  });
+
+  test("does not let a user claim an unknown unregistered space", () => {
+    const mainDB = new DB(new BptreeInmemDriver());
+    const userDB = new DB(new BptreeInmemDriver());
+    const spaceDB = new DB(new BptreeInmemDriver());
+    execSync(mainDB.loadTables([dbsTable]));
+    execSync(userDB.loadTables([spacesTable]));
+    execSync(spaceDB.loadTables([projectsTable]));
+
+    spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
+    spyOn(databases, "getHyperDB").mockImplementation((config) =>
+      config.dbType === "user"
+        ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
+        : ({
+            db: spaceDB,
+          } as unknown as ReturnType<typeof databases.getHyperDB>),
+    );
+
+    expect(() =>
+      listSpaceProjects({
+        spaceId: "unknown-space",
+        userId: "user-1",
+      }),
+    ).toThrow(ResourceNotFoundError);
   });
 });

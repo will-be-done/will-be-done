@@ -85,6 +85,16 @@ export const dailyListByDate = selector({
   },
 });
 
+export const dailyListsInDateRange = selector({
+  name: "dailyListsInDateRange",
+  args: { from: v.string(), to: v.string() },
+  handler: function* dailyListsInDateRange({ from, to }) {
+    return (yield* selectFrom(dailyListsTable, "byDateOrdered")
+      .where((q) => q.gte("date", from).lte("date", to))
+      .order("asc")) as DailyList[];
+  },
+});
+
 export const dailyListChildrenIds = selector({
   name: "dailyListChildrenIds",
   args: { dailyListId: v.string() },

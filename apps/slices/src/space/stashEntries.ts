@@ -110,6 +110,37 @@ export const stashHasEntry = selector({
   },
 });
 
+export const stashTasksByState = selector({
+  name: "stashTasksByState",
+  args: {
+    state: v.union(v.literal("todo"), v.literal("done")),
+  },
+  handler: function* stashTasksByState({
+    state,
+  }): Generator<unknown, Task[], unknown> {
+    const entries = yield* allStashEntriesOrdered({});
+    if (entries.length === 0) return [];
+
+    const tasks = (yield* selectFrom(tasksTable, "byId").where((q) =>
+      entries.map((entry) => q.eq("id", entry.id)),
+    )) as Task[];
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const matchingTasks = entries
+      .map((entry) => taskById.get(entry.id))
+      .filter((task): task is Task => task?.state === state);
+
+    if (state === "done") {
+      matchingTasks.sort(
+        (left, right) =>
+          right.lastToggledAt - left.lastToggledAt ||
+          left.id.localeCompare(right.id),
+      );
+    }
+
+    return matchingTasks;
+  },
+});
+
 // Get all task ids in stash (non-done, ordered)
 export const stashEntryChildrenIds = selector({
   name: "stashEntryChildrenIds",
@@ -119,17 +150,7 @@ export const stashEntryChildrenIds = selector({
     string[],
     unknown
   > {
-    const entries = yield* allStashEntriesOrdered({});
-
-    const result: string[] = [];
-    for (const entry of entries) {
-      const task = yield* taskById({ id: entry.id });
-      if (task && task.state === "todo") {
-        result.push(entry.id);
-      }
-    }
-
-    return result;
+    return (yield* stashTasksByState({ state: "todo" })).map((task) => task.id);
   },
 });
 
@@ -173,19 +194,7 @@ export const doneStashEntryChildrenIds = selector({
     string[],
     unknown
   > {
-    const entries = yield* allStashEntriesOrdered({});
-
-    const doneTasks: { id: string; lastToggledAt: number }[] = [];
-    for (const entry of entries) {
-      const task = yield* taskById({ id: entry.id });
-      if (task && task.state === "done") {
-        doneTasks.push({ id: entry.id, lastToggledAt: task.lastToggledAt });
-      }
-    }
-
-    return doneTasks
-      .sort((a, b) => b.lastToggledAt - a.lastToggledAt)
-      .map((t) => t.id);
+    return (yield* stashTasksByState({ state: "done" })).map((task) => task.id);
   },
 });
 
@@ -218,7 +227,9 @@ export const doneStashEntryChildrenForDisplay = selector({
     }
 
     itemsWithEntries.sort(
-      (a, b) => b.item.lastToggledAt - a.item.lastToggledAt,
+      (a, b) =>
+        b.item.lastToggledAt - a.item.lastToggledAt ||
+        a.item.id.localeCompare(b.item.id),
     );
 
     return yield* projectSectionItemsForDisplay({
@@ -679,15 +690,18 @@ export const createTaskInStash = action({
     projectId: v.string(),
     position: orderPositionArg,
     sectionPosition: orderPositionArg,
+    taskAttrs: v.optional(v.partial(tasksTable.v())),
   },
   handler: function* createTaskInStash({
     projectId,
     position,
     sectionPosition,
+    taskAttrs,
   }): Generator<unknown, Task, unknown> {
     const task = yield* createProjectTask({
       projectId,
       position: sectionPosition,
+      taskAttrs,
     });
 
     yield* addToStash({

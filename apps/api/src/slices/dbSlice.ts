@@ -1,4 +1,4 @@
-import { insert, selectFrom, v } from "@will-be-done/hyperdb";
+import { deleteRows, insert, selectFrom, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { dbsTable, type Db } from "./tables";
 
@@ -43,5 +43,19 @@ export const getDbByIdOrCreate = action({
     yield* insert(dbsTable, [newDb]);
 
     return newDb;
+  },
+});
+
+export const deleteDb = action({
+  name: "deleteDb",
+  args: {
+    id: v.string(),
+    type: v.union(v.literal("user"), v.literal("space")),
+  },
+  handler: function* deleteDb({ id, type }) {
+    const db = yield* getDbById({ id, type });
+    if (!db) return false;
+    yield* deleteRows(dbsTable, [db.id]);
+    return true;
   },
 });

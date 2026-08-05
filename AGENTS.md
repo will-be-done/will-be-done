@@ -29,6 +29,30 @@
 If you are interacting with HyperDB(@will-be-done/hyperdb), read small guide what is it, and how
 to work with it at @.guides/hyperdb.md
 
+# Query Performance
+
+For API handlers, request hooks, and user-triggered actions:
+
+- Keep reads bounded by the requested resource, indexed range, or pagination limit. Request-path
+  memory should normally be proportional to the returned page and its related rows, not the total
+  table size.
+- Do not load all table rows or all IDs and then filter, sort, or paginate in JavaScript when an
+  indexed HyperDB selector can express the query. Avoid the `allIds -> rowsByIds -> filter` pattern.
+- Potentially growing collection endpoints must use cursor pagination, a bounded range, or a
+  clearly bounded parent collection.
+- For cursor pagination, use a stable indexed tie-breaker, normally `[sortColumn, id]`, and fetch
+  `limit + 1` rows.
+- Do not call selectors once per returned row or inside `.map()` loops. Gather IDs, batch indexed
+  reads, and join the results with maps in memory.
+- When filtering or ordering spans models and cannot fit a practical index, simplify the API or
+  maintain a derived query table.
+- In-memory sorting is acceptable after an indexed query has bounded the result, including merging
+  small indexed result sets. It must not substitute for an index over an unbounded collection.
+- Full-table reads are acceptable for explicit migrations, rebuilds, imports, exports, and APIs
+  intentionally returning a complete small collection. Keep them out of normal request hot paths.
+- Audit route hooks and dispatched actions as part of endpoint performance; expensive work may be
+  outside the route handler itself.
+
 # API Support
 
 When adding new functionality to `apps/slices`, also check whether it should be exposed through

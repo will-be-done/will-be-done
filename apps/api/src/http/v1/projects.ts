@@ -7,6 +7,7 @@ import { ConflictError, ResourceNotFoundError } from "../../services/errors";
 import {
   createSpaceProject,
   deleteSpaceProject,
+  getSpaceProject,
   listSpaceProjects,
   moveSpaceProject,
   updateSpaceProject,
@@ -21,6 +22,7 @@ import {
   ProjectResponseSchema,
   UpdateProjectBodySchema,
 } from "../schemas";
+import { unauthorized } from "../errors";
 
 export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
   server.get(
@@ -38,6 +40,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
           400: ErrorResponseSchema,
           401: ErrorResponseSchema,
           403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
           500: ErrorResponseSchema,
         },
       },
@@ -59,18 +62,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
         });
         return reply.code(200).send({ projects });
       } catch (error) {
-        if (error instanceof DatabaseAccessDeniedError) {
-          return reply.code(403).send({
-            code: "FORBIDDEN",
-            message: "You do not have access to this space",
-          });
-        }
-
-        request.log.error(error, "Failed to list projects");
-        return reply.code(500).send({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to list projects",
-        });
+        return sendProjectError(
+          request,
+          reply,
+          error,
+          "Failed to list projects",
+        );
       }
     },
   );
@@ -117,6 +114,42 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
           error,
           "Failed to create project",
         );
+      }
+    },
+  );
+
+  server.get(
+    "/spaces/:spaceId/projects/:projectId",
+    {
+      schema: {
+        operationId: "getProject",
+        summary: "Get a project",
+        tags: ["Projects"],
+        security: [{ bearerAuth: [] }],
+        params: ProjectParamsSchema,
+        response: {
+          200: ProjectResponseSchema,
+          400: ErrorResponseSchema,
+          401: ErrorResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = authenticateBearerToken(request.headers.authorization);
+      if (!user) return unauthorized(reply);
+
+      try {
+        const project = getSpaceProject({
+          spaceId: request.params.spaceId,
+          projectId: request.params.projectId,
+          userId: user.id,
+        });
+        return reply.code(200).send({ project });
+      } catch (error) {
+        return sendProjectError(request, reply, error, "Failed to get project");
       }
     },
   );

@@ -46,11 +46,77 @@ describe("API documentation", () => {
           title: "Will Be Done API",
         },
       });
+      expect(openApiDocument.paths).toMatchObject({
+        "/api/v1/spaces/{spaceId}": { get: { operationId: "getSpace" } },
+        "/api/v1/spaces/{spaceId}/projects/{projectId}": {
+          get: { operationId: "getProject" },
+        },
+        "/api/v1/spaces/{spaceId}/sections/{sectionId}": {
+          get: { operationId: "getProjectSection" },
+        },
+        "/api/v1/spaces/{spaceId}/tasks": {
+          get: { operationId: "listTasks" },
+        },
+        "/api/v1/spaces/{spaceId}/daily-lists": {
+          get: { operationId: "listDailyLists" },
+        },
+        "/api/v1/spaces/{spaceId}/scheduled-tasks": {
+          get: { operationId: "listScheduledTasks" },
+        },
+        "/api/v1/spaces/{spaceId}/stash/tasks": {
+          get: { operationId: "listStashTasks" },
+          post: { operationId: "createStashTask" },
+        },
+        "/api/v1/spaces/{spaceId}/stash/tasks/{taskId}": {
+          put: { operationId: "putTaskInStash" },
+          delete: { operationId: "removeTaskFromStash" },
+        },
+      });
+      expect(
+        openApiDocument.paths["/api/v1/spaces/{spaceId}/tasks"].get.parameters
+          .map((parameter: { name: string }) => parameter.name)
+          .sort(),
+      ).toEqual(["cursor", "limit", "spaceId"]);
+      expect(
+        openApiDocument.paths[
+          "/api/v1/spaces/{spaceId}/sections/{sectionId}/items"
+        ].get.tags,
+      ).toEqual(["Project sections"]);
+      expect(
+        openApiDocument.paths[
+          "/api/v1/spaces/{spaceId}/stash/tasks"
+        ].get.parameters
+          .map((parameter: { name: string }) => parameter.name)
+          .sort(),
+      ).toEqual(["spaceId", "state"]);
+      expect(
+        openApiDocument.paths["/api/v1/spaces/{spaceId}/stash/tasks"].get.tags,
+      ).toEqual(["Stash"]);
+      expect(
+        openApiDocument.paths["/api/v1/spaces/{spaceId}/stash/tasks/{taskId}"]
+          .put.tags,
+      ).toEqual(["Stash"]);
+      expect(JSON.stringify(openApiDocument.paths)).not.toContain(
+        '"tags":["Items"]',
+      );
       expect(badRequestResponse.statusCode).toBe(400);
       expect(badRequestResponse.json()).toMatchObject({
         code: "BAD_REQUEST",
         message: expect.any(String),
       });
+
+      const invalidRuleResponse = await server.inject({
+        method: "POST",
+        url: "/api/v1/spaces/space-1/sections/section-1/task-templates",
+        payload: { title: "Invalid", repeatRule: "not-an-rrule" },
+      });
+      expect(invalidRuleResponse.statusCode).toBe(400);
+
+      const invalidRangeResponse = await server.inject({
+        method: "GET",
+        url: "/api/v1/spaces/space-1/daily-lists?from=2026-08-10&to=2026-08-01",
+      });
+      expect(invalidRangeResponse.statusCode).toBe(400);
 
       const methods = new Set([
         "get",
