@@ -386,6 +386,8 @@ export const DailyListsRangeQuerySchema = z
     from: z.iso.date(),
     to: z.iso.date(),
     state: TaskStateSchema.optional().default("todo"),
+    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
   })
   .strict()
   .refine(({ from, to }) => from <= to, {
@@ -410,8 +412,11 @@ export const DailyListSchema = z.object({
 export const DailyListsRangeResponseSchema = z
   .object({
     dailyLists: z.array(DailyListSchema),
+    nextCursor: z.string().nullable(),
   })
-  .describe("Daily lists in ascending date order");
+  .describe(
+    "Page of daily lists in ascending date order with an optional continuation cursor",
+  );
 
 export const ScheduledTasksQuerySchema = z
   .object({

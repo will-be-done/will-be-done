@@ -5,6 +5,11 @@ export interface NumericCursor {
   id: string;
 }
 
+export interface StringCursor {
+  sort: string;
+  id: string;
+}
+
 export function encodeNumericCursor(cursor: NumericCursor): string {
   return Buffer.from(JSON.stringify(cursor)).toString("base64url");
 }
@@ -17,6 +22,29 @@ export function decodeNumericCursor(cursor: string): NumericCursor {
     if (
       typeof parsed.sort !== "number" ||
       !Number.isFinite(parsed.sort) ||
+      typeof parsed.id !== "string" ||
+      parsed.id.length === 0
+    ) {
+      throw new Error("Invalid cursor payload");
+    }
+    return { sort: parsed.sort, id: parsed.id };
+  } catch {
+    throw new BadRequestError("Invalid pagination cursor");
+  }
+}
+
+export function encodeStringCursor(cursor: StringCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString("base64url");
+}
+
+export function decodeStringCursor(cursor: string): StringCursor {
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    ) as Partial<StringCursor>;
+    if (
+      typeof parsed.sort !== "string" ||
+      parsed.sort.length === 0 ||
       typeof parsed.id !== "string" ||
       parsed.id.length === 0
     ) {

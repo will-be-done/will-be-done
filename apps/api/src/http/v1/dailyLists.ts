@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { authenticateRequest } from "../../services/authentication";
 import { DatabaseAccessDeniedError } from "../../services/databaseAccess";
-import { ResourceNotFoundError } from "../../services/errors";
+import { BadRequestError, ResourceNotFoundError } from "../../services/errors";
 import {
   listDailyListItems,
   listDailyListsInRange,
@@ -45,13 +45,18 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       if (!user) return unauthorized(reply);
 
       try {
-        const dailyLists = listDailyListsInRange({
+        const result = listDailyListsInRange({
           spaceId: request.params.spaceId,
           userId: user.id,
           ...request.query,
         });
-        return reply.code(200).send({ dailyLists });
+        return reply.code(200).send(result);
       } catch (error) {
+        if (error instanceof BadRequestError) {
+          return reply
+            .code(400)
+            .send({ code: "BAD_REQUEST", message: error.message });
+        }
         if (error instanceof DatabaseAccessDeniedError) {
           return reply.code(403).send({
             code: "FORBIDDEN",

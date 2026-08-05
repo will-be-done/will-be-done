@@ -34,6 +34,9 @@ export function createServer({
   const server = fastify({
     logger,
     bodyLimit: 100485760,
+    // Kamal reaches the app through a private container network and rewrites
+    // forwarded headers, so only private-network proxies are trusted.
+    trustProxy: ["loopback", "linklocal", "uniquelocal"],
   });
 
   server.setValidatorCompiler(validatorCompiler);

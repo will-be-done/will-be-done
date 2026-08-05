@@ -123,3 +123,43 @@ test("syncs API token writes and rejects the token after revocation", async ({
     code: "UNAUTHORIZED",
   });
 });
+
+test("does not show the prior user's cached tokens after account switching", async ({
+  page,
+}) => {
+  const firstSpaceName = uniqueE2EName("First user's token space");
+  await signupUser(page);
+  await createSpace(page, firstSpaceName);
+  await openSpace(page, firstSpaceName);
+
+  const firstToken = await page.evaluate(() =>
+    localStorage.getItem("auth_token"),
+  );
+  expect(firstToken).toBeTruthy();
+  let settings = await openSpaceSettings(page);
+  await settings.getByRole("button", { name: "Tokens" }).click();
+  await expect(
+    settings.locator("code").filter({ hasText: firstToken!.slice(-8) }),
+  ).toBeVisible();
+  await settings.getByRole("button", { name: "Close settings" }).click();
+
+  await page.goto("/spaces");
+  await page.getByRole("button", { name: "Sign Out" }).click();
+  const secondSpaceName = uniqueE2EName("Second user's token space");
+  await signupUser(page);
+  await createSpace(page, secondSpaceName);
+  await openSpace(page, secondSpaceName);
+  const secondToken = await page.evaluate(() =>
+    localStorage.getItem("auth_token"),
+  );
+  expect(secondToken).toBeTruthy();
+
+  settings = await openSpaceSettings(page);
+  await settings.getByRole("button", { name: "Tokens" }).click();
+  await expect(
+    settings.locator("code").filter({ hasText: secondToken!.slice(-8) }),
+  ).toBeVisible();
+  await expect(
+    settings.locator("code").filter({ hasText: firstToken!.slice(-8) }),
+  ).toHaveCount(0);
+});

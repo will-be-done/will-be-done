@@ -3904,6 +3904,15 @@ export type ListDailyListsParams = {
    */
   to: string;
   state?: ListDailyListsState;
+  /**
+   * @minLength 1
+   */
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
 };
 
 export type ListDailyListsState =
@@ -3971,10 +3980,11 @@ export type ListDailyLists200DailyListsItem = {
 };
 
 /**
- * Daily lists in ascending date order
+ * Page of daily lists in ascending date order with an optional continuation cursor
  */
 export type ListDailyLists200 = {
   dailyLists: ListDailyLists200DailyListsItem[];
+  nextCursor: string | null;
 };
 
 export type ListDailyLists400Code =

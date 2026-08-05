@@ -1,4 +1,5 @@
 import { resetWsClient } from "./trpc";
+import { queryClient } from "./query";
 
 const AUTH_TOKEN_KEY = "auth_token";
 const USER_ID_KEY = "user_id";
@@ -41,6 +42,7 @@ export const authUtils = {
     authUtils.removeToken();
     authUtils.removeUserId();
     authUtils.removeLastUsedSpaceId();
+    queryClient.clear();
     // Reset WebSocket to force reconnection with new auth state
     resetWsClient();
   },

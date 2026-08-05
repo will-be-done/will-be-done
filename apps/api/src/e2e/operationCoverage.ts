@@ -2,20 +2,23 @@ import { readFileSync } from "node:fs";
 import { expect } from "bun:test";
 import { expectResponseStatus } from "./harness";
 
-const httpMethods = new Set(["get", "post", "put", "patch", "delete"]);
 const document = JSON.parse(
   readFileSync(new URL("../../openapi.json", import.meta.url), "utf8"),
 ) as {
   paths: Record<string, Record<string, { operationId?: string }>>;
 };
 
-const expectedOperationIds = Object.values(document.paths)
-  .flatMap((path) =>
-    Object.entries(path)
-      .filter(([method]) => httpMethods.has(method))
-      .map(([, operation]) => operation.operationId),
+const expectedOperationIds = Object.entries(document.paths)
+  .flatMap(([path, operations]) =>
+    Object.entries(operations).map(([method, operation]) => {
+      if (!operation.operationId) {
+        throw new Error(
+          `OpenAPI operation ${method.toUpperCase()} ${path} is missing an operationId`,
+        );
+      }
+      return operation.operationId;
+    }),
   )
-  .filter((operationId): operationId is string => operationId !== undefined)
   .sort();
 
 const coveredOperationIds = new Set<string>();

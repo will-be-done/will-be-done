@@ -1,8 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { DB, execSync, syncDispatch } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { TRPCError } from "@trpc/server";
 import { createAppRouter } from "./appRouter";
+import * as databases from "./db/db";
+import { createServer } from "./server";
 import { authenticateBearerToken } from "./services/authentication";
 import {
   getTokenById,
@@ -114,5 +116,56 @@ describe("token management", () => {
         lastUsedUserAgent: "WillBeDoneTest/1.0",
       }),
     ]);
+  });
+
+  test("records the client IP only through a trusted reverse proxy", async () => {
+    const mainDB = new DB(new BptreeInmemDriver());
+    execSync(mainDB.loadTables([usersTable, tokensTable]));
+    const registered = syncDispatch(
+      mainDB,
+      register({ email: "proxy@example.com", hashedPassword: "hashed" }),
+    );
+    const getMainDbSpy = spyOn(databases, "getMainHyperDB").mockImplementation(
+      () => mainDB,
+    );
+    const server = createServer({
+      appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+      logger: false,
+      serveFrontend: false,
+    });
+
+    try {
+      await server.ready();
+      const trustedProxyResponse = await server.inject({
+        method: "GET",
+        url: "/api/trpc/listTokens",
+        remoteAddress: "10.0.0.9",
+        headers: {
+          authorization: `Bearer ${registered.token}`,
+          "x-forwarded-for": "203.0.113.77",
+        },
+      });
+      expect(trustedProxyResponse.statusCode).toBe(200);
+      expect(
+        syncDispatch(mainDB, getTokenById({ id: registered.token })),
+      ).toMatchObject({ lastUsedIp: "203.0.113.77" });
+
+      const untrustedPeerResponse = await server.inject({
+        method: "GET",
+        url: "/api/trpc/listTokens",
+        remoteAddress: "198.51.100.8",
+        headers: {
+          authorization: `Bearer ${registered.token}`,
+          "x-forwarded-for": "192.0.2.25",
+        },
+      });
+      expect(untrustedPeerResponse.statusCode).toBe(200);
+      expect(
+        syncDispatch(mainDB, getTokenById({ id: registered.token })),
+      ).toMatchObject({ lastUsedIp: "198.51.100.8" });
+    } finally {
+      await server.close();
+      getMainDbSpy.mockRestore();
+    }
   });
 });
