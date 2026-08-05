@@ -122,11 +122,6 @@ export function createAppRouter({
             registeredSyncableTableNameMap: config.tableNameMap,
           }),
         );
-
-        subscriptionManager.notifyChangesAvailable(
-          opts.input.dbId,
-          opts.input.dbType,
-        );
       }),
 
     onChangesAvailable: protectedProcedure

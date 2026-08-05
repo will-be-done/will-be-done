@@ -6,8 +6,11 @@ import {
 } from "@will-be-done/slices/user";
 import {
   assertUnreachable,
+  projectSectionTaskStatsTable,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
+  scheduledTodoTasksTable,
+  spaceMigrationsTable,
 } from "@will-be-done/slices/space";
 
 export const userDBConfig = (dbId: string) => {
@@ -23,7 +26,13 @@ export const spaceDBConfig = (dbId: string) => {
   return {
     dbId,
     dbType: "space",
-    persistDBTables: [...registeredSpaceSyncableTables, changesTable],
+    persistDBTables: [
+      ...registeredSpaceSyncableTables,
+      projectSectionTaskStatsTable,
+      scheduledTodoTasksTable,
+      spaceMigrationsTable,
+      changesTable,
+    ],
     tableNameMap: registeredSpaceSyncableTableNameMap,
   } satisfies DBConfig;
 };

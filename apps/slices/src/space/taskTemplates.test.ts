@@ -14,6 +14,9 @@ import {
   taskTemplateNewTasksInRange,
   newTasksToGenForTaskTemplate,
   createTaskTemplateFromTask,
+  generateSpaceTasksIfDue,
+  generateTasksForTemplate,
+  taskTemplateById,
 } from "./taskTemplates";
 import { dbIdTrait } from "@/traits";
 import {
@@ -529,5 +532,94 @@ describe("taskTemplates timezone consistency", () => {
     expect(entries[0].id).toBe(tasks[0].id);
     expect(dailyLists).toHaveLength(1);
     expect(dailyLists[0].date).toBe("2026-03-04");
+  });
+
+  it("checks recurrence only when its persisted generation interval is due", () => {
+    const db = createDB(0);
+    const createdAt = new Date("2026-01-01T00:00:00Z").getTime();
+    const checkpoint = new Date("2026-01-02T00:00:00Z").getTime();
+    insertTemplate(db, {
+      type: "template",
+      id: "template-generation-interval",
+      title: "Yearly template",
+      orderToken: "a",
+      repeatRule: "FREQ=YEARLY;INTERVAL=1",
+      repeatRuleDtStart: createdAt,
+      createdAt,
+      lastGeneratedAt: checkpoint,
+      projectSectionId: "section-1",
+    });
+
+    syncDispatch(
+      db,
+      generateSpaceTasksIfDue({
+        toDate: checkpoint + 999,
+        intervalMs: 1_000,
+        force: false,
+      }),
+    );
+    expect(
+      selectSync(db, {
+        selector: taskTemplateById,
+        args: { id: "template-generation-interval" },
+      })?.lastGeneratedAt,
+    ).toBe(checkpoint);
+
+    syncDispatch(
+      db,
+      generateSpaceTasksIfDue({
+        toDate: checkpoint + 1_000,
+        intervalMs: 1_000,
+        force: false,
+      }),
+    );
+    expect(
+      selectSync(db, {
+        selector: taskTemplateById,
+        args: { id: "template-generation-interval" },
+      })?.lastGeneratedAt,
+    ).toBe(checkpoint + 1_000);
+    vi.restoreAllMocks();
+  });
+
+  it("generates only the requested template", () => {
+    const db = createDB(0);
+    const createdAt = new Date("2026-01-01T00:00:00Z").getTime();
+    const checkpoint = new Date("2026-01-02T00:00:00Z").getTime();
+    const template = (id: string): TaskTemplate => ({
+      type: "template",
+      id,
+      title: id,
+      orderToken: id,
+      repeatRule: "FREQ=YEARLY;INTERVAL=1",
+      repeatRuleDtStart: createdAt,
+      createdAt,
+      lastGeneratedAt: checkpoint,
+      projectSectionId: "section-1",
+    });
+    insertTemplate(db, template("template-target"));
+    insertTemplate(db, template("template-untouched"));
+
+    syncDispatch(
+      db,
+      generateTasksForTemplate({
+        templateId: "template-target",
+        toDate: checkpoint + 1_000,
+      }),
+    );
+
+    expect(
+      selectSync(db, {
+        selector: taskTemplateById,
+        args: { id: "template-target" },
+      })?.lastGeneratedAt,
+    ).toBe(checkpoint + 1_000);
+    expect(
+      selectSync(db, {
+        selector: taskTemplateById,
+        args: { id: "template-untouched" },
+      })?.lastGeneratedAt,
+    ).toBe(checkpoint);
+    vi.restoreAllMocks();
   });
 });

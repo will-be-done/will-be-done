@@ -6,8 +6,10 @@ import {
 } from "@will-be-done/hyperdb";
 import {
   createTaskInSection,
+  dailyEntriesByIds,
   dailyEntryByTaskId,
   dailyListById,
+  dailyListsByIds,
   deleteTaskById,
   taskById,
   tasksTable,
@@ -70,6 +72,37 @@ export function getTaskScheduledDate(
     args: { id: entry.dailyListId },
   });
   return dailyList?.date ?? null;
+}
+
+export function getTaskScheduledDates(
+  db: SpaceDatabase,
+  taskIds: string[],
+): Map<string, string | null> {
+  if (taskIds.length === 0) return new Map();
+
+  const entries = selectSync(db, {
+    selector: dailyEntriesByIds,
+    args: { ids: taskIds },
+  });
+  const dailyListIds = [...new Set(entries.map((entry) => entry.dailyListId))];
+  const dailyLists = selectSync(db, {
+    selector: dailyListsByIds,
+    args: { ids: dailyListIds },
+  });
+  const dateByDailyListId = new Map(
+    dailyLists.map((dailyList) => [dailyList.id, dailyList.date]),
+  );
+  const entryByTaskId = new Map(entries.map((entry) => [entry.id, entry]));
+
+  return new Map(
+    taskIds.map((taskId) => {
+      const entry = entryByTaskId.get(taskId);
+      return [
+        taskId,
+        entry ? (dateByDailyListId.get(entry.dailyListId) ?? null) : null,
+      ];
+    }),
+  );
 }
 
 export function toPublicTask(

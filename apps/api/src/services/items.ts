@@ -7,7 +7,7 @@ import {
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import { ResourceNotFoundError } from "./errors";
-import { toPublicTask, type PublicTask } from "./tasks";
+import { getTaskScheduledDates, toPublicTask, type PublicTask } from "./tasks";
 
 export interface PublicTaskTemplate {
   type: "template";
@@ -61,16 +61,30 @@ export function listSectionItems({
   if (!section) throw new ResourceNotFoundError("Project section");
 
   if (taskState === "done") {
-    return selectSync(db, {
+    const tasks = selectSync(db, {
       selector: projectSectionTasksByState,
       args: { projectSectionId: sectionId, state: "done" },
-    }).map((task) => toPublicTask(db, task));
+    });
+    const scheduledDates = getTaskScheduledDates(
+      db,
+      tasks.map((task) => task.id),
+    );
+    return tasks.map((task) =>
+      toPublicTask(db, task, scheduledDates.get(task.id) ?? null),
+    );
   }
 
-  return selectSync(db, {
+  const items = selectSync(db, {
     selector: projectSectionItems,
     args: { projectSectionId: sectionId },
-  }).map((item) =>
-    item.type === "task" ? toPublicTask(db, item) : toPublicTaskTemplate(item),
+  });
+  const scheduledDates = getTaskScheduledDates(
+    db,
+    items.flatMap((item) => (item.type === "task" ? [item.id] : [])),
+  );
+  return items.map((item) =>
+    item.type === "task"
+      ? toPublicTask(db, item, scheduledDates.get(item.id) ?? null)
+      : toPublicTaskTemplate(item),
   );
 }

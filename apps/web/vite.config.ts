@@ -106,6 +106,9 @@ export default defineConfig({
       injectRegister: false,
       workbox: {
         clientsClaim: true,
+        // API routes are rendered by Fastify and must never use the SPA's
+        // offline navigation fallback.
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
         globPatterns: [
           "**/*.{js,css,html,woff2,json,svg,wasm,webmanifest,png}",
         ],

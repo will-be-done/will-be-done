@@ -124,6 +124,44 @@ export const allTasks = selector({
   },
 });
 
+export const tasksByIds = selector({
+  name: "tasksByIds",
+  args: { ids: v.array(v.string()) },
+  handler: function* tasksByIds({ ids }) {
+    if (ids.length === 0) return [];
+
+    return (yield* selectFrom(tasksTable, "byId").where((q) =>
+      ids.map((id) => q.eq("id", id)),
+    )) as Task[];
+  },
+});
+
+export const tasksPageByCreatedAt = selector({
+  name: "tasksPageByCreatedAt",
+  args: {
+    cursorCreatedAt: v.union(v.number(), v.null()),
+    cursorId: v.union(v.string(), v.null()),
+    limit: v.number(),
+  },
+  handler: function* tasksPageByCreatedAt({
+    cursorCreatedAt,
+    cursorId,
+    limit,
+  }) {
+    const query = selectFrom(tasksTable, "byCreatedAtId").order("desc");
+    if (cursorCreatedAt === null || cursorId === null) {
+      return (yield* query.limit(limit)) as Task[];
+    }
+
+    return (yield* query
+      .where((q) => [
+        q.lt("createdAt", cursorCreatedAt),
+        q.eq("createdAt", cursorCreatedAt).lt("id", cursorId),
+      ])
+      .limit(limit)) as Task[];
+  },
+});
+
 export const projectSectionTasksByState = selector({
   name: "projectSectionTasksByState",
   args: {

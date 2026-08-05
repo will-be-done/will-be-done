@@ -45,6 +45,24 @@ export function listSpaceProjects({
   return projects.map(toPublicProject);
 }
 
+export function getSpaceProject({
+  spaceId,
+  projectId,
+  userId,
+}: {
+  spaceId: string;
+  projectId: string;
+  userId: string;
+}): PublicProject {
+  const db = getSpaceDatabase(spaceId, userId);
+  const project = selectSync(db, {
+    selector: projectById,
+    args: { id: projectId },
+  });
+  if (!project) throw new ResourceNotFoundError("Project");
+  return toPublicProject(project);
+}
+
 export function createSpaceProject({
   spaceId,
   userId,

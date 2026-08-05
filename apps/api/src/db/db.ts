@@ -13,7 +13,6 @@ import {
   insertChangeFromInsert,
   insertChangeFromUpdate,
   insertChangeFromDelete,
-  changesTable,
   type PrimitiveRow,
 } from "@will-be-done/slices/common";
 import { noop } from "@will-be-done/hyperdb";
@@ -27,9 +26,14 @@ import {
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import fs from "fs";
 import {
+  createInboxIfNotExists,
+  installProjectTaskStatsHooks,
   migrateLegacySpaceStorage,
+  migrateProjectSectionTaskStats,
+  migrateScheduledTodoTasks,
   spaceStorageMigrationTables,
 } from "@will-be-done/slices/space";
+import { subscriptionManager } from "../subscriptionManager";
 
 export interface DBConfig {
   dbId: string;
@@ -137,6 +141,33 @@ const dbs: Map<
   }
 > = new Map();
 
+export function installSyncNotificationHook(
+  db: SubscribableDB,
+  dbConfig: Pick<DBConfig, "dbId" | "dbType" | "tableNameMap">,
+) {
+  let notificationQueued = false;
+  db.afterChange(function* notifySubscribers(_db, table, _traits, ops) {
+    if (
+      ops.length === 0 ||
+      dbConfig.tableNameMap[table.tableName] === undefined ||
+      notificationQueued
+    ) {
+      return;
+    }
+
+    notificationQueued = true;
+    queueMicrotask(() => {
+      notificationQueued = false;
+      subscriptionManager.notifyChangesAvailable(
+        dbConfig.dbId,
+        dbConfig.dbType,
+      );
+    });
+
+    yield* noop();
+  });
+}
+
 export const getHyperDB = (dbConfig: DBConfig) => {
   const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
   const db = dbs.get(dbName);
@@ -147,9 +178,17 @@ export const getHyperDB = (dbConfig: DBConfig) => {
   const clientId = "server-" + dbName;
   const nextClock = initClock(clientId);
   const hyperDB = new SubscribableDB(getDB(dbConfig.dbType, dbConfig.dbId));
+  const isSyncableTable = (table: TableDefinition) =>
+    dbConfig.tableNameMap[table.tableName] !== undefined;
+
+  if (dbConfig.dbType === "space") {
+    installProjectTaskStatsHooks(hyperDB);
+  }
+
+  installSyncNotificationHook(hyperDB, dbConfig);
 
   hyperDB.afterInsert(function* (db, table, traits, ops) {
-    if (table === changesTable) return;
+    if (!isSyncableTable(table)) return;
     if (traits.some((t) => t.type === "skip-sync")) {
       return;
     }
@@ -165,7 +204,7 @@ export const getHyperDB = (dbConfig: DBConfig) => {
   });
 
   hyperDB.afterUpsert(function* (db, table, traits, ops) {
-    if (table === changesTable) return;
+    if (!isSyncableTable(table)) return;
     if (traits.some((t) => t.type === "skip-sync")) {
       return;
     }
@@ -189,7 +228,7 @@ export const getHyperDB = (dbConfig: DBConfig) => {
   });
 
   hyperDB.afterDelete(function* (db, table, traits, ops) {
-    if (table === changesTable) return;
+    if (!isSyncableTable(table)) return;
     if (traits.some((t) => t.type === "skip-sync")) {
       return;
     }
@@ -205,6 +244,12 @@ export const getHyperDB = (dbConfig: DBConfig) => {
   });
 
   execSync(hyperDB.loadTables(dbConfig.persistDBTables));
+
+  if (dbConfig.dbType === "space") {
+    syncDispatch(hyperDB, migrateProjectSectionTaskStats({}));
+    syncDispatch(hyperDB, migrateScheduledTodoTasks({}));
+    syncDispatch(hyperDB, createInboxIfNotExists({}));
+  }
 
   const res = {
     db: hyperDB,

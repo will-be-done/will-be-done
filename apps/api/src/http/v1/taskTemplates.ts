@@ -1,5 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { syncDispatch } from "@will-be-done/hyperdb";
+import { generateTasksForTemplate } from "@will-be-done/slices/space";
 import { authenticateRequest } from "../../services/authentication";
 import {
   convertTaskTemplateToTask,
@@ -10,6 +12,7 @@ import {
   moveTaskTemplate,
   updateTaskTemplate,
 } from "../../services/taskTemplates";
+import { getSpaceDatabase } from "../../services/databaseAccess";
 import { sendError as handleError, unauthorized } from "../errors";
 import {
   ConvertTaskToTemplateBodySchema,
@@ -57,6 +60,17 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
           userId: user.id,
           ...request.body,
         });
+        try {
+          syncDispatch(
+            getSpaceDatabase(request.params.spaceId, user.id),
+            generateTasksForTemplate({
+              templateId: template.id,
+              toDate: Date.now(),
+            }),
+          );
+        } catch (error) {
+          request.log.error(error, "Failed to generate recurring tasks");
+        }
         return reply.code(201).send({ template });
       } catch (error) {
         return handleError(
@@ -141,6 +155,17 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
           userId: user.id,
           updates: request.body,
         });
+        try {
+          syncDispatch(
+            getSpaceDatabase(request.params.spaceId, user.id),
+            generateTasksForTemplate({
+              templateId: template.id,
+              toDate: Date.now(),
+            }),
+          );
+        } catch (error) {
+          request.log.error(error, "Failed to generate recurring tasks");
+        }
         return reply.code(200).send({ template });
       } catch (error) {
         return handleError(

@@ -354,12 +354,121 @@ results are visible immediately, while promise results show `defaultValue`,
 may be a value or a zero-argument function that returns the value. Use
 `useSyncSelector` / `useSyncDispatch` only for purely synchronous drivers.
 
+## Bounded Reads And API Queries
+
+Request-path selectors should use memory proportional to the requested page or
+bounded collection, not the total table size. Apply filters, ranges, ordering,
+and limits through an index whenever possible.
+
+Prefer an indexed, limited selector:
+
+```ts
+return (
+  yield *
+  selectFrom(tasksTable, "byCreatedAtId")
+    .where((q) => [
+      q.lt("createdAt", cursor.createdAt),
+      q.eq("createdAt", cursor.createdAt).lt("id", cursor.id),
+    ])
+    .order("desc")
+    .limit(limit + 1)
+);
+```
+
+Avoid loading the table before filtering and paginating:
+
+```ts
+const tasks = yield * selectFrom(tasksTable, "byIds");
+return tasks
+  .filter((task) => task.createdAt < cursorCreatedAt)
+  .sort((a, b) => b.createdAt - a.createdAt)
+  .slice(0, limit);
+```
+
+Also avoid indirect full scans such as loading every ID, fetching every row by
+those IDs, and then filtering the rows. For a range query, add a B-tree index
+and apply `gte`, `lte`, `gt`, or `lt` in the selector.
+
+### Cursor Pagination
+
+- Use a stable indexed order. When the main sort value is not unique, include
+  `id` as the final tie-breaker, for example `['createdAt', 'id']`.
+- Encode all cursor columns in an opaque cursor.
+- Apply the cursor in the indexed selector rather than filtering after the
+  read.
+- Fetch `limit + 1` rows to determine whether another page exists.
+- Fetch related models only for the returned page IDs.
+
+HyperDB query conditions must fit the selected index. If a driver cannot
+express the required lexicographic cursor over a composite index, use a derived
+scalar sort key or a narrowly bounded secondary read; do not fall back to a
+full-table scan.
+
+### Batch Related Reads
+
+Do not execute one selector per result row:
+
+```ts
+const entries = tasks.map((task) =>
+  selectSync(db, {
+    selector: dailyEntryByTaskId,
+    args: { taskId: task.id },
+  }),
+);
+```
+
+Gather IDs and query related rows together:
+
+```ts
+const entries =
+  yield *
+  selectFrom(dailyEntriesTable, "byId").where((q) =>
+    taskIds.map((id) => q.eq("id", id)),
+  );
+
+const dailyListIds = [...new Set(entries.map((entry) => entry.dailyListId))];
+const dailyLists =
+  yield *
+  selectFrom(dailyListsTable, "byId").where((q) =>
+    dailyListIds.map((id) => q.eq("id", id)),
+  );
+```
+
+Build maps from the batched results and join them in memory. Guard empty ID
+arrays before building an OR query.
+
+### Choosing An Index
+
+- Use B-tree indexes for ranges, ordering, and cursor pagination.
+- Put exact-match columns before range or order columns in composite indexes.
+- Add indexes for actual query shapes rather than every possible combination
+  of optional filters.
+- If a query joins models or supports incompatible filter/order combinations,
+  simplify its contract or maintain a derived query table with the required
+  fields and indexes.
+
+### Acceptable In-Memory Work
+
+In-memory filtering, joining, or sorting is reasonable when the data has
+already been bounded by an indexed parent, range, or page; when merging small
+indexed result sets; or during an explicit migration, rebuild, import, or
+export. It is also reasonable for an API intentionally returning a complete
+small collection. Document that size assumption when it is important.
+
+When reviewing an endpoint, inspect request hooks and dispatched actions in
+addition to the route handler. A handler with bounded reads can still trigger
+an unbounded scan indirectly.
+
 ## Rules Of Thumb
 
 - Prefer selectors for reads and actions for writes.
 - Do not write inside selectors.
 - Define indexes for every query shape; query filters must fit the selected
   index.
+- Keep request-path reads bounded; avoid loading all IDs or rows before
+  filtering, sorting, or pagination.
+- Batch related reads and join them in memory instead of running selectors per
+  result row.
 - Use `byId` for id lookups.
 - Prefer HybridDB for durable browser state: persistent primary, in-memory
   cache, async selectors, and async dispatch.
