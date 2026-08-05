@@ -8,6 +8,7 @@ export * from "./subscribable-db";
 export * from "./table";
 export * from "./drivers/SqlDriver";
 export * from "./drivers/AsyncSqlDriver";
+export * from "./drivers/TursoServerlessAsyncSqlDriver";
 export * from "./drivers/bptree-inmem-driver";
 export * from "../react/context";
 export * from "../react/hooks";

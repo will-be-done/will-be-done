@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { FastifyRequest, FastifyReply } from "fastify";
-import { syncDispatch } from "@will-be-done/hyperdb";
+import { asyncDispatch } from "@will-be-done/hyperdb";
 import { getMainHyperDB } from "./db/db";
 import { authSlice } from "./slices/authSlice";
 
@@ -17,8 +17,8 @@ export interface Context {
 /**
  * Shared context creation from auth token
  */
-function createContextFromToken(authHeader?: string): Context {
-  const mainDB = getMainHyperDB();
+async function createContextFromToken(authHeader?: string): Promise<Context> {
+  const mainDB = await getMainHyperDB();
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return { user: null };
@@ -27,7 +27,7 @@ function createContextFromToken(authHeader?: string): Context {
   const token = authHeader.slice(7); // Remove "Bearer "
 
   try {
-    const user = syncDispatch(mainDB, authSlice.validateToken(token));
+    const user = await asyncDispatch(mainDB, authSlice.validateToken(token));
     return { user };
   } catch (error) {
     console.error("Token validation error:", error);
@@ -48,14 +48,14 @@ export async function createContext({
 }): Promise<Context> {
   // First try Authorization header (HTTP requests)
   if (req.headers.authorization) {
-    return createContextFromToken(req.headers.authorization);
+    return await createContextFromToken(req.headers.authorization);
   }
 
   // Then try URL query parameter (WebSocket connections)
   const url = new URL(req.url || "", "http://localhost");
   const token = url.searchParams.get("token");
   if (token) {
-    return createContextFromToken(`Bearer ${token}`);
+    return await createContextFromToken(`Bearer ${token}`);
   }
 
   return { user: null };

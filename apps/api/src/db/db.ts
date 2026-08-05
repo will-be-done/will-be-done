@@ -1,16 +1,22 @@
-import { Database } from "bun:sqlite";
 import {
+  asyncDispatch,
   DB,
-  execSync,
-  SqlDriver,
+  execAsync,
   SubscribableDB,
-  syncDispatch,
   TableDefinition,
+  TursoServerlessAsyncSqlDriver,
+  type TursoServerlessClient,
 } from "@will-be-done/hyperdb";
 import path from "path";
+import { mkdirSync } from "fs";
+import { createClient as createTursoApiClient } from "@tursodatabase/api";
+import { createClient as createTursoServerlessClient } from "@tursodatabase/serverless/compat";
 import { getEnvConfig } from "../env";
 import { changesSlice, changesTable } from "@will-be-done/slices/common";
-import { noop } from "@will-be-done/hyperdb/src/hyperdb/generators";
+import {
+  noop,
+  type DBCmd,
+} from "@will-be-done/hyperdb/src/hyperdb/generators";
 import { usersTable, tokensTable } from "../slices/authSlice";
 import { dbsTable } from "../slices/dbSlice";
 import {
@@ -19,6 +25,15 @@ import {
   backupFileTable,
 } from "../slices/backupSlice";
 import { dbIdTrait } from "@will-be-done/slices/traits";
+import {
+  createBunSqliteAsyncSqlDriver,
+  createBunSqliteDatabase,
+} from "./BunSqliteAsyncSqlDriver";
+import {
+  tursoDbTokensTable,
+  tursoSlice,
+  type TursoDbToken,
+} from "../slices/tursoSlice";
 
 export interface DBConfig {
   dbId: string;
@@ -45,162 +60,290 @@ const initClock = (clientId: string) => {
   };
 };
 
-const getDB = (dbType: string, dbId: string) => {
-  const dbName = dbType + "-" + dbId;
+const getDbRecordId = (dbType: "user" | "space", dbId: string) =>
+  `${dbType}:${dbId}`;
 
-  const dbPath = path.join(getEnvConfig().WBD_DB_PATH, dbName + ".sqlite");
-  console.log("Loading database...", dbPath);
-  const sqliteDB = new Database(dbPath, { strict: true });
+const sanitizeTursoNamePart = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-+/g, "-");
 
-  sqliteDB.run("PRAGMA journal_mode=WAL;");
-  sqliteDB.run("PRAGMA synchronous=NORMAL;");
-  sqliteDB.run("PRAGMA journal_size_limit=6144000;");
-  sqliteDB.run("PRAGMA foreign_keys = ON;");
-  sqliteDB.run("PRAGMA busy_timeout=5000;");
+const hashName = (value: string) => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
 
-  type SqlValue = number | string | Uint8Array | null;
-  const sqliteDriver = new SqlDriver({
-    exec(sql: string, params?: SqlValue[]): void {
-      if (!params) {
-        sqliteDB.run(sql);
-      } else {
-        sqliteDB.run(sql, params);
-      }
-    },
-    prepare(sql: string) {
-      const stmt = sqliteDB.prepare(sql);
-
-      return {
-        values(values: SqlValue[]): SqlValue[][] {
-          return stmt.values(...values) as SqlValue[][];
-        },
-        finalize(): void {
-          stmt.finalize();
-        },
-      };
-    },
-  });
-
-  return new DB(sqliteDriver, [], [dbIdTrait(dbType, dbId)]);
+  return hash.toString(36);
 };
 
+const getTursoDatabaseName = (dbType: "user" | "space", dbId: string) => {
+  const env = getEnvConfig();
+  const prefix = sanitizeTursoNamePart(env.TURSO_DB_NAME_PREFIX) || "wbd";
+  const base = `${prefix}-${dbType}-${sanitizeTursoNamePart(dbId) || hashName(dbId)}`;
+
+  if (base.length <= 64) return base;
+
+  const hash = hashName(base);
+  return `${base.slice(0, 64 - hash.length - 1).replace(/-+$/g, "")}-${hash}`;
+};
+
+const getTursoDatabaseUrl = (hostname: string) => {
+  if (hostname.startsWith("libsql://") || hostname.startsWith("https://")) {
+    return hostname;
+  }
+
+  return `libsql://${hostname}`;
+};
+
+const createLocalDB = async (
+  dbType: "main" | "user" | "space",
+  dbId: string,
+) => {
+  const dbName = `${dbType}-${dbId}`;
+  const dbPath = path.join(getEnvConfig().WBD_DB_PATH, `${dbName}.sqlite`);
+
+  mkdirSync(path.dirname(dbPath), { recursive: true });
+  console.log("Loading database...", dbPath);
+
+  const sqliteDB = createBunSqliteDatabase(dbPath);
+  const sqliteDriver = createBunSqliteAsyncSqlDriver(sqliteDB);
+
+  return new DB(
+    sqliteDriver,
+    [],
+    dbType === "main" ? [] : [dbIdTrait(dbType, dbId)],
+  );
+};
+
+const createTursoDBFromCredentials = (
+  databaseUrl: string,
+  authToken: string,
+  dbType?: "user" | "space",
+  dbId?: string,
+) => {
+  const client = createTursoServerlessClient({
+    url: databaseUrl,
+    authToken,
+  }) as unknown as TursoServerlessClient;
+
+  return new DB(
+    new TursoServerlessAsyncSqlDriver(client),
+    [],
+    dbType && dbId ? [dbIdTrait(dbType, dbId)] : [],
+  );
+};
+
+const getMainDBTables = () => [
+  usersTable,
+  tokensTable,
+  dbsTable,
+  tursoDbTokensTable,
+  backupStateTable,
+  backupTierStateTable,
+  backupFileTable,
+];
+
 let mainDB: DB | undefined = undefined;
-export const getMainHyperDB = () => {
+let mainDBPromise: Promise<DB> | undefined = undefined;
+
+export const getMainHyperDB = async () => {
   if (mainDB) {
     return mainDB;
   }
 
-  const db = getDB("main", "main");
+  if (mainDBPromise) {
+    return mainDBPromise;
+  }
 
-  execSync(
-    db.loadTables([
-      usersTable,
-      tokensTable,
-      dbsTable,
-      backupStateTable,
-      backupTierStateTable,
-      backupFileTable,
-    ]),
-  );
+  mainDBPromise = (async () => {
+    const env = getEnvConfig();
+    const db =
+      env.DB_ENGINE === "turso-serverless"
+        ? createTursoDBFromCredentials(
+            env.TURSO_MAIN_DATABASE_URL!,
+            env.TURSO_MAIN_DB_AUTH_TOKEN!,
+          )
+        : await createLocalDB("main", "main");
 
-  mainDB = db;
-  return db;
+    await execAsync(db.loadTables(getMainDBTables()));
+
+    mainDB = db;
+    return db;
+  })();
+
+  return mainDBPromise;
 };
 
-const dbs: Map<
-  string,
-  {
-    dbConfig: DBConfig;
-    db: SubscribableDB;
-    nextClock: () => string;
-    clientId: string;
-  }
-> = new Map();
+const getOrCreateTursoCredentials = async (
+  dbType: "user" | "space",
+  dbId: string,
+): Promise<TursoDbToken> => {
+  const main = await getMainHyperDB();
+  const id = getDbRecordId(dbType, dbId);
+  const existing = await asyncDispatch(main, tursoSlice.getById(id));
+  if (existing) return existing;
 
-export const getHyperDB = (dbConfig: DBConfig) => {
-  const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
+  const env = getEnvConfig();
+  const turso = createTursoApiClient({
+    org: env.TURSO_ORG_SLUG!,
+    token: env.TURSO_API_KEY!,
+  });
+  const databaseName = getTursoDatabaseName(dbType, dbId);
+
+  let hostname: string;
+  try {
+    const created = await turso.databases.create(databaseName, {
+      group: env.TURSO_GROUP,
+    });
+    hostname = created.hostname;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "status" in error &&
+      error.status === 409
+    ) {
+      const existingDb = await turso.databases.get(databaseName);
+      hostname = existingDb.hostname;
+    } else {
+      throw error;
+    }
+  }
+
+  const token = await turso.databases.createToken(databaseName, {
+    authorization: "full-access",
+  });
+  const now = new Date().toISOString();
+  const credentials: TursoDbToken = {
+    id,
+    dbType,
+    dbId,
+    databaseName,
+    databaseUrl: getTursoDatabaseUrl(hostname),
+    authToken: token.jwt,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  return asyncDispatch(main, tursoSlice.upsert(credentials));
+};
+
+const getDB = async (dbType: "user" | "space", dbId: string) => {
+  const env = getEnvConfig();
+
+  if (env.DB_ENGINE === "sqlite-local") {
+    return createLocalDB(dbType, dbId);
+  }
+
+  const credentials = await getOrCreateTursoCredentials(dbType, dbId);
+  return createTursoDBFromCredentials(
+    credentials.databaseUrl,
+    credentials.authToken,
+    dbType,
+    dbId,
+  );
+};
+
+type HyperDBCacheEntry = {
+  dbConfig: DBConfig;
+  db: SubscribableDB;
+  nextClock: () => string;
+  clientId: string;
+};
+
+const dbs = new Map<string, HyperDBCacheEntry>();
+const dbPromises = new Map<string, Promise<HyperDBCacheEntry>>();
+
+export const getHyperDB = async (dbConfig: DBConfig) => {
+  const dbName = `${dbConfig.dbType}-${dbConfig.dbId}`;
   const db = dbs.get(dbName);
   if (db) {
     return db;
   }
 
-  const clientId = "server-" + dbName;
-  const nextClock = initClock(clientId);
-  const hyperDB = new SubscribableDB(getDB(dbConfig.dbType, dbConfig.dbId));
+  const dbPromise = dbPromises.get(dbName);
+  if (dbPromise) {
+    return dbPromise;
+  }
 
-  hyperDB.afterInsert(function* (db, table, traits, ops) {
-    if (table === changesTable) return;
-    if (traits.some((t) => t.type === "skip-sync")) {
-      return;
-    }
+  const nextDbPromise = (async () => {
+    const clientId = `server-${dbName}`;
+    const nextClock = initClock(clientId);
+    const hyperDB = new SubscribableDB(
+      await getDB(dbConfig.dbType, dbConfig.dbId),
+    );
 
-    for (const op of ops) {
-      syncDispatch(
-        db,
-        changesSlice.insertChangeFromInsert(
+    hyperDB.afterInsert(function* (_db, table, traits, ops) {
+      if (table === changesTable) return;
+      if (traits.some((t) => t.type === "skip-sync")) {
+        return;
+      }
+
+      for (const op of ops) {
+        yield* (changesSlice.insertChangeFromInsert(
           op.table,
           op.newValue,
           clientId,
           nextClock,
-        ),
-      );
-    }
+        ) as Generator<DBCmd, unknown, unknown>);
+      }
 
-    yield* noop();
-  });
+      yield* noop();
+    });
 
-  hyperDB.afterUpdate(function* (db, table, traits, ops) {
-    if (table === changesTable) return;
-    if (traits.some((t) => t.type === "skip-sync")) {
-      return;
-    }
+    hyperDB.afterUpdate(function* (_db, table, traits, ops) {
+      if (table === changesTable) return;
+      if (traits.some((t) => t.type === "skip-sync")) {
+        return;
+      }
 
-    for (const op of ops) {
-      syncDispatch(
-        db,
-        changesSlice.insertChangeFromUpdate(
+      for (const op of ops) {
+        yield* (changesSlice.insertChangeFromUpdate(
           op.table,
           op.oldValue,
           op.newValue,
           clientId,
           nextClock,
-        ),
-      );
-    }
+        ) as Generator<DBCmd, unknown, unknown>);
+      }
 
-    yield* noop();
-  });
+      yield* noop();
+    });
 
-  hyperDB.afterDelete(function* (db, table, traits, ops) {
-    if (table === changesTable) return;
-    if (traits.some((t) => t.type === "skip-sync")) {
-      return;
-    }
+    hyperDB.afterDelete(function* (_db, table, traits, ops) {
+      if (table === changesTable) return;
+      if (traits.some((t) => t.type === "skip-sync")) {
+        return;
+      }
 
-    for (const op of ops) {
-      syncDispatch(
-        db,
-        changesSlice.insertChangeFromDelete(
+      for (const op of ops) {
+        yield* (changesSlice.insertChangeFromDelete(
           op.table,
           op.oldValue,
           clientId,
           nextClock,
-        ),
-      );
-    }
+        ) as Generator<DBCmd, unknown, unknown>);
+      }
 
-    yield* noop();
-  });
+      yield* noop();
+    });
 
-  execSync(hyperDB.loadTables(dbConfig.persistDBTables));
+    await execAsync(hyperDB.loadTables(dbConfig.persistDBTables));
 
-  const res = {
-    db: hyperDB,
-    dbConfig: dbConfig,
-    nextClock,
-    clientId,
-  };
-  dbs.set(dbName, res);
+    const res = {
+      db: hyperDB,
+      dbConfig: dbConfig,
+      nextClock,
+      clientId,
+    };
+    dbs.set(dbName, res);
+    dbPromises.delete(dbName);
 
-  return res;
+    return res;
+  })();
+
+  dbPromises.set(dbName, nextDbPromise);
+  return nextDbPromise;
 };

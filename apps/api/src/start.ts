@@ -5,7 +5,7 @@ import {
   router,
   createContext,
 } from "./trpc";
-import { syncDispatch, select } from "@will-be-done/hyperdb";
+import { asyncDispatch, runSelectorAsync } from "@will-be-done/hyperdb";
 import * as dotenv from "dotenv";
 import { ChangesetArray, changesSlice } from "@will-be-done/slices/common";
 import fastify from "fastify";
@@ -35,10 +35,10 @@ import { importFromTodoist } from "./todoist/importTodoist";
 
 dotenv.config();
 
-const mainDB = getMainHyperDB();
+const mainDB = await getMainHyperDB();
 const captchaConfig = getCaptchaConfig();
 
-const checkDBAccessOrCreateDB = (
+const checkDBAccessOrCreateDB = async (
   dbId: string,
   dbType: "user" | "space",
   authedUserId: string,
@@ -51,7 +51,7 @@ const checkDBAccessOrCreateDB = (
       });
     }
   } else if (dbType === "space") {
-    const db = syncDispatch(
+    const db = await asyncDispatch(
       mainDB,
       dbSlice.getByIdOrCreate(dbId, dbType, authedUserId),
     );
@@ -81,18 +81,19 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      checkDBAccessOrCreateDB(
+      await checkDBAccessOrCreateDB(
         opts.input.dbId,
         opts.input.dbType,
         opts.ctx.user.id,
       );
 
       const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
-      const { db } = getHyperDB(config);
+      const { db } = await getHyperDB(config);
 
-      return select(
+      return runSelectorAsync(
         db,
-        changesSlice.getChangesetAfter(
+        () =>
+          changesSlice.getChangesetAfter(
           opts.input.lastServerUpdatedAt,
           config.tableNameMap,
         ),
@@ -111,7 +112,7 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      checkDBAccessOrCreateDB(
+      await checkDBAccessOrCreateDB(
         opts.input.dbId,
         opts.input.dbType,
         opts.ctx.user.id,
@@ -119,9 +120,9 @@ const appRouter = router({
 
       const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
 
-      const { db, nextClock, clientId } = getHyperDB(config);
+      const { db, nextClock, clientId } = await getHyperDB(config);
 
-      syncDispatch(
+      await asyncDispatch(
         db.withTraits({ type: "skip-sync" }),
         changesSlice.mergeChanges(
           opts.input.changeset,
@@ -152,7 +153,7 @@ const appRouter = router({
       }
 
       // Verify access to the database
-      checkDBAccessOrCreateDB(
+      await checkDBAccessOrCreateDB(
         opts.input.dbId,
         opts.input.dbType,
         opts.ctx.user.id,
@@ -194,7 +195,7 @@ const appRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      syncDispatch(mainDB, authSlice.revokeToken(opts.input.tokenId));
+      await asyncDispatch(mainDB, authSlice.revokeToken(opts.input.tokenId));
       return { success: true };
     }),
 
@@ -238,7 +239,7 @@ const appRouter = router({
 
       // Hash password before storing
       const hashedPassword = await Bun.password.hash(password);
-      const result = syncDispatch(
+      const result = await asyncDispatch(
         mainDB,
         authSlice.register(email, hashedPassword),
       );
@@ -260,7 +261,7 @@ const appRouter = router({
       const { email, password } = opts.input;
 
       // Get user to verify password
-      const user = syncDispatch(mainDB, authSlice.getUserByEmail(email));
+      const user = await asyncDispatch(mainDB, authSlice.getUserByEmail(email));
       if (!user) {
         throw new Error("Invalid credentials");
       }
@@ -272,7 +273,7 @@ const appRouter = router({
       }
 
       // Generate token for authenticated user
-      const result = syncDispatch(mainDB, authSlice.generateToken(user.id));
+      const result = await asyncDispatch(mainDB, authSlice.generateToken(user.id));
 
       return result;
     }),
@@ -339,7 +340,14 @@ const start = async () => {
     let backupWorker: Worker | null = null;
     const backupConfig = getBackupConfig();
 
-    if (backupConfig?.WBD_BACKUP_S3_ENABLED) {
+    if (
+      backupConfig?.WBD_BACKUP_S3_ENABLED &&
+      getEnvConfig().DB_ENGINE === "turso-serverless"
+    ) {
+      console.warn(
+        "[Backup] S3 SQLite-file backups are disabled for DB_ENGINE=turso-serverless. Turso Cloud data is not stored in local .sqlite files.",
+      );
+    } else if (backupConfig?.WBD_BACKUP_S3_ENABLED) {
       try {
         console.log("[Backup] S3 backup system enabled, spawning worker...");
         const dbsPath = getEnvConfig().WBD_DB_PATH;

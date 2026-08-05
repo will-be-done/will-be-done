@@ -209,6 +209,7 @@ export async function asyncDispatch<TReturn>(
     }
 
     await execAsync(tx.commit());
+
     isCommitted = true;
   } finally {
     if (!isCommitted) {
