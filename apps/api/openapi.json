@@ -285,7 +285,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Space details",
             "content": {
               "application/json": {
                 "schema": {
@@ -317,7 +317,8 @@
                     }
                   },
                   "required": ["space"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Space details"
                 }
               }
             }
@@ -613,7 +614,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Space details",
             "content": {
               "application/json": {
                 "schema": {
@@ -645,7 +646,8 @@
                     }
                   },
                   "required": ["space"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Space details"
                 }
               }
             }
@@ -1038,7 +1040,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "201": {
-            "description": "Default Response",
+            "description": "Project details",
             "content": {
               "application/json": {
                 "schema": {
@@ -1072,7 +1074,8 @@
                     }
                   },
                   "required": ["project"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project details"
                 }
               }
             }
@@ -1239,7 +1242,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Project details",
             "content": {
               "application/json": {
                 "schema": {
@@ -1273,7 +1276,8 @@
                     }
                   },
                   "required": ["project"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project details"
                 }
               }
             }
@@ -1453,7 +1457,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Project details",
             "content": {
               "application/json": {
                 "schema": {
@@ -1487,7 +1491,8 @@
                     }
                   },
                   "required": ["project"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project details"
                 }
               }
             }
@@ -1929,7 +1934,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Project details",
             "content": {
               "application/json": {
                 "schema": {
@@ -1963,7 +1968,8 @@
                     }
                   },
                   "required": ["project"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project details"
                 }
               }
             }
@@ -2418,7 +2424,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "201": {
-            "description": "Default Response",
+            "description": "Project section details",
             "content": {
               "application/json": {
                 "schema": {
@@ -2448,7 +2454,8 @@
                     }
                   },
                   "required": ["section"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project section details"
                 }
               }
             }
@@ -2642,7 +2649,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Project section details",
             "content": {
               "application/json": {
                 "schema": {
@@ -2672,7 +2679,8 @@
                     }
                   },
                   "required": ["section"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project section details"
                 }
               }
             }
@@ -2849,7 +2857,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Project section details",
             "content": {
               "application/json": {
                 "schema": {
@@ -2879,7 +2887,8 @@
                     }
                   },
                   "required": ["section"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project section details"
                 }
               }
             }
@@ -3322,7 +3331,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Project section details",
             "content": {
               "application/json": {
                 "schema": {
@@ -3352,7 +3361,8 @@
                     }
                   },
                   "required": ["section"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Project section details"
                 }
               }
             }
@@ -3557,7 +3567,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Page of tasks with an optional continuation cursor",
             "content": {
               "application/json": {
                 "schema": {
@@ -3630,7 +3640,8 @@
                     }
                   },
                   "required": ["tasks", "nextCursor"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Page of tasks with an optional continuation cursor"
                 }
               }
             }
@@ -3836,7 +3847,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Page of tasks with an optional continuation cursor",
             "content": {
               "application/json": {
                 "schema": {
@@ -3909,7 +3920,8 @@
                     }
                   },
                   "required": ["tasks", "nextCursor"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Page of tasks with an optional continuation cursor"
                 }
               }
             }
@@ -4446,7 +4458,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "201": {
-            "description": "Default Response",
+            "description": "Task details",
             "content": {
               "application/json": {
                 "schema": {
@@ -4510,7 +4522,8 @@
                     }
                   },
                   "required": ["task"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Task details"
                 }
               }
             }
@@ -4704,7 +4717,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Task details",
             "content": {
               "application/json": {
                 "schema": {
@@ -4768,7 +4781,8 @@
                     }
                   },
                   "required": ["task"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Task details"
                 }
               }
             }
@@ -4957,7 +4971,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Task details",
             "content": {
               "application/json": {
                 "schema": {
@@ -5021,7 +5035,8 @@
                     }
                   },
                   "required": ["task"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Task details"
                 }
               }
             }
@@ -5928,7 +5943,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Task details",
             "content": {
               "application/json": {
                 "schema": {
@@ -5992,7 +6007,8 @@
                     }
                   },
                   "required": ["task"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Task details"
                 }
               }
             }
@@ -6210,7 +6226,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Daily lists in ascending date order",
             "content": {
               "application/json": {
                 "schema": {
@@ -6295,7 +6311,8 @@
                     }
                   },
                   "required": ["dailyLists"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Daily lists in ascending date order"
                 }
               }
             }
@@ -8250,7 +8267,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Task details",
             "content": {
               "application/json": {
                 "schema": {
@@ -8314,7 +8331,8 @@
                     }
                   },
                   "required": ["task"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Task details"
                 }
               }
             }
@@ -10492,7 +10510,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Tasks in stash display order",
             "content": {
               "application/json": {
                 "schema": {
@@ -10562,7 +10580,8 @@
                     }
                   },
                   "required": ["tasks"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Tasks in stash display order"
                 }
               }
             }
@@ -10788,7 +10807,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "201": {
-            "description": "Default Response",
+            "description": "Task details",
             "content": {
               "application/json": {
                 "schema": {
@@ -10852,7 +10871,8 @@
                     }
                   },
                   "required": ["task"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Task details"
                 }
               }
             }
@@ -11107,7 +11127,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Default Response",
+            "description": "Task details",
             "content": {
               "application/json": {
                 "schema": {
@@ -11171,7 +11191,8 @@
                     }
                   },
                   "required": ["task"],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Task details"
                 }
               }
             }

@@ -8,7 +8,7 @@ import {
   listUserSpaces,
   updateUserSpace,
 } from "../../services/spaces";
-import { unauthorized } from "../errors";
+import { sendError, unauthorized } from "../errors";
 import {
   CreateSpaceBodySchema,
   CreateSpaceResponseSchema,
@@ -138,11 +138,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
         }
         return reply.code(200).send({ space });
       } catch (error) {
-        request.log.error(error, "Failed to get space");
-        return reply.code(500).send({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to get space",
-        });
+        return sendError(request, reply, error, "Failed to get space");
       }
     },
   );

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { authenticateBearerToken } from "../../services/authentication";
 import { DatabaseAccessDeniedError } from "../../services/databaseAccess";
+import { ResourceNotFoundError } from "../../services/errors";
 import {
   listDailyListItems,
   listDailyListsInRange,
@@ -57,6 +58,11 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
             message: "You do not have access to this space",
           });
         }
+        if (error instanceof ResourceNotFoundError) {
+          return reply
+            .code(404)
+            .send({ code: "NOT_FOUND", message: error.message });
+        }
         request.log.error(error, "Failed to list daily lists");
         return reply.code(500).send({
           code: "INTERNAL_SERVER_ERROR",
@@ -106,6 +112,11 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
             code: "FORBIDDEN",
             message: "You do not have access to this space",
           });
+        }
+        if (error instanceof ResourceNotFoundError) {
+          return reply
+            .code(404)
+            .send({ code: "NOT_FOUND", message: error.message });
         }
         request.log.error(error, "Failed to list daily-list items");
         return reply.code(500).send({

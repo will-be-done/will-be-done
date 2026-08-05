@@ -32,6 +32,15 @@ export const v1Routes: FastifyPluginAsyncZod = async (server) => {
     const user = authenticateBearerToken(request.headers.authorization);
     if (!user) return;
 
+    if (
+      request.method === "PATCH" &&
+      request.routeOptions.url?.endsWith(
+        "/spaces/:spaceId/task-templates/:templateId",
+      )
+    ) {
+      return;
+    }
+
     let db;
     try {
       db = getSpaceDatabase(spaceId, user.id);

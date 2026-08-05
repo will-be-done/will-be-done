@@ -37,7 +37,7 @@ export function listScheduledTasks({
     ? addDays(parse(to, dailyDateFormat, new Date()), 1).getTime()
     : undefined;
   const decodedCursor = cursor ? decodeNumericCursor(cursor) : null;
-  const rows = selectSync(db, {
+  const page = selectSync(db, {
     selector: listScheduledTasksSelector,
     args: {
       fromInclusive: scope === "overdue" ? Number.MIN_SAFE_INTEGER : boundary,
@@ -47,21 +47,18 @@ export function listScheduledTasks({
           : (exclusiveEnd ?? Number.MAX_SAFE_INTEGER),
       cursorScheduledAt: decodedCursor?.sort ?? null,
       cursorId: decodedCursor?.id ?? null,
-      limit: limit + 1,
+      limit,
     },
   });
-  const page = rows.slice(0, limit);
-  const last = page.at(-1);
   return {
-    tasks: page.map((row) =>
+    tasks: page.items.map((row) =>
       toPublicTask(db, row.task, getDMY(new Date(row.scheduledAt))),
     ),
-    nextCursor:
-      rows.length > limit && last
-        ? encodeNumericCursor({
-            sort: last.scheduledAt,
-            id: last.task.id,
-          })
-        : null,
+    nextCursor: page.nextCursor
+      ? encodeNumericCursor({
+          sort: page.nextCursor.scheduledAt,
+          id: page.nextCursor.id,
+        })
+      : null,
   };
 }

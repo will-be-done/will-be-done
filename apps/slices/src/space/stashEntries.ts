@@ -227,7 +227,9 @@ export const doneStashEntryChildrenForDisplay = selector({
     }
 
     itemsWithEntries.sort(
-      (a, b) => b.item.lastToggledAt - a.item.lastToggledAt,
+      (a, b) =>
+        b.item.lastToggledAt - a.item.lastToggledAt ||
+        a.item.id.localeCompare(b.item.id),
     );
 
     return yield* projectSectionItemsForDisplay({

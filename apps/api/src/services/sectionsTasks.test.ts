@@ -128,6 +128,19 @@ const seedInboxProject = action({
     ]);
   },
 });
+const seedMissingScheduledTask = action({
+  name: "seedApiMissingScheduledTask",
+  args: {},
+  handler: function* () {
+    yield* insert(scheduledTodoTasksTable, [
+      {
+        id: "task-b",
+        scheduledAt: new Date(2026, 7, 1).getTime(),
+        projectSectionId: "section-1",
+      },
+    ]);
+  },
+});
 const seedSpaceMembership = action({
   name: "seedApiSectionTaskTestSpaceMembership",
   args: {},
@@ -824,6 +837,37 @@ describe("section and task services", () => {
         limit: 50,
       }).tasks.map((task) => task.id),
     ).toEqual(["task-c"]);
+  });
+
+  test("keeps live scheduled tasks reachable across a same-date missing task", () => {
+    const { spaceDB } = setUpDatabases();
+    for (const taskId of ["task-a", "task-c"]) {
+      scheduleTask({
+        spaceId: "space-1",
+        taskId,
+        userId: "user-1",
+        date: "2026-08-01",
+      });
+    }
+    syncDispatch(spaceDB, rebuildScheduledTodoTasks({}));
+    syncDispatch(spaceDB, seedMissingScheduledTask({}));
+
+    const reachedTaskIds: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = listScheduledTasks({
+        spaceId: "space-1",
+        userId: "user-1",
+        scope: "overdue",
+        relativeTo: "2026-08-02",
+        cursor,
+        limit: 1,
+      });
+      reachedTaskIds.push(...page.tasks.map((task) => task.id));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+
+    expect(reachedTaskIds).toEqual(["task-a", "task-c"]);
   });
 
   test("lists, adds, repositions, and removes stash tasks", () => {

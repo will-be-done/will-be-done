@@ -82,7 +82,9 @@ export const CreateProjectBodySchema = z
   })
   .strict();
 
-export const ProjectResponseSchema = z.object({ project: ProjectSchema });
+export const ProjectResponseSchema = z
+  .object({ project: ProjectSchema })
+  .describe("Project details");
 
 export const UpdateProjectBodySchema = z
   .object({
@@ -134,7 +136,9 @@ export const UpdateSpaceBodySchema = z
     message: "At least one field must be provided",
   });
 
-export const SpaceResponseSchema = z.object({ space: SpaceSchema });
+export const SpaceResponseSchema = z
+  .object({ space: SpaceSchema })
+  .describe("Space details");
 
 export const ProjectSectionsParamsSchema = z.object({
   spaceId: z.string().min(1).describe("Space identifier"),
@@ -168,9 +172,11 @@ export const CreateProjectSectionBodySchema = z
   })
   .strict();
 
-export const ProjectSectionResponseSchema = z.object({
-  section: ProjectSectionSchema,
-});
+export const ProjectSectionResponseSchema = z
+  .object({
+    section: ProjectSectionSchema,
+  })
+  .describe("Project section details");
 
 export const UpdateProjectSectionBodySchema = z
   .object({
@@ -320,7 +326,9 @@ export const PutStashTaskBodySchema = z
   })
   .strict();
 
-export const TaskResponseSchema = z.object({ task: TaskSchema });
+export const TaskResponseSchema = z
+  .object({ task: TaskSchema })
+  .describe("Task details");
 
 export const ListStashTasksQuerySchema = z
   .object({
@@ -328,9 +336,11 @@ export const ListStashTasksQuerySchema = z
   })
   .strict();
 
-export const ListStashTasksResponseSchema = z.object({
-  tasks: z.array(TaskSchema),
-});
+export const ListStashTasksResponseSchema = z
+  .object({
+    tasks: z.array(TaskSchema),
+  })
+  .describe("Tasks in stash display order");
 
 export const ListSpaceTasksQuerySchema = z
   .object({
@@ -339,10 +349,12 @@ export const ListSpaceTasksQuerySchema = z
   })
   .strict();
 
-export const PaginatedTasksResponseSchema = z.object({
-  tasks: z.array(TaskSchema),
-  nextCursor: z.string().nullable(),
-});
+export const PaginatedTasksResponseSchema = z
+  .object({
+    tasks: z.array(TaskSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .describe("Page of tasks with an optional continuation cursor");
 
 export const ScheduleTaskBodySchema = z
   .object({
@@ -383,9 +395,9 @@ export const DailyListsRangeQuerySchema = z
   .refine(
     ({ from, to }) =>
       Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`) <=
-      366 * 24 * 60 * 60 * 1000,
+      30 * 24 * 60 * 60 * 1000,
     {
-      message: "Date range cannot exceed 366 days",
+      message: "Date range cannot exceed 30 days",
       path: ["to"],
     },
   );
@@ -395,9 +407,11 @@ export const DailyListSchema = z.object({
   items: z.array(TaskSchema),
 });
 
-export const DailyListsRangeResponseSchema = z.object({
-  dailyLists: z.array(DailyListSchema),
-});
+export const DailyListsRangeResponseSchema = z
+  .object({
+    dailyLists: z.array(DailyListSchema),
+  })
+  .describe("Daily lists in ascending date order");
 
 export const ScheduledTasksQuerySchema = z
   .object({

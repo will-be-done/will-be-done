@@ -68,8 +68,19 @@ export function createUserSpace({
   try {
     getSpaceDatabase(space.id, userId, mainDB);
   } catch (error) {
-    syncDispatch(getUserDatabase(userId), deleteSpace({ id: space.id }));
-    syncDispatch(mainDB, deleteDb({ id: space.id, type: "space" }));
+    try {
+      syncDispatch(getUserDatabase(userId), deleteSpace({ id: space.id }));
+    } catch (rollbackError) {
+      console.error("Failed to roll back user space creation", rollbackError);
+    }
+    try {
+      syncDispatch(mainDB, deleteDb({ id: space.id, type: "space" }));
+    } catch (rollbackError) {
+      console.error(
+        "Failed to roll back space database registration",
+        rollbackError,
+      );
+    }
     throw error;
   }
 
@@ -85,14 +96,15 @@ export function deleteUserSpace({
   spaceId: string;
   mainDB?: DB;
 }): boolean {
-  const deleted = syncDispatch(
-    getUserDatabase(userId),
-    deleteSpace({ id: spaceId }),
-  );
-  if (!deleted) return false;
+  const userDB = getUserDatabase(userId);
+  const space = selectSync(userDB, {
+    selector: getSpaceById,
+    args: { id: spaceId },
+  });
+  if (!space) return false;
 
   syncDispatch(mainDB, deleteDb({ id: spaceId, type: "space" }));
-  return true;
+  return syncDispatch(userDB, deleteSpace({ id: spaceId }));
 }
 
 export function updateUserSpace({

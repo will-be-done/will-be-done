@@ -9,11 +9,19 @@ import {
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
+  doneStashEntryChildrenForDisplay,
   doneStashEntryChildrenIds,
   stashEntryChildrenIds,
   stashTasksByState,
 } from "./stashEntries";
 import {
+  checklistItemsTable,
+  dailyEntriesTable,
+  dailyListsTable,
+  projectSectionsTable,
+  projectSectionType,
+  projectsTable,
+  projectType,
   stashEntriesTable,
   stashEntryType,
   tasksTable,
@@ -80,6 +88,32 @@ const seedStash = action({
         templateId: null,
         templateDate: null,
       },
+      {
+        type: taskType,
+        id: "done-zeta",
+        title: "Done zeta",
+        state: "done",
+        projectSectionId: "section",
+        orderToken: "e",
+        lastToggledAt: 200,
+        nature: "unknown",
+        createdAt: 0,
+        templateId: null,
+        templateDate: null,
+      },
+      {
+        type: taskType,
+        id: "done-alpha",
+        title: "Done alpha",
+        state: "done",
+        projectSectionId: "section",
+        orderToken: "f",
+        lastToggledAt: 200,
+        nature: "unknown",
+        createdAt: 0,
+        templateId: null,
+        templateDate: null,
+      },
     ];
     const entries: StashEntry[] = [
       { type: stashEntryType, id: "todo-first", orderToken: "a", createdAt: 0 },
@@ -93,12 +127,45 @@ const seedStash = action({
       { type: stashEntryType, id: "done-new", orderToken: "d", createdAt: 0 },
       {
         type: stashEntryType,
-        id: "missing-task",
+        id: "done-zeta",
         orderToken: "e",
+        createdAt: 0,
+      },
+      {
+        type: stashEntryType,
+        id: "done-alpha",
+        orderToken: "f",
+        createdAt: 0,
+      },
+      {
+        type: stashEntryType,
+        id: "missing-task",
+        orderToken: "g",
         createdAt: 0,
       },
     ];
 
+    yield* insert(projectsTable, [
+      {
+        type: projectType,
+        id: "project",
+        title: "Project",
+        icon: "",
+        isInbox: false,
+        orderToken: "a",
+        createdAt: 0,
+      },
+    ]);
+    yield* insert(projectSectionsTable, [
+      {
+        type: projectSectionType,
+        id: "section",
+        title: "Section",
+        orderToken: "a",
+        projectId: "project",
+        createdAt: 0,
+      },
+    ]);
     yield* insert(tasksTable, tasks);
     yield* insert(stashEntriesTable, entries);
   },
@@ -107,7 +174,17 @@ const seedStash = action({
 describe("stash task selectors", () => {
   test("batch joins entries with tasks and applies state-specific ordering", () => {
     const db = new DB(new BptreeInmemDriver());
-    execSync(db.loadTables([tasksTable, stashEntriesTable]));
+    execSync(
+      db.loadTables([
+        tasksTable,
+        stashEntriesTable,
+        projectsTable,
+        projectSectionsTable,
+        dailyEntriesTable,
+        dailyListsTable,
+        checklistItemsTable,
+      ]),
+    );
     syncDispatch(db, seedStash({}));
 
     expect(
@@ -121,12 +198,18 @@ describe("stash task selectors", () => {
         selector: stashTasksByState,
         args: { state: "done" },
       }).map((task) => task.id),
-    ).toEqual(["done-new", "done-old"]);
+    ).toEqual(["done-alpha", "done-new", "done-zeta", "done-old"]);
     expect(
       selectSync(db, { selector: stashEntryChildrenIds, args: {} }),
     ).toEqual(["todo-first", "todo-second"]);
     expect(
       selectSync(db, { selector: doneStashEntryChildrenIds, args: {} }),
-    ).toEqual(["done-new", "done-old"]);
+    ).toEqual(["done-alpha", "done-new", "done-zeta", "done-old"]);
+    expect(
+      selectSync(db, {
+        selector: doneStashEntryChildrenForDisplay,
+        args: {},
+      }).map(({ item }) => item.id),
+    ).toEqual(["done-alpha", "done-new", "done-zeta", "done-old"]);
   });
 });

@@ -62,18 +62,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
         });
         return reply.code(200).send({ projects });
       } catch (error) {
-        if (error instanceof DatabaseAccessDeniedError) {
-          return reply.code(403).send({
-            code: "FORBIDDEN",
-            message: "You do not have access to this space",
-          });
-        }
-
-        request.log.error(error, "Failed to list projects");
-        return reply.code(500).send({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to list projects",
-        });
+        return sendProjectError(
+          request,
+          reply,
+          error,
+          "Failed to list projects",
+        );
       }
     },
   );
