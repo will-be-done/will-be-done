@@ -11,6 +11,7 @@ import { getHyperDB } from "./db/db";
 import { dbConfigByType } from "./db/configs";
 import {
   generateToken,
+  getTokensByUserId,
   getUserByEmail,
   register,
   revokeToken,
@@ -168,14 +169,56 @@ export function createAppRouter({
         }
       }),
 
-    revokeToken: protectedProcedure
+    listTokens: protectedProcedure.query((opts) => {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      return syncDispatch(
+        mainDB,
+        getTokensByUserId({ userId: opts.ctx.user.id }),
+      ).map(({ id, createdAt, lastUsedAt, lastUsedIp, lastUsedUserAgent }) => ({
+        id,
+        createdAt,
+        ...(lastUsedAt !== undefined ? { lastUsedAt } : {}),
+        ...(lastUsedIp !== undefined ? { lastUsedIp } : {}),
+        ...(lastUsedUserAgent !== undefined ? { lastUsedUserAgent } : {}),
+      }));
+    }),
+
+    createToken: protectedProcedure.mutation((opts) => {
+      if (!opts.ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const created = syncDispatch(
+        mainDB,
+        generateToken({ userId: opts.ctx.user.id }),
+      );
+      return { id: created.token, createdAt: created.createdAt };
+    }),
+
+    deleteToken: protectedProcedure
       .input(z.object({ tokenId: z.string() }))
       .mutation(async (opts) => {
         if (!opts.ctx.user) {
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        syncDispatch(mainDB, revokeToken({ tokenId: opts.input.tokenId }));
+        const deleted = syncDispatch(
+          mainDB,
+          revokeToken({
+            tokenId: opts.input.tokenId,
+            userId: opts.ctx.user.id,
+          }),
+        );
+        if (!deleted) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Token not found",
+          });
+        }
+
         return { success: true };
       }),
 

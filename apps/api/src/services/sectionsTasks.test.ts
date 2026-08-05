@@ -767,16 +767,33 @@ describe("section and task services", () => {
       scheduledDate: "2026-08-01",
     });
 
-    const dailyLists = listDailyListsInRange({
+    const firstDailyListsPage = listDailyListsInRange({
       spaceId: "space-1",
       userId: "user-1",
       from: "2026-08-01",
-      to: "2026-08-03",
+      to: "2026-08-05",
+      limit: 1,
     });
-    expect(dailyLists.map((dailyList) => dailyList.date)).toEqual([
+    expect(firstDailyListsPage.dailyLists.map(({ date }) => date)).toEqual([
       "2026-08-01",
     ]);
-    expect(dailyLists[0].items.map((task) => task.id)).toEqual(["task-a"]);
+    expect(firstDailyListsPage.dailyLists[0].items.map(({ id }) => id)).toEqual(
+      ["task-a"],
+    );
+    expect(firstDailyListsPage.nextCursor).not.toBeNull();
+
+    const secondDailyListsPage = listDailyListsInRange({
+      spaceId: "space-1",
+      userId: "user-1",
+      from: "2026-08-01",
+      to: "2026-08-05",
+      cursor: firstDailyListsPage.nextCursor!,
+      limit: 1,
+    });
+    expect(secondDailyListsPage.dailyLists.map(({ date }) => date)).toEqual([
+      "2026-08-05",
+    ]);
+    expect(secondDailyListsPage.nextCursor).toBeNull();
 
     expect(
       listSectionItems({

@@ -15,7 +15,7 @@
     "ts": "pnpm --filter @will-be-done/web ts && pnpm --filter @will-be-done/slices ts && pnpm --filter @will-be-done/api ts",
     "lint": "pnpm --filter @will-be-done/web lint && pnpm --filter @will-be-done/slices lint && pnpm --filter @will-be-done/api lint",
     "test": "pnpm --filter @will-be-done/api test",
-    "test:e2e": "pnpm --filter @will-be-done/web test:e2e",
+    "test:e2e": "pnpm --filter @will-be-done/api test:e2e && pnpm --filter @will-be-done/web test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "all": "tsx scripts/dev-all.ts",

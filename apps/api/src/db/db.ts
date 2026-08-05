@@ -42,6 +42,8 @@ export interface DBConfig {
   tableNameMap: Record<string, TableDefinition>;
 }
 
+const sqliteDatabases = new Set<Database>();
+
 const initClock = (clientId: string) => {
   let now = Date.now();
   let n = 0;
@@ -69,6 +71,7 @@ const getDB = (dbType: string, dbId: string) => {
   const dbPath = path.join(dbDir, dbName + ".sqlite");
   console.log("Loading database...", dbPath);
   const sqliteDB = new Database(dbPath, { strict: true });
+  sqliteDatabases.add(sqliteDB);
 
   sqliteDB.run("PRAGMA journal_mode=WAL;");
   sqliteDB.run("PRAGMA synchronous=NORMAL;");
@@ -140,6 +143,16 @@ const dbs: Map<
     clientId: string;
   }
 > = new Map();
+
+export function closeDatabases() {
+  dbs.clear();
+  mainDB = undefined;
+
+  for (const sqliteDB of sqliteDatabases) {
+    sqliteDB.close();
+  }
+  sqliteDatabases.clear();
+}
 
 export function installSyncNotificationHook(
   db: SubscribableDB,

@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { authenticateBearerToken } from "../../services/authentication";
+import { authenticateRequest } from "../../services/authentication";
 import {
   createUserSpace,
   deleteUserSpace,
@@ -38,7 +38,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
 
       if (!user) {
         return reply.code(401).send({
@@ -78,7 +78,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
 
       if (!user) {
         return reply.code(401).send({
@@ -123,7 +123,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -162,7 +162,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
 
       if (!user) {
         return reply.code(401).send({
@@ -213,7 +213,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       if (request.body.name === undefined) {

@@ -6217,6 +6217,23 @@
           },
           {
             "schema": { "type": "string", "minLength": 1 },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
             "in": "path",
             "name": "spaceId",
             "required": true,
@@ -6226,7 +6243,7 @@
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Daily lists in ascending date order",
+            "description": "Page of daily lists in ascending date order with an optional continuation cursor",
             "content": {
               "application/json": {
                 "schema": {
@@ -6308,11 +6325,14 @@
                         "required": ["date", "items"],
                         "additionalProperties": false
                       }
+                    },
+                    "nextCursor": {
+                      "anyOf": [{ "type": "string" }, { "type": "null" }]
                     }
                   },
-                  "required": ["dailyLists"],
+                  "required": ["dailyLists", "nextCursor"],
                   "additionalProperties": false,
-                  "description": "Daily lists in ascending date order"
+                  "description": "Page of daily lists in ascending date order with an optional continuation cursor"
                 }
               }
             }

@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { UnsupportedSyncVersionError } from "@will-be-done/slices/common";
 import type { FastifyRequest, FastifyReply } from "fastify";
 import {
-  authenticateBearerToken,
+  authenticateRequest,
   type AuthenticatedUser,
 } from "./services/authentication";
 
@@ -26,14 +26,14 @@ export async function createContext({
 }): Promise<Context> {
   // First try Authorization header (HTTP requests)
   if (req.headers.authorization) {
-    return { user: authenticateBearerToken(req.headers.authorization) };
+    return { user: authenticateRequest(req) };
   }
 
   // Then try URL query parameter (WebSocket connections)
   const url = new URL(req.url || "", "http://localhost");
   const token = url.searchParams.get("token");
   if (token) {
-    return { user: authenticateBearerToken(`Bearer ${token}`) };
+    return { user: authenticateRequest(req, `Bearer ${token}`) };
   }
 
   return { user: null };

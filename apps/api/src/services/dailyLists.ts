@@ -8,6 +8,7 @@ import {
   type Task,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
+import { decodeStringCursor, encodeStringCursor } from "./pagination";
 import { toPublicTask, type PublicTask } from "./tasks";
 
 export function listDailyListItems({
@@ -39,29 +40,46 @@ export interface PublicDailyList {
   items: PublicTask[];
 }
 
+export interface DailyListSearchResult {
+  dailyLists: PublicDailyList[];
+  nextCursor: string | null;
+}
+
 export function listDailyListsInRange({
   spaceId,
   userId,
   from,
   to,
   state = "todo",
+  cursor,
+  limit,
 }: {
   spaceId: string;
   userId: string;
   from: string;
   to: string;
   state?: "todo" | "done";
-}): PublicDailyList[] {
+  cursor?: string;
+  limit: number;
+}): DailyListSearchResult {
   const db = getSpaceDatabase(spaceId, userId);
+  const decodedCursor = cursor ? decodeStringCursor(cursor) : null;
   const dailyLists = selectSync(db, {
     selector: dailyListsInDateRange,
-    args: { from, to },
+    args: {
+      from,
+      to,
+      cursorDate: decodedCursor?.sort ?? null,
+      cursorId: decodedCursor?.id ?? null,
+      limit: limit + 1,
+    },
   });
-  if (dailyLists.length === 0) return [];
+  const page = dailyLists.slice(0, limit);
+  if (page.length === 0) return { dailyLists: [], nextCursor: null };
 
   const entries = selectSync(db, {
     selector: dailyEntriesByDailyListIds,
-    args: { dailyListIds: dailyLists.map((dailyList) => dailyList.id) },
+    args: { dailyListIds: page.map((dailyList) => dailyList.id) },
   });
   const tasks = selectSync(db, {
     selector: tasksByIds,
@@ -75,7 +93,7 @@ export function listDailyListsInRange({
     entriesByDailyListId.set(entry.dailyListId, dailyListEntries);
   }
 
-  return dailyLists.map((dailyList) => {
+  const publicDailyLists = page.map((dailyList) => {
     const matchingTasks = (entriesByDailyListId.get(dailyList.id) ?? [])
       .map((entry) => taskById.get(entry.id))
       .filter((task): task is Task => task?.state === state);
@@ -92,4 +110,12 @@ export function listDailyListsInRange({
       ),
     };
   });
+  const last = page.at(-1);
+  return {
+    dailyLists: publicDailyLists,
+    nextCursor:
+      dailyLists.length > limit && last
+        ? encodeStringCursor({ sort: last.date, id: last.id })
+        : null,
+  };
 }

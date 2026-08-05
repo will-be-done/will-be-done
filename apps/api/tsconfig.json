@@ -30,5 +30,5 @@
     "skipDefaultLibCheck": true,
     "types": ["bun"]
   },
-  "include": ["src"]
+  "include": ["src", "orval.config.ts"]
 }

@@ -50,5 +50,10 @@ contract with:
 
 ```bash
 pnpm openapi:generate
+pnpm client:generate
 pnpm openapi:check
 ```
+
+`client:generate` rebuilds the internal typed Fetch client in `src/generated`.
+CI regenerates it from `openapi.json` and fails when the committed client is
+stale.

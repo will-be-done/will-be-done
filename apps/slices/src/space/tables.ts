@@ -89,7 +89,7 @@ export const dailyListsTable = defineTable("daily_lists", {
   date: v.string(),
 })
   .index("byIds", ["id"])
-  .index("byDateOrdered", ["date"])
+  .index("byDateOrdered", ["date", "id"])
   .index("byDate", ["date"], { type: "uniqhash" });
 registerSpaceSyncableTable(dailyListsTable, dailyListType);
 

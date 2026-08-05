@@ -2,7 +2,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 import { syncDispatch } from "@will-be-done/hyperdb";
 import { generateTasksForTemplate } from "@will-be-done/slices/space";
-import { authenticateBearerToken } from "../../services/authentication";
+import { authenticateRequest } from "../../services/authentication";
 import {
   convertTaskTemplateToTask,
   convertTaskToTemplate,
@@ -50,7 +50,7 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -103,7 +103,7 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -145,7 +145,7 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -198,7 +198,7 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -241,7 +241,7 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -284,7 +284,7 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
@@ -326,7 +326,7 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {

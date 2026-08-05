@@ -87,11 +87,48 @@ export const dailyListByDate = selector({
 
 export const dailyListsInDateRange = selector({
   name: "dailyListsInDateRange",
-  args: { from: v.string(), to: v.string() },
-  handler: function* dailyListsInDateRange({ from, to }) {
-    return (yield* selectFrom(dailyListsTable, "byDateOrdered")
-      .where((q) => q.gte("date", from).lte("date", to))
-      .order("asc")) as DailyList[];
+  args: {
+    from: v.string(),
+    to: v.string(),
+    cursorDate: v.union(v.string(), v.null()),
+    cursorId: v.union(v.string(), v.null()),
+    limit: v.number(),
+  },
+  handler: function* dailyListsInDateRange({
+    from,
+    to,
+    cursorDate,
+    cursorId,
+    limit,
+  }) {
+    if (cursorDate !== null && (cursorDate < from || cursorDate > to)) {
+      return [] as DailyList[];
+    }
+
+    const query = selectFrom(dailyListsTable, "byDateOrdered").order("asc");
+    if (cursorDate === null || cursorId === null) {
+      return (yield* query
+        .where((q) => q.gte("date", from).lte("date", to))
+        .limit(limit)) as DailyList[];
+    }
+
+    const remainingAtCursor = (yield* query
+      .where((q) => q.eq("date", cursorDate).gte("id", cursorId))
+      .limit(limit + 1)) as DailyList[];
+    const page =
+      remainingAtCursor[0]?.id === cursorId
+        ? remainingAtCursor.slice(1)
+        : remainingAtCursor.slice(0, limit);
+
+    if (page.length < limit) {
+      page.push(
+        ...((yield* selectFrom(dailyListsTable, "byDateOrdered")
+          .where((q) => q.gt("date", cursorDate).lte("date", to))
+          .order("asc")
+          .limit(limit - page.length)) as DailyList[]),
+      );
+    }
+    return page;
   },
 });
 

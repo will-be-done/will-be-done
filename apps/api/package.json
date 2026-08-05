@@ -9,9 +9,11 @@
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "client:generate": "orval --config ./orval.config.ts --clean --formatter prettier --fail-on-warnings",
     "openapi:check": "bun run src/generateOpenApi.ts --check",
     "openapi:generate": "bun run src/generateOpenApi.ts",
-    "test": "bun test"
+    "test": "bun test --path-ignore-patterns 'src/e2e/**'",
+    "test:e2e": "bun test --preload ./src/e2e/setup.ts ./src/e2e"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -20,6 +22,7 @@
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
     "globals": "^16.5.0",
+    "orval": "^8.23.0",
     "prettier": "^3.8.4",
     "typescript-eslint": "^8.48.0",
     "vitest": "^4.1.0"
