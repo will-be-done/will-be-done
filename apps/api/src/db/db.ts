@@ -36,7 +36,7 @@ import {
 import { subscriptionManager } from "../subscriptionManager";
 import {
   createTursoSqlDriver,
-  getOrCreateTursoDatabaseUrl,
+  getOrCreateTursoDatabase,
 } from "./turso";
 
 export interface DBConfig {
@@ -115,12 +115,9 @@ const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
   if (getEnvConfig().WBD_DB_ENGINE === "sqlite") {
     db = createLocalDB(dbType, dbId);
   } else {
-    const url =
-      dbType === "main"
-        ? getEnvConfig().WBD_TURSO_MAIN_DATABASE_URL!
-        : await getOrCreateTursoDatabaseUrl(dbType, dbId);
-    console.log("Loading Turso database...", url);
-    const { driver, close } = await createTursoSqlDriver(url);
+    const { name, url } = await getOrCreateTursoDatabase(dbType, dbId);
+    console.log(`Loading Turso database "${name}"...`, url);
+    const { driver, close } = await createTursoSqlDriver(name, url);
     asyncDatabaseClosers.add(close);
     db = new DB(driver, { traits: [dbIdTrait(dbType, dbId)] });
   }

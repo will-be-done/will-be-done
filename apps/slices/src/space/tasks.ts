@@ -8,7 +8,7 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
-import { changesTable } from "../common";
+import { changeId, changesTable } from "../common";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { appById, appDeleteModel } from "./app";
@@ -80,8 +80,8 @@ export const preloadEntities = selector({
   handler: function* preloadEntities({ ids, tableName, preloadDailyEntries }) {
     if (ids.length === 0) return;
 
-    yield* selectFrom(changesTable, "byEntityIdAndTableName").where((q) =>
-      or(...ids.map((id) => q.eq("entityId", id).eq("tableName", tableName))),
+    yield* selectFrom(changesTable, "byId").where((q) =>
+      or(...ids.map((id) => q.eq("id", changeId(tableName, id)))),
     );
 
     if (!preloadDailyEntries) return;

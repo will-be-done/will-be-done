@@ -22,6 +22,8 @@ export type PrimitiveRow = Record<string, string | number | boolean | null> & {
 };
 
 const SELECT_OR_CHUNK_SIZE = 400;
+export const changeId = (tableName: string, entityId: string): string =>
+  `${tableName}:${entityId}`;
 const primitiveValueSchema = v.union(
   v.string(),
   v.number(),
@@ -72,11 +74,9 @@ const getChangeByEntityAndTableName = selector({
     tableName: v.string(),
   },
   handler: function* getChangeByEntityAndTableName({ entityId, tableName }) {
-    const changes = yield* selectFrom(changesTable, "byEntityIdAndTableName")
-      .where((q) => q.eq("entityId", entityId).eq("tableName", tableName))
-      .limit(1);
-
-    return changes[0] as Change | undefined;
+    return (yield* selectFrom(changesTable, "byId")
+      .where((q) => q.eq("id", changeId(tableName, entityId)))
+      .first()) as Change | undefined;
   },
 });
 
@@ -194,7 +194,7 @@ export const insertChangeFromInsert = action({
     }
 
     const newChange: Change = {
-      id: `${tableDef.tableName}:${row.id}`,
+      id: changeId(tableDef.tableName, row.id),
       entityId: row.id,
       tableName: tableDef.tableName,
       deletedAt: null,
@@ -237,7 +237,7 @@ export const insertChangeFromUpdate = action({
         tableName: tableDef.tableName,
       })) ||
       ({
-        id: `${tableDef.tableName}:${oldRow.id}`,
+        id: changeId(tableDef.tableName, oldRow.id),
         entityId: oldRow.id,
         tableName: tableDef.tableName,
         createdAt: updatedAt,
@@ -290,7 +290,7 @@ export const insertChangeFromDelete = action({
       entityId: row.id,
       tableName: tableDef.tableName,
     })) || {
-      id: `${tableDef.tableName}:${row.id}`,
+      id: changeId(tableDef.tableName, row.id),
       entityId: row.id,
       tableName: tableDef.tableName,
       createdAt: deletedAt,
@@ -348,13 +348,10 @@ export const mergeChanges = action({
         SELECT_OR_CHUNK_SIZE,
       )) {
         currentChanges.push(
-          ...((yield* selectFrom(changesTable, "byEntityIdAndTableName").where(
-            (q) =>
-              dataChunk.map((c) =>
-                q
-                  .eq("entityId", c.change.entityId)
-                  .eq("tableName", changeset.tableName),
-              ),
+          ...((yield* selectFrom(changesTable, "byId").where((q) =>
+            dataChunk.map((c) =>
+              q.eq("id", changeId(changeset.tableName, c.change.entityId)),
+            ),
           )) as Change[]),
         );
       }
@@ -418,7 +415,7 @@ export const mergeChanges = action({
 
           const currentClock = nextClock;
           allChanges.push({
-            id: `${table.tableName}:${incomingChange.entityId}`,
+            id: changeId(table.tableName, incomingChange.entityId),
             entityId: incomingChange.entityId,
             tableName: table.tableName,
             createdAt: currentCreatedFirst
@@ -488,7 +485,7 @@ export const mergeChanges = action({
             : incomingChange.clientId;
 
         allChanges.push({
-          id: `${table.tableName}:${incomingChange.entityId}`,
+          id: changeId(table.tableName, incomingChange.entityId),
           entityId: incomingChange.entityId,
           tableName: table.tableName,
           createdAt: incomingRecreatedAfterCurrentDelete

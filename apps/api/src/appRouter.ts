@@ -239,6 +239,41 @@ export function createAppRouter({
       )
       .mutation(async (opts) => {
         const { email, password, captchaToken } = opts.input;
+        const requestId = opts.ctx.requestId ?? "internal";
+        const requestStartedAt = performance.now();
+
+        const runStage = async <T>(
+          stage: string,
+          operation: () => Promise<T>,
+        ): Promise<T> => {
+          const startedAt = performance.now();
+          console.log(`[Register ${requestId}] ${stage} started`);
+          const slowWarning = setTimeout(() => {
+            console.warn(
+              `[Register ${requestId}] ${stage} is still running after 5s`,
+            );
+          }, 5_000);
+
+          try {
+            const result = await operation();
+            console.log(
+              `[Register ${requestId}] ${stage} completed in ${Math.round(performance.now() - startedAt)}ms`,
+            );
+            return result;
+          } catch (error) {
+            console.error(
+              `[Register ${requestId}] ${stage} failed after ${Math.round(performance.now() - startedAt)}ms`,
+              error,
+            );
+            throw error;
+          } finally {
+            clearTimeout(slowWarning);
+          }
+        };
+
+        console.log(
+          `[Register ${requestId}] request started; captcha=${captchaConfig ? "enabled" : "disabled"}`,
+        );
 
         if (captchaConfig) {
           if (!captchaToken) {
@@ -248,9 +283,11 @@ export function createAppRouter({
             });
           }
 
-          const isValid = await verifyCaptchaToken(
-            captchaToken,
-            captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
+          const isValid = await runStage("captcha verification", () =>
+            verifyCaptchaToken(
+              captchaToken,
+              captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
+            ),
           );
 
           if (!isValid) {
@@ -261,8 +298,16 @@ export function createAppRouter({
           }
         }
 
-        const hashedPassword = await Bun.password.hash(password);
-        return asyncDispatch(mainDB, register({ email, hashedPassword }));
+        const hashedPassword = await runStage("password hashing", () =>
+          Bun.password.hash(password),
+        );
+        const result = await runStage("database transaction", () =>
+          asyncDispatch(mainDB, register({ email, hashedPassword })),
+        );
+        console.log(
+          `[Register ${requestId}] request completed in ${Math.round(performance.now() - requestStartedAt)}ms`,
+        );
+        return result;
       }),
 
     importTodoist: protectedProcedure

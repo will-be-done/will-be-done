@@ -59,7 +59,6 @@ export const backupStateTable = defineTable("backup_state", {
   durationMs: nullableNumber(),
   error: nullableString(),
 })
-  .index("byTier", ["tier"])
   .index("byScheduledAt", ["scheduledAt"])
   .index("byTierScheduledAt", ["tier", "scheduledAt"]);
 export type BackupState = ExtractSchema<typeof backupStateTable>;

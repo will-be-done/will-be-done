@@ -42,7 +42,6 @@ function createTUI(apiPort: number) {
       scrollable: true,
       alwaysScroll: true,
       scrollbar: { ch: "█", style: { fg: "white" } },
-      mouse: true,
       keys: true,
       vi: true,
       hidden: i !== 0,
@@ -56,7 +55,7 @@ function createTUI(apiPort: number) {
     width: "100%",
     height: 1,
     tags: true,
-    content: `{gray-fg} 1/2: switch tabs | ↑↓/j/k: scroll | q: quit | API port: ${apiPort}{/gray-fg}`,
+    content: `{gray-fg} 1/2: switch tabs | ↑↓/j/k: scroll | drag: select | q: quit | API port: ${apiPort}{/gray-fg}`,
   });
 
   screen.append(tabBar);

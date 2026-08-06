@@ -9,7 +9,6 @@
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "db:migrate:turso": "bun run src/db/migrateSqliteToTurso.ts",
     "client:generate": "orval --config ./orval.config.ts --clean --formatter prettier --fail-on-warnings",
     "openapi:check": "bun run src/generateOpenApi.ts --check",
     "openapi:generate": "bun run src/generateOpenApi.ts",

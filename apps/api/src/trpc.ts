@@ -11,6 +11,7 @@ import {
  */
 export interface Context {
   user: AuthenticatedUser | null;
+  requestId?: string;
 }
 
 /**
@@ -26,17 +27,20 @@ export async function createContext({
 }): Promise<Context> {
   // First try Authorization header (HTTP requests)
   if (req.headers.authorization) {
-    return { user: await authenticateRequest(req) };
+    return { user: await authenticateRequest(req), requestId: req.id };
   }
 
   // Then try URL query parameter (WebSocket connections)
   const url = new URL(req.url || "", "http://localhost");
   const token = url.searchParams.get("token");
   if (token) {
-    return { user: await authenticateRequest(req, `Bearer ${token}`) };
+    return {
+      user: await authenticateRequest(req, `Bearer ${token}`),
+      requestId: req.id,
+    };
   }
 
-  return { user: null };
+  return { user: null, requestId: req.id };
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   mergeChanges,
   getChangesetAfter,
   changesTable,
+  changeId,
   type Change,
   type ChangesetArrayType,
 } from "./changes";
@@ -259,8 +260,8 @@ const getChangeSelector = selector({
   name: "getChangeSelector",
   args: { entityId: v.string() },
   handler: function* getChangeSelector({ entityId }: { entityId: string }) {
-    const changes = yield* selectFrom(changesTable, "byEntityIdAndTableName")
-      .where((q) => q.eq("entityId", entityId).eq("tableName", "testItems"))
+    const changes = yield* selectFrom(changesTable, "byId")
+      .where((q) => q.eq("id", changeId("testItems", entityId)))
       .limit(1);
     return changes[0] as Change | undefined;
   },

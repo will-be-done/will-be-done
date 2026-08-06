@@ -55,7 +55,7 @@ export const spaceDBConfig = (dbId: string) => {
 
       await execAsync(
         db.preloadTables([
-          { table: changesTable, scanIndex: "byEntityIdAndTableName" },
+          { table: changesTable, scanIndex: "byUpdatedAt" },
           { table: tasksTable, scanIndex: "byIds" },
           { table: dailyListsTable, scanIndex: "byIds" },
           { table: dailyEntriesTable, scanIndex: "byIds" },

@@ -9,9 +9,7 @@ export const changesTable = defineTable("changes", {
   deletedAt: v.union(v.string(), v.null()),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
-})
-  .index("byEntityIdAndTableName", ["entityId", "tableName"])
-  .index("byUpdatedAt", ["updatedAt"]);
+}).index("byUpdatedAt", ["updatedAt"]);
 export type Change = ExtractSchema<typeof changesTable>;
 
 const syncStateId = "deae72d6-ffca-4d20-9b3f-87e71acce8b6";

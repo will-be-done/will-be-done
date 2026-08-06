@@ -24,28 +24,24 @@ at most once every 60 seconds by default. Set
 SQLite remains the default and needs no external service. To use Turso Cloud,
 set `WBD_DB_ENGINE=turso` and configure the `WBD_TURSO_*` variables documented
 in `.env.example`. The server keeps one main database plus separate user and
-space databases; missing user and space databases are provisioned in the
-configured Turso group on first access.
+space databases. All missing databases, including the main database, are
+provisioned in the configured Turso group on first access.
 
-`WBD_TURSO_AUTH_TOKEN` must be a full-access group token so it also covers
-databases provisioned after startup. The existing local SQLite S3 backup worker
-is not supported in Turso mode; use Turso backups/PITR instead.
+Use an organization-scoped Turso Platform API token and store it in the
+deployment's secret manager. The API uses it to mint one-hour, database-scoped
+tokens, keeps those tokens only in process memory, and refreshes connections
+before their tokens expire. It never stores a group token or a user database
+token. The existing local SQLite S3 backup worker is not supported in Turso
+mode; use Turso backups/PITR instead.
 
-To migrate an existing installation, stop the API and first run a validation-only
-pass:
+Create the organization-scoped Platform API token with:
 
 ```bash
-WBD_TURSO_ORG=your-org \
-WBD_TURSO_PLATFORM_TOKEN=your-platform-token \
-WBD_TURSO_GROUP=default \
-WBD_TURSO_DATABASE_PREFIX=wbd \
-pnpm --filter @will-be-done/api db:migrate:turso -- --db-path /path/to/db
+turso auth api-tokens mint will-be-done --org your-org
 ```
 
-Review the source-to-database mapping, then repeat with `--execute`. The command
-checkpoints and validates every `main-`, `user-`, and `space-*.sqlite` file,
-creates upload-only databases, and refuses to run if any destination already
-exists. It prints the main database URL needed by the runtime when complete.
+Only the Platform token is secret. Database names and URLs are discovered from
+Turso and do not need to be stored separately.
 
 ## Public API
 
