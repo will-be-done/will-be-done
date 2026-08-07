@@ -173,6 +173,39 @@ describe("Turso database credentials", () => {
     await db.close();
   });
 
+  test("does not block SQL while a replaced connection is closing", async () => {
+    let now = 0;
+    const initial = new FakeConnection();
+    initial.close = async () => {
+      initial.closed = true;
+      await new Promise<void>(() => {});
+    };
+    const replacement = new FakeConnection();
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => "fresh-token",
+      connect: () => replacement.asConnection(),
+      now: () => now,
+      refreshAfterMs: 10,
+    };
+    const db = new TursoSqlExecutor(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      initial.asConnection(),
+    );
+
+    now = 11;
+    await db.exec("SELECT after_refresh");
+
+    expect(initial.closed).toBe(true);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+      "SELECT after_refresh",
+    ]);
+    await db.close();
+  });
+
   test("does not replace a connection in the middle of a transaction", async () => {
     let now = 0;
     let tokenCount = 0;
@@ -248,15 +281,17 @@ describe("Turso database credentials", () => {
     await db.close();
   });
 
-  test("preserves an ambiguous 404 without reconnecting", async () => {
-    const connection = new FakeConnection();
-    connection.exec = async (sql: string) => {
-      connection.statements.push(sql);
+  test("replaces a connection after a pipeline 404 without replaying", async () => {
+    const initial = new FakeConnection();
+    initial.exec = async (sql: string) => {
+      initial.statements.push(sql);
       throw new Error("HTTP error! status: 404");
     };
+    const replacement = new FakeConnection();
+    let tokenCount = 0;
     const dependencies: TursoDriverDependencies = {
-      createToken: async () => "unused",
-      connect: () => connection.asConnection(),
+      createToken: async () => `token-${++tokenCount}`,
+      connect: () => replacement.asConnection(),
       now: () => 0,
       refreshAfterMs: 10,
     };
@@ -264,7 +299,7 @@ describe("Turso database credentials", () => {
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
-      connection.asConnection(),
+      initial.asConnection(),
     );
 
     // Bun's matcher is thenable at runtime, despite its current type declaration.
@@ -272,8 +307,16 @@ describe("Turso database credentials", () => {
     await expect(db.exec("SELECT missing_database")).rejects.toThrow(
       "HTTP error! status: 404",
     );
-    expect(connection.reconnectCount).toBe(0);
-    expect(connection.statements).toEqual(["SELECT missing_database"]);
+    expect(tokenCount).toBe(0);
+    expect(initial.statements).toEqual(["SELECT missing_database"]);
+
+    await db.exec("SELECT next_query");
+    expect(tokenCount).toBe(1);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+      "SELECT next_query",
+    ]);
 
     await db.close();
   });
@@ -495,6 +538,37 @@ describe("Turso database credentials", () => {
       "SELECT after_probe_retry",
     ]);
     expect(probeTimeouts).toEqual([1, 1, 1]);
+    await db.close();
+  });
+
+  test("fails fast when a replacement endpoint returns 404", async () => {
+    let now = 0;
+    const initial = new FakeConnection();
+    const replacement = new FakeConnection();
+    replacement.exec = async (sql: string) => {
+      replacement.statements.push(sql);
+      throw new Error("HTTP error! status: 404");
+    };
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => "token",
+      connect: () => replacement.asConnection(),
+      now: () => now,
+      refreshAfterMs: 10,
+    };
+    const db = new TursoSqlExecutor(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      initial.asConnection(),
+    );
+
+    now = 11;
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("SELECT after_refresh")).rejects.toThrow(
+      "Turso database did not become ready",
+    );
+    expect(replacement.statements).toEqual(["SELECT 1"]);
     await db.close();
   });
 

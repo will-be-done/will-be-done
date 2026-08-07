@@ -36,6 +36,8 @@ const TURSO_DATABASE_NAME_MAX_LENGTH = 56;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TURSO_READINESS_PROBE_TIMEOUT_MS = 10_000;
+const TURSO_QUERY_TIMEOUT_MS = 30_000;
+const TURSO_SLOW_JOB_WARNING_MS = 5_000;
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
@@ -226,6 +228,7 @@ class TursoAsyncStatement implements AsyncSQLStatement {
 
 type ConnectionFactory = (url: string, authToken: string) => Connection;
 type SqlJob = {
+  sql: string;
   operation: (connection: Connection) => Promise<unknown>;
   resolve: (value: unknown) => void;
   reject: (error: unknown) => void;
@@ -241,6 +244,24 @@ function isExpiredTursoSessionError(error: unknown): boolean {
   return (
     code === "HRANA_STREAM_EXPIRED" ||
     /\bhrana stream expired\b/i.test(error.message)
+  );
+}
+
+function isTursoConnectionFailure(error: unknown): boolean {
+  if (isExpiredTursoSessionError(error)) return true;
+  if (!(error instanceof Error)) return false;
+
+  const code = "code" in error ? error.code : undefined;
+  return (
+    code === "TIMEOUT" ||
+    /^HTTP error! status: (401|404|408|429|5\d\d)\b/.test(error.message)
+  );
+}
+
+function isNonRetryableTursoEndpointError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /^HTTP error! status: (401|404)\b/.test(error.message)
   );
 }
 
@@ -269,7 +290,12 @@ const defaultDriverDependencies = (): TursoDriverDependencies => {
         organization: env.WBD_TURSO_ORG!,
         platformToken: env.WBD_TURSO_PLATFORM_TOKEN!,
       }),
-    connect: (url, authToken) => connect({ url, authToken }),
+    connect: (url, authToken) =>
+      connect({
+        url,
+        authToken,
+        defaultQueryTimeout: TURSO_QUERY_TIMEOUT_MS,
+      }),
     now: Date.now,
     refreshAfterMs: DATABASE_TOKEN_REFRESH_AFTER_MS,
   };
@@ -294,6 +320,7 @@ async function openConnection(
       return connection;
     } catch (error) {
       lastError = error;
+      if (isNonRetryableTursoEndpointError(error)) break;
       if (attempt < 5) await delay(100 * 2 ** attempt);
     }
   }
@@ -339,7 +366,12 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
     this.connection = replacement;
     this.replacementRequired = false;
     this.refreshAt = this.dependencies.now() + this.dependencies.refreshAfterMs;
-    await previous.close().catch(() => undefined);
+    void previous.close().catch((error) => {
+      console.warn(
+        `[Turso SQL ${this.databaseName}] failed to close replaced connection`,
+        error,
+      );
+    });
   }
 
   private async refreshConnectionIfNeeded(): Promise<void> {
@@ -356,32 +388,51 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   }
 
   private async executeJob(job: SqlJob): Promise<void> {
-    try {
-      await this.refreshConnectionIfNeeded();
-    } catch (error) {
-      job.reject(error);
-      return;
-    }
+    let phase = "refreshing connection";
+    const normalizedSql = job.sql.replace(/\s+/g, " ").trim().slice(0, 300);
+    const slowWarning = setTimeout(() => {
+      console.warn(
+        `[Turso SQL ${this.databaseName}] job is still ${phase} after ${TURSO_SLOW_JOB_WARNING_MS / 1_000}s; queued=${this.state.get().jobs.length}; sql=${normalizedSql}`,
+      );
+    }, TURSO_SLOW_JOB_WARNING_MS);
 
     try {
-      job.resolve(await job.operation(this.connection));
-    } catch (error) {
-      if (!isExpiredTursoSessionError(error)) {
+      try {
+        await this.refreshConnectionIfNeeded();
+      } catch (error) {
         job.reject(error);
         return;
       }
 
-      this.replacementRequired = true;
-      console.warn(
-        `[Turso SQL ${this.databaseName}] server session expired; replacing connection`,
-      );
-      await this.replaceConnection().catch((replacementError) => {
-        console.warn(
-          `[Turso SQL ${this.databaseName}] failed to replace expired connection`,
-          replacementError,
-        );
-      });
-      job.reject(error);
+      phase = "executing SQL";
+      try {
+        job.resolve(await job.operation(this.connection));
+      } catch (error) {
+        if (!isTursoConnectionFailure(error)) {
+          job.reject(error);
+          return;
+        }
+
+        this.replacementRequired = true;
+        if (isExpiredTursoSessionError(error)) {
+          console.warn(
+            `[Turso SQL ${this.databaseName}] server session expired; replacing connection`,
+          );
+          await this.replaceConnection().catch((replacementError) => {
+            console.warn(
+              `[Turso SQL ${this.databaseName}] failed to replace expired connection`,
+              replacementError,
+            );
+          });
+        } else {
+          console.warn(
+            `[Turso SQL ${this.databaseName}] connection failed; will replace before the next SQL job: ${String(error)}`,
+          );
+        }
+        job.reject(error);
+      }
+    } finally {
+      clearTimeout(slowWarning);
     }
   }
 
@@ -408,6 +459,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   }
 
   private enqueue<T>(
+    sql: string,
     operation: (connection: Connection) => Promise<T>,
   ): Promise<T> {
     if (this.state.get().closing) {
@@ -420,6 +472,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
         jobs: [
           ...state.jobs,
           {
+            sql,
             operation,
             resolve: (value) => resolve(value as T),
             reject,
@@ -430,7 +483,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   }
 
   async exec(sql: string, params?: SqlValue[] | null): Promise<void> {
-    await this.enqueue(async (connection) => {
+    await this.enqueue(sql, async (connection) => {
       if (params && params.length > 0) {
         const statement = await connection.prepare(sql);
         await statement.run(params);
@@ -443,7 +496,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   async prepare(sql: string): Promise<AsyncSQLStatement> {
     return new TursoAsyncStatement(
       (values) =>
-        this.enqueue(async (connection) => {
+        this.enqueue(sql, async (connection) => {
           const statement = await connection.prepare(sql);
           return (await statement.raw().all(values)) as SqlValue[][];
         }),
