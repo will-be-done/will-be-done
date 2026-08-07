@@ -159,7 +159,7 @@ function localDelete(
   );
 }
 
-/** Reinsert a row after deletion, replacing the tombstone change record. */
+/** Simulate an invalid local ID reuse that replaced its tombstone. */
 function localRecreate(
   db: DB,
   row: {
@@ -566,7 +566,7 @@ describe("first-creator-wins merge", () => {
     expect(change!.clientId).toBe("client1");
   });
 
-  it("incoming recreate after local tombstone resurrects the row", () => {
+  it("rejects an incoming recreation after a local tombstone", () => {
     resetClock();
     const db = createDB();
     const entityId = "entity-rescheduled-remotely";
@@ -579,7 +579,7 @@ describe("first-creator-wins merge", () => {
     };
     const createdAtClock = "0000000010-0001-client1";
     const deletedAtClock = "0000000020-0001-client1";
-    const recreatedAtClock = "0000000030-0001-client2";
+    const attemptedRecreateClock = "0000000030-0001-client2";
 
     localCreate(db, row, createdAtClock, "client1");
     localDelete(db, row, createdAtClock, deletedAtClock, "client1");
@@ -587,7 +587,11 @@ describe("first-creator-wins merge", () => {
     syncDispatch(
       db,
       mergeChanges({
-        input: makeIncomingCreate(entityId, "rescheduled", recreatedAtClock),
+        input: makeIncomingCreate(
+          entityId,
+          "rescheduled",
+          attemptedRecreateClock,
+        ),
         nextClock: makeClockFn("0000000040")(),
         clientId: "local",
         registeredSyncableTableNameMap: registeredTables,
@@ -595,16 +599,30 @@ describe("first-creator-wins merge", () => {
     );
 
     const mergedRow = getRow(db, entityId);
-    expect(mergedRow).toBeDefined();
-    expect(mergedRow!.title).toBe("rescheduled");
+    expect(mergedRow).toBeUndefined();
 
     const change = getChange(db, entityId);
     expect(change).toBeDefined();
-    expect(change!.createdAt).toBe(recreatedAtClock);
-    expect(change!.deletedAt).toBeNull();
+    expect(change!.createdAt).toBe(createdAtClock);
+    expect(change!.deletedAt).toBe(deletedAtClock);
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: makeIncomingCreate(
+          entityId,
+          "rescheduled",
+          attemptedRecreateClock,
+        ),
+        nextClock: makeClockFn("0000000050")(),
+        clientId: "local",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+    expect(getChange(db, entityId)).toEqual(change);
   });
 
-  it("local recreate after incoming tombstone keeps the row", () => {
+  it("an incoming tombstone deletes an invalid local recreation", () => {
     resetClock();
     const db = createDB();
     const entityId = "entity-rescheduled-locally";
@@ -665,14 +683,12 @@ describe("first-creator-wins merge", () => {
     );
 
     const mergedRow = getRow(db, entityId);
-    expect(mergedRow).toBeDefined();
-    expect(mergedRow!.title).toBe("rescheduled");
-    expect(mergedRow!.orderToken).toBe("b");
+    expect(mergedRow).toBeUndefined();
 
     const change = getChange(db, entityId);
     expect(change).toBeDefined();
-    expect(change!.createdAt).toBe(recreatedAtClock);
-    expect(change!.deletedAt).toBeNull();
+    expect(change!.createdAt).toBe(createdAtClock);
+    expect(change!.deletedAt).toBe(deletedAtClock);
   });
 
   it("new entity from remote inserts normally when no local record exists", () => {
@@ -891,5 +907,385 @@ describe("first-creator-wins merge", () => {
       "own-change",
       "remote-change",
     ]);
+  });
+});
+
+describe("idempotent merge retries", () => {
+  it("converges monotonically when changes arrive in different orders", () => {
+    const createdAt = "0000000010-0001-client";
+    const updatedAt = "0000000020-0001-client";
+    const deletedAt = "0000000030-0001-client";
+    const entityId = "ordered-changes";
+    const created = makeIncomingCreate(entityId, "created", createdAt);
+    const updated: ChangesetArrayType = [
+      {
+        tableName: "testItems",
+        data: [
+          {
+            row: {
+              type: "task",
+              id: entityId,
+              title: "updated",
+              orderToken: "a",
+              createdAt: 100,
+            },
+            change: {
+              ...created[0]!.data[0]!.change,
+              updatedAt,
+              changes: {
+                ...created[0]!.data[0]!.change.changes,
+                title: updatedAt,
+              },
+            },
+          },
+        ],
+      },
+    ];
+    const deleted: ChangesetArrayType = [
+      {
+        tableName: "testItems",
+        data: [
+          {
+            change: {
+              ...updated[0]!.data[0]!.change,
+              updatedAt: deletedAt,
+              deletedAt,
+            },
+          },
+        ],
+      },
+    ];
+    const inCausalOrder = createDB();
+    const inReverseOrder = createDB();
+    const applyChanges = (db: DB, inputs: ChangesetArrayType[]) => {
+      inputs.forEach((input, index) => {
+        syncDispatch(
+          db,
+          mergeChanges({
+            input,
+            nextClock: `0000000040-000${index}-server`,
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        );
+      });
+    };
+
+    applyChanges(inCausalOrder, [created, updated, deleted]);
+    applyChanges(inReverseOrder, [deleted, updated, created]);
+
+    expect(getRow(inCausalOrder, entityId)).toBeUndefined();
+    expect(getRow(inReverseOrder, entityId)).toBeUndefined();
+    const causalChange = getChange(inCausalOrder, entityId)!;
+    const reverseChange = getChange(inReverseOrder, entityId)!;
+    expect({
+      createdAt: reverseChange.createdAt,
+      deletedAt: reverseChange.deletedAt,
+      changes: reverseChange.changes,
+    }).toEqual({
+      createdAt: causalChange.createdAt,
+      deletedAt: causalChange.deletedAt,
+      changes: causalChange.changes,
+    });
+
+    const causalBeforeRetry = getChange(inCausalOrder, entityId);
+    const reverseBeforeRetry = getChange(inReverseOrder, entityId);
+    applyChanges(inCausalOrder, [deleted, updated, created]);
+    applyChanges(inReverseOrder, [created, updated, deleted]);
+    expect(getChange(inCausalOrder, entityId)).toEqual(causalBeforeRetry);
+    expect(getChange(inReverseOrder, entityId)).toEqual(reverseBeforeRetry);
+  });
+
+  it("chooses the same permanent tombstone for concurrent deletes", () => {
+    const entityId = "concurrent-deletes";
+    const createdAt = "0000000010-0001-client";
+    const created = makeIncomingCreate(entityId, "delete me", createdAt);
+    const makeDelete = (deletedAt: string, clientId: string) => {
+      const change = created[0]!.data[0]!.change;
+      return [
+        {
+          tableName: "testItems",
+          data: [
+            {
+              change: {
+                ...change,
+                updatedAt: deletedAt,
+                deletedAt,
+                clientId,
+              },
+            },
+          ],
+        },
+      ] satisfies ChangesetArrayType;
+    };
+    const earlierDelete = makeDelete("0000000020-0001-client-a", "client-a");
+    const laterDelete = makeDelete("0000000030-0001-client-b", "client-b");
+    const earlierFirst = createDB();
+    const laterFirst = createDB();
+
+    for (const [db, deletes] of [
+      [earlierFirst, [earlierDelete, laterDelete]],
+      [laterFirst, [laterDelete, earlierDelete]],
+    ] as const) {
+      for (const input of deletes) {
+        syncDispatch(
+          db,
+          mergeChanges({
+            input,
+            nextClock: "0000000040-0001-server",
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        );
+      }
+    }
+
+    expect(getRow(earlierFirst, entityId)).toBeUndefined();
+    expect(getRow(laterFirst, entityId)).toBeUndefined();
+    expect(getChange(earlierFirst, entityId)?.deletedAt).toBe(
+      "0000000030-0001-client-b",
+    );
+    expect(getChange(laterFirst, entityId)?.deletedAt).toBe(
+      "0000000030-0001-client-b",
+    );
+    expect(getChange(earlierFirst, entityId)).toEqual(
+      getChange(laterFirst, entityId),
+    );
+  });
+
+  it("does not rebroadcast a creation whose response was lost", () => {
+    const db = createDB();
+    const incomingCreatedAt = "0000000010-0001-remote";
+    const firstServerClock = "0000000020-0001-server";
+    const incoming = makeIncomingCreate(
+      "retried-create",
+      "created offline",
+      incomingCreatedAt,
+    );
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: incoming,
+        nextClock: firstServerClock,
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+    const changeAfterCommit = getChange(db, "retried-create");
+
+    // The transaction committed, but the response was lost, so the client
+    // sends the exact same changes again with a new server receipt clock.
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: incoming,
+        nextClock: "0000000030-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+
+    expect(getChange(db, "retried-create")).toEqual(changeAfterCommit);
+    expect(changeAfterCommit?.createdAt).toBe(incomingCreatedAt);
+    expect(changeAfterCommit?.updatedAt).toBe(firstServerClock);
+
+    const retryChanges = runSelector(
+      db,
+      function* () {
+        return yield* getChangesetAfter({
+          after: firstServerClock,
+          registeredSyncableTableNameMap: registeredTables,
+        });
+      },
+      [],
+    );
+    expect(retryChanges.changesets).toEqual([]);
+  });
+
+  it("does not mint a new server clock when replaying an update", () => {
+    const db = createDB();
+    const entityId = "retried-update";
+    const createdAt = "0000000010-0001-remote";
+    localCreate(
+      db,
+      {
+        type: "task",
+        id: entityId,
+        title: "before",
+        orderToken: "a",
+        createdAt: 100,
+      },
+      createdAt,
+      "remote",
+    );
+    const incoming: ChangesetArrayType = [
+      {
+        tableName: "testItems",
+        data: [
+          {
+            row: {
+              type: "task",
+              id: entityId,
+              title: "after",
+              orderToken: "a",
+              createdAt: 100,
+            },
+            change: {
+              id: `testItems:${entityId}`,
+              entityId,
+              tableName: "testItems",
+              createdAt,
+              updatedAt: "0000000020-0001-remote",
+              deletedAt: null,
+              clientId: "remote",
+              changes: {
+                type: createdAt,
+                id: createdAt,
+                title: "0000000020-0001-remote",
+                orderToken: createdAt,
+                createdAt,
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: incoming,
+        nextClock: "0000000030-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+    const changeAfterCommit = getChange(db, entityId);
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: incoming,
+        nextClock: "0000000040-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+
+    expect(getRow(db, entityId)?.title).toBe("after");
+    expect(getChange(db, entityId)).toEqual(changeAfterCommit);
+  });
+
+  it("does not mint a new server clock when replaying a deletion", () => {
+    const db = createDB();
+    const entityId = "retried-delete";
+    const createdAt = "0000000010-0001-remote";
+    const row = {
+      type: "task",
+      id: entityId,
+      title: "delete me",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    localCreate(db, row, createdAt, "remote");
+    const incoming = makeIncomingCreate(
+      entityId,
+      row.title,
+      createdAt,
+      "0000000020-0001-remote",
+    );
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: incoming,
+        nextClock: "0000000030-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+    const changeAfterCommit = getChange(db, entityId);
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: incoming,
+        nextClock: "0000000040-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+
+    expect(getRow(db, entityId)).toBeUndefined();
+    expect(getChange(db, entityId)).toEqual(changeAfterCommit);
+  });
+
+  it("ignores an incoming update already superseded by local state", () => {
+    const db = createDB();
+    const entityId = "superseded-update";
+    const createdAt = "0000000010-0001-local";
+    const currentTitleClock = "0000000030-0001-local";
+    const row = {
+      type: "task",
+      id: entityId,
+      title: "newer local title",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    localCreate(db, row, createdAt, "local");
+    const currentChange = getChange(db, entityId)!;
+    syncDispatch(
+      db,
+      action({
+        name: "recordNewerLocalTitle",
+        args: {},
+        handler: function* () {
+          yield* upsert(changesTable, [
+            {
+              ...currentChange,
+              updatedAt: currentTitleClock,
+              changes: {
+                ...currentChange.changes,
+                title: currentTitleClock,
+              },
+            },
+          ]);
+        },
+      })({}),
+    );
+    const changeBeforeMerge = getChange(db, entityId);
+    const staleIncoming: ChangesetArrayType = [
+      {
+        tableName: "testItems",
+        data: [
+          {
+            row: { ...row, title: "stale remote title" },
+            change: {
+              ...changeBeforeMerge!,
+              clientId: "remote",
+              updatedAt: "0000000020-0001-remote",
+              changes: {
+                ...changeBeforeMerge!.changes,
+                title: "0000000020-0001-remote",
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: staleIncoming,
+        nextClock: "0000000040-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+
+    expect(getRow(db, entityId)).toEqual(row);
+    expect(getChange(db, entityId)).toEqual(changeBeforeMerge);
   });
 });

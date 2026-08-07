@@ -22,13 +22,15 @@ import {
 } from "./subscriptionManager";
 import { State } from "./utils/State";
 import type { CaptchaConfig } from "./captcha/types";
-import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
+import { verifyCaptchaTokenWithTimeout } from "./captcha/verifyCaptchaToken";
 import { importFromTodoist } from "./todoist/importTodoist";
 import {
   DatabaseAccessDeniedError,
   ensureDatabaseAccessOrCreate,
 } from "./services/databaseAccess";
 import { assertSupportedSyncVersion } from "./syncVersion";
+
+const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
 
 export interface AppRouterDependencies {
   mainDB: DB;
@@ -155,14 +157,13 @@ export function createAppRouter({
 
         try {
           while (true) {
+            await state.when((notifications) => notifications.length > 0);
             const notifications = state.get();
             state.set([]);
 
             for (const notification of notifications) {
               yield notification;
             }
-
-            await state.newEmitted();
           }
         } finally {
           await unsubscribe();
@@ -284,9 +285,10 @@ export function createAppRouter({
           }
 
           const isValid = await runStage("captcha verification", () =>
-            verifyCaptchaToken(
+            verifyCaptchaTokenWithTimeout(
               captchaToken,
               captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
+              CAPTCHA_VERIFICATION_TIMEOUT_MS,
             ),
           );
 

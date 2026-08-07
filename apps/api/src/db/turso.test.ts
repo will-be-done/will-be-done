@@ -19,7 +19,7 @@ class FakeConnection {
     if (/^(COMMIT|ROLLBACK)\b/i.test(sql)) this.inTransaction = false;
   }
 
-  async prepare(): Promise<never> {
+  async prepare(_sql?: string): Promise<never> {
     throw new Error("prepare is not used by these tests");
   }
 
@@ -188,23 +188,21 @@ describe("Turso database credentials", () => {
     await db.close();
   });
 
-  test("reconnects and retries when an idle server session expires", async () => {
-    const connection = new FakeConnection();
-    let shouldExpire = true;
-    const originalExec = connection.exec.bind(connection);
-    connection.exec = async (sql: string) => {
-      connection.statements.push(sql);
-      if (shouldExpire) {
-        shouldExpire = false;
-        throw new Error("HTTP error! status: 404");
-      }
-      if (/^BEGIN\b/i.test(sql)) connection.inTransaction = true;
-      if (/^(COMMIT|ROLLBACK)\b/i.test(sql)) connection.inTransaction = false;
+  test("replaces an expired connection without replaying the failed query", async () => {
+    const initial = new FakeConnection();
+    initial.exec = async (sql: string) => {
+      initial.statements.push(sql);
+      throw new Error("hrana stream expired");
     };
+    const replacement = new FakeConnection();
+    const tokenDatabaseNames: string[] = [];
 
     const dependencies: TursoDriverDependencies = {
-      createToken: async () => "unused",
-      connect: () => connection.asConnection(),
+      createToken: async (databaseName) => {
+        tokenDatabaseNames.push(databaseName);
+        return "fresh-token";
+      },
+      connect: () => replacement.asConnection(),
       now: () => 0,
       refreshAfterMs: 10,
     };
@@ -212,27 +210,30 @@ describe("Turso database credentials", () => {
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
-      connection.asConnection(),
+      initial.asConnection(),
     );
 
-    await db.exec("BEGIN TRANSACTION");
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("SELECT do_not_replay")).rejects.toThrow(
+      "hrana stream expired",
+    );
+    await db.exec("SELECT next_query");
 
-    expect(connection.reconnectCount).toBe(1);
-    expect(connection.statements).toEqual([
-      "BEGIN TRANSACTION",
+    expect(tokenDatabaseNames).toEqual(["wbd-main"]);
+    expect(initial.closed).toBe(true);
+    expect(initial.statements).toEqual(["SELECT do_not_replay"]);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
       "PRAGMA foreign_keys = ON",
-      "BEGIN TRANSACTION",
+      "SELECT next_query",
     ]);
-    expect(connection.inTransaction).toBe(true);
 
-    connection.exec = originalExec;
-    await db.exec("ROLLBACK");
     await db.close();
   });
 
-  test("does not retry a failed statement from inside a transaction", async () => {
+  test("preserves an ambiguous 404 without reconnecting", async () => {
     const connection = new FakeConnection();
-    connection.inTransaction = true;
     connection.exec = async (sql: string) => {
       connection.statements.push(sql);
       throw new Error("HTTP error! status: 404");
@@ -250,11 +251,208 @@ describe("Turso database credentials", () => {
       connection.asConnection(),
     );
 
-    expect(db.exec("SELECT inside_transaction")).rejects.toThrow(
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("SELECT missing_database")).rejects.toThrow(
       "HTTP error! status: 404",
     );
     expect(connection.reconnectCount).toBe(0);
-    expect(connection.statements).toEqual(["SELECT inside_transaction"]);
+    expect(connection.statements).toEqual(["SELECT missing_database"]);
+
+    await db.close();
+  });
+
+  test("does not classify SQL before recovering an expired connection", async () => {
+    const initial = new FakeConnection();
+    initial.exec = async (sql: string) => {
+      initial.statements.push(sql);
+      throw new Error("hrana stream expired");
+    };
+    const replacement = new FakeConnection();
+    let tokenCount = 0;
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => `token-${++tokenCount}`,
+      connect: () => replacement.asConnection(),
+      now: () => 0,
+      refreshAfterMs: 10,
+    };
+    const db = new RotatingTursoAsyncSQLiteDB(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      initial.asConnection(),
+    );
+
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("INSERT INTO tasks VALUES (1)")).rejects.toThrow(
+      "hrana stream expired",
+    );
+    expect(tokenCount).toBe(1);
+    expect(initial.statements).toEqual(["INSERT INTO tasks VALUES (1)"]);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+    ]);
+
+    await db.close();
+  });
+
+  test("executes a prepared statement on the current rotated connection", async () => {
+    let now = 0;
+    const initial = new FakeConnection();
+    const replacement = new FakeConnection();
+    const preparedSql: string[] = [];
+    replacement.prepare = async (sql?: string) => {
+      preparedSql.push(sql!);
+      return {
+        raw() {
+          return this;
+        },
+        async all(values: unknown[]) {
+          return [values];
+        },
+      } as never;
+    };
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => "token",
+      connect: () => replacement.asConnection(),
+      now: () => now,
+      refreshAfterMs: 10,
+    };
+    const db = new RotatingTursoAsyncSQLiteDB(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      initial.asConnection(),
+    );
+
+    const statement = await db.prepare("SELECT ?");
+    now = 11;
+    expect(await statement.values(["value"])).toEqual([["value"]]);
+    expect(preparedSql).toEqual(["SELECT ?"]);
+    expect(initial.closed).toBe(true);
+
+    await db.close();
+  });
+
+  test("does not close a connection while operations are in flight", async () => {
+    let now = 0;
+    let releaseSlowQuery = () => {};
+    const slowQuery = new Promise<void>((resolve) => {
+      releaseSlowQuery = resolve;
+    });
+    const initial = new FakeConnection();
+    const originalExec = initial.exec.bind(initial);
+    initial.exec = async (sql: string) => {
+      initial.statements.push(sql);
+      if (sql === "SELECT slow") await slowQuery;
+    };
+    const replacement = new FakeConnection();
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => "token",
+      connect: () => replacement.asConnection(),
+      now: () => now,
+      refreshAfterMs: 10,
+    };
+    const db = new RotatingTursoAsyncSQLiteDB(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      initial.asConnection(),
+    );
+
+    const pending = db.exec("SELECT slow");
+    await Promise.resolve();
+    now = 11;
+    const concurrent = db.exec("SELECT concurrent");
+    await Promise.resolve();
+    expect(initial.closed).toBe(false);
+
+    releaseSlowQuery();
+    await Promise.all([pending, concurrent]);
+    initial.exec = originalExec;
+    await db.exec("SELECT after_drain");
+    expect(initial.closed).toBe(true);
+    expect(replacement.statements).toContain("SELECT after_drain");
+
+    await db.close();
+  });
+
+  test("times out a hung readiness probe and retries", async () => {
+    let now = 0;
+    const initial = new FakeConnection();
+    const replacement = new FakeConnection();
+    let selectAttempts = 0;
+    replacement.exec = async (sql: string) => {
+      replacement.statements.push(sql);
+      if (sql === "SELECT 1" && ++selectAttempts === 1) {
+        return new Promise<void>(() => {});
+      }
+    };
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => "token",
+      connect: () => replacement.asConnection(),
+      now: () => now,
+      refreshAfterMs: 10,
+      readinessProbeTimeoutMs: 1,
+    };
+    const db = new RotatingTursoAsyncSQLiteDB(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      initial.asConnection(),
+    );
+
+    now = 11;
+    await db.exec("SELECT after_probe_retry");
+    expect(selectAttempts).toBe(2);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+      "SELECT after_probe_retry",
+    ]);
+    await db.close();
+  });
+
+  test("replaces an expired transaction connection without retrying the statement", async () => {
+    const initial = new FakeConnection();
+    initial.inTransaction = true;
+    initial.exec = async (sql: string) => {
+      initial.statements.push(sql);
+      throw new Error("hrana stream expired");
+    };
+    const replacement = new FakeConnection();
+    let tokenCount = 0;
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => `token-${++tokenCount}`,
+      connect: () => replacement.asConnection(),
+      now: () => 0,
+      refreshAfterMs: 10,
+    };
+    const db = new RotatingTursoAsyncSQLiteDB(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      initial.asConnection(),
+    );
+
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("SELECT inside_transaction")).rejects.toThrow(
+      "hrana stream expired",
+    );
+    await db.exec("SELECT after_failed_transaction");
+
+    expect(tokenCount).toBe(1);
+    expect(initial.closed).toBe(true);
+    expect(initial.statements).toEqual(["SELECT inside_transaction"]);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+      "SELECT after_failed_transaction",
+    ]);
 
     await db.close();
   });

@@ -30,9 +30,9 @@ provisioned in the configured Turso group on first access.
 Use an organization-scoped Turso Platform API token and store it in the
 deployment's secret manager. The API uses it to mint one-hour, database-scoped
 tokens, keeps those tokens only in process memory, and refreshes connections
-before their tokens expire. It never stores a group token or a user database
-token. The existing local SQLite S3 backup worker is not supported in Turso
-mode; use Turso backups/PITR instead.
+halfway through the tokens' one-hour lifetime. It never stores a group token or
+a user database token. The existing local SQLite S3 backup worker is not
+supported in Turso mode; use Turso backups/PITR instead.
 
 Create the organization-scoped Platform API token with:
 

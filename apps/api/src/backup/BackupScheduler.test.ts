@@ -309,6 +309,45 @@ describe("BackupScheduler", () => {
 
       void scheduler.stop();
     });
+
+    test("does not overlap backup checks", async () => {
+      let releaseBackup = () => {};
+      const backupGate = new Promise<void>((resolve) => {
+        releaseBackup = resolve;
+      });
+      performBackupMock.mockImplementation(() => backupGate);
+      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const firstCheck = (scheduler as any).runCheck() as Promise<void>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const secondCheck = (scheduler as any).runCheck() as Promise<void>;
+
+      expect(performBackupMock).toHaveBeenCalledTimes(1);
+      releaseBackup();
+      await Promise.all([firstCheck, secondCheck]);
+    });
+
+    test("waits for an active backup check before stopping", async () => {
+      let releaseBackup = () => {};
+      const backupGate = new Promise<void>((resolve) => {
+        releaseBackup = resolve;
+      });
+      performBackupMock.mockImplementation(() => backupGate);
+      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
+      scheduler.start();
+
+      let stopped = false;
+      const stopPromise = scheduler.stop().then(() => {
+        stopped = true;
+      });
+      await Promise.resolve();
+      expect(stopped).toBe(false);
+
+      releaseBackup();
+      await stopPromise;
+      expect(stopped).toBe(true);
+    });
   });
 
   describe("error handling", () => {

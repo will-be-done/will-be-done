@@ -408,13 +408,8 @@ export const mergeChanges = action({
 
           const fcwMergedChanges = { ...loserChanges, ...winnerChanges };
           const fcwMergedRow = { ...loserRow, ...winnerRow } as Row;
-
-          if (!currentCreatedFirst) {
-            toUpdateRows.push(fcwMergedRow);
-          }
-
           const currentClock = nextClock;
-          allChanges.push({
+          const mergedChange: Change = {
             id: changeId(table.tableName, incomingChange.entityId),
             entityId: incomingChange.entityId,
             tableName: table.tableName,
@@ -425,7 +420,24 @@ export const mergeChanges = action({
             deletedAt: null,
             clientId: incomingChange.clientId,
             changes: fcwMergedChanges,
-          });
+          };
+
+          if (
+            isSameMergedState(
+              currentChanges,
+              currentRow,
+              mergedChange,
+              fcwMergedRow,
+              false,
+            )
+          ) {
+            continue;
+          }
+
+          if (!isEqual(currentRow, fcwMergedRow)) {
+            toUpdateRows.push(fcwMergedRow);
+          }
+          allChanges.push(mergedChange);
 
           continue; // Skip normal LWW merge
         }
@@ -439,63 +451,70 @@ export const mergeChanges = action({
 
         const currentDeletedAt = currentChanges?.deletedAt ?? null;
         const incomingDeletedAt = incomingChange.deletedAt;
-        const incomingRecreatedAfterCurrentDelete =
-          currentDeletedAt != null &&
-          incomingDeletedAt == null &&
-          incomingRow != null &&
-          incomingChange.createdAt > currentDeletedAt;
-        const currentRecreatedAfterIncomingDelete =
-          incomingDeletedAt != null &&
-          currentChanges?.deletedAt == null &&
-          currentRow != null &&
-          currentChanges != null &&
-          currentChanges.createdAt > incomingDeletedAt;
-        const currentDeleteWins =
-          currentDeletedAt != null && !incomingRecreatedAfterCurrentDelete;
-        const incomingDeleteWins =
-          incomingDeletedAt != null && !currentRecreatedAfterIncomingDelete;
-        const isDeleted = currentDeleteWins || incomingDeleteWins;
+        const isDeleted = currentDeletedAt != null || incomingDeletedAt != null;
 
-        // Tombstones beat stale updates, but a later create can reuse the id.
+        const currentClock = nextClock;
+        const lastDeletedAt =
+          currentDeletedAt == null
+            ? incomingDeletedAt
+            : incomingDeletedAt == null
+              ? currentDeletedAt
+              : currentDeletedAt > incomingDeletedAt
+                ? currentDeletedAt
+                : incomingDeletedAt;
+        const incomingDeleteWins =
+          incomingDeletedAt != null &&
+          (currentDeletedAt == null ||
+            incomingDeletedAt > currentDeletedAt ||
+            (incomingDeletedAt === currentDeletedAt &&
+              incomingChange.clientId >
+                (currentChanges?.clientId ?? incomingChange.clientId)));
+        const winnerClientId =
+          isDeleted && !incomingDeleteWins
+            ? (currentChanges?.clientId ?? incomingChange.clientId)
+            : incomingChange.clientId;
+        const mergedCreatedAt =
+          currentChanges == null ||
+          incomingChange.createdAt < currentChanges.createdAt
+            ? incomingChange.createdAt
+            : currentChanges.createdAt;
+
+        const mergedChange: Change = {
+          id: changeId(table.tableName, incomingChange.entityId),
+          entityId: incomingChange.entityId,
+          tableName: table.tableName,
+          createdAt: mergedCreatedAt,
+          updatedAt: currentClock,
+          deletedAt: lastDeletedAt,
+          clientId: winnerClientId,
+          changes: mergedChanges,
+        };
+        if (
+          isSameMergedState(
+            currentChanges,
+            currentRow,
+            mergedChange,
+            mergedRow,
+            isDeleted,
+          )
+        ) {
+          continue;
+        }
+
+        // A tombstone is permanent: deleted IDs cannot be reused.
         if (isDeleted) {
           if (currentRow) {
             toDeleteRows.push(currentRow.id);
           }
         } else if (currentRow) {
-          toUpdateRows.push(mergedRow);
+          if (!isEqual(currentRow, mergedRow)) {
+            toUpdateRows.push(mergedRow);
+          }
         } else {
           toInsertRows.push(mergedRow);
         }
 
-        const currentClock = nextClock;
-        const lastDeletedAt = (function () {
-          if (currentDeleteWins) {
-            return currentDeletedAt;
-          }
-
-          if (incomingDeleteWins) {
-            return currentClock;
-          }
-
-          return null;
-        })();
-        const winnerClientId =
-          currentDeleteWins || currentRecreatedAfterIncomingDelete
-            ? (currentChanges?.clientId ?? incomingChange.clientId)
-            : incomingChange.clientId;
-
-        allChanges.push({
-          id: changeId(table.tableName, incomingChange.entityId),
-          entityId: incomingChange.entityId,
-          tableName: table.tableName,
-          createdAt: incomingRecreatedAfterCurrentDelete
-            ? incomingChange.createdAt
-            : (currentChanges?.createdAt ?? currentClock),
-          updatedAt: currentClock,
-          deletedAt: lastDeletedAt,
-          clientId: winnerClientId,
-          changes: mergedChanges,
-        });
+        allChanges.push(mergedChange);
       }
 
       yield* insert(table, toInsertRows);
@@ -506,6 +525,19 @@ export const mergeChanges = action({
     yield* upsert(changesTable, allChanges);
   },
 });
+
+const isSameMergedState = (
+  currentChange: Change | undefined,
+  currentRow: Row | undefined,
+  mergedChange: Change,
+  mergedRow: Row,
+  isDeleted: boolean,
+): boolean =>
+  // Receipt metadata must not turn an already-converged merge into a change.
+  (isDeleted ? currentRow === undefined : isEqual(currentRow, mergedRow)) &&
+  currentChange?.createdAt === mergedChange.createdAt &&
+  currentChange.deletedAt === mergedChange.deletedAt &&
+  isEqual(currentChange.changes, mergedChange.changes);
 
 const lwwMerge = (
   aChange: Record<string, string>,

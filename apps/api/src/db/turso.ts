@@ -2,7 +2,6 @@ import { createClient as createTursoApiClient } from "@tursodatabase/api";
 import {
   connect,
   type Connection,
-  type Statement,
 } from "@tursodatabase/serverless";
 import {
   AsyncSqlDriver,
@@ -26,9 +25,14 @@ type TursoTokenConfig = {
   platformToken: string;
 };
 
-const DATABASE_TOKEN_EXPIRATION = "1h";
-const DATABASE_TOKEN_REFRESH_AFTER_MS = 50 * 60 * 1_000;
+const DATABASE_TOKEN_LIFETIME = {
+  expiration: "1h",
+  milliseconds: 60 * 60 * 1_000,
+} as const;
+const DATABASE_TOKEN_REFRESH_AFTER_MS =
+  DATABASE_TOKEN_LIFETIME.milliseconds / 2;
 const TURSO_DATABASE_NAME_MAX_LENGTH = 56;
+const TURSO_READINESS_PROBE_TIMEOUT_MS = 10_000;
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
@@ -117,7 +121,7 @@ export async function createTursoDatabaseToken(
   const url = new URL(
     `https://api.turso.tech/v1/organizations/${encodeURIComponent(config.organization)}/databases/${encodeURIComponent(databaseName)}/auth/tokens`,
   );
-  url.searchParams.set("expiration", DATABASE_TOKEN_EXPIRATION);
+  url.searchParams.set("expiration", DATABASE_TOKEN_LIFETIME.expiration);
   url.searchParams.set("authorization", "full-access");
 
   const response = await fetchImpl(url, {
@@ -211,16 +215,11 @@ export async function getOrCreateTursoDatabase(
 
 class TursoAsyncStatement implements AsyncSQLStatement {
   constructor(
-    private readonly statement: Statement,
-    private readonly databaseName: string,
-    private readonly sql: string,
-  ) { }
+    private readonly execute: (values: SqlValue[]) => Promise<SqlValue[][]>,
+  ) {}
 
   async values(values: SqlValue[]): Promise<SqlValue[][]> {
-    console.log(
-      `[Turso SQL ${this.databaseName}] execute started: ${normalizeSql(this.sql)}`,
-    );
-    return (await this.statement.raw().all(values)) as SqlValue[][];
+    return this.execute(values);
   }
 
   finalize(): void {
@@ -229,16 +228,41 @@ class TursoAsyncStatement implements AsyncSQLStatement {
 }
 
 type ConnectionFactory = (url: string, authToken: string) => Connection;
-
-function normalizeSql(sql: string): string {
-  return sql.replace(/\s+/g, " ").trim();
-}
+type ConnectionLease = {
+  connection: Connection;
+  release: () => void;
+};
 
 function isExpiredTursoSessionError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = "code" in error ? error.code : undefined;
   return (
-    error instanceof Error &&
-    error.message.includes("HTTP error! status: 404")
+    code === "HRANA_STREAM_EXPIRED" ||
+    /\bhrana stream expired\b/i.test(error.message)
   );
+}
+
+async function runReadinessProbe(
+  connection: Connection,
+  sql: string,
+  timeoutMs: number,
+): Promise<void> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error(`Turso readiness probe timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+
+  try {
+    await Promise.race([
+      connection.exec(sql, { queryTimeout: timeoutMs }),
+      timeout,
+    ]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
 }
 
 export type TursoDriverDependencies = {
@@ -246,6 +270,7 @@ export type TursoDriverDependencies = {
   connect: ConnectionFactory;
   now: () => number;
   refreshAfterMs: number;
+  readinessProbeTimeoutMs?: number;
 };
 
 const defaultDriverDependencies = (): TursoDriverDependencies => {
@@ -274,8 +299,11 @@ async function openConnection(
   let lastError: unknown;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
-      await connection.exec("SELECT 1");
-      await connection.exec("PRAGMA foreign_keys = ON");
+      const timeoutMs =
+        dependencies.readinessProbeTimeoutMs ??
+        TURSO_READINESS_PROBE_TIMEOUT_MS;
+      await runReadinessProbe(connection, "SELECT 1", timeoutMs);
+      await runReadinessProbe(connection, "PRAGMA foreign_keys = ON", timeoutMs);
       return connection;
     } catch (error) {
       lastError = error;
@@ -293,6 +321,9 @@ export class RotatingTursoAsyncSQLiteDB implements AsyncSQLiteDB {
   private connection: Connection;
   private refreshAt: number;
   private refreshPromise: Promise<Connection> | undefined;
+  private recoveryPromise: Promise<void> | undefined;
+  private readonly inFlight = new Map<Connection, number>();
+  private readonly idleWaiters = new Map<Connection, Set<() => void>>();
   private closed = false;
 
   constructor(
@@ -305,17 +336,90 @@ export class RotatingTursoAsyncSQLiteDB implements AsyncSQLiteDB {
     this.refreshAt = dependencies.now() + dependencies.refreshAfterMs;
   }
 
-  private async getConnection(): Promise<Connection> {
+  private acquire(connection: Connection): ConnectionLease {
+    this.inFlight.set(connection, (this.inFlight.get(connection) ?? 0) + 1);
+    let released = false;
+    return {
+      connection,
+      release: () => {
+        if (released) return;
+        released = true;
+        const remaining = (this.inFlight.get(connection) ?? 1) - 1;
+        if (remaining > 0) {
+          this.inFlight.set(connection, remaining);
+          return;
+        }
+        this.inFlight.delete(connection);
+        const waiters = this.idleWaiters.get(connection);
+        this.idleWaiters.delete(connection);
+        for (const resolve of waiters ?? []) resolve();
+      },
+    };
+  }
+
+  private waitForIdle(connection: Connection): Promise<void> {
+    if ((this.inFlight.get(connection) ?? 0) === 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      const waiters = this.idleWaiters.get(connection) ?? new Set();
+      waiters.add(resolve);
+      this.idleWaiters.set(connection, waiters);
+    });
+  }
+
+  private async getConnection(): Promise<ConnectionLease> {
+    if (this.closed) throw new Error("Turso database connection is closed");
+    if (this.recoveryPromise) await this.recoveryPromise;
     if (this.closed) throw new Error("Turso database connection is closed");
     if (
       this.dependencies.now() < this.refreshAt ||
-      this.connection.inTransaction
+      this.connection.inTransaction ||
+      (this.inFlight.get(this.connection) ?? 0) > 0
     ) {
-      return this.connection;
+      return this.acquire(this.connection);
     }
-    if (this.refreshPromise) return this.refreshPromise;
+    if (!this.refreshPromise) {
+      const previous = this.connection;
+      this.refreshPromise = (async () => {
+        const replacement = await openConnection(
+          this.url,
+          this.databaseName,
+          this.dependencies,
+        );
+        await this.waitForIdle(previous);
+        if (this.closed) {
+          await replacement.close();
+          throw new Error("Turso database connection is closed");
+        }
 
-    this.refreshPromise = (async () => {
+        if (this.connection !== previous || previous.inTransaction) {
+          await replacement.close();
+          return this.connection;
+        }
+
+        this.connection = replacement;
+        this.refreshAt =
+          this.dependencies.now() + this.dependencies.refreshAfterMs;
+        await previous.close().catch(() => undefined);
+        return replacement;
+      })();
+    }
+
+    try {
+      return this.acquire(await this.refreshPromise);
+    } finally {
+      this.refreshPromise = undefined;
+    }
+  }
+
+  private async recoverExpiredSession(): Promise<void> {
+    if (this.recoveryPromise) return this.recoveryPromise;
+
+    const previous = this.connection;
+    this.recoveryPromise = (async () => {
+      await this.waitForIdle(previous);
+      if (this.closed) throw new Error("Turso database connection is closed");
+      if (previous !== this.connection) return;
+
       const replacement = await openConnection(
         this.url,
         this.databaseName,
@@ -325,48 +429,51 @@ export class RotatingTursoAsyncSQLiteDB implements AsyncSQLiteDB {
         await replacement.close();
         throw new Error("Turso database connection is closed");
       }
+      if (previous !== this.connection) {
+        await replacement.close();
+        return;
+      }
 
-      const previous = this.connection;
       this.connection = replacement;
       this.refreshAt =
         this.dependencies.now() + this.dependencies.refreshAfterMs;
       await previous.close().catch(() => undefined);
-      return replacement;
     })();
 
     try {
-      return await this.refreshPromise;
+      await this.recoveryPromise;
     } finally {
-      this.refreshPromise = undefined;
+      this.recoveryPromise = undefined;
     }
   }
 
-  private async runWithSessionRetry<T>(
-    connection: Connection,
-    operation: () => Promise<T>,
+  private async runWithSessionRecovery<T>(
+    operation: (connection: Connection) => Promise<T>,
   ): Promise<T> {
-    const wasInTransaction = connection.inTransaction;
+    let lease: ConnectionLease | undefined = await this.getConnection();
 
     try {
-      return await operation();
+      return await operation(lease.connection);
     } catch (error) {
-      if (wasInTransaction || !isExpiredTursoSessionError(error)) throw error;
+      if (!isExpiredTursoSessionError(error)) {
+        throw error;
+      }
+
+      lease.release();
+      lease = undefined;
 
       console.warn(
-        `[Turso SQL ${this.databaseName}] server session expired; reconnecting`,
+        `[Turso SQL ${this.databaseName}] server session expired; replacing connection`,
       );
-      await connection.reconnect();
-      await connection.exec("PRAGMA foreign_keys = ON");
-      return operation();
+      await this.recoverExpiredSession();
+      throw error;
+    } finally {
+      lease?.release();
     }
   }
 
   async exec(sql: string, params?: SqlValue[] | null): Promise<void> {
-    console.log(
-      `[Turso SQL ${this.databaseName}] exec started: ${normalizeSql(sql)}`,
-    );
-    const connection = await this.getConnection();
-    await this.runWithSessionRetry(connection, async () => {
+    await this.runWithSessionRecovery(async (connection) => {
       if (params && params.length > 0) {
         const statement = await connection.prepare(sql);
         await statement.run(params);
@@ -377,16 +484,12 @@ export class RotatingTursoAsyncSQLiteDB implements AsyncSQLiteDB {
   }
 
   async prepare(sql: string): Promise<AsyncSQLStatement> {
-    console.log(
-      `[Turso SQL ${this.databaseName}] prepare started: ${normalizeSql(sql)}`,
-    );
-    const connection = await this.getConnection();
     return new TursoAsyncStatement(
-      await this.runWithSessionRetry(connection, () =>
-        connection.prepare(sql),
-      ),
-      this.databaseName,
-      sql,
+      (values) =>
+        this.runWithSessionRecovery(async (connection) => {
+          const statement = await connection.prepare(sql);
+          return (await statement.raw().all(values)) as SqlValue[][];
+        }),
     );
   }
 
@@ -395,6 +498,9 @@ export class RotatingTursoAsyncSQLiteDB implements AsyncSQLiteDB {
     this.closed = true;
     const refreshPromise = this.refreshPromise;
     if (refreshPromise) await refreshPromise.catch(() => undefined);
+    const recoveryPromise = this.recoveryPromise;
+    if (recoveryPromise) await recoveryPromise.catch(() => undefined);
+    await this.waitForIdle(this.connection);
     await this.connection.close();
   }
 }

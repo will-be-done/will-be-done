@@ -7,6 +7,7 @@ import {
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { createSpace, spacesTable } from "@will-be-done/slices/user";
+import { createAppRouter } from "../appRouter";
 import { installSyncNotificationHook } from "../db/db";
 import { subscriptionManager } from "../subscriptionManager";
 
@@ -35,5 +36,36 @@ describe("database sync notifications", () => {
     } finally {
       await unsubscribe();
     }
+  });
+
+  test("delivers a notification received while the previous one is yielded", async () => {
+    const caller = createAppRouter({
+      mainDB: new DB(new BptreeInmemDriver()),
+      captchaConfig: null,
+    }).createCaller({
+      user: { id: "user-1", email: "user@example.com" },
+    });
+    const subscription = await caller.onChangesAvailable({
+      dbId: "user-1",
+      dbType: "user",
+      syncVersion: 2,
+    });
+    const iterator = subscription[Symbol.asyncIterator]();
+
+    const firstResult = iterator.next();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await subscriptionManager.notifyChangesAvailable("user-1", "user");
+    expect(await firstResult).toMatchObject({
+      done: false,
+      value: { dbId: "user-1", dbType: "user" },
+    });
+
+    await subscriptionManager.notifyChangesAvailable("user-1", "user");
+    expect(await iterator.next()).toMatchObject({
+      done: false,
+      value: { dbId: "user-1", dbType: "user" },
+    });
+
+    await iterator.return?.();
   });
 });

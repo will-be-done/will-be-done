@@ -79,7 +79,7 @@ export interface RedisPubSubClient {
   subscribe(
     channel: string,
     listener: (message: string, channel: string) => void,
-  ): Promise<number>;
+  ): Promise<void>;
   unsubscribe(
     channel: string,
     listener: (message: string, channel: string) => void,
@@ -93,7 +93,7 @@ type RedisClientFactory = (
 
 type RedisChannelEntry = {
   callbacks: Set<NotificationCallback>;
-  subscribePromise: Promise<unknown>;
+  subscribePromise: Promise<void>;
 };
 
 export interface RedisSyncNotificationBusOptions {
@@ -143,14 +143,22 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
       return;
     }
 
-    for (const callback of entry.callbacks) callback(parsed);
+    for (const callback of entry.callbacks) {
+      try {
+        callback(parsed);
+      } catch (error) {
+        this.logger.error(
+          `[Sync notifications] Redis subscriber callback failed on "${channel}": ${String(error)}`,
+        );
+      }
+    }
   };
 
   constructor({
     url,
     channelPrefix,
     createClient = (redisUrl, options) =>
-      new RedisClient(redisUrl, options) as RedisPubSubClient,
+      new RedisClient(redisUrl, options) as unknown as RedisPubSubClient,
     logger = console,
   }: RedisSyncNotificationBusOptions) {
     this.channelPrefix = channelPrefix.replace(/:+$/, "");
@@ -242,15 +250,28 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
       if (unsubscribed) return;
       unsubscribed = true;
 
-      const currentEntry = this.channels.get(channel);
-      if (!currentEntry) return;
-      currentEntry.callbacks.delete(callback);
-      if (currentEntry.callbacks.size > 0) return;
+      const teardownPromise = this.resubscribePromise.then(async () => {
+        const currentEntry = this.channels.get(channel);
+        if (!currentEntry) return;
+        currentEntry.callbacks.delete(callback);
+        if (currentEntry.callbacks.size > 0) return;
 
-      this.channels.delete(channel);
-      if (!this.closed) {
+        this.channels.delete(channel);
+        if (this.closed) return;
+
         await this.subscriber.unsubscribe(channel, this.redisListener);
-      }
+
+        const replacementEntry = this.channels.get(channel);
+        if (replacementEntry) {
+          replacementEntry.subscribePromise = this.subscriber.subscribe(
+            channel,
+            this.redisListener,
+          );
+          await replacementEntry.subscribePromise;
+        }
+      });
+      this.resubscribePromise = teardownPromise.catch(() => {});
+      await teardownPromise;
     };
   }
 
