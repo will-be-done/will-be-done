@@ -88,6 +88,9 @@ importers:
       fractional-indexing-jittered:
         specifier: ^1.0.0
         version: 1.0.0
+      lz4-napi:
+        specifier: 2.9.1
+        version: 2.9.1
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -550,6 +553,115 @@ importers:
         version: 5.3.0
 
 packages:
+
+  '@antoniomuso/lz4-napi-android-arm-eabi@2.9.1':
+    resolution: {integrity: sha512-KcRvkSOymDvxFDT9AGFBc7g+J/Xv4qExMMHhtxjZ45qE2sEIVCXoSFmyLDiVVKztkVzoV24VXPPRLOa4WQOi2Q==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [android]
+
+  '@antoniomuso/lz4-napi-android-arm64@2.9.1':
+    resolution: {integrity: sha512-BNiddtI+5Z83w1jIufTFhTPrtxMVKb0UPezTq47XIE/7vkB6y5mHSWSlcHqEIFFIg2/PVdqyqec1CXv0bkpCPA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+
+  '@antoniomuso/lz4-napi-darwin-arm64@2.9.1':
+    resolution: {integrity: sha512-nhLu+8g8Q6Yqd0rxRn4JkCMJBUs6mByiyT3Mhha2EgorsA2txx18JKm9qLhnXpDgFGWc94tLEVHqzDk0tLD9yA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@antoniomuso/lz4-napi-darwin-x64@2.9.1':
+    resolution: {integrity: sha512-DqkN1D/IrqOaUBppCP7BrF9j5Usb6RqFyz16kf3SHPDxLG7pmemgwXmGWpcNrKQfp4Shx1VkbFWA61gMyE1+uw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@antoniomuso/lz4-napi-freebsd-x64@2.9.1':
+    resolution: {integrity: sha512-ORtZ27l+j0yDgPMgt9q/j10LCchtKS44gFohEWl8fokgr5rzDAYAtMyQZzHV8sqE2LUWHAU3Gk6Wh9s1GRl9ow==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@antoniomuso/lz4-napi-linux-arm-gnueabihf@2.9.1':
+    resolution: {integrity: sha512-GBZgQ/rY0AzjZA4jOKFXmLQKVPGXglVZ3U7SLcCu2nmuHTO73vsqiPeAHnYu7/org1km7yw3ii6XFlBRzyNKIA==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@antoniomuso/lz4-napi-linux-arm64-gnu@2.9.1':
+    resolution: {integrity: sha512-9lvGts14KHNT4pc9lKYUPI1PRdBkfbyT4HCjyDk8fJJzEG9ryvLvyhTeFr/IVpJOFmkSodZw1nxJMQDT5+zvlQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@antoniomuso/lz4-napi-linux-arm64-musl@2.9.1':
+    resolution: {integrity: sha512-SsidKyLRHGB/rrgic+N7ZxFjjl+Cbav2sbuSj4AJsc37oVhyjzbiI5EEL9Rl+zL4ajL0d3utG3UbIUooThhykQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@antoniomuso/lz4-napi-linux-ppc64-gnu@2.9.1':
+    resolution: {integrity: sha512-1Joz9RmBLiLIfI5Gk/wmJI/WwQy74prKDhLcCPFoa/FcTOJavJAopAzs1MQdnM7nGklEPOpKZWmKHZz1yQ4LMQ==}
+    engines: {node: '>= 10'}
+    cpu: [ppc64]
+    os: [linux]
+    libc: [glibc]
+
+  '@antoniomuso/lz4-napi-linux-riscv64-gnu@2.9.1':
+    resolution: {integrity: sha512-3z6jSvhEpnSMlubcHwSn6W8Xziq5LYSuIcSpSo7wTEOopnr6GNnKcH2uTPFsRiqC/aC2TLpm17ktXbYTrYL7jg==}
+    engines: {node: '>= 10'}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@antoniomuso/lz4-napi-linux-s390x-gnu@2.9.1':
+    resolution: {integrity: sha512-wtQg/ikF1JutKdWfUdGXvR0LG+eG49mS01luwJXG6sg40DX737T3BAsbjM9Fccvif5jQwC+KmzP8+tvxy2eMtQ==}
+    engines: {node: '>= 10'}
+    cpu: [s390x]
+    os: [linux]
+    libc: [glibc]
+
+  '@antoniomuso/lz4-napi-linux-x64-gnu@2.9.1':
+    resolution: {integrity: sha512-Vw7vb3i1Q6QU2sI5GdgZdi4cVwN2xZ44Gw/WawIxCno1gX39VIF/j8T1pYwS7Dc67NeoA37LsYIPb3h49CiRRA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@antoniomuso/lz4-napi-linux-x64-musl@2.9.1':
+    resolution: {integrity: sha512-oZVrvOPjnI7c07v1lx6HMLFi8xlW9WS0pHmkaisldybNUWmNI6vR44KoqBctGCFplvF5YVMK2xPs3W04UGzF8w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@antoniomuso/lz4-napi-openharmony-arm64@2.9.1':
+    resolution: {integrity: sha512-mkDQv6C0JbMbCDn070Dv67SWfkDy8uD6DkqUT373LHjdaEXj/0eK2gAVykKyPdnC1RBhONgUCaV4HQOp63oH8Q==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [openharmony]
+
+  '@antoniomuso/lz4-napi-win32-arm64-msvc@2.9.1':
+    resolution: {integrity: sha512-EBsN9YzV3xpSPr6h/t6ntBetpdtO0nZw9o4sZ1vNOfLJ8FMdHxHiY7FonzhEyTnc4N3x3yMqPudD6zLVy/oNXg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@antoniomuso/lz4-napi-win32-ia32-msvc@2.9.1':
+    resolution: {integrity: sha512-Fqe2JmcfjvVrC+BHjHPzoiIzNgjHpQvDO7duMbJh5fW9VvF7pKkjRAPDwhtFhkU/fBLVQywq5WbsFqtJ3pYG/w==}
+    engines: {node: '>= 10'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@antoniomuso/lz4-napi-win32-x64-msvc@2.9.1':
+    resolution: {integrity: sha512-N6bAJ4pcYfbiuysHNyEl6uVnYxl0CBboPeA6Iz1GQWJb6mp8J/z4+E8bTvasMuRhIhEW5F6X+oJIwmOwSzHoIQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
 
   '@apideck/better-ajv-errors@0.3.7':
     resolution: {integrity: sha512-TajUJwGWbDwkCx/CZi7tRE8PVB7simCvKJfHUsSdvps+aTM/PDPP4gkLmKnc+x3CE//y9i/nj74GqdL/hwk7Iw==}
@@ -5675,6 +5787,10 @@ packages:
   lunr@2.3.9:
     resolution: {integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==}
 
+  lz4-napi@2.9.1:
+    resolution: {integrity: sha512-VjY1TAUQa3bo8j4vCcpQ0RBXh4mbC1OFHWH9rpOvx8qLYwaZTEzwxW/648ufD2cmz5/pFfPLDkX6N8+TqI9BYQ==}
+    engines: {node: '>= 18'}
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -7844,6 +7960,57 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@antoniomuso/lz4-napi-android-arm-eabi@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-android-arm64@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-darwin-arm64@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-darwin-x64@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-freebsd-x64@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-arm-gnueabihf@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-arm64-gnu@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-arm64-musl@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-ppc64-gnu@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-riscv64-gnu@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-s390x-gnu@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-x64-gnu@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-linux-x64-musl@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-openharmony-arm64@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-win32-arm64-msvc@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-win32-ia32-msvc@2.9.1':
+    optional: true
+
+  '@antoniomuso/lz4-napi-win32-x64-msvc@2.9.1':
+    optional: true
 
   '@apideck/better-ajv-errors@0.3.7(ajv@8.20.0)':
     dependencies:
@@ -13737,6 +13904,26 @@ snapshots:
       react: 19.2.7
 
   lunr@2.3.9: {}
+
+  lz4-napi@2.9.1:
+    optionalDependencies:
+      '@antoniomuso/lz4-napi-android-arm-eabi': 2.9.1
+      '@antoniomuso/lz4-napi-android-arm64': 2.9.1
+      '@antoniomuso/lz4-napi-darwin-arm64': 2.9.1
+      '@antoniomuso/lz4-napi-darwin-x64': 2.9.1
+      '@antoniomuso/lz4-napi-freebsd-x64': 2.9.1
+      '@antoniomuso/lz4-napi-linux-arm-gnueabihf': 2.9.1
+      '@antoniomuso/lz4-napi-linux-arm64-gnu': 2.9.1
+      '@antoniomuso/lz4-napi-linux-arm64-musl': 2.9.1
+      '@antoniomuso/lz4-napi-linux-ppc64-gnu': 2.9.1
+      '@antoniomuso/lz4-napi-linux-riscv64-gnu': 2.9.1
+      '@antoniomuso/lz4-napi-linux-s390x-gnu': 2.9.1
+      '@antoniomuso/lz4-napi-linux-x64-gnu': 2.9.1
+      '@antoniomuso/lz4-napi-linux-x64-musl': 2.9.1
+      '@antoniomuso/lz4-napi-openharmony-arm64': 2.9.1
+      '@antoniomuso/lz4-napi-win32-arm64-msvc': 2.9.1
+      '@antoniomuso/lz4-napi-win32-ia32-msvc': 2.9.1
+      '@antoniomuso/lz4-napi-win32-x64-msvc': 2.9.1
 
   magic-string@0.30.21:
     dependencies:

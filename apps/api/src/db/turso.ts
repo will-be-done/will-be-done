@@ -12,6 +12,7 @@ import {
   logAsyncSqlDriverDebugEvent,
 } from "@will-be-done/hyperdb/drivers/sqlite";
 import { getEnvConfig } from "../env";
+import { tursoRowCompression } from "./tursoRowCompression";
 
 export type TursoDatabaseType = "user" | "space";
 export type TursoDatabaseTypeWithMain = "main" | TursoDatabaseType;
@@ -128,6 +129,7 @@ export async function getOrCreateTursoDatabase(
   try {
     const created = await client.databases.create(name, {
       group: env.WBD_TURSO_GROUP,
+      useTursoDb: true,
     });
     console.log(`[Turso Provision] created database "${name}"`);
     return { name, url: databaseUrl(created.hostname) };
@@ -159,7 +161,7 @@ class TursoAsyncStatement implements AsyncSQLStatement {
     private readonly statement: Statement,
     private readonly databaseName: string,
     private readonly sql: string,
-  ) {}
+  ) { }
 
   async values(values: SqlValue[]): Promise<SqlValue[][]> {
     console.log(
@@ -373,6 +375,7 @@ export async function createTursoSqlDriver(
   return {
     driver: new AsyncSqlDriver(db, {
       debug: logAsyncSqlDriverDebugEvent,
+      rowCompression: tursoRowCompression,
     }),
     close: () => db.close(),
   };
