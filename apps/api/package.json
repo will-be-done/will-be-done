@@ -43,7 +43,7 @@
     "@trpc/server": "^11.7.2",
     "@tursodatabase/api": "^2.0.5",
     "@tursodatabase/serverless": "^1.4.0",
-    "@will-be-done/hyperdb": "^0.4.3",
+    "@will-be-done/hyperdb": "^0.4.4",
     "@will-be-done/slices": "workspace:*",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",

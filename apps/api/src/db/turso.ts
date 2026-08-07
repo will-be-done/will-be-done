@@ -16,6 +16,16 @@ import { getEnvConfig } from "../env";
 export type TursoDatabaseType = "user" | "space";
 export type TursoDatabaseTypeWithMain = "main" | TursoDatabaseType;
 
+type TursoTokenFetch = (
+  input: string | URL,
+  init?: RequestInit,
+) => Promise<Response>;
+
+type TursoTokenConfig = {
+  organization: string;
+  platformToken: string;
+};
+
 const DATABASE_TOKEN_EXPIRATION = "1h";
 const DATABASE_TOKEN_REFRESH_AFTER_MS = 50 * 60 * 1_000;
 const TURSO_DATABASE_NAME_MAX_LENGTH = 56;
@@ -99,6 +109,50 @@ function errorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+export async function createTursoDatabaseToken(
+  databaseName: string,
+  config: TursoTokenConfig,
+  fetchImpl: TursoTokenFetch = fetch,
+): Promise<string> {
+  const url = new URL(
+    `https://api.turso.tech/v1/organizations/${encodeURIComponent(config.organization)}/databases/${encodeURIComponent(databaseName)}/auth/tokens`,
+  );
+  url.searchParams.set("expiration", DATABASE_TOKEN_EXPIRATION);
+  url.searchParams.set("authorization", "full-access");
+
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.platformToken}`,
+    },
+  });
+
+  const body: unknown = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    const detail =
+      body &&
+        typeof body === "object" &&
+        "error" in body &&
+        typeof body.error === "string"
+        ? `: ${body.error}`
+        : "";
+    throw new Error(
+      `Failed to create Turso database token (status ${response.status})${detail}`,
+    );
+  }
+
+  if (
+    !body ||
+    typeof body !== "object" ||
+    !("jwt" in body) ||
+    typeof body.jwt !== "string"
+  ) {
+    throw new Error("Turso database token response did not include a JWT");
+  }
+
+  return body.jwt;
+}
+
 export async function getOrCreateTursoDatabase(
   dbType: TursoDatabaseTypeWithMain,
   dbId: string,
@@ -128,6 +182,7 @@ export async function getOrCreateTursoDatabase(
   try {
     const created = await client.databases.create(name, {
       group: env.WBD_TURSO_GROUP,
+      useTursoDb: true
     });
     console.log(`[Turso Provision] created database "${name}"`);
     return { name, url: databaseUrl(created.hostname) };
@@ -159,7 +214,7 @@ class TursoAsyncStatement implements AsyncSQLStatement {
     private readonly statement: Statement,
     private readonly databaseName: string,
     private readonly sql: string,
-  ) {}
+  ) { }
 
   async values(values: SqlValue[]): Promise<SqlValue[][]> {
     console.log(
@@ -195,19 +250,13 @@ export type TursoDriverDependencies = {
 
 const defaultDriverDependencies = (): TursoDriverDependencies => {
   const env = getEnvConfig();
-  const client = createTursoApiClient({
-    org: env.WBD_TURSO_ORG!,
-    token: env.WBD_TURSO_PLATFORM_TOKEN!,
-  });
 
   return {
-    createToken: async (databaseName) => {
-      const { jwt } = await client.databases.createToken(databaseName, {
-        authorization: "full-access",
-        expiration: DATABASE_TOKEN_EXPIRATION,
-      });
-      return jwt;
-    },
+    createToken: (databaseName) =>
+      createTursoDatabaseToken(databaseName, {
+        organization: env.WBD_TURSO_ORG!,
+        platformToken: env.WBD_TURSO_PLATFORM_TOKEN!,
+      }),
     connect: (url, authToken) => connect({ url, authToken }),
     now: Date.now,
     refreshAfterMs: DATABASE_TOKEN_REFRESH_AFTER_MS,

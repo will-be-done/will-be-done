@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Connection } from "@tursodatabase/serverless";
 import {
   buildTursoDatabaseName,
+  createTursoDatabaseToken,
   RotatingTursoAsyncSQLiteDB,
   type TursoDriverDependencies,
 } from "./turso";
@@ -83,6 +84,32 @@ describe("Turso database names", () => {
 });
 
 describe("Turso database credentials", () => {
+  test("creates a database token without requesting attach permissions", async () => {
+    const requests: Array<{ url: URL; init?: RequestInit }> = [];
+    const token = await createTursoDatabaseToken(
+      "wbd-main",
+      {
+        organization: "test-org",
+        platformToken: "platform-token",
+      },
+      async (input, init) => {
+        requests.push({ url: new URL(input), init });
+        return Response.json({ jwt: "database-token" });
+      },
+    );
+
+    expect(token).toBe("database-token");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url.toString()).toBe(
+      "https://api.turso.tech/v1/organizations/test-org/databases/wbd-main/auth/tokens?expiration=1h&authorization=full-access",
+    );
+    expect(requests[0]?.init).toEqual({
+      method: "POST",
+      headers: { Authorization: "Bearer platform-token" },
+    });
+    expect(requests[0]?.init?.body).toBeUndefined();
+  });
+
   test("refreshes with a token scoped to the same database", async () => {
     let now = 0;
     const initial = new FakeConnection();
