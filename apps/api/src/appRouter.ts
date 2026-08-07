@@ -154,10 +154,40 @@ export function createAppRouter({
             state.modify((notifications) => [...notifications, data]);
           },
         );
+        const abortController = new AbortController();
+        const abort = () => abortController.abort(opts.signal?.reason);
+        if (opts.signal?.aborted) abort();
+        else opts.signal?.addEventListener("abort", abort, { once: true });
 
         try {
           while (true) {
-            await state.when((notifications) => notifications.length > 0);
+            let removeAbortListener = () => {};
+            const cancellation = new Promise<never>((_, reject) => {
+              const rejectOnAbort = () => reject(abortController.signal.reason);
+              if (abortController.signal.aborted) rejectOnAbort();
+              else
+                abortController.signal.addEventListener(
+                  "abort",
+                  rejectOnAbort,
+                  { once: true },
+                );
+              removeAbortListener = () =>
+                abortController.signal.removeEventListener(
+                  "abort",
+                  rejectOnAbort,
+                );
+            });
+            try {
+              await Promise.race([
+                state.when(
+                  (notifications) => notifications.length > 0,
+                  abortController.signal,
+                ),
+                cancellation,
+              ]);
+            } finally {
+              removeAbortListener();
+            }
             const notifications = state.get();
             state.set([]);
 
@@ -166,6 +196,8 @@ export function createAppRouter({
             }
           }
         } finally {
+          abortController.abort();
+          opts.signal?.removeEventListener("abort", abort);
           await unsubscribe();
         }
       }),

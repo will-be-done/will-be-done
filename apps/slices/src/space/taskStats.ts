@@ -88,8 +88,8 @@ function* refreshScheduledTodoTasks(
   const dailyLists =
     dailyListIds.length > 0
       ? yield* selectFrom(dailyListsTable, "byId").where((q) =>
-        dailyListIds.map((id) => q.eq("id", id)),
-      )
+          dailyListIds.map((id) => q.eq("id", id)),
+        )
       : [];
   const dailyListById = new Map(
     (dailyLists as DailyList[]).map((dailyList) => [dailyList.id, dailyList]),
@@ -382,7 +382,7 @@ export type ProjectWithTaskStats = {
 export const projectsWithTaskStats = selector({
   name: "projectsWithTaskStats",
   args: { currentDate: v.number() },
-  handler: function*({
+  handler: function* ({
     currentDate,
   }): Generator<unknown, ProjectWithTaskStats[], unknown> {
     const projects = yield* selectFrom(projectsTable, "byOrderToken");
@@ -397,8 +397,8 @@ export const projectsWithTaskStats = selector({
     const stats =
       projectSectionIds.length > 0
         ? yield* selectFrom(projectSectionTaskStatsTable, "byId").where((q) =>
-          projectSectionIds.map((id) => q.eq("id", id)),
-        )
+            projectSectionIds.map((id) => q.eq("id", id)),
+          )
         : [];
     const statsBySectionId = new Map(stats.map((stat) => [stat.id, stat]));
 

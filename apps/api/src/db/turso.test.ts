@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Connection } from "@tursodatabase/serverless";
+import type { Connection, QueryOptions } from "@tursodatabase/serverless";
 import {
   buildTursoDatabaseName,
   createTursoDatabaseToken,
@@ -13,7 +13,7 @@ class FakeConnection {
   reconnectCount = 0;
   readonly statements: string[] = [];
 
-  async exec(sql: string): Promise<void> {
+  async exec(sql: string, _options?: QueryOptions): Promise<void> {
     this.statements.push(sql);
     if (/^BEGIN\b/i.test(sql)) this.inTransaction = true;
     if (/^(COMMIT|ROLLBACK)\b/i.test(sql)) this.inTransaction = false;
@@ -456,15 +456,19 @@ describe("Turso database credentials", () => {
     expect(connection.closed).toBe(true);
   });
 
-  test("times out a hung readiness probe and retries", async () => {
+  test("retries after a driver-enforced readiness probe timeout", async () => {
     let now = 0;
     const initial = new FakeConnection();
     const replacement = new FakeConnection();
     let selectAttempts = 0;
-    replacement.exec = async (sql: string) => {
+    const probeTimeouts: Array<number | undefined> = [];
+    replacement.exec = async (sql: string, options) => {
       replacement.statements.push(sql);
+      if (sql === "SELECT 1" || sql === "PRAGMA foreign_keys = ON") {
+        probeTimeouts.push(options?.queryTimeout);
+      }
       if (sql === "SELECT 1" && ++selectAttempts === 1) {
-        return new Promise<void>(() => {});
+        throw new Error("query timed out");
       }
     };
     const dependencies: TursoDriverDependencies = {
@@ -490,6 +494,7 @@ describe("Turso database credentials", () => {
       "PRAGMA foreign_keys = ON",
       "SELECT after_probe_retry",
     ]);
+    expect(probeTimeouts).toEqual([1, 1, 1]);
     await db.close();
   });
 

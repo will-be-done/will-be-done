@@ -249,22 +249,7 @@ async function runReadinessProbe(
   sql: string,
   timeoutMs: number,
 ): Promise<void> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(
-      () => reject(new Error(`Turso readiness probe timed out after ${timeoutMs}ms`)),
-      timeoutMs,
-    );
-  });
-
-  try {
-    await Promise.race([
-      connection.exec(sql, { queryTimeout: timeoutMs }),
-      timeout,
-    ]);
-  } finally {
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
-  }
+  await connection.exec(sql, { queryTimeout: timeoutMs });
 }
 
 export type TursoDriverDependencies = {
