@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   InMemorySyncNotificationBus,
   RedisSyncNotificationBus,
+  SubscriptionManager,
   type NotificationData,
   type RedisPubSubClient,
+  type SyncNotificationBus,
 } from "./subscriptionManager";
 
 type RedisListener = (message: string, channel: string) => void;
@@ -153,6 +155,36 @@ describe("InMemorySyncNotificationBus", () => {
 
     expect(received).toEqual([notification()]);
     await bus.close();
+  });
+});
+
+describe("SubscriptionManager", () => {
+  test("starts and uses the backend supplied to its constructor", async () => {
+    const calls: string[] = [];
+    const backend: SyncNotificationBus = {
+      name: "memory",
+      async start() {
+        calls.push("start");
+      },
+      async subscribe() {
+        calls.push("subscribe");
+        return async () => {};
+      },
+      async publish() {
+        calls.push("publish");
+      },
+      async close() {
+        calls.push("close");
+      },
+    };
+    const manager = new SubscriptionManager(backend);
+
+    await manager.initialize();
+    await manager.subscribe("db-1", "space", () => {});
+    await manager.notifyChangesAvailable("db-1", "space");
+    await manager.close();
+
+    expect(calls).toEqual(["start", "subscribe", "publish", "close"]);
   });
 });
 

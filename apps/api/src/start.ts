@@ -1,4 +1,3 @@
-import * as dotenv from "dotenv";
 import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
@@ -9,12 +8,10 @@ import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
 import { subscriptionManager } from "./subscriptionManager";
 
-dotenv.config();
-
 const start = async () => {
   try {
     const env = getEnvConfig();
-    await subscriptionManager.initialize(env);
+    await subscriptionManager.initialize();
     console.log(
       `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}`,
     );

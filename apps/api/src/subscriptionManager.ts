@@ -1,7 +1,7 @@
 import { RedisClient, type RedisOptions } from "bun";
 import { EventEmitter } from "events";
 import { z } from "zod";
-import type { getEnvConfig } from "./env";
+import { getEnvConfig } from "./env";
 
 export type DbType = "user" | "space";
 type DbKey = `${string}:${DbType}`;
@@ -44,7 +44,7 @@ export class InMemorySyncNotificationBus implements SyncNotificationBus {
     this.emitter.setMaxListeners(100000);
   }
 
-  async start(): Promise<void> {}
+  async start(): Promise<void> { }
 
   async subscribe(
     dbId: string,
@@ -270,7 +270,7 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
           await replacementEntry.subscribePromise;
         }
       });
-      this.resubscribePromise = teardownPromise.catch(() => {});
+      this.resubscribePromise = teardownPromise.catch(() => { });
       await teardownPromise;
     };
   }
@@ -335,43 +335,20 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
   }
 }
 
-type EnvConfig = ReturnType<typeof getEnvConfig>;
 
 export class SubscriptionManager {
-  private backend: SyncNotificationBus;
   private initialized = false;
 
-  constructor(
-    backend: SyncNotificationBus = new InMemorySyncNotificationBus(),
-  ) {
-    this.backend = backend;
-  }
+  constructor(private readonly backend: SyncNotificationBus) { }
 
   get backendName(): SyncNotificationBus["name"] {
     return this.backend.name;
   }
 
-  async initialize(
-    config: Pick<
-      EnvConfig,
-      | "WBD_SYNC_NOTIFICATIONS_BACKEND"
-      | "WBD_REDIS_URL"
-      | "WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX"
-    >,
-  ): Promise<void> {
+  async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    const nextBackend =
-      config.WBD_SYNC_NOTIFICATIONS_BACKEND === "redis"
-        ? new RedisSyncNotificationBus({
-            url: config.WBD_REDIS_URL!,
-            channelPrefix: config.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
-          })
-        : this.backend;
-
-    await nextBackend.start();
-    if (nextBackend !== this.backend) await this.backend.close();
-    this.backend = nextBackend;
+    await this.backend.start();
     this.initialized = true;
   }
 
@@ -392,4 +369,28 @@ export class SubscriptionManager {
   }
 }
 
-export const subscriptionManager = new SubscriptionManager();
+type EnvConfig = ReturnType<typeof getEnvConfig>;
+
+type SyncNotificationConfig = Pick<
+  EnvConfig,
+  | "WBD_SYNC_NOTIFICATIONS_BACKEND"
+  | "WBD_REDIS_URL"
+  | "WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX"
+>;
+
+export function createSyncNotificationBus(
+  config: SyncNotificationConfig,
+): SyncNotificationBus {
+  if (config.WBD_SYNC_NOTIFICATIONS_BACKEND === "redis") {
+    return new RedisSyncNotificationBus({
+      url: config.WBD_REDIS_URL!,
+      channelPrefix: config.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
+    });
+  }
+
+  return new InMemorySyncNotificationBus();
+}
+
+export const subscriptionManager = new SubscriptionManager(
+  createSyncNotificationBus(getEnvConfig()),
+);

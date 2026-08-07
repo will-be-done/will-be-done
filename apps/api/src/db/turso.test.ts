@@ -3,7 +3,7 @@ import type { Connection } from "@tursodatabase/serverless";
 import {
   buildTursoDatabaseName,
   createTursoDatabaseToken,
-  RotatingTursoAsyncSQLiteDB,
+  TursoSqlExecutor,
   type TursoDriverDependencies,
 } from "./turso";
 
@@ -39,47 +39,63 @@ class FakeConnection {
 }
 
 describe("Turso database names", () => {
+  const userId = "0198b10a-b15e-7e6a-b426-c491007f4b65";
+  const spaceId = "0198b10a-b15e-7e6a-b426-c491007f4b66";
+
   test("uses a stable main database name", () => {
     expect(buildTursoDatabaseName("My App", "main", "main")).toBe(
       "my-app-main",
     );
   });
 
-  test("creates distinct names for IDs that sanitize the same way", () => {
-    const underscore = buildTursoDatabaseName("wbd", "space", "a_b");
-    const dash = buildTursoDatabaseName("wbd", "space", "a-b");
-
-    expect(underscore).not.toBe(dash);
-  });
-
-  test("keeps long names within the Turso limit", () => {
-    const name = buildTursoDatabaseName(
-      "a-very-long-will-be-done-deployment-prefix",
-      "user",
-      "an-even-longer-user-identifier-that-cannot-fit-in-a-database-name",
+  test("keeps the complete UUID visible in user and space database names", () => {
+    expect(buildTursoDatabaseName("wbd", "user", userId)).toBe(
+      `wbd-user-${userId}`,
     );
-
-    expect(name.length).toBeLessThanOrEqual(56);
-    expect(name).toMatch(/^[a-z0-9-]+$/);
+    expect(buildTursoDatabaseName("wbd", "space", spaceId)).toBe(
+      `wbd-space-${spaceId}`,
+    );
   });
 
-  test("keeps UUID-based space names within the Turso limit", () => {
+  test("rejects a prefix that is too long for a user database name", () => {
+    expect(() =>
+      buildTursoDatabaseName("a".repeat(15), "user", userId),
+    ).toThrow(
+      "Turso database prefix is too long for user database names (maximum 14 characters)",
+    );
+  });
+
+  test("accepts the longest possible prefix for a space database name", () => {
     const name = buildTursoDatabaseName(
-      "wbd-local-quolpr",
+      "wbd-local-quo",
       "space",
-      "0198b10a-b15e-7e6a-b426-c491007f4b65",
+      spaceId,
     );
 
-    expect(name.length).toBeLessThanOrEqual(56);
-    expect(name).toMatch(/^[a-z0-9-]+$/);
-    expect(name).toContain("-space-");
+    expect(name).toBe(`wbd-local-quo-space-${spaceId}`);
+    expect(name).toHaveLength(56);
   });
 
-  test("keeps the main database name within the Turso limit", () => {
-    const name = buildTursoDatabaseName("a".repeat(100), "main", "main");
+  test("rejects a prefix that is too long for a space database name", () => {
+    expect(() =>
+      buildTursoDatabaseName("wbd-local-quolpr", "space", spaceId),
+    ).toThrow(
+      "Turso database prefix is too long for space database names (maximum 13 characters)",
+    );
+  });
 
-    expect(name).toHaveLength(56);
-    expect(name).toEndWith("-main");
+  test("rejects a non-UUID user or space database ID", () => {
+    expect(() => buildTursoDatabaseName("wbd", "space", "not-a-uuid")).toThrow(
+      "Turso space database ID must be a UUID",
+    );
+  });
+
+  test("rejects a prefix that is too long for the main database name", () => {
+    expect(() =>
+      buildTursoDatabaseName("a".repeat(52), "main", "main"),
+    ).toThrow(
+      "Turso database prefix is too long for the main database (maximum 51 characters)",
+    );
   });
 });
 
@@ -132,7 +148,7 @@ describe("Turso database credentials", () => {
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://user-db.turso.io",
       "wbd-user-123",
       dependencies,
@@ -167,7 +183,7 @@ describe("Turso database credentials", () => {
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://space-db.turso.io",
       "wbd-space-123",
       dependencies,
@@ -206,7 +222,7 @@ describe("Turso database credentials", () => {
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -244,7 +260,7 @@ describe("Turso database credentials", () => {
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -276,7 +292,7 @@ describe("Turso database credentials", () => {
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -320,7 +336,7 @@ describe("Turso database credentials", () => {
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -336,17 +352,23 @@ describe("Turso database credentials", () => {
     await db.close();
   });
 
-  test("does not close a connection while operations are in flight", async () => {
+  test("serializes jobs and rotates the connection between jobs", async () => {
     let now = 0;
     let releaseSlowQuery = () => {};
+    let markSlowQueryStarted = () => {};
     const slowQuery = new Promise<void>((resolve) => {
       releaseSlowQuery = resolve;
     });
+    const slowQueryStarted = new Promise<void>((resolve) => {
+      markSlowQueryStarted = resolve;
+    });
     const initial = new FakeConnection();
-    const originalExec = initial.exec.bind(initial);
     initial.exec = async (sql: string) => {
       initial.statements.push(sql);
-      if (sql === "SELECT slow") await slowQuery;
+      if (sql === "SELECT slow") {
+        markSlowQueryStarted();
+        await slowQuery;
+      }
     };
     const replacement = new FakeConnection();
     const dependencies: TursoDriverDependencies = {
@@ -355,7 +377,7 @@ describe("Turso database credentials", () => {
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -363,20 +385,75 @@ describe("Turso database credentials", () => {
     );
 
     const pending = db.exec("SELECT slow");
-    await Promise.resolve();
+    await slowQueryStarted;
     now = 11;
     const concurrent = db.exec("SELECT concurrent");
-    await Promise.resolve();
     expect(initial.closed).toBe(false);
+    expect(initial.statements).toEqual(["SELECT slow"]);
+    expect(replacement.statements).toEqual([]);
 
     releaseSlowQuery();
     await Promise.all([pending, concurrent]);
-    initial.exec = originalExec;
     await db.exec("SELECT after_drain");
     expect(initial.closed).toBe(true);
-    expect(replacement.statements).toContain("SELECT after_drain");
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+      "SELECT concurrent",
+      "SELECT after_drain",
+    ]);
 
     await db.close();
+  });
+
+  test("close rejects new jobs and drains jobs already in the queue", async () => {
+    let releaseSlowQuery = () => {};
+    let markSlowQueryStarted = () => {};
+    const slowQuery = new Promise<void>((resolve) => {
+      releaseSlowQuery = resolve;
+    });
+    const slowQueryStarted = new Promise<void>((resolve) => {
+      markSlowQueryStarted = resolve;
+    });
+    const connection = new FakeConnection();
+    connection.exec = async (sql: string) => {
+      connection.statements.push(sql);
+      if (sql === "SELECT slow") {
+        markSlowQueryStarted();
+        await slowQuery;
+      }
+    };
+    const dependencies: TursoDriverDependencies = {
+      createToken: async () => "unused",
+      connect: () => connection.asConnection(),
+      now: () => 0,
+      refreshAfterMs: 10,
+    };
+    const db = new TursoSqlExecutor(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      dependencies,
+      connection.asConnection(),
+    );
+
+    const running = db.exec("SELECT slow");
+    await slowQueryStarted;
+    const queued = db.exec("SELECT queued");
+    const closing = db.close();
+
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("SELECT too_late")).rejects.toThrow(
+      "Turso database connection is closed",
+    );
+    expect(connection.closed).toBe(false);
+    expect(connection.statements).toEqual(["SELECT slow"]);
+
+    releaseSlowQuery();
+    await Promise.all([running, queued, closing]);
+
+    expect(connection.statements).toEqual(["SELECT slow", "SELECT queued"]);
+    expect(connection.closed).toBe(true);
   });
 
   test("times out a hung readiness probe and retries", async () => {
@@ -397,7 +474,7 @@ describe("Turso database credentials", () => {
       refreshAfterMs: 10,
       readinessProbeTimeoutMs: 1,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -431,7 +508,7 @@ describe("Turso database credentials", () => {
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new RotatingTursoAsyncSQLiteDB(
+    const db = new TursoSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
