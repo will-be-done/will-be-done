@@ -80,12 +80,15 @@ class FakeRedisClient implements RedisPubSubClient {
   connected = false;
   onconnect: (() => void) | null = null;
   onclose: ((error: Error) => void) | null = null;
+  connectCalls = 0;
   failConnect = false;
+  failNextSubscribe = false;
   beforeUnsubscribe: (() => Promise<void>) | undefined;
 
   constructor(private readonly hub: FakeRedisHub) {}
 
   async connect(): Promise<void> {
+    this.connectCalls += 1;
     if (this.failConnect) throw new Error("connection failed");
     this.connected = true;
     this.onconnect?.();
@@ -114,6 +117,10 @@ class FakeRedisClient implements RedisPubSubClient {
 
   async subscribe(channel: string, listener: RedisListener): Promise<void> {
     if (!this.connected) throw new Error("not connected");
+    if (this.failNextSubscribe) {
+      this.failNextSubscribe = false;
+      throw new Error("subscription failed");
+    }
     this.hub.subscribe(this, channel, listener);
   }
 
@@ -189,6 +196,21 @@ describe("SubscriptionManager", () => {
 });
 
 describe("RedisSyncNotificationBus", () => {
+  test("starts only once when called concurrently", async () => {
+    const hub = new FakeRedisHub();
+    const bus = new RedisSyncNotificationBus({
+      url: "redis://test",
+      channelPrefix: "test",
+      createClient: hub.createClient,
+      logger: silentLogger,
+    });
+
+    await Promise.all([bus.start(), bus.start()]);
+
+    expect(hub.clients.map((client) => client.connectCalls)).toEqual([1, 1]);
+    await bus.close();
+  });
+
   test("delivers notifications between instances on database-specific channels", async () => {
     const hub = new FakeRedisHub();
     const createBus = () =>
@@ -277,6 +299,65 @@ describe("RedisSyncNotificationBus", () => {
 
     subscriber.beforeUnsubscribe = undefined;
     await replacementUnsubscribe();
+    await bus.close();
+  });
+
+  test("waits for accepted subscription work before closing", async () => {
+    const hub = new FakeRedisHub();
+    const bus = new RedisSyncNotificationBus({
+      url: "redis://test",
+      channelPrefix: "test",
+      createClient: hub.createClient,
+      logger: silentLogger,
+    });
+    await bus.start();
+
+    const unsubscribe = await bus.subscribe("db-1", "space", () => {});
+    const subscriber = hub.clients[1]!;
+    let releaseUnsubscribe = () => {};
+    const unsubscribeGate = new Promise<void>((resolve) => {
+      releaseUnsubscribe = resolve;
+    });
+    subscriber.beforeUnsubscribe = () => unsubscribeGate;
+
+    const unsubscribePromise = unsubscribe();
+    const closePromise = bus.close();
+    let closed = false;
+    void closePromise.then(() => {
+      closed = true;
+    });
+    await Promise.resolve();
+
+    expect(closed).toBe(false);
+    releaseUnsubscribe();
+    await Promise.all([unsubscribePromise, closePromise]);
+    expect(hub.clients.every((client) => !client.connected)).toBe(true);
+  });
+
+  test("continues processing after a Redis subscription fails", async () => {
+    const hub = new FakeRedisHub();
+    const bus = new RedisSyncNotificationBus({
+      url: "redis://test",
+      channelPrefix: "test",
+      createClient: hub.createClient,
+      logger: silentLogger,
+    });
+    await bus.start();
+
+    const subscriber = hub.clients[1]!;
+    subscriber.failNextSubscribe = true;
+    expect(bus.subscribe("db-1", "space", () => {})).rejects.toThrow(
+      "subscription failed",
+    );
+
+    const received: NotificationData[] = [];
+    const unsubscribe = await bus.subscribe("db-1", "space", (data) =>
+      received.push(data),
+    );
+    await bus.publish(notification());
+
+    expect(received).toEqual([notification()]);
+    await unsubscribe();
     await bus.close();
   });
 

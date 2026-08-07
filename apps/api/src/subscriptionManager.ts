@@ -1,7 +1,9 @@
 import { RedisClient, type RedisOptions } from "bun";
+import AwaitLock from "await-lock";
 import { EventEmitter } from "events";
 import { z } from "zod";
 import { getEnvConfig } from "./env";
+import { State } from "./utils/State";
 
 export type DbType = "user" | "space";
 type DbKey = `${string}:${DbType}`;
@@ -44,7 +46,7 @@ export class InMemorySyncNotificationBus implements SyncNotificationBus {
     this.emitter.setMaxListeners(100000);
   }
 
-  async start(): Promise<void> { }
+  async start(): Promise<void> {}
 
   async subscribe(
     dbId: string,
@@ -91,16 +93,13 @@ type RedisClientFactory = (
   options: RedisOptions,
 ) => RedisPubSubClient;
 
-type RedisChannelEntry = {
-  callbacks: Set<NotificationCallback>;
-  subscribePromise: Promise<void>;
-};
+type SyncNotificationLogger = Pick<Console, "info" | "warn" | "error">;
 
 export interface RedisSyncNotificationBusOptions {
   url: string;
   channelPrefix: string;
   createClient?: RedisClientFactory;
-  logger?: Pick<Console, "info" | "warn" | "error">;
+  logger?: SyncNotificationLogger;
 }
 
 const redisOptions: RedisOptions = {
@@ -110,21 +109,110 @@ const redisOptions: RedisOptions = {
   maxRetries: 10,
 };
 
-export class RedisSyncNotificationBus implements SyncNotificationBus {
-  readonly name = "redis" as const;
-  private readonly publisher: RedisPubSubClient;
-  private readonly subscriber: RedisPubSubClient;
-  private readonly channelPrefix: string;
-  private readonly logger: Pick<Console, "info" | "warn" | "error">;
-  private readonly channels = new Map<string, RedisChannelEntry>();
-  private started = false;
-  private closed = false;
-  private subscriberConnectedOnce = false;
-  private resubscribePromise: Promise<void> = Promise.resolve();
+class RedisSubscriptionExecutor {
+  // All channel and Redis subscription changes run under this lock.
+  private readonly channels = new Map<string, Set<NotificationCallback>>();
+  private readonly lock = new AwaitLock();
+  private closing = false;
 
   private readonly redisListener = (message: string, channel: string) => {
-    const entry = this.channels.get(channel);
-    if (!entry) return;
+    this.deliver(message, channel);
+  };
+
+  constructor(
+    private readonly subscriber: RedisPubSubClient,
+    private readonly createChannel: (dbId: string, dbType: DbType) => string,
+    private readonly logger: SyncNotificationLogger,
+  ) {}
+
+  async subscribe(
+    channel: string,
+    callback: NotificationCallback,
+  ): Promise<Unsubscribe> {
+    await this.runExclusive(async () => {
+      const callbacks = this.channels.get(channel);
+      if (callbacks) {
+        callbacks.add(callback);
+        return;
+      }
+
+      this.channels.set(channel, new Set([callback]));
+      try {
+        await this.subscriber.subscribe(channel, this.redisListener);
+      } catch (error) {
+        this.channels.delete(channel);
+        throw error;
+      }
+    });
+
+    let unsubscribed = false;
+    return async () => {
+      if (unsubscribed) return;
+      unsubscribed = true;
+
+      if (this.closing) return;
+      await this.runExclusive(async () => {
+        const callbacks = this.channels.get(channel);
+        if (!callbacks) return;
+
+        callbacks.delete(callback);
+        if (callbacks.size > 0) return;
+
+        this.channels.delete(channel);
+        await this.subscriber.unsubscribe(channel, this.redisListener);
+      });
+    };
+  }
+
+  async restoreSubscriptions(): Promise<void> {
+    await this.runExclusive(async () => {
+      const channels = [...this.channels.keys()];
+      await Promise.all(
+        channels.map((channel) =>
+          this.subscriber.subscribe(channel, this.redisListener),
+        ),
+      );
+      this.logger.info(
+        `[Sync notifications] Restored ${channels.length} Redis subscription(s)`,
+      );
+    });
+  }
+
+  async waitForPendingOperations(): Promise<void> {
+    await this.runExclusive(async () => {});
+  }
+
+  async close(): Promise<void> {
+    if (this.closing) {
+      await this.waitForLock();
+      return;
+    }
+    this.closing = true;
+    await this.lock.acquireAsync();
+    try {
+      const channels = [...this.channels.keys()];
+      this.channels.clear();
+      if (!this.subscriber.connected) return;
+
+      try {
+        await Promise.all(
+          channels.map((channel) =>
+            this.subscriber.unsubscribe(channel, this.redisListener),
+          ),
+        );
+      } catch (error) {
+        this.logger.warn(
+          `[Sync notifications] Failed to unsubscribe while closing Redis: ${String(error)}`,
+        );
+      }
+    } finally {
+      this.lock.release();
+    }
+  }
+
+  private deliver(message: string, channel: string): void {
+    const callbacks = this.channels.get(channel);
+    if (!callbacks) return;
 
     let parsed: NotificationData;
     try {
@@ -143,7 +231,7 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
       return;
     }
 
-    for (const callback of entry.callbacks) {
+    for (const callback of callbacks) {
       try {
         callback(parsed);
       } catch (error) {
@@ -152,7 +240,37 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
         );
       }
     }
-  };
+  }
+
+  private async runExclusive(operation: () => Promise<void>): Promise<void> {
+    if (this.closing) {
+      throw new Error("Redis subscription executor is closed");
+    }
+
+    await this.lock.acquireAsync();
+    try {
+      await operation();
+    } finally {
+      this.lock.release();
+    }
+  }
+
+  private async waitForLock(): Promise<void> {
+    await this.lock.acquireAsync();
+    this.lock.release();
+  }
+}
+
+type RedisBusLifecycle = "new" | "starting" | "running" | "closing" | "closed";
+
+export class RedisSyncNotificationBus implements SyncNotificationBus {
+  readonly name = "redis" as const;
+  private readonly publisher: RedisPubSubClient;
+  private readonly subscriber: RedisPubSubClient;
+  private readonly channelPrefix: string;
+  private readonly logger: SyncNotificationLogger;
+  private readonly subscriptions: RedisSubscriptionExecutor;
+  private readonly lifecycle = new State<RedisBusLifecycle>("new");
 
   constructor({
     url,
@@ -165,50 +283,64 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
     this.logger = logger;
     this.publisher = createClient(url, redisOptions);
     this.subscriber = createClient(url, redisOptions);
+    this.subscriptions = new RedisSubscriptionExecutor(
+      this.subscriber,
+      (dbId, dbType) => this.createChannel(dbId, dbType),
+      logger,
+    );
 
     this.publisher.onclose = (error) => {
-      if (!this.closed) {
+      if (!this.isClosingOrClosed()) {
         this.logger.error(
           `[Sync notifications] Redis publisher disconnected: ${error.message}`,
         );
       }
     };
     this.subscriber.onclose = (error) => {
-      if (!this.closed) {
+      if (!this.isClosingOrClosed()) {
         this.logger.error(
           `[Sync notifications] Redis subscriber disconnected: ${error.message}`,
         );
       }
     };
     this.subscriber.onconnect = () => {
-      if (!this.subscriberConnectedOnce) {
-        this.subscriberConnectedOnce = true;
-        return;
-      }
-
-      this.resubscribePromise = this.resubscribePromise
-        .then(() => this.resubscribe())
-        .catch((error) => {
+      if (this.lifecycle.get() === "running") {
+        void this.subscriptions.restoreSubscriptions().catch((error) => {
           this.logger.error(
             `[Sync notifications] Failed to restore Redis subscriptions: ${String(error)}`,
           );
         });
+      }
     };
   }
 
   async start(): Promise<void> {
-    if (this.started) return;
-    if (this.closed) throw new Error("Redis notification bus is closed");
+    const lifecycle = this.lifecycle.get();
+    if (lifecycle === "running") return;
+    if (lifecycle === "starting") {
+      await this.lifecycle.when((state) => state !== "starting");
+      if (this.lifecycle.get() === "running") return;
+      throw new Error("Redis notification bus is closed");
+    }
+    if (lifecycle !== "new") {
+      throw new Error("Redis notification bus is closed");
+    }
+
+    this.lifecycle.set("starting");
 
     try {
       await Promise.all([this.publisher.connect(), this.subscriber.connect()]);
       await this.publisher.ping();
-      this.started = true;
+      if (this.lifecycle.get() !== "starting") {
+        throw new Error("Redis notification bus was closed while starting");
+      }
+      this.lifecycle.set("running");
       this.logger.info("[Sync notifications] Redis backend connected");
     } catch (error) {
+      await this.subscriptions.close();
       this.publisher.close();
       this.subscriber.close();
-      this.closed = true;
+      this.lifecycle.set("closed");
       throw new Error("Failed to connect Redis sync notification backend", {
         cause: error,
       });
@@ -220,63 +352,15 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
     dbType: DbType,
     callback: NotificationCallback,
   ): Promise<Unsubscribe> {
-    this.assertStarted();
-    await this.resubscribePromise;
-
+    this.assertRunning();
     const channel = this.createChannel(dbId, dbType);
-    let entry = this.channels.get(channel);
-    if (!entry) {
-      entry = {
-        callbacks: new Set(),
-        subscribePromise: this.subscriber.subscribe(
-          channel,
-          this.redisListener,
-        ),
-      };
-      this.channels.set(channel, entry);
-    }
-    entry.callbacks.add(callback);
-
-    try {
-      await entry.subscribePromise;
-    } catch (error) {
-      entry.callbacks.delete(callback);
-      if (entry.callbacks.size === 0) this.channels.delete(channel);
-      throw error;
-    }
-
-    let unsubscribed = false;
-    return async () => {
-      if (unsubscribed) return;
-      unsubscribed = true;
-
-      const teardownPromise = this.resubscribePromise.then(async () => {
-        const currentEntry = this.channels.get(channel);
-        if (!currentEntry) return;
-        currentEntry.callbacks.delete(callback);
-        if (currentEntry.callbacks.size > 0) return;
-
-        this.channels.delete(channel);
-        if (this.closed) return;
-
-        await this.subscriber.unsubscribe(channel, this.redisListener);
-
-        const replacementEntry = this.channels.get(channel);
-        if (replacementEntry) {
-          replacementEntry.subscribePromise = this.subscriber.subscribe(
-            channel,
-            this.redisListener,
-          );
-          await replacementEntry.subscribePromise;
-        }
-      });
-      this.resubscribePromise = teardownPromise.catch(() => { });
-      await teardownPromise;
-    };
+    return this.subscriptions.subscribe(channel, callback);
   }
 
   async publish(data: NotificationData): Promise<void> {
-    this.assertStarted();
+    this.assertRunning();
+    // onconnect cannot await restoration, so publish queues behind it.
+    await this.subscriptions.waitForPendingOperations();
     await this.publisher.publish(
       this.createChannel(data.dbId, data.dbType),
       JSON.stringify(data),
@@ -284,62 +368,40 @@ export class RedisSyncNotificationBus implements SyncNotificationBus {
   }
 
   async close(): Promise<void> {
-    if (this.closed) return;
-    this.closed = true;
-    const channels = [...this.channels.keys()];
-    this.channels.clear();
-
+    if (this.isClosingOrClosed()) {
+      await this.lifecycle.when((state) => state === "closed");
+      return;
+    }
+    this.lifecycle.set("closing");
     try {
-      if (this.subscriber.connected) {
-        await Promise.all(
-          channels.map((channel) =>
-            this.subscriber.unsubscribe(channel, this.redisListener),
-          ),
-        );
-      }
-    } catch (error) {
-      this.logger.warn(
-        `[Sync notifications] Failed to unsubscribe while closing Redis: ${String(error)}`,
-      );
+      await this.subscriptions.close();
     } finally {
       this.publisher.close();
       this.subscriber.close();
+      this.lifecycle.set("closed");
     }
-  }
-
-  private async resubscribe(): Promise<void> {
-    if (this.closed || this.channels.size === 0) return;
-
-    await Promise.all(
-      [...this.channels.entries()].map(async ([channel, entry]) => {
-        entry.subscribePromise = this.subscriber.subscribe(
-          channel,
-          this.redisListener,
-        );
-        await entry.subscribePromise;
-      }),
-    );
-    this.logger.info(
-      `[Sync notifications] Restored ${this.channels.size} Redis subscription(s)`,
-    );
   }
 
   private createChannel(dbId: string, dbType: DbType): string {
     return `${this.channelPrefix}:${dbType}:${encodeURIComponent(dbId)}`;
   }
 
-  private assertStarted(): void {
-    if (!this.started || this.closed) {
+  private assertRunning(): void {
+    if (this.lifecycle.get() !== "running") {
       throw new Error("Redis notification bus is not running");
     }
   }
-}
 
+  private isClosingOrClosed(): boolean {
+    const lifecycle = this.lifecycle.get();
+    return lifecycle === "closing" || lifecycle === "closed";
+  }
+}
 
 export class SubscriptionManager {
   private initialized = false;
 
-  constructor(private readonly backend: SyncNotificationBus) { }
+  constructor(private readonly backend: SyncNotificationBus) {}
 
   get backendName(): SyncNotificationBus["name"] {
     return this.backend.name;

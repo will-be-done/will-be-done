@@ -45,6 +45,7 @@
     "@tursodatabase/serverless": "^1.4.0",
     "@will-be-done/hyperdb": "^0.4.4",
     "@will-be-done/slices": "workspace:*",
+    "await-lock": "^3.0.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.6.2",
