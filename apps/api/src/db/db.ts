@@ -38,6 +38,7 @@ import {
   createTursoSqlDriver,
   getOrCreateTursoDatabase,
 } from "./turso";
+import { createServerClientId } from "../serverInstance";
 
 export interface DBConfig {
   dbId: string;
@@ -204,10 +205,14 @@ export function installSyncNotificationHook(
     notificationQueued = true;
     queueMicrotask(() => {
       notificationQueued = false;
-      subscriptionManager.notifyChangesAvailable(
-        dbConfig.dbId,
-        dbConfig.dbType,
-      );
+      void subscriptionManager
+        .notifyChangesAvailable(dbConfig.dbId, dbConfig.dbType)
+        .catch((error) => {
+          console.error(
+            `[Sync notifications] Failed to publish changes for ${dbConfig.dbType} database "${dbConfig.dbId}":`,
+            error,
+          );
+        });
     });
 
     yield* noop();
@@ -224,7 +229,7 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
   if (existingPromise) return existingPromise;
 
   const dbPromise = (async () => {
-    const clientId = "server-" + dbName;
+    const clientId = createServerClientId(dbName);
     const nextClock = initClock(clientId);
     const hyperDB = new SubscribableDB(
       await getDB(dbConfig.dbType, dbConfig.dbId),

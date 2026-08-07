@@ -6,12 +6,18 @@ import { getCaptchaConfig } from "./captcha/types";
 import { closeDatabases, getMainHyperDB } from "./db/db";
 import { getEnvConfig } from "./env";
 import { createServer } from "./server";
+import { getServerInstanceId } from "./serverInstance";
+import { subscriptionManager } from "./subscriptionManager";
 
 dotenv.config();
 
 const start = async () => {
   try {
     const env = getEnvConfig();
+    await subscriptionManager.initialize(env);
+    console.log(
+      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}`,
+    );
     const backupConfig = getBackupConfig();
     if (backupConfig?.WBD_BACKUP_S3_ENABLED && env.WBD_DB_ENGINE === "turso") {
       throw new Error(
@@ -119,6 +125,7 @@ const start = async () => {
             }
 
             await server.close();
+            await subscriptionManager.close();
             await closeDatabases();
             server.log.info("Server closed successfully");
             process.exit(0);
@@ -131,6 +138,7 @@ const start = async () => {
     }
   } catch (error) {
     console.error(error);
+    await subscriptionManager.close();
     await closeDatabases();
     process.exit(1);
   }

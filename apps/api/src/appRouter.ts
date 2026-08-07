@@ -145,7 +145,7 @@ export function createAppRouter({
         );
 
         const state = new State<NotificationData[]>([]);
-        const unsubscribe = subscriptionManager.subscribe(
+        const unsubscribe = await subscriptionManager.subscribe(
           opts.input.dbId,
           opts.input.dbType,
           (data) => {
@@ -165,7 +165,7 @@ export function createAppRouter({
             await state.newEmitted();
           }
         } finally {
-          unsubscribe();
+          await unsubscribe();
         }
       }),
 

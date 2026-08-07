@@ -22,7 +22,7 @@ RUN pnpm exec vite build
 WORKDIR /app
 
 # Stage 2: Create Bun runtime image
-FROM oven/bun:alpine AS runner
+FROM oven/bun:1.3.14-alpine AS runner
 WORKDIR /app
 
 # Copy the API files

@@ -21,7 +21,7 @@ describe("database sync notifications", () => {
     });
 
     let notifications = 0;
-    const unsubscribe = subscriptionManager.subscribe(
+    const unsubscribe = await subscriptionManager.subscribe(
       "user-1",
       "user",
       () => notifications++,
@@ -33,7 +33,7 @@ describe("database sync notifications", () => {
       await Promise.resolve();
       expect(notifications).toBe(1);
     } finally {
-      unsubscribe();
+      await unsubscribe();
     }
   });
 });
