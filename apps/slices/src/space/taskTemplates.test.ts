@@ -29,6 +29,7 @@ import {
   tasksTable,
   TaskTemplate,
   taskTemplatesTable,
+  stashEntriesTable,
 } from "./tables";
 
 const action = createAction();
@@ -63,6 +64,7 @@ function createDB(timezoneOffsetMinutes: number) {
       dailyEntriesTable,
       tasksTable,
       taskTemplatesTable,
+      stashEntriesTable,
     ]),
   );
   return db;
@@ -529,7 +531,7 @@ describe("taskTemplates timezone consistency", () => {
       new Date("2026-03-04T00:00:00Z").getTime(),
     );
     expect(entries).toHaveLength(1);
-    expect(entries[0].id).toBe(tasks[0].id);
+    expect(entries[0].taskId).toBe(tasks[0].id);
     expect(dailyLists).toHaveLength(1);
     expect(dailyLists[0].date).toBe("2026-03-04");
   });

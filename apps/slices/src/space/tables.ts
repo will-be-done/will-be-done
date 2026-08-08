@@ -100,11 +100,13 @@ export const dailyEntryType = "dailyEntry";
 export const dailyEntriesTable = defineTable("daily_entries", {
   type: v.literal(dailyEntryType),
   id: v.string(),
+  taskId: v.string(),
   orderToken: v.string(),
   dailyListId: v.string(),
   createdAt: v.number(),
 })
   .index("byIds", ["id"])
+  .index("byTaskId", ["taskId"], { type: "uniqhash" })
   .index("byDailyListIdTokenOrdered", ["dailyListId", "orderToken"]);
 registerSpaceSyncableTable(dailyEntriesTable, dailyEntryType);
 
@@ -161,10 +163,12 @@ export const stashEntryType = "stashEntry";
 export const stashEntriesTable = defineTable("stash_entries", {
   type: v.literal(stashEntryType),
   id: v.string(),
+  taskId: v.string(),
   orderToken: v.string(),
   createdAt: v.number(),
 })
   .index("byIds", ["id"])
+  .index("byTaskId", ["taskId"], { type: "uniqhash" })
   .index("byTokenOrdered", ["orderToken"]);
 registerSpaceSyncableTable(stashEntriesTable, stashEntryType);
 

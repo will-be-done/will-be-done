@@ -79,5 +79,15 @@ test("covers every stash operation", async () => {
   expect(afterRemoval.data.tasks.map(({ id }) => id)).not.toContain(
     sectionTask.id,
   );
+  expectResponseStatus(
+    await putTaskInStash(space.id, sectionTask.id, {}, options),
+    200,
+  );
+  expect(
+    expectResponseStatus(
+      await listStashTasks(space.id, { state: "todo" }, options),
+      200,
+    ).data.tasks.map(({ id }) => id),
+  ).toContain(sectionTask.id);
   expect((await getTask(space.id, sectionTask.id, options)).status).toBe(200);
 });

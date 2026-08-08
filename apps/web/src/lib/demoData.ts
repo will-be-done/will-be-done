@@ -469,7 +469,7 @@ export function generateDemoBackup(): Backup {
   ];
 
   // ── Tasks ────────────────────────────────────────────────────────────────────
-  // Each projected task must appear on at most ONE daily list (entry.id = taskId).
+  // Each projected task must appear on at most one daily list.
   const tasks = [
     // Inbox
     {
@@ -1279,7 +1279,8 @@ export function generateDemoBackup(): Backup {
     ...days.flatMap((_, dayIdx) => {
       const listId = `list-day-${dayIdx}`;
       return (dailyEntrySlots[dayIdx] ?? []).map((taskId, pos) => ({
-        id: taskId,
+        id: `entry-day-${dayIdx}-${taskId}`,
+        taskId,
         orderToken: K[pos],
         listId,
         createdAt: t(200_000 - dayIdx * 10_000 - pos * 1_000),
@@ -1288,7 +1289,8 @@ export function generateDemoBackup(): Backup {
     ...prevWeekDays.flatMap((_, dayIdx) => {
       const listId = `list-prev-${dayIdx}`;
       return (previousDailyEntrySlots[dayIdx] ?? []).map((taskId, pos) => ({
-        id: taskId,
+        id: `entry-prev-${dayIdx}-${taskId}`,
+        taskId,
         orderToken: K[pos],
         listId,
         createdAt: t(1_400_000 - dayIdx * 10_000 - pos * 1_000),

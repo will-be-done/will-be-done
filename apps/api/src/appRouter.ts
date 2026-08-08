@@ -5,6 +5,7 @@ import {
   getChangesetAfter,
   mergeChanges,
 } from "@will-be-done/slices/common";
+import { mergeSpaceChanges } from "@will-be-done/slices/space";
 import { TRPCError } from "@trpc/server";
 import {
   enforceRateLimit,
@@ -120,15 +121,23 @@ export function createAppRouter({
         const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
         const { db, nextClock, clientId } = await getHyperDB(config);
 
-        await asyncDispatch(
-          db.withTraits({ type: "skip-sync" }),
-          mergeChanges({
-            input: opts.input.changeset,
-            nextClock: nextClock(),
-            clientId,
-            registeredSyncableTableNameMap: config.tableNameMap,
-          }),
-        );
+        const mergeArgs = {
+          input: opts.input.changeset,
+          nextClock: nextClock(),
+          clientId,
+          registeredSyncableTableNameMap: config.tableNameMap,
+        };
+        if (opts.input.dbType === "space") {
+          await asyncDispatch(
+            db.withTraits({ type: "skip-sync" }),
+            mergeSpaceChanges(mergeArgs),
+          );
+        } else {
+          await asyncDispatch(
+            db.withTraits({ type: "skip-sync" }),
+            mergeChanges(mergeArgs),
+          );
+        }
       }),
 
     onChangesAvailable: protectedProcedure

@@ -683,7 +683,7 @@ describe("section and task services", () => {
       selectSync(spaceDB, {
         selector: dailyEntriesByDailyListId,
         args: { dailyListId: firstList!.id },
-      }).map((entry) => entry.id),
+      }).map((entry) => entry.taskId),
     ).toEqual(["task-a", "task-c"]);
     expect(
       (
@@ -729,7 +729,7 @@ describe("section and task services", () => {
       selectSync(spaceDB, {
         selector: dailyEntriesByDailyListId,
         args: { dailyListId: firstList!.id },
-      }).map((entry) => entry.id),
+      }).map((entry) => entry.taskId),
     ).toEqual(["task-c", "done-new"]);
 
     await clearTaskSchedule({

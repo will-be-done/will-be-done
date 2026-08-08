@@ -143,7 +143,7 @@ export const projectCanDrop = selector({
     }
 
     if (isDailyEntry(dropItem)) {
-      const task = yield* taskById({ id: dropItem.id });
+      const task = yield* taskById({ id: dropItem.taskId });
       return task !== undefined && task.state === "todo";
     }
 
@@ -526,7 +526,7 @@ export const projectHandleDrop = action({
         });
       } else if (isDailyEntry(dropItem)) {
         // When dropping a entry onto a project, move the underlying task
-        const task = yield* taskById({ id: dropItem.id });
+        const task = yield* taskById({ id: dropItem.taskId });
         if (task) {
           yield* updateTask({
             id: task.id,

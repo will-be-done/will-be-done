@@ -1,26 +1,28 @@
 import {
   defineTable,
   deleteRows,
+  type ExtractSchema,
   insert,
   selectFrom,
   upsert,
   v,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
-import { changesTable, type Change } from "../common/tables";
 import {
-  dailyEntriesTable,
-  dailyEntryType,
-  spaceMigrationsTable,
-  stashEntriesTable,
-  stashEntryType,
-} from "./tables";
+  changesTable,
+  syncStateId,
+  syncStateTable,
+  type Change,
+} from "../common/tables";
+import { genUUIDV5 } from "../traits";
+import { dailyEntryType, spaceMigrationsTable, stashEntryType } from "./tables";
 
 export const legacyDailyEntriesTableName = "task_projections";
 export const dailyEntriesTableName = "daily_entries";
 export const legacyStashEntriesTableName = "stash_projections";
 export const stashEntriesTableName = "stash_entries";
 export const entryStorageMigrationId = "entry-storage-v1";
+export const entryIdentityMigrationId = "entry-identity-v2";
 
 export const legacyDailyEntriesMigrationTable = defineTable(
   legacyDailyEntriesTableName,
@@ -43,12 +45,30 @@ export const legacyStashEntriesMigrationTable = defineTable(
   },
 ).index("byIds", ["id"]);
 
+export const dailyEntriesMigrationTable = defineTable(dailyEntriesTableName, {
+  type: v.literal(dailyEntryType),
+  id: v.string(),
+  taskId: v.optional(v.string()),
+  orderToken: v.string(),
+  dailyListId: v.string(),
+  createdAt: v.number(),
+}).index("byIds", ["id"]);
+
+export const stashEntriesMigrationTable = defineTable(stashEntriesTableName, {
+  type: v.literal(stashEntryType),
+  id: v.string(),
+  taskId: v.optional(v.string()),
+  orderToken: v.string(),
+  createdAt: v.number(),
+}).index("byIds", ["id"]);
+
 export const entryStorageMigrationTables = [
   legacyDailyEntriesMigrationTable,
-  dailyEntriesTable,
+  dailyEntriesMigrationTable,
   legacyStashEntriesMigrationTable,
-  stashEntriesTable,
+  stashEntriesMigrationTable,
   changesTable,
+  syncStateTable,
   spaceMigrationsTable,
 ];
 
@@ -74,7 +94,9 @@ export const migrateLegacyEntries = action({
     if (existingMigration) return;
 
     const currentDailyEntryIds = new Set(
-      (yield* selectFrom(dailyEntriesTable, "byIds")).map((row) => row.id),
+      (yield* selectFrom(dailyEntriesMigrationTable, "byIds")).map(
+        (row) => row.id,
+      ),
     );
     const dailyEntriesToInsert = (yield* selectFrom(
       legacyDailyEntriesMigrationTable,
@@ -86,11 +108,13 @@ export const migrateLegacyEntries = action({
         type: dailyEntryType as "dailyEntry",
       }));
     if (dailyEntriesToInsert.length > 0) {
-      yield* insert(dailyEntriesTable, dailyEntriesToInsert);
+      yield* insert(dailyEntriesMigrationTable, dailyEntriesToInsert);
     }
 
     const currentStashEntryIds = new Set(
-      (yield* selectFrom(stashEntriesTable, "byIds")).map((row) => row.id),
+      (yield* selectFrom(stashEntriesMigrationTable, "byIds")).map(
+        (row) => row.id,
+      ),
     );
     const stashEntriesToInsert = (yield* selectFrom(
       legacyStashEntriesMigrationTable,
@@ -102,7 +126,7 @@ export const migrateLegacyEntries = action({
         type: stashEntryType as "stashEntry",
       }));
     if (stashEntriesToInsert.length > 0) {
-      yield* insert(stashEntriesTable, stashEntriesToInsert);
+      yield* insert(stashEntriesMigrationTable, stashEntriesToInsert);
     }
 
     const changes = (yield* selectFrom(
@@ -145,6 +169,132 @@ export const migrateLegacyEntries = action({
         id: entryStorageMigrationId,
         appliedAt: Date.now(),
       },
+    ]);
+  },
+});
+
+export const isEntryIdentityMigrationApplied = selector({
+  name: "isEntryIdentityMigrationApplied",
+  args: {},
+  handler: function* isEntryIdentityMigrationApplied() {
+    return Boolean(
+      yield* selectFrom(spaceMigrationsTable, "byId")
+        .where((q) => q.eq("id", entryIdentityMigrationId))
+        .firstOr(null),
+    );
+  },
+});
+
+type LegacyEntry = {
+  id: string;
+  taskId?: string;
+  type: "dailyEntry" | "stashEntry";
+  createdAt: number;
+  orderToken: string;
+  dailyListId?: string;
+};
+type DailyEntryMigrationRow = ExtractSchema<typeof dailyEntriesMigrationTable>;
+type StashEntryMigrationRow = ExtractSchema<typeof stashEntriesMigrationTable>;
+
+const migrateEntryRows = action({
+  name: "migrateEntryIdentityRows",
+  args: {
+    tableName: v.string(),
+    modelType: v.union(v.literal(dailyEntryType), v.literal(stashEntryType)),
+  },
+  handler: function* migrateEntryRows({ tableName, modelType }) {
+    const table =
+      modelType === dailyEntryType
+        ? dailyEntriesMigrationTable
+        : stashEntriesMigrationTable;
+    const rows = (yield* selectFrom(table, "byIds")) as LegacyEntry[];
+    const legacyRows = rows.filter((row) => row.taskId === undefined);
+    if (legacyRows.length === 0) return;
+
+    const changes = (yield* selectFrom(
+      changesTable,
+      "byUpdatedAt",
+    )) as Change[];
+    const changesByEntityId = new Map(
+      changes
+        .filter((change) => change.tableName === tableName)
+        .map((change) => [change.entityId, change]),
+    );
+    const nextRows: LegacyEntry[] = [];
+    const nextChanges: Change[] = [];
+
+    for (const row of legacyRows) {
+      const nextId = yield* genUUIDV5(`${modelType}-identity-v2`, row.id);
+      nextRows.push({ ...row, id: nextId, taskId: row.id });
+
+      const oldChange = changesByEntityId.get(row.id);
+      if (!oldChange) continue;
+
+      const identityClock = oldChange.changes.id ?? oldChange.createdAt;
+      nextChanges.push(
+        {
+          ...oldChange,
+          deletedAt: oldChange.deletedAt ?? oldChange.updatedAt,
+        },
+        {
+          ...oldChange,
+          id: `${tableName}:${nextId}`,
+          entityId: nextId,
+          deletedAt: null,
+          changes: {
+            ...oldChange.changes,
+            id: identityClock,
+            taskId: identityClock,
+          },
+        },
+      );
+    }
+
+    yield* deleteRows(
+      table,
+      legacyRows.map((row) => row.id),
+    );
+    if (modelType === dailyEntryType) {
+      yield* upsert(
+        dailyEntriesMigrationTable,
+        nextRows as DailyEntryMigrationRow[],
+      );
+    } else {
+      yield* upsert(
+        stashEntriesMigrationTable,
+        nextRows as StashEntryMigrationRow[],
+      );
+    }
+    if (nextChanges.length > 0) yield* upsert(changesTable, nextChanges);
+  },
+});
+
+export const migrateEntryIdentity = action({
+  name: "migrateEntryIdentity",
+  args: {},
+  handler: function* migrateEntryIdentity() {
+    const existingMigration = yield* selectFrom(spaceMigrationsTable, "byId")
+      .where((q) => q.eq("id", entryIdentityMigrationId))
+      .firstOr(null);
+    if (existingMigration) return;
+
+    yield* migrateEntryRows({
+      tableName: dailyEntriesTableName,
+      modelType: dailyEntryType,
+    });
+    yield* migrateEntryRows({
+      tableName: stashEntriesTableName,
+      modelType: stashEntryType,
+    });
+    yield* upsert(syncStateTable, [
+      {
+        id: syncStateId,
+        lastSentClock: "",
+        lastServerAppliedClock: "",
+      },
+    ]);
+    yield* upsert(spaceMigrationsTable, [
+      { id: entryIdentityMigrationId, appliedAt: Date.now() },
     ]);
   },
 });

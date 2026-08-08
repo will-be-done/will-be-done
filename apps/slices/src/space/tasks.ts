@@ -18,7 +18,8 @@ import {
   copyItems,
   deleteForParents,
 } from "./checklistItems";
-import { deleteDailyEntries } from "./dailyEntries";
+import { deleteDailyEntriesByTaskIds } from "./dailyEntries";
+import { deleteStashEntriesByTaskIds } from "./stashEntries";
 import { firstProjectSectionChild } from "./projectSections";
 import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
@@ -86,8 +87,8 @@ export const preloadEntities = selector({
 
     if (!preloadDailyEntries) return;
 
-    yield* selectFrom(dailyEntriesTable, "byId").where((q) =>
-      or(...ids.map((id) => q.eq("id", id))),
+    yield* selectFrom(dailyEntriesTable, "byTaskId").where((q) =>
+      or(...ids.map((id) => q.eq("taskId", id))),
     );
   },
 });
@@ -192,7 +193,8 @@ export const deleteTasks = action({
       parentType: taskType,
     });
     yield* deleteRows(tasksTable, ids);
-    yield* deleteDailyEntries({ ids });
+    yield* deleteDailyEntriesByTaskIds({ taskIds: ids });
+    yield* deleteStashEntriesByTaskIds({ taskIds: ids });
   },
 });
 
@@ -266,7 +268,7 @@ export const taskCanDrop = selector({
     }
 
     if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.id });
+      const droppedTask = yield* taskById({ id: model.taskId });
       return droppedTask !== undefined && droppedTask.state === "todo";
     }
 
@@ -351,7 +353,7 @@ export const taskHandleDrop = action({
       });
     } else if (isDailyEntry(dropItem)) {
       // When dropping a entry onto a task, move the underlying task
-      const droppedTask = yield* taskById({ id: dropItem.id });
+      const droppedTask = yield* taskById({ id: dropItem.taskId });
       if (droppedTask) {
         yield* updateTask({
           id: droppedTask.id,

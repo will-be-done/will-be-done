@@ -12,6 +12,7 @@ import {
   selectFrom,
   defineTable,
   Row,
+  SubscribableDB,
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
@@ -28,7 +29,7 @@ const action = createAction();
 const selector = createSelector();
 
 function runSelector<T>(
-  db: DB,
+  db: DB | SubscribableDB,
   handler: () => Generator<unknown, T, unknown>,
   _deps: unknown[],
 ): T {
@@ -267,7 +268,7 @@ const getChangeSelector = selector({
   },
 });
 
-function getRow(db: DB, id: string) {
+function getRow(db: DB | SubscribableDB, id: string) {
   return runSelector<Row | undefined>(
     db,
     function* () {
@@ -277,7 +278,7 @@ function getRow(db: DB, id: string) {
   );
 }
 
-function getChange(db: DB, entityId: string) {
+function getChange(db: DB | SubscribableDB, entityId: string) {
   return runSelector<Change | undefined>(
     db,
     function* () {
@@ -911,6 +912,136 @@ describe("first-creator-wins merge", () => {
 });
 
 describe("idempotent merge retries", () => {
+  it("performs no writes when create, update, or delete inputs are replayed", () => {
+    // Property-style fixed-point check for every mutation kind:
+    // merge(merge(state, input), input) === merge(state, input).
+    const createdAt = "0000000010-0001-client";
+    const updatedAt = "0000000020-0001-client";
+    const deletedAt = "0000000030-0001-client";
+    const createInput = (entityId: string) =>
+      makeIncomingCreate(entityId, "created", createdAt);
+    const updateInput = (entityId: string): ChangesetArrayType => {
+      const created = createInput(entityId);
+      return [
+        {
+          tableName: "testItems",
+          data: [
+            {
+              row: {
+                ...created[0]!.data[0]!.row!,
+                title: "updated",
+              },
+              change: {
+                ...created[0]!.data[0]!.change,
+                updatedAt,
+                changes: {
+                  ...created[0]!.data[0]!.change.changes,
+                  title: updatedAt,
+                },
+              },
+            },
+          ],
+        },
+      ];
+    };
+    const deleteInput = (entityId: string): ChangesetArrayType => {
+      const created = createInput(entityId);
+      return [
+        {
+          tableName: "testItems",
+          data: [
+            {
+              change: {
+                ...created[0]!.data[0]!.change,
+                updatedAt: deletedAt,
+                deletedAt,
+              },
+            },
+          ],
+        },
+      ];
+    };
+    const scenarios = [
+      {
+        name: "create",
+        setup: [] as ChangesetArrayType[],
+        input: createInput("property-create"),
+      },
+      {
+        name: "update",
+        setup: [createInput("property-update")],
+        input: updateInput("property-update"),
+      },
+      {
+        name: "delete",
+        setup: [createInput("property-delete")],
+        input: deleteInput("property-delete"),
+      },
+    ];
+
+    for (const [scenarioIndex, scenario] of scenarios.entries()) {
+      const db = new SubscribableDB(createDB());
+      for (const [setupIndex, input] of scenario.setup.entries()) {
+        syncDispatch(
+          db,
+          mergeChanges({
+            input,
+            nextClock: `0000000040-${scenarioIndex}${setupIndex}-server`,
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        );
+      }
+
+      syncDispatch(
+        db,
+        mergeChanges({
+          input: scenario.input,
+          nextClock: `0000000050-000${scenarioIndex}-server`,
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredTables,
+        }),
+      );
+      const entityId = scenario.input[0]!.data[0]!.change.entityId;
+      const stateAfterFirstMerge = {
+        row: getRow(db, entityId),
+        change: getChange(db, entityId),
+      };
+      let committedOperations = 0;
+      let mutationHookCalls = 0;
+      const unsubscribe = db.subscribe((operations) => {
+        committedOperations += operations.length;
+      });
+      const removeMutationHook = db.afterChange(function* () {
+        mutationHookCalls += 1;
+      });
+
+      syncDispatch(
+        db,
+        mergeChanges({
+          input: scenario.input,
+          nextClock: `0000000060-000${scenarioIndex}-server`,
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredTables,
+        }),
+      );
+      unsubscribe();
+      removeMutationHook();
+
+      expect(
+        {
+          row: getRow(db, entityId),
+          change: getChange(db, entityId),
+        },
+        `${scenario.name} replay changed persisted state`,
+      ).toEqual(stateAfterFirstMerge);
+      expect(
+        { committedOperations, mutationHookCalls },
+        `${scenario.name} replay performed a write`,
+      ).toEqual({ committedOperations: 0, mutationHookCalls: 0 });
+    }
+  });
+
   it("converges monotonically when changes arrive in different orders", () => {
     const createdAt = "0000000010-0001-client";
     const updatedAt = "0000000020-0001-client";

@@ -26,6 +26,7 @@ import {
 import { deleteStashEntries } from "./stashEntries";
 import { taskById } from "./tasks";
 import { parse } from "date-fns";
+import { uuidv7 } from "uuidv7";
 import {
   dailyEntryType,
   dailyEntriesTable,
@@ -41,6 +42,7 @@ import {
 export const defaultDailyEntry: DailyEntry = {
   type: dailyEntryType,
   id: "default-entry-id",
+  taskId: "default-task-id",
   orderToken: "",
   dailyListId: "",
   createdAt: 0,
@@ -79,6 +81,17 @@ export const dailyEntriesByIds = selector({
   },
 });
 
+export const dailyEntriesByTaskIds = selector({
+  name: "dailyEntriesByTaskIds",
+  args: { taskIds: v.array(v.string()) },
+  handler: function* dailyEntriesByTaskIds({ taskIds }) {
+    if (taskIds.length === 0) return [];
+    return (yield* selectFrom(dailyEntriesTable, "byTaskId").where((q) =>
+      taskIds.map((taskId) => q.eq("taskId", taskId)),
+    )) as DailyEntry[];
+  },
+});
+
 export const dailyEntryByIdOrDefault = selector({
   name: "dailyEntryByIdOrDefault",
   args: { id: v.string() },
@@ -91,7 +104,9 @@ export const dailyEntryByTaskId = selector({
   name: "dailyEntryByTaskId",
   args: { taskId: v.string() },
   handler: function* dailyEntryByTaskId({ taskId }) {
-    return yield* dailyEntryById({ id: taskId });
+    return (yield* selectFrom(dailyEntriesTable, "byTaskId")
+      .where((q) => q.eq("taskId", taskId))
+      .first()) as DailyEntry | undefined;
   },
 });
 
@@ -99,7 +114,7 @@ export const dailyListHasEntry = selector({
   name: "dailyListHasEntry",
   args: { taskId: v.string() },
   handler: function* dailyListHasEntry({ taskId }) {
-    const entry = yield* dailyEntryById({ id: taskId });
+    const entry = yield* dailyEntryByTaskId({ taskId });
     return entry !== undefined;
   },
 });
@@ -141,7 +156,7 @@ export const dailyListTasksByState = selector({
     if (entries.length === 0) return [] as Task[];
 
     const tasks = (yield* selectFrom(tasksTable, "byId").where((q) =>
-      entries.map((entry) => q.eq("id", entry.id)),
+      entries.map((entry) => q.eq("id", entry.taskId)),
     )) as Task[];
     const matchingTasks = tasks.filter((task) => task.state === state);
 
@@ -151,7 +166,7 @@ export const dailyListTasksByState = selector({
 
     const taskById = new Map(matchingTasks.map((task) => [task.id, task]));
     return entries
-      .map((entry) => taskById.get(entry.id))
+      .map((entry) => taskById.get(entry.taskId))
       .filter((task): task is Task => task !== undefined);
   },
 });
@@ -166,9 +181,9 @@ export const dailyEntryChildrenIds = selector({
 
     const result: string[] = [];
     for (const entry of entries) {
-      const task = yield* taskById({ id: entry.id });
+      const task = yield* taskById({ id: entry.taskId });
       if (task && task.state === "todo") {
-        result.push(entry.id);
+        result.push(entry.taskId);
       }
     }
 
@@ -183,10 +198,10 @@ export const dailyEntryChildrenForDisplay = selector({
     dailyListId,
   }): Generator<unknown, ItemForDisplay[], unknown> {
     const entries = yield* dailyEntriesByDailyListId({ dailyListId });
-    const entryIds = entries.map((entry) => entry.id);
-    const tasks = entryIds.length
+    const taskIds = entries.map((entry) => entry.taskId);
+    const tasks = taskIds.length
       ? yield* selectFrom(tasksTable, "byId").where((q) =>
-          entryIds.map((id) => q.eq("id", id)),
+          taskIds.map((id) => q.eq("id", id)),
         )
       : [];
     const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
@@ -194,7 +209,7 @@ export const dailyEntryChildrenForDisplay = selector({
     const items: Task[] = [];
     const listItems: DailyEntry[] = [];
     for (const entry of entries) {
-      const task = taskMap.get(entry.id);
+      const task = taskMap.get(entry.taskId);
       if (task && task.state === "todo") {
         items.push(task);
         listItems.push(entry);
@@ -231,9 +246,9 @@ export const doneDailyEntryChildrenIds = selector({
 
     const doneTasks: { id: string; lastToggledAt: number }[] = [];
     for (const entry of entries) {
-      const task = yield* taskById({ id: entry.id });
+      const task = yield* taskById({ id: entry.taskId });
       if (task && task.state === "done") {
-        doneTasks.push({ id: entry.id, lastToggledAt: task.lastToggledAt });
+        doneTasks.push({ id: entry.taskId, lastToggledAt: task.lastToggledAt });
       }
     }
 
@@ -250,17 +265,17 @@ export const doneDailyEntryChildrenForDisplay = selector({
     dailyListId,
   }): Generator<unknown, ItemForDisplay[], unknown> {
     const entries = yield* dailyEntriesByDailyListId({ dailyListId });
-    const entryIds = entries.map((entry) => entry.id);
-    const tasks = entryIds.length
+    const taskIds = entries.map((entry) => entry.taskId);
+    const tasks = taskIds.length
       ? yield* selectFrom(tasksTable, "byId").where((q) =>
-          entryIds.map((id) => q.eq("id", id)),
+          taskIds.map((id) => q.eq("id", id)),
         )
       : [];
     const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
 
     const itemsWithEntries: { item: Task; listItem: DailyEntry }[] = [];
     for (const entry of entries) {
-      const task = taskMap.get(entry.id);
+      const task = taskMap.get(entry.taskId);
       if (task && task.state === "done") {
         itemsWithEntries.push({ item: task, listItem: entry });
       }
@@ -320,7 +335,7 @@ export const dailyEntrySiblings = selector({
       dailyListId: entry.dailyListId,
     });
 
-    const index = sortedEntries.findIndex((p) => p.id === taskId);
+    const index = sortedEntries.findIndex((p) => p.id === entry.id);
     if (index === -1) {
       return [undefined, undefined] as [
         DailyEntry | undefined,
@@ -354,7 +369,7 @@ export const dailyEntryCanDrop = selector({
     const entry = yield* dailyEntryById({ id: entryId });
     if (!entry) return false;
 
-    const task = yield* taskById({ id: entry.id });
+    const task = yield* taskById({ id: entry.taskId });
     if (!task) return false;
 
     if (task.state === "done") return false;
@@ -364,12 +379,12 @@ export const dailyEntryCanDrop = selector({
     }
 
     if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.id });
+      const droppedTask = yield* taskById({ id: model.taskId });
       return droppedTask !== undefined && droppedTask.state === "todo";
     }
 
     if (isStashEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.id });
+      const droppedTask = yield* taskById({ id: model.taskId });
       return droppedTask !== undefined && droppedTask.state === "todo";
     }
 
@@ -405,7 +420,7 @@ export const dailyEntryHandleDrop = action({
     if (!dropItem) return;
 
     const [up, down] = yield* dailyEntrySiblings({
-      taskId: entry.id,
+      taskId: entry.taskId,
     });
 
     let between: [string | undefined, string | undefined] = [
@@ -425,7 +440,7 @@ export const dailyEntryHandleDrop = action({
     if (isTask(dropItem) || isDailyEntry(dropItem)) {
       yield* upsertDailyEntry({
         entry: {
-          id: dropItem.id,
+          taskId: isTask(dropItem) ? dropItem.id : dropItem.taskId,
           dailyListId: entry.dailyListId,
           orderToken,
         },
@@ -433,7 +448,7 @@ export const dailyEntryHandleDrop = action({
     } else if (isStashEntry(dropItem)) {
       yield* upsertDailyEntry({
         entry: {
-          id: dropItem.id,
+          taskId: dropItem.taskId,
           dailyListId: entry.dailyListId,
           orderToken,
         },
@@ -453,11 +468,25 @@ export const deleteDailyEntries = action({
   },
 });
 
+export const deleteDailyEntriesByTaskIds = action({
+  name: "deleteDailyEntriesByTaskIds",
+  args: { taskIds: v.array(v.string()) },
+  handler: function* deleteDailyEntriesByTaskIds({ taskIds }) {
+    const entries = yield* dailyEntriesByTaskIds({ taskIds });
+    if (entries.length > 0) {
+      yield* deleteRows(
+        dailyEntriesTable,
+        entries.map((entry) => entry.id),
+      );
+    }
+  },
+});
+
 export const createDailyEntry = action({
   name: "createDailyEntry",
   args: {
     entry: v.required(v.partial(dailyEntriesTable.v()), [
-      "id",
+      "taskId",
       "dailyListId",
       "orderToken",
     ]),
@@ -465,7 +494,8 @@ export const createDailyEntry = action({
   handler: function* createDailyEntry({ entry }) {
     const newEntry: DailyEntry = {
       type: dailyEntryType,
-      id: entry.id,
+      id: uuidv7(),
+      taskId: entry.taskId,
       dailyListId: entry.dailyListId,
       orderToken: entry.orderToken,
       createdAt: Date.now(),
@@ -485,8 +515,18 @@ export const updateDailyEntry = action({
   handler: function* updateDailyEntry({ id, entry }) {
     const entryInState = yield* dailyEntryById({ id });
     if (!entryInState) throw new Error("Entry not found");
+    if (entry.taskId !== undefined && entry.taskId !== entryInState.taskId) {
+      throw new Error("Cannot change a daily entry taskId");
+    }
 
-    yield* upsertRows(dailyEntriesTable, [{ ...entryInState, ...entry }]);
+    yield* upsertRows(dailyEntriesTable, [
+      {
+        ...entryInState,
+        ...entry,
+        id: entryInState.id,
+        taskId: entryInState.taskId,
+      },
+    ]);
   },
 });
 
@@ -494,23 +534,23 @@ export const upsertDailyEntry = action({
   name: "upsertDailyEntry",
   args: {
     entry: v.required(v.partial(dailyEntriesTable.v()), [
-      "id",
+      "taskId",
       "dailyListId",
       "orderToken",
     ]),
   },
   handler: function* upsertDailyEntry({ entry }) {
-    const existing = yield* dailyEntryById({ id: entry.id });
+    const existing = yield* dailyEntryByTaskId({ taskId: entry.taskId });
 
     if (existing) {
       yield* updateDailyEntry({
-        id: entry.id,
+        id: existing.id,
         entry: {
           dailyListId: entry.dailyListId,
           orderToken: entry.orderToken,
         },
       });
-      return yield* dailyEntryByIdOrDefault({ id: entry.id });
+      return yield* dailyEntryByIdOrDefault({ id: existing.id });
     }
 
     return yield* createDailyEntry({ entry });
@@ -546,7 +586,7 @@ export const createDailyEntrySibling = action({
 
     return yield* createDailyEntry({
       entry: {
-        id: newTask.id,
+        taskId: newTask.id,
         dailyListId: entry.dailyListId,
         orderToken: dailyListOrderToken,
       },
@@ -558,7 +598,7 @@ export const removeFromDailyList = action({
   name: "removeFromDailyList",
   args: { taskId: v.string() },
   handler: function* removeFromDailyList({ taskId }) {
-    yield* deleteDailyEntries({ ids: [taskId] });
+    yield* deleteDailyEntriesByTaskIds({ taskIds: [taskId] });
   },
 });
 
@@ -579,7 +619,7 @@ export const createEntryInDailyList = action({
 
     return yield* createDailyEntry({
       entry: {
-        id: taskId,
+        taskId,
         dailyListId: dailyList.id,
         orderToken,
       },
@@ -635,7 +675,7 @@ export const addToDailyList = action({
     }
 
     yield* upsertDailyEntry({
-      entry: { id: taskId, dailyListId, orderToken },
+      entry: { taskId, dailyListId, orderToken },
     });
   },
 });

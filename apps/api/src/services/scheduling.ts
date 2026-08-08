@@ -52,7 +52,7 @@ export async function scheduleTask({
     } else {
       const [before, after] = await selectAsync(db, {
         selector: dailyEntrySiblings,
-        args: { taskId: anchor.id },
+        args: { taskId: anchor.taskId },
       });
       position =
         placement.kind === "before"

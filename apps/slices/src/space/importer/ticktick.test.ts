@@ -273,8 +273,7 @@ describe("parseTickTickCSV", () => {
     const entry = backup.dailyEntries![0]!;
     const dailyList = backup.dailyLists[0]!;
 
-    // entry.id = taskId in new format
-    expect(entry.id).toBe(scheduledTask.id);
+    expect(entry.taskId).toBe(scheduledTask.id);
     expect(entry.listId).toBe(dailyList.id);
     expect(entry.orderToken).toBeTruthy();
   });

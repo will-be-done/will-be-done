@@ -1,12 +1,13 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   createTaskInList,
   type DailyList,
   dailyListsByDates,
   dailyEntryChildrenForDisplay,
+  dailyEntryByTaskId,
   doneDailyEntryChildrenForDisplay,
   dailyEntryType,
   inboxProjectId,
@@ -287,6 +288,7 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
     args: { dates: [startingDate.getTime()] },
   });
   const dispatch = useAsyncDispatch();
+  const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
@@ -307,7 +309,13 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
           }),
         );
 
-        const focusKey = buildFocusKey(task.id, dailyEntryType);
+        const entry = await select({
+          selector: dailyEntryByTaskId,
+          args: { taskId: task.id },
+        });
+        if (!entry) return;
+
+        const focusKey = buildFocusKey(entry.id, dailyEntryType);
         useFocusStore.getState().editByKey(focusKey);
 
         if (focusTaskTitleTextareaByKey(focusKey)) return;
@@ -317,7 +325,7 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
         });
       })();
     },
-    [dispatch, inboxId],
+    [dispatch, inboxId, select],
   );
 
   return (

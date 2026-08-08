@@ -5,7 +5,7 @@ import {
   createTaskInStash,
   inboxProjectId,
   removeFromStash,
-  stashEntryById,
+  stashEntryByTaskId,
   stashTasksByState,
   taskById,
 } from "@will-be-done/slices/space";
@@ -67,8 +67,8 @@ export async function putTaskInStash({
   }
 
   const existingEntry = await selectAsync(db, {
-    selector: stashEntryById,
-    args: { id: taskId },
+    selector: stashEntryByTaskId,
+    args: { taskId },
   });
   if (existingEntry && placement === undefined) {
     return toPublicTask(task, await getTaskScheduledDate(db, task.id));
@@ -79,7 +79,7 @@ export async function putTaskInStash({
       selector: allStashEntriesOrdered,
       args: {},
     })
-  ).filter((entry) => entry.id !== taskId);
+  ).filter((entry) => entry.taskId !== taskId);
   const position = resolveCreatePosition({
     entities: entries,
     placement: placement ?? { kind: "first" },
@@ -100,8 +100,8 @@ export async function removeTaskFromStash({
 }): Promise<void> {
   const db = await getSpaceDatabase(spaceId, userId);
   const entry = await selectAsync(db, {
-    selector: stashEntryById,
-    args: { id: taskId },
+    selector: stashEntryByTaskId,
+    args: { taskId },
   });
   if (!entry) throw new ResourceNotFoundError("Stash task");
 

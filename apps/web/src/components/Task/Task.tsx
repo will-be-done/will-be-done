@@ -49,6 +49,7 @@ import {
   createTaskTemplateFromTask,
   dailyListType,
   dailyEntryDateOfTask,
+  dailyEntryByTaskId,
   deleteTasks,
   getDMY,
   isTask,
@@ -65,6 +66,7 @@ import {
   removeFromDailyList,
   STASH_ID,
   stashEntryType,
+  stashEntryByTaskId,
   stashType,
   type Task,
   taskById,
@@ -111,24 +113,24 @@ export const DropTaskIndicator = ({
 };
 
 const getFocusKeyForColumnMoveTarget = (
-  taskId: string,
+  targetModelId: string,
   sourceModelType: ListItemType,
   targetColumnModelType: string,
   fallbackKey: ReturnType<typeof buildFocusKey>,
 ) => {
   if (targetColumnModelType === stashType) {
-    return buildFocusKey(taskId, stashEntryType);
+    return buildFocusKey(targetModelId, stashEntryType);
   }
 
   if (targetColumnModelType === dailyListType) {
-    return buildFocusKey(taskId, dailyEntryType);
+    return buildFocusKey(targetModelId, dailyEntryType);
   }
 
   if (
     targetColumnModelType === projectSectionType &&
     (sourceModelType === dailyEntryType || sourceModelType === stashEntryType)
   ) {
-    return buildFocusKey(taskId, taskType);
+    return buildFocusKey(targetModelId, taskType);
   }
 
   return fallbackKey;
@@ -330,44 +332,61 @@ export const PreloadedTaskComp = ({
 
       if (!dropTarget) return;
 
-      const targetFocusKey = getFocusKeyForColumnMoveTarget(
-        listItem.id,
-        listItem.type,
-        dropTarget.targetColumnModel.type,
-        focusableItemKey,
-      );
       const { id, type } = parseColumnKey(dropTarget.targetKey);
 
-      void dispatch(
-        appHandleDrop({
-          id: id,
-          modelType: type as AnyModelType,
-          dropId: listItem.id,
-          dropModelType: listItem.type,
-          edge: dropTarget.edge,
-        }),
-      );
-
-      setTimeout(() => {
-        if (targetFocusKey !== focusableItemKey) {
-          useFocusStore.getState().focusByKey(targetFocusKey);
-          return;
-        }
-
-        const el = document.querySelector<HTMLElement>(
-          `[data-focusable-key="${focusableItemKey}"]`,
+      void (async () => {
+        await dispatch(
+          appHandleDrop({
+            id: id,
+            modelType: type as AnyModelType,
+            dropId: listItem.id,
+            dropModelType: listItem.type,
+            edge: dropTarget.edge,
+          }),
         );
-        if (el) {
-          el.focus();
-          el.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-            inline: "center",
+
+        let targetModelId = taskId;
+        if (dropTarget.targetColumnModel.type === stashType) {
+          const entry = await select({
+            selector: stashEntryByTaskId,
+            args: { taskId },
           });
+          if (entry) targetModelId = entry.id;
+        } else if (dropTarget.targetColumnModel.type === dailyListType) {
+          const entry = await select({
+            selector: dailyEntryByTaskId,
+            args: { taskId },
+          });
+          if (entry) targetModelId = entry.id;
         }
-      }, 0);
+        const targetFocusKey = getFocusKeyForColumnMoveTarget(
+          targetModelId,
+          listItem.type,
+          dropTarget.targetColumnModel.type,
+          focusableItemKey,
+        );
+
+        setTimeout(() => {
+          if (targetFocusKey !== focusableItemKey) {
+            useFocusStore.getState().focusByKey(targetFocusKey);
+            return;
+          }
+
+          const el = document.querySelector<HTMLElement>(
+            `[data-focusable-key="${focusableItemKey}"]`,
+          );
+          if (el) {
+            el.focus();
+            el.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "center",
+            });
+          }
+        }, 0);
+      })();
     },
-    [listItem.id, listItem.type, dispatch, focusableItemKey],
+    [listItem.id, listItem.type, dispatch, focusableItemKey, select, taskId],
   );
 
   const handleMoveStacked = useCallback(
@@ -398,6 +417,10 @@ export const PreloadedTaskComp = ({
       if (!targetKey) return;
 
       const { id, type } = parseColumnKey(targetKey);
+      const targetColumnModelType = document
+        .querySelector(`[data-focusable-key="${targetKey}"]`)
+        ?.closest("[data-focus-column]")
+        ?.getAttribute("data-column-model-type");
       const edge: Edge = crossedBoundary
         ? direction === "up"
           ? "bottom"
@@ -406,31 +429,59 @@ export const PreloadedTaskComp = ({
           ? "top"
           : "bottom";
 
-      void dispatch(
-        appHandleDrop({
-          id: id,
-          modelType: type,
-          dropId: listItem.id,
-          dropModelType: listItem.type,
-          edge: edge,
-        }),
-      );
-
-      setTimeout(() => {
-        const el = document.querySelector<HTMLElement>(
-          `[data-focusable-key="${focusableItemKey}"]`,
+      void (async () => {
+        await dispatch(
+          appHandleDrop({
+            id: id,
+            modelType: type,
+            dropId: listItem.id,
+            dropModelType: listItem.type,
+            edge: edge,
+          }),
         );
-        if (el) {
-          el.focus();
-          el.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-            inline: "center",
+
+        let targetModelId = taskId;
+        if (targetColumnModelType === stashType) {
+          const entry = await select({
+            selector: stashEntryByTaskId,
+            args: { taskId },
           });
+          if (entry) targetModelId = entry.id;
+        } else if (targetColumnModelType === dailyListType) {
+          const entry = await select({
+            selector: dailyEntryByTaskId,
+            args: { taskId },
+          });
+          if (entry) targetModelId = entry.id;
         }
-      }, 0);
+        const targetFocusKey = getFocusKeyForColumnMoveTarget(
+          targetModelId,
+          listItem.type,
+          targetColumnModelType ?? "",
+          focusableItemKey,
+        );
+
+        setTimeout(() => {
+          if (targetFocusKey !== focusableItemKey) {
+            useFocusStore.getState().focusByKey(targetFocusKey);
+            return;
+          }
+
+          const el = document.querySelector<HTMLElement>(
+            `[data-focusable-key="${focusableItemKey}"]`,
+          );
+          if (el) {
+            el.focus();
+            el.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+              inline: "center",
+            });
+          }
+        }, 0);
+      })();
     },
-    [listItem.id, listItem.type, dispatch, focusableItemKey],
+    [listItem.id, listItem.type, dispatch, focusableItemKey, select, taskId],
   );
 
   const handleAddChecklistItem = useCallback(() => {
@@ -800,7 +851,7 @@ export const PreloadedTaskComp = ({
         return runShortcutAction(
           () => {
             useItemDetailsOpen.getState().setOpen(true);
-            useItemDetailsEditRequest.getState().editDescription(listItem.id);
+            useItemDetailsEditRequest.getState().editDescription(taskId);
           },
           { skipActionsCloseAutoFocus: true },
         );
@@ -817,7 +868,7 @@ export const PreloadedTaskComp = ({
     },
     [
       item,
-      listItem.id,
+      taskId,
       listItem.type,
       dispatch,
       focusableItemKey,
@@ -837,7 +888,6 @@ export const PreloadedTaskComp = ({
       isActionsOpen,
       isDatePickerOpen,
       isFocused,
-      taskId,
     ],
   );
 

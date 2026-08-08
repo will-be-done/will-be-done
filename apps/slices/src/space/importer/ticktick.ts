@@ -269,7 +269,8 @@ export function parseTickTickCSV(csv: string): Backup {
         const entryToken = generateJitteredKeyBetween(previousEntryToken, null);
         dailyEntryLastToken.set(dateKey, entryToken);
         dailyEntries.push({
-          id: taskId,
+          id: uuidv7(),
+          taskId,
           orderToken: entryToken,
           listId: dateKey,
           createdAt,

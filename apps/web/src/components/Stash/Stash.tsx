@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   ItemForDisplay,
@@ -10,6 +10,7 @@ import {
   inboxProjectId,
   STASH_ID,
   stashEntryChildrenForDisplay,
+  stashEntryByTaskId,
   stashEntryType,
   stashType,
 } from "@will-be-done/slices/space";
@@ -110,6 +111,7 @@ export const Stash = () => {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dispatch = useAsyncDispatch();
+  const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
@@ -185,7 +187,13 @@ export const Stash = () => {
         }),
       );
 
-      const focusKey = buildFocusKey(task.id, stashEntryType);
+      const entry = await select({
+        selector: stashEntryByTaskId,
+        args: { taskId: task.id },
+      });
+      if (!entry) return;
+
+      const focusKey = buildFocusKey(entry.id, stashEntryType);
       useFocusStore.getState().editByKey(focusKey);
 
       if (focusTaskTitleTextareaByKey(focusKey)) return;
@@ -194,7 +202,7 @@ export const Stash = () => {
         focusTaskTitleTextareaByKey(focusKey);
       });
     })();
-  }, [dispatch, inboxId]);
+  }, [dispatch, inboxId, select]);
 
   const handleResize = useCallback(
     (clientX: number) => {

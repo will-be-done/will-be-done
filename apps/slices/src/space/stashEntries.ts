@@ -31,10 +31,12 @@ import {
   isTask,
   isDailyEntry,
 } from "./tables";
+import { uuidv7 } from "uuidv7";
 
 export const defaultStashEntry: StashEntry = {
   type: stashEntryType,
   id: "default-stash-entry-id",
+  taskId: "default-task-id",
   orderToken: "",
   createdAt: 0,
 };
@@ -55,7 +57,8 @@ export const stashEntryAllTaskIds = selector({
   name: "stashEntryAllTaskIds",
   args: {},
   handler: function* stashEntryAllTaskIds() {
-    return new Set(yield* stashEntryAllIds({}));
+    const entries = yield* allStashEntriesOrdered({});
+    return new Set(entries.map((entry) => entry.taskId));
   },
 });
 
@@ -78,6 +81,27 @@ export const stashEntriesByIds = selector({
       ids.map((id) => q.eq("id", id)),
     );
     return entries as StashEntry[];
+  },
+});
+
+export const stashEntriesByTaskIds = selector({
+  name: "stashEntriesByTaskIds",
+  args: { taskIds: v.array(v.string()) },
+  handler: function* stashEntriesByTaskIds({ taskIds }) {
+    if (taskIds.length === 0) return [];
+    return (yield* selectFrom(stashEntriesTable, "byTaskId").where((q) =>
+      taskIds.map((taskId) => q.eq("taskId", taskId)),
+    )) as StashEntry[];
+  },
+});
+
+export const stashEntryByTaskId = selector({
+  name: "stashEntryByTaskId",
+  args: { taskId: v.string() },
+  handler: function* stashEntryByTaskId({ taskId }) {
+    return (yield* selectFrom(stashEntriesTable, "byTaskId")
+      .where((q) => q.eq("taskId", taskId))
+      .first()) as StashEntry | undefined;
   },
 });
 
@@ -105,7 +129,7 @@ export const stashHasEntry = selector({
   name: "stashHasEntry",
   args: { taskId: v.string() },
   handler: function* stashHasEntry({ taskId }) {
-    const entry = yield* stashEntryById({ id: taskId });
+    const entry = yield* stashEntryByTaskId({ taskId });
     return entry !== undefined;
   },
 });
@@ -122,11 +146,11 @@ export const stashTasksByState = selector({
     if (entries.length === 0) return [];
 
     const tasks = (yield* selectFrom(tasksTable, "byId").where((q) =>
-      entries.map((entry) => q.eq("id", entry.id)),
+      entries.map((entry) => q.eq("id", entry.taskId)),
     )) as Task[];
     const taskById = new Map(tasks.map((task) => [task.id, task]));
     const matchingTasks = entries
-      .map((entry) => taskById.get(entry.id))
+      .map((entry) => taskById.get(entry.taskId))
       .filter((task): task is Task => task?.state === state);
 
     if (state === "done") {
@@ -163,10 +187,10 @@ export const stashEntryChildrenForDisplay = selector({
     unknown
   > {
     const entries = yield* allStashEntriesOrdered({});
-    const entryIds = entries.map((entry) => entry.id);
-    const tasks = entryIds.length
+    const taskIds = entries.map((entry) => entry.taskId);
+    const tasks = taskIds.length
       ? yield* selectFrom(tasksTable, "byId").where((q) =>
-          entryIds.map((id) => q.eq("id", id)),
+          taskIds.map((id) => q.eq("id", id)),
         )
       : [];
     const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
@@ -174,7 +198,7 @@ export const stashEntryChildrenForDisplay = selector({
     const items: Task[] = [];
     const listItems: StashEntry[] = [];
     for (const entry of entries) {
-      const task = taskMap.get(entry.id);
+      const task = taskMap.get(entry.taskId);
       if (task && task.state === "todo") {
         items.push(task);
         listItems.push(entry);
@@ -207,10 +231,10 @@ export const doneStashEntryChildrenForDisplay = selector({
     unknown
   > {
     const entries = yield* allStashEntriesOrdered({});
-    const entryIds = entries.map((entry) => entry.id);
-    const tasks = entryIds.length
+    const taskIds = entries.map((entry) => entry.taskId);
+    const tasks = taskIds.length
       ? yield* selectFrom(tasksTable, "byId").where((q) =>
-          entryIds.map((id) => q.eq("id", id)),
+          taskIds.map((id) => q.eq("id", id)),
         )
       : [];
     const taskMap = new Map((tasks as Task[]).map((task) => [task.id, task]));
@@ -220,7 +244,7 @@ export const doneStashEntryChildrenForDisplay = selector({
       listItem: StashEntry;
     }[] = [];
     for (const entry of entries) {
-      const task = taskMap.get(entry.id);
+      const task = taskMap.get(entry.taskId);
       if (task && task.state === "done") {
         itemsWithEntries.push({ item: task, listItem: entry });
       }
@@ -278,7 +302,7 @@ export const stashEntrySiblings = selector({
   name: "stashEntrySiblings",
   args: { taskId: v.string() },
   handler: function* stashEntrySiblings({ taskId }) {
-    const entry = yield* stashEntryById({ id: taskId });
+    const entry = yield* stashEntryByTaskId({ taskId });
     if (!entry)
       return [undefined, undefined] as [
         StashEntry | undefined,
@@ -287,7 +311,7 @@ export const stashEntrySiblings = selector({
 
     const sortedEntries = yield* allStashEntriesOrdered({});
 
-    const index = sortedEntries.findIndex((p) => p.id === taskId);
+    const index = sortedEntries.findIndex((p) => p.id === entry.id);
 
     const before = index > 0 ? sortedEntries[index - 1] : undefined;
     const after =
@@ -316,7 +340,7 @@ export const stashEntryCanDrop = selector({
     const entry = yield* stashEntryById({ id: entryId });
     if (!entry) return false;
 
-    const task = yield* taskById({ id: entry.id });
+    const task = yield* taskById({ id: entry.taskId });
     if (!task) return false;
 
     // Only allow dropping todo tasks
@@ -329,13 +353,13 @@ export const stashEntryCanDrop = selector({
 
     // Check if dropping a entry (task in daily list)
     if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.id });
+      const droppedTask = yield* taskById({ id: model.taskId });
       return droppedTask !== undefined && droppedTask.state === "todo";
     }
 
     // Check if dropping a stash entry
     if (isStashEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.id });
+      const droppedTask = yield* taskById({ id: model.taskId });
       return droppedTask !== undefined && droppedTask.state === "todo";
     }
 
@@ -372,7 +396,7 @@ export const stashEntryHandleDrop = action({
     if (!dropItem) return;
 
     const [up, down] = yield* stashEntrySiblings({
-      taskId: entry.id,
+      taskId: entry.taskId,
     });
 
     let between: [string | undefined, string | undefined] = [
@@ -392,14 +416,14 @@ export const stashEntryHandleDrop = action({
     if (isTask(dropItem)) {
       yield* upsertStashEntry({
         entry: {
-          id: dropItem.id,
+          taskId: dropItem.id,
           orderToken,
         },
       });
     } else if (isDailyEntry(dropItem)) {
       yield* upsertStashEntry({
         entry: {
-          id: dropItem.id,
+          taskId: dropItem.taskId,
           orderToken,
         },
       });
@@ -407,7 +431,7 @@ export const stashEntryHandleDrop = action({
     } else if (isStashEntry(dropItem)) {
       yield* upsertStashEntry({
         entry: {
-          id: dropItem.id,
+          taskId: dropItem.taskId,
           orderToken,
         },
       });
@@ -425,15 +449,33 @@ export const deleteStashEntries = action({
   },
 });
 
+export const deleteStashEntriesByTaskIds = action({
+  name: "deleteStashEntriesByTaskIds",
+  args: { taskIds: v.array(v.string()) },
+  handler: function* deleteStashEntriesByTaskIds({ taskIds }) {
+    const entries = yield* stashEntriesByTaskIds({ taskIds });
+    if (entries.length > 0) {
+      yield* deleteRows(
+        stashEntriesTable,
+        entries.map((entry) => entry.id),
+      );
+    }
+  },
+});
+
 export const createStashEntry = action({
   name: "createStashEntry",
   args: {
-    entry: v.required(v.partial(stashEntriesTable.v()), ["id", "orderToken"]),
+    entry: v.required(v.partial(stashEntriesTable.v()), [
+      "taskId",
+      "orderToken",
+    ]),
   },
   handler: function* createStashEntry({ entry }) {
     const newEntry: StashEntry = {
       type: stashEntryType,
-      id: entry.id,
+      id: uuidv7(),
+      taskId: entry.taskId,
       orderToken: entry.orderToken,
       createdAt: Date.now(),
     };
@@ -455,8 +497,18 @@ export const updateStashEntry = action({
   }): Generator<unknown, void, unknown> {
     const entryInState = yield* stashEntryById({ id });
     if (!entryInState) throw new Error("Stash entry not found");
+    if (entry.taskId !== undefined && entry.taskId !== entryInState.taskId) {
+      throw new Error("Cannot change a stash entry taskId");
+    }
 
-    yield* upsertRows(stashEntriesTable, [{ ...entryInState, ...entry }]);
+    yield* upsertRows(stashEntriesTable, [
+      {
+        ...entryInState,
+        ...entry,
+        id: entryInState.id,
+        taskId: entryInState.taskId,
+      },
+    ]);
   },
 });
 
@@ -464,19 +516,22 @@ export const updateStashEntry = action({
 export const upsertStashEntry = action({
   name: "upsertStashEntry",
   args: {
-    entry: v.required(v.partial(stashEntriesTable.v()), ["id", "orderToken"]),
+    entry: v.required(v.partial(stashEntriesTable.v()), [
+      "taskId",
+      "orderToken",
+    ]),
   },
   handler: function* upsertStashEntry({ entry }) {
-    const existing = yield* stashEntryById({ id: entry.id });
+    const existing = yield* stashEntryByTaskId({ taskId: entry.taskId });
 
     if (existing) {
       yield* updateStashEntry({
-        id: entry.id,
+        id: existing.id,
         entry: {
           orderToken: entry.orderToken,
         },
       });
-      return yield* stashEntryByIdOrDefault({ id: entry.id });
+      return yield* stashEntryByIdOrDefault({ id: existing.id });
     }
 
     return yield* createStashEntry({ entry });
@@ -495,7 +550,7 @@ export const createStashEntrySibling = action({
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 
-    const entry = yield* stashEntryById({ id: taskId });
+    const entry = yield* stashEntryByTaskId({ taskId });
     if (!entry) throw new Error("Task not in stash");
 
     // Create task in project first
@@ -511,7 +566,7 @@ export const createStashEntrySibling = action({
 
     return yield* createStashEntry({
       entry: {
-        id: newTask.id,
+        taskId: newTask.id,
         orderToken: stashOrderToken,
       },
     });
@@ -523,7 +578,7 @@ export const removeFromStash = action({
   name: "removeFromStash",
   args: { taskId: v.string() },
   handler: function* removeFromStash({ taskId }) {
-    yield* deleteStashEntries({ ids: [taskId] });
+    yield* deleteStashEntriesByTaskIds({ taskIds: [taskId] });
   },
 });
 
@@ -565,7 +620,7 @@ export const addToStash = action({
 
     yield* upsertStashEntry({
       entry: {
-        id: taskId,
+        taskId,
         orderToken,
       },
     });
@@ -611,12 +666,12 @@ const stashColumnCanDrop = selector({
     }
 
     if (isDailyEntry(model)) {
-      const task = yield* taskById({ id: model.id });
+      const task = yield* taskById({ id: model.taskId });
       return task !== undefined && task.state === "todo";
     }
 
     if (isStashEntry(model)) {
-      const task = yield* taskById({ id: model.id });
+      const task = yield* taskById({ id: model.taskId });
       return task !== undefined && task.state === "todo";
     }
 
@@ -647,10 +702,10 @@ const stashColumnHandleDrop = action({
     if (isTask(drop)) {
       taskId = drop.id;
     } else if (isDailyEntry(drop)) {
-      taskId = drop.id;
+      taskId = drop.taskId;
       shouldDeleteEntry = true;
     } else if (isStashEntry(drop)) {
-      taskId = drop.id;
+      taskId = drop.taskId;
     } else {
       return;
     }
@@ -661,7 +716,7 @@ const stashColumnHandleDrop = action({
     });
 
     if (shouldDeleteEntry) {
-      yield* deleteDailyEntries({ ids: [taskId] });
+      yield* deleteDailyEntries({ ids: [dropId] });
     }
   },
 });

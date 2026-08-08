@@ -5,6 +5,7 @@ export * from "./syncMap";
 export * from "./tables";
 export * from "./projectSectionStorageMigration";
 export * from "./entryStorageMigration";
+export * from "./entryMerge";
 export * from "./spaceStorageMigrations";
 
 // Slice selectors and actions

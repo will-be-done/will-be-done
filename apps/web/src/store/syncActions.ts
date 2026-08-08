@@ -85,9 +85,9 @@ export const createApplyServerChangesIfNoClientChanges = (
           });
         }
 
+        yield* deleteRows(table, toDeleteRows);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         yield* upsert(table, toUpsertRows as any);
-        yield* deleteRows(table, toDeleteRows);
       }
 
       yield* upsert(changesTable, allChanges);

@@ -11,7 +11,7 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
 import { appCanDrop, appHandleDrop } from "./app";
 import { addToDailyList } from "./dailyEntries";
-import { addToStash, stashEntryById } from "./stashEntries";
+import { addToStash, stashEntryByTaskId } from "./stashEntries";
 import { createDailyList } from "./dailyLists";
 import {
   createProject as createProjectAction,
@@ -463,6 +463,13 @@ describe("moving stashed tasks through app drops", () => {
         position: "append",
       }),
     );
+    const stashEntryId = runSelector<string>(
+      db,
+      function* () {
+        return (yield* stashEntryByTaskId({ taskId: stashedTask.id }))!.id;
+      },
+      [],
+    );
 
     const canDrop = runSelector<boolean>(
       db,
@@ -470,7 +477,7 @@ describe("moving stashed tasks through app drops", () => {
         return yield* appCanDrop({
           id: targetTask.id,
           modelType: targetTask.type,
-          dropId: stashedTask.id,
+          dropId: stashEntryId,
           dropModelType: stashEntryType,
         });
       },
@@ -483,7 +490,7 @@ describe("moving stashed tasks through app drops", () => {
       appHandleDrop({
         id: targetTask.id,
         modelType: targetTask.type,
-        dropId: stashedTask.id,
+        dropId: stashEntryId,
         dropModelType: stashEntryType,
         edge: "top",
       }),
@@ -501,7 +508,7 @@ describe("moving stashed tasks through app drops", () => {
     const stashEntry = runSelector(
       db,
       function* () {
-        return yield* stashEntryById({ id: stashedTask.id });
+        return yield* stashEntryByTaskId({ taskId: stashedTask.id });
       },
       [],
     );
@@ -536,6 +543,13 @@ describe("moving stashed tasks through app drops", () => {
         position: "append",
       }),
     );
+    const stashEntryId = runSelector<string>(
+      db,
+      function* () {
+        return (yield* stashEntryByTaskId({ taskId: stashedTask.id }))!.id;
+      },
+      [],
+    );
 
     const canDrop = runSelector<boolean>(
       db,
@@ -543,7 +557,7 @@ describe("moving stashed tasks through app drops", () => {
         return yield* appCanDrop({
           id: targetSection.id,
           modelType: targetSection.type,
-          dropId: stashedTask.id,
+          dropId: stashEntryId,
           dropModelType: stashEntryType,
         });
       },
@@ -556,7 +570,7 @@ describe("moving stashed tasks through app drops", () => {
       appHandleDrop({
         id: targetSection.id,
         modelType: targetSection.type,
-        dropId: stashedTask.id,
+        dropId: stashEntryId,
         dropModelType: stashEntryType,
         edge: "bottom",
       }),
@@ -572,7 +586,7 @@ describe("moving stashed tasks through app drops", () => {
     const stashEntry = runSelector(
       db,
       function* () {
-        return yield* stashEntryById({ id: stashedTask.id });
+        return yield* stashEntryByTaskId({ taskId: stashedTask.id });
       },
       [],
     );
@@ -609,6 +623,13 @@ describe("moving stashed tasks through app drops", () => {
         position: "append",
       }),
     );
+    const stashEntryId = runSelector<string>(
+      db,
+      function* () {
+        return (yield* stashEntryByTaskId({ taskId: stashedTask.id }))!.id;
+      },
+      [],
+    );
 
     const canDrop = runSelector<boolean>(
       db,
@@ -616,7 +637,7 @@ describe("moving stashed tasks through app drops", () => {
         return yield* appCanDrop({
           id: targetProject.id,
           modelType: targetProject.type,
-          dropId: stashedTask.id,
+          dropId: stashEntryId,
           dropModelType: stashEntryType,
         });
       },
@@ -629,7 +650,7 @@ describe("moving stashed tasks through app drops", () => {
       appHandleDrop({
         id: targetProject.id,
         modelType: targetProject.type,
-        dropId: stashedTask.id,
+        dropId: stashEntryId,
         dropModelType: stashEntryType,
         edge: "bottom",
       }),
@@ -645,7 +666,7 @@ describe("moving stashed tasks through app drops", () => {
     const stashEntry = runSelector(
       db,
       function* () {
-        return yield* stashEntryById({ id: stashedTask.id });
+        return yield* stashEntryByTaskId({ taskId: stashedTask.id });
       },
       [],
     );

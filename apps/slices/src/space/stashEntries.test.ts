@@ -13,6 +13,7 @@ import {
   doneStashEntryChildrenIds,
   stashEntryChildrenIds,
   stashTasksByState,
+  updateStashEntry,
 } from "./stashEntries";
 import {
   checklistItemsTable,
@@ -116,30 +117,52 @@ const seedStash = action({
       },
     ];
     const entries: StashEntry[] = [
-      { type: stashEntryType, id: "todo-first", orderToken: "a", createdAt: 0 },
-      { type: stashEntryType, id: "done-old", orderToken: "b", createdAt: 0 },
       {
         type: stashEntryType,
-        id: "todo-second",
+        id: "entry-todo-first",
+        taskId: "todo-first",
+        orderToken: "a",
+        createdAt: 0,
+      },
+      {
+        type: stashEntryType,
+        id: "entry-done-old",
+        taskId: "done-old",
+        orderToken: "b",
+        createdAt: 0,
+      },
+      {
+        type: stashEntryType,
+        id: "entry-todo-second",
+        taskId: "todo-second",
         orderToken: "c",
         createdAt: 0,
       },
-      { type: stashEntryType, id: "done-new", orderToken: "d", createdAt: 0 },
       {
         type: stashEntryType,
-        id: "done-zeta",
+        id: "entry-done-new",
+        taskId: "done-new",
+        orderToken: "d",
+        createdAt: 0,
+      },
+      {
+        type: stashEntryType,
+        id: "entry-done-zeta",
+        taskId: "done-zeta",
         orderToken: "e",
         createdAt: 0,
       },
       {
         type: stashEntryType,
-        id: "done-alpha",
+        id: "entry-done-alpha",
+        taskId: "done-alpha",
         orderToken: "f",
         createdAt: 0,
       },
       {
         type: stashEntryType,
-        id: "missing-task",
+        id: "entry-missing-task",
+        taskId: "missing-task",
         orderToken: "g",
         createdAt: 0,
       },
@@ -211,5 +234,31 @@ describe("stash task selectors", () => {
         args: {},
       }).map(({ item }) => item.id),
     ).toEqual(["done-alpha", "done-new", "done-zeta", "done-old"]);
+  });
+
+  test("rejects changing an entry taskId", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(
+      db.loadTables([
+        tasksTable,
+        stashEntriesTable,
+        projectsTable,
+        projectSectionsTable,
+        dailyEntriesTable,
+        dailyListsTable,
+        checklistItemsTable,
+      ]),
+    );
+    syncDispatch(db, seedStash({}));
+
+    expect(() =>
+      syncDispatch(
+        db,
+        updateStashEntry({
+          id: "entry-todo-first",
+          entry: { taskId: "todo-second" },
+        }),
+      ),
+    ).toThrow("Cannot change a stash entry taskId");
   });
 });

@@ -1,7 +1,9 @@
 import { action, selector } from "../builders";
 import {
   entryStorageMigrationTables,
+  isEntryIdentityMigrationApplied,
   isEntryStorageMigrationApplied,
+  migrateEntryIdentity,
   migrateLegacyEntries,
 } from "./entryStorageMigration";
 import {
@@ -27,7 +29,8 @@ export const areSpaceStorageMigrationsApplied = selector({
   handler: function* areSpaceStorageMigrationsApplied() {
     return (
       (yield* isProjectSectionStorageMigrationApplied({})) &&
-      (yield* isEntryStorageMigrationApplied({}))
+      (yield* isEntryStorageMigrationApplied({})) &&
+      (yield* isEntryIdentityMigrationApplied({}))
     );
   },
 });
@@ -38,5 +41,6 @@ export const migrateLegacySpaceStorage = action({
   handler: function* migrateLegacySpaceStorage() {
     yield* migrateLegacyProjectSections({});
     yield* migrateLegacyEntries({});
+    yield* migrateEntryIdentity({});
   },
 });

@@ -34,7 +34,7 @@ const rowSchema = v.record(
   v.string(),
   primitiveValueSchema,
 ) as Validator<PrimitiveRow>;
-const tableDefinitionArgSchema = v.object({
+export const tableDefinitionArgSchema = v.object({
   tableName: v.string(),
 });
 const changeSchema = v.object({
@@ -47,7 +47,7 @@ const changeSchema = v.object({
   createdAt: v.string(),
   updatedAt: v.string(),
 });
-const changesetArray = v.array(
+export const changesetArrayValidator = v.array(
   v.object({
     tableName: v.string(),
     data: v.array(
@@ -312,10 +312,15 @@ export const insertChangeFromDelete = action({
   },
 });
 
+/**
+ * Merges must be idempotent. Reapplying the same client changes, even with a
+ * newer receipt clock, must not write entity rows or Change rows again.
+ * `nextClock` stamps newly converged state; it must not make a replay a change.
+ */
 export const mergeChanges = action({
   name: "mergeChangesAction",
   args: {
-    input: changesetArray,
+    input: changesetArrayValidator,
     nextClock: v.string(),
     clientId: v.string(),
     registeredSyncableTableNameMap: v.record(
@@ -525,9 +530,9 @@ export const mergeChanges = action({
         allChanges.push(mergedChange);
       }
 
+      yield* deleteRows(table, toDeleteRows);
       yield* insert(table, toInsertRows);
       yield* upsert(table, toUpdateRows);
-      yield* deleteRows(table, toDeleteRows);
     }
 
     yield* upsert(changesTable, allChanges);

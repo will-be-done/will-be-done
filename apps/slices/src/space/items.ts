@@ -1,9 +1,9 @@
 import { v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { assertUnreachable } from "./utils";
-import { createDailyEntrySibling, deleteDailyEntries } from "./dailyEntries";
+import { createDailyEntrySibling } from "./dailyEntries";
 import { createTaskNextToSectionItem } from "./projectSectionItems";
-import { createStashEntrySibling, deleteStashEntries } from "./stashEntries";
+import { createStashEntrySibling } from "./stashEntries";
 import { deleteTasksByIds, taskById, defaultTask } from "./tasks";
 import { deleteTemplates, taskTemplateById } from "./taskTemplates";
 import { appTypeSlicesMap } from "./maps";
@@ -57,13 +57,13 @@ export const createTaskNextToListItem = action({
   }) {
     if (isDailyEntry(listItem)) {
       return yield* createDailyEntrySibling({
-        taskId: listItem.id,
+        taskId: listItem.taskId,
         position,
         taskParams,
       });
     } else if (isStashEntry(listItem)) {
       return yield* createStashEntrySibling({
-        taskId: listItem.id,
+        taskId: listItem.taskId,
         position,
         taskParams,
       });
@@ -119,11 +119,11 @@ export const taskOfModel = selector({
   },
   handler: function* taskOfModel({ model }) {
     if (isDailyEntry(model)) {
-      return yield* taskById({ id: model.id });
+      return yield* taskById({ id: model.taskId });
     }
 
     if (isStashEntry(model)) {
-      return yield* taskById({ id: model.id });
+      return yield* taskById({ id: model.taskId });
     }
 
     if (isTask(model)) {
@@ -140,7 +140,5 @@ export const deleteItemsByIds = action({
   handler: function* deleteItemsByIds({ ids }) {
     yield* deleteTasksByIds({ ids });
     yield* deleteTemplates({ taskTemplateIds: ids });
-    yield* deleteDailyEntries({ ids });
-    yield* deleteStashEntries({ ids });
   },
 });
