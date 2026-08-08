@@ -5,6 +5,7 @@ import {
   authenticateRequest,
   type AuthenticatedUser,
 } from "./services/authentication";
+import type { AppRateLimiter, RateLimitPolicy } from "./rateLimit";
 
 /**
  * Context type definition
@@ -12,6 +13,7 @@ import {
 export interface Context {
   user: AuthenticatedUser | null;
   requestId?: string;
+  enforceRateLimit?: (policy: RateLimitPolicy) => Promise<void>;
 }
 
 /**
@@ -21,26 +23,47 @@ export interface Context {
  */
 export async function createContext({
   req,
+  rateLimiter,
 }: {
   req: FastifyRequest;
   res: FastifyReply;
+  rateLimiter?: AppRateLimiter;
 }): Promise<Context> {
+  const buildContext = (user: AuthenticatedUser | null): Context => ({
+    user,
+    requestId: req.id,
+    ...(rateLimiter
+      ? {
+          enforceRateLimit: async (policy: RateLimitPolicy) => {
+            const result = await rateLimiter.check(policy, req, user?.id);
+            if (!result.exceeded) return;
+
+            const retryMessage =
+              result.retryAfterSeconds > 0
+                ? ` Try again in ${result.retryAfterSeconds} seconds.`
+                : " Try again later.";
+            throw new TRPCError({
+              code: "TOO_MANY_REQUESTS",
+              message: `Rate limit exceeded.${retryMessage}`,
+            });
+          },
+        }
+      : {}),
+  });
+
   // First try Authorization header (HTTP requests)
   if (req.headers.authorization) {
-    return { user: await authenticateRequest(req), requestId: req.id };
+    return buildContext(await authenticateRequest(req));
   }
 
   // Then try URL query parameter (WebSocket connections)
   const url = new URL(req.url || "", "http://localhost");
   const token = url.searchParams.get("token");
   if (token) {
-    return {
-      user: await authenticateRequest(req, `Bearer ${token}`),
-      requestId: req.id,
-    };
+    return buildContext(await authenticateRequest(req, `Bearer ${token}`));
   }
 
-  return { user: null, requestId: req.id };
+  return buildContext(null);
 }
 
 /**
@@ -70,6 +93,12 @@ const t = initTRPC.context<Context>().create({
  */
 export const router = t.router;
 export const publicProcedure = t.procedure;
+
+export const enforceRateLimit = (policy: RateLimitPolicy) =>
+  t.middleware(async (opts) => {
+    await opts.ctx.enforceRateLimit?.(policy);
+    return opts.next();
+  });
 
 /**
  * Protected procedure that requires authentication

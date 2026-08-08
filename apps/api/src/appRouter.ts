@@ -6,7 +6,12 @@ import {
   mergeChanges,
 } from "@will-be-done/slices/common";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, publicProcedure, router } from "./trpc";
+import {
+  enforceRateLimit,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./trpc";
 import { getHyperDB } from "./db/db";
 import { dbConfigByType } from "./db/configs";
 import {
@@ -270,6 +275,7 @@ export function createAppRouter({
           captchaToken: z.string().optional(),
         }),
       )
+      .use(enforceRateLimit("register"))
       .mutation(async (opts) => {
         const { email, password, captchaToken } = opts.input;
         const requestId = opts.ctx.requestId ?? "internal";
@@ -346,6 +352,7 @@ export function createAppRouter({
 
     importTodoist: protectedProcedure
       .input(z.object({ apiToken: z.string().min(1) }))
+      .use(enforceRateLimit("todoistImport"))
       .mutation(async (opts) => importFromTodoist(opts.input.apiToken)),
 
     login: publicProcedure
@@ -355,6 +362,7 @@ export function createAppRouter({
           password: z.string().min(8),
         }),
       )
+      .use(enforceRateLimit("login"))
       .mutation(async (opts) => {
         const { email, password } = opts.input;
         const user = await asyncDispatch(mainDB, getUserByEmail({ email }));

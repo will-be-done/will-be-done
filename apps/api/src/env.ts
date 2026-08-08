@@ -12,6 +12,12 @@ const EnvConfigSchema = z.object({
   WBD_INSTANCE_ID: z.string().trim().min(1).optional(),
   WBD_SYNC_NOTIFICATIONS_BACKEND: z.enum(["memory", "redis"]).default("memory"),
   WBD_REDIS_URL: z.string().trim().min(1).optional(),
+  WBD_RATE_LIMIT_BACKEND: z.enum(["memory", "redis"]).default("memory"),
+  WBD_RATE_LIMIT_NAMESPACE: z
+    .string()
+    .trim()
+    .min(1)
+    .default("wbd:rate-limit:v1:"),
   WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: z
     .string()
     .trim()
@@ -36,6 +42,8 @@ let envConfig:
       WBD_INSTANCE_ID?: string;
       WBD_SYNC_NOTIFICATIONS_BACKEND: "memory" | "redis";
       WBD_REDIS_URL?: string;
+      WBD_RATE_LIMIT_BACKEND: "memory" | "redis";
+      WBD_RATE_LIMIT_NAMESPACE: string;
       WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: string;
       WBD_TASK_GENERATION_INTERVAL_MS: number;
     }
@@ -55,6 +63,8 @@ export function getEnvConfig() {
     WBD_INSTANCE_ID: process.env.WBD_INSTANCE_ID,
     WBD_SYNC_NOTIFICATIONS_BACKEND: process.env.WBD_SYNC_NOTIFICATIONS_BACKEND,
     WBD_REDIS_URL: process.env.WBD_REDIS_URL,
+    WBD_RATE_LIMIT_BACKEND: process.env.WBD_RATE_LIMIT_BACKEND,
+    WBD_RATE_LIMIT_NAMESPACE: process.env.WBD_RATE_LIMIT_NAMESPACE,
     WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
       process.env.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
     WBD_TASK_GENERATION_INTERVAL_MS:
@@ -77,11 +87,12 @@ export function getEnvConfig() {
   }
 
   if (
-    parsed.WBD_SYNC_NOTIFICATIONS_BACKEND === "redis" &&
+    (parsed.WBD_SYNC_NOTIFICATIONS_BACKEND === "redis" ||
+      parsed.WBD_RATE_LIMIT_BACKEND === "redis") &&
     !parsed.WBD_REDIS_URL
   ) {
     throw new Error(
-      "WBD_REDIS_URL is required when WBD_SYNC_NOTIFICATIONS_BACKEND=redis",
+      "WBD_REDIS_URL is required when a Redis-backed service is enabled",
     );
   }
 
@@ -96,6 +107,8 @@ export function getEnvConfig() {
     WBD_INSTANCE_ID: parsed.WBD_INSTANCE_ID,
     WBD_SYNC_NOTIFICATIONS_BACKEND: parsed.WBD_SYNC_NOTIFICATIONS_BACKEND,
     WBD_REDIS_URL: parsed.WBD_REDIS_URL,
+    WBD_RATE_LIMIT_BACKEND: parsed.WBD_RATE_LIMIT_BACKEND,
+    WBD_RATE_LIMIT_NAMESPACE: parsed.WBD_RATE_LIMIT_NAMESPACE,
     WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
       parsed.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
     WBD_TASK_GENERATION_INTERVAL_MS: parsed.WBD_TASK_GENERATION_INTERVAL_MS,

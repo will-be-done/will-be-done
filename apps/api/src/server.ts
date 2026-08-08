@@ -5,6 +5,8 @@ import multipart from "@fastify/multipart";
 import staticPlugin from "@fastify/static";
 import swagger from "@fastify/swagger";
 import websocket from "@fastify/websocket";
+import type { RateLimitConfig } from "./rateLimit";
+import { createAppRateLimiter, registerAppRateLimiting } from "./rateLimit";
 import scalarApiReference from "@scalar/fastify-api-reference";
 import {
   fastifyTRPCPlugin,
@@ -24,12 +26,14 @@ export interface CreateServerOptions {
   appRouter: AppRouter;
   logger?: boolean;
   serveFrontend?: boolean;
+  rateLimit?: RateLimitConfig;
 }
 
 export function createServer({
   appRouter,
   logger = true,
   serveFrontend = true,
+  rateLimit = { backend: "memory" },
 }: CreateServerOptions) {
   const server = fastify({
     logger,
@@ -41,6 +45,10 @@ export function createServer({
 
   server.setValidatorCompiler(validatorCompiler);
   server.setSerializerCompiler(serializerCompiler);
+
+  // Register before every route/plugin so the broad per-IP limit covers the
+  // complete HTTP surface. Sensitive tRPC procedures add stricter limits.
+  registerAppRateLimiting(server, rateLimit);
 
   server.register(websocket);
   server.register(multipart);
@@ -102,13 +110,18 @@ export function createServer({
     prefix: "/api/v1",
   });
 
-  server.register(fastifyTRPCPlugin, {
-    prefix: "/api/trpc",
-    useWSS: true,
-    trpcOptions: {
-      router: appRouter,
-      createContext,
-    } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
+  server.register(async (trpcServer) => {
+    const appRateLimiter = createAppRateLimiter(trpcServer, rateLimit);
+
+    trpcServer.register(fastifyTRPCPlugin, {
+      prefix: "/api/trpc",
+      useWSS: true,
+      trpcOptions: {
+        router: appRouter,
+        createContext: (options) =>
+          createContext({ ...options, rateLimiter: appRateLimiter }),
+      } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
+    });
   });
 
   server.get("/api/openapi.json", { schema: { hide: true } }, async () =>
