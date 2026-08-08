@@ -85,7 +85,7 @@ export async function listDailyListsInRange({
   });
   const tasks = await selectAsync(db, {
     selector: tasksByIds,
-    args: { ids: entries.map((entry) => entry.id) },
+    args: { ids: entries.map((entry) => entry.taskId) },
   });
   const taskById = new Map(tasks.map((task) => [task.id, task]));
   const entriesByDailyListId = new Map<string, typeof entries>();
@@ -97,7 +97,7 @@ export async function listDailyListsInRange({
 
   const publicDailyLists = page.map((dailyList) => {
     const matchingTasks = (entriesByDailyListId.get(dailyList.id) ?? [])
-      .map((entry) => taskById.get(entry.id))
+      .map((entry) => taskById.get(entry.taskId))
       .filter((task): task is Task => task?.state === state);
     if (state === "done") {
       matchingTasks.sort(

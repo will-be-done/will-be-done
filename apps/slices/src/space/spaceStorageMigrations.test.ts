@@ -44,7 +44,7 @@ describe("space storage migrations", () => {
       }),
     ).toBe(true);
     expect(selectSync(db, { selector: appliedMigrationIds, args: {} })).toEqual(
-      ["entry-storage-v1", "project-section-storage-v1"],
+      ["entry-identity-v2", "entry-storage-v1", "project-section-storage-v1"],
     );
   });
 });

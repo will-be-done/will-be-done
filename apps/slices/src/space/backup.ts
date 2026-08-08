@@ -29,6 +29,7 @@ import {
   taskTemplateType,
   taskType,
 } from "./tables";
+import { uuidv7 } from "uuidv7";
 
 // TODO: use type from  vackupValidator
 interface ProjectSectionBackup {
@@ -72,7 +73,7 @@ interface DailyListBackup {
 
 interface DailyEntryBackup {
   id: string;
-  taskId?: string; // Legacy field - in new format id === taskId
+  taskId?: string; // Optional only when loading backups from the task-id era.
   orderToken: string;
   listId: string; // dailyListId
   createdAt: number;
@@ -404,20 +405,17 @@ const getNewModels = action({
       models.push(section);
     }
 
-    // Build entry map for migration from old backups (where entries have taskId)
-    const legacyDailyEntryMap = new Map<string, DailyEntryBackup[]>();
+    const dailyEntriesByTaskId = new Map<string, DailyEntryBackup[]>();
     if (backup.dailyEntries) {
       for (const entry of backup.dailyEntries) {
-        // If taskId exists, it's a legacy format
-        if (entry.taskId) {
-          const existing = legacyDailyEntryMap.get(entry.taskId) || [];
-          existing.push(entry);
-          legacyDailyEntryMap.set(entry.taskId, existing);
-        }
+        const taskId = entry.taskId ?? entry.id;
+        const existing = dailyEntriesByTaskId.get(taskId) || [];
+        existing.push(entry);
+        dailyEntriesByTaskId.set(taskId, existing);
       }
     }
-    const selectedLegacyDailyEntries = new Set(
-      [...legacyDailyEntryMap.values()].map((entries) =>
+    const selectedDailyEntries = new Set(
+      [...dailyEntriesByTaskId.values()].map((entries) =>
         entries.reduce((latest, entry) =>
           entry.createdAt > latest.createdAt ||
           (entry.createdAt === latest.createdAt && entry.id > latest.id)
@@ -505,17 +503,11 @@ const getNewModels = action({
       models.push(template);
     }
 
-    // Create entries - handle both new format (id = taskId) and legacy format (separate taskId field)
+    // Create entries from both independent-id backups and older task-id entries.
     if (backup.dailyEntries) {
       for (const entryBackup of backup.dailyEntries) {
-        if (
-          entryBackup.taskId &&
-          !selectedLegacyDailyEntries.has(entryBackup)
-        ) {
-          continue;
-        }
+        if (!selectedDailyEntries.has(entryBackup)) continue;
 
-        // In new format, id = taskId, so taskId field is optional
         const taskId = entryBackup.taskId || entryBackup.id;
 
         // Verify the task exists
@@ -527,7 +519,8 @@ const getNewModels = action({
 
         const entry: DailyEntry = {
           type: dailyEntryType,
-          id: taskId, // entry.id = task.id
+          id: uuidv7(),
+          taskId,
           orderToken: entryBackup.orderToken,
           dailyListId: dailyListIdMap.get(entryBackup.listId)!,
           createdAt: entryBackup.createdAt,
@@ -579,7 +572,8 @@ const getNewModels = action({
       if (taskBackup.dailyListId && taskBackup.dailyListOrderToken) {
         const entry: DailyEntry = {
           type: dailyEntryType,
-          id: taskBackup.id,
+          id: uuidv7(),
+          taskId: taskBackup.id,
           orderToken: taskBackup.dailyListOrderToken,
           dailyListId: taskBackup.dailyListId,
           createdAt: taskBackup.createdAt,
@@ -688,7 +682,8 @@ export const getSpaceBackup = selector({
         date: dailyList.date,
       })),
       dailyEntries: entries.map((entry) => ({
-        id: entry.id, // id = taskId in new format
+        id: entry.id,
+        taskId: entry.taskId,
         orderToken: entry.orderToken,
         listId: entry.dailyListId,
         createdAt: entry.createdAt,

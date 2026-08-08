@@ -16,6 +16,8 @@ import {
   listItem,
   dailyEntryType,
   stashEntryType,
+  isDailyEntry,
+  isStashEntry,
   type ListItem,
   type Task,
   type TaskTemplate,
@@ -136,12 +138,12 @@ export const projectSectionItemsForDisplay = selector({
 
     const itemIds = items.map((item) => item.id);
     const entries = itemIds.length
-      ? yield* selectFrom(dailyEntriesTable, "byId").where((q) =>
-          itemIds.map((id) => q.eq("id", id)),
+      ? yield* selectFrom(dailyEntriesTable, "byTaskId").where((q) =>
+          itemIds.map((id) => q.eq("taskId", id)),
         )
       : [];
     const dailyEntryMap = new Map(
-      (entries as DailyEntry[]).map((entry) => [entry.id, entry]),
+      (entries as DailyEntry[]).map((entry) => [entry.taskId, entry]),
     );
 
     const dailyListIds = [
@@ -157,7 +159,11 @@ export const projectSectionItemsForDisplay = selector({
     );
     const listItemMap = new Map(
       listItems.map((listItem) => [
-        `${listItem.type}:${listItem.id}`,
+        `${listItem.type}:${
+          isDailyEntry(listItem) || isStashEntry(listItem)
+            ? listItem.taskId
+            : listItem.id
+        }`,
         listItem,
       ]),
     );

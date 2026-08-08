@@ -4,11 +4,15 @@ import { cn } from "@/lib/utils";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import {
-  itemExists,
   dailyEntryType,
+  itemByListItemId,
   isTask,
   isTaskTemplate,
+  type ListItemType,
   projectSectionItemById,
+  stashEntryType,
+  taskTemplateType,
+  taskType,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { TaskBody } from "./TaskBody.tsx";
@@ -21,6 +25,12 @@ import {
   useItemDetailsEditRequest,
 } from "@/components/ItemDetails/ItemDetailsStore.ts";
 
+const isListItemType = (type: string): type is ListItemType =>
+  type === taskType ||
+  type === taskTemplateType ||
+  type === dailyEntryType ||
+  type === stashEntryType;
+
 // ─── Main sidebar panel ──────────────────────────────────────────────────────
 
 export function ItemDetails() {
@@ -28,17 +38,19 @@ export function ItemDetails() {
   const [isResizing, setIsResizing] = useState(false);
   const focusKey = useFocusStore((s) => s.focusItemKey);
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
-  const isItemFocused =
-    parsed?.type === "task" ||
-    parsed?.type === dailyEntryType ||
-    parsed?.type === "template";
-  const itemId = isItemFocused ? parsed.id : null;
-  const { data: isVisible = false } = useAsyncSelector({
-    selector: itemExists,
-    args: { id: itemId ?? "" },
-    enabled: !!itemId,
-    defaultValue: false,
+  const focusedListItemType =
+    parsed && isListItemType(parsed.type) ? parsed.type : null;
+  const focusedListItemId = focusedListItemType && parsed ? parsed.id : null;
+  const { data: focusedItem } = useAsyncSelector({
+    selector: itemByListItemId,
+    args: {
+      id: focusedListItemId ?? "",
+      modelType: focusedListItemType ?? taskType,
+    },
+    enabled: !!focusedListItemId,
   });
+  const itemId = focusedItem?.id ?? null;
+  const isVisible = focusedItem !== undefined;
 
   const width = useItemDetailsSize((s) => s.width);
   const setWidth = useItemDetailsSize((s) => s.setWidth);
@@ -205,10 +217,11 @@ export function ItemDetailsPage({
   onBack: () => void;
   onItemIdChange?: (itemId: string) => void;
 }) {
-  const { data: isVisible = false } = useAsyncSelector({
-    selector: itemExists,
+  const { data: item } = useAsyncSelector({
+    selector: projectSectionItemById,
     args: { id: itemId },
   });
+  const isVisible = item !== undefined;
   const {
     isEditingTitle,
     setIsEditingTitle,

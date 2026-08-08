@@ -14,8 +14,8 @@ describe("sync compatibility client helpers", () => {
     expect(isUnsupportedSyncVersionError(new Error("offline"))).toBe(false);
   });
 
-  it("isolates version-1 cross-tab channels", () => {
-    expect(syncChannelName("changes", "client")).toBe("changes-v2-client");
-    expect(syncChannelName("election", "client")).toBe("election-v2-client");
+  it("includes the current version in cross-tab channels", () => {
+    expect(syncChannelName("changes", "client")).toBe("changes-v3-client");
+    expect(syncChannelName("election", "client")).toBe("election-v3-client");
   });
 });

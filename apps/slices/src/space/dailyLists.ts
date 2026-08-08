@@ -264,12 +264,12 @@ export const dailyListCanDrop = selector({
     }
 
     if (isDailyEntry(model)) {
-      const task = yield* taskById({ id: model.id });
+      const task = yield* taskById({ id: model.taskId });
       return task !== undefined && task.state === "todo";
     }
 
     if (isStashEntry(model)) {
-      const task = yield* taskById({ id: model.id });
+      const task = yield* taskById({ id: model.taskId });
       return task !== undefined && task.state === "todo";
     }
 
@@ -401,9 +401,9 @@ export const dailyListHandleDrop = action({
     if (isTask(drop)) {
       taskId = drop.id;
     } else if (isDailyEntry(drop)) {
-      taskId = drop.id; // entry.id is the same as task.id
+      taskId = drop.taskId;
     } else if (isStashEntry(drop)) {
-      taskId = drop.id;
+      taskId = drop.taskId;
       shouldDeleteStashEntry = true;
     } else {
       return;
@@ -416,7 +416,7 @@ export const dailyListHandleDrop = action({
     });
 
     if (shouldDeleteStashEntry) {
-      yield* deleteStashEntries({ ids: [taskId] });
+      yield* deleteStashEntries({ ids: [dropId] });
     }
   },
 });

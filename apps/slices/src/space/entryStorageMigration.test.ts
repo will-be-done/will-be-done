@@ -10,18 +10,18 @@ import {
   syncDispatch,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { changesTable } from "../common";
+import { changesTable, syncStateId, syncStateTable } from "../common";
+import { dbIdTrait } from "../traits";
 import {
   entryStorageMigrationTables,
+  dailyEntriesMigrationTable,
   legacyDailyEntriesMigrationTable,
   legacyStashEntriesMigrationTable,
   migrateLegacyEntries,
+  migrateEntryIdentity,
+  stashEntriesMigrationTable,
 } from "./entryStorageMigration";
-import {
-  dailyEntriesTable,
-  spaceMigrationsTable,
-  stashEntriesTable,
-} from "./tables";
+import { spaceMigrationsTable } from "./tables";
 
 const action = createAction();
 const selector = createSelector();
@@ -54,7 +54,7 @@ const seedLegacyEntries = action({
         createdAt: 2,
       },
     ]);
-    yield* insert(dailyEntriesTable, [
+    yield* insert(dailyEntriesMigrationTable, [
       {
         type: "dailyEntry",
         id: "daily-collision",
@@ -117,12 +117,12 @@ const entryRows = selector({
         legacyDailyEntriesMigrationTable,
         "byIds",
       ),
-      dailyEntries: yield* selectFrom(dailyEntriesTable, "byIds"),
+      dailyEntries: yield* selectFrom(dailyEntriesMigrationTable, "byIds"),
       legacyStashEntries: yield* selectFrom(
         legacyStashEntriesMigrationTable,
         "byIds",
       ),
-      stashEntries: yield* selectFrom(stashEntriesTable, "byIds"),
+      stashEntries: yield* selectFrom(stashEntriesMigrationTable, "byIds"),
       changes: yield* selectFrom(changesTable, "byUpdatedAt"),
       migrations: yield* selectFrom(spaceMigrationsTable, "byIds"),
     };
@@ -234,5 +234,94 @@ describe("entry storage migration", () => {
     );
     expect(result.legacyDailyEntries).toHaveLength(1_500);
     expect(result.migrations).toHaveLength(1);
+  });
+
+  it("assigns deterministic entry ids, task references, and rewrites sync state", () => {
+    const db = new DB(new BptreeInmemDriver(), {
+      traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+    });
+    execSync(db.loadTables(entryStorageMigrationTables));
+    syncDispatch(
+      db,
+      action({
+        name: "seedLegacyEntryIdentity",
+        args: {},
+        handler: function* () {
+          yield* insert(dailyEntriesMigrationTable, [
+            {
+              type: "dailyEntry",
+              id: "task-1",
+              dailyListId: "list-1",
+              orderToken: "a",
+              createdAt: 1,
+            },
+          ]);
+          yield* insert(changesTable, [
+            {
+              id: "daily_entries:task-1",
+              entityId: "task-1",
+              tableName: "daily_entries",
+              createdAt: "0000000010-0001-client",
+              updatedAt: "0000000020-0001-client",
+              deletedAt: null,
+              clientId: "client",
+              changes: {
+                id: "0000000010-0001-client",
+                type: "0000000010-0001-client",
+              },
+            },
+          ]);
+          yield* insert(syncStateTable, [
+            {
+              id: syncStateId,
+              lastSentClock: "sent",
+              lastServerAppliedClock: "applied",
+            },
+          ]);
+        },
+      })({}),
+    );
+
+    syncDispatch(db, migrateEntryIdentity({}));
+    const first = selectSync(db, { selector: entryRows, args: {} });
+    const migrated = first.dailyEntries[0]!;
+    const syncStateSelector = selector({
+      name: "entryIdentitySyncState",
+      args: {},
+      handler: function* () {
+        return yield* selectFrom(syncStateTable, "byId")
+          .where((q) => q.eq("id", syncStateId))
+          .first();
+      },
+    });
+    const syncState = selectSync(db, {
+      selector: syncStateSelector,
+      args: {},
+    });
+
+    expect(migrated.id).not.toBe("task-1");
+    expect(migrated.taskId).toBe("task-1");
+    expect(first.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          entityId: "task-1",
+          deletedAt: "0000000020-0001-client",
+        }),
+        expect.objectContaining({
+          entityId: migrated.id,
+          deletedAt: null,
+          changes: expect.objectContaining({ taskId: expect.any(String) }),
+        }),
+      ]),
+    );
+    expect(syncState).toEqual(
+      expect.objectContaining({
+        lastSentClock: "",
+        lastServerAppliedClock: "",
+      }),
+    );
+
+    syncDispatch(db, migrateEntryIdentity({}));
+    expect(selectSync(db, { selector: entryRows, args: {} })).toEqual(first);
   });
 });

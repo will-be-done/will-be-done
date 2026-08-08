@@ -6,7 +6,7 @@ import {
 } from "@will-be-done/hyperdb";
 import {
   createTaskInSection,
-  dailyEntriesByIds,
+  dailyEntriesByTaskIds,
   dailyEntryByTaskId,
   dailyListById,
   dailyListsByIds,
@@ -81,8 +81,8 @@ export async function getTaskScheduledDates(
   if (taskIds.length === 0) return new Map();
 
   const entries = await selectAsync(db, {
-    selector: dailyEntriesByIds,
-    args: { ids: taskIds },
+    selector: dailyEntriesByTaskIds,
+    args: { taskIds },
   });
   const dailyListIds = [...new Set(entries.map((entry) => entry.dailyListId))];
   const dailyLists = await selectAsync(db, {
@@ -92,7 +92,7 @@ export async function getTaskScheduledDates(
   const dateByDailyListId = new Map(
     dailyLists.map((dailyList) => [dailyList.id, dailyList.date]),
   );
-  const entryByTaskId = new Map(entries.map((entry) => [entry.id, entry]));
+  const entryByTaskId = new Map(entries.map((entry) => [entry.taskId, entry]));
 
   return new Map(
     taskIds.map((taskId) => {

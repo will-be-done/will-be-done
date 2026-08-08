@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   createManyDailyListsIfNotPresent,
@@ -9,6 +9,7 @@ import {
   type DailyList,
   dailyListsByDates,
   dailyEntryChildrenForDisplay,
+  dailyEntryByTaskId,
   doneDailyEntryChildrenForDisplay,
   dailyEntryType,
   inboxProjectId,
@@ -184,6 +185,7 @@ const BoardView = ({
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const dispatch = useAsyncDispatch();
+  const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
@@ -206,12 +208,18 @@ const BoardView = ({
           }),
         );
 
+        const entry = await select({
+          selector: dailyEntryByTaskId,
+          args: { taskId: task.id },
+        });
+        if (!entry) return;
+
         useFocusStore
           .getState()
-          .editByKey(buildFocusKey(task.id, dailyEntryType));
+          .editByKey(buildFocusKey(entry.id, dailyEntryType));
       })();
     },
-    [dispatch, inboxId],
+    [dispatch, inboxId, select],
   );
 
   const {

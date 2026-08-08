@@ -40,7 +40,8 @@ const seedDailyEntry = action({
     yield* insert(dailyEntriesTable, [
       {
         type: "dailyEntry",
-        id: "task-1",
+        id: "entry-1",
+        taskId: "task-1",
         dailyListId: "list-1",
         orderToken: "a",
         createdAt: 1,
@@ -240,12 +241,12 @@ describe("space backup compatibility", () => {
 
     expect(restored.dailyEntries).toEqual([
       expect.objectContaining({
-        id: "task-1",
+        taskId: "task-1",
         orderToken: "latest",
         createdAt: 20,
       }),
       expect.objectContaining({
-        id: "task-2",
+        taskId: "task-2",
         orderToken: "canonical",
         createdAt: 15,
       }),
@@ -261,7 +262,8 @@ describe("space backup compatibility", () => {
 
     expect(backup.dailyEntries).toEqual([
       {
-        id: "task-1",
+        id: "entry-1",
+        taskId: "task-1",
         listId: "list-1",
         orderToken: "a",
         createdAt: 1,

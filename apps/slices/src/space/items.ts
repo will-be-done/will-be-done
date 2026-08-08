@@ -1,9 +1,9 @@
 import { v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { assertUnreachable } from "./utils";
-import { createDailyEntrySibling, deleteDailyEntries } from "./dailyEntries";
+import { createDailyEntrySibling } from "./dailyEntries";
 import { createTaskNextToSectionItem } from "./projectSectionItems";
-import { createStashEntrySibling, deleteStashEntries } from "./stashEntries";
+import { createStashEntrySibling } from "./stashEntries";
 import { deleteTasksByIds, taskById, defaultTask } from "./tasks";
 import { deleteTemplates, taskTemplateById } from "./taskTemplates";
 import { appTypeSlicesMap } from "./maps";
@@ -57,13 +57,13 @@ export const createTaskNextToListItem = action({
   }) {
     if (isDailyEntry(listItem)) {
       return yield* createDailyEntrySibling({
-        taskId: listItem.id,
+        taskId: listItem.taskId,
         position,
         taskParams,
       });
     } else if (isStashEntry(listItem)) {
       return yield* createStashEntrySibling({
-        taskId: listItem.id,
+        taskId: listItem.taskId,
         position,
         taskParams,
       });
@@ -89,7 +89,25 @@ export const listItemById = selector({
     const slice = appTypeSlicesMap[modelType];
     if (!slice) throw new Error(`Unknown model type: ${modelType}`);
 
-    return (yield* slice.byId(id)) as ListItem;
+    return (yield* slice.byId(id)) as ListItem | undefined;
+  },
+});
+
+export const itemByListItemId = selector({
+  name: "itemByListItemId",
+  args: {
+    id: v.string(),
+    modelType: listItemType,
+  },
+  handler: function* itemByListItemId({ id, modelType }) {
+    const listItem = yield* listItemById({ id, modelType });
+    if (!listItem) return undefined as Item | undefined;
+
+    if (isDailyEntry(listItem) || isStashEntry(listItem)) {
+      return yield* taskById({ id: listItem.taskId });
+    }
+
+    return listItem as Item;
   },
 });
 
@@ -119,11 +137,11 @@ export const taskOfModel = selector({
   },
   handler: function* taskOfModel({ model }) {
     if (isDailyEntry(model)) {
-      return yield* taskById({ id: model.id });
+      return yield* taskById({ id: model.taskId });
     }
 
     if (isStashEntry(model)) {
-      return yield* taskById({ id: model.id });
+      return yield* taskById({ id: model.taskId });
     }
 
     if (isTask(model)) {
@@ -140,7 +158,5 @@ export const deleteItemsByIds = action({
   handler: function* deleteItemsByIds({ ids }) {
     yield* deleteTasksByIds({ ids });
     yield* deleteTemplates({ taskTemplateIds: ids });
-    yield* deleteDailyEntries({ ids });
-    yield* deleteStashEntries({ ids });
   },
 });

@@ -409,7 +409,7 @@ export const taskTemplateCanDrop = selector({
     }
 
     if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.id });
+      const droppedTask = yield* taskById({ id: model.taskId });
       return droppedTask !== undefined && droppedTask.state === "todo";
     }
 
@@ -590,7 +590,7 @@ export const taskTemplateHandleDrop = action({
         },
       });
     } else if (isDailyEntry(dropItem)) {
-      const droppedTask = yield* taskById({ id: dropItem.id });
+      const droppedTask = yield* taskById({ id: dropItem.taskId });
       if (droppedTask) {
         yield* updateTask({
           id: droppedTask.id,

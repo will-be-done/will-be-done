@@ -105,6 +105,7 @@ async function main() {
     cwd: path.join(repoRoot, "apps", "api"),
     env: {
       PORT: apiPort,
+      WBD_DB_ENGINE: "sqlite",
       WBD_DB_PATH: e2eDbPath,
       WBD_CF_CAPTCHA_ENABLED: "false",
       WBD_BACKUP_S3_ENABLED: "false",

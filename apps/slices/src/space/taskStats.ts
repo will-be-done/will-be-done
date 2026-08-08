@@ -76,11 +76,11 @@ function* refreshScheduledTodoTasks(
   );
   const taskById = new Map((tasks as Task[]).map((task) => [task.id, task]));
 
-  const entries = yield* selectFrom(dailyEntriesTable, "byId").where((q) =>
-    uniqueTaskIds.map((id) => q.eq("id", id)),
+  const entries = yield* selectFrom(dailyEntriesTable, "byTaskId").where((q) =>
+    uniqueTaskIds.map((id) => q.eq("taskId", id)),
   );
   const dailyEntryMapByTaskId = new Map(
-    (entries as DailyEntry[]).map((entry) => [entry.id, entry]),
+    (entries as DailyEntry[]).map((entry) => [entry.taskId, entry]),
   );
   const dailyListIds = [
     ...new Set((entries as DailyEntry[]).map((entry) => entry.dailyListId)),
@@ -136,7 +136,7 @@ function* refreshScheduledTodoTasksForDailyLists(
   );
 
   yield* refreshScheduledTodoTasks(
-    (entries as DailyEntry[]).map((entry) => entry.id),
+    (entries as DailyEntry[]).map((entry) => entry.taskId),
   );
 }
 
@@ -226,7 +226,7 @@ export const rebuildScheduledTodoTasks = action({
 
     const entries = yield* selectFrom(dailyEntriesTable, "byIds");
     yield* refreshScheduledTodoTasks(
-      (entries as DailyEntry[]).map((entry) => entry.id),
+      (entries as DailyEntry[]).map((entry) => entry.taskId),
     );
   },
 });
@@ -598,14 +598,26 @@ export function installProjectTaskStatsHooks(db: SubscribableDB) {
     const changedTaskIds = new Set<string>();
     for (const op of ops) {
       if (op.type === "insert") {
-        changedTaskIds.add((op.newValue as Task | DailyEntry).id);
+        const value = op.newValue as Task | DailyEntry;
+        changedTaskIds.add(
+          value.type === "dailyEntry" ? value.taskId : value.id,
+        );
       } else if (op.type === "upsert") {
         if (op.oldValue) {
-          changedTaskIds.add((op.oldValue as Task | DailyEntry).id);
+          const oldValue = op.oldValue as Task | DailyEntry;
+          changedTaskIds.add(
+            oldValue.type === "dailyEntry" ? oldValue.taskId : oldValue.id,
+          );
         }
-        changedTaskIds.add((op.newValue as Task | DailyEntry).id);
+        const newValue = op.newValue as Task | DailyEntry;
+        changedTaskIds.add(
+          newValue.type === "dailyEntry" ? newValue.taskId : newValue.id,
+        );
       } else {
-        changedTaskIds.add((op.oldValue as Task | DailyEntry).id);
+        const value = op.oldValue as Task | DailyEntry;
+        changedTaskIds.add(
+          value.type === "dailyEntry" ? value.taskId : value.id,
+        );
       }
     }
 

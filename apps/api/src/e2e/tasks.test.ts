@@ -158,6 +158,15 @@ test("covers every task operation, including pagination and scheduling", async (
   );
   expect(unscheduled.data.task.scheduledDate).toBeNull();
 
+  expectResponseStatus(
+    await scheduleTask(space.id, taskA.id, { date: "2035-01-04" }, options),
+    200,
+  );
+  expect(
+    expectResponseStatus(await getTask(space.id, taskA.id, options), 200).data
+      .task.scheduledDate,
+  ).toBe("2035-01-04");
+
   await coverOperation(
     "deleteTask",
     deleteTask(space.id, taskC.id, options),

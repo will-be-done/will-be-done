@@ -34,7 +34,7 @@ const rowSchema = v.record(
   v.string(),
   primitiveValueSchema,
 ) as Validator<PrimitiveRow>;
-const tableDefinitionArgSchema = v.object({
+export const tableDefinitionArgSchema = v.object({
   tableName: v.string(),
 });
 const changeSchema = v.object({
@@ -47,7 +47,7 @@ const changeSchema = v.object({
   createdAt: v.string(),
   updatedAt: v.string(),
 });
-const changesetArray = v.array(
+export const changesetArrayValidator = v.array(
   v.object({
     tableName: v.string(),
     data: v.array(
@@ -312,10 +312,15 @@ export const insertChangeFromDelete = action({
   },
 });
 
+/**
+ * Merges must be idempotent. Reapplying the same client changes, even with a
+ * newer receipt clock, must not write entity rows or Change rows again.
+ * `nextClock` stamps newly converged state; it must not make a replay a change.
+ */
 export const mergeChanges = action({
   name: "mergeChangesAction",
   args: {
-    input: changesetArray,
+    input: changesetArrayValidator,
     nextClock: v.string(),
     clientId: v.string(),
     registeredSyncableTableNameMap: v.record(
@@ -328,13 +333,7 @@ export const mergeChanges = action({
     nextClock,
     registeredSyncableTableNameMap,
   }) {
-    const allChanges: Change[] = [];
-
     for (const changeset of input) {
-      const toDeleteRows: string[] = [];
-      const toUpdateRows: Row[] = [];
-      const toInsertRows: Row[] = [];
-
       const table = registeredSyncableTableNameMap[changeset.tableName] as
         | TableDefinition
         | undefined;
@@ -358,6 +357,7 @@ export const mergeChanges = action({
       const currentChangesMap = new Map(
         currentChanges.map((c) => [c.entityId, c as Change]),
       );
+      const originalChangesMap = new Map(currentChangesMap);
 
       const currentRows: Row[] = [];
       for (const dataChunk of chunkArray(
@@ -371,11 +371,14 @@ export const mergeChanges = action({
         );
       }
       const currentRowsMap = new Map(currentRows.map((r) => [r.id, r]));
+      const originalRowsMap = new Map(currentRowsMap);
+      const touchedEntityIds = new Set<string>();
 
       for (const {
         change: incomingChange,
         row: incomingRow,
       } of changeset.data) {
+        touchedEntityIds.add(incomingChange.entityId);
         const currentChanges = currentChangesMap.get(incomingChange.entityId);
         const currentRow = currentRowsMap.get(incomingChange.entityId);
 
@@ -436,10 +439,8 @@ export const mergeChanges = action({
             continue;
           }
 
-          if (!isEqual(currentRow, fcwMergedRow)) {
-            toUpdateRows.push(fcwMergedRow);
-          }
-          allChanges.push(mergedChange);
+          currentRowsMap.set(incomingChange.entityId, fcwMergedRow);
+          currentChangesMap.set(incomingChange.entityId, mergedChange);
 
           continue; // Skip normal LWW merge
         }
@@ -511,26 +512,52 @@ export const mergeChanges = action({
 
         // A tombstone is permanent: deleted IDs cannot be reused.
         if (isDeleted) {
-          if (currentRow) {
-            toDeleteRows.push(currentRow.id);
-          }
-        } else if (currentRow) {
-          if (!isEqual(currentRow, mergedRow)) {
-            toUpdateRows.push(mergedRow);
-          }
+          currentRowsMap.delete(incomingChange.entityId);
         } else {
-          toInsertRows.push(mergedRow);
+          currentRowsMap.set(incomingChange.entityId, mergedRow);
         }
-
-        allChanges.push(mergedChange);
+        currentChangesMap.set(incomingChange.entityId, mergedChange);
       }
 
+      const toDeleteRows: string[] = [];
+      const toUpdateRows: Row[] = [];
+      const toInsertRows: Row[] = [];
+      const changesToUpsert: Change[] = [];
+      for (const entityId of touchedEntityIds) {
+        const originalRow = originalRowsMap.get(entityId);
+        const finalRow = currentRowsMap.get(entityId);
+        if (originalRow !== undefined && finalRow === undefined) {
+          toDeleteRows.push(entityId);
+        } else if (originalRow === undefined && finalRow !== undefined) {
+          toInsertRows.push(finalRow);
+        } else if (
+          originalRow !== undefined &&
+          finalRow !== undefined &&
+          !isEqual(originalRow, finalRow)
+        ) {
+          toUpdateRows.push(finalRow);
+        }
+
+        const finalChange = currentChangesMap.get(entityId);
+        if (
+          finalChange !== undefined &&
+          !isSameMergedState(
+            originalChangesMap.get(entityId),
+            originalRow,
+            finalChange,
+            finalRow ?? { id: entityId },
+            finalChange.deletedAt !== null,
+          )
+        ) {
+          changesToUpsert.push(finalChange);
+        }
+      }
+
+      yield* deleteRows(table, toDeleteRows);
       yield* insert(table, toInsertRows);
       yield* upsert(table, toUpdateRows);
-      yield* deleteRows(table, toDeleteRows);
+      yield* upsert(changesTable, changesToUpsert);
     }
-
-    yield* upsert(changesTable, allChanges);
   },
 });
 

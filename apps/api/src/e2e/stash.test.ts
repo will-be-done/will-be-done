@@ -55,7 +55,7 @@ test("covers every stash operation", async () => {
     putTaskInStash(
       space.id,
       sectionTask.id,
-      { placement: { kind: "first" } },
+      { placement: { kind: "after", anchorId: stashTask.id } },
       options,
     ),
     200,
@@ -65,7 +65,26 @@ test("covers every stash operation", async () => {
     await listStashTasks(space.id, { state: "todo" }, options),
     200,
   ).data.tasks;
-  expect(reordered[0]?.id).toBe(sectionTask.id);
+  expect(reordered.map(({ id }) => id)).toEqual([stashTask.id, sectionTask.id]);
+
+  expectResponseStatus(
+    await putTaskInStash(
+      space.id,
+      sectionTask.id,
+      { placement: { kind: "first" } },
+      options,
+    ),
+    200,
+  );
+  expectResponseStatus(
+    await putTaskInStash(
+      space.id,
+      sectionTask.id,
+      { placement: { kind: "after", anchorId: stashTask.id } },
+      options,
+    ),
+    200,
+  );
 
   await coverOperation(
     "removeTaskFromStash",
@@ -79,5 +98,38 @@ test("covers every stash operation", async () => {
   expect(afterRemoval.data.tasks.map(({ id }) => id)).not.toContain(
     sectionTask.id,
   );
+  expectResponseStatus(
+    await putTaskInStash(
+      space.id,
+      sectionTask.id,
+      { placement: { kind: "after", anchorId: stashTask.id } },
+      options,
+    ),
+    200,
+  );
+  expect(
+    expectResponseStatus(
+      await listStashTasks(space.id, { state: "todo" }, options),
+      200,
+    ).data.tasks.map(({ id }) => id),
+  ).toEqual([stashTask.id, sectionTask.id]);
+
+  const anchoredCreation = expectResponseStatus(
+    await createStashTask(
+      space.id,
+      {
+        title: "Created after public task anchor",
+        placement: { kind: "after", anchorId: stashTask.id },
+      },
+      options,
+    ),
+    201,
+  ).data.task;
+  expect(
+    expectResponseStatus(
+      await listStashTasks(space.id, { state: "todo" }, options),
+      200,
+    ).data.tasks.map(({ id }) => id),
+  ).toEqual([stashTask.id, anchoredCreation.id, sectionTask.id]);
   expect((await getTask(space.id, sectionTask.id, options)).status).toBe(200);
 });
