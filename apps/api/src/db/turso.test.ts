@@ -173,6 +173,46 @@ describe("Turso database credentials", () => {
     await db.close();
   });
 
+  test("replaces an idle session before the next SQL job when probing fails", async () => {
+    let now = 0;
+    const initial = new FakeConnection();
+    const originalExec = initial.exec.bind(initial);
+    initial.exec = async (sql: string, options?: QueryOptions) => {
+      if (sql === "SELECT 1" && initial.statements.length > 0) {
+        initial.statements.push(sql);
+        throw new Error("HTTP error! status: 404");
+      }
+      await originalExec(sql, options);
+    };
+    const replacement = new FakeConnection();
+    let tokenCount = 0;
+    const db = new TursoSqlExecutor(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      {
+        createToken: async () => `token-${++tokenCount}`,
+        connect: () => replacement.asConnection(),
+        now: () => now,
+        refreshAfterMs: 60_000,
+      },
+      initial.asConnection(),
+    );
+
+    await db.exec("SELECT before_idle");
+    now = 20_001;
+    await db.exec("SELECT after_idle");
+
+    expect(tokenCount).toBe(1);
+    expect(initial.statements).toEqual(["SELECT before_idle", "SELECT 1"]);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+      "SELECT after_idle",
+    ]);
+
+    await db.close();
+  });
+
   test("does not block SQL while a replaced connection is closing", async () => {
     let now = 0;
     const initial = new FakeConnection();

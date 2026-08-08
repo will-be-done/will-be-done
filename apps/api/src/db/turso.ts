@@ -38,6 +38,7 @@ const UUID_PATTERN =
 const TURSO_READINESS_PROBE_TIMEOUT_MS = 10_000;
 const TURSO_QUERY_TIMEOUT_MS = 30_000;
 const TURSO_SLOW_JOB_WARNING_MS = 5_000;
+const TURSO_IDLE_SESSION_PROBE_AFTER_MS = 20_000;
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
@@ -335,6 +336,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   // Only runLoop reads from or replaces the connection.
   private connection: Connection;
   private refreshAt: number;
+  private lastActivityAt: number;
   // A failed replacement leaves the old connection in place for the next job
   // to retry replacing without executing SQL on a known-expired session.
   private replacementRequired = false;
@@ -351,7 +353,9 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
     connection: Connection,
   ) {
     this.connection = connection;
-    this.refreshAt = dependencies.now() + dependencies.refreshAfterMs;
+    const now = dependencies.now();
+    this.refreshAt = now + dependencies.refreshAfterMs;
+    this.lastActivityAt = now;
     this.loopPromise = this.runLoop();
   }
 
@@ -379,10 +383,26 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
       await this.replaceConnection();
       return;
     }
-    if (
-      this.dependencies.now() >= this.refreshAt &&
-      !this.connection.inTransaction
-    ) {
+    if (this.connection.inTransaction) return;
+
+    const now = this.dependencies.now();
+    if (now >= this.refreshAt) {
+      await this.replaceConnection();
+      return;
+    }
+
+    if (now - this.lastActivityAt < TURSO_IDLE_SESSION_PROBE_AFTER_MS) {
+      return;
+    }
+
+    try {
+      await this.connection.exec("SELECT 1", {
+        queryTimeout: TURSO_READINESS_PROBE_TIMEOUT_MS,
+      });
+    } catch (error) {
+      console.warn(
+        `[Turso SQL ${this.databaseName}] idle session probe failed; replacing connection: ${String(error)}`,
+      );
       await this.replaceConnection();
     }
   }
@@ -432,6 +452,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
         job.reject(error);
       }
     } finally {
+      this.lastActivityAt = this.dependencies.now();
       clearTimeout(slowWarning);
     }
   }
