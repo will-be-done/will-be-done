@@ -136,10 +136,30 @@ export function createServer({
 
   if (serveFrontend) {
     const publicRoot = path.join(__dirname, "..", "public");
-    server.register(staticPlugin, { root: publicRoot });
+    const serviceWorkerPath = path.join(publicRoot, "sw.js");
+    server.register(staticPlugin, {
+      root: publicRoot,
+      setHeaders(response, filePath) {
+        if (filePath === serviceWorkerPath) {
+          // A service worker controls how the rest of the frontend is cached,
+          // so browsers and intermediary CDNs must always revalidate it.
+          response.setHeader(
+            "Cache-Control",
+            "no-cache, no-store, must-revalidate",
+          );
+        }
+      },
+    });
 
     server.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith("/api")) {
+      const [requestPath] = request.url.split("?", 1);
+      const isApiRequest =
+        requestPath === "/api" || requestPath.startsWith("/api/");
+      const isAssetRequest =
+        requestPath === "/assets" || requestPath.startsWith("/assets/");
+      const isServiceWorkerRequest = requestPath === "/sw.js";
+
+      if (isApiRequest || isAssetRequest || isServiceWorkerRequest) {
         return reply.code(404).send({ error: "Not found" });
       }
 
