@@ -35,6 +35,7 @@ export function createServer({
   serveFrontend = true,
   rateLimit = { backend: "memory" },
 }: CreateServerOptions) {
+  const rateLimitEnabled = rateLimit.enabled ?? true;
   const server = fastify({
     logger,
     bodyLimit: 100485760,
@@ -48,7 +49,9 @@ export function createServer({
 
   // Register before every route/plugin so the broad per-IP limit covers the
   // complete HTTP surface. Sensitive tRPC procedures add stricter limits.
-  registerAppRateLimiting(server, rateLimit);
+  if (rateLimitEnabled) {
+    registerAppRateLimiting(server, rateLimit);
+  }
 
   server.register(websocket);
   server.register(multipart);
@@ -111,7 +114,9 @@ export function createServer({
   });
 
   server.register(async (trpcServer) => {
-    const appRateLimiter = createAppRateLimiter(trpcServer, rateLimit);
+    const appRateLimiter = rateLimitEnabled
+      ? createAppRateLimiter(trpcServer, rateLimit)
+      : undefined;
 
     trpcServer.register(fastifyTRPCPlugin, {
       prefix: "/api/trpc",

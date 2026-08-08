@@ -37,6 +37,7 @@ const defaultGlobalPolicy: WindowLimitConfig = {
 };
 
 export interface RateLimitConfig {
+  enabled?: boolean;
   backend: "memory" | "redis";
   redisUrl?: string;
   namespace?: string;

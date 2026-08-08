@@ -3,11 +3,22 @@ import { DB, execSync, syncDispatch } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import fastify from "fastify";
 import { createAppRouter } from "./appRouter";
-import { createAppRateLimiter, registerAppRateLimiting } from "./rateLimit";
+import {
+  createAppRateLimiter,
+  registerAppRateLimiting,
+  type RateLimitConfig,
+} from "./rateLimit";
 import { createServer } from "./server";
 import { register, tokensTable, usersTable } from "./slices/authSlice";
 
-async function createLoginServer() {
+async function createLoginServer(
+  rateLimit: RateLimitConfig = {
+    backend: "memory",
+    policyOverrides: {
+      login: { max: 1, timeWindow: 60_000 },
+    },
+  },
+) {
   const mainDB = new DB(new BptreeInmemDriver());
   execSync(mainDB.loadTables([usersTable, tokensTable]));
   const hashedPassword = await Bun.password.hash("password1", {
@@ -23,12 +34,7 @@ async function createLoginServer() {
     appRouter: createAppRouter({ mainDB, captchaConfig: null }),
     logger: false,
     serveFrontend: false,
-    rateLimit: {
-      backend: "memory",
-      policyOverrides: {
-        login: { max: 1, timeWindow: 60_000 },
-      },
-    },
+    rateLimit,
   });
 }
 
@@ -90,6 +96,37 @@ describe("tRPC rate limiting", () => {
         rateLimit: { backend: "redis" },
       }),
     ).toThrow("A Redis URL is required for Redis-backed rate limiting");
+  });
+
+  test("can disable global and procedure-specific limits explicitly", async () => {
+    const server = await createLoginServer({
+      enabled: false,
+      backend: "memory",
+      globalOverride: { max: 1, timeWindow: 60_000 },
+      policyOverrides: {
+        login: { max: 1, timeWindow: 60_000 },
+      },
+    });
+
+    try {
+      await server.ready();
+      const loginRequest = {
+        method: "POST" as const,
+        url: "/api/trpc/login",
+        payload: {
+          email: "limited@example.com",
+          password: "password1",
+        },
+      };
+
+      expect((await server.inject(loginRequest)).statusCode).toBe(200);
+      expect((await server.inject(loginRequest)).statusCode).toBe(200);
+      expect(
+        (await server.inject({ method: "GET", url: "/api/health" })).statusCode,
+      ).toBe(200);
+    } finally {
+      await server.close();
+    }
   });
 
   test("limits Todoist imports per user instead of per IP", async () => {

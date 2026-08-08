@@ -16,9 +16,11 @@ The existing synchronization API remains available at `/api/trpc`.
 
 Every HTTP endpoint has a general limit of 300 requests per minute per IP.
 Login, registration, and Todoist imports have stricter targeted limits. The
-default in-memory backend is suitable for one API process. For multiple
-instances, set `WBD_RATE_LIMIT_BACKEND=redis` and `WBD_REDIS_URL`; use a
-deployment-specific `WBD_RATE_LIMIT_NAMESPACE` when environments share Redis.
+limiter is enabled by default and can be explicitly disabled with
+`WBD_RATE_LIMIT_ENABLED=false`. The default in-memory backend is suitable for
+one API process. For multiple instances, set `WBD_RATE_LIMIT_BACKEND=redis`
+and `WBD_REDIS_URL`; use a deployment-specific `WBD_RATE_LIMIT_NAMESPACE` when
+environments share Redis.
 The targeted limits are 10 logins per 10 minutes per IP, 5 registrations per
 hour per IP, and 3 Todoist imports per hour per user. Redis errors are logged
 and fail open so a transient Redis outage does not take down the API.

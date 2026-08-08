@@ -13,7 +13,7 @@ const start = async () => {
     const env = getEnvConfig();
     await subscriptionManager.initialize();
     console.log(
-      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_BACKEND}`,
+      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
     );
     const backupConfig = getBackupConfig();
     if (backupConfig?.WBD_BACKUP_S3_ENABLED && env.WBD_DB_ENGINE === "turso") {
@@ -29,6 +29,7 @@ const start = async () => {
     const server = createServer({
       appRouter,
       rateLimit: {
+        enabled: env.WBD_RATE_LIMIT_ENABLED,
         backend: env.WBD_RATE_LIMIT_BACKEND,
         redisUrl: env.WBD_REDIS_URL,
         namespace: env.WBD_RATE_LIMIT_NAMESPACE,
