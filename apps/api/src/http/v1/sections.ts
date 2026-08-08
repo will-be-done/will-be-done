@@ -43,11 +43,11 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const sections = listProjectSections({
+        const sections = await listProjectSections({
           spaceId: request.params.spaceId,
           projectId: request.params.projectId,
           userId: user.id,
@@ -86,10 +86,10 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const section = createProjectSection({
+        const section = await createProjectSection({
           spaceId: request.params.spaceId,
           projectId: request.params.projectId,
           userId: user.id,
@@ -127,10 +127,10 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const section = getProjectSection({
+        const section = await getProjectSection({
           spaceId: request.params.spaceId,
           sectionId: request.params.sectionId,
           userId: user.id,
@@ -169,10 +169,10 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const section = updateProjectSection({
+        const section = await updateProjectSection({
           spaceId: request.params.spaceId,
           sectionId: request.params.sectionId,
           userId: user.id,
@@ -211,10 +211,10 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        deleteProjectSection({
+        await deleteProjectSection({
           spaceId: request.params.spaceId,
           sectionId: request.params.sectionId,
           userId: user.id,
@@ -253,10 +253,10 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const section = moveProjectSection({
+        const section = await moveProjectSection({
           spaceId: request.params.spaceId,
           sectionId: request.params.sectionId,
           userId: user.id,

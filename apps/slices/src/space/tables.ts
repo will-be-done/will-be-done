@@ -147,7 +147,6 @@ export const scheduledTodoTasksTable = defineTable("scheduled_todo_tasks", {
   projectSectionId: v.string(),
 })
   .index("byIds", ["id"])
-  .index("byScheduledAt", ["scheduledAt"])
   .index("byScheduledAtId", ["scheduledAt", "id"])
   .index("byProjectSectionId", ["projectSectionId"]);
 export type ScheduledTodoTask = ExtractSchema<typeof scheduledTodoTasksTable>;

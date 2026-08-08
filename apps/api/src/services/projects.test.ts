@@ -70,7 +70,7 @@ describe("listSpaceProjects", () => {
     mock.restore();
   });
 
-  test("returns public project fields in display order and enforces ownership", () => {
+  test("returns public project fields in display order and enforces ownership", async () => {
     const mainDB = new DB(new BptreeInmemDriver());
     const userDB = new DB(new BptreeInmemDriver());
     const spaceDB = new DB(new BptreeInmemDriver());
@@ -88,15 +88,15 @@ describe("listSpaceProjects", () => {
     execSync(spaceDB.loadTables([projectsTable]));
     syncDispatch(spaceDB, seedProjects({}));
 
-    spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation((config) =>
+    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
+    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
       config.dbType === "user"
         ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
         : ({
             db: spaceDB,
           } as unknown as ReturnType<typeof databases.getHyperDB>),
     );
-    const projects = listSpaceProjects({
+    const projects = await listSpaceProjects({
       spaceId: "space-1",
       userId: "user-1",
     });
@@ -118,12 +118,12 @@ describe("listSpaceProjects", () => {
       },
     ]);
 
-    expect(() =>
+    expect(
       listSpaceProjects({ spaceId: "space-1", userId: "another-user" }),
-    ).toThrow(DatabaseAccessDeniedError);
+    ).rejects.toThrow(DatabaseAccessDeniedError);
   });
 
-  test("registers database access for an authorized unregistered space", () => {
+  test("registers database access for an authorized unregistered space", async () => {
     const mainDB = new DB(new BptreeInmemDriver());
     const userDB = new DB(new BptreeInmemDriver());
     const spaceDB = new DB(new BptreeInmemDriver());
@@ -133,8 +133,8 @@ describe("listSpaceProjects", () => {
     execSync(spaceDB.loadTables([projectsTable]));
     syncDispatch(spaceDB, seedProjects({}));
 
-    spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation((config) =>
+    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
+    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
       config.dbType === "user"
         ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
         : ({ db: spaceDB } as unknown as ReturnType<
@@ -143,7 +143,7 @@ describe("listSpaceProjects", () => {
     );
 
     expect(
-      listSpaceProjects({ spaceId: "space-1", userId: "user-1" }),
+      await listSpaceProjects({ spaceId: "space-1", userId: "user-1" }),
     ).toHaveLength(2);
     expect(
       selectSync(mainDB, {
@@ -153,7 +153,7 @@ describe("listSpaceProjects", () => {
     ).toMatchObject({ id: "space-1", userId: "user-1" });
   });
 
-  test("does not let a user claim an unknown unregistered space", () => {
+  test("does not let a user claim an unknown unregistered space", async () => {
     const mainDB = new DB(new BptreeInmemDriver());
     const userDB = new DB(new BptreeInmemDriver());
     const spaceDB = new DB(new BptreeInmemDriver());
@@ -161,8 +161,8 @@ describe("listSpaceProjects", () => {
     execSync(userDB.loadTables([spacesTable]));
     execSync(spaceDB.loadTables([projectsTable]));
 
-    spyOn(databases, "getMainHyperDB").mockImplementation(() => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation((config) =>
+    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
+    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
       config.dbType === "user"
         ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
         : ({
@@ -170,11 +170,11 @@ describe("listSpaceProjects", () => {
           } as unknown as ReturnType<typeof databases.getHyperDB>),
     );
 
-    expect(() =>
+    expect(
       listSpaceProjects({
         spaceId: "unknown-space",
         userId: "user-1",
       }),
-    ).toThrow(ResourceNotFoundError);
+    ).rejects.toThrow(ResourceNotFoundError);
   });
 });

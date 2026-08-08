@@ -1,4 +1,3 @@
-import * as dotenv from "dotenv";
 import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
@@ -6,25 +5,43 @@ import { getCaptchaConfig } from "./captcha/types";
 import { closeDatabases, getMainHyperDB } from "./db/db";
 import { getEnvConfig } from "./env";
 import { createServer } from "./server";
-
-dotenv.config();
-
-const appRouter = createAppRouter({
-  mainDB: getMainHyperDB(),
-  captchaConfig: getCaptchaConfig(),
-});
-const server = createServer({ appRouter });
+import { getServerInstanceId } from "./serverInstance";
+import { subscriptionManager } from "./subscriptionManager";
 
 const start = async () => {
   try {
+    const env = getEnvConfig();
+    await subscriptionManager.initialize();
+    console.log(
+      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
+    );
+    const backupConfig = getBackupConfig();
+    if (backupConfig?.WBD_BACKUP_S3_ENABLED && env.WBD_DB_ENGINE === "turso") {
+      throw new Error(
+        "The local SQLite S3 backup worker cannot run with WBD_DB_ENGINE=turso. Use Turso point-in-time recovery or disable WBD_BACKUP_S3_ENABLED.",
+      );
+    }
+
+    const appRouter = createAppRouter({
+      mainDB: await getMainHyperDB(),
+      captchaConfig: getCaptchaConfig(),
+    });
+    const server = createServer({
+      appRouter,
+      rateLimit: {
+        enabled: env.WBD_RATE_LIMIT_ENABLED,
+        backend: env.WBD_RATE_LIMIT_BACKEND,
+        redisUrl: env.WBD_REDIS_URL,
+        namespace: env.WBD_RATE_LIMIT_NAMESPACE,
+      },
+    });
+
     console.log("Starting server...");
     const port = parseInt(process.env.PORT || "3000", 10);
     await server.listen({ port, host: "0.0.0.0" });
     console.log("Server started");
 
     let backupWorker: Worker | null = null;
-    const backupConfig = getBackupConfig();
-
     if (backupConfig?.WBD_BACKUP_S3_ENABLED) {
       try {
         console.log("[Backup] S3 backup system enabled, spawning worker...");
@@ -113,7 +130,8 @@ const start = async () => {
             }
 
             await server.close();
-            closeDatabases();
+            await subscriptionManager.close();
+            await closeDatabases();
             server.log.info("Server closed successfully");
             process.exit(0);
           } catch (error) {
@@ -124,7 +142,17 @@ const start = async () => {
       });
     }
   } catch (error) {
-    server.log.error(error);
+    console.error(error);
+    try {
+      await subscriptionManager.close();
+    } catch (cleanupError) {
+      console.error("Failed to close subscription manager", cleanupError);
+    }
+    try {
+      await closeDatabases();
+    } catch (cleanupError) {
+      console.error("Failed to close databases", cleanupError);
+    }
     process.exit(1);
   }
 };

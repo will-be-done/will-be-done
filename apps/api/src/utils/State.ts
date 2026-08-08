@@ -78,19 +78,34 @@ export class State<T> {
     });
   }
 
-  async when(func: (value: T) => boolean) {
+  async when(func: (value: T) => boolean, signal?: AbortSignal) {
     return new Promise<void>((resolve, reject) => {
-      this.subscribe((val, unsub) => {
+      const onAbort = () => {
+        unsubscribe?.();
+        unsubscribe = undefined;
+        reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+      };
+      let unsubscribe: (() => void) | undefined;
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      signal?.addEventListener("abort", onAbort, { once: true });
+
+      unsubscribe = this.subscribe((val, unsub) => {
         const res = func(val);
 
         if (typeof res !== "boolean") {
           reject(new Error("when result is not boolean"));
+          signal?.removeEventListener("abort", onAbort);
           unsub();
           return;
         }
 
-        if (func(val) === true) {
+        if (res === true) {
           resolve();
+          signal?.removeEventListener("abort", onAbort);
           unsub();
         }
       }, true);

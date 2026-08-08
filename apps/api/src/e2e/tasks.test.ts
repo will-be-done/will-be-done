@@ -20,7 +20,7 @@ import { coverOperation } from "./operationCoverage";
 
 test("covers every task operation, including pagination and scheduling", async () => {
   const { space, project, projectSection, options } =
-    await createSectionFixture(createAuthorization());
+    await createSectionFixture(await createAuthorization());
 
   const created = await coverOperation(
     "createSectionTask",

@@ -1,4 +1,4 @@
-import { selectSync } from "@will-be-done/hyperdb";
+import { selectAsync } from "@will-be-done/hyperdb";
 import {
   projectSectionById,
   projectSectionItems,
@@ -41,7 +41,7 @@ export function toPublicTaskTemplate(
   };
 }
 
-export function listSectionItems({
+export async function listSectionItems({
   spaceId,
   sectionId,
   userId,
@@ -51,40 +51,40 @@ export function listSectionItems({
   sectionId: string;
   userId: string;
   taskState?: "todo" | "done";
-}): PublicItem[] {
-  const db = getSpaceDatabase(spaceId, userId);
+}): Promise<PublicItem[]> {
+  const db = await getSpaceDatabase(spaceId, userId);
 
-  const section = selectSync(db, {
+  const section = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
   if (!section) throw new ResourceNotFoundError("Project section");
 
   if (taskState === "done") {
-    const tasks = selectSync(db, {
+    const tasks = await selectAsync(db, {
       selector: projectSectionTasksByState,
       args: { projectSectionId: sectionId, state: "done" },
     });
-    const scheduledDates = getTaskScheduledDates(
+    const scheduledDates = await getTaskScheduledDates(
       db,
       tasks.map((task) => task.id),
     );
     return tasks.map((task) =>
-      toPublicTask(db, task, scheduledDates.get(task.id) ?? null),
+      toPublicTask(task, scheduledDates.get(task.id) ?? null),
     );
   }
 
-  const items = selectSync(db, {
+  const items = await selectAsync(db, {
     selector: projectSectionItems,
     args: { projectSectionId: sectionId },
   });
-  const scheduledDates = getTaskScheduledDates(
+  const scheduledDates = await getTaskScheduledDates(
     db,
     items.flatMap((item) => (item.type === "task" ? [item.id] : [])),
   );
   return items.map((item) =>
     item.type === "task"
-      ? toPublicTask(db, item, scheduledDates.get(item.id) ?? null)
+      ? toPublicTask(item, scheduledDates.get(item.id) ?? null)
       : toPublicTaskTemplate(item),
   );
 }

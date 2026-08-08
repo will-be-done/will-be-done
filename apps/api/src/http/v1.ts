@@ -10,7 +10,7 @@ import { stashRoutes } from "./v1/stash";
 import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
 import { sendError } from "./errors";
-import { syncDispatch } from "@will-be-done/hyperdb";
+import { asyncDispatch } from "@will-be-done/hyperdb";
 import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
 import { getEnvConfig } from "../env";
 
@@ -29,7 +29,7 @@ export const v1Routes: FastifyPluginAsyncZod = async (server) => {
     const spaceId = (request.params as { spaceId?: unknown }).spaceId;
     if (typeof spaceId !== "string") return;
 
-    const user = authenticateBearerToken(request.headers.authorization);
+    const user = await authenticateBearerToken(request.headers.authorization);
     if (!user) return;
 
     if (
@@ -43,13 +43,13 @@ export const v1Routes: FastifyPluginAsyncZod = async (server) => {
 
     let db;
     try {
-      db = getSpaceDatabase(spaceId, user.id);
+      db = await getSpaceDatabase(spaceId, user.id);
     } catch (error) {
       return sendError(request, reply, error, "Failed to prepare space data");
     }
 
     try {
-      syncDispatch(
+      await asyncDispatch(
         db,
         generateSpaceTasksIfDue({
           toDate: Date.now(),

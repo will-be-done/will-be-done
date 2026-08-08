@@ -16,7 +16,7 @@ import { coverOperation } from "./operationCoverage";
 
 test("covers every stash operation", async () => {
   const { space, projectSection, options } = await createSectionFixture(
-    createAuthorization(),
+    await createAuthorization(),
   );
 
   const created = await coverOperation(

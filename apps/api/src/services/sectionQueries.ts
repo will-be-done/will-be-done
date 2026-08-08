@@ -1,4 +1,4 @@
-import { selectSync } from "@will-be-done/hyperdb";
+import { selectAsync } from "@will-be-done/hyperdb";
 import {
   projectSectionById,
   projectSectionItems,
@@ -7,10 +7,10 @@ import {
 import { getSpaceDatabase } from "./databaseAccess";
 import { ResourceNotFoundError } from "./errors";
 
-type SpaceDatabase = ReturnType<typeof getSpaceDatabase>;
+type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
 
-export function requireSection(db: SpaceDatabase, sectionId: string) {
-  const section = selectSync(db, {
+export async function requireSection(db: SpaceDatabase, sectionId: string) {
+  const section = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
@@ -18,13 +18,15 @@ export function requireSection(db: SpaceDatabase, sectionId: string) {
   return section;
 }
 
-export function itemsInSection(
+export async function itemsInSection(
   db: SpaceDatabase,
   sectionId: string,
   excludedId?: string,
-): Item[] {
-  return selectSync(db, {
-    selector: projectSectionItems,
-    args: { projectSectionId: sectionId },
-  }).filter((item) => item.id !== excludedId);
+): Promise<Item[]> {
+  return (
+    await selectAsync(db, {
+      selector: projectSectionItems,
+      args: { projectSectionId: sectionId },
+    })
+  ).filter((item) => item.id !== excludedId);
 }

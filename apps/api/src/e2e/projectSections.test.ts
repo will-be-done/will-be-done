@@ -19,7 +19,7 @@ import { coverOperation } from "./operationCoverage";
 
 test("covers every project-section operation", async () => {
   const { space, project, options } = await createProjectFixture(
-    createAuthorization(),
+    await createAuthorization(),
   );
 
   await coverOperation(

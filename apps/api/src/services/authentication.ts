@@ -1,4 +1,4 @@
-import { syncDispatch, type DB } from "@will-be-done/hyperdb";
+import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
 import type { FastifyRequest } from "fastify";
 import { getMainHyperDB } from "../db/db";
 import { validateToken } from "../slices/authSlice";
@@ -14,11 +14,11 @@ export interface TokenUsage {
   userAgent?: string;
 }
 
-export function authenticateBearerToken(
+export async function authenticateBearerToken(
   authHeader?: string,
-  mainDB: DB = getMainHyperDB(),
+  mainDB?: DB,
   usage: TokenUsage = {},
-): AuthenticatedUser | null {
+): Promise<AuthenticatedUser | null> {
   if (!authHeader?.startsWith("Bearer ")) {
     return null;
   }
@@ -29,8 +29,8 @@ export function authenticateBearerToken(
   }
 
   try {
-    const user = syncDispatch(
-      mainDB,
+    const user = await asyncDispatch(
+      mainDB ?? (await getMainHyperDB()),
       validateToken({
         tokenId: token,
         usedAt: usage.usedAt ?? new Date().toISOString(),
@@ -47,14 +47,14 @@ export function authenticateBearerToken(
   }
 }
 
-export function authenticateRequest(
+export async function authenticateRequest(
   request: Pick<FastifyRequest, "headers" | "ip">,
   authHeader: string | undefined = request.headers.authorization,
-  mainDB: DB = getMainHyperDB(),
-): AuthenticatedUser | null {
+  mainDB?: DB,
+): Promise<AuthenticatedUser | null> {
   const userAgent = request.headers["user-agent"];
 
-  return authenticateBearerToken(authHeader, mainDB, {
+  return await authenticateBearerToken(authHeader, mainDB, {
     ip: request.ip,
     ...(userAgent !== undefined ? { userAgent } : {}),
   });

@@ -38,7 +38,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
 
       if (!user) {
         return reply.code(401).send({
@@ -48,7 +48,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       }
 
       try {
-        const spaces = listUserSpaces({ userId: user.id });
+        const spaces = await listUserSpaces({ userId: user.id });
         return reply.code(200).send({ spaces });
       } catch (error) {
         request.log.error(error, "Failed to list spaces");
@@ -78,7 +78,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
 
       if (!user) {
         return reply.code(401).send({
@@ -88,7 +88,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       }
 
       try {
-        const space = createUserSpace({
+        const space = await createUserSpace({
           userId: user.id,
           name: request.body.name,
         });
@@ -123,11 +123,11 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const space = getUserSpace({
+        const space = await getUserSpace({
           userId: user.id,
           spaceId: request.params.spaceId,
         });
@@ -162,7 +162,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
 
       if (!user) {
         return reply.code(401).send({
@@ -172,7 +172,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       }
 
       try {
-        const deleted = deleteUserSpace({
+        const deleted = await deleteUserSpace({
           userId: user.id,
           spaceId: request.params.spaceId,
         });
@@ -213,7 +213,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       if (request.body.name === undefined) {
@@ -224,7 +224,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       }
 
       try {
-        const space = updateUserSpace({
+        const space = await updateUserSpace({
           userId: user.id,
           spaceId: request.params.spaceId,
           name: request.body.name,

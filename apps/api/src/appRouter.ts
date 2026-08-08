@@ -1,12 +1,17 @@
 import { z } from "zod";
-import { selectSync, syncDispatch, type DB } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import {
   ChangesetArray,
   getChangesetAfter,
   mergeChanges,
 } from "@will-be-done/slices/common";
 import { TRPCError } from "@trpc/server";
-import { protectedProcedure, publicProcedure, router } from "./trpc";
+import {
+  enforceRateLimit,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./trpc";
 import { getHyperDB } from "./db/db";
 import { dbConfigByType } from "./db/configs";
 import {
@@ -22,13 +27,15 @@ import {
 } from "./subscriptionManager";
 import { State } from "./utils/State";
 import type { CaptchaConfig } from "./captcha/types";
-import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
+import { verifyCaptchaTokenWithTimeout } from "./captcha/verifyCaptchaToken";
 import { importFromTodoist } from "./todoist/importTodoist";
 import {
   DatabaseAccessDeniedError,
   ensureDatabaseAccessOrCreate,
 } from "./services/databaseAccess";
 import { assertSupportedSyncVersion } from "./syncVersion";
+
+const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
 
 export interface AppRouterDependencies {
   mainDB: DB;
@@ -39,13 +46,13 @@ export function createAppRouter({
   mainDB,
   captchaConfig,
 }: AppRouterDependencies) {
-  const checkDatabaseAccess = (
+  const checkDatabaseAccess = async (
     dbId: string,
     dbType: "user" | "space",
     userId: string,
   ) => {
     try {
-      ensureDatabaseAccessOrCreate({ dbId, dbType, userId }, mainDB);
+      await ensureDatabaseAccessOrCreate({ dbId, dbType, userId }, mainDB);
     } catch (error) {
       if (error instanceof DatabaseAccessDeniedError) {
         throw new TRPCError({ code: "FORBIDDEN", message: error.message });
@@ -71,16 +78,16 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        checkDatabaseAccess(
+        await checkDatabaseAccess(
           opts.input.dbId,
           opts.input.dbType,
           opts.ctx.user.id,
         );
 
         const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
-        const { db } = getHyperDB(config);
+        const { db } = await getHyperDB(config);
 
-        return selectSync(db, {
+        return selectAsync(db, {
           selector: getChangesetAfter,
           args: {
             after: opts.input.lastServerUpdatedAt,
@@ -104,16 +111,16 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        checkDatabaseAccess(
+        await checkDatabaseAccess(
           opts.input.dbId,
           opts.input.dbType,
           opts.ctx.user.id,
         );
 
         const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
-        const { db, nextClock, clientId } = getHyperDB(config);
+        const { db, nextClock, clientId } = await getHyperDB(config);
 
-        syncDispatch(
+        await asyncDispatch(
           db.withTraits({ type: "skip-sync" }),
           mergeChanges({
             input: opts.input.changeset,
@@ -138,45 +145,55 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        checkDatabaseAccess(
+        await checkDatabaseAccess(
           opts.input.dbId,
           opts.input.dbType,
           opts.ctx.user.id,
         );
 
         const state = new State<NotificationData[]>([]);
-        const unsubscribe = subscriptionManager.subscribe(
+        const unsubscribe = await subscriptionManager.subscribe(
           opts.input.dbId,
           opts.input.dbType,
           (data) => {
             state.modify((notifications) => [...notifications, data]);
           },
         );
+        const abortController = new AbortController();
+        const abort = () => abortController.abort(opts.signal?.reason);
+        if (opts.signal?.aborted) abort();
+        else opts.signal?.addEventListener("abort", abort, { once: true });
 
         try {
           while (true) {
+            await state.when(
+              (notifications) => notifications.length > 0,
+              abortController.signal,
+            );
             const notifications = state.get();
             state.set([]);
 
             for (const notification of notifications) {
               yield notification;
             }
-
-            await state.newEmitted();
           }
         } finally {
-          unsubscribe();
+          abortController.abort();
+          opts.signal?.removeEventListener("abort", abort);
+          await unsubscribe();
         }
       }),
 
-    listTokens: protectedProcedure.query((opts) => {
+    listTokens: protectedProcedure.query(async (opts) => {
       if (!opts.ctx.user) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      return syncDispatch(
-        mainDB,
-        getTokensByUserId({ userId: opts.ctx.user.id }),
+      return (
+        await asyncDispatch(
+          mainDB,
+          getTokensByUserId({ userId: opts.ctx.user.id }),
+        )
       ).map(({ id, createdAt, lastUsedAt, lastUsedIp, lastUsedUserAgent }) => ({
         id,
         createdAt,
@@ -186,12 +203,12 @@ export function createAppRouter({
       }));
     }),
 
-    createToken: protectedProcedure.mutation((opts) => {
+    createToken: protectedProcedure.mutation(async (opts) => {
       if (!opts.ctx.user) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      const created = syncDispatch(
+      const created = await asyncDispatch(
         mainDB,
         generateToken({ userId: opts.ctx.user.id }),
       );
@@ -205,7 +222,7 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        const deleted = syncDispatch(
+        const deleted = await asyncDispatch(
           mainDB,
           revokeToken({
             tokenId: opts.input.tokenId,
@@ -235,8 +252,44 @@ export function createAppRouter({
           captchaToken: z.string().optional(),
         }),
       )
+      .use(enforceRateLimit("register"))
       .mutation(async (opts) => {
         const { email, password, captchaToken } = opts.input;
+        const requestId = opts.ctx.requestId ?? "internal";
+        const requestStartedAt = performance.now();
+
+        const runStage = async <T>(
+          stage: string,
+          operation: () => Promise<T>,
+        ): Promise<T> => {
+          const startedAt = performance.now();
+          console.log(`[Register ${requestId}] ${stage} started`);
+          const slowWarning = setTimeout(() => {
+            console.warn(
+              `[Register ${requestId}] ${stage} is still running after 5s`,
+            );
+          }, 5_000);
+
+          try {
+            const result = await operation();
+            console.log(
+              `[Register ${requestId}] ${stage} completed in ${Math.round(performance.now() - startedAt)}ms`,
+            );
+            return result;
+          } catch (error) {
+            console.error(
+              `[Register ${requestId}] ${stage} failed after ${Math.round(performance.now() - startedAt)}ms`,
+              error,
+            );
+            throw error;
+          } finally {
+            clearTimeout(slowWarning);
+          }
+        };
+
+        console.log(
+          `[Register ${requestId}] request started; captcha=${captchaConfig ? "enabled" : "disabled"}`,
+        );
 
         if (captchaConfig) {
           if (!captchaToken) {
@@ -246,9 +299,12 @@ export function createAppRouter({
             });
           }
 
-          const isValid = await verifyCaptchaToken(
-            captchaToken,
-            captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
+          const isValid = await runStage("captcha verification", () =>
+            verifyCaptchaTokenWithTimeout(
+              captchaToken,
+              captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
+              CAPTCHA_VERIFICATION_TIMEOUT_MS,
+            ),
           );
 
           if (!isValid) {
@@ -259,12 +315,21 @@ export function createAppRouter({
           }
         }
 
-        const hashedPassword = await Bun.password.hash(password);
-        return syncDispatch(mainDB, register({ email, hashedPassword }));
+        const hashedPassword = await runStage("password hashing", () =>
+          Bun.password.hash(password),
+        );
+        const result = await runStage("database transaction", () =>
+          asyncDispatch(mainDB, register({ email, hashedPassword })),
+        );
+        console.log(
+          `[Register ${requestId}] request completed in ${Math.round(performance.now() - requestStartedAt)}ms`,
+        );
+        return result;
       }),
 
     importTodoist: protectedProcedure
       .input(z.object({ apiToken: z.string().min(1) }))
+      .use(enforceRateLimit("todoistImport"))
       .mutation(async (opts) => importFromTodoist(opts.input.apiToken)),
 
     login: publicProcedure
@@ -274,9 +339,10 @@ export function createAppRouter({
           password: z.string().min(8),
         }),
       )
+      .use(enforceRateLimit("login"))
       .mutation(async (opts) => {
         const { email, password } = opts.input;
-        const user = syncDispatch(mainDB, getUserByEmail({ email }));
+        const user = await asyncDispatch(mainDB, getUserByEmail({ email }));
         if (!user) {
           throw new Error("Invalid credentials");
         }
@@ -286,7 +352,7 @@ export function createAppRouter({
           throw new Error("Invalid credentials");
         }
 
-        return syncDispatch(mainDB, generateToken({ userId: user.id }));
+        return asyncDispatch(mainDB, generateToken({ userId: user.id }));
       }),
   });
 }

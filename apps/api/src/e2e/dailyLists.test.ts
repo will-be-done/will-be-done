@@ -14,7 +14,7 @@ import { coverOperation } from "./operationCoverage";
 
 test("covers every daily-list operation", async () => {
   const { space, projectSection, task, options } = await createTaskFixture(
-    createAuthorization(),
+    await createAuthorization(),
   );
   expectResponseStatus(
     await scheduleTask(space.id, task.id, { date: "2036-04-05" }, options),

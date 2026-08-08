@@ -43,11 +43,11 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
       try {
-        const tasks = listStashTasks({
+        const tasks = await listStashTasks({
           spaceId: request.params.spaceId,
           userId: user.id,
           state: request.query.state,
@@ -88,11 +88,11 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
       try {
-        const task = createStashTask({
+        const task = await createStashTask({
           spaceId: request.params.spaceId,
           userId: user.id,
           ...request.body,
@@ -133,11 +133,11 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
       try {
-        const task = putTaskInStash({
+        const task = await putTaskInStash({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
@@ -177,11 +177,11 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateBearerToken(request.headers.authorization);
+      const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
       try {
-        removeTaskFromStash({
+        await removeTaskFromStash({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,

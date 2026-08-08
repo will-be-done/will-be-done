@@ -17,7 +17,7 @@ describe("space service", () => {
     mock.restore();
   });
 
-  test("creates, updates, lists, and deletes spaces in the user's database", () => {
+  test("creates, updates, lists, and deletes spaces in the user's database", async () => {
     const userDB = new DB(new BptreeInmemDriver());
     const mainDB = new DB(new BptreeInmemDriver());
     execSync(userDB.loadTables([spacesTable]));
@@ -27,7 +27,7 @@ describe("space service", () => {
         ({ db: userDB }) as unknown as ReturnType<typeof databases.getHyperDB>,
     );
 
-    const created = createUserSpace({
+    const created = await createUserSpace({
       userId: "user-1",
       name: "Personal",
       mainDB,
@@ -35,34 +35,34 @@ describe("space service", () => {
 
     expect(created).toMatchObject({ name: "Personal" });
     expect(created).not.toHaveProperty("type");
-    expect(getUserSpace({ userId: "user-1", spaceId: created.id })).toEqual(
-      created,
-    );
+    expect(
+      await getUserSpace({ userId: "user-1", spaceId: created.id }),
+    ).toEqual(created);
     expect(
       selectSync(mainDB, {
         selector: getDbById,
         args: { id: created.id, type: "space" },
       }),
     ).toMatchObject({ id: created.id, userId: "user-1" });
-    expect(listUserSpaces({ userId: "user-1" })).toEqual([created]);
+    expect(await listUserSpaces({ userId: "user-1" })).toEqual([created]);
     expect(
-      updateUserSpace({
+      await updateUserSpace({
         userId: "user-1",
         spaceId: created.id,
         name: "Renamed",
       }),
     ).toMatchObject({ id: created.id, name: "Renamed" });
     expect(
-      updateUserSpace({
+      await updateUserSpace({
         userId: "user-1",
         spaceId: "missing",
         name: "Missing",
       }),
     ).toBeNull();
     expect(
-      deleteUserSpace({ userId: "user-1", spaceId: created.id, mainDB }),
+      await deleteUserSpace({ userId: "user-1", spaceId: created.id, mainDB }),
     ).toBe(true);
-    expect(listUserSpaces({ userId: "user-1" })).toEqual([]);
+    expect(await listUserSpaces({ userId: "user-1" })).toEqual([]);
     expect(
       selectSync(mainDB, {
         selector: getDbById,
@@ -70,7 +70,7 @@ describe("space service", () => {
       }),
     ).toBeUndefined();
     expect(
-      deleteUserSpace({ userId: "user-1", spaceId: created.id, mainDB }),
+      await deleteUserSpace({ userId: "user-1", spaceId: created.id, mainDB }),
     ).toBe(false);
   });
 });

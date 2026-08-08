@@ -16,7 +16,7 @@ import { coverOperation } from "./operationCoverage";
 
 test("covers every project operation", async () => {
   const { space, options, inbox } = await createSpaceFixture(
-    createAuthorization(),
+    await createAuthorization(),
   );
 
   const initiallyListed = await coverOperation(

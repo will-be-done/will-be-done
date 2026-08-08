@@ -1,4 +1,4 @@
-import { selectSync, syncDispatch } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
   createProjectSection as createProjectSectionAction,
   deleteProjectSections,
@@ -31,7 +31,7 @@ function toPublicProjectSection({
   return { id, projectId, title, createdAt };
 }
 
-export function listProjectSections({
+export async function listProjectSections({
   spaceId,
   projectId,
   userId,
@@ -39,21 +39,23 @@ export function listProjectSections({
   spaceId: string;
   projectId: string;
   userId: string;
-}): PublicProjectSection[] {
-  const db = getSpaceDatabase(spaceId, userId);
-  const project = selectSync(db, {
+}): Promise<PublicProjectSection[]> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const project = await selectAsync(db, {
     selector: projectById,
     args: { id: projectId },
   });
   if (!project) throw new ResourceNotFoundError("Project");
 
-  return selectSync(db, {
-    selector: projectSectionsByProjectId,
-    args: { projectId },
-  }).map(toPublicProjectSection);
+  return (
+    await selectAsync(db, {
+      selector: projectSectionsByProjectId,
+      args: { projectId },
+    })
+  ).map(toPublicProjectSection);
 }
 
-export function getProjectSection({
+export async function getProjectSection({
   spaceId,
   sectionId,
   userId,
@@ -61,9 +63,9 @@ export function getProjectSection({
   spaceId: string;
   sectionId: string;
   userId: string;
-}): PublicProjectSection {
-  const db = getSpaceDatabase(spaceId, userId);
-  const section = selectSync(db, {
+}): Promise<PublicProjectSection> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const section = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
@@ -71,7 +73,7 @@ export function getProjectSection({
   return toPublicProjectSection(section);
 }
 
-export function createProjectSection({
+export async function createProjectSection({
   spaceId,
   projectId,
   userId,
@@ -83,9 +85,9 @@ export function createProjectSection({
   userId: string;
   title: string;
   placement?: Placement;
-}): PublicProjectSection {
-  const db = getSpaceDatabase(spaceId, userId);
-  const project = selectSync(db, {
+}): Promise<PublicProjectSection> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const project = await selectAsync(db, {
     selector: projectById,
     args: { id: projectId },
   });
@@ -96,13 +98,13 @@ export function createProjectSection({
 
   const sections =
     placement.kind === "before" || placement.kind === "after"
-      ? selectSync(db, {
+      ? await selectAsync(db, {
           selector: projectSectionsByProjectId,
           args: { projectId },
         })
       : [];
   return toPublicProjectSection(
-    syncDispatch(
+    await asyncDispatch(
       db,
       createProjectSectionAction({
         sectionDraft: { projectId, title },
@@ -112,7 +114,7 @@ export function createProjectSection({
   );
 }
 
-export function updateProjectSection({
+export async function updateProjectSection({
   spaceId,
   sectionId,
   userId,
@@ -122,15 +124,15 @@ export function updateProjectSection({
   sectionId: string;
   userId: string;
   updates: { title?: string };
-}): PublicProjectSection {
-  const db = getSpaceDatabase(spaceId, userId);
-  const current = selectSync(db, {
+}): Promise<PublicProjectSection> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const current = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
   if (!current) throw new ResourceNotFoundError("Project section");
 
-  syncDispatch(
+  await asyncDispatch(
     db,
     updateProjectSectionAction({
       projectSectionId: sectionId,
@@ -140,7 +142,7 @@ export function updateProjectSection({
     }),
   );
 
-  const updated = selectSync(db, {
+  const updated = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
@@ -148,7 +150,7 @@ export function updateProjectSection({
   return toPublicProjectSection(updated);
 }
 
-export function moveProjectSection({
+export async function moveProjectSection({
   spaceId,
   sectionId,
   userId,
@@ -160,21 +162,21 @@ export function moveProjectSection({
   userId: string;
   projectId: string;
   placement: Placement;
-}): PublicProjectSection {
-  const db = getSpaceDatabase(spaceId, userId);
-  const current = selectSync(db, {
+}): Promise<PublicProjectSection> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const current = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
   if (!current) throw new ResourceNotFoundError("Project section");
-  const currentProject = selectSync(db, {
+  const currentProject = await selectAsync(db, {
     selector: projectById,
     args: { id: current.projectId },
   });
   if (currentProject?.isInbox) {
     throw new ConflictError("Inbox section cannot be moved");
   }
-  const destinationProject = selectSync(db, {
+  const destinationProject = await selectAsync(db, {
     selector: projectById,
     args: { id: projectId },
   });
@@ -183,11 +185,13 @@ export function moveProjectSection({
     throw new ConflictError("Inbox project cannot contain project sections");
   }
 
-  const sections = selectSync(db, {
-    selector: projectSectionsByProjectId,
-    args: { projectId },
-  }).filter((section) => section.id !== sectionId);
-  syncDispatch(
+  const sections = (
+    await selectAsync(db, {
+      selector: projectSectionsByProjectId,
+      args: { projectId },
+    })
+  ).filter((section) => section.id !== sectionId);
+  await asyncDispatch(
     db,
     updateProjectSectionAction({
       projectSectionId: sectionId,
@@ -197,7 +201,7 @@ export function moveProjectSection({
       },
     }),
   );
-  const updated = selectSync(db, {
+  const updated = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
@@ -205,7 +209,7 @@ export function moveProjectSection({
   return toPublicProjectSection(updated);
 }
 
-export function deleteProjectSection({
+export async function deleteProjectSection({
   spaceId,
   sectionId,
   userId,
@@ -213,19 +217,19 @@ export function deleteProjectSection({
   spaceId: string;
   sectionId: string;
   userId: string;
-}): void {
-  const db = getSpaceDatabase(spaceId, userId);
-  const section = selectSync(db, {
+}): Promise<void> {
+  const db = await getSpaceDatabase(spaceId, userId);
+  const section = await selectAsync(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
   if (!section) throw new ResourceNotFoundError("Project section");
-  const project = selectSync(db, {
+  const project = await selectAsync(db, {
     selector: projectById,
     args: { id: section.projectId },
   });
   if (project?.isInbox) {
     throw new ConflictError("Inbox section cannot be deleted");
   }
-  syncDispatch(db, deleteProjectSections({ ids: [sectionId] }));
+  await asyncDispatch(db, deleteProjectSections({ ids: [sectionId] }));
 }

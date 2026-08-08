@@ -276,7 +276,7 @@ export const allScheduledTodoTasks = selector({
   handler: function* allScheduledTodoTasks() {
     return (yield* selectFrom(
       scheduledTodoTasksTable,
-      "byScheduledAt",
+      "byScheduledAtId",
     )) as ScheduledTodoTask[];
   },
 });
@@ -416,7 +416,7 @@ export const projectsWithTaskStats = selector({
     );
     const overdueScheduledTasks = yield* selectFrom(
       scheduledTodoTasksTable,
-      "byScheduledAt",
+      "byScheduledAtId",
     ).where((q) => q.lt("scheduledAt", currentDate));
     const overdueCountByProjectId = new Map<string, number>();
     for (const scheduledTask of overdueScheduledTasks) {

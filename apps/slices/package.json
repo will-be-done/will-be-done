@@ -19,7 +19,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@will-be-done/hyperdb": "^0.4.3",
+    "@will-be-done/hyperdb": "^0.4.4",
     "date-fns": "^4.1.0",
     "es-toolkit": "^1.42.0",
     "fractional-indexing-jittered": "^1.0.0",

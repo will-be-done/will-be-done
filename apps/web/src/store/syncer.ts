@@ -25,6 +25,7 @@ import {
 } from "./syncCompatibility";
 
 const SYNC_POLL_INTERVAL_MS = 5000;
+const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 
 const syncerLogsEnabled = () =>
   getDevtoolsEnabled() || process.env.NODE_ENV === "development";
@@ -269,16 +270,19 @@ export class Syncer {
       return;
     }
 
-    await withSyncRequestTimeout("handleChanges", (signal) =>
-      trpcClient.handleChanges.mutate(
-        {
-          dbId: this.syncConfig.dbId,
-          dbType: this.syncConfig.dbType,
-          changeset: changesets,
-          syncVersion: CURRENT_SYNC_VERSION,
-        },
-        { signal },
-      ),
+    await withSyncRequestTimeout(
+      "handleChanges",
+      (signal) =>
+        trpcClient.handleChanges.mutate(
+          {
+            dbId: this.syncConfig.dbId,
+            dbType: this.syncConfig.dbType,
+            changeset: changesets,
+            syncVersion: CURRENT_SYNC_VERSION,
+          },
+          { signal },
+        ),
+      SYNC_UPLOAD_TIMEOUT_MS,
     );
     await asyncDispatch(
       this.syncDB.withTraits({ type: "skip-sync" }),

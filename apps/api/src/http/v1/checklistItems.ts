@@ -43,10 +43,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const checklistItems = listChecklistItems({
+        const checklistItems = await listChecklistItems({
           spaceId: request.params.spaceId,
           userId: user.id,
           parentType: "task",
@@ -86,10 +86,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const checklistItem = createChecklistItem({
+        const checklistItem = await createChecklistItem({
           spaceId: request.params.spaceId,
           userId: user.id,
           parentType: "task",
@@ -128,10 +128,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const checklistItems = listChecklistItems({
+        const checklistItems = await listChecklistItems({
           spaceId: request.params.spaceId,
           userId: user.id,
           parentType: "template",
@@ -171,10 +171,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const checklistItem = createChecklistItem({
+        const checklistItem = await createChecklistItem({
           spaceId: request.params.spaceId,
           userId: user.id,
           parentType: "template",
@@ -213,10 +213,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const checklistItem = getChecklistItem({
+        const checklistItem = await getChecklistItem({
           spaceId: request.params.spaceId,
           userId: user.id,
           checklistItemId: request.params.checklistItemId,
@@ -254,10 +254,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const checklistItem = updateChecklistItem({
+        const checklistItem = await updateChecklistItem({
           spaceId: request.params.spaceId,
           userId: user.id,
           checklistItemId: request.params.checklistItemId,
@@ -295,10 +295,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        deleteChecklistItem({
+        await deleteChecklistItem({
           spaceId: request.params.spaceId,
           userId: user.id,
           checklistItemId: request.params.checklistItemId,
@@ -337,10 +337,10 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
-        const checklistItem = moveChecklistItem({
+        const checklistItem = await moveChecklistItem({
           spaceId: request.params.spaceId,
           userId: user.id,
           checklistItemId: request.params.checklistItemId,

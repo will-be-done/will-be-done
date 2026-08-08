@@ -46,7 +46,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
 
       if (!user) {
         return reply.code(401).send({
@@ -56,7 +56,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       }
 
       try {
-        const projects = listSpaceProjects({
+        const projects = await listSpaceProjects({
           spaceId: request.params.spaceId,
           userId: user.id,
         });
@@ -93,7 +93,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) {
         return reply.code(401).send({
           code: "UNAUTHORIZED",
@@ -101,7 +101,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
         });
       }
       try {
-        const project = createSpaceProject({
+        const project = await createSpaceProject({
           spaceId: request.params.spaceId,
           userId: user.id,
           ...request.body,
@@ -138,11 +138,11 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
       try {
-        const project = getSpaceProject({
+        const project = await getSpaceProject({
           spaceId: request.params.spaceId,
           projectId: request.params.projectId,
           userId: user.id,
@@ -176,7 +176,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) {
         return reply.code(401).send({
           code: "UNAUTHORIZED",
@@ -184,7 +184,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
         });
       }
       try {
-        const project = updateSpaceProject({
+        const project = await updateSpaceProject({
           spaceId: request.params.spaceId,
           projectId: request.params.projectId,
           userId: user.id,
@@ -223,7 +223,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) {
         return reply.code(401).send({
           code: "UNAUTHORIZED",
@@ -231,7 +231,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
         });
       }
       try {
-        deleteSpaceProject({
+        await deleteSpaceProject({
           spaceId: request.params.spaceId,
           projectId: request.params.projectId,
           userId: user.id,
@@ -270,7 +270,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = authenticateRequest(request);
+      const user = await authenticateRequest(request);
       if (!user) {
         return reply.code(401).send({
           code: "UNAUTHORIZED",
@@ -278,7 +278,7 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
         });
       }
       try {
-        const project = moveSpaceProject({
+        const project = await moveSpaceProject({
           spaceId: request.params.spaceId,
           projectId: request.params.projectId,
           userId: user.id,

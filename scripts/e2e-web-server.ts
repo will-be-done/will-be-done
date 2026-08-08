@@ -108,6 +108,7 @@ async function main() {
       WBD_DB_PATH: e2eDbPath,
       WBD_CF_CAPTCHA_ENABLED: "false",
       WBD_BACKUP_S3_ENABLED: "false",
+      WBD_RATE_LIMIT_ENABLED: "false",
     },
   });
 

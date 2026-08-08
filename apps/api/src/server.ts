@@ -5,6 +5,8 @@ import multipart from "@fastify/multipart";
 import staticPlugin from "@fastify/static";
 import swagger from "@fastify/swagger";
 import websocket from "@fastify/websocket";
+import type { RateLimitConfig } from "./rateLimit";
+import { createAppRateLimiter, registerAppRateLimiting } from "./rateLimit";
 import scalarApiReference from "@scalar/fastify-api-reference";
 import {
   fastifyTRPCPlugin,
@@ -24,13 +26,16 @@ export interface CreateServerOptions {
   appRouter: AppRouter;
   logger?: boolean;
   serveFrontend?: boolean;
+  rateLimit?: RateLimitConfig;
 }
 
 export function createServer({
   appRouter,
   logger = true,
   serveFrontend = true,
+  rateLimit = { backend: "memory" },
 }: CreateServerOptions) {
+  const rateLimitEnabled = rateLimit.enabled ?? true;
   const server = fastify({
     logger,
     bodyLimit: 100485760,
@@ -41,6 +46,12 @@ export function createServer({
 
   server.setValidatorCompiler(validatorCompiler);
   server.setSerializerCompiler(serializerCompiler);
+
+  // Register before every route/plugin so the broad per-IP limit covers the
+  // complete HTTP surface. Sensitive tRPC procedures add stricter limits.
+  if (rateLimitEnabled) {
+    registerAppRateLimiting(server, rateLimit);
+  }
 
   server.register(websocket);
   server.register(multipart);
@@ -102,13 +113,20 @@ export function createServer({
     prefix: "/api/v1",
   });
 
-  server.register(fastifyTRPCPlugin, {
-    prefix: "/api/trpc",
-    useWSS: true,
-    trpcOptions: {
-      router: appRouter,
-      createContext,
-    } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
+  server.register(async (trpcServer) => {
+    const appRateLimiter = rateLimitEnabled
+      ? createAppRateLimiter(trpcServer, rateLimit)
+      : undefined;
+
+    trpcServer.register(fastifyTRPCPlugin, {
+      prefix: "/api/trpc",
+      useWSS: true,
+      trpcOptions: {
+        router: appRouter,
+        createContext: (options) =>
+          createContext({ ...options, rateLimiter: appRateLimiter }),
+      } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
+    });
   });
 
   server.get("/api/openapi.json", { schema: { hide: true } }, async () =>
@@ -118,10 +136,30 @@ export function createServer({
 
   if (serveFrontend) {
     const publicRoot = path.join(__dirname, "..", "public");
-    server.register(staticPlugin, { root: publicRoot });
+    const serviceWorkerPath = path.join(publicRoot, "sw.js");
+    server.register(staticPlugin, {
+      root: publicRoot,
+      setHeaders(response, filePath) {
+        if (filePath === serviceWorkerPath) {
+          // A service worker controls how the rest of the frontend is cached,
+          // so browsers and intermediary CDNs must always revalidate it.
+          response.setHeader(
+            "Cache-Control",
+            "no-cache, no-store, must-revalidate",
+          );
+        }
+      },
+    });
 
     server.setNotFoundHandler((request, reply) => {
-      if (request.url.startsWith("/api")) {
+      const [requestPath] = request.url.split("?", 1);
+      const isApiRequest =
+        requestPath === "/api" || requestPath.startsWith("/api/");
+      const isAssetRequest =
+        requestPath === "/assets" || requestPath.startsWith("/assets/");
+      const isServiceWorkerRequest = requestPath === "/sw.js";
+
+      if (isApiRequest || isAssetRequest || isServiceWorkerRequest) {
         return reply.code(404).send({ error: "Not found" });
       }
 

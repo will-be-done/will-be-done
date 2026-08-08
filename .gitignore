@@ -8,6 +8,8 @@ pnpm-debug.log*
 lerna-debug.log*
 dbs
 db/
+!apps/api/src/db/
+!apps/api/src/db/*.ts
 doit.sh
 
 .wrangler

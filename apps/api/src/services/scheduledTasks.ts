@@ -1,4 +1,4 @@
-import { selectSync } from "@will-be-done/hyperdb";
+import { selectAsync } from "@will-be-done/hyperdb";
 import {
   dailyDateFormat,
   getDMY,
@@ -14,7 +14,7 @@ export interface ScheduledTaskSearchResult {
   nextCursor: string | null;
 }
 
-export function listScheduledTasks({
+export async function listScheduledTasks({
   spaceId,
   userId,
   scope,
@@ -30,14 +30,14 @@ export function listScheduledTasks({
   to?: string;
   cursor?: string;
   limit: number;
-}): ScheduledTaskSearchResult {
-  const db = getSpaceDatabase(spaceId, userId);
+}): Promise<ScheduledTaskSearchResult> {
+  const db = await getSpaceDatabase(spaceId, userId);
   const boundary = parse(relativeTo, dailyDateFormat, new Date()).getTime();
   const exclusiveEnd = to
     ? addDays(parse(to, dailyDateFormat, new Date()), 1).getTime()
     : undefined;
   const decodedCursor = cursor ? decodeNumericCursor(cursor) : null;
-  const page = selectSync(db, {
+  const page = await selectAsync(db, {
     selector: listScheduledTasksSelector,
     args: {
       fromInclusive: scope === "overdue" ? Number.MIN_SAFE_INTEGER : boundary,
@@ -52,7 +52,7 @@ export function listScheduledTasks({
   });
   return {
     tasks: page.items.map((row) =>
-      toPublicTask(db, row.task, getDMY(new Date(row.scheduledAt))),
+      toPublicTask(row.task, getDMY(new Date(row.scheduledAt))),
     ),
     nextCursor: page.nextCursor
       ? encodeNumericCursor({
