@@ -329,6 +329,54 @@ describe("entry conflict merge", () => {
     ).toBe("0000000030-0001-server");
   });
 
+  it("merges repeated records for the same entry across changesets", () => {
+    const db = createDB();
+    const createChangeset = incomingDailyEntry(
+      "entry-short-lived",
+      "list-a",
+      "0000000010-0001-client-a",
+    )[0]!;
+    const create = createChangeset.data[0]!;
+    const deletedAt = "0000000020-0001-client-a";
+
+    syncDispatch(
+      db,
+      mergeSpaceChanges({
+        input: [
+          createChangeset,
+          {
+            tableName: dailyEntriesTable.tableName,
+            data: [
+              {
+                change: {
+                  ...create.change,
+                  updatedAt: deletedAt,
+                  deletedAt,
+                },
+              },
+            ],
+          },
+        ],
+        nextClock: "0000000030-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredSpaceSyncableTableNameMap,
+      }),
+    );
+
+    const result = selectSync(db, { selector: rowsAndChanges, args: {} });
+    expect(result.daily).toEqual([]);
+    expect(
+      result.changes.filter(
+        (change) => change.entityId === "entry-short-lived",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        createdAt: "0000000010-0001-client-a",
+        deletedAt,
+      }),
+    ]);
+  });
+
   it("uses entry id as a deterministic creation-time tie-breaker", () => {
     const db = createDB();
     const createdAt = "0000000010-0001-client-a";

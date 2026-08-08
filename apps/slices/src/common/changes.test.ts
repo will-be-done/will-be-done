@@ -723,6 +723,48 @@ describe("first-creator-wins merge", () => {
     expect(change!.clientId).toBe("remote");
   });
 
+  it("merges repeated records for one entity against the planned state", () => {
+    resetClock();
+    const db = createDB();
+    const entityId = "entity-created-then-deleted";
+    const createdAtClock = "0000000010-0001-remote";
+    const deletedAtClock = "0000000020-0001-remote";
+    const create = makeIncomingCreate(
+      entityId,
+      "short-lived",
+      createdAtClock,
+    )[0]!.data[0]!;
+    const tombstone = {
+      change: {
+        ...create.change,
+        updatedAt: deletedAtClock,
+        deletedAt: deletedAtClock,
+      },
+    };
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: [
+          {
+            tableName: "testItems",
+            data: [create, tombstone],
+          },
+        ],
+        nextClock: makeClockFn("0000000030")(),
+        clientId: "local",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+
+    expect(getRow(db, entityId)).toBeUndefined();
+    expect(getChange(db, entityId)).toMatchObject({
+      entityId,
+      createdAt: createdAtClock,
+      deletedAt: deletedAtClock,
+    });
+  });
+
   it("normal update sync is not blocked by FCW guard (same createdAt)", () => {
     resetClock();
     const db = createDB();
