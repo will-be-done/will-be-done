@@ -19,6 +19,7 @@ import {
 
 type EntryRow = DailyEntry | StashEntry;
 type IncomingData = ChangesetArrayType[number]["data"][number];
+type LiveIncomingData = IncomingData & { row: PrimitiveRow };
 type Changeset = ChangesetArrayType[number];
 
 const SELECT_OR_CHUNK_SIZE = 400;
@@ -91,6 +92,184 @@ const compareCreation = (
   left.id.localeCompare(right.id);
 
 /**
+ * Step 1: keep an existing entry id attached to its original task.
+ *
+ * Example: if `entry-1` is stored for `task-A`, an incoming update containing
+ * `{ id: "entry-1", taskId: "task-B", orderToken: "z" }` is rewritten to
+ * `{ id: "entry-1", taskId: "task-A", orderToken: "z" }`.
+ *
+ * Placement fields may change, but changing which task an entry represents
+ * must be expressed as deleting one entry and creating another entry id.
+ */
+const preserveEntryTaskIdentity = (
+  changeset: Changeset,
+  existingRowsById: EntryRow[],
+) => {
+  const existingByEntityId = new Map(
+    existingRowsById.map((row) => [row.id, row]),
+  );
+
+  for (const [index, data] of changeset.data.entries()) {
+    const existingRow = existingByEntityId.get(data.change.entityId);
+    if (
+      data.change.deletedAt === null &&
+      data.row !== undefined &&
+      existingRow !== undefined &&
+      data.row.taskId !== existingRow.taskId
+    ) {
+      changeset.data[index] = {
+        ...data,
+        row: { ...data.row, taskId: existingRow.taskId },
+      };
+    }
+  }
+};
+
+const getLiveIncomingEntries = (changeset: Changeset): LiveIncomingData[] =>
+  changeset.data.filter(
+    (data): data is LiveIncomingData =>
+      data.change.deletedAt === null &&
+      data.row !== undefined &&
+      typeof data.row.taskId === "string",
+  );
+
+/**
+ * Step 2: keep only one live entry id for each task in this entry table.
+ *
+ * Example: if `entry-old` and `entry-new` both represent `task-A`, and their
+ * stable Change creation clocks are 10 and 20, `entry-new` stays live and
+ * `entry-old` is rewritten/appended as a tombstone before mergeChanges runs.
+ * Equal creation clocks are resolved by entry id so every client agrees.
+ */
+const resolveEntriesSharingTask = ({
+  changeset,
+  incomingLive,
+  existingRows,
+  changeByEntityId,
+  nextClock,
+  clientId,
+}: {
+  changeset: Changeset;
+  incomingLive: LiveIncomingData[];
+  existingRows: EntryRow[];
+  changeByEntityId: Map<string, Change>;
+  nextClock: string;
+  clientId: string;
+}): EntryConflictResolution[] => {
+  const existingRowsMap = new Map(existingRows.map((row) => [row.id, row]));
+  const incomingIndexesByEntityId = new Map<string, number[]>();
+  const incomingDeletedEntityIds = new Set<string>();
+  for (const [index, data] of changeset.data.entries()) {
+    const indexes = incomingIndexesByEntityId.get(data.change.entityId) ?? [];
+    indexes.push(index);
+    incomingIndexesByEntityId.set(data.change.entityId, indexes);
+    if (data.change.deletedAt !== null) {
+      incomingDeletedEntityIds.add(data.change.entityId);
+    }
+  }
+
+  // A tombstone is permanent. When a client retries the live version of an
+  // entry that already lost, reuse the exact tombstone instead of stamping a
+  // new one. That makes redelivery effect-idempotent.
+  const activeIncomingLive = incomingLive.filter((data) => {
+    const storedChange = changeByEntityId.get(data.change.entityId);
+    if (storedChange?.deletedAt == null) return true;
+
+    for (const index of incomingIndexesByEntityId.get(data.change.entityId) ??
+      []) {
+      changeset.data[index] = { change: storedChange };
+    }
+    incomingDeletedEntityIds.add(data.change.entityId);
+    return false;
+  });
+
+  const candidatesByTaskId = new Map<
+    string,
+    Map<string, { id: string; createdAt: string }>
+  >();
+  for (const data of activeIncomingLive) {
+    const taskId = data.row.taskId as string;
+    const candidates = candidatesByTaskId.get(taskId) ?? new Map();
+    const storedCreatedAt = changeByEntityId.get(
+      data.change.entityId,
+    )?.createdAt;
+    candidates.set(data.change.entityId, {
+      id: data.change.entityId,
+      // An update or retry must not make an existing entry look newer.
+      createdAt:
+        storedCreatedAt === undefined || data.change.createdAt < storedCreatedAt
+          ? data.change.createdAt
+          : storedCreatedAt,
+    });
+    candidatesByTaskId.set(taskId, candidates);
+  }
+  for (const row of existingRows) {
+    if (incomingDeletedEntityIds.has(row.id)) continue;
+    const candidates = candidatesByTaskId.get(row.taskId) ?? new Map();
+    if (!candidates.has(row.id)) {
+      candidates.set(row.id, {
+        id: row.id,
+        createdAt: changeByEntityId.get(row.id)?.createdAt ?? "",
+      });
+    }
+    candidatesByTaskId.set(row.taskId, candidates);
+  }
+
+  const resolutions: EntryConflictResolution[] = [];
+  for (const [taskId, candidatesMap] of candidatesByTaskId) {
+    const candidates = [...candidatesMap.values()];
+    if (candidates.length < 2) continue;
+
+    const winner = candidates.reduce((latest, candidate) =>
+      compareCreation(candidate, latest) > 0 ? candidate : latest,
+    );
+    const loserIds = candidates
+      .filter((candidate) => candidate.id !== winner.id)
+      .map((candidate) => candidate.id)
+      .sort((left, right) => left.localeCompare(right));
+
+    for (const loserId of loserIds) {
+      const incomingIndexes = incomingIndexesByEntityId.get(loserId);
+      if (incomingIndexes) {
+        const storedTombstone = changeByEntityId.get(loserId);
+        for (const index of incomingIndexes) {
+          const incoming = changeset.data[index]!;
+          changeset.data[index] = {
+            change:
+              storedTombstone?.deletedAt != null
+                ? storedTombstone
+                : loserTombstone(
+                    incoming.change as Change,
+                    nextClock,
+                    clientId,
+                  ),
+          };
+        }
+        continue;
+      }
+
+      const existingRow = existingRowsMap.get(loserId);
+      if (!existingRow) continue;
+      const currentChange =
+        changeByEntityId.get(loserId) ??
+        fallbackChange(changeset.tableName, existingRow, nextClock, clientId);
+      changeset.data.push({
+        change: loserTombstone(currentChange, nextClock, clientId),
+      });
+    }
+
+    resolutions.push({
+      tableName: changeset.tableName,
+      taskId,
+      winnerId: winner.id,
+      loserIds,
+    });
+  }
+
+  return resolutions;
+};
+
+/**
  * Space conflict preprocessing is effect-idempotent, just like mergeChanges:
  * replaying the same client input with a newer receipt clock must not write
  * entity or Change rows again. Resolution metadata describes conflicts newly
@@ -139,30 +318,9 @@ export const mergeSpaceChanges = action({
               )) as EntryRow[]),
         );
       }
-      const existingByEntityId = new Map(
-        existingRowsById.map((row) => [row.id, row]),
-      );
+      preserveEntryTaskIdentity(changeset, existingRowsById);
 
-      // An entry identity always belongs to the task it was created for. A
-      // remote update may change scheduling/order fields, but never taskId.
-      for (const data of changeset.data) {
-        const existingRow = existingByEntityId.get(data.change.entityId);
-        if (
-          data.change.deletedAt === null &&
-          data.row !== undefined &&
-          existingRow !== undefined &&
-          data.row.taskId !== existingRow.taskId
-        ) {
-          data.row = { ...data.row, taskId: existingRow.taskId };
-        }
-      }
-
-      const incomingLive = changeset.data.filter(
-        (data): data is IncomingData & { row: PrimitiveRow } =>
-          data.change.deletedAt === null &&
-          data.row !== undefined &&
-          typeof data.row.taskId === "string",
-      );
+      const incomingLive = getLiveIncomingEntries(changeset);
       const taskIds = [
         ...new Set(incomingLive.map((data) => data.row.taskId as string)),
       ];
@@ -203,120 +361,16 @@ export const mergeSpaceChanges = action({
       const changeByEntityId = new Map(
         storedChanges.map((change) => [change.entityId, change]),
       );
-      const incomingIndexesByEntityId = new Map<string, number[]>();
-      const incomingDeletedEntityIds = new Set<string>();
-      for (const [index, data] of changeset.data.entries()) {
-        const indexes =
-          incomingIndexesByEntityId.get(data.change.entityId) ?? [];
-        indexes.push(index);
-        incomingIndexesByEntityId.set(data.change.entityId, indexes);
-        if (data.change.deletedAt !== null) {
-          incomingDeletedEntityIds.add(data.change.entityId);
-        }
-      }
-
-      // A tombstone is permanent. When a client retries the live version of
-      // an entry that was already resolved as a loser, feed the exact stored
-      // tombstone back into the merge instead of creating a newer one.
-      const activeIncomingLive = incomingLive.filter((data) => {
-        const storedChange = changeByEntityId.get(data.change.entityId);
-        if (storedChange?.deletedAt == null) return true;
-
-        for (const index of incomingIndexesByEntityId.get(
-          data.change.entityId,
-        ) ?? []) {
-          changeset.data[index] = { change: storedChange };
-        }
-        incomingDeletedEntityIds.add(data.change.entityId);
-        return false;
-      });
-
-      const candidatesByTaskId = new Map<
-        string,
-        Map<string, { id: string; createdAt: string }>
-      >();
-      for (const data of activeIncomingLive) {
-        const taskId = data.row.taskId as string;
-        const candidates = candidatesByTaskId.get(taskId) ?? new Map();
-        const storedCreatedAt = changeByEntityId.get(
-          data.change.entityId,
-        )?.createdAt;
-        candidates.set(data.change.entityId, {
-          id: data.change.entityId,
-          createdAt:
-            storedCreatedAt === undefined ||
-            data.change.createdAt < storedCreatedAt
-              ? data.change.createdAt
-              : storedCreatedAt,
-        });
-        candidatesByTaskId.set(taskId, candidates);
-      }
-      for (const row of existingRows) {
-        if (incomingDeletedEntityIds.has(row.id)) continue;
-        const candidates = candidatesByTaskId.get(row.taskId) ?? new Map();
-        if (!candidates.has(row.id)) {
-          candidates.set(row.id, {
-            id: row.id,
-            createdAt: changeByEntityId.get(row.id)?.createdAt ?? "",
-          });
-        }
-        candidatesByTaskId.set(row.taskId, candidates);
-      }
-
-      for (const [taskId, candidatesMap] of candidatesByTaskId) {
-        const candidates = [...candidatesMap.values()];
-        if (candidates.length < 2) continue;
-
-        const winner = candidates.reduce((latest, candidate) =>
-          compareCreation(candidate, latest) > 0 ? candidate : latest,
-        );
-        const loserIds = candidates
-          .filter((candidate) => candidate.id !== winner.id)
-          .map((candidate) => candidate.id)
-          .sort((left, right) => left.localeCompare(right));
-
-        for (const loserId of loserIds) {
-          const incomingIndexes = incomingIndexesByEntityId.get(loserId);
-          if (incomingIndexes) {
-            const storedTombstone = changeByEntityId.get(loserId);
-            for (const index of incomingIndexes) {
-              const incoming = changeset.data[index]!;
-              changeset.data[index] = {
-                change:
-                  storedTombstone?.deletedAt != null
-                    ? storedTombstone
-                    : loserTombstone(
-                        incoming.change as Change,
-                        nextClock,
-                        clientId,
-                      ),
-              };
-            }
-            continue;
-          }
-
-          const existingRow = existingRowsMap.get(loserId);
-          if (!existingRow) continue;
-          const currentChange =
-            changeByEntityId.get(loserId) ??
-            fallbackChange(
-              changeset.tableName,
-              existingRow,
-              nextClock,
-              clientId,
-            );
-          changeset.data.push({
-            change: loserTombstone(currentChange, nextClock, clientId),
-          });
-        }
-
-        resolutions.push({
-          tableName: changeset.tableName,
-          taskId,
-          winnerId: winner.id,
-          loserIds,
-        });
-      }
+      resolutions.push(
+        ...resolveEntriesSharingTask({
+          changeset,
+          incomingLive,
+          existingRows,
+          changeByEntityId,
+          nextClock,
+          clientId,
+        }),
+      );
     }
 
     yield* mergeChanges({

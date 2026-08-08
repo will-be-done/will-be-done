@@ -27,17 +27,12 @@ export const createCrossTabChanges = ({
       clientId,
       registeredSyncableTableNameMap: syncConfig.tableNameMap,
     };
-    if (syncConfig.dbType === "space") {
-      await asyncDispatch(
-        syncSubDb.withTraits({ type: "skip-sync" }),
-        mergeSpaceChanges(mergeArgs),
-      );
-    } else {
-      await asyncDispatch(
-        syncSubDb.withTraits({ type: "skip-sync" }),
-        mergeChanges(mergeArgs),
-      );
-    }
+    const merge =
+      syncConfig.dbType === "space" ? mergeSpaceChanges : mergeChanges;
+    await asyncDispatch<unknown>(
+      syncSubDb.withTraits({ type: "skip-sync" }),
+      merge(mergeArgs),
+    );
   };
 
   bc.onmessage = (data) => {

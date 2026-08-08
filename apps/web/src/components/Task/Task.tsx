@@ -417,10 +417,13 @@ export const PreloadedTaskComp = ({
       if (!targetKey) return;
 
       const { id, type } = parseColumnKey(targetKey);
-      const targetColumnModelType = document
+      const targetColumn = document
         .querySelector(`[data-focusable-key="${targetKey}"]`)
-        ?.closest("[data-focus-column]")
-        ?.getAttribute("data-column-model-type");
+        ?.closest("[data-focus-column]");
+      const targetColumnModelType = targetColumn?.getAttribute(
+        "data-column-model-type",
+      );
+      if (!targetColumn || !targetColumnModelType) return;
       const edge: Edge = crossedBoundary
         ? direction === "up"
           ? "bottom"
@@ -457,7 +460,7 @@ export const PreloadedTaskComp = ({
         const targetFocusKey = getFocusKeyForColumnMoveTarget(
           targetModelId,
           listItem.type,
-          targetColumnModelType ?? "",
+          targetColumnModelType,
           focusableItemKey,
         );
 

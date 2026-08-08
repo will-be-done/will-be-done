@@ -366,6 +366,7 @@ describe("entry conflict merge", () => {
     );
     incoming[0]!.data[0]!.change.updatedAt = "0000000020-0001-client-b";
     incoming[0]!.data[0]!.change.changes.taskId = "0000000020-0001-client-b";
+    const originalIncoming = structuredClone(incoming);
 
     syncDispatch(
       db,
@@ -380,6 +381,7 @@ describe("entry conflict merge", () => {
     expect(
       selectSync(db, { selector: rowsAndChanges, args: {} }).daily,
     ).toEqual([expect.objectContaining({ id: "entry-old", taskId: "task-1" })]);
+    expect(incoming).toEqual(originalIncoming);
   });
 
   it("rejects changing taskId through the update action", () => {

@@ -127,17 +127,12 @@ export function createAppRouter({
           clientId,
           registeredSyncableTableNameMap: config.tableNameMap,
         };
-        if (opts.input.dbType === "space") {
-          await asyncDispatch(
-            db.withTraits({ type: "skip-sync" }),
-            mergeSpaceChanges(mergeArgs),
-          );
-        } else {
-          await asyncDispatch(
-            db.withTraits({ type: "skip-sync" }),
-            mergeChanges(mergeArgs),
-          );
-        }
+        const merge =
+          opts.input.dbType === "space" ? mergeSpaceChanges : mergeChanges;
+        await asyncDispatch<unknown>(
+          db.withTraits({ type: "skip-sync" }),
+          merge(mergeArgs),
+        );
       }),
 
     onChangesAvailable: protectedProcedure
