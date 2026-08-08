@@ -1,24 +1,37 @@
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { Trash2, Info } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
-import { appDeleteModel, dailyEntryType } from "@will-be-done/slices/space";
+import {
+  appDeleteModel,
+  dailyEntryType,
+  itemByListItemId,
+  type ListItemType,
+  stashEntryType,
+  taskTemplateType,
+  taskType,
+} from "@will-be-done/slices/space";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { cn } from "@/lib/utils";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 
-const ITEM_TYPES = new Set(["task", "template", dailyEntryType]);
+const isListItemType = (type: string): type is ListItemType =>
+  type === taskType ||
+  type === taskTemplateType ||
+  type === dailyEntryType ||
+  type === stashEntryType;
 
 export const MobileTaskToolbar = () => {
   const isMobile = useIsMobile();
   const dispatch = useAsyncDispatch();
+  const select = useSelectAsync();
   const navigate = useNavigate();
   const { spaceId } = SpaceRoute.useParams();
   const focusKey = useFocusStore((s) => s.focusItemKey);
 
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
-  const isItemFocused = parsed != null && ITEM_TYPES.has(parsed.type);
+  const isItemFocused = parsed != null && isListItemType(parsed.type);
   const visible = isMobile && isItemFocused;
 
   const handleDelete = () => {
@@ -38,10 +51,20 @@ export const MobileTaskToolbar = () => {
   const handleDetails = () => {
     if (!parsed) return;
 
-    void navigate({
-      to: "/spaces/$spaceId/item-details/$itemId",
-      params: { spaceId, itemId: parsed.id },
-    });
+    void (async () => {
+      if (!isListItemType(parsed.type)) return;
+
+      const item = await select({
+        selector: itemByListItemId,
+        args: { id: parsed.id, modelType: parsed.type },
+      });
+      if (!item) return;
+
+      await navigate({
+        to: "/spaces/$spaceId/item-details/$itemId",
+        params: { spaceId, itemId: item.id },
+      });
+    })();
   };
 
   return (

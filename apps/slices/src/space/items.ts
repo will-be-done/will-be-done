@@ -89,7 +89,25 @@ export const listItemById = selector({
     const slice = appTypeSlicesMap[modelType];
     if (!slice) throw new Error(`Unknown model type: ${modelType}`);
 
-    return (yield* slice.byId(id)) as ListItem;
+    return (yield* slice.byId(id)) as ListItem | undefined;
+  },
+});
+
+export const itemByListItemId = selector({
+  name: "itemByListItemId",
+  args: {
+    id: v.string(),
+    modelType: listItemType,
+  },
+  handler: function* itemByListItemId({ id, modelType }) {
+    const listItem = yield* listItemById({ id, modelType });
+    if (!listItem) return undefined as Item | undefined;
+
+    if (isDailyEntry(listItem) || isStashEntry(listItem)) {
+      return yield* taskById({ id: listItem.taskId });
+    }
+
+    return listItem as Item;
   },
 });
 
