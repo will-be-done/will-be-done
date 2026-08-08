@@ -321,6 +321,37 @@ export const stashEntrySiblings = selector({
   },
 });
 
+export const stashEntryPlacementNeighbors = selector({
+  name: "stashEntryPlacementNeighbors",
+  args: {
+    taskId: v.string(),
+    excludeTaskId: v.optional(v.string()),
+  },
+  handler: function* stashEntryPlacementNeighbors({ taskId, excludeTaskId }) {
+    const entry = yield* stashEntryByTaskId({ taskId });
+    if (!entry) {
+      return [undefined, undefined] as const;
+    }
+
+    const limit = excludeTaskId === undefined ? 1 : 2;
+    const beforeEntries = yield* selectFrom(stashEntriesTable, "byTokenOrdered")
+      .where((q) => q.lt("orderToken", entry.orderToken))
+      .order("desc")
+      .limit(limit);
+    const afterEntries = yield* selectFrom(stashEntriesTable, "byTokenOrdered")
+      .where((q) => q.gt("orderToken", entry.orderToken))
+      .order("asc")
+      .limit(limit);
+
+    const isIncluded = (candidate: StashEntry) =>
+      candidate.taskId !== excludeTaskId;
+    return [
+      beforeEntries.find(isIncluded),
+      afterEntries.find(isIncluded),
+    ] as const;
+  },
+});
+
 // Check if a stash entry can accept another model being dropped
 export const stashEntryCanDrop = selector({
   name: "stashEntryCanDrop",

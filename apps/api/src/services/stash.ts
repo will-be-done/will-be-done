@@ -1,17 +1,22 @@
 import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
   addToStash,
-  allStashEntriesOrdered,
   createTaskInStash,
   inboxProjectId,
   removeFromStash,
   stashEntryByTaskId,
+  stashEntryPlacementNeighbors,
   stashTasksByState,
   taskById,
+  type StashEntry,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
-import { ConflictError, ResourceNotFoundError } from "./errors";
-import { resolveCreatePosition, type Placement } from "./placement";
+import {
+  ConflictError,
+  InvalidPlacementError,
+  ResourceNotFoundError,
+} from "./errors";
+import { type Placement } from "./placement";
 import {
   getTaskScheduledDates,
   getTaskScheduledDate,
@@ -20,6 +25,45 @@ import {
   type PublicTaskNature,
   type PublicTaskState,
 } from "./tasks";
+
+type StashPosition =
+  | "prepend"
+  | "append"
+  | [StashEntry | null, StashEntry | null];
+
+async function resolveStashPosition({
+  db,
+  placement,
+  movingTaskId,
+}: {
+  db: Awaited<ReturnType<typeof getSpaceDatabase>>;
+  placement: Placement;
+  movingTaskId?: string;
+}): Promise<StashPosition> {
+  if (placement.kind === "first") return "prepend";
+  if (placement.kind === "last") return "append";
+
+  const anchor = await selectAsync(db, {
+    selector: stashEntryByTaskId,
+    args: { taskId: placement.anchorId },
+  });
+  if (!anchor || anchor.taskId === movingTaskId) {
+    throw new InvalidPlacementError(
+      "Placement anchor must be a task in the destination stash",
+    );
+  }
+
+  const [before, after] = await selectAsync(db, {
+    selector: stashEntryPlacementNeighbors,
+    args: {
+      taskId: anchor.taskId,
+      ...(movingTaskId === undefined ? {} : { excludeTaskId: movingTaskId }),
+    },
+  });
+  return placement.kind === "before"
+    ? [before ?? null, anchor]
+    : [anchor, after ?? null];
+}
 
 export async function listStashTasks({
   spaceId,
@@ -74,15 +118,10 @@ export async function putTaskInStash({
     return toPublicTask(task, await getTaskScheduledDate(db, task.id));
   }
 
-  const entries = (
-    await selectAsync(db, {
-      selector: allStashEntriesOrdered,
-      args: {},
-    })
-  ).filter((entry) => entry.taskId !== taskId);
-  const position = resolveCreatePosition({
-    entities: entries,
+  const position = await resolveStashPosition({
+    db,
     placement: placement ?? { kind: "first" },
+    movingTaskId: taskId,
   });
 
   await asyncDispatch(db, addToStash({ taskId, position }));
@@ -124,11 +163,7 @@ export async function createStashTask({
   placement?: Placement;
 }): Promise<PublicTask> {
   const db = await getSpaceDatabase(spaceId, userId);
-  const entries = await selectAsync(db, {
-    selector: allStashEntriesOrdered,
-    args: {},
-  });
-  const position = resolveCreatePosition({ entities: entries, placement });
+  const position = await resolveStashPosition({ db, placement });
   const projectId = await selectAsync(db, {
     selector: inboxProjectId,
     args: {},

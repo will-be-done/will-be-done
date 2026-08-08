@@ -26,6 +26,7 @@ import {
   dailyEntriesTable,
   rebuildScheduledTodoTasks,
   scheduledTodoTasksTable,
+  stashEntryByTaskId,
   stashEntriesTable,
   tasksTable,
   taskTemplatesTable,
@@ -967,6 +968,44 @@ describe("section and task services", () => {
         (task) => task.id,
       ),
     ).toEqual(["task-a", "task-c"]);
+
+    await putTaskInStash({
+      spaceId: "space-1",
+      taskId: "task-a",
+      userId: "user-1",
+      placement: { kind: "after", anchorId: "task-c" },
+    });
+    expect(
+      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+        (task) => task.id,
+      ),
+    ).toEqual(["task-c", "task-a"]);
+
+    const originalEntry = selectSync(spaceDB, {
+      selector: stashEntryByTaskId,
+      args: { taskId: "task-a" },
+    });
+    await removeTaskFromStash({
+      spaceId: "space-1",
+      taskId: "task-a",
+      userId: "user-1",
+    });
+    await putTaskInStash({
+      spaceId: "space-1",
+      taskId: "task-a",
+      userId: "user-1",
+      placement: { kind: "after", anchorId: "task-c" },
+    });
+    const replacementEntry = selectSync(spaceDB, {
+      selector: stashEntryByTaskId,
+      args: { taskId: "task-a" },
+    });
+    expect(replacementEntry?.id).not.toBe(originalEntry?.id);
+    expect(
+      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+        (task) => task.id,
+      ),
+    ).toEqual(["task-c", "task-a"]);
 
     expect(
       putTaskInStash({
