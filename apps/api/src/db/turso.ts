@@ -39,6 +39,7 @@ const TURSO_READINESS_PROBE_TIMEOUT_MS = 10_000;
 const TURSO_QUERY_TIMEOUT_MS = 30_000;
 const TURSO_SLOW_JOB_WARNING_MS = 5_000;
 const TURSO_IDLE_SESSION_PROBE_AFTER_MS = 20_000;
+const TURSO_CLOSE_TIMEOUT_MS = 5_000;
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
@@ -255,7 +256,7 @@ function isTursoConnectionFailure(error: unknown): boolean {
   const code = "code" in error ? error.code : undefined;
   return (
     code === "TIMEOUT" ||
-    /^HTTP error! status: (401|404|408|429|5\d\d)\b/.test(error.message)
+    /^HTTP error! status: (401|404|408|5\d\d)\b/.test(error.message)
   );
 }
 
@@ -387,6 +388,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
 
     const now = this.dependencies.now();
     if (now >= this.refreshAt) {
+      this.replacementRequired = true;
       await this.replaceConnection();
       return;
     }
@@ -403,6 +405,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
       console.warn(
         `[Turso SQL ${this.databaseName}] idle session probe failed; replacing connection: ${String(error)}`,
       );
+      this.replacementRequired = true;
       await this.replaceConnection();
     }
   }
@@ -476,7 +479,16 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
       await this.executeJob(job);
     }
 
-    await this.connection.close();
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(resolve, TURSO_CLOSE_TIMEOUT_MS);
+      void Promise.resolve()
+        .then(() => this.connection.close())
+        .catch(() => undefined)
+        .finally(() => {
+          clearTimeout(timeout);
+          resolve();
+        });
+    });
   }
 
   private enqueue<T>(

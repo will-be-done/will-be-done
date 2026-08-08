@@ -166,33 +166,10 @@ export function createAppRouter({
 
         try {
           while (true) {
-            let removeAbortListener = () => {};
-            const cancellation = new Promise<never>((_, reject) => {
-              const rejectOnAbort = () => reject(abortController.signal.reason);
-              if (abortController.signal.aborted) rejectOnAbort();
-              else
-                abortController.signal.addEventListener(
-                  "abort",
-                  rejectOnAbort,
-                  { once: true },
-                );
-              removeAbortListener = () =>
-                abortController.signal.removeEventListener(
-                  "abort",
-                  rejectOnAbort,
-                );
-            });
-            try {
-              await Promise.race([
-                state.when(
-                  (notifications) => notifications.length > 0,
-                  abortController.signal,
-                ),
-                cancellation,
-              ]);
-            } finally {
-              removeAbortListener();
-            }
+            await state.when(
+              (notifications) => notifications.length > 0,
+              abortController.signal,
+            );
             const notifications = state.get();
             state.set([]);
 

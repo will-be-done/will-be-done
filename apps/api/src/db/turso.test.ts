@@ -213,6 +213,55 @@ describe("Turso database credentials", () => {
     await db.close();
   });
 
+  test("retries replacement after an idle-probe replacement fails", async () => {
+    let now = 0;
+    const initial = new FakeConnection();
+    initial.exec = async (sql: string) => {
+      initial.statements.push(sql);
+      if (sql === "SELECT 1") throw new Error("idle probe failed");
+    };
+    const replacement = new FakeConnection();
+    let connectAttempts = 0;
+    let tokenCount = 0;
+    const db = new TursoSqlExecutor(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      {
+        createToken: async () => `token-${++tokenCount}`,
+        connect: () => {
+          connectAttempts += 1;
+          if (connectAttempts === 1) throw new Error("connect failed");
+          return replacement.asConnection();
+        },
+        now: () => now,
+        refreshAfterMs: 60_000,
+      },
+      initial.asConnection(),
+    );
+
+    await db.exec("SELECT before_idle");
+    now = 20_001;
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("SELECT after_idle")).rejects.toThrow(
+      "connect failed",
+    );
+    await db.exec("SELECT after_replacement_retry");
+
+    expect(connectAttempts).toBe(2);
+    expect(tokenCount).toBe(2);
+    expect(initial.statements).toEqual(["SELECT before_idle", "SELECT 1"]);
+    expect(initial.closed).toBe(true);
+    expect(replacement.statements).toEqual([
+      "SELECT 1",
+      "PRAGMA foreign_keys = ON",
+      "SELECT after_replacement_retry",
+    ]);
+
+    await db.close();
+    expect(replacement.closed).toBe(true);
+  });
+
   test("does not block SQL while a replaced connection is closing", async () => {
     let now = 0;
     const initial = new FakeConnection();
@@ -358,6 +407,42 @@ describe("Turso database credentials", () => {
       "SELECT next_query",
     ]);
 
+    await db.close();
+  });
+
+  test("does not replace a connection after an HTTP 429 response", async () => {
+    const initial = new FakeConnection();
+    initial.exec = async (sql: string) => {
+      initial.statements.push(sql);
+      if (sql === "SELECT rate_limited") {
+        throw new Error("HTTP error! status: 429");
+      }
+    };
+    let tokenCount = 0;
+    const db = new TursoSqlExecutor(
+      "libsql://main-db.turso.io",
+      "wbd-main",
+      {
+        createToken: async () => `token-${++tokenCount}`,
+        connect: () => new FakeConnection().asConnection(),
+        now: () => 0,
+        refreshAfterMs: 10,
+      },
+      initial.asConnection(),
+    );
+
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(db.exec("SELECT rate_limited")).rejects.toThrow(
+      "HTTP error! status: 429",
+    );
+    await db.exec("SELECT after_rate_limit");
+
+    expect(tokenCount).toBe(0);
+    expect(initial.statements).toEqual([
+      "SELECT rate_limited",
+      "SELECT after_rate_limit",
+    ]);
     await db.close();
   });
 

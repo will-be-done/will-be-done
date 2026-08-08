@@ -15,6 +15,10 @@ process.env.WBD_DB_ENGINE = "sqlite";
 process.env.WBD_SYNC_NOTIFICATIONS_BACKEND = "memory";
 
 beforeAll(async () => {
+  // This ./harness import is intentionally load-bearing and must stay dynamic:
+  // env.ts loads dotenv and caches configuration at import time, so a static
+  // import would run before the WBD_DB_ENGINE and
+  // WBD_SYNC_NOTIFICATIONS_BACKEND assignments above and use ambient values.
   const { startTestServer } = await import("./harness");
   await startTestServer();
 });
@@ -27,6 +31,9 @@ afterAll(async () => {
       expectEveryOpenApiOperationCovered();
     }
   } finally {
+    // This second ./harness import is also intentionally load-bearing and must
+    // stay dynamic: a static import would reach env.ts before the environment
+    // assignments above, and env.ts caches ambient dotenv configuration.
     const { stopTestServer } = await import("./harness");
     await stopTestServer();
     rmSync(databasePath, { recursive: true, force: true });

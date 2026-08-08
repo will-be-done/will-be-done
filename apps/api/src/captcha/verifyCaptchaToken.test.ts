@@ -31,4 +31,17 @@ describe("CAPTCHA verification", () => {
       false,
     );
   });
+
+  test("rethrows a non-abort fetch failure", async () => {
+    const failure = new Error("fetch failed");
+    globalThis.fetch = (async (_input, _init): Promise<Response> => {
+      throw failure;
+    }) as typeof fetch;
+
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(
+      verifyCaptchaTokenWithTimeout("token", "secret", 1_000),
+    ).rejects.toBe(failure);
+  });
 });

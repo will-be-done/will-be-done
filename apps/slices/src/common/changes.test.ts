@@ -981,10 +981,12 @@ describe("idempotent merge retries", () => {
     expect({
       createdAt: reverseChange.createdAt,
       deletedAt: reverseChange.deletedAt,
+      clientId: reverseChange.clientId,
       changes: reverseChange.changes,
     }).toEqual({
       createdAt: causalChange.createdAt,
       deletedAt: causalChange.deletedAt,
+      clientId: causalChange.clientId,
       changes: causalChange.changes,
     });
 
@@ -1050,6 +1052,59 @@ describe("idempotent merge retries", () => {
     );
     expect(getChange(earlierFirst, entityId)).toEqual(
       getChange(laterFirst, entityId),
+    );
+  });
+
+  it("uses clientId to break ties between deletes with equal timestamps", () => {
+    const entityId = "equal-delete-timestamps";
+    const created = makeIncomingCreate(
+      entityId,
+      "delete me",
+      "0000000010-0001-client",
+    );
+    const makeDelete = (clientId: string) => {
+      const change = created[0]!.data[0]!.change;
+      return [
+        {
+          tableName: "testItems",
+          data: [
+            {
+              change: {
+                ...change,
+                updatedAt: "0000000020-0001-delete",
+                deletedAt: "0000000020-0001-delete",
+                clientId,
+              },
+            },
+          ],
+        },
+      ] satisfies ChangesetArrayType;
+    };
+    const clientADelete = makeDelete("client-a");
+    const clientBDelete = makeDelete("client-b");
+    const clientAFirst = createDB();
+    const clientBFirst = createDB();
+
+    for (const [db, deletes] of [
+      [clientAFirst, [clientADelete, clientBDelete]],
+      [clientBFirst, [clientBDelete, clientADelete]],
+    ] as const) {
+      for (const input of deletes) {
+        syncDispatch(
+          db,
+          mergeChanges({
+            input,
+            nextClock: "0000000030-0001-server",
+            clientId: "server",
+            registeredSyncableTableNameMap: registeredTables,
+          }),
+        );
+      }
+    }
+
+    expect(getChange(clientAFirst, entityId)?.clientId).toBe("client-b");
+    expect(getChange(clientAFirst, entityId)).toEqual(
+      getChange(clientBFirst, entityId),
     );
   });
 

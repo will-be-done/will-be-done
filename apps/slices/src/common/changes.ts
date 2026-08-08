@@ -418,7 +418,9 @@ export const mergeChanges = action({
               : incomingChange.createdAt,
             updatedAt: currentClock,
             deletedAt: null,
-            clientId: incomingChange.clientId,
+            clientId: currentCreatedFirst
+              ? currentChanges.clientId
+              : incomingChange.clientId,
             changes: fcwMergedChanges,
           };
 
@@ -469,10 +471,16 @@ export const mergeChanges = action({
             (incomingDeletedAt === currentDeletedAt &&
               incomingChange.clientId >
                 (currentChanges?.clientId ?? incomingChange.clientId)));
+        const incomingStateWins =
+          currentChanges === undefined ||
+          !isEqual(currentChanges.changes, mergedChanges) ||
+          !isEqual(currentRow, mergedRow);
         const winnerClientId =
           isDeleted && !incomingDeleteWins
             ? (currentChanges?.clientId ?? incomingChange.clientId)
-            : incomingChange.clientId;
+            : isDeleted || incomingStateWins
+              ? incomingChange.clientId
+              : currentChanges.clientId;
         const mergedCreatedAt =
           currentChanges == null ||
           incomingChange.createdAt < currentChanges.createdAt
@@ -535,8 +543,10 @@ const isSameMergedState = (
 ): boolean =>
   // Receipt metadata must not turn an already-converged merge into a change.
   (isDeleted ? currentRow === undefined : isEqual(currentRow, mergedRow)) &&
-  currentChange?.createdAt === mergedChange.createdAt &&
+  currentChange !== undefined &&
+  currentChange.createdAt === mergedChange.createdAt &&
   currentChange.deletedAt === mergedChange.deletedAt &&
+  currentChange.clientId === mergedChange.clientId &&
   isEqual(currentChange.changes, mergedChange.changes);
 
 const lwwMerge = (

@@ -143,8 +143,16 @@ const start = async () => {
     }
   } catch (error) {
     console.error(error);
-    await subscriptionManager.close();
-    await closeDatabases();
+    try {
+      await subscriptionManager.close();
+    } catch (cleanupError) {
+      console.error("Failed to close subscription manager", cleanupError);
+    }
+    try {
+      await closeDatabases();
+    } catch (cleanupError) {
+      console.error("Failed to close databases", cleanupError);
+    }
     process.exit(1);
   }
 };

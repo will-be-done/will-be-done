@@ -152,6 +152,8 @@ class RedisSubscriptionExecutor {
 
       if (this.closing) return;
       await this.runExclusive(async () => {
+        if (this.closing) return;
+
         const callbacks = this.channels.get(channel);
         if (!callbacks) return;
 
@@ -167,14 +169,28 @@ class RedisSubscriptionExecutor {
   async restoreSubscriptions(): Promise<void> {
     await this.runExclusive(async () => {
       const channels = [...this.channels.keys()];
-      await Promise.all(
+      const results = await Promise.allSettled(
         channels.map((channel) =>
           this.subscriber.subscribe(channel, this.redisListener),
         ),
       );
+      const failures: Array<{ channel: string; reason: unknown }> = [];
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") return;
+
+        const channel = channels[index]!;
+        this.channels.delete(channel);
+        failures.push({ channel, reason: result.reason });
+      });
       this.logger.info(
-        `[Sync notifications] Restored ${channels.length} Redis subscription(s)`,
+        `[Sync notifications] Restored ${channels.length - failures.length} Redis subscription(s)`,
       );
+      if (failures.length > 0) {
+        throw new AggregateError(
+          failures.map(({ reason }) => reason),
+          `Failed to restore Redis subscription(s): ${failures.map(({ channel }) => channel).join(", ")}`,
+        );
+      }
     });
   }
 

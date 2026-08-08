@@ -83,6 +83,7 @@ class FakeRedisClient implements RedisPubSubClient {
   connectCalls = 0;
   failConnect = false;
   failNextSubscribe = false;
+  readonly failSubscribeChannels = new Set<string>();
   beforeUnsubscribe: (() => Promise<void>) | undefined;
 
   constructor(private readonly hub: FakeRedisHub) {}
@@ -117,7 +118,7 @@ class FakeRedisClient implements RedisPubSubClient {
 
   async subscribe(channel: string, listener: RedisListener): Promise<void> {
     if (!this.connected) throw new Error("not connected");
-    if (this.failNextSubscribe) {
+    if (this.failNextSubscribe || this.failSubscribeChannels.has(channel)) {
       this.failNextSubscribe = false;
       throw new Error("subscription failed");
     }
@@ -346,7 +347,9 @@ describe("RedisSyncNotificationBus", () => {
 
     const subscriber = hub.clients[1]!;
     subscriber.failNextSubscribe = true;
-    expect(bus.subscribe("db-1", "space", () => {})).rejects.toThrow(
+    // Bun's matcher is thenable at runtime, despite its current type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(bus.subscribe("db-1", "space", () => {})).rejects.toThrow(
       "subscription failed",
     );
 
@@ -410,6 +413,41 @@ describe("RedisSyncNotificationBus", () => {
     await bus.publish(notification());
 
     expect(received).toEqual([notification()]);
+    await bus.close();
+  });
+
+  test("settles every restoration and drops channels that fail to restore", async () => {
+    const hub = new FakeRedisHub();
+    const bus = new RedisSyncNotificationBus({
+      url: "redis://test",
+      channelPrefix: "test",
+      createClient: hub.createClient,
+      logger: silentLogger,
+    });
+    await bus.start();
+
+    const received: NotificationData[] = [];
+    await bus.subscribe("db-1", "space", (data) => received.push(data));
+    await bus.subscribe("db-2", "space", (data) => received.push(data));
+
+    const subscriber = hub.clients[1]!;
+    subscriber.disconnect();
+    subscriber.failSubscribeChannels.add("test:space:db-1");
+    await subscriber.connect();
+    await bus.publish(notification({ dbId: "db-2" }));
+
+    expect(received).toEqual([notification({ dbId: "db-2" })]);
+    expect(hub.listenerCount("test:space:db-2")).toBe(1);
+
+    subscriber.failSubscribeChannels.clear();
+    const replacementReceived: NotificationData[] = [];
+    const unsubscribe = await bus.subscribe("db-1", "space", (data) =>
+      replacementReceived.push(data),
+    );
+    await bus.publish(notification());
+
+    expect(replacementReceived).toEqual([notification()]);
+    await unsubscribe();
     await bus.close();
   });
 

@@ -96,7 +96,14 @@ export const publicProcedure = t.procedure;
 
 export const enforceRateLimit = (policy: RateLimitPolicy) =>
   t.middleware(async (opts) => {
-    await opts.ctx.enforceRateLimit?.(policy);
+    if (!opts.ctx.enforceRateLimit) {
+      console.warn(
+        `[Rate limiting] No limiter is available for policy "${policy}"${opts.ctx.requestId ? `; request=${opts.ctx.requestId}` : ""}`,
+      );
+      return opts.next();
+    }
+
+    await opts.ctx.enforceRateLimit(policy);
     return opts.next();
   });
 

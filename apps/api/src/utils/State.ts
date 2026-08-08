@@ -103,7 +103,7 @@ export class State<T> {
           return;
         }
 
-        if (func(val) === true) {
+        if (res === true) {
           resolve();
           signal?.removeEventListener("abort", onAbort);
           unsub();

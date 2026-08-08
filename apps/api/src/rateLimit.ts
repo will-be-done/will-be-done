@@ -65,22 +65,63 @@ export function registerAppRateLimiting(
   config: RateLimitConfig,
 ): void {
   let redis: Redis | undefined;
+  let redisHealthy = config.backend !== "redis";
+  let redisConnectionError: Error | undefined;
 
   if (config.backend === "redis") {
     if (!config.redisUrl) {
       throw new Error("A Redis URL is required for Redis-backed rate limiting");
     }
 
-    redis = new Redis(config.redisUrl, {
+    const rateLimitRedis = new Redis(config.redisUrl, {
       connectionName: "will-be-done-rate-limit",
       connectTimeout: 500,
       maxRetriesPerRequest: 1,
     });
-    redis.on("error", (error) => {
+    redis = rateLimitRedis;
+    rateLimitRedis.on("ready", () => {
+      redisHealthy = true;
+      redisConnectionError = undefined;
+    });
+    rateLimitRedis.on("error", (error) => {
+      redisHealthy = false;
+      redisConnectionError = error;
       server.log.warn({ err: error }, "Rate-limit Redis connection error");
     });
+    rateLimitRedis.on("close", () => {
+      redisHealthy = false;
+      redisConnectionError ??= new Error("Rate-limit Redis connection closed");
+    });
+    server.addHook("onReady", async () => {
+      try {
+        await rateLimitRedis.ping();
+        redisHealthy = true;
+        redisConnectionError = undefined;
+      } catch (error) {
+        redisHealthy = false;
+        redisConnectionError =
+          error instanceof Error ? error : new Error(String(error));
+        server.log.error(
+          { err: redisConnectionError },
+          "Rate-limit Redis failed its startup health check",
+        );
+        throw new Error("Rate-limit Redis backend is unavailable", {
+          cause: redisConnectionError,
+        });
+      }
+    });
+    server.addHook("onRequest", async () => {
+      if (redisHealthy) return;
+
+      throw Object.assign(
+        new Error("Rate-limit Redis backend is unavailable", {
+          cause: redisConnectionError,
+        }),
+        { statusCode: 503 },
+      );
+    });
     server.addHook("onClose", async () => {
-      redis?.disconnect();
+      rateLimitRedis.disconnect();
     });
   }
 
@@ -88,8 +129,8 @@ export function registerAppRateLimiting(
     global: false,
     redis,
     nameSpace: config.namespace ?? "wbd:rate-limit:v1:",
-    // Keep the API available if Redis has a transient outage. Connection
-    // errors are still logged above so the missing protection is visible.
+    // Redis health hooks surface backend outages consistently; avoid a second,
+    // plugin-specific rate-limit error after the request health check passes.
     skipOnError: true,
   });
 
