@@ -1,4 +1,4 @@
-const DEFAULT_SYNC_REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_SYNC_REQUEST_TIMEOUT_MS = 5 * 60_000;
 
 class SyncRequestTimeoutError extends Error {
   constructor(label: string, timeoutMs: number) {
