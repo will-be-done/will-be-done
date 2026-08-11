@@ -12,6 +12,7 @@
   "scripts": {
     "dev:client": "pnpm -C apps/web dev",
     "dev:server": "pnpm -C apps/api dev",
+    "dev:tursod": "cargo run --manifest-path apps/tursod/Cargo.toml",
     "ts": "pnpm --filter @will-be-done/web ts && pnpm --filter @will-be-done/slices ts && pnpm --filter @will-be-done/api ts",
     "lint": "pnpm --filter @will-be-done/web lint && pnpm --filter @will-be-done/slices lint && pnpm --filter @will-be-done/api lint",
     "test": "pnpm --filter @will-be-done/api test",

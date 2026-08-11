@@ -76,7 +76,7 @@ docker run -d \
 
 Then open http://localhost:3000 in your browser.
 
-The Docker server hosts the web app, stores server-side data under `/var/lib/will-be-done`, and provides sync for browser, PWA, and desktop clients. SQLite is the default; the API can optionally use Turso Cloud when `WBD_DB_ENGINE=turso`. See [the API database configuration](apps/api/README.md#database-engines) for setup and migration instructions.
+The Docker server hosts the web app, stores server-side data under `/var/lib/will-be-done`, and provides sync for browser, PWA, and desktop clients. SQLite is the default; the API can optionally use Turso Cloud or the local Rust tursod service. See [the API database configuration](apps/api/README.md#database-engines) for setup instructions.
 
 ## Screenshots
 
@@ -169,7 +169,7 @@ The Docker server hosts the web app, stores server-side data under `/var/lib/wil
 **Import, backup, and ownership**
 
 - Self-hosted server in one Docker command.
-- SQLite storage by default, with optional Turso Cloud storage.
+- SQLite storage by default, with optional Turso Cloud or tursod storage.
 - No external services required for a self-hosted setup.
 - Todoist import by API token.
 - TickTick import from CSV export.
@@ -318,6 +318,14 @@ Run the API and web app in separate terminals:
 ```bash
 pnpm dev:server
 pnpm dev:client
+```
+
+Or run the combined terminal UI. When `WBD_DB_ENGINE=tursod`, it also starts
+the Rust database service and configures the API to use it:
+
+```bash
+pnpm all
+WBD_DB_ENGINE=tursod pnpm all
 ```
 
 Useful checks:

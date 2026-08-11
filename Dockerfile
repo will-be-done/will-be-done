@@ -13,8 +13,12 @@ COPY apps/slices/package.json ./apps/slices/
 # Install only the packages used by the web/api image. A root workspace install
 # also runs install scripts for unrelated apps such as apps/desktop.
 RUN corepack enable && pnpm --filter @will-be-done/web... --filter @will-be-done/api... install --frozen-lockfile
-# Copy the rest of the application source code
-COPY . .
+# Copy only the workspaces used by this image. Keeping the build context scoped
+# prevents unrelated local artifacts (for example Rust targets) from being sent
+# to the remote builder.
+COPY apps/web ./apps/web
+COPY apps/api ./apps/api
+COPY apps/slices ./apps/slices
 # Build the application using pnpm
 # Assumes your build script is named "build" in package.json
 WORKDIR /app/apps/web

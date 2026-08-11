@@ -32,18 +32,25 @@ at most once every 60 seconds by default. Set
 
 ## Database engines
 
-SQLite remains the default and needs no external service. To use Turso Cloud,
-set `WBD_DB_ENGINE=turso` and configure the `WBD_TURSO_*` variables documented
-in `.env.example`. The server keeps one main database plus separate user and
-space databases. All missing databases, including the main database, are
-provisioned in the configured Turso group on first access.
+SQLite remains the default and needs no external service. Two Turso-based
+engines are also available:
+
+- Set `WBD_DB_ENGINE=turso-cloud` and configure the `WBD_TURSO_*` variables to
+  use Turso Cloud. The server keeps one main database plus separate user and
+  space databases. Missing databases are provisioned in the configured Turso
+  group on first access.
+- Set `WBD_DB_ENGINE=tursod` and provide `WBD_TURSOD_URL` to use the local Rust
+  service in `apps/tursod`. It stores `main-main`, `user-{uuid}`, and
+  `space-{uuid}` databases under its configured data directory.
 
 Use an organization-scoped Turso Platform API token and store it in the
 deployment's secret manager. The API uses it to mint one-hour, database-scoped
 tokens, keeps those tokens only in process memory, and refreshes connections
 halfway through the tokens' one-hour lifetime. It never stores a group token or
 a user database token. The existing local SQLite S3 backup worker is not
-supported in Turso mode; use Turso backups/PITR instead.
+supported with either Turso engine. Use Turso Cloud backups/PITR for
+`turso-cloud` and a backup process designed for the tursod data directory for
+`tursod`.
 
 Create the organization-scoped Platform API token with:
 
@@ -53,6 +60,19 @@ turso auth api-tokens mint will-be-done --org your-org
 
 Only the Platform token is secret. Database names and URLs are discovered from
 Turso and do not need to be stored separately.
+
+For local tursod development, run the combined environment with:
+
+```bash
+WBD_DB_ENGINE=tursod pnpm all
+```
+
+The development runner chooses a separate tursod port, waits for the Rust
+service, and injects its URL into the API. To run it separately, use
+`pnpm dev:tursod`; tursod accepts `TURSOD_HOST`, `TURSOD_PORT` (falling back to
+`PORT`), and `TURSOD_DB_PATH`. It defaults to `0.0.0.0:3000` with a `db`
+directory under its working directory. The tursod HTTP API currently has no
+authentication and should only be exposed on a trusted network.
 
 ## Public API
 

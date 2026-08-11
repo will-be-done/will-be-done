@@ -22,6 +22,12 @@ node_modules
 dist
 dist-ssr
 **/dist
+target
+target/**
+**/target
+**/target/**
+apps/tursod/target
+apps/tursod/target/**
 *.local
 
 # Editor directories and files

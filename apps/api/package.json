@@ -12,7 +12,7 @@
     "client:generate": "orval --config ./orval.config.ts --clean --formatter prettier --fail-on-warnings",
     "openapi:check": "bun run src/generateOpenApi.ts --check",
     "openapi:generate": "bun run src/generateOpenApi.ts",
-    "test": "bun test --path-ignore-patterns 'src/e2e/**'",
+    "test": "WBD_DB_ENGINE=sqlite bun test --path-ignore-patterns 'src/e2e/**'",
     "test:e2e": "bun test --preload ./src/e2e/setup.ts ./src/e2e"
   },
   "devDependencies": {

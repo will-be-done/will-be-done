@@ -35,9 +35,10 @@ import {
 } from "@will-be-done/slices/space";
 import { subscriptionManager } from "../subscriptionManager";
 import {
-  createTursoSqlDriver,
-  getOrCreateTursoDatabase,
+  createTursoCloudSqlDriver,
+  getOrCreateTursoCloudDatabase,
 } from "./turso";
+import { createTursodSqlDriver } from "./tursod";
 import { createServerClientId } from "../serverInstance";
 
 export interface DBConfig {
@@ -113,12 +114,22 @@ const createLocalDB = (dbType: string, dbId: string) => {
 
 const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
   let db: DB;
-  if (getEnvConfig().WBD_DB_ENGINE === "sqlite") {
+  const env = getEnvConfig();
+  if (env.WBD_DB_ENGINE === "sqlite") {
     db = createLocalDB(dbType, dbId);
+  } else if (env.WBD_DB_ENGINE === "turso-cloud") {
+    const { name, url } = await getOrCreateTursoCloudDatabase(dbType, dbId);
+    console.log(`Loading Turso Cloud database "${name}"...`, url);
+    const { driver, close } = await createTursoCloudSqlDriver(name, url);
+    asyncDatabaseClosers.add(close);
+    db = new DB(driver, { traits: [dbIdTrait(dbType, dbId)] });
   } else {
-    const { name, url } = await getOrCreateTursoDatabase(dbType, dbId);
-    console.log(`Loading Turso database "${name}"...`, url);
-    const { driver, close } = await createTursoSqlDriver(name, url);
+    const name = `${dbType}-${dbId}`;
+    console.log(`Loading tursod database "${name}"...`, env.WBD_TURSOD_URL);
+    const { driver, close } = await createTursodSqlDriver(
+      name,
+      env.WBD_TURSOD_URL!,
+    );
     asyncDatabaseClosers.add(close);
     db = new DB(driver, { traits: [dbIdTrait(dbType, dbId)] });
   }

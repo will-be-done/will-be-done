@@ -16,9 +16,9 @@ const start = async () => {
       `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
     );
     const backupConfig = getBackupConfig();
-    if (backupConfig?.WBD_BACKUP_S3_ENABLED && env.WBD_DB_ENGINE === "turso") {
+    if (backupConfig?.WBD_BACKUP_S3_ENABLED && env.WBD_DB_ENGINE !== "sqlite") {
       throw new Error(
-        "The local SQLite S3 backup worker cannot run with WBD_DB_ENGINE=turso. Use Turso point-in-time recovery or disable WBD_BACKUP_S3_ENABLED.",
+        `The local SQLite S3 backup worker cannot run with WBD_DB_ENGINE=${env.WBD_DB_ENGINE}. Disable WBD_BACKUP_S3_ENABLED or use a backup system designed for that engine.`,
       );
     }
 

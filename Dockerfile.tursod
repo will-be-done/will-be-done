@@ -1,0 +1,26 @@
+FROM rust:1.90-bookworm AS builder
+
+WORKDIR /app
+
+COPY apps/tursod/Cargo.toml apps/tursod/Cargo.lock ./
+COPY apps/tursod/src ./src
+
+RUN cargo build --locked --release
+
+FROM debian:bookworm-slim AS runner
+
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/tursod /usr/local/bin/tursod
+
+RUN mkdir -p /data
+
+ENV TURSOD_HOST=::
+ENV TURSOD_PORT=3000
+ENV TURSOD_DB_PATH=/data
+
+EXPOSE 3000
+
+CMD ["tursod"]
