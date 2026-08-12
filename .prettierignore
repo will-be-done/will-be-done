@@ -12,6 +12,7 @@ build/
 coverage/
 playwright-report/
 test-results/
+apps/tursod/
 **/routeTree.gen.ts
 
 # Package manager and generated data

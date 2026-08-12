@@ -1,5 +1,8 @@
 name: CI
 
+env:
+  RUST_VERSION: "1.90.0"
+
 on:
   push:
     branches: [main]
@@ -88,6 +91,8 @@ jobs:
 
   tursod:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -95,8 +100,9 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
         with:
+          toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
       - name: Build tursod

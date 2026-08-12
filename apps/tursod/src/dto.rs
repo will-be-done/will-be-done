@@ -35,7 +35,7 @@ pub enum Value {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ExecuteReponse {
+pub struct ExecuteResponse {
     pub results: Vec<Res>,
 }
 

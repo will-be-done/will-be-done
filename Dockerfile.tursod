@@ -10,12 +10,15 @@ RUN cargo build --locked --release
 FROM debian:bookworm-slim AS runner
 
 RUN apt-get update \
-  && apt-get install --yes --no-install-recommends ca-certificates \
+  && apt-get install --yes --no-install-recommends ca-certificates gosu \
+  && groupadd --gid 10001 tursod \
+  && useradd --uid 10001 --gid tursod --no-create-home --shell /usr/sbin/nologin tursod \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/tursod /usr/local/bin/tursod
+COPY --chmod=755 scripts/tursod-entrypoint.sh /usr/local/bin/tursod-entrypoint
 
-RUN mkdir -p /data
+RUN mkdir -p /data && chown tursod:tursod /data
 
 ENV TURSOD_HOST=::
 ENV TURSOD_PORT=3000
@@ -23,4 +26,5 @@ ENV TURSOD_DB_PATH=/data
 
 EXPOSE 3000
 
+ENTRYPOINT ["tursod-entrypoint"]
 CMD ["tursod"]

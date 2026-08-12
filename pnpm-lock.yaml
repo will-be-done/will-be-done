@@ -70,8 +70,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       '@will-be-done/hyperdb':
-        specifier: ^0.4.4
-        version: 0.4.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.5.0
+        version: 0.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -234,8 +234,8 @@ importers:
   apps/slices:
     dependencies:
       '@will-be-done/hyperdb':
-        specifier: ^0.4.4
-        version: 0.4.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.5.0
+        version: 0.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       date-fns:
         specifier: ^4.1.0
         version: 4.4.0
@@ -364,8 +364,8 @@ importers:
         specifier: workspace:*
         version: link:../api
       '@will-be-done/hyperdb':
-        specifier: ^0.4.4
-        version: 0.4.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.5.0
+        version: 0.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/hyperdb-devtool':
         specifier: ^0.4.4
         version: 0.4.4(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -3834,6 +3834,12 @@ packages:
 
   '@will-be-done/hyperdb@0.4.4':
     resolution: {integrity: sha512-XJkqlNjkGRjiOID4yV/UDD67WgM4u3km3B+49XLr+9Y1M5jwapcuhkMT4sOaXiCm8OJqLdw1G9WaNKJtvudVcw==}
+    peerDependencies:
+      react: 19.2.7
+      react-dom: 19.2.7
+
+  '@will-be-done/hyperdb@0.5.0':
+    resolution: {integrity: sha512-0UVx8kYyFrjcSoKGv4cX1bIzZLAiguOnvVUIhqADnf7ycWMlebls0+B4GzvVtYGnV6cq7m0gwshOwVvKZCR8kA==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
@@ -11504,6 +11510,11 @@ snapshots:
       - csstype
 
   '@will-be-done/hyperdb@0.4.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+
+  '@will-be-done/hyperdb@0.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)

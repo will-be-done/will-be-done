@@ -6,6 +6,10 @@ import {
 } from "./tursod";
 
 const connectionId = "0198b10a-b15e-7e6a-b426-c491007f4b65";
+const config = {
+  authToken: "test-secret",
+  requestTimeoutMs: 1_000,
+};
 
 function executeResponse(rows: unknown[][] = []): Response {
   return Response.json({
@@ -34,6 +38,7 @@ describe("TursodSqlExecutor", () => {
     const executor = new TursodSqlExecutor(
       "http://127.0.0.1:3001/",
       "space-test database",
+      config,
       dependencies(async (input, init) => {
         requests.push({ url: String(input), init });
         return executeResponse();
@@ -51,7 +56,12 @@ describe("TursodSqlExecutor", () => {
 
     expect(requests[0]).toEqual({
       url: `http://127.0.0.1:3001/dbs/space-test%20database/conn/${connectionId}/exec`,
-      init: expect.objectContaining({ method: "POST" }),
+      init: expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-secret",
+        }),
+      }),
     });
     expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
       statements: [
@@ -76,6 +86,7 @@ describe("TursodSqlExecutor", () => {
     const executor = new TursodSqlExecutor(
       "http://tursod.test",
       "main-main",
+      config,
       dependencies(async () => {
         callCount += 1;
         if (callCount === 1) return executeResponse();
@@ -104,6 +115,7 @@ describe("TursodSqlExecutor", () => {
     const executor = new TursodSqlExecutor(
       "http://tursod.test",
       "main-main",
+      config,
       dependencies(async () => {
         callCount += 1;
         if (callCount === 1) return executeResponse();
@@ -135,6 +147,7 @@ describe("TursodSqlExecutor", () => {
     const executor = new TursodSqlExecutor(
       "http://tursod.test",
       "main-main",
+      config,
       dependencies(async (input, init) => {
         expect(String(input).endsWith("/exec")).toBe(true);
         const sql = JSON.parse(String(init?.body)).statements[0].sql as string;
@@ -174,6 +187,7 @@ describe("TursodSqlExecutor", () => {
     const executor = new TursodSqlExecutor(
       "http://tursod.test",
       "main-main",
+      config,
       dependencies(async (input, init) => {
         if (!String(input).endsWith("/exec")) {
           return new Response(null, { status: 204 });
@@ -197,5 +211,43 @@ describe("TursodSqlExecutor", () => {
     releaseFirst();
     await Promise.all([first, second, closing]);
     expect(executed).toEqual(["SELECT first", "SELECT second"]);
+  });
+
+  test("times out a stalled request and continues queued work", async () => {
+    const executed: string[] = [];
+    const executor = new TursodSqlExecutor(
+      "http://tursod.test",
+      "main-main",
+      { ...config, requestTimeoutMs: 10 },
+      dependencies(async (_input, init) => {
+        const sql = JSON.parse(String(init?.body)).statements[0].sql as string;
+        executed.push(sql);
+        if (sql === "SELECT stalled") {
+          return await new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              "abort",
+              () => reject(init.signal?.reason),
+              { once: true },
+            );
+          });
+        }
+        return executeResponse();
+      }),
+    );
+
+    await executor.open();
+    const stalled = executor.exec("SELECT stalled");
+    const next = executor.exec("SELECT next");
+    // Bun's matcher is thenable at runtime, despite its type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(stalled).rejects.toThrow();
+    await next;
+    await executor.close();
+
+    expect(executed).toEqual([
+      "PRAGMA foreign_keys = ON",
+      "SELECT stalled",
+      "SELECT next",
+    ]);
   });
 });

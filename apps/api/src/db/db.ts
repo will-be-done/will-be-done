@@ -125,10 +125,14 @@ const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
     db = new DB(driver, { traits: [dbIdTrait(dbType, dbId)] });
   } else {
     const name = `${dbType}-${dbId}`;
-    console.log(`Loading tursod database "${name}"...`, env.WBD_TURSOD_URL);
+    console.log(`Loading tursod database "${name}" from the tursod service...`);
     const { driver, close } = await createTursodSqlDriver(
       name,
       env.WBD_TURSOD_URL!,
+      {
+        authToken: env.TURSOD_AUTH_TOKEN!,
+        requestTimeoutMs: env.WBD_TURSOD_REQUEST_TIMEOUT_MS,
+      },
     );
     asyncDatabaseClosers.add(close);
     db = new DB(driver, { traits: [dbIdTrait(dbType, dbId)] });

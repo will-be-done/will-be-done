@@ -13,28 +13,28 @@ pub enum TursodError {
     #[error("database `{db_name}` is not opened")]
     DatabaseNotOpened { db_name: String },
 
-    #[error("prepare `{stmt}` failed due to `{source}`")]
+    #[error("statement preparation failed")]
     PrepareFailed {
         stmt: String,
         #[source]
         source: turso::Error,
     },
 
-    #[error("query `{stmt}` failed due to `{source}`")]
+    #[error("statement query failed")]
     QueryFailed {
         stmt: String,
         #[source]
         source: turso::Error,
     },
 
-    #[error("get value for `{stmt}` failed due to `{source}`")]
+    #[error("statement value extraction failed")]
     QueryGetValueFailed {
         stmt: String,
         #[source]
         source: turso::Error,
     },
 
-    #[error("row load for `{stmt}` failed due to `{source}`")]
+    #[error("statement row loading failed")]
     RowLoadFailed {
         stmt: String,
         #[source]
@@ -46,6 +46,9 @@ pub enum TursodError {
 
     #[error("connection `{conn_id}` not found")]
     ConnectionNotFound { conn_id: Uuid },
+
+    #[error("invalid database name")]
+    BadRequest,
 
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
@@ -62,12 +65,27 @@ impl TursodError {
             Self::RowLoadFailed { .. } => "ROW_LOAD_FAILED",
             Self::DatabaseNotInitialized { .. } => "DATABASE_NOT_INITIALIZED",
             Self::ConnectionNotFound { .. } => "CONNECTION_NOT_FOUND",
+            Self::BadRequest => "BAD_REQUEST",
             Self::Internal(_) => "INTERNAL_SERVER_ERROR",
         }
     }
 
     pub(crate) fn internal(error: impl Into<anyhow::Error>) -> Self {
         Self::Internal(error.into())
+    }
+
+    pub(crate) const fn stage(&self) -> &'static str {
+        match self {
+            Self::InvalidConnectionId { .. } | Self::BadRequest => "validate",
+            Self::DatabaseNotOpened { .. }
+            | Self::DatabaseNotInitialized { .. }
+            | Self::ConnectionNotFound { .. } => "connection",
+            Self::PrepareFailed { .. } => "prepare",
+            Self::QueryFailed { .. } => "execute",
+            Self::RowLoadFailed { .. } => "row_load",
+            Self::QueryGetValueFailed { .. } => "value_decode",
+            Self::Internal(_) => "internal",
+        }
     }
 }
 

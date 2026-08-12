@@ -39,6 +39,11 @@ export type TursodDriverDependencies = {
   createConnectionId: () => string;
 };
 
+export type TursodDriverConfig = {
+  authToken: string;
+  requestTimeoutMs: number;
+};
+
 type SqlJob = {
   sql: string;
   params: SqlValue[];
@@ -127,6 +132,7 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
   constructor(
     baseUrl: string,
     private readonly databaseName: string,
+    private readonly config: TursodDriverConfig,
     private readonly dependencies: TursodDriverDependencies = {
       fetch,
       createConnectionId: () => crypto.randomUUID(),
@@ -157,11 +163,21 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
     sql: string,
     params: SqlValue[],
   ): Promise<TursodResult> {
-    const response = await this.dependencies.fetch(
-      `${this.connectionUrl}/exec`,
-      {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.config.requestTimeoutMs,
+    );
+
+    let response: Response;
+    try {
+      response = await this.dependencies.fetch(`${this.connectionUrl}/exec`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${this.config.authToken}`,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
         body: JSON.stringify({
           statements: [
             {
@@ -170,8 +186,10 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
             },
           ],
         }),
-      },
-    );
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) throw await this.responseError(response);
     const payload = (await response.json()) as TursodExecuteResponse;
@@ -243,8 +261,9 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
 export async function createTursodSqlDriver(
   databaseName: string,
   baseUrl: string,
+  config: TursodDriverConfig,
 ): Promise<{ driver: AsyncSqlDriver; close: () => Promise<void> }> {
-  const executor = new TursodSqlExecutor(baseUrl, databaseName);
+  const executor = new TursodSqlExecutor(baseUrl, databaseName, config);
   await executor.open();
   return {
     driver: new AsyncSqlDriver(executor, {

@@ -6,11 +6,23 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 axum = "0.8.9"
+fs4 = "0.13.1"
 serde = "1.0.229"
 serde_derive = "1.0.229"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+sha2 = "0.10.9"
+# The pre-release is intentional while tursod validates Turso's new persistence
+# engine. Before moving to stable: back up a production database, update the
+# crate, run the full tests, open and write to a copy of every existing database,
+# then roll out with a tested restore/rollback path. Keep this pin until that
+# compatibility and migration exercise succeeds.
 turso = "0.8.0-pre.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
 thiserror = "2"
+subtle = "2.6.1"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["request-id", "trace", "util"] }
 uuid = "1.24.0"
 
 [dev-dependencies]

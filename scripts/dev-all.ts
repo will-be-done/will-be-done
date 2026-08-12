@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "child_process";
+import { randomUUID } from "crypto";
 import net from "net";
 import blessed from "blessed";
 
@@ -23,19 +24,56 @@ function waitForPort(port: number, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
 
+    const retry = () => {
+      if (Date.now() >= deadline) {
+        reject(new Error(`Timed out waiting for tursod on port ${port}`));
+        return;
+      }
+      setTimeout(tryConnect, 250);
+    };
+
     const tryConnect = () => {
       const socket = net.createConnection({ host: "127.0.0.1", port });
-      socket.once("connect", () => {
+      let socketSettled = false;
+      const attemptTimeoutMs = Math.max(
+        1,
+        Math.min(1_000, deadline - Date.now()),
+      );
+      socket.setTimeout(attemptTimeoutMs);
+
+      const retrySocket = () => {
+        if (socketSettled) return;
+        socketSettled = true;
         socket.destroy();
-        resolve();
-      });
-      socket.once("error", () => {
+        retry();
+      };
+
+      socket.once("timeout", retrySocket);
+      socket.once("error", retrySocket);
+      socket.once("connect", async () => {
+        if (socketSettled) return;
+        socketSettled = true;
         socket.destroy();
-        if (Date.now() >= deadline) {
-          reject(new Error(`Timed out waiting for tursod on port ${port}`));
-          return;
+
+        const controller = new AbortController();
+        const healthTimeout = setTimeout(
+          () => controller.abort(),
+          attemptTimeoutMs,
+        );
+        try {
+          const response = await fetch(`http://127.0.0.1:${port}/health`, {
+            signal: controller.signal,
+          });
+          if (response.ok) {
+            resolve();
+          } else {
+            retry();
+          }
+        } catch {
+          retry();
+        } finally {
+          clearTimeout(healthTimeout);
         }
-        setTimeout(tryConnect, 250);
       });
     };
 
@@ -50,11 +88,22 @@ function createTUI(apiPort: number, tursodPort?: number) {
   });
 
   let activeTab = 0;
-  const tabs = [
-    { name: "API Server", color: "green" },
-    { name: "Web Client", color: "cyan" },
-    ...(tursodPort === undefined ? [] : [{ name: "tursod", color: "yellow" }]),
+  const tabs: Array<{
+    id: "api" | "web" | "tursod";
+    name: string;
+    color: string;
+  }> = [
+    { id: "api", name: "API Server", color: "green" },
+    { id: "web", name: "Web Client", color: "cyan" },
+    ...(tursodPort === undefined
+      ? []
+      : [{ id: "tursod" as const, name: "tursod", color: "yellow" }]),
   ];
+  const tabIndices = {
+    api: tabs.findIndex((tab) => tab.id === "api"),
+    web: tabs.findIndex((tab) => tab.id === "web"),
+    tursod: tabs.findIndex((tab) => tab.id === "tursod"),
+  };
 
   const tabBar = blessed.box({
     top: 0,
@@ -142,11 +191,29 @@ function createTUI(apiPort: number, tursodPort?: number) {
       cleanup = fn;
     },
     screen,
+    tabIndices,
   };
+}
+
+function signalProcessGroup(child: ChildProcess) {
+  if (child.pid === undefined) return;
+
+  try {
+    if (process.platform === "win32") {
+      child.kill("SIGTERM");
+    } else {
+      process.kill(-child.pid, "SIGTERM");
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+  }
 }
 
 async function main() {
   const usesTursod = process.env.WBD_DB_ENGINE === "tursod";
+  const tursodAuthToken = usesTursod
+    ? (process.env.TURSOD_AUTH_TOKEN ?? randomUUID())
+    : undefined;
   const apiPort = await findFreePort();
   const tursodPort = usesTursod
     ? await findDistinctFreePort(apiPort)
@@ -157,7 +224,7 @@ async function main() {
 
   const cleanup = () => {
     shuttingDown = true;
-    for (const process of processes) process.kill();
+    for (const child of processes) signalProcessGroup(child);
   };
   tui.setCleanup(cleanup);
 
@@ -173,15 +240,24 @@ async function main() {
   const watch = (process: ChildProcess, name: string, tabIndex: number) => {
     processes.add(process);
     pipe(process, tabIndex);
-    process.on("exit", (code) => {
+    let failureHandled = false;
+    const fail = (message: string, code: number) => {
+      if (failureHandled || shuttingDown) return;
+      failureHandled = true;
       processes.delete(process);
-      if (shuttingDown) return;
-      tui.appendLog(tabIndex, `${name} exited with code ${code}`);
+      tui.appendLog(tabIndex, message);
       cleanup();
       setTimeout(() => {
         tui.screen.destroy();
-        globalThis.process.exit(code ?? 1);
+        globalThis.process.exit(code);
       }, 1_000);
+    };
+
+    process.on("error", (error) => {
+      fail(`${name} failed to start: ${error.message}`, 1);
+    });
+    process.on("exit", (code) => {
+      fail(`${name} exited with code ${code}`, code ?? 1);
     });
   };
 
@@ -197,22 +273,29 @@ async function main() {
   });
 
   if (tursodPort !== undefined) {
-    tui.appendLog(2, `Starting tursod on port ${tursodPort}...`);
-    const tursodProcess = spawn("cargo", ["run"], {
-      cwd: "apps/tursod",
-      stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        PORT: String(tursodPort),
-        FORCE_COLOR: "1",
+    const tursodTabIndex = tui.tabIndices.tursod;
+    tui.appendLog(tursodTabIndex, `Starting tursod on port ${tursodPort}...`);
+    const tursodProcess = spawn(
+      "cargo",
+      ["run", "--manifest-path", "apps/tursod/Cargo.toml"],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+        detached: true,
+        env: {
+          ...process.env,
+          PORT: String(tursodPort),
+          TURSOD_AUTH_TOKEN: tursodAuthToken,
+          TURSOD_DB_PATH: "apps/tursod/db",
+          FORCE_COLOR: "1",
+        },
       },
-    });
-    watch(tursodProcess, "tursod", 2);
+    );
+    watch(tursodProcess, "tursod", tursodTabIndex);
     try {
       await waitForPort(tursodPort, 120_000);
-      tui.appendLog(2, "tursod is ready");
+      tui.appendLog(tursodTabIndex, "tursod is ready");
     } catch (error) {
-      tui.appendLog(2, String(error));
+      tui.appendLog(tursodTabIndex, String(error));
       cleanup();
       tui.screen.destroy();
       process.exit(1);
@@ -222,13 +305,17 @@ async function main() {
   tui.appendLog(0, `Starting API server on port ${apiPort}...`);
   const apiProcess = spawn("pnpm", ["-C", "apps/api", "dev"], {
     stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
     env: {
       ...process.env,
       PORT: String(apiPort),
       FORCE_COLOR: "1",
       ...(tursodPort === undefined
         ? {}
-        : { WBD_TURSOD_URL: `http://127.0.0.1:${tursodPort}` }),
+        : {
+            TURSOD_AUTH_TOKEN: tursodAuthToken,
+            WBD_TURSOD_URL: `http://127.0.0.1:${tursodPort}`,
+          }),
     },
   });
   watch(apiProcess, "API server", 0);
@@ -236,6 +323,7 @@ async function main() {
   tui.appendLog(1, `Starting Web client (proxying to API port ${apiPort})...`);
   const webProcess = spawn("pnpm", ["-C", "apps/web", "dev"], {
     stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
     env: {
       ...process.env,
       VITE_API_PORT: String(apiPort),
