@@ -86,6 +86,28 @@ jobs:
             exit 1
           fi
 
+  tursod:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Build tursod
+        run: cargo build --locked --manifest-path apps/tursod/Cargo.toml
+
+      - name: Lint tursod
+        run: cargo clippy --locked --manifest-path apps/tursod/Cargo.toml --all-targets -- -D warnings
+
+      - name: Test tursod
+        run: cargo test --locked --manifest-path apps/tursod/Cargo.toml
+
   openapi-compatibility:
     if: github.event_name == 'pull_request'
     runs-on: blacksmith-4vcpu-ubuntu-2404

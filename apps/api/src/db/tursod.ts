@@ -51,12 +51,6 @@ type ExecutorState = {
   closing: boolean;
 };
 
-const CONNECTION_MISSING_CODES = new Set([
-  "DATABASE_NOT_OPENED",
-  "DATABASE_NOT_INITIALIZED",
-  "CONNECTION_NOT_FOUND",
-]);
-
 function isTursodErrorBody(value: unknown): value is TursodErrorBody {
   return (
     typeof value === "object" &&
@@ -107,88 +101,6 @@ function decodeValue(value: TursodValue): SqlValue {
   }
 }
 
-export function numberAnonymousSqlParameters(
-  sql: string,
-  expectedCount: number,
-): string {
-  let output = "";
-  let parameterCount = 0;
-  let state:
-    | "normal"
-    | "single"
-    | "double"
-    | "backtick"
-    | "bracket"
-    | "line-comment"
-    | "block-comment" = "normal";
-
-  for (let index = 0; index < sql.length; index += 1) {
-    const char = sql[index]!;
-    const next = sql[index + 1];
-    output += char;
-
-    if (state === "line-comment") {
-      if (char === "\n") state = "normal";
-      continue;
-    }
-    if (state === "block-comment") {
-      if (char === "*" && next === "/") {
-        output += next;
-        index += 1;
-        state = "normal";
-      }
-      continue;
-    }
-    if (state === "bracket") {
-      if (char === "]") state = "normal";
-      continue;
-    }
-    if (state !== "normal") {
-      const quote = state === "single" ? "'" : state === "double" ? '"' : "`";
-      if (char === quote) {
-        if (next === quote) {
-          output += next;
-          index += 1;
-        } else {
-          state = "normal";
-        }
-      }
-      continue;
-    }
-
-    if (char === "-" && next === "-") {
-      output += next;
-      index += 1;
-      state = "line-comment";
-    } else if (char === "/" && next === "*") {
-      output += next;
-      index += 1;
-      state = "block-comment";
-    } else if (char === "'") {
-      state = "single";
-    } else if (char === '"') {
-      state = "double";
-    } else if (char === "`") {
-      state = "backtick";
-    } else if (char === "[") {
-      state = "bracket";
-    } else if (char === "?") {
-      if (next !== undefined && /[0-9]/.test(next)) {
-        throw new Error("tursod only supports anonymous positional parameters");
-      }
-      parameterCount += 1;
-      output += String(parameterCount);
-    }
-  }
-
-  if (parameterCount !== expectedCount) {
-    throw new Error(
-      `SQL parameter count mismatch: expected ${parameterCount}, received ${expectedCount}`,
-    );
-  }
-  return output;
-}
-
 class TursodAsyncStatement implements AsyncSQLStatement {
   constructor(
     private readonly execute: (values: SqlValue[]) => Promise<SqlValue[][]>,
@@ -206,7 +118,6 @@ class TursodAsyncStatement implements AsyncSQLStatement {
 export class TursodSqlExecutor implements AsyncSQLiteDB {
   private readonly baseUrl: string;
   private readonly connectionId: string;
-  private connectionOpen = false;
   private readonly state = new State<ExecutorState>({
     jobs: [],
     closing: false,
@@ -246,7 +157,6 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
     sql: string,
     params: SqlValue[],
   ): Promise<TursodResult> {
-    const numberedSql = numberAnonymousSqlParameters(sql, params.length);
     const response = await this.dependencies.fetch(
       `${this.connectionUrl}/exec`,
       {
@@ -255,11 +165,8 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
         body: JSON.stringify({
           statements: [
             {
-              sql: numberedSql,
-              namedArgs: params.map((value, index) => ({
-                name: `?${index + 1}`,
-                value: encodeValue(value),
-              })),
+              sql,
+              args: params.map(encodeValue),
             },
           ],
         }),
@@ -275,23 +182,8 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
     return result;
   }
 
-  private async ensureConnection(): Promise<void> {
-    if (this.connectionOpen) return;
-    const response = await this.dependencies.fetch(this.connectionUrl, {
-      method: "POST",
-    });
-    if (!response.ok) throw await this.responseError(response);
-    this.connectionOpen = true;
-    try {
-      await this.executeRequest("PRAGMA foreign_keys = ON", []);
-    } catch (error) {
-      this.connectionOpen = false;
-      throw error;
-    }
-  }
-
   async open(): Promise<void> {
-    await this.ensureConnection();
+    await this.enqueue("PRAGMA foreign_keys = ON", []);
   }
 
   private takeNextJob(): SqlJob | undefined {
@@ -310,16 +202,8 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
       if (!job) break;
 
       try {
-        await this.ensureConnection();
         job.resolve(await this.executeRequest(job.sql, job.params));
       } catch (error) {
-        if (
-          error instanceof TursodHttpError &&
-          error.code !== undefined &&
-          CONNECTION_MISSING_CODES.has(error.code)
-        ) {
-          this.connectionOpen = false;
-        }
         job.reject(error);
       }
     }

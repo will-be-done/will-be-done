@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  numberAnonymousSqlParameters,
   TursodHttpError,
   TursodSqlExecutor,
   type TursodDriverDependencies,
@@ -29,37 +28,14 @@ function dependencies(
   };
 }
 
-describe("tursod SQL parameters", () => {
-  test("numbers anonymous parameters without touching quoted SQL or comments", () => {
-    expect(
-      numberAnonymousSqlParameters(
-        "SELECT ?, '?', \"?\", `?`, [?] -- ?\nFROM test WHERE value = ? /* ? */",
-        2,
-      ),
-    ).toBe(
-      "SELECT ?1, '?', \"?\", `?`, [?] -- ?\nFROM test WHERE value = ?2 /* ? */",
-    );
-  });
-
-  test("rejects mismatched and already-numbered parameters", () => {
-    expect(() => numberAnonymousSqlParameters("SELECT ?", 0)).toThrow(
-      "SQL parameter count mismatch",
-    );
-    expect(() => numberAnonymousSqlParameters("SELECT ?1", 1)).toThrow(
-      "only supports anonymous positional parameters",
-    );
-  });
-});
-
 describe("TursodSqlExecutor", () => {
-  test("opens a connection and sends the handler's tagged request format", async () => {
+  test("uses exec for connection initialization and tagged SQL", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     const executor = new TursodSqlExecutor(
       "http://127.0.0.1:3001/",
       "space-test database",
       dependencies(async (input, init) => {
         requests.push({ url: String(input), init });
-        if (requests.length === 1) return new Response(null, { status: 204 });
         return executeResponse();
       }),
     );
@@ -74,19 +50,19 @@ describe("TursodSqlExecutor", () => {
     ]);
 
     expect(requests[0]).toEqual({
-      url: `http://127.0.0.1:3001/dbs/space-test%20database/conn/${connectionId}`,
-      init: { method: "POST" },
+      url: `http://127.0.0.1:3001/dbs/space-test%20database/conn/${connectionId}/exec`,
+      init: expect.objectContaining({ method: "POST" }),
     });
-    expect(JSON.parse(String(requests[2]?.init?.body))).toEqual({
+    expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
       statements: [
         {
-          sql: "INSERT INTO values_table VALUES (?1, ?2, ?3, ?4, ?5)",
-          namedArgs: [
-            { name: "?1", value: { type: "integer", value: 42 } },
-            { name: "?2", value: { type: "real", value: 1.5 } },
-            { name: "?3", value: { type: "text", value: "hello" } },
-            { name: "?4", value: { type: "blob", value: [1, 2, 255] } },
-            { name: "?5", value: { type: "null" } },
+          sql: "INSERT INTO values_table VALUES (?, ?, ?, ?, ?)",
+          args: [
+            { type: "integer", value: 42 },
+            { type: "real", value: 1.5 },
+            { type: "text", value: "hello" },
+            { type: "blob", value: [1, 2, 255] },
+            { type: "null" },
           ],
         },
       ],
@@ -102,8 +78,7 @@ describe("TursodSqlExecutor", () => {
       "main-main",
       dependencies(async () => {
         callCount += 1;
-        if (callCount === 1) return new Response(null, { status: 204 });
-        if (callCount === 2) return executeResponse();
+        if (callCount === 1) return executeResponse();
         return executeResponse([
           [
             { type: "null" },
@@ -131,8 +106,7 @@ describe("TursodSqlExecutor", () => {
       "main-main",
       dependencies(async () => {
         callCount += 1;
-        if (callCount === 1) return new Response(null, { status: 204 });
-        if (callCount === 2) return executeResponse();
+        if (callCount === 1) return executeResponse();
         return Response.json(
           { code: "QUERY_FAILED", message: "query failed" },
           { status: 500 },
@@ -155,18 +129,14 @@ describe("TursodSqlExecutor", () => {
     await executor.close();
   });
 
-  test("reopens before the next job after a missing connection without replay", async () => {
+  test("does not retry a failed statement", async () => {
     const sqlRequests: string[] = [];
-    let openCount = 0;
     let missingReturned = false;
     const executor = new TursodSqlExecutor(
       "http://tursod.test",
       "main-main",
       dependencies(async (input, init) => {
-        if (!String(input).endsWith("/exec")) {
-          openCount += 1;
-          return new Response(null, { status: 204 });
-        }
+        expect(String(input).endsWith("/exec")).toBe(true);
         const sql = JSON.parse(String(init?.body)).statements[0].sql as string;
         sqlRequests.push(sql);
         if (sql === "SELECT lost" && !missingReturned) {
@@ -189,16 +159,9 @@ describe("TursodSqlExecutor", () => {
     await expect(executor.exec("SELECT lost")).rejects.toThrow(
       "connection not found",
     );
-    await executor.exec("SELECT next");
 
-    expect(openCount).toBe(2);
     expect(sqlRequests.filter((sql) => sql === "SELECT lost")).toHaveLength(1);
-    expect(sqlRequests).toEqual([
-      "PRAGMA foreign_keys = ON",
-      "SELECT lost",
-      "PRAGMA foreign_keys = ON",
-      "SELECT next",
-    ]);
+    expect(sqlRequests).toEqual(["PRAGMA foreign_keys = ON", "SELECT lost"]);
     await executor.close();
   });
 

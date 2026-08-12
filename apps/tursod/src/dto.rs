@@ -11,14 +11,7 @@ pub struct ExecuteRequest {
 #[serde(rename_all = "camelCase")]
 pub struct Stmt {
     pub sql: String,
-    pub named_args: Vec<NamedArg>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NamedArg {
-    pub name: String,
-    pub value: Value,
+    pub args: Vec<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
