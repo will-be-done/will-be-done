@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { execAsync } from "@will-be-done/hyperdb";
+import { AsyncSqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
 import {
   TursodHttpError,
   TursodSqlExecutor,
@@ -11,7 +13,10 @@ const config = {
   requestTimeoutMs: 1_000,
 };
 
-function executeResponse(rows: unknown[][] = []): Response {
+function executeResponse(
+  rows: unknown[][] = [],
+  autocommitAfter = true,
+): Response {
   return Response.json({
     results: [
       {
@@ -20,6 +25,7 @@ function executeResponse(rows: unknown[][] = []): Response {
         affectedRowCount: 0,
       },
     ],
+    autocommitAfter,
   });
 }
 
@@ -120,7 +126,11 @@ describe("TursodSqlExecutor", () => {
         callCount += 1;
         if (callCount === 1) return executeResponse();
         return Response.json(
-          { code: "QUERY_FAILED", message: "query failed" },
+          {
+            code: "QUERY_FAILED",
+            message: "query failed",
+            autocommitAfter: true,
+          },
           { status: 500 },
         );
       }),
@@ -136,6 +146,7 @@ describe("TursodSqlExecutor", () => {
         status: 500,
         code: "QUERY_FAILED",
         message: "query failed",
+        autocommitAfter: true,
       });
     }
     await executor.close();
@@ -158,6 +169,7 @@ describe("TursodSqlExecutor", () => {
             {
               code: "CONNECTION_NOT_FOUND",
               message: "connection not found",
+              autocommitAfter: null,
             },
             { status: 404 },
           );
@@ -215,24 +227,35 @@ describe("TursodSqlExecutor", () => {
 
   test("times out a stalled request and continues queued work", async () => {
     const executed: string[] = [];
+    const urls: string[] = [];
+    const connectionIds = [
+      "0198b10a-b15e-7e6a-b426-c491007f4b65",
+      "0198b10a-b15e-7e6a-b426-c491007f4b66",
+    ];
+    let nextConnectionId = 0;
     const executor = new TursodSqlExecutor(
       "http://tursod.test",
       "main-main",
       { ...config, requestTimeoutMs: 10 },
-      dependencies(async (_input, init) => {
-        const sql = JSON.parse(String(init?.body)).statements[0].sql as string;
-        executed.push(sql);
-        if (sql === "SELECT stalled") {
-          return await new Promise<Response>((_resolve, reject) => {
-            init?.signal?.addEventListener(
-              "abort",
-              () => reject(init.signal?.reason),
-              { once: true },
-            );
-          });
-        }
-        return executeResponse();
-      }),
+      {
+        createConnectionId: () => connectionIds[nextConnectionId++]!,
+        fetch: async (input, init) => {
+          urls.push(String(input));
+          const sql = JSON.parse(String(init?.body)).statements[0]
+            .sql as string;
+          executed.push(sql);
+          if (sql === "SELECT stalled") {
+            return await new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener(
+                "abort",
+                () => reject(init.signal?.reason),
+                { once: true },
+              );
+            });
+          }
+          return executeResponse();
+        },
+      },
     );
 
     await executor.open();
@@ -248,6 +271,112 @@ describe("TursodSqlExecutor", () => {
       "PRAGMA foreign_keys = ON",
       "SELECT stalled",
       "SELECT next",
+    ]);
+    expect(urls[1]).toContain(`/conn/${connectionIds[0]}/exec`);
+    expect(urls[2]).toContain(`/conn/${connectionIds[1]}/exec`);
+  });
+
+  test("treats an ambiguous cleanup rollback as complete on a fresh connection", async () => {
+    const connectionIds = [
+      "0198b10a-b15e-7e6a-b426-c491007f4b65",
+      "0198b10a-b15e-7e6a-b426-c491007f4b66",
+    ];
+    let nextConnectionId = 0;
+    const urls: string[] = [];
+    const executor = new TursodSqlExecutor(
+      "http://tursod.test",
+      "main-main",
+      config,
+      {
+        createConnectionId: () => connectionIds[nextConnectionId++]!,
+        fetch: async (input, init) => {
+          urls.push(String(input));
+          const sql = JSON.parse(String(init?.body)).statements[0]
+            .sql as string;
+          if (sql === "ROLLBACK") throw new TypeError("connection reset");
+          return executeResponse();
+        },
+      },
+    );
+
+    await executor.open();
+    await executor.exec("ROLLBACK");
+    await executor.exec("SELECT after_cleanup");
+    await executor.close();
+
+    expect(urls[1]).toContain(`/conn/${connectionIds[0]}/exec`);
+    expect(urls[2]).toContain(`/conn/${connectionIds[1]}/exec`);
+  });
+
+  test("releases the HyperDB transaction lock after tursod already rolled back a failed query", async () => {
+    let inTransaction = false;
+    const statements: string[] = [];
+    const executor = new TursodSqlExecutor(
+      "http://tursod.test",
+      "main-main",
+      config,
+      dependencies(async (_input, init) => {
+        const sql = JSON.parse(String(init?.body)).statements[0].sql as string;
+        statements.push(sql);
+
+        if (sql === "BEGIN TRANSACTION") {
+          inTransaction = true;
+          return executeResponse([], false);
+        }
+        if (sql === "INSERT INTO recovery VALUES (1)") {
+          return executeResponse([], false);
+        }
+        if (sql === "INSERT INTO missing_table VALUES (1)") {
+          inTransaction = false;
+          return Response.json(
+            {
+              code: "QUERY_FAILED",
+              message: "query failed",
+              autocommitAfter: true,
+            },
+            { status: 500 },
+          );
+        }
+        if (sql === "ROLLBACK") {
+          inTransaction = false;
+          return executeResponse([], true);
+        }
+        return executeResponse([], !inTransaction);
+      }),
+    );
+    await executor.open();
+    const driver = new AsyncSqlDriver(executor);
+    const transaction = await execAsync(driver.beginTx());
+
+    await executor.exec("INSERT INTO recovery VALUES (1)");
+    // Bun's matcher is thenable at runtime, despite its type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(
+      executor.exec("INSERT INTO missing_table VALUES (1)"),
+    ).rejects.toThrow("query failed");
+    await execAsync(transaction.rollback());
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const nextTransaction = await Promise.race([
+      execAsync(driver.beginTx()),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("HyperDB transaction lock was not released")),
+          100,
+        );
+      }),
+    ]).finally(() => clearTimeout(timeout));
+    await execAsync(nextTransaction.rollback());
+    await executor.close();
+
+    expect(statements).toEqual([
+      "PRAGMA foreign_keys = ON",
+      "BEGIN TRANSACTION",
+      "INSERT INTO recovery VALUES (1)",
+      "INSERT INTO missing_table VALUES (1)",
+      "ROLLBACK",
+      "BEGIN TRANSACTION",
+      "ROLLBACK",
     ]);
   });
 });

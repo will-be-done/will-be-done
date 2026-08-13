@@ -3,7 +3,7 @@ use crate::{TursodError, TursodResult};
 use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::{Mutex as TMutex, OnceCell, RwLock};
@@ -12,9 +12,9 @@ use tracing::Instrument;
 use turso::{Connection, Database, Value as TValue};
 use uuid::Uuid;
 
-const CONNECTION_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+pub(crate) const CONNECTION_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_DATABASE_NAME_LEN: usize = 128;
-const SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(500);
+pub(crate) const SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Default)]
 struct StatementTimings {
@@ -43,19 +43,64 @@ struct StatementObservation {
 }
 
 struct RollbackStatus {
-    outcome: &'static str,
+    outcome: RollbackOutcome,
     duration_us: u64,
     error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RollbackOutcome {
+    NotNeeded,
+    Succeeded,
+    Failed,
+    StateUnknown,
+}
+
+impl RollbackOutcome {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::NotNeeded => "not_needed",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+            Self::StateUnknown => "state_unknown",
+        }
+    }
 }
 
 impl RollbackStatus {
     fn not_needed() -> Self {
         Self {
-            outcome: "not_needed",
+            outcome: RollbackOutcome::NotNeeded,
             duration_us: 0,
             error: None,
         }
     }
+
+    fn connection_is_usable(&self, autocommit_after: Option<bool>) -> bool {
+        matches!(
+            self.outcome,
+            RollbackOutcome::NotNeeded | RollbackOutcome::Succeeded
+        ) && autocommit_after == Some(true)
+    }
+}
+
+#[derive(Debug)]
+struct StatementExecutionError {
+    error: TursodError,
+    autocommit_after: Option<bool>,
+    poison_connection: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct ExecuteStatementsOutput {
+    pub(crate) results: Vec<Res>,
+    pub(crate) autocommit_after: Option<bool>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ExecuteStatementsError {
+    pub(crate) error: TursodError,
+    pub(crate) autocommit_after: Option<bool>,
 }
 
 macro_rules! log_query_completed {
@@ -190,6 +235,26 @@ fn query_fingerprint(sql: &str) -> String {
     format!("{:x}", Sha256::digest(sql.as_bytes()))
 }
 
+fn is_rollback_statement(sql: &str) -> bool {
+    let sql = sql.trim();
+    let sql = sql.strip_suffix(';').unwrap_or(sql).trim_end();
+    let mut words = sql.split_ascii_whitespace();
+    let Some(rollback) = words.next() else {
+        return false;
+    };
+    if !rollback.eq_ignore_ascii_case("ROLLBACK") {
+        return false;
+    }
+
+    match words.next() {
+        None => true,
+        Some(transaction) if transaction.eq_ignore_ascii_case("TRANSACTION") => {
+            words.next().is_none()
+        }
+        Some(_) => false,
+    }
+}
+
 impl StatementObservation {
     fn new(
         started_at: Instant,
@@ -240,7 +305,7 @@ impl StatementObservation {
             slow_query_threshold_ms = SLOW_QUERY_THRESHOLD.as_millis() as u64,
             transaction_opened = self.transaction_opened,
             transaction_finished = self.transaction_finished,
-            rollback_outcome = rollback.outcome,
+            rollback_outcome = rollback.outcome.as_str(),
             rollback_duration_us = rollback.duration_us,
             rollback_error = rollback.error.as_deref().unwrap_or(""),
             autocommit_before = ?self.autocommit_before,
@@ -294,6 +359,7 @@ struct ConnectionUsage {
 struct OpenedConnection {
     usage: Mutex<ConnectionUsage>,
     connection: TMutex<Connection>,
+    poisoned: AtomicBool,
 }
 
 struct ConnectionLease {
@@ -303,6 +369,14 @@ struct ConnectionLease {
 impl ConnectionLease {
     async fn lock(&self) -> tokio::sync::MutexGuard<'_, Connection> {
         self.connection.connection.lock().await
+    }
+
+    fn is_poisoned(&self) -> bool {
+        self.connection.poisoned.load(Ordering::Acquire)
+    }
+
+    fn poison(&self) {
+        self.connection.poisoned.store(true, Ordering::Release);
     }
 }
 
@@ -331,6 +405,7 @@ impl OpenedConnection {
                 last_used_at: Instant::now(),
             }),
             connection: TMutex::new(connection),
+            poisoned: AtomicBool::new(false),
         }
     }
 
@@ -352,7 +427,9 @@ impl OpenedConnection {
     fn is_stale(&self) -> bool {
         let usage = self.usage.lock().unwrap_or_else(|p| p.into_inner());
 
-        usage.active_users == 0 && usage.last_used_at.elapsed() >= CONNECTION_IDLE_TIMEOUT
+        usage.active_users == 0
+            && (self.poisoned.load(Ordering::Acquire)
+                || usage.last_used_at.elapsed() >= CONNECTION_IDLE_TIMEOUT)
     }
 
     fn touch(&self) {
@@ -428,6 +505,20 @@ impl OpenedDatabase {
             .ok_or(TursodError::ConnectionNotFound { conn_id: *conn_id })?;
 
         Ok(conn.acquire())
+    }
+
+    async fn evict_conn(&self, conn_id: &Uuid, expected: &SharedConnection) -> bool {
+        let mut connections = self.connections.write().await;
+        let should_remove = connections
+            .get(conn_id)
+            .and_then(|slot| slot.get())
+            .is_some_and(|connection| Arc::ptr_eq(connection, expected));
+
+        if should_remove {
+            connections.remove(conn_id);
+        }
+
+        should_remove
     }
 
     async fn drop_stale_conns(&self) -> usize {
@@ -577,15 +668,30 @@ impl DbsState {
         db_name: &str,
         conn_id: &Uuid,
         stmts: Vec<Stmt>,
-    ) -> TursodResult<Vec<Res>> {
+    ) -> Result<ExecuteStatementsOutput, ExecuteStatementsError> {
         let batch_started_at = Instant::now();
         let _active_batch = ActivityGuard::enter(&self.active_batches);
-        let conn = self.get_conn(db_name, conn_id).await?;
+        let lease =
+            self.get_conn(db_name, conn_id)
+                .await
+                .map_err(|error| ExecuteStatementsError {
+                    error,
+                    autocommit_after: None,
+                })?;
         let connection_wait_started_at = Instant::now();
         let waiting_query = ActivityGuard::enter(&self.waiting_queries);
-        let conn = conn.lock().await;
+        let conn = lease.lock().await;
         let connection_wait_ms = elapsed_ms(connection_wait_started_at);
         drop(waiting_query);
+
+        if lease.is_poisoned() {
+            drop(conn);
+            self.evict_conn(db_name, conn_id, &lease.connection).await;
+            return Err(ExecuteStatementsError {
+                error: TursodError::internal(anyhow::anyhow!("connection is poisoned")),
+                autocommit_after: None,
+            });
+        }
 
         let statement_count = stmts.len();
         let mut results = Vec::with_capacity(statement_count);
@@ -593,28 +699,57 @@ impl DbsState {
         for (statement_index, stmt) in stmts.into_iter().enumerate() {
             match self.exec_logged_stmt(&conn, statement_index, stmt).await {
                 Ok(result) => results.push(result),
-                Err(error) => {
+                Err(statement_error) => {
                     self.log_batch_failure(
                         batch_started_at,
                         statement_count,
                         results.len(),
                         statement_index,
                         connection_wait_ms,
-                        &error,
+                        &statement_error.error,
                     );
-                    return Err(error);
+                    if statement_error.poison_connection {
+                        lease.poison();
+                        drop(conn);
+                        let evicted = self.evict_conn(db_name, conn_id, &lease.connection).await;
+                        tracing::warn!(
+                            db_name,
+                            conn_id = %conn_id,
+                            evicted,
+                            "evicted connection after rollback could not restore autocommit"
+                        );
+                    }
+                    return Err(ExecuteStatementsError {
+                        error: statement_error.error,
+                        autocommit_after: statement_error.autocommit_after,
+                    });
                 }
             }
         }
 
+        let autocommit_after = match conn.is_autocommit() {
+            Ok(autocommit_after) => Some(autocommit_after),
+            Err(source) => {
+                lease.poison();
+                drop(conn);
+                self.evict_conn(db_name, conn_id, &lease.connection).await;
+                return Err(ExecuteStatementsError {
+                    error: TursodError::internal(source),
+                    autocommit_after: None,
+                });
+            }
+        };
         self.log_batch_success(
             batch_started_at,
             statement_count,
             results.len(),
             connection_wait_ms,
-            conn.is_autocommit().ok(),
+            autocommit_after,
         );
-        Ok(results)
+        Ok(ExecuteStatementsOutput {
+            results,
+            autocommit_after,
+        })
     }
 
     async fn exec_logged_stmt(
@@ -622,7 +757,7 @@ impl DbsState {
         conn: &Connection,
         statement_index: usize,
         stmt: Stmt,
-    ) -> TursodResult<Res> {
+    ) -> Result<Res, StatementExecutionError> {
         let query_span = tracing::info_span!(
             target: "tursod::sql",
             "sql_statement",
@@ -639,21 +774,38 @@ impl DbsState {
             let mut terminal_log = QueryTerminalGuard::new(started_at);
             let autocommit_before = conn.is_autocommit().ok();
             let mut timings = StatementTimings::default();
-            let result = Self::exec_stmt(conn, stmt, &mut timings).await;
+            let result = if autocommit_before == Some(true) && is_rollback_statement(&stmt.sql) {
+                Ok(Res {
+                    cols: Vec::new(),
+                    rows: Vec::new(),
+                    affected_row_count: 0,
+                })
+            } else {
+                Self::exec_stmt(conn, stmt, &mut timings).await
+            };
             let autocommit_after = conn.is_autocommit().ok();
             let mut observation =
                 StatementObservation::new(started_at, timings, autocommit_before, autocommit_after);
 
-            match &result {
-                Ok(response) => observation.log_success(response, self.pressure_snapshot()),
+            let result = match result {
+                Ok(response) => {
+                    observation.log_success(&response, self.pressure_snapshot());
+                    Ok(response)
+                }
                 Err(error) => {
                     let rollback = Self::rollback_after_error(conn, autocommit_after).await;
                     observation.autocommit_after = conn.is_autocommit().ok();
                     observation.transaction_finished = autocommit_after == Some(false)
                         && observation.autocommit_after == Some(true);
-                    observation.log_failure(error, &rollback, self.pressure_snapshot());
+                    observation.log_failure(&error, &rollback, self.pressure_snapshot());
+                    Err(StatementExecutionError {
+                        error,
+                        autocommit_after: observation.autocommit_after,
+                        poison_connection: !rollback
+                            .connection_is_usable(observation.autocommit_after),
+                    })
                 }
-            }
+            };
 
             terminal_log.complete();
             result
@@ -671,12 +823,12 @@ impl DbsState {
                 let started_at = Instant::now();
                 match conn.execute("ROLLBACK", ()).await {
                     Ok(_) => RollbackStatus {
-                        outcome: "succeeded",
+                        outcome: RollbackOutcome::Succeeded,
                         duration_us: elapsed_us(started_at),
                         error: None,
                     },
                     Err(error) => RollbackStatus {
-                        outcome: "failed",
+                        outcome: RollbackOutcome::Failed,
                         duration_us: elapsed_us(started_at),
                         error: Some(error.to_string()),
                     },
@@ -684,7 +836,7 @@ impl DbsState {
             }
             Some(true) => RollbackStatus::not_needed(),
             None => RollbackStatus {
-                outcome: "state_unknown",
+                outcome: RollbackOutcome::StateUnknown,
                 duration_us: 0,
                 error: None,
             },
@@ -841,6 +993,16 @@ impl DbsState {
         opened_db.get_conn(conn_id).await
     }
 
+    async fn evict_conn(&self, db_name: &str, conn_id: &Uuid, expected: &SharedConnection) -> bool {
+        let slot = self.opened_dbs.read().await.get(db_name).cloned();
+
+        if let Some(database) = slot.as_deref().and_then(OnceCell::get) {
+            database.evict_conn(conn_id, expected).await
+        } else {
+            false
+        }
+    }
+
     pub(crate) async fn open_conn(
         &self,
         db_name: &str,
@@ -943,6 +1105,29 @@ mod tests {
         );
         assert_eq!(query_fingerprint("SELECT 1").len(), 64);
         assert_ne!(query_fingerprint("SELECT 1"), query_fingerprint("SELECT 2"));
+        assert!(is_rollback_statement("ROLLBACK"));
+        assert!(is_rollback_statement(" rollback transaction; "));
+        assert!(!is_rollback_statement("ROLLBACK TO checkpoint"));
+        assert!(!is_rollback_statement("ROLLBACK; SELECT 1"));
+    }
+
+    #[test]
+    fn only_reuses_connections_with_a_known_autocommit_state_after_errors() {
+        let succeeded = RollbackStatus {
+            outcome: RollbackOutcome::Succeeded,
+            duration_us: 0,
+            error: None,
+        };
+        let failed = RollbackStatus {
+            outcome: RollbackOutcome::Failed,
+            duration_us: 0,
+            error: Some("rollback failed".to_owned()),
+        };
+
+        assert!(succeeded.connection_is_usable(Some(true)));
+        assert!(!succeeded.connection_is_usable(Some(false)));
+        assert!(!succeeded.connection_is_usable(None));
+        assert!(!failed.connection_is_usable(Some(true)));
     }
 
     #[tokio::test]
@@ -1053,6 +1238,41 @@ mod tests {
         opened_database.drop_stale_conns().await;
 
         assert!(opened_database.connections.read().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn poisoned_connection_is_evicted_and_reopened_fresh() {
+        let directory = tempfile::tempdir().expect("create temporary directory");
+        let opened_database = opened_database(&directory, "poisoned.db").await;
+        let connection_id = Uuid::new_v4();
+
+        opened_database
+            .open_conn(&connection_id)
+            .await
+            .expect("open connection");
+        let lease = opened_database
+            .get_conn(&connection_id)
+            .await
+            .expect("acquire connection");
+        let poisoned = Arc::clone(&lease.connection);
+        lease.poison();
+
+        assert!(opened_database.evict_conn(&connection_id, &poisoned).await);
+        assert!(!contains_connection(&opened_database, &connection_id).await);
+        drop(lease);
+
+        let (connection_reused, _) = opened_database
+            .open_conn(&connection_id)
+            .await
+            .expect("reopen connection");
+        let replacement = opened_database
+            .get_conn(&connection_id)
+            .await
+            .expect("acquire replacement");
+
+        assert!(!connection_reused);
+        assert!(!replacement.is_poisoned());
+        assert!(!Arc::ptr_eq(&poisoned, &replacement.connection));
     }
 
     #[tokio::test]
@@ -1303,7 +1523,7 @@ mod tests {
             .expect("read persisted data");
 
         assert_eq!(
-            results[0].rows,
+            results.results[0].rows,
             vec![vec![Value::Text("still here".to_owned())]]
         );
     }
@@ -1331,12 +1551,12 @@ mod tests {
             .await
             .expect("execute statements");
 
-        assert_eq!(results[1].affected_row_count, 2);
-        assert_eq!(results[2].affected_row_count, 0);
+        assert_eq!(results.results[1].affected_row_count, 2);
+        assert_eq!(results.results[2].affected_row_count, 0);
     }
 
     #[tokio::test]
-    async fn rolls_back_an_open_transaction_after_statement_failure() {
+    async fn failed_transaction_accepts_cleanup_rollback_before_standalone_work() {
         let directory = tempfile::tempdir().expect("create temporary directory");
         let state = DbsState::new(directory.path().into());
         let connection_id = Uuid::new_v4();
@@ -1366,20 +1586,30 @@ mod tests {
             .await
             .expect_err("failing statement must reject the batch");
 
+        let cleanup = state
+            .exec_stmts("test", &connection_id, vec![statement("ROLLBACK")])
+            .await
+            .expect("a redundant cleanup rollback is successful");
+        assert_eq!(cleanup.autocommit_after, Some(true));
+        state
+            .exec_stmts("test", &connection_id, vec![statement("COMMIT")])
+            .await
+            .expect_err("a redundant commit remains an error");
+
         let results = state
             .exec_stmts(
                 "test",
                 &connection_id,
                 vec![
-                    statement("BEGIN TRANSACTION"),
-                    statement("SELECT count(*) FROM rollback_test"),
-                    statement("ROLLBACK"),
+                    statement("INSERT INTO rollback_test VALUES (2)"),
+                    statement("SELECT value FROM rollback_test ORDER BY value"),
                 ],
             )
             .await
-            .expect("a later request can open a new transaction");
+            .expect("later standalone work uses autocommit");
 
-        assert_eq!(results[1].rows, vec![vec![Value::Integer(0)]]);
+        assert_eq!(results.results[1].rows, vec![vec![Value::Integer(2)]]);
+        assert_eq!(results.autocommit_after, Some(true));
     }
 
     #[tokio::test]

@@ -11,7 +11,10 @@ use std::{env, net::IpAddr, path::PathBuf, sync::Arc, time::Duration};
 use tokio::time::sleep;
 use tracing_subscriber::EnvFilter;
 
-use crate::{handlers::HttpHandlers, state::DbsState};
+use crate::{
+    handlers::HttpHandlers,
+    state::{CONNECTION_IDLE_TIMEOUT, DbsState, SLOW_QUERY_THRESHOLD},
+};
 
 pub async fn run() -> anyhow::Result<()> {
     let _ = tracing_subscriber::fmt()
@@ -63,8 +66,8 @@ pub async fn run() -> anyhow::Result<()> {
         fly_region = env::var("FLY_REGION").unwrap_or_else(|_| "unknown".to_owned()),
         fly_image_ref = env::var("FLY_IMAGE_REF").unwrap_or_else(|_| "unknown".to_owned()),
         database_path = %db_dir.display(),
-        connection_idle_timeout_seconds = 60,
-        slow_query_threshold_ms = 500,
+        connection_idle_timeout_seconds = CONNECTION_IDLE_TIMEOUT.as_secs(),
+        slow_query_threshold_ms = SLOW_QUERY_THRESHOLD.as_millis() as u64,
         "tursod listening"
     );
 

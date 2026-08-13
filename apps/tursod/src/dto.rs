@@ -37,6 +37,7 @@ pub enum Value {
 #[serde(rename_all = "camelCase")]
 pub struct ExecuteResponse {
     pub results: Vec<Res>,
+    pub autocommit_after: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -6,8 +6,10 @@ use crate::{
 };
 use axum::{
     Json, Router,
+    body::Body,
     extract::{Path as AxumPath, State},
-    http::{HeaderMap, StatusCode},
+    http::{Request, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -21,6 +23,7 @@ use subtle::ConstantTimeEq;
 struct ApiErrorBody {
     code: &'static str,
     message: String,
+    autocommit_after: Option<bool>,
 }
 
 struct ApiError {
@@ -30,6 +33,10 @@ struct ApiError {
 
 impl ApiError {
     fn new(error: TursodError) -> Self {
+        Self::with_autocommit(error, None)
+    }
+
+    fn with_autocommit(error: TursodError, autocommit_after: Option<bool>) -> Self {
         tracing::Span::current().record("error_code", error.code());
         tracing::Span::current().record("error_stage", error.stage());
         tracing::error!(
@@ -58,6 +65,7 @@ impl ApiError {
             body: ApiErrorBody {
                 code: error.code(),
                 message: Self::client_message(&error).to_owned(),
+                autocommit_after,
             },
         }
     }
@@ -83,6 +91,7 @@ impl ApiError {
             body: ApiErrorBody {
                 code: "UNAUTHORIZED",
                 message: "missing or invalid authentication token".to_owned(),
+                autocommit_after: None,
             },
         }
     }
@@ -110,13 +119,20 @@ struct HandlerState {
 impl HttpHandlers {
     pub(crate) fn router(dbs_state: Arc<DbsState>, auth_token: String) -> Router {
         let auth_token_hash = Sha256::digest(auth_token.as_bytes()).into();
+        let state = Arc::new(HandlerState {
+            dbs: dbs_state,
+            auth_token_hash,
+        });
         let router = Router::new()
             .route("/health", get(Self::health))
-            .route("/dbs/{db_name}/conn/{id}/exec", post(Self::exec))
-            .with_state(Arc::new(HandlerState {
-                dbs: dbs_state,
-                auth_token_hash,
-            }));
+            .route(
+                "/dbs/{db_name}/conn/{id}/exec",
+                post(Self::exec).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    Self::authorize_exec,
+                )),
+            )
+            .with_state(state);
 
         with_http_logging(router)
     }
@@ -131,23 +147,10 @@ impl HttpHandlers {
     async fn exec(
         State(state): State<Arc<HandlerState>>,
         AxumPath((db_name, conn_id)): AxumPath<(String, String)>,
-        headers: HeaderMap,
         Json(payload): Json<ExecuteRequest>,
     ) -> Result<(StatusCode, Json<ExecuteResponse>), ApiError> {
         let span = tracing::Span::current();
-        span.record("route", "/dbs/{db_name}/conn/{id}/exec");
-        span.record("db_name", db_name.as_str());
-        span.record("conn_id", conn_id.as_str());
         span.record("statement_count", payload.statements.len());
-
-        if !Self::is_authorized(&headers, &state.auth_token_hash) {
-            span.record("auth", "invalid");
-            span.record("error_code", "UNAUTHORIZED");
-            span.record("error_stage", "auth");
-            tracing::warn!("request authentication failed");
-            return Err(ApiError::unauthorized());
-        }
-        span.record("auth", "valid");
 
         let cn_id = Self::parse_conn_id(&conn_id)?;
 
@@ -163,15 +166,45 @@ impl HttpHandlers {
             connection_open_ms = open_stats.connection_open_ms,
             "database connection ready"
         );
-        let results = state
+        let execution = state
             .dbs
             .exec_stmts(&db_name, &cn_id, payload.statements)
-            .await?;
+            .await
+            .map_err(|error| ApiError::with_autocommit(error.error, error.autocommit_after))?;
 
-        Ok((StatusCode::OK, Json(ExecuteResponse { results })))
+        Ok((
+            StatusCode::OK,
+            Json(ExecuteResponse {
+                results: execution.results,
+                autocommit_after: execution.autocommit_after,
+            }),
+        ))
     }
 
-    fn is_authorized(headers: &HeaderMap, expected_hash: &[u8; 32]) -> bool {
+    async fn authorize_exec(
+        State(state): State<Arc<HandlerState>>,
+        AxumPath((db_name, conn_id)): AxumPath<(String, String)>,
+        request: Request<Body>,
+        next: Next,
+    ) -> Result<Response, ApiError> {
+        let span = tracing::Span::current();
+        span.record("route", "/dbs/{db_name}/conn/{id}/exec");
+        span.record("db_name", db_name.as_str());
+        span.record("conn_id", conn_id.as_str());
+
+        if !Self::is_authorized(request.headers(), &state.auth_token_hash) {
+            span.record("auth", "invalid");
+            span.record("error_code", "UNAUTHORIZED");
+            span.record("error_stage", "auth");
+            tracing::warn!("request authentication failed");
+            return Err(ApiError::unauthorized());
+        }
+        span.record("auth", "valid");
+
+        Ok(next.run(request).await)
+    }
+
+    fn is_authorized(headers: &axum::http::HeaderMap, expected_hash: &[u8; 32]) -> bool {
         let Some(provided) = headers
             .get(axum::http::header::AUTHORIZATION)
             .and_then(|value| value.to_str().ok())
@@ -269,9 +302,103 @@ mod tests {
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         let payload: ExecuteResponse = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(payload.results.len(), 6);
+        assert_eq!(payload.autocommit_after, Some(true));
         assert_eq!(
             serde_json::to_value(&payload.results[5].rows).unwrap(),
             json!([[{ "type": "integer", "value": 7 }, { "type": "text", "value": "hello" }, { "type": "blob", "value": [1, 2, 255] }]])
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_transaction_cleanup_does_not_capture_later_standalone_work() {
+        let directory = TempDir::new().unwrap();
+        let app = app(&directory);
+        let connection_id = "0198b10a-b15e-7e6a-b426-c491007f4b65";
+        let path = format!("/dbs/test-db/conn/{connection_id}/exec");
+
+        for sql in [
+            "CREATE TABLE transaction_recovery (value INTEGER)",
+            "BEGIN TRANSACTION",
+            "INSERT INTO transaction_recovery VALUES (1)",
+        ] {
+            let response = app
+                .clone()
+                .oneshot(request(
+                    &path,
+                    json!({ "statements": [{ "sql": sql, "args": [] }] }),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        let failed = app
+            .clone()
+            .oneshot(request(
+                &path,
+                json!({
+                    "statements": [{
+                        "sql": "INSERT INTO missing_table VALUES (1)",
+                        "args": []
+                    }]
+                }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(failed.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let failed_body: Value =
+            serde_json::from_slice(&failed.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(failed_body["autocommitAfter"], true);
+
+        let cleanup = app
+            .clone()
+            .oneshot(request(
+                &path,
+                json!({ "statements": [{ "sql": "ROLLBACK", "args": [] }] }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(cleanup.status(), StatusCode::OK);
+        let cleanup: ExecuteResponse =
+            serde_json::from_slice(&cleanup.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(cleanup.autocommit_after, Some(true));
+
+        let standalone_write = app
+            .clone()
+            .oneshot(request(
+                &path,
+                json!({
+                    "statements": [{
+                        "sql": "INSERT INTO transaction_recovery VALUES (2)",
+                        "args": []
+                    }]
+                }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(standalone_write.status(), StatusCode::OK);
+
+        let read = app
+            .oneshot(request(
+                &path,
+                json!({
+                    "statements": [{
+                        "sql": "SELECT value FROM transaction_recovery ORDER BY value",
+                        "args": []
+                    }]
+                }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(read.status(), StatusCode::OK);
+        let read: ExecuteResponse =
+            serde_json::from_slice(&read.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert_eq!(read.autocommit_after, Some(true));
+        assert_eq!(
+            serde_json::to_value(&read.results[0].rows).unwrap(),
+            json!([[{ "type": "integer", "value": 2 }]])
         );
     }
 
@@ -314,6 +441,31 @@ mod tests {
 
         assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(invalid.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn authenticates_before_deserializing_the_request_body() {
+        let directory = TempDir::new().unwrap();
+        let app = app(&directory);
+        let request = Request::builder()
+            .method("POST")
+            .uri("/dbs/test-db/conn/0198b10a-b15e-7e6a-b426-c491007f4b65/exec")
+            .header("content-type", "application/json")
+            .body(Body::from("not valid json"))
+            .unwrap();
+
+        let response = app.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&bytes).unwrap(),
+            json!({
+                "code": "UNAUTHORIZED",
+                "message": "missing or invalid authentication token",
+                "autocommitAfter": null
+            })
+        );
     }
 
     #[tokio::test]
