@@ -1,6 +1,6 @@
 use crate::{
     TursodError, TursodResult,
-    dto::{ExecuteRequest, ExecuteResponse},
+    dto::{ExecuteRequest, ExecuteResponse, TransactionState},
     http_logging::with_http_logging,
     state::DbsState,
 };
@@ -23,7 +23,7 @@ use subtle::ConstantTimeEq;
 struct ApiErrorBody {
     code: &'static str,
     message: String,
-    autocommit_after: Option<bool>,
+    transaction_state_after: Option<TransactionState>,
 }
 
 struct ApiError {
@@ -33,10 +33,10 @@ struct ApiError {
 
 impl ApiError {
     fn new(error: TursodError) -> Self {
-        Self::with_autocommit(error, None)
+        Self::with_transaction_state(error, None)
     }
 
-    fn with_autocommit(error: TursodError, autocommit_after: Option<bool>) -> Self {
+    fn with_transaction_state(error: TursodError, autocommit_after: Option<bool>) -> Self {
         tracing::Span::current().record("error_code", error.code());
         tracing::Span::current().record("error_stage", error.stage());
         tracing::error!(
@@ -52,7 +52,8 @@ impl ApiError {
             TursodError::DatabaseNotOpened { .. } | TursodError::ConnectionNotFound { .. } => {
                 StatusCode::NOT_FOUND
             }
-            TursodError::DatabaseNotInitialized { .. } => StatusCode::CONFLICT,
+            TursodError::DatabaseNotInitialized { .. }
+            | TursodError::TransactionStateMismatch { .. } => StatusCode::CONFLICT,
             TursodError::PrepareFailed { .. }
             | TursodError::QueryFailed { .. }
             | TursodError::QueryGetValueFailed { .. }
@@ -65,7 +66,7 @@ impl ApiError {
             body: ApiErrorBody {
                 code: error.code(),
                 message: Self::client_message(&error).to_owned(),
-                autocommit_after,
+                transaction_state_after: autocommit_after.map(TransactionState::from_autocommit),
             },
         }
     }
@@ -80,6 +81,7 @@ impl ApiError {
             TursodError::RowLoadFailed { .. } => "statement row loading failed",
             TursodError::DatabaseNotInitialized { .. } => "database is not initialized",
             TursodError::ConnectionNotFound { .. } => "connection not found",
+            TursodError::TransactionStateMismatch { .. } => "transaction state mismatch",
             TursodError::BadRequest => "invalid request",
             TursodError::Internal(_) => "internal server error",
         }
@@ -91,7 +93,7 @@ impl ApiError {
             body: ApiErrorBody {
                 code: "UNAUTHORIZED",
                 message: "missing or invalid authentication token".to_owned(),
-                autocommit_after: None,
+                transaction_state_after: None,
             },
         }
     }
@@ -168,15 +170,31 @@ impl HttpHandlers {
         );
         let execution = state
             .dbs
-            .exec_stmts(&db_name, &cn_id, payload.statements)
+            .exec_stmts(
+                &db_name,
+                &cn_id,
+                payload.expected_transaction_state,
+                payload.statements,
+            )
             .await
-            .map_err(|error| ApiError::with_autocommit(error.error, error.autocommit_after))?;
+            .map_err(|error| {
+                ApiError::with_transaction_state(error.error, error.autocommit_after)
+            })?;
+
+        let transaction_state_after = execution
+            .autocommit_after
+            .map(TransactionState::from_autocommit)
+            .ok_or_else(|| {
+                ApiError::new(TursodError::internal(anyhow::anyhow!(
+                    "transaction state unavailable after successful execution"
+                )))
+            })?;
 
         Ok((
             StatusCode::OK,
             Json(ExecuteResponse {
                 results: execution.results,
-                autocommit_after: execution.autocommit_after,
+                transaction_state_after,
             }),
         ))
     }
@@ -228,7 +246,10 @@ impl HttpHandlers {
 #[cfg(test)]
 mod tests {
     use super::HttpHandlers;
-    use crate::{dto::ExecuteResponse, state::DbsState};
+    use crate::{
+        dto::{ExecuteResponse, TransactionState},
+        state::DbsState,
+    };
     use axum::{
         body::Body,
         http::{Request, StatusCode},
@@ -243,7 +264,12 @@ mod tests {
 
     const AUTH_TOKEN: &str = "test-secret";
 
-    fn request(path: &str, body: Value) -> Request<Body> {
+    fn request(path: &str, mut body: Value) -> Request<Body> {
+        if let Some(object) = body.as_object_mut() {
+            object
+                .entry("expectedTransactionState")
+                .or_insert_with(|| json!("autocommit"));
+        }
         request_with_token(path, body, Some(AUTH_TOKEN))
     }
 
@@ -302,7 +328,10 @@ mod tests {
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         let payload: ExecuteResponse = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(payload.results.len(), 6);
-        assert_eq!(payload.autocommit_after, Some(true));
+        assert_eq!(
+            payload.transaction_state_after,
+            TransactionState::Autocommit
+        );
         assert_eq!(
             serde_json::to_value(&payload.results[5].rows).unwrap(),
             json!([[{ "type": "integer", "value": 7 }, { "type": "text", "value": "hello" }, { "type": "blob", "value": [1, 2, 255] }]])
@@ -316,16 +345,22 @@ mod tests {
         let connection_id = "0198b10a-b15e-7e6a-b426-c491007f4b65";
         let path = format!("/dbs/test-db/conn/{connection_id}/exec");
 
-        for sql in [
-            "CREATE TABLE transaction_recovery (value INTEGER)",
-            "BEGIN TRANSACTION",
-            "INSERT INTO transaction_recovery VALUES (1)",
+        for (sql, expected_transaction_state) in [
+            (
+                "CREATE TABLE transaction_recovery (value INTEGER)",
+                "autocommit",
+            ),
+            ("BEGIN TRANSACTION", "autocommit"),
+            ("INSERT INTO transaction_recovery VALUES (1)", "active"),
         ] {
             let response = app
                 .clone()
                 .oneshot(request(
                     &path,
-                    json!({ "statements": [{ "sql": sql, "args": [] }] }),
+                    json!({
+                        "expectedTransactionState": expected_transaction_state,
+                        "statements": [{ "sql": sql, "args": [] }]
+                    }),
                 ))
                 .await
                 .unwrap();
@@ -337,6 +372,7 @@ mod tests {
             .oneshot(request(
                 &path,
                 json!({
+                    "expectedTransactionState": "active",
                     "statements": [{
                         "sql": "INSERT INTO missing_table VALUES (1)",
                         "args": []
@@ -349,7 +385,7 @@ mod tests {
         let failed_body: Value =
             serde_json::from_slice(&failed.into_body().collect().await.unwrap().to_bytes())
                 .unwrap();
-        assert_eq!(failed_body["autocommitAfter"], true);
+        assert_eq!(failed_body["transactionStateAfter"], "autocommit");
 
         let cleanup = app
             .clone()
@@ -363,7 +399,10 @@ mod tests {
         let cleanup: ExecuteResponse =
             serde_json::from_slice(&cleanup.into_body().collect().await.unwrap().to_bytes())
                 .unwrap();
-        assert_eq!(cleanup.autocommit_after, Some(true));
+        assert_eq!(
+            cleanup.transaction_state_after,
+            TransactionState::Autocommit
+        );
 
         let standalone_write = app
             .clone()
@@ -395,11 +434,86 @@ mod tests {
         assert_eq!(read.status(), StatusCode::OK);
         let read: ExecuteResponse =
             serde_json::from_slice(&read.into_body().collect().await.unwrap().to_bytes()).unwrap();
-        assert_eq!(read.autocommit_after, Some(true));
+        assert_eq!(read.transaction_state_after, TransactionState::Autocommit);
         assert_eq!(
             serde_json::to_value(&read.results[0].rows).unwrap(),
             json!([[{ "type": "integer", "value": 2 }]])
         );
+    }
+
+    #[tokio::test]
+    async fn restart_rejects_active_transaction_request_before_executing_sql() {
+        let directory = TempDir::new().unwrap();
+        let connection_id = "0198b10a-b15e-7e6a-b426-c491007f4b65";
+        let path = format!("/dbs/test-db/conn/{connection_id}/exec");
+        let before_restart = app(&directory);
+
+        for (sql, expected_transaction_state) in [
+            (
+                "CREATE TABLE restart_recovery (value INTEGER)",
+                "autocommit",
+            ),
+            ("BEGIN TRANSACTION", "autocommit"),
+            ("INSERT INTO restart_recovery VALUES (1)", "active"),
+        ] {
+            let response = before_restart
+                .clone()
+                .oneshot(request(
+                    &path,
+                    json!({
+                        "expectedTransactionState": expected_transaction_state,
+                        "statements": [{ "sql": sql, "args": [] }]
+                    }),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        // A fresh handler state models a restarted tursod process, whose in-memory
+        // connection map no longer contains the transaction associated with this UUID.
+        let after_restart = app(&directory);
+        let mismatched = after_restart
+            .clone()
+            .oneshot(request(
+                &path,
+                json!({
+                    "expectedTransactionState": "active",
+                    "statements": [{
+                        "sql": "INSERT INTO restart_recovery VALUES (2)",
+                        "args": []
+                    }]
+                }),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(mismatched.status(), StatusCode::CONFLICT);
+        let body: Value =
+            serde_json::from_slice(&mismatched.into_body().collect().await.unwrap().to_bytes())
+                .unwrap();
+        assert_eq!(body["code"], "TRANSACTION_STATE_MISMATCH");
+        assert_eq!(body["transactionStateAfter"], "autocommit");
+
+        let read = after_restart
+            .oneshot(request(
+                &path,
+                json!({
+                    "expectedTransactionState": "autocommit",
+                    "statements": [{
+                        "sql": "SELECT value FROM restart_recovery ORDER BY value",
+                        "args": []
+                    }]
+                }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(read.status(), StatusCode::OK);
+        let read: ExecuteResponse =
+            serde_json::from_slice(&read.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        assert!(read.results[0].rows.is_empty());
+
+        drop(before_restart);
     }
 
     #[tokio::test]
@@ -463,7 +577,7 @@ mod tests {
             json!({
                 "code": "UNAUTHORIZED",
                 "message": "missing or invalid authentication token",
-                "autocommitAfter": null
+                "transactionStateAfter": null
             })
         );
     }

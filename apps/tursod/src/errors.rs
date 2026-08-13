@@ -1,6 +1,8 @@
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::dto::TransactionState;
+
 #[derive(Debug, Error)]
 pub enum TursodError {
     #[error("invalid connection id `{connection_id}`")]
@@ -47,6 +49,12 @@ pub enum TursodError {
     #[error("connection `{conn_id}` not found")]
     ConnectionNotFound { conn_id: Uuid },
 
+    #[error("transaction state mismatch: expected {expected:?}, actual {actual:?}")]
+    TransactionStateMismatch {
+        expected: TransactionState,
+        actual: TransactionState,
+    },
+
     #[error("invalid database name")]
     BadRequest,
 
@@ -65,6 +73,7 @@ impl TursodError {
             Self::RowLoadFailed { .. } => "ROW_LOAD_FAILED",
             Self::DatabaseNotInitialized { .. } => "DATABASE_NOT_INITIALIZED",
             Self::ConnectionNotFound { .. } => "CONNECTION_NOT_FOUND",
+            Self::TransactionStateMismatch { .. } => "TRANSACTION_STATE_MISMATCH",
             Self::BadRequest => "BAD_REQUEST",
             Self::Internal(_) => "INTERNAL_SERVER_ERROR",
         }
@@ -79,7 +88,8 @@ impl TursodError {
             Self::InvalidConnectionId { .. } | Self::BadRequest => "validate",
             Self::DatabaseNotOpened { .. }
             | Self::DatabaseNotInitialized { .. }
-            | Self::ConnectionNotFound { .. } => "connection",
+            | Self::ConnectionNotFound { .. }
+            | Self::TransactionStateMismatch { .. } => "connection",
             Self::PrepareFailed { .. } => "prepare",
             Self::QueryFailed { .. } => "execute",
             Self::RowLoadFailed { .. } => "row_load",

@@ -20,15 +20,17 @@ type TursodResult = {
   affectedRowCount: number;
 };
 
+type TransactionState = "autocommit" | "active";
+
 type TursodExecuteResponse = {
   results: TursodResult[];
-  autocommitAfter?: boolean | null;
+  transactionStateAfter: TransactionState;
 };
 
 type TursodErrorBody = {
   code: string;
   message: string;
-  autocommitAfter?: boolean | null;
+  transactionStateAfter?: TransactionState | null;
 };
 
 type TursodFetch = (
@@ -58,6 +60,10 @@ type ExecutorState = {
   closing: boolean;
 };
 
+function isTransactionState(value: unknown): value is TransactionState {
+  return value === "autocommit" || value === "active";
+}
+
 function isTursodErrorBody(value: unknown): value is TursodErrorBody {
   return (
     typeof value === "object" &&
@@ -66,9 +72,9 @@ function isTursodErrorBody(value: unknown): value is TursodErrorBody {
     typeof value.code === "string" &&
     "message" in value &&
     typeof value.message === "string" &&
-    (!("autocommitAfter" in value) ||
-      value.autocommitAfter === null ||
-      typeof value.autocommitAfter === "boolean")
+    (!("transactionStateAfter" in value) ||
+      value.transactionStateAfter === null ||
+      isTransactionState(value.transactionStateAfter))
   );
 }
 
@@ -77,7 +83,7 @@ export class TursodHttpError extends Error {
     readonly status: number,
     readonly code: string | undefined,
     message: string,
-    readonly autocommitAfter?: boolean | null,
+    readonly transactionStateAfter?: TransactionState | null,
   ) {
     super(message);
     this.name = "TursodHttpError";
@@ -85,18 +91,12 @@ export class TursodHttpError extends Error {
 }
 
 function isRollbackStatement(sql: string): boolean {
-  const words = sql
-    .trim()
-    .replace(/;$/, "")
-    .trimEnd()
-    .split(/\s+/);
+  const words = sql.trim().replace(/;$/, "").trimEnd().split(/\s+/);
   return (
-    words.length === 1 &&
-    words[0]?.toUpperCase() === "ROLLBACK"
-  ) || (
-    words.length === 2 &&
-    words[0]?.toUpperCase() === "ROLLBACK" &&
-    words[1]?.toUpperCase() === "TRANSACTION"
+    (words.length === 1 && words[0]?.toUpperCase() === "ROLLBACK") ||
+    (words.length === 2 &&
+      words[0]?.toUpperCase() === "ROLLBACK" &&
+      words[1]?.toUpperCase() === "TRANSACTION")
   );
 }
 
@@ -153,6 +153,7 @@ class TursodAsyncStatement implements AsyncSQLStatement {
 export class TursodSqlExecutor implements AsyncSQLiteDB {
   private readonly baseUrl: string;
   private connectionId: string;
+  private transactionState: TransactionState = "autocommit";
   private readonly state = new State<ExecutorState>({
     jobs: [],
     closing: false,
@@ -179,6 +180,7 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
 
   private rotateConnection(): void {
     this.connectionId = this.dependencies.createConnectionId();
+    this.transactionState = "autocommit";
   }
 
   private async responseError(response: Response): Promise<TursodHttpError> {
@@ -188,7 +190,7 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
         response.status,
         body.code,
         body.message,
-        body.autocommitAfter,
+        body.transactionStateAfter,
       );
     }
     return new TursodHttpError(
@@ -218,6 +220,7 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
         },
         signal: controller.signal,
         body: JSON.stringify({
+          expectedTransactionState: this.transactionState,
           statements: [
             {
               sql,
@@ -236,7 +239,15 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
 
     if (!response.ok) {
       const error = await this.responseError(response);
-      if (error.autocommitAfter !== true) this.rotateConnection();
+      if (isTransactionState(error.transactionStateAfter)) {
+        this.transactionState = error.transactionStateAfter;
+      }
+      if (
+        error.code === "TRANSACTION_STATE_MISMATCH" ||
+        error.transactionStateAfter !== "autocommit"
+      ) {
+        this.rotateConnection();
+      }
       if (isRollbackStatement(sql)) return emptyResult();
       throw error;
     }
@@ -250,11 +261,16 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
       throw error;
     }
     const result = payload.results?.[0];
-    if (!result || !Array.isArray(result.rows)) {
+    if (
+      !result ||
+      !Array.isArray(result.rows) ||
+      !isTransactionState(payload.transactionStateAfter)
+    ) {
       this.rotateConnection();
       if (isRollbackStatement(sql)) return emptyResult();
       throw new Error("tursod returned an invalid execute response");
     }
+    this.transactionState = payload.transactionStateAfter;
     return result;
   }
 

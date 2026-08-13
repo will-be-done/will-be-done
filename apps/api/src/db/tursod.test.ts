@@ -15,7 +15,7 @@ const config = {
 
 function executeResponse(
   rows: unknown[][] = [],
-  autocommitAfter = true,
+  transactionStateAfter: "autocommit" | "active" = "autocommit",
 ): Response {
   return Response.json({
     results: [
@@ -25,7 +25,7 @@ function executeResponse(
         affectedRowCount: 0,
       },
     ],
-    autocommitAfter,
+    transactionStateAfter,
   });
 }
 
@@ -70,6 +70,7 @@ describe("TursodSqlExecutor", () => {
       }),
     });
     expect(JSON.parse(String(requests[1]?.init?.body))).toEqual({
+      expectedTransactionState: "autocommit",
       statements: [
         {
           sql: "INSERT INTO values_table VALUES (?, ?, ?, ?, ?)",
@@ -129,7 +130,7 @@ describe("TursodSqlExecutor", () => {
           {
             code: "QUERY_FAILED",
             message: "query failed",
-            autocommitAfter: true,
+            transactionStateAfter: "autocommit",
           },
           { status: 500 },
         );
@@ -146,7 +147,7 @@ describe("TursodSqlExecutor", () => {
         status: 500,
         code: "QUERY_FAILED",
         message: "query failed",
-        autocommitAfter: true,
+        transactionStateAfter: "autocommit",
       });
     }
     await executor.close();
@@ -169,7 +170,7 @@ describe("TursodSqlExecutor", () => {
             {
               code: "CONNECTION_NOT_FOUND",
               message: "connection not found",
-              autocommitAfter: null,
+              transactionStateAfter: null,
             },
             { status: 404 },
           );
@@ -308,6 +309,81 @@ describe("TursodSqlExecutor", () => {
     expect(urls[2]).toContain(`/conn/${connectionIds[1]}/exec`);
   });
 
+  test("rotates after a server restart transaction-state mismatch", async () => {
+    const connectionIds = [
+      "0198b10a-b15e-7e6a-b426-c491007f4b65",
+      "0198b10a-b15e-7e6a-b426-c491007f4b66",
+    ];
+    let nextConnectionId = 0;
+    const requests: Array<{
+      url: string;
+      sql: string;
+      expectedTransactionState: string;
+    }> = [];
+    const executor = new TursodSqlExecutor(
+      "http://tursod.test",
+      "main-main",
+      config,
+      {
+        createConnectionId: () => connectionIds[nextConnectionId++]!,
+        fetch: async (input, init) => {
+          const body = JSON.parse(String(init?.body)) as {
+            expectedTransactionState: string;
+            statements: Array<{ sql: string }>;
+          };
+          const sql = body.statements[0]!.sql;
+          requests.push({
+            url: String(input),
+            sql,
+            expectedTransactionState: body.expectedTransactionState,
+          });
+          if (sql === "BEGIN TRANSACTION") {
+            return executeResponse([], "active");
+          }
+          if (sql === "INSERT after_restart") {
+            return Response.json(
+              {
+                code: "TRANSACTION_STATE_MISMATCH",
+                message: "transaction state mismatch",
+                transactionStateAfter: "autocommit",
+              },
+              { status: 409 },
+            );
+          }
+          return executeResponse();
+        },
+      },
+    );
+
+    await executor.open();
+    await executor.exec("BEGIN TRANSACTION");
+    // Bun's matcher is thenable at runtime, despite its type declaration.
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    await expect(executor.exec("INSERT after_restart")).rejects.toMatchObject({
+      code: "TRANSACTION_STATE_MISMATCH",
+      transactionStateAfter: "autocommit",
+    });
+    await executor.exec("ROLLBACK");
+    await executor.close();
+
+    expect(
+      requests.map(({ sql, expectedTransactionState }) => ({
+        sql,
+        expectedTransactionState,
+      })),
+    ).toEqual([
+      {
+        sql: "PRAGMA foreign_keys = ON",
+        expectedTransactionState: "autocommit",
+      },
+      { sql: "BEGIN TRANSACTION", expectedTransactionState: "autocommit" },
+      { sql: "INSERT after_restart", expectedTransactionState: "active" },
+      { sql: "ROLLBACK", expectedTransactionState: "autocommit" },
+    ]);
+    expect(requests[2]?.url).toContain(`/conn/${connectionIds[0]}/exec`);
+    expect(requests[3]?.url).toContain(`/conn/${connectionIds[1]}/exec`);
+  });
+
   test("releases the HyperDB transaction lock after tursod already rolled back a failed query", async () => {
     let inTransaction = false;
     const statements: string[] = [];
@@ -321,10 +397,10 @@ describe("TursodSqlExecutor", () => {
 
         if (sql === "BEGIN TRANSACTION") {
           inTransaction = true;
-          return executeResponse([], false);
+          return executeResponse([], "active");
         }
         if (sql === "INSERT INTO recovery VALUES (1)") {
-          return executeResponse([], false);
+          return executeResponse([], "active");
         }
         if (sql === "INSERT INTO missing_table VALUES (1)") {
           inTransaction = false;
@@ -332,16 +408,16 @@ describe("TursodSqlExecutor", () => {
             {
               code: "QUERY_FAILED",
               message: "query failed",
-              autocommitAfter: true,
+              transactionStateAfter: "autocommit",
             },
             { status: 500 },
           );
         }
         if (sql === "ROLLBACK") {
           inTransaction = false;
-          return executeResponse([], true);
+          return executeResponse([], "autocommit");
         }
-        return executeResponse([], !inTransaction);
+        return executeResponse([], inTransaction ? "active" : "autocommit");
       }),
     );
     await executor.open();

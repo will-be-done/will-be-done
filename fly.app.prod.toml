@@ -1,0 +1,40 @@
+app = "wbd-app-prod"
+primary_region = "lhr"
+kill_signal = "SIGTERM"
+kill_timeout = "15s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  WBD_BACKUP_S3_ENABLED = "false"
+  WBD_CF_CAPTCHA_ENABLED = "false"
+  WBD_DB_ENGINE = "tursod"
+  WBD_RATE_LIMIT_BACKEND = "redis"
+  WBD_RATE_LIMIT_NAMESPACE = "wbd:prod:rate-limit:v1:"
+  WBD_SYNC_NOTIFICATIONS_BACKEND = "redis"
+  WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX = "wbd:prod:sync:v1"
+  WBD_TURSOD_URL = "http://wbd-tursod-prod.internal:3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    method = "GET"
+    timeout = "10s"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

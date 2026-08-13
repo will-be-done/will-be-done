@@ -4,7 +4,25 @@ use serde_derive::Serialize;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecuteRequest {
+    pub expected_transaction_state: TransactionState,
     pub statements: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransactionState {
+    Autocommit,
+    Active,
+}
+
+impl TransactionState {
+    pub(crate) const fn from_autocommit(autocommit: bool) -> Self {
+        if autocommit {
+            Self::Autocommit
+        } else {
+            Self::Active
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -37,7 +55,7 @@ pub enum Value {
 #[serde(rename_all = "camelCase")]
 pub struct ExecuteResponse {
     pub results: Vec<Res>,
-    pub autocommit_after: Option<bool>,
+    pub transaction_state_after: TransactionState,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

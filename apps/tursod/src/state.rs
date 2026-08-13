@@ -1,4 +1,4 @@
-use crate::dto::{Column, Res, Stmt, Value};
+use crate::dto::{Column, Res, Stmt, TransactionState, Value};
 use crate::{TursodError, TursodResult};
 use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry as HashMapEntry;
@@ -15,6 +15,7 @@ use uuid::Uuid;
 pub(crate) const CONNECTION_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_DATABASE_NAME_LEN: usize = 128;
 pub(crate) const SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(500);
+const JOURNAL_MODE: &str = "wal";
 
 #[derive(Debug, Default)]
 struct StatementTimings {
@@ -472,7 +473,7 @@ impl OpenedDatabase {
                 let opened_conn = self.database.connect().map_err(TursodError::internal)?;
 
                 for (name, value) in [
-                    ("journal_mode", "mvcc"),
+                    ("journal_mode", JOURNAL_MODE),
                     ("page_size", "4096"),
                     ("busy_timeout", "5000"),
                     ("synchronous", "FULL"),
@@ -667,6 +668,7 @@ impl DbsState {
         &self,
         db_name: &str,
         conn_id: &Uuid,
+        expected_transaction_state: TransactionState,
         stmts: Vec<Stmt>,
     ) -> Result<ExecuteStatementsOutput, ExecuteStatementsError> {
         let batch_started_at = Instant::now();
@@ -690,6 +692,29 @@ impl DbsState {
             return Err(ExecuteStatementsError {
                 error: TursodError::internal(anyhow::anyhow!("connection is poisoned")),
                 autocommit_after: None,
+            });
+        }
+
+        let autocommit_before = match conn.is_autocommit() {
+            Ok(autocommit) => autocommit,
+            Err(source) => {
+                lease.poison();
+                drop(conn);
+                self.evict_conn(db_name, conn_id, &lease.connection).await;
+                return Err(ExecuteStatementsError {
+                    error: TursodError::internal(source),
+                    autocommit_after: None,
+                });
+            }
+        };
+        let actual_transaction_state = TransactionState::from_autocommit(autocommit_before);
+        if actual_transaction_state != expected_transaction_state {
+            return Err(ExecuteStatementsError {
+                error: TursodError::TransactionStateMismatch {
+                    expected: expected_transaction_state,
+                    actual: actual_transaction_state,
+                },
+                autocommit_after: Some(autocommit_before),
             });
         }
 
@@ -1132,6 +1157,8 @@ mod tests {
 
     #[tokio::test]
     async fn logs_each_statement_only_after_success_or_failure() {
+        crate::logging::initialize_test_subscriber();
+        let _subscriber_guard = crate::logging::TEST_SUBSCRIBER_LOCK.lock().await;
         let directory = tempfile::tempdir().expect("create temporary directory");
         let state = DbsState::new(directory.path().into());
         let connection_id = Uuid::new_v4();
@@ -1139,28 +1166,36 @@ mod tests {
         let writer = output.clone();
         let subscriber = tracing_subscriber::fmt()
             .json()
-            .flatten_event(true)
-            .with_current_span(false)
-            .with_span_list(true)
+            .event_format(crate::logging::JsonEventFormatter)
             .with_writer(move || LogWriter(writer.clone()))
             .finish();
 
         async {
-            state
-                .open_conn("telemetry", &connection_id)
-                .await
-                .expect("open connection");
-            state
-                .exec_stmts(
-                    "telemetry",
-                    &connection_id,
-                    vec![
-                        statement("CREATE TABLE entries (id INTEGER)"),
-                        statement("SELECT * FROM missing_table"),
-                    ],
-                )
-                .await
-                .expect_err("second statement fails");
+            let request_span = tracing::info_span!(
+                target: "tursod::http",
+                "http_request",
+                request_id = "test-request-id"
+            );
+            async {
+                state
+                    .open_conn("telemetry", &connection_id)
+                    .await
+                    .expect("open connection");
+                state
+                    .exec_stmts(
+                        "telemetry",
+                        &connection_id,
+                        TransactionState::Autocommit,
+                        vec![
+                            statement("CREATE TABLE entries (id INTEGER)"),
+                            statement("SELECT * FROM missing_table"),
+                        ],
+                    )
+                    .await
+                    .expect_err("second statement fails");
+            }
+            .instrument(request_span)
+            .await;
         }
         .with_subscriber(subscriber)
         .await;
@@ -1199,8 +1234,20 @@ mod tests {
         assert!(query_events[0].get("duration_us").is_some());
         assert!(query_events[0].get("duration_ms").is_some());
         assert!(query_events[0].get("prepare_us").is_some());
-        assert_eq!(query_events[0]["spans"][0]["operation"], "CREATE");
-        assert_eq!(query_events[1]["spans"][0]["operation"], "SELECT");
+        assert_eq!(query_events[0]["operation"], "CREATE");
+        assert_eq!(query_events[1]["operation"], "SELECT");
+        assert_eq!(query_events[0]["sql"], "CREATE TABLE entries (id INTEGER)");
+        assert_eq!(query_events[1]["sql"], "SELECT * FROM missing_table");
+        assert_eq!(query_events[0]["request_id"], "test-request-id");
+        assert_eq!(query_events[1]["request_id"], "test-request-id");
+        assert!(query_events[0].get("spans").is_none());
+        assert!(query_events[1].get("spans").is_none());
+
+        let batch_event = events
+            .iter()
+            .find(|event| event["message"] == "statement batch failed")
+            .expect("batch failure event");
+        assert_eq!(batch_event["request_id"], "test-request-id");
     }
 
     async fn contains_connection(database: &OpenedDatabase, connection_id: &Uuid) -> bool {
@@ -1273,6 +1320,90 @@ mod tests {
         assert!(!connection_reused);
         assert!(!replacement.is_poisoned());
         assert!(!Arc::ptr_eq(&poisoned, &replacement.connection));
+    }
+
+    #[tokio::test]
+    async fn connections_use_wal_journal_mode() {
+        let directory = tempfile::tempdir().expect("create temporary directory");
+        let state = DbsState::new(directory.path().into());
+        let connection_id = Uuid::new_v4();
+
+        state
+            .open_conn("journal-mode", &connection_id)
+            .await
+            .expect("open connection");
+        let output = state
+            .exec_stmts(
+                "journal-mode",
+                &connection_id,
+                TransactionState::Autocommit,
+                vec![statement("PRAGMA journal_mode")],
+            )
+            .await
+            .expect("read journal mode");
+
+        assert_eq!(
+            output.results[0].rows,
+            vec![vec![Value::Text(JOURNAL_MODE.to_owned())]]
+        );
+    }
+
+    #[tokio::test]
+    async fn wal_database_with_partial_index_reopens() {
+        let directory = tempfile::tempdir().expect("create temporary directory");
+
+        {
+            let state = DbsState::new(directory.path().into());
+            let connection_id = Uuid::new_v4();
+            state
+                .open_conn("indexed", &connection_id)
+                .await
+                .expect("open connection");
+            state
+                .exec_stmts(
+                    "indexed",
+                    &connection_id,
+                    TransactionState::Autocommit,
+                    vec![
+                        statement(
+                            "CREATE TABLE users (id TEXT PRIMARY KEY, idx_byIds_sort_key TEXT)",
+                        ),
+                        statement(
+                            "CREATE INDEX idx_users_byIds_sort_key \
+                             ON users(idx_byIds_sort_key, id) \
+                             WHERE idx_byIds_sort_key IS NOT NULL",
+                        ),
+                        statement("INSERT INTO users VALUES ('user-1', '001')"),
+                    ],
+                )
+                .await
+                .expect("create indexed database");
+        }
+
+        let state = DbsState::new(directory.path().into());
+        let connection_id = Uuid::new_v4();
+        state
+            .open_conn("indexed", &connection_id)
+            .await
+            .expect("reopen indexed database");
+        let output = state
+            .exec_stmts(
+                "indexed",
+                &connection_id,
+                TransactionState::Autocommit,
+                vec![statement(
+                    "SELECT id FROM users \
+                     WHERE idx_byIds_sort_key IS NOT NULL \
+                     ORDER BY idx_byIds_sort_key, id",
+                )],
+            )
+            .await
+            .expect("query reopened indexed database");
+
+        assert_eq!(
+            output.results[0].rows,
+            vec![vec![Value::Text("user-1".to_owned())]]
+        );
     }
 
     #[tokio::test]
@@ -1491,6 +1622,7 @@ mod tests {
             .exec_stmts(
                 "test",
                 &connection_id,
+                TransactionState::Autocommit,
                 vec![
                     statement("CREATE TABLE messages (body TEXT NOT NULL)"),
                     Stmt {
@@ -1517,6 +1649,7 @@ mod tests {
             .exec_stmts(
                 "test",
                 &connection_id,
+                TransactionState::Autocommit,
                 vec![statement("SELECT body FROM messages")],
             )
             .await
@@ -1542,6 +1675,7 @@ mod tests {
             .exec_stmts(
                 "test",
                 &connection_id,
+                TransactionState::Autocommit,
                 vec![
                     statement("CREATE TABLE affected_rows (value INTEGER)"),
                     statement("INSERT INTO affected_rows VALUES (1), (2)"),
@@ -1568,6 +1702,7 @@ mod tests {
             .exec_stmts(
                 "test",
                 &connection_id,
+                TransactionState::Autocommit,
                 vec![statement("CREATE TABLE rollback_test (value INTEGER)")],
             )
             .await
@@ -1577,6 +1712,7 @@ mod tests {
             .exec_stmts(
                 "test",
                 &connection_id,
+                TransactionState::Autocommit,
                 vec![
                     statement("BEGIN TRANSACTION"),
                     statement("INSERT INTO rollback_test VALUES (1)"),
@@ -1587,12 +1723,22 @@ mod tests {
             .expect_err("failing statement must reject the batch");
 
         let cleanup = state
-            .exec_stmts("test", &connection_id, vec![statement("ROLLBACK")])
+            .exec_stmts(
+                "test",
+                &connection_id,
+                TransactionState::Autocommit,
+                vec![statement("ROLLBACK")],
+            )
             .await
             .expect("a redundant cleanup rollback is successful");
         assert_eq!(cleanup.autocommit_after, Some(true));
         state
-            .exec_stmts("test", &connection_id, vec![statement("COMMIT")])
+            .exec_stmts(
+                "test",
+                &connection_id,
+                TransactionState::Autocommit,
+                vec![statement("COMMIT")],
+            )
             .await
             .expect_err("a redundant commit remains an error");
 
@@ -1600,6 +1746,7 @@ mod tests {
             .exec_stmts(
                 "test",
                 &connection_id,
+                TransactionState::Autocommit,
                 vec![
                     statement("INSERT INTO rollback_test VALUES (2)"),
                     statement("SELECT value FROM rollback_test ORDER BY value"),

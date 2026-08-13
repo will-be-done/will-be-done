@@ -2,6 +2,7 @@ mod dto;
 mod errors;
 mod handlers;
 mod http_logging;
+mod logging;
 mod state;
 
 pub use errors::{TursodError, TursodResult};
@@ -17,16 +18,10 @@ use crate::{
 };
 
 pub async fn run() -> anyhow::Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .json()
-        .flatten_event(true)
-        .with_current_span(false)
-        .with_span_list(true)
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("tursod=info,tower_http=info")),
-        )
-        .try_init();
+    logging::initialize(
+        EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new("tursod=info,tower_http=info")),
+    );
 
     let db_dir = match env::var("TURSOD_DB_PATH") {
         Ok(path) => PathBuf::from(path),
@@ -178,14 +173,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn structured_logs_include_the_full_async_span_stack() {
+    async fn structured_logs_include_only_relevant_span_fields_and_request_id() {
+        crate::logging::initialize_test_subscriber();
+        let _subscriber_guard = crate::logging::TEST_SUBSCRIBER_LOCK.lock().await;
         let output = LogBuffer::default();
         let writer = output.clone();
         let subscriber = tracing_subscriber::fmt()
             .json()
-            .flatten_event(true)
-            .with_current_span(false)
-            .with_span_list(true)
+            .event_format(crate::logging::JsonEventFormatter)
             .with_writer(move || LogWriter(writer.clone()))
             .finish();
 
@@ -193,13 +188,22 @@ mod tests {
             let request = tracing::info_span!(
                 "http_request",
                 request_id = "test-request-id",
-                client_ip = "203.0.113.7"
+                client_ip = "203.0.113.7",
+                path = "/dbs/test/conn/test/exec"
             );
             async {
-                let query = tracing::info_span!("sql_statement", sql = "SELECT 1");
-                async { tracing::info!("query completed") }
+                tracing::info!(target: "tursod::http", "request started");
+                tracing::info!(target: "tursod::state", statement_count = 1, "statement batch completed");
+                let query = tracing::info_span!(
+                    target: "tursod::sql",
+                    "sql_statement",
+                    operation = "SELECT",
+                    sql = "SELECT 1"
+                );
+                async { tracing::info!(target: "tursod::sql", rows = 1, "query completed") }
                     .instrument(query)
                     .await;
+                tracing::info!(target: "tursod::http", status = 200, "request completed");
             }
             .instrument(request)
             .await;
@@ -208,11 +212,57 @@ mod tests {
         .await;
 
         let bytes = output.0.lock().unwrap();
-        let event: Value = serde_json::from_slice(&bytes).unwrap();
-        let spans = event["spans"].as_array().unwrap();
-        assert_eq!(spans.len(), 2);
-        assert_eq!(spans[0]["request_id"], "test-request-id");
-        assert_eq!(spans[0]["client_ip"], "203.0.113.7");
-        assert_eq!(spans[1]["sql"], "SELECT 1");
+        let events = std::str::from_utf8(&bytes)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        let request_started = events
+            .iter()
+            .find(|event| event["message"] == "request started")
+            .unwrap();
+        assert_eq!(request_started["request_id"], "test-request-id");
+        assert!(request_started.get("client_ip").is_none());
+        assert!(request_started.get("path").is_none());
+
+        let batch = events
+            .iter()
+            .find(|event| event["message"] == "statement batch completed")
+            .unwrap();
+        assert_eq!(batch["request_id"], "test-request-id");
+        assert_eq!(batch["statement_count"], 1);
+        assert!(batch.get("client_ip").is_none());
+        assert!(batch.get("path").is_none());
+        assert!(batch.get("sql").is_none());
+
+        let query = events
+            .iter()
+            .find(|event| event["message"] == "query completed")
+            .unwrap();
+        assert_eq!(query["request_id"], "test-request-id");
+        assert_eq!(query["operation"], "SELECT");
+        assert_eq!(query["sql"], "SELECT 1");
+        assert_eq!(query["rows"], 1);
+        assert!(query.get("client_ip").is_none());
+        assert!(query.get("spans").is_none());
+
+        let request = events
+            .iter()
+            .find(|event| event["message"] == "request completed")
+            .unwrap();
+        assert_eq!(request["request_id"], "test-request-id");
+        assert_eq!(request["client_ip"], "203.0.113.7");
+        assert_eq!(request["path"], "/dbs/test/conn/test/exec");
+        assert_eq!(request["status"], 200);
+        assert!(request.get("sql").is_none());
+        assert!(request.get("spans").is_none());
+
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.get("path").is_some())
+                .count(),
+            1
+        );
     }
 }
