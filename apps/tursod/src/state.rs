@@ -1,4 +1,5 @@
 use crate::dto::{Column, Res, Stmt, TransactionState, Value};
+use crate::logging::{QUERY_CANCELLED_MESSAGE, QUERY_COMPLETED_MESSAGE, QUERY_FAILED_MESSAGE};
 use crate::{TursodError, TursodResult};
 use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry as HashMapEntry;
@@ -131,7 +132,7 @@ macro_rules! log_query_completed {
             active_batches = pressure.active_batches,
             executing_queries = pressure.executing_queries,
             waiting_queries = pressure.waiting_queries,
-            "query completed"
+            message = QUERY_COMPLETED_MESSAGE
         );
     }};
 }
@@ -201,7 +202,7 @@ impl Drop for QueryTerminalGuard {
                 error_stage = "cancelled",
                 duration_us = elapsed_us(self.started_at),
                 duration_ms = elapsed_ms(self.started_at),
-                "query cancelled"
+                message = QUERY_CANCELLED_MESSAGE
             );
         }
     }
@@ -314,7 +315,7 @@ impl StatementObservation {
             active_batches = pressure.active_batches,
             executing_queries = pressure.executing_queries,
             waiting_queries = pressure.waiting_queries,
-            "query failed"
+            message = QUERY_FAILED_MESSAGE
         );
     }
 }
@@ -1079,28 +1080,12 @@ impl DbsState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::logging::{LogBuffer, LogWriter};
     use pretty_assertions::assert_eq;
     use serde_json::Value as JsonValue;
-    use std::io::{self, Write};
     use tempfile::TempDir;
     use tokio::{task::JoinSet, time::advance};
     use tracing::instrument::WithSubscriber;
-
-    #[derive(Clone, Default)]
-    struct LogBuffer(Arc<Mutex<Vec<u8>>>);
-
-    struct LogWriter(LogBuffer);
-
-    impl Write for LogWriter {
-        fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-            self.0.0.lock().unwrap().extend_from_slice(buffer);
-            Ok(buffer.len())
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
 
     async fn opened_database(directory: &TempDir, name: &str) -> OpenedDatabase {
         let path = directory.path().join(name);

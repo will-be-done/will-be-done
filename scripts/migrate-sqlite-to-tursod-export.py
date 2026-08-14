@@ -83,7 +83,7 @@ def mappings_for(source_dir: Path) -> list[Mapping]:
 
 
 def connect_readonly(path: Path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=30)
+    return sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, timeout=30)
 
 
 def quick_check(connection: sqlite3.Connection, source: Path) -> None:
@@ -121,7 +121,7 @@ def print_plan(mappings: list[Mapping]) -> None:
 
 def export(mappings: list[Mapping]) -> Path:
     archive_fd, archive_name = tempfile.mkstemp(
-        prefix="wbd-tursod-migration-", suffix=".tar.gz"
+        prefix="wbd-tursod-migration-", suffix=".tar.gz", dir="/tmp"
     )
     os.close(archive_fd)
     archive_path = Path(archive_name)

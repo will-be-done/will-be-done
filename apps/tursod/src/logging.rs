@@ -12,6 +12,10 @@ use tracing_subscriber::{
 
 const REQUEST_SPAN_NAME: &str = "http_request";
 const STATEMENT_SPAN_NAME: &str = "sql_statement";
+pub(crate) const REQUEST_COMPLETED_MESSAGE: &str = "request completed";
+pub(crate) const QUERY_COMPLETED_MESSAGE: &str = "query completed";
+pub(crate) const QUERY_FAILED_MESSAGE: &str = "query failed";
+pub(crate) const QUERY_CANCELLED_MESSAGE: &str = "query cancelled";
 
 /// Formats one flat JSON object per event.
 ///
@@ -59,11 +63,11 @@ where
             .get("message")
             .and_then(serde_json::Value::as_str);
         let include_request_fields =
-            event_target == "tursod::http" && event_message == Some("request completed");
+            event_target == "tursod::http" && event_message == Some(REQUEST_COMPLETED_MESSAGE);
         let include_statement_fields = event_target == "tursod::sql"
             && matches!(
                 event_message,
-                Some("query completed" | "query failed" | "query cancelled")
+                Some(QUERY_COMPLETED_MESSAGE | QUERY_FAILED_MESSAGE | QUERY_CANCELLED_MESSAGE)
             );
 
         if let Some(scope) = context.event_scope() {
@@ -106,6 +110,25 @@ where
 
 #[cfg(test)]
 pub(crate) static TEST_SUBSCRIBER_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[cfg(test)]
+#[derive(Clone, Default)]
+pub(crate) struct LogBuffer(pub(crate) std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+#[cfg(test)]
+pub(crate) struct LogWriter(pub(crate) LogBuffer);
+
+#[cfg(test)]
+impl std::io::Write for LogWriter {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.0.0.lock().unwrap().extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 pub(crate) fn initialize_test_subscriber() {

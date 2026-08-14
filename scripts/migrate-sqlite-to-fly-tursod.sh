@@ -287,8 +287,15 @@ REMOTE_MANIFEST="/data/.migration-manifest-$MIGRATION_ID.tsv"
 
 log "Replacing tursod database files; previous files move to $REMOTE_BACKUP_DIR"
 TARGET_SWAP_STARTED=true
+INSTALL_OUTPUT="$(
+  fly ssh console --app "$TURSOD_APP_NAME" --machine "$TURSOD_MACHINE_ID" \
+    -C "/bin/sh $REMOTE_INSTALLER $ARCHIVE_NAME $MIGRATION_ID"
+)"
+printf '%s\n' "$INSTALL_OUTPUT"
+[[ "$INSTALL_OUTPUT" =~ Installed\ [1-9][0-9]*\ databases ]] \
+  || die "remote installer did not report a successful database import"
 fly ssh console --app "$TURSOD_APP_NAME" --machine "$TURSOD_MACHINE_ID" \
-  -C "/bin/sh $REMOTE_INSTALLER $ARCHIVE_NAME $MIGRATION_ID"
+  -C "rm -f -- $REMOTE_INSTALLER"
 
 log "Restarting tursod on the imported databases"
 if ! fly machine restart "$TURSOD_MACHINE_ID" --app "$TURSOD_APP_NAME"; then

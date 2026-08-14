@@ -19,6 +19,8 @@ use tower_http::{
 };
 use tracing::{Span, field};
 
+use crate::logging::REQUEST_COMPLETED_MESSAGE;
+
 const FLY_CLIENT_IP: &str = "fly-client-ip";
 const FLY_REGION: &str = "fly-region";
 static ACTIVE_REQUESTS: AtomicUsize = AtomicUsize::new(0);
@@ -159,7 +161,7 @@ fn on_response<B: HttpBody>(response: &Response<B>, latency: Duration, span: &Sp
             response_bytes = response_bytes.unwrap_or(0),
             response_size_known = response_bytes.is_some(),
             active_requests_remaining,
-            "request completed"
+            message = REQUEST_COMPLETED_MESSAGE
         );
     });
 }

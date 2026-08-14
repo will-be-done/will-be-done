@@ -210,68 +210,70 @@ export class TursodSqlExecutor implements AsyncSQLiteDB {
       this.config.requestTimeoutMs,
     );
 
-    let response: Response;
     try {
-      response = await this.dependencies.fetch(`${this.connectionUrl}/exec`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.config.authToken}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          expectedTransactionState: this.transactionState,
-          statements: [
-            {
-              sql,
-              args: params.map(encodeValue),
-            },
-          ],
-        }),
-      });
-    } catch (error) {
-      this.rotateConnection();
-      if (isRollbackStatement(sql)) return emptyResult();
-      throw error;
+      let response: Response;
+      try {
+        response = await this.dependencies.fetch(`${this.connectionUrl}/exec`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.config.authToken}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            expectedTransactionState: this.transactionState,
+            statements: [
+              {
+                sql,
+                args: params.map(encodeValue),
+              },
+            ],
+          }),
+        });
+      } catch (error) {
+        this.rotateConnection();
+        if (isRollbackStatement(sql)) return emptyResult();
+        throw error;
+      }
+
+      if (!response.ok) {
+        const error = await this.responseError(response);
+        if (isTransactionState(error.transactionStateAfter)) {
+          this.transactionState = error.transactionStateAfter;
+        }
+        if (
+          error.code === "TRANSACTION_STATE_MISMATCH" ||
+          error.transactionStateAfter !== "autocommit"
+        ) {
+          this.rotateConnection();
+        }
+        if (isRollbackStatement(sql)) return emptyResult();
+        throw error;
+      }
+
+      let payload: TursodExecuteResponse;
+      try {
+        payload = (await response.json()) as TursodExecuteResponse;
+      } catch (error) {
+        this.rotateConnection();
+        if (isRollbackStatement(sql)) return emptyResult();
+        throw error;
+      }
+      const result = payload.results?.[0];
+      if (
+        !result ||
+        !Array.isArray(result.rows) ||
+        !isTransactionState(payload.transactionStateAfter)
+      ) {
+        this.rotateConnection();
+        if (isRollbackStatement(sql)) return emptyResult();
+        throw new Error("tursod returned an invalid execute response");
+      }
+      this.transactionState = payload.transactionStateAfter;
+      return result;
     } finally {
       clearTimeout(timeout);
     }
-
-    if (!response.ok) {
-      const error = await this.responseError(response);
-      if (isTransactionState(error.transactionStateAfter)) {
-        this.transactionState = error.transactionStateAfter;
-      }
-      if (
-        error.code === "TRANSACTION_STATE_MISMATCH" ||
-        error.transactionStateAfter !== "autocommit"
-      ) {
-        this.rotateConnection();
-      }
-      if (isRollbackStatement(sql)) return emptyResult();
-      throw error;
-    }
-
-    let payload: TursodExecuteResponse;
-    try {
-      payload = (await response.json()) as TursodExecuteResponse;
-    } catch (error) {
-      this.rotateConnection();
-      if (isRollbackStatement(sql)) return emptyResult();
-      throw error;
-    }
-    const result = payload.results?.[0];
-    if (
-      !result ||
-      !Array.isArray(result.rows) ||
-      !isTransactionState(payload.transactionStateAfter)
-    ) {
-      this.rotateConnection();
-      if (isRollbackStatement(sql)) return emptyResult();
-      throw new Error("tursod returned an invalid execute response");
-    }
-    this.transactionState = payload.transactionStateAfter;
-    return result;
   }
 
   async open(): Promise<void> {

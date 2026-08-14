@@ -149,28 +149,11 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::Value;
-    use std::{
-        io::{self, Write},
-        sync::{Arc, Mutex},
+    use crate::logging::{
+        LogBuffer, LogWriter, QUERY_COMPLETED_MESSAGE, REQUEST_COMPLETED_MESSAGE,
     };
+    use serde_json::Value;
     use tracing::{Instrument, instrument::WithSubscriber};
-
-    #[derive(Clone, Default)]
-    struct LogBuffer(Arc<Mutex<Vec<u8>>>);
-
-    struct LogWriter(LogBuffer);
-
-    impl Write for LogWriter {
-        fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-            self.0.0.lock().unwrap().extend_from_slice(buffer);
-            Ok(buffer.len())
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
 
     #[tokio::test]
     async fn structured_logs_include_only_relevant_span_fields_and_request_id() {
@@ -200,10 +183,20 @@ mod tests {
                     operation = "SELECT",
                     sql = "SELECT 1"
                 );
-                async { tracing::info!(target: "tursod::sql", rows = 1, "query completed") }
+                async {
+                    tracing::info!(
+                        target: "tursod::sql",
+                        rows = 1,
+                        message = QUERY_COMPLETED_MESSAGE
+                    );
+                }
                     .instrument(query)
                     .await;
-                tracing::info!(target: "tursod::http", status = 200, "request completed");
+                tracing::info!(
+                    target: "tursod::http",
+                    status = 200,
+                    message = REQUEST_COMPLETED_MESSAGE
+                );
             }
             .instrument(request)
             .await;

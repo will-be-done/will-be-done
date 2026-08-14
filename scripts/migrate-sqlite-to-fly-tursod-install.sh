@@ -33,6 +33,12 @@ tar -xzf "$ARCHIVE_NAME" -C "$IMPORT_DIR"
 cd "$IMPORT_DIR"
 sha256sum -c checksums.sha256
 
+set -- "$IMPORT_DIR"/*.db
+if [ ! -f "$1" ]; then
+  echo "migration archive contained no database files" >&2
+  exit 1
+fi
+
 # The Turso engine can add sidecars such as .db-log. Preserve every existing
 # top-level volume file so no old database state is mixed with the import.
 for file in /data/* /data/.[!.]* /data/..?*; do

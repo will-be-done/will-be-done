@@ -38,6 +38,30 @@ function dependencies(
   };
 }
 
+function stalledBodyResponse(
+  signal: AbortSignal | null | undefined,
+  status = 200,
+): Response {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        const abort = () => {
+          controller.error(signal?.reason ?? new Error("request aborted"));
+        };
+        if (signal?.aborted) {
+          abort();
+        } else {
+          signal?.addEventListener("abort", abort, { once: true });
+        }
+      },
+    }),
+    {
+      status,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
 describe("TursodSqlExecutor", () => {
   test("uses exec for connection initialization and tagged SQL", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -276,6 +300,44 @@ describe("TursodSqlExecutor", () => {
     expect(urls[1]).toContain(`/conn/${connectionIds[0]}/exec`);
     expect(urls[2]).toContain(`/conn/${connectionIds[1]}/exec`);
   });
+
+  for (const [description, status] of [
+    ["successful", 200],
+    ["error", 500],
+  ] as const) {
+    test(`times out a stalled ${description} response body and settles close`, async () => {
+      const executed: string[] = [];
+      const executor = new TursodSqlExecutor(
+        "http://tursod.test",
+        "main-main",
+        { ...config, requestTimeoutMs: 10 },
+        dependencies(async (_input, init) => {
+          const sql = JSON.parse(String(init?.body)).statements[0]
+            .sql as string;
+          executed.push(sql);
+          if (sql === "SELECT stalled body") {
+            return stalledBodyResponse(init?.signal, status);
+          }
+          return executeResponse();
+        }),
+      );
+
+      await executor.open();
+      const stalled = executor.exec("SELECT stalled body");
+      const next = executor.exec("SELECT next");
+      const closing = executor.close();
+      // Bun's matcher is thenable at runtime, despite its type declaration.
+      // eslint-disable-next-line @typescript-eslint/await-thenable
+      await expect(stalled).rejects.toThrow();
+      await Promise.all([next, closing]);
+
+      expect(executed).toEqual([
+        "PRAGMA foreign_keys = ON",
+        "SELECT stalled body",
+        "SELECT next",
+      ]);
+    });
+  }
 
   test("treats an ambiguous cleanup rollback as complete on a fresh connection", async () => {
     const connectionIds = [
