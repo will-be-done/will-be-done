@@ -1,5 +1,6 @@
 use crate::dto::{Column, Res, Stmt, TransactionState, Value};
 use crate::logging::{QUERY_CANCELLED_MESSAGE, QUERY_COMPLETED_MESSAGE, QUERY_FAILED_MESSAGE};
+use crate::schema_repair::repair_malformed_indexes;
 use crate::{TursodError, TursodResult};
 use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry as HashMapEntry;
@@ -1048,14 +1049,26 @@ impl DbsState {
         };
         let database_reused = cell.get().is_some();
 
-        let path = self
-            .base_path
-            .join(format!("{db_name}.db"))
-            .to_string_lossy()
-            .into_owned();
+        let database_path = self.base_path.join(format!("{db_name}.db"));
+        let path = database_path.to_string_lossy().into_owned();
 
         let opened_db = cell
             .get_or_try_init(|| async {
+                let repair_path = database_path.clone();
+                let repair =
+                    tokio::task::spawn_blocking(move || repair_malformed_indexes(&repair_path))
+                        .await
+                        .map_err(TursodError::internal)?
+                        .map_err(TursodError::internal)?;
+                if !repair.removed_indexes.is_empty() {
+                    tracing::warn!(
+                        database = db_name,
+                        repaired_index_count = repair.removed_indexes.len(),
+                        repaired_indexes = ?repair.removed_indexes,
+                        "removed malformed SQLite indexes before database open"
+                    );
+                }
+
                 let db = turso::Builder::new_local(&path)
                     .build()
                     .await

@@ -33,16 +33,25 @@ struct ApiError {
 
 impl ApiError {
     fn new(error: TursodError) -> Self {
-        Self::with_transaction_state(error, None)
+        Self::with_request_context(error, None, &[])
     }
 
-    fn with_transaction_state(error: TursodError, autocommit_after: Option<bool>) -> Self {
+    fn with_request_context(
+        error: TursodError,
+        autocommit_after: Option<bool>,
+        request_sql: &[String],
+    ) -> Self {
         tracing::Span::current().record("error_code", error.code());
         tracing::Span::current().record("error_stage", error.stage());
+        let sql = error
+            .statement_sql()
+            .or_else(|| (request_sql.len() == 1).then(|| request_sql[0].as_str()));
         tracing::error!(
             code = error.code(),
             error_stage = error.stage(),
             error = ?error,
+            sql = sql.unwrap_or(""),
+            request_sql = ?request_sql,
             "tursod request failed"
         );
         let status = match &error {
@@ -153,10 +162,19 @@ impl HttpHandlers {
     ) -> Result<(StatusCode, Json<ExecuteResponse>), ApiError> {
         let span = tracing::Span::current();
         span.record("statement_count", payload.statements.len());
+        let request_sql = payload
+            .statements
+            .iter()
+            .map(|statement| statement.sql.clone())
+            .collect::<Vec<_>>();
 
         let cn_id = Self::parse_conn_id(&conn_id)?;
 
-        let open_stats = state.dbs.open_conn(&db_name, &cn_id).await?;
+        let open_stats = state
+            .dbs
+            .open_conn(&db_name, &cn_id)
+            .await
+            .map_err(|error| ApiError::with_request_context(error, None, &request_sql))?;
         span.record("database_reused", open_stats.database_reused);
         span.record("connection_reused", open_stats.connection_reused);
         span.record("database_open_ms", open_stats.database_open_ms);
@@ -178,16 +196,20 @@ impl HttpHandlers {
             )
             .await
             .map_err(|error| {
-                ApiError::with_transaction_state(error.error, error.autocommit_after)
+                ApiError::with_request_context(error.error, error.autocommit_after, &request_sql)
             })?;
 
         let transaction_state_after = execution
             .autocommit_after
             .map(TransactionState::from_autocommit)
             .ok_or_else(|| {
-                ApiError::new(TursodError::internal(anyhow::anyhow!(
-                    "transaction state unavailable after successful execution"
-                )))
+                ApiError::with_request_context(
+                    TursodError::internal(anyhow::anyhow!(
+                        "transaction state unavailable after successful execution"
+                    )),
+                    None,
+                    &request_sql,
+                )
             })?;
 
         Ok((
@@ -248,6 +270,7 @@ mod tests {
     use super::HttpHandlers;
     use crate::{
         dto::{ExecuteResponse, TransactionState},
+        logging::{JsonEventFormatter, LogBuffer, LogWriter},
         state::DbsState,
     };
     use axum::{
@@ -261,6 +284,7 @@ mod tests {
     use tempfile::TempDir;
     use tokio::time::advance;
     use tower::ServiceExt;
+    use tracing::instrument::WithSubscriber;
 
     const AUTH_TOKEN: &str = "test-secret";
 
@@ -623,6 +647,62 @@ mod tests {
         let message = body["message"].as_str().unwrap();
         assert!(!message.contains(secret_sql));
         assert!(!message.contains("missing_table"));
+    }
+
+    #[tokio::test]
+    async fn request_failure_logs_include_the_complete_original_sql() {
+        crate::logging::initialize_test_subscriber();
+        let _subscriber_guard = crate::logging::TEST_SUBSCRIBER_LOCK.lock().await;
+        let directory = TempDir::new().unwrap();
+        let app = app(&directory);
+        let original_sql =
+            "SELECT id, title FROM missing_table WHERE title = ? ORDER BY id DESC LIMIT 17";
+        let output = LogBuffer::default();
+        let writer = output.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .json()
+            .event_format(JsonEventFormatter)
+            .with_writer(move || LogWriter(writer.clone()))
+            .finish();
+
+        async {
+            let response = app
+                .oneshot(request(
+                    "/dbs/test-db/conn/0198b10a-b15e-7e6a-b426-c491007f4b65/exec",
+                    json!({
+                        "statements": [{
+                            "sql": original_sql,
+                            "args": [{ "type": "text", "value": "do-not-log-this-value" }]
+                        }]
+                    }),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        .with_subscriber(subscriber)
+        .await;
+
+        let bytes = output.0.lock().unwrap();
+        let events = std::str::from_utf8(&bytes)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).unwrap())
+            .collect::<Vec<_>>();
+        let failure = events
+            .iter()
+            .find(|event| {
+                event["target"] == "tursod::handlers" && event["message"] == "tursod request failed"
+            })
+            .expect("request failure log");
+
+        assert_eq!(failure["sql"], original_sql);
+        assert!(
+            failure["request_sql"]
+                .as_str()
+                .is_some_and(|sql| sql.contains(original_sql))
+        );
+        assert!(!String::from_utf8_lossy(&bytes).contains("do-not-log-this-value"));
     }
 
     #[tokio::test]

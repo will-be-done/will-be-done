@@ -97,6 +97,22 @@ impl TursodError {
             Self::Internal(_) => "internal",
         }
     }
+
+    pub(crate) fn statement_sql(&self) -> Option<&str> {
+        match self {
+            Self::PrepareFailed { stmt, .. }
+            | Self::QueryFailed { stmt, .. }
+            | Self::QueryGetValueFailed { stmt, .. }
+            | Self::RowLoadFailed { stmt, .. } => Some(stmt),
+            Self::InvalidConnectionId { .. }
+            | Self::DatabaseNotOpened { .. }
+            | Self::DatabaseNotInitialized { .. }
+            | Self::ConnectionNotFound { .. }
+            | Self::TransactionStateMismatch { .. }
+            | Self::BadRequest
+            | Self::Internal(_) => None,
+        }
+    }
 }
 
 pub type TursodResult<T> = Result<T, TursodError>;

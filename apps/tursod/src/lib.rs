@@ -3,6 +3,7 @@ mod errors;
 mod handlers;
 mod http_logging;
 mod logging;
+mod schema_repair;
 mod state;
 
 pub use errors::{TursodError, TursodResult};
