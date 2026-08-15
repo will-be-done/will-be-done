@@ -1,5 +1,5 @@
-app = "wbd-staging-tursod"
-primary_region = "lhr"
+app = "wbd-tursod-staging"
+primary_region = "ams"
 kill_signal = "SIGTERM"
 kill_timeout = "15s"
 

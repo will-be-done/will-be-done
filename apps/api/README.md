@@ -63,7 +63,7 @@ Turso and do not need to be stored separately.
 ### tursod
 
 The tursod engine does not use a Turso Platform token. Configure the same
-`TURSOD_AUTH_TOKEN` secret for tursod and the API, in addition to
+`WBD_TURSOD_AUTH_TOKEN` secret for tursod and the API, in addition to
 `WBD_TURSOD_URL`. The existing local SQLite S3 backup worker is not supported
 with either Turso engine. Use Turso Cloud backups/PITR for `turso-cloud` and a
 backup process designed for the tursod data directory for `tursod`.
@@ -80,7 +80,7 @@ service, and injects its URL into the API. To run it separately, use
 `PORT`), and `TURSOD_DB_PATH`. It defaults to `127.0.0.1:3000` with a `db`
 directory under its working directory. Set `TURSOD_HOST` explicitly when
 non-loopback binding is required. All database execution requests require
-`TURSOD_AUTH_TOKEN`; keep the token secret and do not expose tursod directly to
+`WBD_TURSOD_AUTH_TOKEN`; keep the token secret and do not expose tursod directly to
 an untrusted network.
 
 tursod writes newline-delimited structured JSON logs. Every HTTP request has an

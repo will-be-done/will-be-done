@@ -30,13 +30,13 @@ pub async fn run() -> anyhow::Result<()> {
     };
     std::fs::create_dir_all(&db_dir)?;
     let dbs_state = Arc::new(DbsState::new(db_dir.clone()));
-    let auth_token = env::var("TURSOD_AUTH_TOKEN")
-        .context("TURSOD_AUTH_TOKEN is required")?
+    let auth_token = env::var("WBD_TURSOD_AUTH_TOKEN")
+        .context("WBD_TURSOD_AUTH_TOKEN is required")?
         .trim()
         .to_owned();
     anyhow::ensure!(
         !auth_token.is_empty(),
-        "TURSOD_AUTH_TOKEN must not be empty"
+        "WBD_TURSOD_AUTH_TOKEN must not be empty"
     );
 
     let app = HttpHandlers::router(Arc::clone(&dbs_state), auth_token);

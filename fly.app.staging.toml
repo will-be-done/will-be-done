@@ -1,5 +1,5 @@
-app = "wbd-staging"
-primary_region = "lhr"
+app = "wbd-app-staging"
+primary_region = "ams"
 kill_signal = "SIGTERM"
 kill_timeout = "15s"
 
@@ -15,7 +15,7 @@ kill_timeout = "15s"
   WBD_RATE_LIMIT_NAMESPACE = "wbd:staging:rate-limit:v1:"
   WBD_SYNC_NOTIFICATIONS_BACKEND = "redis"
   WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX = "wbd:staging:sync:v1"
-  WBD_TURSOD_URL = "http://wbd-staging-tursod.internal:3000"
+  WBD_TURSOD_URL = "http://wbd-tursod-staging.internal:3000"
 
 [http_service]
   internal_port = 3000

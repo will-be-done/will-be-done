@@ -23,6 +23,8 @@ apps/landing
 dist
 dist-ssr
 **/dist
+target
+**/target
 *.local
 
 # Editor directories and files

@@ -10,7 +10,7 @@ const EnvConfigSchema = z.object({
   WBD_TURSO_GROUP: z.string().default("default"),
   WBD_TURSO_DATABASE_PREFIX: z.string().default("wbd"),
   WBD_TURSOD_URL: z.url().optional(),
-  TURSOD_AUTH_TOKEN: z.string().trim().min(1).optional(),
+  WBD_TURSOD_AUTH_TOKEN: z.string().trim().min(1).optional(),
   WBD_TURSOD_REQUEST_TIMEOUT_MS: z.coerce
     .number()
     .int()
@@ -51,7 +51,7 @@ let envConfig:
       WBD_TURSO_GROUP: string;
       WBD_TURSO_DATABASE_PREFIX: string;
       WBD_TURSOD_URL?: string;
-      TURSOD_AUTH_TOKEN?: string;
+      WBD_TURSOD_AUTH_TOKEN?: string;
       WBD_TURSOD_REQUEST_TIMEOUT_MS: number;
       WBD_INSTANCE_ID?: string;
       WBD_SYNC_NOTIFICATIONS_BACKEND: "memory" | "redis";
@@ -76,7 +76,7 @@ export function getEnvConfig() {
     WBD_TURSO_GROUP: process.env.WBD_TURSO_GROUP,
     WBD_TURSO_DATABASE_PREFIX: process.env.WBD_TURSO_DATABASE_PREFIX,
     WBD_TURSOD_URL: process.env.WBD_TURSOD_URL,
-    TURSOD_AUTH_TOKEN: process.env.TURSOD_AUTH_TOKEN,
+    WBD_TURSOD_AUTH_TOKEN: process.env.WBD_TURSOD_AUTH_TOKEN,
     WBD_TURSOD_REQUEST_TIMEOUT_MS: process.env.WBD_TURSOD_REQUEST_TIMEOUT_MS,
     WBD_INSTANCE_ID: process.env.WBD_INSTANCE_ID,
     WBD_SYNC_NOTIFICATIONS_BACKEND: process.env.WBD_SYNC_NOTIFICATIONS_BACKEND,
@@ -108,7 +108,7 @@ export function getEnvConfig() {
   if (parsed.WBD_DB_ENGINE === "tursod") {
     const missing = [
       ["WBD_TURSOD_URL", parsed.WBD_TURSOD_URL],
-      ["TURSOD_AUTH_TOKEN", parsed.TURSOD_AUTH_TOKEN],
+      ["WBD_TURSOD_AUTH_TOKEN", parsed.WBD_TURSOD_AUTH_TOKEN],
     ]
       .filter(([, value]) => !value?.trim())
       .map(([name]) => name);
@@ -140,7 +140,7 @@ export function getEnvConfig() {
     WBD_TURSO_GROUP: parsed.WBD_TURSO_GROUP,
     WBD_TURSO_DATABASE_PREFIX: parsed.WBD_TURSO_DATABASE_PREFIX,
     WBD_TURSOD_URL: parsed.WBD_TURSOD_URL,
-    TURSOD_AUTH_TOKEN: parsed.TURSOD_AUTH_TOKEN,
+    WBD_TURSOD_AUTH_TOKEN: parsed.WBD_TURSOD_AUTH_TOKEN,
     WBD_TURSOD_REQUEST_TIMEOUT_MS: parsed.WBD_TURSOD_REQUEST_TIMEOUT_MS,
     WBD_INSTANCE_ID: parsed.WBD_INSTANCE_ID,
     WBD_SYNC_NOTIFICATIONS_BACKEND: parsed.WBD_SYNC_NOTIFICATIONS_BACKEND,

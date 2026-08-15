@@ -212,7 +212,7 @@ function signalProcessGroup(child: ChildProcess) {
 async function main() {
   const usesTursod = process.env.WBD_DB_ENGINE === "tursod";
   const tursodAuthToken = usesTursod
-    ? (process.env.TURSOD_AUTH_TOKEN ?? randomUUID())
+    ? (process.env.WBD_TURSOD_AUTH_TOKEN ?? randomUUID())
     : undefined;
   const apiPort = await findFreePort();
   const tursodPort = usesTursod
@@ -284,7 +284,7 @@ async function main() {
         env: {
           ...process.env,
           PORT: String(tursodPort),
-          TURSOD_AUTH_TOKEN: tursodAuthToken,
+          WBD_TURSOD_AUTH_TOKEN: tursodAuthToken,
           TURSOD_DB_PATH: "apps/tursod/db",
           FORCE_COLOR: "1",
         },
@@ -313,7 +313,7 @@ async function main() {
       ...(tursodPort === undefined
         ? {}
         : {
-            TURSOD_AUTH_TOKEN: tursodAuthToken,
+            WBD_TURSOD_AUTH_TOKEN: tursodAuthToken,
             WBD_TURSOD_URL: `http://127.0.0.1:${tursodPort}`,
           }),
     },

@@ -21,8 +21,8 @@
     "format:check": "prettier --check .",
     "all": "tsx scripts/dev-all.ts",
     "release:desktop": "bash scripts/release",
-    "deploy:staging:tursod": "fly deploy --config fly.tursod.toml --app wbd-staging-tursod",
-    "deploy:staging:app": "fly deploy --config fly.toml --app wbd-staging"
+    "deploy:staging:tursod": "fly deploy --config fly.tursod.staging.toml --app wbd-tursod-staging",
+    "deploy:staging:app": "fly deploy --config fly.app.staging.toml --app wbd-app-staging"
   },
   "devDependencies": {
     "@types/blessed": "^0.1.27",

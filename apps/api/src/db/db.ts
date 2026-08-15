@@ -130,7 +130,7 @@ const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
       name,
       env.WBD_TURSOD_URL!,
       {
-        authToken: env.TURSOD_AUTH_TOKEN!,
+        authToken: env.WBD_TURSOD_AUTH_TOKEN!,
         requestTimeoutMs: env.WBD_TURSOD_REQUEST_TIMEOUT_MS,
       },
     );

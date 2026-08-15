@@ -1,5 +1,5 @@
 app = "wbd-tursod-prod"
-primary_region = "lhr"
+primary_region = "ams"
 kill_signal = "SIGTERM"
 kill_timeout = "15s"
 
