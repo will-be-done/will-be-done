@@ -30,8 +30,9 @@ export const clientSyncDownloadSessionsTable = defineTable(
     acceptedClientClock: v.union(v.string(), v.null()),
     acceptedClientChangeId: v.union(v.string(), v.null()),
     chunkCount: v.number(),
+    createdAt: v.number(),
   },
-);
+).index("byCreatedAtId", ["createdAt", "id"]);
 
 export const clientSyncDownloadChunksTable = defineTable(
   "client_sync_download_chunks_v4",

@@ -65,11 +65,12 @@ export async function initPopupStore(spaceId: string) {
     return db;
   });
 
-  const persistedClock = await asyncDispatch(
+  await asyncDispatch(
     asyncDB.withTraits({ type: "skip-sync" }),
     migrateSyncV4Clocks({}),
   );
-  nextClock.observe([persistedClock]);
+  const latest = await asyncDispatch(asyncDB, getLatestChangeCursor({}));
+  nextClock.observe([latest?.clock]);
 
   // Ensure inbox exists
   await asyncDispatch(asyncDB, createInboxIfNotExists({}));

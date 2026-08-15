@@ -18,6 +18,7 @@ export { syncStateId };
 export const syncStateTable = defineTable("syncState", {
   id: v.string(),
   lastSentClock: v.string(),
+  lastSentChangeId: v.optional(v.string()),
   lastServerAppliedClock: v.string(),
   serverConfirmedClientClock: v.optional(v.string()),
   serverConfirmedClientChangeId: v.optional(v.string()),
@@ -25,5 +26,6 @@ export const syncStateTable = defineTable("syncState", {
   localCoveredClientChangeId: v.optional(v.string()),
   lastServerAppliedRevision: v.optional(v.number()),
   serverConfirmedAppliedRevision: v.optional(v.number()),
+  syncV4ClocksMigrated: v.optional(v.boolean()),
 });
 export type SyncState = ExtractSchema<typeof syncStateTable>;

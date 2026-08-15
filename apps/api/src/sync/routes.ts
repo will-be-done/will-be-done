@@ -27,6 +27,8 @@ import {
   stageUploadChunk,
   startSyncUpload,
 } from "./actions";
+import { SyncConflictError, SyncSessionNotFoundError } from "./errors";
+import { runSyncMaintenance } from "./maintenance";
 
 type DatabaseParams = { dbType: "user" | "space"; dbId: string };
 type UploadParams = DatabaseParams & { uploadId: string };
@@ -38,6 +40,7 @@ type DownloadParams = DatabaseParams & {
 
 const sha256 = (value: string) =>
   createHash("sha256").update(value).digest("hex");
+const SYNC_MAINTENANCE_INTERVAL_MS = 15 * 60 * 1000;
 
 const tableRank = (tableName: string) => {
   const ranks: Record<string, number> = {
@@ -74,6 +77,31 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
   server,
   options,
 ) => {
+  let maintenanceRunning = false;
+  const maintain = async () => {
+    if (maintenanceRunning) return;
+    maintenanceRunning = true;
+    try {
+      await runSyncMaintenance(server.log);
+    } catch (error) {
+      server.log.error({ err: error }, "Sync v4 maintenance failed");
+    } finally {
+      maintenanceRunning = false;
+    }
+  };
+  let maintenanceInterval: ReturnType<typeof setInterval> | undefined;
+  server.addHook("onReady", async () => {
+    await maintain();
+    maintenanceInterval = setInterval(
+      () => void maintain(),
+      SYNC_MAINTENANCE_INTERVAL_MS,
+    );
+    maintenanceInterval.unref?.();
+  });
+  server.addHook("onClose", async () => {
+    if (maintenanceInterval) clearInterval(maintenanceInterval);
+  });
+
   server.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
       return reply.code(400).send({ error: "Invalid sync request" });
@@ -86,8 +114,14 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     if (knownError.name === "ResourceNotFoundError") {
       return reply.code(404).send({ error: knownError.message });
     }
+    if (knownError instanceof SyncSessionNotFoundError) {
+      return reply.code(404).send({ error: knownError.message });
+    }
+    if (knownError instanceof SyncConflictError) {
+      return reply.code(409).send({ error: knownError.message });
+    }
     request.log.error(knownError, "Sync v4 request failed");
-    return reply.code(500).send({ error: knownError.message });
+    return reply.code(500).send({ error: "Internal server error" });
   });
 
   server.post<{ Params: DatabaseParams }>(

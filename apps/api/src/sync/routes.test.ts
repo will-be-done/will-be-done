@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { DB, execSync, syncDispatch } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { formatHlc } from "@will-be-done/slices/common";
+import { formatHlc, SYNC_V4_SESSION_TTL_MS } from "@will-be-done/slices/common";
 import { createAppRouter } from "../appRouter";
 import { userDBConfig } from "../db/configs";
 import * as databases from "../db/db";
@@ -111,6 +111,19 @@ describe("sync v4 routes", () => {
       expect(
         retryResponse.json() as { changeCount: number; replay: boolean },
       ).toEqual({ changeCount: 1, replay: true });
+
+      const now = Date.now();
+      spyOn(Date, "now").mockReturnValue(now + SYNC_V4_SESSION_TTL_MS + 1);
+      const expiredResponse = await server.inject({
+        method: "PUT",
+        url: `/api/sync/v4/user/${auth.userId}/sessions/${uploadId}/chunks/1`,
+        headers: { authorization: `Bearer ${auth.token}` },
+        payload: { checksum: sha256(payload), payload },
+      });
+      expect(expiredResponse.statusCode).toBe(404);
+      expect(expiredResponse.json() as { error: string }).toEqual({
+        error: "Sync upload session is not active",
+      });
     } finally {
       await server.close();
     }

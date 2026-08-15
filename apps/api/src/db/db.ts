@@ -46,10 +46,7 @@ import {
 } from "./turso";
 import { createTursodSqlDriver } from "./tursod";
 import { createServerClientId } from "../serverInstance";
-import {
-  initializeServerSyncFeed,
-  recordServerChanges,
-} from "../sync/actions";
+import { initializeServerSyncFeed, recordServerChanges } from "../sync/actions";
 
 export interface DBConfig {
   dbId: string;
@@ -178,6 +175,12 @@ type HyperDBCacheEntry = {
 
 const dbs = new Map<string, HyperDBCacheEntry>();
 const dbPromises = new Map<string, Promise<HyperDBCacheEntry>>();
+
+export const getLoadedHyperDBs = () =>
+  [...dbs.entries()].map(([database, entry]) => ({
+    database,
+    db: entry.db,
+  }));
 
 export async function closeDatabases() {
   dbs.clear();
@@ -331,7 +334,8 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
       hyperDB.withTraits({ type: "skip-sync" }),
       migrateSyncV4Clocks({}),
     );
-    nextClock.observe([persistedClock]);
+    const latest = await asyncDispatch(hyperDB, getLatestChangeCursor({}));
+    nextClock.observe([persistedClock, latest?.clock]);
 
     if (dbConfig.dbType === "space") {
       await asyncDispatch(hyperDB, migrateProjectSectionTaskStats({}));

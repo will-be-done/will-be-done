@@ -893,7 +893,7 @@ describe("first-creator-wins merge", () => {
       db,
       function* () {
         return yield* getChangesetAfter({
-          after: "",
+          after: null,
           registeredSyncableTableNameMap: registeredTables,
         });
       },
@@ -933,23 +933,68 @@ describe("first-creator-wins merge", () => {
       "local-client",
     );
 
-    const { changesets, maxClock } = runSelector(
+    const { changesets, throughCursor } = runSelector(
       db,
       function* () {
         return yield* getChangesetAfter({
-          after: "",
+          after: null,
           registeredSyncableTableNameMap: registeredTables,
         });
       },
       [],
     );
 
-    expect(maxClock).toBe("0000000030-0001-local");
+    expect(throughCursor).toEqual({
+      clock: "0000000030-0001-local",
+      changeId: "testItems:own-change",
+    });
     expect(changesets).toHaveLength(1);
     expect(changesets[0]!.data.map((d) => d.change.entityId).sort()).toEqual([
       "own-change",
       "remote-change",
     ]);
+  });
+
+  it("continues after the full cursor when changes share an updatedAt", () => {
+    const db = createDB();
+    const sharedClock = "0000000030-0001-local";
+    for (const entityId of ["a", "b", "c"]) {
+      localCreate(
+        db,
+        {
+          type: "task",
+          id: entityId,
+          title: entityId,
+          orderToken: entityId,
+          createdAt: 100,
+        },
+        sharedClock,
+        "local-client",
+      );
+    }
+
+    const result = runSelector(
+      db,
+      function* () {
+        return yield* getChangesetAfter({
+          after: {
+            clock: sharedClock,
+            changeId: "testItems:a",
+          },
+          registeredSyncableTableNameMap: registeredTables,
+        });
+      },
+      [],
+    );
+
+    expect(result.changesets[0]!.data.map(({ change }) => change.id)).toEqual([
+      "testItems:b",
+      "testItems:c",
+    ]);
+    expect(result.throughCursor).toEqual({
+      clock: sharedClock,
+      changeId: "testItems:c",
+    });
   });
 });
 
@@ -1322,7 +1367,10 @@ describe("idempotent merge retries", () => {
       db,
       function* () {
         return yield* getChangesetAfter({
-          after: firstServerClock,
+          after: {
+            clock: firstServerClock,
+            changeId: "testItems:retried-create",
+          },
           registeredSyncableTableNameMap: registeredTables,
         });
       },

@@ -191,6 +191,13 @@ Transport chunks are never consistency boundaries.
 6. The server processes tables in dependency order and merges every staged
    change inside one live database transaction.
 
+An upload with no changes has no chunks, a zero change count, the SHA-256
+manifest of the empty checksum list, and a `throughCursor` equal to the
+session's inherited upload base cursor. When that base cursor is absent the
+request cursor is `null`. The server compares these values as complete nullable
+client cursors, so an empty upload confirms inherited state without inventing a
+new cursor.
+
 For example, a `Task` and a `DailyEntry`/projection that references it may be
 transported in different chunks, but neither becomes visible until the whole
 commit succeeds. A failed commit rolls back the entire merge.
@@ -267,10 +274,27 @@ Current v4 limits are:
 - at most 4,096 chunks and 256 MiB per upload session;
 - inline download only up to 256 changes and 1 MiB;
 - temporary server sessions expire after 24 hours.
+- one client may have at most 8 active upload sessions per user/database.
 
 Request-path reads must remain bounded by a session, indexed cursor, table, or
 chunk limit. Large transfers may be scanned and staged incrementally, but the
 final domain apply remains atomic.
+
+Expired staging is also cleaned by a periodic server task, independently of
+session-creation traffic. Cleanup drains bounded batches, and observability
+captures upload, download, and total staged bytes for each loaded database.
+Clients discard a persisted upload and start a fresh handshake only when an
+upload or commit request returns an actual HTTP 404. A 409 represents
+conflicting session state and is not treated as expiry; unexpected server
+failures return a generic 500 response while their details remain in server
+logs.
+
+Download chunk reads and acknowledgements use the same request deadline as the
+other sync requests. If a new local change appears after the upload snapshot
+was frozen, the freshness check skips the staged download and discards both
+local transfer snapshots; the next session retries from persisted cursors.
+After a successful apply, the legacy sent clock is derived from the maximum
+locally covered compound cursor, not from iteration order.
 
 ## Internal HTTP Protocol
 

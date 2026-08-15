@@ -26,6 +26,7 @@ export const updateSyncState = action({
     updates: v.object({
       id: v.optional(v.string()),
       lastSentClock: v.optional(v.string()),
+      lastSentChangeId: v.optional(v.string()),
       lastServerAppliedClock: v.optional(v.string()),
       serverConfirmedClientClock: v.optional(v.string()),
       serverConfirmedClientChangeId: v.optional(v.string()),
@@ -33,6 +34,7 @@ export const updateSyncState = action({
       localCoveredClientChangeId: v.optional(v.string()),
       lastServerAppliedRevision: v.optional(v.number()),
       serverConfirmedAppliedRevision: v.optional(v.number()),
+      syncV4ClocksMigrated: v.optional(v.boolean()),
     }),
   },
   handler: function* updateSyncState({ updates }) {

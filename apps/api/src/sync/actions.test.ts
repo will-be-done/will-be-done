@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import {
   DB,
@@ -9,6 +10,7 @@ import {
   SubscribableDB,
   syncDispatch,
   upsert,
+  v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { changesTable, formatHlc } from "@will-be-done/slices/common";
@@ -23,6 +25,7 @@ import {
 import {
   SERVER_SYNC_STATE_ID,
   serverClientSyncStateTable,
+  syncDownloadChunksTable,
   serverSyncStateTable,
   serverSyncTables,
 } from "./tables";
@@ -31,6 +34,8 @@ const clock = (logical: number, actorId = "client") =>
   formatHlc({ physical: 1_700_000_000_000, logical, actorId });
 const selector = createSelector();
 const testAction = createAction();
+const sha256 = (value: string) =>
+  createHash("sha256").update(value).digest("hex");
 const seedRestoredSyncState = testAction({
   name: "seedRestoredSyncState",
   args: {},
@@ -56,6 +61,26 @@ const getTestSpace = selector({
     return yield* selectFrom(spacesTable, "byId")
       .where((q) => q.eq("id", "space-1"))
       .first();
+  },
+});
+const seedChanges = testAction({
+  name: "seedSyncChanges",
+  args: {
+    rows: v.pass<Parameters<typeof upsert<typeof spacesTable>>[1]>(),
+    changes: v.pass<Parameters<typeof upsert<typeof changesTable>>[1]>(),
+  },
+  handler: function* ({ rows, changes }) {
+    yield* upsert(spacesTable, rows);
+    yield* upsert(changesTable, changes);
+  },
+});
+const getDownloadChunks = selector({
+  name: "getDownloadChunks",
+  args: { downloadId: v.string() },
+  handler: function* ({ downloadId }) {
+    return yield* selectFrom(syncDownloadChunksTable, "byDownloadSequence")
+      .where((q) => q.eq("downloadId", downloadId))
+      .order("asc");
   },
 });
 
@@ -195,5 +220,164 @@ describe("sync v4 actions", () => {
         args: {},
       }),
     ).toEqual(row);
+  });
+
+  test("commits a zero-change upload with a null cursor", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(db.loadTables([spacesTable, changesTable, ...serverSyncTables]));
+    syncDispatch(db, initializeServerSyncFeed({}));
+    const session = syncDispatch(
+      db,
+      startSyncUpload({
+        userId: "user-1",
+        request: {
+          syncVersion: 4,
+          dbId: "user-1",
+          dbType: "user",
+          clientId: "client-1",
+          expectedAcceptedClientCursor: null,
+          coveredClientCursor: null,
+          expectedAcknowledgedServerRevision: 0,
+          appliedServerRevision: 0,
+        },
+        now: 1,
+        expiresAt: 10_000,
+      }),
+    );
+
+    const result = syncDispatch(
+      db,
+      commitSyncUpload({
+        uploadId: session.uploadId,
+        userId: "user-1",
+        request: {
+          chunkCount: 0,
+          changeCount: 0,
+          throughCursor: null,
+          checksum: sha256(""),
+        },
+        registeredSyncableTableNameMap: { spaces: spacesTable },
+        orderedTableNames: ["spaces"],
+        dbType: "user",
+        serverClientId: "server",
+        nextClock: clock(1, "server"),
+        now: 2,
+        expiresAt: 10_000,
+      }),
+    );
+
+    expect(result).toEqual({
+      acceptedClientCursor: null,
+      serverRevision: 0,
+      download: { type: "inline", changesets: [] },
+    });
+  });
+
+  test("initializes and stages an oversized download in bounded feed pages", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(db.loadTables([spacesTable, changesTable, ...serverSyncTables]));
+    const sharedClock = clock(0);
+    const rows = Array.from({ length: 257 }, (_, index) => ({
+      id: `space-${index.toString().padStart(3, "0")}`,
+      type: "space" as const,
+      name: `Space ${index}`,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const changes = rows.map((row) => ({
+      id: `spaces:${row.id}`,
+      entityId: row.id,
+      tableName: "spaces",
+      createdAt: sharedClock,
+      updatedAt: sharedClock,
+      deletedAt: null,
+      clientId: "remote",
+      changes: Object.fromEntries(
+        Object.keys(row).map((key) => [key, sharedClock]),
+      ),
+    }));
+    syncDispatch(db, seedChanges({ rows, changes }));
+    expect(syncDispatch(db, initializeServerSyncFeed({}))).toBe(1);
+
+    const session = syncDispatch(
+      db,
+      startSyncUpload({
+        userId: "user-1",
+        request: {
+          syncVersion: 4,
+          dbId: "user-1",
+          dbType: "user",
+          clientId: "client-1",
+          expectedAcceptedClientCursor: null,
+          coveredClientCursor: null,
+          expectedAcknowledgedServerRevision: 0,
+          appliedServerRevision: 0,
+        },
+        now: 1,
+        expiresAt: 10_000,
+      }),
+    );
+    const result = syncDispatch(
+      db,
+      commitSyncUpload({
+        uploadId: session.uploadId,
+        userId: "user-1",
+        request: {
+          chunkCount: 0,
+          changeCount: 0,
+          throughCursor: null,
+          checksum: sha256(""),
+        },
+        registeredSyncableTableNameMap: { spaces: spacesTable },
+        orderedTableNames: ["spaces"],
+        dbType: "user",
+        serverClientId: "server",
+        nextClock: clock(1, "server"),
+        now: 2,
+        expiresAt: 10_000,
+      }),
+    );
+
+    expect(result.download.type).toBe("staged");
+    if (result.download.type !== "staged") throw new Error("Expected staged");
+    expect(result.download.changeCount).toBe(257);
+    expect(result.download.chunkCount).toBe(2);
+    const chunks = selectSync(db, {
+      selector: getDownloadChunks,
+      args: { downloadId: result.download.downloadId },
+    });
+    expect(chunks).toHaveLength(2);
+    expect(result.download.checksum).toBe(
+      sha256(chunks.map((chunk) => chunk.checksum).join("\n")),
+    );
+  });
+
+  test("limits active upload sessions for one user and client", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(db.loadTables([...serverSyncTables]));
+    const start = () =>
+      syncDispatch(
+        db,
+        startSyncUpload({
+          userId: "user-1",
+          request: {
+            syncVersion: 4,
+            dbId: "user-1",
+            dbType: "user",
+            clientId: "client-1",
+            expectedAcceptedClientCursor: null,
+            coveredClientCursor: null,
+            expectedAcknowledgedServerRevision: 0,
+            appliedServerRevision: 0,
+          },
+          now: 1,
+          expiresAt: 10_000,
+        }),
+      );
+
+    for (let index = 0; index < 8; index += 1) start();
+    expect(start).toThrow(
+      "Too many active sync upload sessions for this client",
+    );
   });
 });

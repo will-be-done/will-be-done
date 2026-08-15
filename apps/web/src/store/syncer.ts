@@ -18,6 +18,7 @@ import { authUtils } from "@/lib/auth";
 import { State } from "@/utils/State.ts";
 import {
   beginSyncV4Download,
+  cleanupStaleSyncV4Transfers,
   createApplySyncV4Download,
   discardSyncV4Transfer,
   freezeSyncV4Upload,
@@ -29,6 +30,10 @@ import {
   stageSyncV4DownloadChunk,
 } from "./syncActions";
 import { withSyncRequestTimeout } from "./syncRequestTimeout";
+import {
+  shouldRestartExpiredUpload,
+  SyncRequestError,
+} from "./syncRequestError";
 import type { SyncConfig } from "./syncTypes";
 import {
   isUnsupportedSyncVersionError,
@@ -38,6 +43,7 @@ import {
 
 const SYNC_POLL_INTERVAL_MS = 5000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
+const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
 
 const syncerLogsEnabled = () =>
   getDevtoolsEnabled() || process.env.NODE_ENV === "development";
@@ -201,8 +207,7 @@ export class Syncer {
       },
     });
     if (!response.ok) {
-      const message = await response.text();
-      throw new Error(`Sync request failed (${response.status}): ${message}`);
+      throw new SyncRequestError(response.status, await response.text());
     }
     return (await response.json()) as T;
   }
@@ -213,14 +218,16 @@ export class Syncer {
 
   private async syncV4() {
     const baseUrl = this.syncV4BaseUrl();
-    let pending = await asyncDispatch(this.syncDB, getPendingSyncV4Upload({}));
-    if (pending && Date.now() - pending.createdAt >= 24 * 60 * 60 * 1000) {
-      await asyncDispatch(
-        this.syncDB.withTraits({ type: "skip-sync" }),
-        discardSyncV4Transfer({ uploadId: pending.id, downloadId: "" }),
-      );
-      pending = undefined;
-    }
+    await asyncDispatch(
+      this.syncDB.withTraits({ type: "skip-sync" }),
+      cleanupStaleSyncV4Transfers({
+        createdBefore: Date.now() - SYNC_SESSION_STALE_MS,
+      }),
+    );
+    const pending = await asyncDispatch(
+      this.syncDB,
+      getPendingSyncV4Upload({}),
+    );
     const resumingUpload = pending !== undefined;
     let uploadId: string;
     let snapshot: {
@@ -304,11 +311,7 @@ export class Syncer {
           SYNC_UPLOAD_TIMEOUT_MS,
         );
       } catch (error) {
-        if (
-          resumingUpload &&
-          error instanceof Error &&
-          error.message.includes("(404)")
-        ) {
+        if (shouldRestartExpiredUpload(resumingUpload, error)) {
           await asyncDispatch(
             this.syncDB.withTraits({ type: "skip-sync" }),
             discardSyncV4Transfer({ uploadId, downloadId: "" }),
@@ -340,11 +343,7 @@ export class Syncer {
         SYNC_UPLOAD_TIMEOUT_MS,
       );
     } catch (error) {
-      if (
-        resumingUpload &&
-        error instanceof Error &&
-        error.message.includes("(404)")
-      ) {
+      if (shouldRestartExpiredUpload(resumingUpload, error)) {
         await asyncDispatch(
           this.syncDB.withTraits({ type: "skip-sync" }),
           discardSyncV4Transfer({ uploadId, downloadId: "" }),
@@ -370,10 +369,12 @@ export class Syncer {
           serverRevision: commit.serverRevision,
           acceptedClientCursor: commit.acceptedClientCursor,
           chunks: [payload],
+          now: Date.now(),
         }),
       );
     } else {
-      localDownloadId = commit.download.downloadId;
+      const stagedDownload = commit.download;
+      localDownloadId = stagedDownload.downloadId;
       const downloadChunkChecksums: string[] = [];
       await asyncDispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
@@ -381,20 +382,25 @@ export class Syncer {
           downloadId: localDownloadId,
           serverRevision: commit.serverRevision,
           acceptedClientCursor: commit.acceptedClientCursor,
-          chunkCount: commit.download.chunkCount,
+          chunkCount: stagedDownload.chunkCount,
+          now: Date.now(),
         }),
       );
       for (
         let sequence = 0;
-        sequence < commit.download.chunkCount;
+        sequence < stagedDownload.chunkCount;
         sequence += 1
       ) {
-        const chunk = await this.syncFetch<{
-          checksum: string;
-          changesets: ChangesetArrayType;
-        }>(
-          `${baseUrl}/downloads/${encodeURIComponent(commit.download.downloadId)}/chunks/${sequence}`,
-          { method: "GET" },
+        const chunk = await withSyncRequestTimeout(
+          "sync-v4-download-chunk",
+          (signal) =>
+            this.syncFetch<{
+              checksum: string;
+              changesets: ChangesetArrayType;
+            }>(
+              `${baseUrl}/downloads/${encodeURIComponent(stagedDownload.downloadId)}/chunks/${sequence}`,
+              { method: "GET", signal },
+            ),
         );
         const payload = JSON.stringify(chunk.changesets);
         if ((await this.sha256(payload)) !== chunk.checksum) {
@@ -419,7 +425,7 @@ export class Syncer {
       }
       if (
         (await this.sha256(downloadChunkChecksums.join("\n"))) !==
-        commit.download.checksum
+        stagedDownload.checksum
       ) {
         throw new Error("Sync download manifest checksum mismatch");
       }
@@ -444,9 +450,12 @@ export class Syncer {
       return;
     }
     if (commit.download.type === "staged") {
-      await this.syncFetch(
-        `${baseUrl}/downloads/${encodeURIComponent(commit.download.downloadId)}/ack`,
-        { method: "POST", body: "{}" },
+      const downloadId = commit.download.downloadId;
+      await withSyncRequestTimeout("sync-v4-download-ack", (signal) =>
+        this.syncFetch(
+          `${baseUrl}/downloads/${encodeURIComponent(downloadId)}/ack`,
+          { method: "POST", body: "{}", signal },
+        ),
       );
     }
   }

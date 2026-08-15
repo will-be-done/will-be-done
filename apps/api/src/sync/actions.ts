@@ -21,6 +21,7 @@ import {
   type ChangesetArrayType,
   SYNC_V4_INLINE_DOWNLOAD_BYTES,
   SYNC_V4_INLINE_DOWNLOAD_CHANGES,
+  SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS,
 } from "@will-be-done/slices/common";
 import { action } from "@will-be-done/slices";
 import { mergeSpaceChanges } from "@will-be-done/slices/space";
@@ -42,6 +43,9 @@ import {
   type SyncUploadSession,
   type ServerChangeFeed,
 } from "./tables";
+import { SyncConflictError, SyncSessionNotFoundError } from "./errors";
+
+const INITIAL_FEED_PAGE_SIZE = 256;
 
 export const cursorFromServerState = (
   state: ServerClientSyncState | undefined,
@@ -87,9 +91,36 @@ export const initializeServerSyncFeed = action({
       .first();
     if (existing) return existing.currentRevision;
 
-    const changes = yield* selectFrom(changesTable, "byUpdatedAtId");
-    const revision = changes.length === 0 ? 0 : 1;
-    if (changes.length > 0) {
+    let cursor: ClientCursor | null = null;
+    let revision = 0;
+    while (true) {
+      let changes: Change[];
+      if (cursor === null) {
+        changes = (yield* selectFrom(changesTable, "byUpdatedAtId")
+          .order("asc")
+          .limit(INITIAL_FEED_PAGE_SIZE)) as Change[];
+      } else {
+        const atClock = (yield* selectFrom(changesTable, "byUpdatedAtId")
+          .where((q) =>
+            q.eq("updatedAt", cursor!.clock).gte("id", cursor!.changeId),
+          )
+          .order("asc")
+          .limit(INITIAL_FEED_PAGE_SIZE + 1)) as Change[];
+        changes =
+          atClock[0]?.id === cursor.changeId
+            ? atClock.slice(1)
+            : atClock.slice(0, INITIAL_FEED_PAGE_SIZE);
+        if (changes.length < INITIAL_FEED_PAGE_SIZE) {
+          changes.push(
+            ...((yield* selectFrom(changesTable, "byUpdatedAtId")
+              .where((q) => q.gt("updatedAt", cursor!.clock))
+              .order("asc")
+              .limit(INITIAL_FEED_PAGE_SIZE - changes.length)) as Change[]),
+          );
+        }
+      }
+      if (changes.length === 0) break;
+      revision = 1;
       yield* upsert(
         serverChangeFeedTable,
         changes.map((change) => ({
@@ -100,6 +131,7 @@ export const initializeServerSyncFeed = action({
           changeId: change.id,
         })),
       );
+      cursor = clientCursorFromChange(changes.at(-1)!);
     }
     yield* upsert(serverSyncStateTable, [
       { id: SERVER_SYNC_STATE_ID, currentRevision: revision },
@@ -160,6 +192,24 @@ export const startSyncUpload = action({
       request.expectedAcknowledgedServerRevision;
     const serverHistoryLost = cursorOrder < 0 || revisionOrder < 0;
     const serverAhead = cursorOrder > 0 || revisionOrder > 0;
+
+    const activeUploads = yield* selectFrom(
+      syncUploadSessionsTable,
+      "byUserClientStatusExpiresAtId",
+    )
+      .where((q) =>
+        q
+          .eq("userId", userId)
+          .eq("clientId", request.clientId)
+          .eq("status", "uploading")
+          .gte("expiresAt", now + 1),
+      )
+      .limit(SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS);
+    if (activeUploads.length >= SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS) {
+      throw new SyncConflictError(
+        "Too many active sync upload sessions for this client",
+      );
+    }
 
     let uploadFromCursor = storedCursor;
     let downloadFromRevision = request.appliedServerRevision;
@@ -274,7 +324,7 @@ export const stageUploadChunk = action({
       .where((q) => q.eq("id", uploadId))
       .first()) as SyncUploadSession | undefined;
     if (!session || session.expiresAt <= now) {
-      throw new Error("Sync upload session is not active");
+      throw new SyncSessionNotFoundError("Sync upload session is not active");
     }
 
     const chunkId = `${uploadId}:${sequence}`;
@@ -283,15 +333,19 @@ export const stageUploadChunk = action({
       .first();
     if (existing) {
       if (existing.checksum !== chunk.checksum) {
-        throw new Error("Sync upload chunk checksum conflicts with retry");
+        throw new SyncConflictError(
+          "Sync upload chunk checksum conflicts with retry",
+        );
       }
       return { changeCount: existing.changeCount, replay: true };
     }
     if (session.status !== "uploading") {
-      throw new Error("Sync upload session is not accepting new chunks");
+      throw new SyncConflictError(
+        "Sync upload session is not accepting new chunks",
+      );
     }
     if (session.uploadedByteCount + byteCount > maxSessionBytes) {
-      throw new Error("Sync upload session exceeds its byte limit");
+      throw new SyncConflictError("Sync upload session exceeds its byte limit");
     }
 
     const items = [];
@@ -426,20 +480,28 @@ export const commitSyncUpload = action({
       .where((q) => q.eq("id", uploadId))
       .first()) as SyncUploadSession | undefined;
     if (!session || session.userId !== userId || session.expiresAt <= now) {
-      throw new Error("Sync upload session is not active");
+      throw new SyncSessionNotFoundError("Sync upload session is not active");
     }
     if (session.status === "committed" && session.resultJson) {
       return JSON.parse(session.resultJson) as SyncCommitResponse;
     }
     if (session.status !== "uploading") {
-      throw new Error("Sync upload session cannot be committed");
+      throw new SyncConflictError("Sync upload session cannot be committed");
     }
+    const expectedThroughCursor =
+      session.maxClientClock && session.maxClientChangeId
+        ? {
+            clock: session.maxClientClock,
+            changeId: session.maxClientChangeId,
+          }
+        : null;
     if (
       request.changeCount !== session.uploadedChangeCount ||
-      request.throughCursor?.clock !== session.maxClientClock ||
-      request.throughCursor?.changeId !== session.maxClientChangeId
+      compareClientCursor(request.throughCursor, expectedThroughCursor) !== 0
     ) {
-      throw new Error("Sync upload manifest does not match staged changes");
+      throw new SyncConflictError(
+        "Sync upload manifest does not match staged changes",
+      );
     }
 
     const currentClient = (yield* selectFrom(serverClientSyncStateTable, "byId")
@@ -456,7 +518,9 @@ export const commitSyncUpload = action({
       compareClientCursor(cursorFromServerState(currentClient), baseCursor) !==
       0
     ) {
-      throw new Error("Client cursor advanced in another sync session");
+      throw new SyncConflictError(
+        "Client cursor advanced in another sync session",
+      );
     }
 
     const merge = dbType === "space" ? mergeSpaceChanges : mergeChanges;
@@ -519,6 +583,7 @@ export const commitSyncUpload = action({
     let downloadId: string | null = null;
     let downloadChunkCount = 0;
     let downloadChangeCount = 0;
+    let stagedDownloadBytes = 0;
     const downloadChecksums: string[] = [];
 
     while (true) {
@@ -624,6 +689,9 @@ export const commitSyncUpload = action({
                 },
               ]);
               downloadChecksums.push(sha256(firstPayload));
+              stagedDownloadBytes += new TextEncoder().encode(
+                firstPayload,
+              ).byteLength;
               downloadChunkCount = 1;
               inlineChangesets = [];
             }
@@ -638,6 +706,7 @@ export const commitSyncUpload = action({
             },
           ]);
           downloadChecksums.push(sha256(payload));
+          stagedDownloadBytes += payloadBytes;
           downloadChunkCount += 1;
         }
       }
@@ -666,6 +735,7 @@ export const commitSyncUpload = action({
           chunkCount: downloadChunkCount,
           changeCount: downloadChangeCount,
           checksum: sha256(downloadChecksums.join("\n")),
+          stagedByteCount: stagedDownloadBytes,
           expiresAt,
         },
       ]);
@@ -695,7 +765,7 @@ export const getDownloadChunk = action({
       .where((q) => q.eq("id", downloadId))
       .first();
     if (!session || session.userId !== userId || session.expiresAt <= now) {
-      throw new Error("Sync download session is not active");
+      throw new SyncSessionNotFoundError("Sync download session is not active");
     }
     return yield* selectFrom(syncDownloadChunksTable, "byId")
       .where((q) => q.eq("id", `${downloadId}:${sequence}`))
@@ -754,6 +824,31 @@ export const cleanupExpiredSyncSessions = action({
       yield* deleteRows(syncDownloadSessionsTable, [download.id]);
     }
     return { uploads: uploads.length, downloads: downloads.length };
+  },
+});
+
+export const getSyncStagingMetrics = action({
+  name: "getSyncStagingMetricsV4",
+  args: {},
+  handler: function* () {
+    const uploads = yield* selectFrom(syncUploadSessionsTable, "byExpiresAtId");
+    const downloads = yield* selectFrom(
+      syncDownloadSessionsTable,
+      "byExpiresAtId",
+    );
+    const uploadBytes = uploads.reduce(
+      (total, session) => total + session.uploadedByteCount,
+      0,
+    );
+    const downloadBytes = downloads.reduce(
+      (total, session) => total + (session.stagedByteCount ?? 0),
+      0,
+    );
+    return {
+      uploadBytes,
+      downloadBytes,
+      totalBytes: uploadBytes + downloadBytes,
+    };
   },
 });
 

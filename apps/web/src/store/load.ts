@@ -14,7 +14,10 @@ import { resetEmptyPersistedSyncCursor } from "./syncActions";
 import { createStoreDbs } from "./storeDbs";
 import type { SyncConfig } from "./syncTypes";
 import { spaceDbType } from "./configs.ts";
-import { migrateSyncV4Clocks } from "@will-be-done/slices/common";
+import {
+  getLatestChangeCursor,
+  migrateSyncV4Clocks,
+} from "@will-be-done/slices/common";
 
 export type { SyncConfig } from "./syncTypes";
 
@@ -55,11 +58,12 @@ export const initDbStore = async (
       dbName,
       syncConfig,
     );
-    const persistedClock = await asyncDispatch(
+    await asyncDispatch(
       persistentDB.withTraits({ type: "skip-sync" }),
       migrateSyncV4Clocks({}),
     );
-    nextClock.observe([persistedClock]);
+    const latest = await asyncDispatch(persistentDB, getLatestChangeCursor({}));
+    nextClock.observe([latest?.clock]);
     await asyncDispatch(persistentDB, resetEmptyPersistedSyncCursor({}));
 
     registerSyncChangeHooks({

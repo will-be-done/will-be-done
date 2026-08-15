@@ -49,7 +49,15 @@ export const syncUploadSessionsTable = defineTable("sync_upload_sessions_v4", {
   maxClientClock: v.union(v.string(), v.null()),
   maxClientChangeId: v.union(v.string(), v.null()),
   resultJson: v.union(v.string(), v.null()),
-}).index("byExpiresAtId", ["expiresAt", "id"]);
+})
+  .index("byExpiresAtId", ["expiresAt", "id"])
+  .index("byUserClientStatusExpiresAtId", [
+    "userId",
+    "clientId",
+    "status",
+    "expiresAt",
+    "id",
+  ]);
 export type SyncUploadSession = ExtractSchema<typeof syncUploadSessionsTable>;
 
 export const syncUploadItemsTable = defineTable("sync_upload_items_v4", {
@@ -64,12 +72,6 @@ export const syncUploadItemsTable = defineTable("sync_upload_items_v4", {
   checksum: v.string(),
 })
   .index("byUploadSequenceId", ["uploadId", "sequence", "id"])
-  .index("byUploadTableRankSequenceId", [
-    "uploadId",
-    "tableRank",
-    "sequence",
-    "id",
-  ])
   .index("byUploadChangeSequence", ["uploadId", "changeId", "sequence"])
   .index("byUploadTableSequence", ["uploadId", "tableName", "sequence"]);
 
@@ -95,6 +97,7 @@ export const syncDownloadSessionsTable = defineTable(
     chunkCount: v.number(),
     changeCount: v.number(),
     checksum: v.string(),
+    stagedByteCount: v.optional(v.number()),
     expiresAt: v.number(),
   },
 ).index("byExpiresAtId", ["expiresAt", "id"]);

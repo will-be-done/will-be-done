@@ -10,7 +10,7 @@ export const getDbName = (syncConfig: Pick<SyncConfig, "dbType" | "dbId">) => {
   return syncConfig.dbType + "-" + syncConfig.dbId;
 };
 
-const writerInstanceId = nanoid();
+const writerInstanceId = nanoid(8);
 
 // A persisted client id identifies the replica on the server; the ephemeral
 // suffix identifies this tab/window so concurrent writers never emit the same

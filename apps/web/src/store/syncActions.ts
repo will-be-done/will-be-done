@@ -110,17 +110,25 @@ export const freezeSyncV4Upload = action({
     let through = after;
     let sequence = 0;
     let changeCount = 0;
-    let pending: ChangesetArrayType = [];
+    let pending: { tableName: string; dataPayloads: string[] }[] = [];
     let pendingCount = 0;
+    let pendingBytes = 2;
     let totalBytes = 0;
+    const encodedBytes = (value: string) =>
+      new TextEncoder().encode(value).byteLength;
 
     const flush = function* () {
       if (pendingCount === 0) return;
       if (sequence >= SYNC_V4_MAX_SESSION_CHUNKS) {
         throw new Error("Sync snapshot exceeds the chunk-count limit");
       }
-      const payload = JSON.stringify(pending);
-      totalBytes += new TextEncoder().encode(payload).byteLength;
+      const payload = `[${pending
+        .map(
+          ({ tableName, dataPayloads }) =>
+            `{"tableName":${JSON.stringify(tableName)},"data":[${dataPayloads.join(",")}]}`,
+        )
+        .join(",")}]`;
+      totalBytes += pendingBytes;
       if (totalBytes > SYNC_V4_MAX_SESSION_BYTES) {
         throw new Error("Sync snapshot exceeds the session byte limit");
       }
@@ -135,6 +143,7 @@ export const freezeSyncV4Upload = action({
       sequence += 1;
       pending = [];
       pendingCount = 0;
+      pendingBytes = 2;
     };
 
     while (true) {
@@ -160,32 +169,35 @@ export const freezeSyncV4Upload = action({
               ? { row: rowsById.get(change.entityId) as never }
               : {}),
           };
-          const candidate = pending.map((changeset) => ({
-            ...changeset,
-            data: [...changeset.data],
-          }));
-          const existing = candidate.find(
+          const dataPayload = JSON.stringify(data);
+          const dataBytes = encodedBytes(dataPayload);
+          let existing = pending.find(
             (changeset) => changeset.tableName === tableName,
           );
-          if (existing) existing.data.push(data);
-          else candidate.push({ tableName, data: [data] });
-          const candidateBytes = new TextEncoder().encode(
-            JSON.stringify(candidate),
-          ).byteLength;
-          if (candidateBytes > SYNC_V4_MAX_CHUNK_BYTES && pendingCount > 0) {
-            yield* flush();
-            pending = [{ tableName, data: [data] }];
-            pendingCount = 1;
-          } else {
-            pending = candidate;
-            pendingCount += 1;
-          }
+          const addedBytes = () =>
+            existing
+              ? 1 + dataBytes
+              : (pending.length === 0 ? 0 : 1) +
+                encodedBytes(
+                  `{"tableName":${JSON.stringify(tableName)},"data":[`,
+                ) +
+                dataBytes +
+                2;
           if (
-            new TextEncoder().encode(JSON.stringify(pending)).byteLength >
-            SYNC_V4_MAX_CHUNK_BYTES
+            pendingBytes + addedBytes() > SYNC_V4_MAX_CHUNK_BYTES &&
+            pendingCount > 0
           ) {
+            yield* flush();
+            existing = undefined;
+          }
+          const nextBytes = pendingBytes + addedBytes();
+          if (nextBytes > SYNC_V4_MAX_CHUNK_BYTES) {
             throw new Error("A sync change exceeds the upload byte limit");
           }
+          if (existing) existing.dataPayloads.push(dataPayload);
+          else pending.push({ tableName, dataPayloads: [dataPayload] });
+          pendingBytes = nextBytes;
+          pendingCount += 1;
           if (pendingCount >= SYNC_V4_MAX_CHUNK_CHANGES) yield* flush();
           changeCount += 1;
           through = maxClientCursor([through, clientCursorFromChange(change)]);
@@ -235,12 +247,14 @@ export const stageSyncV4Download = action({
     serverRevision: v.number(),
     acceptedClientCursor: v.pass<ClientCursor | null>(),
     chunks: v.array(v.string()),
+    now: v.number(),
   },
   handler: function* ({
     downloadId,
     serverRevision,
     acceptedClientCursor,
     chunks,
+    now,
   }) {
     yield* upsert(
       clientSyncDownloadChunksTable,
@@ -258,6 +272,7 @@ export const stageSyncV4Download = action({
         acceptedClientClock: acceptedClientCursor?.clock ?? null,
         acceptedClientChangeId: acceptedClientCursor?.changeId ?? null,
         chunkCount: chunks.length,
+        createdAt: now,
       },
     ]);
   },
@@ -270,12 +285,14 @@ export const beginSyncV4Download = action({
     serverRevision: v.number(),
     acceptedClientCursor: v.pass<ClientCursor | null>(),
     chunkCount: v.number(),
+    now: v.number(),
   },
   handler: function* ({
     downloadId,
     serverRevision,
     acceptedClientCursor,
     chunkCount,
+    now,
   }) {
     yield* upsert(clientSyncDownloadSessionsTable, [
       {
@@ -284,6 +301,7 @@ export const beginSyncV4Download = action({
         acceptedClientClock: acceptedClientCursor?.clock ?? null,
         acceptedClientChangeId: acceptedClientCursor?.changeId ?? null,
         chunkCount,
+        createdAt: now,
       },
     ]);
   },
@@ -365,7 +383,6 @@ export const createApplySyncV4Download = (nextClock: () => string) =>
       }
 
       let localCovered = acceptedClientCursor;
-      let lastLegacyClock = acceptedClientCursor?.clock ?? "";
       for (let sequence = 0; sequence < session.chunkCount; sequence += 1) {
         const chunk = yield* selectFrom(clientSyncDownloadChunksTable, "byId")
           .where((q) => q.eq("id", `${downloadId}:${sequence}`))
@@ -379,7 +396,7 @@ export const createApplySyncV4Download = (nextClock: () => string) =>
           const toDelete: string[] = [];
           const toUpsert: { id: string; [key: string]: unknown }[] = [];
           for (const { change, row } of changeset.data) {
-            if (change.deletedAt !== null) toDelete.push(change.entityId);
+            if (change.deletedAt != null) toDelete.push(change.entityId);
             else if (row) toUpsert.push(row);
             const updatedAt = nextClock();
             const localChange: Change = {
@@ -392,7 +409,6 @@ export const createApplySyncV4Download = (nextClock: () => string) =>
               localCovered,
               clientCursorFromChange(localChange),
             ]);
-            lastLegacyClock = updatedAt;
           }
           yield* deleteRows(table, toDelete);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -403,7 +419,8 @@ export const createApplySyncV4Download = (nextClock: () => string) =>
 
       yield* updateSyncState({
         updates: {
-          lastSentClock: lastLegacyClock,
+          lastSentClock: localCovered?.clock ?? "",
+          lastSentChangeId: localCovered?.changeId,
           lastServerAppliedRevision: session.serverRevision,
           serverConfirmedClientClock: acceptedClientCursor?.clock,
           serverConfirmedClientChangeId: acceptedClientCursor?.changeId,
@@ -458,6 +475,28 @@ export const discardSyncV4Transfer = action({
   },
 });
 
+export const cleanupStaleSyncV4Transfers = action({
+  name: "cleanupStaleSyncV4Transfers",
+  args: { createdBefore: v.number() },
+  handler: function* ({ createdBefore }) {
+    const uploads = yield* selectFrom(
+      clientSyncUploadSessionsTable,
+      "byCreatedAtId",
+    ).where((q) => q.lte("createdAt", createdBefore));
+    const downloads = yield* selectFrom(
+      clientSyncDownloadSessionsTable,
+      "byCreatedAtId",
+    ).where((q) => q.lte("createdAt", createdBefore));
+    for (const upload of uploads) {
+      yield* discardSyncV4Transfer({ uploadId: upload.id, downloadId: "" });
+    }
+    for (const download of downloads) {
+      yield* discardSyncV4Transfer({ uploadId: "", downloadId: download.id });
+    }
+    return { uploads: uploads.length, downloads: downloads.length };
+  },
+});
+
 export const createApplyServerChangesIfNoClientChanges = (
   nextClock: () => string,
 ) =>
@@ -467,6 +506,7 @@ export const createApplyServerChangesIfNoClientChanges = (
       registeredSyncableTableNameMap: syncableTableNameMapSchema,
       syncState: v.object({
         lastSentClock: v.string(),
+        lastSentChangeId: v.optional(v.string()),
       }),
       serverChanges: v.object({
         changesets: changesetArraySchema,
@@ -481,7 +521,13 @@ export const createApplyServerChangesIfNoClientChanges = (
       clientId,
     }) {
       const { changesets } = yield* getChangesetAfter({
-        after: syncState.lastSentClock,
+        after:
+          syncState.lastSentClock && syncState.lastSentChangeId
+            ? {
+                clock: syncState.lastSentClock,
+                changeId: syncState.lastSentChangeId,
+              }
+            : null,
         registeredSyncableTableNameMap,
       });
       if (changesets.length !== 0) {
@@ -494,7 +540,7 @@ export const createApplyServerChangesIfNoClientChanges = (
 
       const allChanges: Change[] = [];
 
-      let maxNewClientClock = "";
+      let maxNewClientCursor: ClientCursor | null = null;
 
       for (const changeset of serverChanges.changesets) {
         const toDeleteRows: string[] = [];
@@ -514,11 +560,7 @@ export const createApplyServerChangesIfNoClientChanges = (
 
           const currentClock = nextClock();
 
-          if (currentClock > maxNewClientClock) {
-            maxNewClientClock = currentClock;
-          }
-
-          allChanges.push({
+          const localChange = {
             id: change.id,
             entityId: change.entityId,
             tableName: table.tableName,
@@ -528,7 +570,12 @@ export const createApplyServerChangesIfNoClientChanges = (
             deletedAt: change.deletedAt,
             clientId,
             changes: change.changes,
-          });
+          } satisfies Change;
+          allChanges.push(localChange);
+          maxNewClientCursor = maxClientCursor([
+            maxNewClientCursor,
+            clientCursorFromChange(localChange),
+          ]);
         }
 
         yield* deleteRows(table, toDeleteRows);
@@ -541,7 +588,8 @@ export const createApplyServerChangesIfNoClientChanges = (
       yield* updateSyncState({
         updates: {
           lastServerAppliedClock: serverChanges.maxClock,
-          lastSentClock: maxNewClientClock,
+          lastSentClock: maxNewClientCursor?.clock ?? "",
+          lastSentChangeId: maxNewClientCursor?.changeId,
         },
       });
     },
@@ -557,12 +605,18 @@ export const getChangesToSendToServer = action({
   }) {
     const currentSyncState = yield* getSyncStateOrDefault({});
 
-    const { changesets, maxClock } = yield* getChangesetAfter({
-      after: currentSyncState.lastSentClock,
+    const { changesets, throughCursor } = yield* getChangesetAfter({
+      after:
+        currentSyncState.lastSentClock && currentSyncState.lastSentChangeId
+          ? {
+              clock: currentSyncState.lastSentClock,
+              changeId: currentSyncState.lastSentChangeId,
+            }
+          : null,
       registeredSyncableTableNameMap,
     });
 
-    return { changesets, maxClock };
+    return { changesets, throughCursor };
   },
 });
 
@@ -590,6 +644,7 @@ export const resetEmptyPersistedSyncCursor = action({
       updates: {
         lastServerAppliedClock: "",
         lastSentClock: "",
+        lastSentChangeId: undefined,
       },
     });
 
