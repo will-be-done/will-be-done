@@ -1,0 +1,35 @@
+[package]
+name = "tursod"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+axum = "0.8.9"
+fs4 = "0.13.1"
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+serde = "1.0.229"
+serde_derive = "1.0.229"
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+# The pre-release is intentional while tursod validates Turso compatibility.
+# Before moving to stable: back up a production database, update the
+# crate, run the full tests, open and write to a copy of every existing database,
+# then roll out with a tested restore/rollback path. Keep this pin until that
+# compatibility and migration exercise succeeds.
+turso = "0.8.0-pre.3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+thiserror = "2"
+subtle = "2.6.1"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["request-id", "trace", "util"] }
+uuid = "1.24.0"
+
+[dev-dependencies]
+http-body-util = "0.1.3"
+pretty_assertions = "1"
+tempfile = "3.23.0"
+tokio = { version = "1", features = ["test-util"] }
+tower = { version = "0.5.3", features = ["util"] }

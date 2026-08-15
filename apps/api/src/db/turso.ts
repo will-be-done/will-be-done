@@ -1,8 +1,5 @@
 import { createClient as createTursoApiClient } from "@tursodatabase/api";
-import {
-  connect,
-  type Connection,
-} from "@tursodatabase/serverless";
+import { connect, type Connection } from "@tursodatabase/serverless";
 import {
   AsyncSqlDriver,
   type AsyncSQLStatement,
@@ -136,9 +133,9 @@ export async function createTursoDatabaseToken(
   if (!response.ok) {
     const detail =
       body &&
-        typeof body === "object" &&
-        "error" in body &&
-        typeof body.error === "string"
+      typeof body === "object" &&
+      "error" in body &&
+      typeof body.error === "string"
         ? `: ${body.error}`
         : "";
     throw new Error(
@@ -158,7 +155,7 @@ export async function createTursoDatabaseToken(
   return body.jwt;
 }
 
-export async function getOrCreateTursoDatabase(
+export async function getOrCreateTursoCloudDatabase(
   dbType: TursoDatabaseTypeWithMain,
   dbId: string,
 ): Promise<{ name: string; url: string }> {
@@ -187,7 +184,7 @@ export async function getOrCreateTursoDatabase(
   try {
     const created = await client.databases.create(name, {
       group: env.WBD_TURSO_GROUP,
-      useTursoDb: true
+      useTursoDb: true,
     });
     console.log(`[Turso Provision] created database "${name}"`);
     return { name, url: databaseUrl(created.hostname) };
@@ -275,7 +272,7 @@ async function runReadinessProbe(
   await connection.exec(sql, { queryTimeout: timeoutMs });
 }
 
-export type TursoDriverDependencies = {
+export type TursoCloudDriverDependencies = {
   createToken: (databaseName: string) => Promise<string>;
   connect: ConnectionFactory;
   now: () => number;
@@ -283,7 +280,7 @@ export type TursoDriverDependencies = {
   readinessProbeTimeoutMs?: number;
 };
 
-const defaultDriverDependencies = (): TursoDriverDependencies => {
+const defaultDriverDependencies = (): TursoCloudDriverDependencies => {
   const env = getEnvConfig();
 
   return {
@@ -306,7 +303,7 @@ const defaultDriverDependencies = (): TursoDriverDependencies => {
 async function openConnection(
   url: string,
   databaseName: string,
-  dependencies: TursoDriverDependencies,
+  dependencies: TursoCloudDriverDependencies,
 ): Promise<Connection> {
   const authToken = await dependencies.createToken(databaseName);
   const connection = dependencies.connect(url, authToken);
@@ -318,7 +315,11 @@ async function openConnection(
         dependencies.readinessProbeTimeoutMs ??
         TURSO_READINESS_PROBE_TIMEOUT_MS;
       await runReadinessProbe(connection, "SELECT 1", timeoutMs);
-      await runReadinessProbe(connection, "PRAGMA foreign_keys = ON", timeoutMs);
+      await runReadinessProbe(
+        connection,
+        "PRAGMA foreign_keys = ON",
+        timeoutMs,
+      );
       return connection;
     } catch (error) {
       lastError = error;
@@ -333,7 +334,7 @@ async function openConnection(
   });
 }
 
-export class TursoSqlExecutor implements AsyncSQLiteDB {
+export class TursoCloudSqlExecutor implements AsyncSQLiteDB {
   // Only runLoop reads from or replaces the connection.
   private connection: Connection;
   private refreshAt: number;
@@ -350,7 +351,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   constructor(
     private readonly url: string,
     private readonly databaseName: string,
-    private readonly dependencies: TursoDriverDependencies,
+    private readonly dependencies: TursoCloudDriverDependencies,
     connection: Connection,
   ) {
     this.connection = connection;
@@ -471,9 +472,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
 
   private async runLoop(): Promise<void> {
     while (true) {
-      await this.state.when(
-        (state) => state.closing || state.jobs.length > 0,
-      );
+      await this.state.when((state) => state.closing || state.jobs.length > 0);
       const job = this.takeNextJob();
       if (!job) break;
       await this.executeJob(job);
@@ -527,12 +526,11 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   }
 
   async prepare(sql: string): Promise<AsyncSQLStatement> {
-    return new TursoAsyncStatement(
-      (values) =>
-        this.enqueue(sql, async (connection) => {
-          const statement = await connection.prepare(sql);
-          return (await statement.raw().all(values)) as SqlValue[][];
-        }),
+    return new TursoAsyncStatement((values) =>
+      this.enqueue(sql, async (connection) => {
+        const statement = await connection.prepare(sql);
+        return (await statement.raw().all(values)) as SqlValue[][];
+      }),
     );
   }
 
@@ -544,7 +542,7 @@ export class TursoSqlExecutor implements AsyncSQLiteDB {
   }
 }
 
-export async function createTursoSqlDriver(
+export async function createTursoCloudSqlDriver(
   databaseName: string,
   url: string,
 ): Promise<{
@@ -558,7 +556,7 @@ export async function createTursoSqlDriver(
     databaseName,
     dependencies,
   );
-  const db = new TursoSqlExecutor(
+  const db = new TursoCloudSqlExecutor(
     normalizedUrl,
     databaseName,
     dependencies,

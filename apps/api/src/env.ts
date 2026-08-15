@@ -4,11 +4,18 @@ import { z } from "zod";
 const EnvConfigSchema = z.object({
   WBD_STORAGE_PATH: z.string().default("/var/lib/will-be-done"),
   WBD_DB_PATH: z.string().optional(),
-  WBD_DB_ENGINE: z.enum(["sqlite", "turso"]).default("sqlite"),
+  WBD_DB_ENGINE: z.enum(["sqlite", "turso-cloud", "tursod"]).default("sqlite"),
   WBD_TURSO_ORG: z.string().optional(),
   WBD_TURSO_PLATFORM_TOKEN: z.string().optional(),
   WBD_TURSO_GROUP: z.string().default("default"),
   WBD_TURSO_DATABASE_PREFIX: z.string().default("wbd"),
+  WBD_TURSOD_URL: z.url().optional(),
+  WBD_TURSOD_AUTH_TOKEN: z.string().trim().min(1).optional(),
+  WBD_TURSOD_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .default(30_000),
   WBD_INSTANCE_ID: z.string().trim().min(1).optional(),
   WBD_SYNC_NOTIFICATIONS_BACKEND: z.enum(["memory", "redis"]).default("memory"),
   WBD_REDIS_URL: z.string().trim().min(1).optional(),
@@ -38,11 +45,14 @@ let envConfig:
   | {
       WBD_STORAGE_PATH: string;
       WBD_DB_PATH: string;
-      WBD_DB_ENGINE: "sqlite" | "turso";
+      WBD_DB_ENGINE: "sqlite" | "turso-cloud" | "tursod";
       WBD_TURSO_ORG?: string;
       WBD_TURSO_PLATFORM_TOKEN?: string;
       WBD_TURSO_GROUP: string;
       WBD_TURSO_DATABASE_PREFIX: string;
+      WBD_TURSOD_URL?: string;
+      WBD_TURSOD_AUTH_TOKEN?: string;
+      WBD_TURSOD_REQUEST_TIMEOUT_MS: number;
       WBD_INSTANCE_ID?: string;
       WBD_SYNC_NOTIFICATIONS_BACKEND: "memory" | "redis";
       WBD_REDIS_URL?: string;
@@ -65,6 +75,9 @@ export function getEnvConfig() {
     WBD_TURSO_PLATFORM_TOKEN: process.env.WBD_TURSO_PLATFORM_TOKEN,
     WBD_TURSO_GROUP: process.env.WBD_TURSO_GROUP,
     WBD_TURSO_DATABASE_PREFIX: process.env.WBD_TURSO_DATABASE_PREFIX,
+    WBD_TURSOD_URL: process.env.WBD_TURSOD_URL,
+    WBD_TURSOD_AUTH_TOKEN: process.env.WBD_TURSOD_AUTH_TOKEN,
+    WBD_TURSOD_REQUEST_TIMEOUT_MS: process.env.WBD_TURSOD_REQUEST_TIMEOUT_MS,
     WBD_INSTANCE_ID: process.env.WBD_INSTANCE_ID,
     WBD_SYNC_NOTIFICATIONS_BACKEND: process.env.WBD_SYNC_NOTIFICATIONS_BACKEND,
     WBD_REDIS_URL: process.env.WBD_REDIS_URL,
@@ -77,7 +90,7 @@ export function getEnvConfig() {
       process.env.WBD_TASK_GENERATION_INTERVAL_MS,
   });
 
-  if (parsed.WBD_DB_ENGINE === "turso") {
+  if (parsed.WBD_DB_ENGINE === "turso-cloud") {
     const missing = [
       ["WBD_TURSO_ORG", parsed.WBD_TURSO_ORG],
       ["WBD_TURSO_PLATFORM_TOKEN", parsed.WBD_TURSO_PLATFORM_TOKEN],
@@ -88,6 +101,21 @@ export function getEnvConfig() {
     if (missing.length > 0) {
       throw new Error(
         `Missing required Turso environment variables: ${missing.join(", ")}`,
+      );
+    }
+  }
+
+  if (parsed.WBD_DB_ENGINE === "tursod") {
+    const missing = [
+      ["WBD_TURSOD_URL", parsed.WBD_TURSOD_URL],
+      ["WBD_TURSOD_AUTH_TOKEN", parsed.WBD_TURSOD_AUTH_TOKEN],
+    ]
+      .filter(([, value]) => !value?.trim())
+      .map(([name]) => name);
+
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required tursod environment variables: ${missing.join(", ")}`,
       );
     }
   }
@@ -111,6 +139,9 @@ export function getEnvConfig() {
     WBD_TURSO_PLATFORM_TOKEN: parsed.WBD_TURSO_PLATFORM_TOKEN,
     WBD_TURSO_GROUP: parsed.WBD_TURSO_GROUP,
     WBD_TURSO_DATABASE_PREFIX: parsed.WBD_TURSO_DATABASE_PREFIX,
+    WBD_TURSOD_URL: parsed.WBD_TURSOD_URL,
+    WBD_TURSOD_AUTH_TOKEN: parsed.WBD_TURSOD_AUTH_TOKEN,
+    WBD_TURSOD_REQUEST_TIMEOUT_MS: parsed.WBD_TURSOD_REQUEST_TIMEOUT_MS,
     WBD_INSTANCE_ID: parsed.WBD_INSTANCE_ID,
     WBD_SYNC_NOTIFICATIONS_BACKEND: parsed.WBD_SYNC_NOTIFICATIONS_BACKEND,
     WBD_REDIS_URL: parsed.WBD_REDIS_URL,

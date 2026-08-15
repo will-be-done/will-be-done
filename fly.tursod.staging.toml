@@ -1,0 +1,32 @@
+app = "wbd-tursod-staging"
+primary_region = "ams"
+kill_signal = "SIGTERM"
+kill_timeout = "15s"
+
+[build]
+  dockerfile = "Dockerfile.tursod"
+
+[env]
+  TURSOD_HOST = "::"
+  TURSOD_PORT = "3000"
+  TURSOD_DB_PATH = "/data"
+
+[mounts]
+  source = "tursod_data"
+  destination = "/data"
+  snapshot_retention = 5
+  scheduled_snapshots = true
+
+[checks]
+  [checks.health]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    port = 3000
+    timeout = "5s"
+    type = "http"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

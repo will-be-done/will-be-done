@@ -3,8 +3,8 @@ import type { Connection, QueryOptions } from "@tursodatabase/serverless";
 import {
   buildTursoDatabaseName,
   createTursoDatabaseToken,
-  TursoSqlExecutor,
-  type TursoDriverDependencies,
+  TursoCloudSqlExecutor,
+  type TursoCloudDriverDependencies,
 } from "./turso";
 
 class FakeConnection {
@@ -66,11 +66,7 @@ describe("Turso database names", () => {
   });
 
   test("accepts the longest possible prefix for a space database name", () => {
-    const name = buildTursoDatabaseName(
-      "wbd-local-quo",
-      "space",
-      spaceId,
-    );
+    const name = buildTursoDatabaseName("wbd-local-quo", "space", spaceId);
 
     expect(name).toBe(`wbd-local-quo-space-${spaceId}`);
     expect(name).toHaveLength(56);
@@ -99,7 +95,7 @@ describe("Turso database names", () => {
   });
 });
 
-describe("Turso database credentials", () => {
+describe("Turso Cloud database credentials", () => {
   test("creates a database token without requesting attach permissions", async () => {
     const requests: Array<{ url: URL; init?: RequestInit }> = [];
     const token = await createTursoDatabaseToken(
@@ -135,7 +131,7 @@ describe("Turso database credentials", () => {
       url: string;
     }> = [];
     const tokenDatabaseNames: string[] = [];
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async (databaseName) => {
         tokenDatabaseNames.push(databaseName);
         return `token-${tokenDatabaseNames.length}`;
@@ -148,7 +144,7 @@ describe("Turso database credentials", () => {
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://user-db.turso.io",
       "wbd-user-123",
       dependencies,
@@ -186,7 +182,7 @@ describe("Turso database credentials", () => {
     };
     const replacement = new FakeConnection();
     let tokenCount = 0;
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       {
@@ -223,7 +219,7 @@ describe("Turso database credentials", () => {
     const replacement = new FakeConnection();
     let connectAttempts = 0;
     let tokenCount = 0;
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       {
@@ -270,13 +266,13 @@ describe("Turso database credentials", () => {
       await new Promise<void>(() => {});
     };
     const replacement = new FakeConnection();
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => "fresh-token",
       connect: () => replacement.asConnection(),
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -299,13 +295,13 @@ describe("Turso database credentials", () => {
     let now = 0;
     let tokenCount = 0;
     const initial = new FakeConnection();
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => `token-${++tokenCount}`,
       connect: () => new FakeConnection().asConnection(),
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://space-db.turso.io",
       "wbd-space-123",
       dependencies,
@@ -335,7 +331,7 @@ describe("Turso database credentials", () => {
     const replacement = new FakeConnection();
     const tokenDatabaseNames: string[] = [];
 
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async (databaseName) => {
         tokenDatabaseNames.push(databaseName);
         return "fresh-token";
@@ -344,7 +340,7 @@ describe("Turso database credentials", () => {
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -378,13 +374,13 @@ describe("Turso database credentials", () => {
     };
     const replacement = new FakeConnection();
     let tokenCount = 0;
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => `token-${++tokenCount}`,
       connect: () => replacement.asConnection(),
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -419,7 +415,7 @@ describe("Turso database credentials", () => {
       }
     };
     let tokenCount = 0;
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       {
@@ -454,13 +450,13 @@ describe("Turso database credentials", () => {
     };
     const replacement = new FakeConnection();
     let tokenCount = 0;
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => `token-${++tokenCount}`,
       connect: () => replacement.asConnection(),
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -498,13 +494,13 @@ describe("Turso database credentials", () => {
         },
       } as never;
     };
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => "token",
       connect: () => replacement.asConnection(),
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -539,13 +535,13 @@ describe("Turso database credentials", () => {
       }
     };
     const replacement = new FakeConnection();
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => "token",
       connect: () => replacement.asConnection(),
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -591,13 +587,13 @@ describe("Turso database credentials", () => {
         await slowQuery;
       }
     };
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => "unused",
       connect: () => connection.asConnection(),
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -639,14 +635,14 @@ describe("Turso database credentials", () => {
         throw new Error("query timed out");
       }
     };
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => "token",
       connect: () => replacement.asConnection(),
       now: () => now,
       refreshAfterMs: 10,
       readinessProbeTimeoutMs: 1,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -674,13 +670,13 @@ describe("Turso database credentials", () => {
       replacement.statements.push(sql);
       throw new Error("HTTP error! status: 404");
     };
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => "token",
       connect: () => replacement.asConnection(),
       now: () => now,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,
@@ -706,13 +702,13 @@ describe("Turso database credentials", () => {
     };
     const replacement = new FakeConnection();
     let tokenCount = 0;
-    const dependencies: TursoDriverDependencies = {
+    const dependencies: TursoCloudDriverDependencies = {
       createToken: async () => `token-${++tokenCount}`,
       connect: () => replacement.asConnection(),
       now: () => 0,
       refreshAfterMs: 10,
     };
-    const db = new TursoSqlExecutor(
+    const db = new TursoCloudSqlExecutor(
       "libsql://main-db.turso.io",
       "wbd-main",
       dependencies,

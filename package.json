@@ -12,6 +12,7 @@
   "scripts": {
     "dev:client": "pnpm -C apps/web dev",
     "dev:server": "pnpm -C apps/api dev",
+    "dev:tursod": "TURSOD_DB_PATH=apps/tursod/db cargo run --manifest-path apps/tursod/Cargo.toml",
     "ts": "pnpm --filter @will-be-done/web ts && pnpm --filter @will-be-done/slices ts && pnpm --filter @will-be-done/api ts",
     "lint": "pnpm --filter @will-be-done/web lint && pnpm --filter @will-be-done/slices lint && pnpm --filter @will-be-done/api lint",
     "test": "pnpm --filter @will-be-done/api test",
@@ -19,7 +20,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "all": "tsx scripts/dev-all.ts",
-    "release:desktop": "bash scripts/release"
+    "release:desktop": "bash scripts/release",
+    "deploy:staging:tursod": "fly deploy --config fly.tursod.staging.toml --app wbd-tursod-staging",
+    "deploy:staging:app": "fly deploy --config fly.app.staging.toml --app wbd-app-staging"
   },
   "devDependencies": {
     "@types/blessed": "^0.1.27",

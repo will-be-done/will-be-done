@@ -1,0 +1,75 @@
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecuteRequest {
+    pub expected_transaction_state: TransactionState,
+    pub statements: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransactionState {
+    Autocommit,
+    Active,
+}
+
+impl TransactionState {
+    pub(crate) const fn from_autocommit(autocommit: bool) -> Self {
+        if autocommit {
+            Self::Autocommit
+        } else {
+            Self::Active
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Stmt {
+    pub sql: String,
+    pub args: Vec<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
+pub enum Value {
+    #[serde(rename = "null")]
+    Null,
+
+    #[serde(rename = "integer")]
+    Integer(i64),
+
+    #[serde(rename = "real")]
+    Real(f64),
+
+    #[serde(rename = "text")]
+    Text(String),
+
+    #[serde(rename = "blob")]
+    Blob(Vec<u8>),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecuteResponse {
+    pub results: Vec<Res>,
+    pub transaction_state_after: TransactionState,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Res {
+    pub cols: Vec<Column>,
+    pub rows: Vec<Vec<Value>>,
+
+    pub affected_row_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Column {
+    pub name: String,
+    pub decl_type: String,
+}

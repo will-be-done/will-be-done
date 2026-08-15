@@ -32,18 +32,24 @@ at most once every 60 seconds by default. Set
 
 ## Database engines
 
-SQLite remains the default and needs no external service. To use Turso Cloud,
-set `WBD_DB_ENGINE=turso` and configure the `WBD_TURSO_*` variables documented
-in `.env.example`. The server keeps one main database plus separate user and
-space databases. All missing databases, including the main database, are
-provisioned in the configured Turso group on first access.
+SQLite remains the default and needs no external service. Two Turso-based
+engines are also available:
 
-Use an organization-scoped Turso Platform API token and store it in the
-deployment's secret manager. The API uses it to mint one-hour, database-scoped
-tokens, keeps those tokens only in process memory, and refreshes connections
-halfway through the tokens' one-hour lifetime. It never stores a group token or
-a user database token. The existing local SQLite S3 backup worker is not
-supported in Turso mode; use Turso backups/PITR instead.
+- Set `WBD_DB_ENGINE=turso-cloud` and configure the `WBD_TURSO_*` variables to
+  use Turso Cloud. The server keeps one main database plus separate user and
+  space databases. Missing databases are provisioned in the configured Turso
+  group on first access.
+- Set `WBD_DB_ENGINE=tursod` and provide `WBD_TURSOD_URL` to use the local Rust
+  service in `apps/tursod`. It stores `main-main`, `user-{uuid}`, and
+  `space-{uuid}` databases under its configured data directory.
+
+### Turso Cloud credentials
+
+For `turso-cloud`, use an organization-scoped Turso Platform API token and store
+it in the deployment's secret manager. The API uses it to mint one-hour,
+database-scoped tokens, keeps those tokens only in process memory, and refreshes
+connections halfway through the tokens' one-hour lifetime. It never stores a
+group token or a user database token.
 
 Create the organization-scoped Platform API token with:
 
@@ -53,6 +59,44 @@ turso auth api-tokens mint will-be-done --org your-org
 
 Only the Platform token is secret. Database names and URLs are discovered from
 Turso and do not need to be stored separately.
+
+### tursod
+
+The tursod engine does not use a Turso Platform token. Configure the same
+`WBD_TURSOD_AUTH_TOKEN` secret for tursod and the API, in addition to
+`WBD_TURSOD_URL`. The existing local SQLite S3 backup worker is not supported
+with either Turso engine. Use Turso Cloud backups/PITR for `turso-cloud` and a
+backup process designed for the tursod data directory for `tursod`.
+
+For local tursod development, run the combined environment with:
+
+```bash
+WBD_DB_ENGINE=tursod pnpm all
+```
+
+The development runner chooses a separate tursod port, waits for the Rust
+service, and injects its URL into the API. To run it separately, use
+`pnpm dev:tursod`; tursod accepts `TURSOD_HOST`, `TURSOD_PORT` (falling back to
+`PORT`), and `TURSOD_DB_PATH`. It defaults to `127.0.0.1:3000` with a `db`
+directory under its working directory. Set `TURSOD_HOST` explicitly when
+non-loopback binding is required. All database execution requests require
+`WBD_TURSOD_AUTH_TOKEN`; keep the token secret and do not expose tursod directly to
+an untrusted network.
+
+tursod writes newline-delimited structured JSON logs. Every HTTP request has an
+`x-request-id` response header and a request span containing its request ID,
+method, route, client and peer IPs, Fly region, status, latency, body sizes,
+authentication result, concurrency, and database/connection open or reuse
+context where applicable. Each SQL statement emits one terminal event after it
+completes, fails, or is cancelled. That event includes the statement text,
+operation and fingerprint, parameter count, total and phase timings, returned
+row/column counts, affected-row count, transaction/rollback state, and current
+queue pressure; parameter values are intentionally not logged. Because SQL
+literals are part of the statement text, avoid putting secrets directly in SQL
+and use parameters instead. A periodic service-state event reports open
+database/connection counts, query pressure, database and WAL sizes, and free
+filesystem space. Use `RUST_LOG` to adjust filtering, for example
+`RUST_LOG=tursod=debug`.
 
 ## Public API
 

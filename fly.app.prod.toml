@@ -1,5 +1,5 @@
-app = "wbd-staging"
-primary_region = "lhr"
+app = "wbd-app-prod"
+primary_region = "ams"
 kill_signal = "SIGTERM"
 kill_timeout = "15s"
 
@@ -9,22 +9,24 @@ kill_timeout = "15s"
 [env]
   PORT = "3000"
   WBD_BACKUP_S3_ENABLED = "false"
-  WBD_CF_CAPTCHA_ENABLED = "false"
-  WBD_DB_ENGINE = "turso"
+  WBD_DB_ENGINE = "tursod"
   WBD_RATE_LIMIT_BACKEND = "redis"
-  WBD_RATE_LIMIT_NAMESPACE = "wbd:staging:rate-limit:v1:"
+  WBD_RATE_LIMIT_NAMESPACE = "wbd:prod:rate-limit:v1:"
   WBD_SYNC_NOTIFICATIONS_BACKEND = "redis"
-  WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX = "wbd:staging:sync:v1"
-  WBD_TURSO_DATABASE_PREFIX = "wbd-staging"
-  WBD_TURSO_GROUP = "will-be-done-dev-dbs-eu"
-  WBD_TURSO_ORG = "quolpr"
+  WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX = "wbd:prod:sync:v1"
+  WBD_TURSOD_URL = "http://wbd-tursod-prod.internal:3000"
+  WBD_CF_CAPTCHA_ENABLED = "true"
 
 [http_service]
   internal_port = 3000
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  min_machines_running = 2
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
 
   [[http_service.checks]]
     grace_period = "30s"
@@ -35,4 +37,4 @@ kill_timeout = "15s"
 
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "1gb"
