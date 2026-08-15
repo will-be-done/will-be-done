@@ -131,7 +131,7 @@ export const migrateLegacyEntries = action({
 
     const changes = (yield* selectFrom(
       changesTable,
-      "byUpdatedAt",
+      "byUpdatedAtId",
     )) as Change[];
     const changeIds = new Set(changes.map((change) => change.id));
     const changesToUpsert: Change[] = [];
@@ -213,7 +213,7 @@ const migrateEntryRows = action({
 
     const changes = (yield* selectFrom(
       changesTable,
-      "byUpdatedAt",
+      "byUpdatedAtId",
     )) as Change[];
     const changesByEntityId = new Map(
       changes

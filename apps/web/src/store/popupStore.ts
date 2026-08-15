@@ -9,6 +9,8 @@ import {
   changesTable,
   syncStateTable,
   ChangesetArrayType,
+  migrateSyncV4Clocks,
+  getLatestChangeCursor,
 } from "@will-be-done/slices/common";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import {
@@ -63,6 +65,12 @@ export async function initPopupStore(spaceId: string) {
     return db;
   });
 
+  const persistedClock = await asyncDispatch(
+    asyncDB.withTraits({ type: "skip-sync" }),
+    migrateSyncV4Clocks({}),
+  );
+  nextClock.observe([persistedClock]);
+
   // Ensure inbox exists
   await asyncDispatch(asyncDB, createInboxIfNotExists({}));
 
@@ -90,6 +98,8 @@ export async function initPopupStore(spaceId: string) {
           });
 
           // Create change record
+          const latest = yield* getLatestChangeCursor({});
+          nextClock.observe([latest?.clock]);
           const change = yield* insertChangeFromInsert({
             tableDef: tasksTable,
             row: task,

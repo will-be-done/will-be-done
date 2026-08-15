@@ -21,12 +21,15 @@ import {
 import type { AppRouter } from "./appRouter";
 import { createContext } from "./trpc";
 import { v1Routes } from "./http/v1";
+import { syncV4Routes } from "./sync/routes";
+import type { DB } from "@will-be-done/hyperdb";
 
 export interface CreateServerOptions {
   appRouter: AppRouter;
   logger?: boolean;
   serveFrontend?: boolean;
   rateLimit?: RateLimitConfig;
+  mainDB?: DB;
 }
 
 export function createServer({
@@ -34,6 +37,7 @@ export function createServer({
   logger = true,
   serveFrontend = true,
   rateLimit = { backend: "memory" },
+  mainDB,
 }: CreateServerOptions) {
   const rateLimitEnabled = rateLimit.enabled ?? true;
   const server = fastify({
@@ -111,6 +115,10 @@ export function createServer({
 
   server.register(v1Routes, {
     prefix: "/api/v1",
+  });
+  server.register(syncV4Routes, {
+    prefix: "/api/sync/v4",
+    mainDB,
   });
 
   server.register(async (trpcServer) => {

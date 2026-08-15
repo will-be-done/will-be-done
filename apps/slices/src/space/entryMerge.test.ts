@@ -112,7 +112,7 @@ const rowsAndChanges = selector({
     return {
       daily: yield* selectFrom(dailyEntriesTable, "byIds"),
       stash: yield* selectFrom(stashEntriesTable, "byIds"),
-      changes: yield* selectFrom(changesTable, "byUpdatedAt"),
+      changes: yield* selectFrom(changesTable, "byUpdatedAtId"),
     };
   },
 });

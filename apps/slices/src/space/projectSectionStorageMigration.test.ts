@@ -135,7 +135,7 @@ const migratedRows = selector({
       tasks: yield* selectFrom(tasksTable, "byIds"),
       templates: yield* selectFrom(taskTemplatesTable, "byIds"),
       scheduledTasks: yield* selectFrom(scheduledTodoTasksTable, "byIds"),
-      changes: yield* selectFrom(changesTable, "byUpdatedAt"),
+      changes: yield* selectFrom(changesTable, "byUpdatedAtId"),
       migrations: yield* selectFrom(spaceMigrationsTable, "byIds"),
     };
   },

@@ -1,8 +1,11 @@
 import { asyncDispatch, type HyperDB } from "@will-be-done/hyperdb";
 import {
   CURRENT_SYNC_VERSION,
-  getSyncStateOrDefault,
-  updateSyncState,
+  observedChangeClocks,
+  type ChangesetArrayType,
+  type HlcClock,
+  type SyncCommitResponse,
+  type SyncSessionResponse,
 } from "@will-be-done/slices/common";
 import {
   BroadcastChannel,
@@ -11,10 +14,19 @@ import {
 } from "broadcast-channel";
 import { getDevtoolsEnabled } from "@/lib/devtools";
 import { trpcClient } from "@/lib/trpc.ts";
+import { authUtils } from "@/lib/auth";
 import { State } from "@/utils/State.ts";
 import {
-  createApplyServerChangesIfNoClientChanges,
-  getChangesToSendToServer,
+  beginSyncV4Download,
+  createApplySyncV4Download,
+  discardSyncV4Transfer,
+  freezeSyncV4Upload,
+  getSyncV4HandshakeState,
+  getPendingSyncV4Upload,
+  getSyncV4UploadChunk,
+  recordSyncV4Handshake,
+  stageSyncV4Download,
+  stageSyncV4DownloadChunk,
 } from "./syncActions";
 import { withSyncRequestTimeout } from "./syncRequestTimeout";
 import type { SyncConfig } from "./syncTypes";
@@ -44,9 +56,7 @@ export class Syncer {
   private clientId: string;
   private syncConfig: SyncConfig;
   private wsUnsubscribe: (() => void) | null = null;
-  private applyServerChangesIfNoClientChanges: ReturnType<
-    typeof createApplyServerChangesIfNoClientChanges
-  >;
+  private applySyncV4Download: ReturnType<typeof createApplySyncV4Download>;
 
   private wsNotification = new State<number>(0);
   private forceSyncNotification = new State<number>(0);
@@ -58,7 +68,7 @@ export class Syncer {
     private syncDB: HyperDB,
     clientId: string,
     syncConfig: SyncConfig,
-    private nextClock: () => string,
+    private nextClock: HlcClock,
   ) {
     this.clientId = clientId;
     this.syncConfig = syncConfig;
@@ -66,8 +76,7 @@ export class Syncer {
       syncChannelName("election", clientId),
     );
     this.elector = createLeaderElection(this.electionChannel);
-    this.applyServerChangesIfNoClientChanges =
-      createApplyServerChangesIfNoClientChanges(nextClock);
+    this.applySyncV4Download = createApplySyncV4Download(nextClock);
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
@@ -157,10 +166,8 @@ export class Syncer {
         return;
       }
       try {
-        syncerLog("sending changes to server");
-        await this.sendChangesToServer();
-        syncerLog("applying changes from server");
-        await this.getAndApplyChanges();
+        syncerLog("running sync v4 session");
+        await this.syncV4();
       } catch (e) {
         if (isUnsupportedSyncVersionError(e)) {
           this.stopForRequiredUpdate();
@@ -170,6 +177,277 @@ export class Syncer {
       }
 
       await this.waitForNextSyncTrigger();
+    }
+  }
+
+  private async sha256(value: string) {
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(value),
+    );
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  private async syncFetch<T>(path: string, init: RequestInit): Promise<T> {
+    const token = authUtils.getToken();
+    const response = await fetch(path, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(`Sync request failed (${response.status}): ${message}`);
+    }
+    return (await response.json()) as T;
+  }
+
+  private syncV4BaseUrl() {
+    return `/api/sync/v4/${encodeURIComponent(this.syncConfig.dbType)}/${encodeURIComponent(this.syncConfig.dbId)}`;
+  }
+
+  private async syncV4() {
+    const baseUrl = this.syncV4BaseUrl();
+    let pending = await asyncDispatch(
+      this.syncDB,
+      getPendingSyncV4Upload({}),
+    );
+    if (pending && Date.now() - pending.createdAt >= 24 * 60 * 60 * 1000) {
+      await asyncDispatch(
+        this.syncDB.withTraits({ type: "skip-sync" }),
+        discardSyncV4Transfer({ uploadId: pending.id, downloadId: "" }),
+      );
+      pending = undefined;
+    }
+    const resumingUpload = pending !== undefined;
+    let uploadId: string;
+    let snapshot: {
+      throughCursor: { clock: string; changeId: string } | null;
+      changeCount: number;
+      chunkCount: number;
+    };
+    if (pending) {
+      uploadId = pending.id;
+      snapshot = {
+        throughCursor:
+          pending.throughClock && pending.throughChangeId
+            ? { clock: pending.throughClock, changeId: pending.throughChangeId }
+            : null,
+        changeCount: pending.changeCount,
+        chunkCount: pending.chunkCount,
+      };
+    } else {
+      const state = await asyncDispatch(
+        this.syncDB.withTraits({ type: "skip-sync" }),
+        getSyncV4HandshakeState({}),
+      );
+      const session = await withSyncRequestTimeout(
+        "sync-v4-session",
+        (signal) =>
+          this.syncFetch<SyncSessionResponse>(`${baseUrl}/sessions`, {
+            method: "POST",
+            signal,
+            body: JSON.stringify({
+              syncVersion: CURRENT_SYNC_VERSION,
+              dbId: this.syncConfig.dbId,
+              dbType: this.syncConfig.dbType,
+              clientId: this.clientId,
+              expectedAcceptedClientCursor: state.expectedAcceptedClientCursor,
+              coveredClientCursor: state.coveredClientCursor,
+              expectedAcknowledgedServerRevision:
+                state.expectedAcknowledgedServerRevision,
+              appliedServerRevision: state.appliedServerRevision,
+            }),
+          }),
+      );
+      uploadId = session.uploadId;
+      await asyncDispatch(
+        this.syncDB.withTraits({ type: "skip-sync" }),
+        recordSyncV4Handshake({
+          acceptedClientCursor: session.uploadFromCursor,
+          acknowledgedServerRevision: session.downloadFromRevision,
+        }),
+      );
+      snapshot = await asyncDispatch(
+        this.syncDB.withTraits({ type: "skip-sync" }),
+        freezeSyncV4Upload({
+          uploadId,
+          after: session.uploadFromCursor,
+          registeredSyncableTableNameMap: this.syncConfig.tableNameMap,
+          now: Date.now(),
+        }),
+      );
+    }
+    const chunkChecksums: string[] = [];
+    for (let sequence = 0; sequence < snapshot.chunkCount; sequence += 1) {
+      const localChunk = await asyncDispatch(
+        this.syncDB,
+        getSyncV4UploadChunk({ uploadId, sequence }),
+      );
+      if (!localChunk) throw new Error("Local sync upload is incomplete");
+      const changesets = JSON.parse(localChunk.payload) as ChangesetArrayType;
+      const checksum = await this.sha256(localChunk.payload);
+      chunkChecksums.push(checksum);
+      try {
+        await withSyncRequestTimeout(
+          "sync-v4-upload-chunk",
+          (signal) =>
+            this.syncFetch(
+              `${baseUrl}/sessions/${encodeURIComponent(uploadId)}/chunks/${sequence}`,
+              {
+                method: "PUT",
+                signal,
+                body: JSON.stringify({ checksum, changesets }),
+              },
+            ),
+          SYNC_UPLOAD_TIMEOUT_MS,
+        );
+      } catch (error) {
+        if (
+          resumingUpload &&
+          error instanceof Error &&
+          error.message.includes("(404)")
+        ) {
+          await asyncDispatch(
+            this.syncDB.withTraits({ type: "skip-sync" }),
+            discardSyncV4Transfer({ uploadId, downloadId: "" }),
+          );
+          return;
+        }
+        throw error;
+      }
+    }
+    const manifestChecksum = await this.sha256(chunkChecksums.join("\n"));
+    let commit: SyncCommitResponse;
+    try {
+      commit = await withSyncRequestTimeout(
+        "sync-v4-commit",
+        (signal) =>
+          this.syncFetch<SyncCommitResponse>(
+            `${baseUrl}/sessions/${encodeURIComponent(uploadId)}/commit`,
+            {
+              method: "POST",
+              signal,
+              body: JSON.stringify({
+                chunkCount: snapshot.chunkCount,
+                changeCount: snapshot.changeCount,
+                throughCursor: snapshot.throughCursor,
+                checksum: manifestChecksum,
+              }),
+            },
+          ),
+        SYNC_UPLOAD_TIMEOUT_MS,
+      );
+    } catch (error) {
+      if (
+        resumingUpload &&
+        error instanceof Error &&
+        error.message.includes("(404)")
+      ) {
+        await asyncDispatch(
+          this.syncDB.withTraits({ type: "skip-sync" }),
+          discardSyncV4Transfer({ uploadId, downloadId: "" }),
+        );
+        return;
+      }
+      throw error;
+    }
+
+    let localDownloadId: string;
+    if (commit.download.type === "inline") {
+      localDownloadId = `${uploadId}:inline`;
+      const payload = JSON.stringify(commit.download.changesets);
+      this.nextClock.observe(
+        commit.download.changesets.flatMap((changeset) =>
+          changeset.data.flatMap(({ change }) => observedChangeClocks(change)),
+        ),
+      );
+      await asyncDispatch(
+        this.syncDB.withTraits({ type: "skip-sync" }),
+        stageSyncV4Download({
+          downloadId: localDownloadId,
+          serverRevision: commit.serverRevision,
+          acceptedClientCursor: commit.acceptedClientCursor,
+          chunks: [payload],
+        }),
+      );
+    } else {
+      localDownloadId = commit.download.downloadId;
+      const downloadChunkChecksums: string[] = [];
+      await asyncDispatch(
+        this.syncDB.withTraits({ type: "skip-sync" }),
+        beginSyncV4Download({
+          downloadId: localDownloadId,
+          serverRevision: commit.serverRevision,
+          acceptedClientCursor: commit.acceptedClientCursor,
+          chunkCount: commit.download.chunkCount,
+        }),
+      );
+      for (let sequence = 0; sequence < commit.download.chunkCount; sequence += 1) {
+        const chunk = await this.syncFetch<{
+          checksum: string;
+          changesets: ChangesetArrayType;
+        }>(
+          `${baseUrl}/downloads/${encodeURIComponent(commit.download.downloadId)}/chunks/${sequence}`,
+          { method: "GET" },
+        );
+        const payload = JSON.stringify(chunk.changesets);
+        if ((await this.sha256(payload)) !== chunk.checksum) {
+          throw new Error("Sync download chunk checksum mismatch");
+        }
+        downloadChunkChecksums.push(chunk.checksum);
+        this.nextClock.observe(
+          chunk.changesets.flatMap((changeset) =>
+            changeset.data.flatMap(({ change }) =>
+              observedChangeClocks(change),
+            ),
+          ),
+        );
+        await asyncDispatch(
+          this.syncDB.withTraits({ type: "skip-sync" }),
+          stageSyncV4DownloadChunk({
+            downloadId: localDownloadId,
+            sequence,
+            payload,
+          }),
+        );
+      }
+      if (
+        (await this.sha256(downloadChunkChecksums.join("\n"))) !==
+        commit.download.checksum
+      ) {
+        throw new Error("Sync download manifest checksum mismatch");
+      }
+    }
+    const applied = await asyncDispatch(
+      this.syncDB.withTraits({ type: "skip-sync" }),
+      this.applySyncV4Download({
+        downloadId: localDownloadId,
+        uploadId,
+        registeredSyncableTableNameMap: this.syncConfig.tableNameMap,
+        clientId: this.clientId,
+      }),
+    );
+    if (!applied) {
+      await asyncDispatch(
+        this.syncDB.withTraits({ type: "skip-sync" }),
+        discardSyncV4Transfer({
+          uploadId,
+          downloadId: localDownloadId,
+        }),
+      );
+      return;
+    }
+    if (commit.download.type === "staged") {
+      await this.syncFetch(
+        `${baseUrl}/downloads/${encodeURIComponent(commit.download.downloadId)}/ack`,
+        { method: "POST", body: "{}" },
+      );
     }
   }
 
@@ -213,80 +491,4 @@ export class Syncer {
     });
   }
 
-  private async getAndApplyChanges() {
-    const syncState = await asyncDispatch(
-      this.syncDB.withTraits({ type: "skip-sync" }),
-      getSyncStateOrDefault({}),
-    );
-    const serverChanges = await withSyncRequestTimeout(
-      "getChangesAfter",
-      (signal) =>
-        trpcClient.getChangesAfter.query(
-          {
-            lastServerUpdatedAt: syncState.lastServerAppliedClock,
-            dbId: this.syncConfig.dbId,
-            dbType: this.syncConfig.dbType,
-            clientId: this.clientId,
-            syncVersion: CURRENT_SYNC_VERSION,
-          },
-          { signal },
-        ),
-    );
-
-    if (serverChanges.changesets.length === 0) {
-      syncerLog("no changes from server");
-      if (serverChanges.maxClock !== "") {
-        await asyncDispatch(
-          this.syncDB.withTraits({ type: "skip-sync" }),
-          updateSyncState({
-            updates: { lastServerAppliedClock: serverChanges.maxClock },
-          }),
-        );
-      }
-
-      return;
-    }
-
-    await asyncDispatch(
-      this.syncDB.withTraits({ type: "skip-sync" }),
-      this.applyServerChangesIfNoClientChanges({
-        registeredSyncableTableNameMap: this.syncConfig.tableNameMap,
-        syncState,
-        serverChanges,
-        clientId: this.clientId,
-      }),
-    );
-  }
-
-  private async sendChangesToServer() {
-    const { changesets, maxClock } = await asyncDispatch(
-      this.syncDB,
-      getChangesToSendToServer({
-        registeredSyncableTableNameMap: this.syncConfig.tableNameMap,
-      }),
-    );
-
-    if (changesets.length === 0) {
-      return;
-    }
-
-    await withSyncRequestTimeout(
-      "handleChanges",
-      (signal) =>
-        trpcClient.handleChanges.mutate(
-          {
-            dbId: this.syncConfig.dbId,
-            dbType: this.syncConfig.dbType,
-            changeset: changesets,
-            syncVersion: CURRENT_SYNC_VERSION,
-          },
-          { signal },
-        ),
-      SYNC_UPLOAD_TIMEOUT_MS,
-    );
-    await asyncDispatch(
-      this.syncDB.withTraits({ type: "skip-sync" }),
-      updateSyncState({ updates: { lastSentClock: maxClock } }),
-    );
-  }
 }

@@ -1,5 +1,9 @@
 import { asyncDispatch, type SubscribableDB } from "@will-be-done/hyperdb";
-import { mergeChanges } from "@will-be-done/slices/common";
+import {
+  mergeChanges,
+  observedChangeClocks,
+  type HlcClock,
+} from "@will-be-done/slices/common";
 import { mergeSpaceChanges } from "@will-be-done/slices/space";
 import { BroadcastChannel } from "broadcast-channel";
 import type { ChangePersistedEvent, SyncConfig } from "./syncTypes";
@@ -9,7 +13,7 @@ type CreateCrossTabChangesArgs = {
   clientId: string;
   syncSubDb: SubscribableDB;
   syncConfig: SyncConfig;
-  nextClock: () => string;
+  nextClock: HlcClock;
 };
 
 export const createCrossTabChanges = ({
@@ -21,6 +25,11 @@ export const createCrossTabChanges = ({
   const bc = new BroadcastChannel(syncChannelName("changes", clientId));
 
   const applyChanges = async (data: ChangePersistedEvent) => {
+    nextClock.observe(
+      data.changeset.flatMap((changeset) =>
+        changeset.data.flatMap(({ change }) => observedChangeClocks(change)),
+      ),
+    );
     const mergeArgs = {
       input: data.changeset,
       nextClock: nextClock(),

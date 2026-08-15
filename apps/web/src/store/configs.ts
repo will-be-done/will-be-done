@@ -29,6 +29,7 @@ import type { SyncConfig } from "./syncTypes";
 import { generateDemoBackup } from "@/lib/demoData";
 import { execAsync } from "@will-be-done/hyperdb";
 import { SubscribableDB } from "@will-be-done/hyperdb";
+import { clientSyncV4Tables } from "./syncV4Tables";
 
 const demoDbId = "e89b6c8f-1d6c-4bf4-9d27-478339773fc9";
 export const spaceDbType = "space";
@@ -44,6 +45,7 @@ export const spaceDBConfig = (dbId: string) => {
       spaceMigrationsTable,
       changesTable,
       syncStateTable,
+      ...clientSyncV4Tables,
     ],
     syncableDBTables: registeredSpaceSyncableTables,
     tableNameMap: registeredSpaceSyncableTableNameMap,
@@ -55,7 +57,7 @@ export const spaceDBConfig = (dbId: string) => {
 
       await execAsync(
         db.preloadTables([
-          { table: changesTable, scanIndex: "byUpdatedAt" },
+          { table: changesTable, scanIndex: "byUpdatedAtId" },
           { table: tasksTable, scanIndex: "byIds" },
           { table: dailyListsTable, scanIndex: "byIds" },
           { table: dailyEntriesTable, scanIndex: "byIds" },
@@ -146,6 +148,7 @@ export const userDBConfig = (dbId: string) => {
       ...registeredUserSyncableTables,
       changesTable,
       syncStateTable,
+      ...clientSyncV4Tables,
     ],
     syncableDBTables: registeredUserSyncableTables,
     tableNameMap: registeredUserSyncableTableNameMap,

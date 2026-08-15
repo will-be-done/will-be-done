@@ -27,6 +27,12 @@ export const updateSyncState = action({
       id: v.optional(v.string()),
       lastSentClock: v.optional(v.string()),
       lastServerAppliedClock: v.optional(v.string()),
+      serverConfirmedClientClock: v.optional(v.string()),
+      serverConfirmedClientChangeId: v.optional(v.string()),
+      localCoveredClientClock: v.optional(v.string()),
+      localCoveredClientChangeId: v.optional(v.string()),
+      lastServerAppliedRevision: v.optional(v.number()),
+      serverConfirmedAppliedRevision: v.optional(v.number()),
     }),
   },
   handler: function* updateSyncState({ updates }) {

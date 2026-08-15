@@ -1,11 +1,5 @@
 import { z } from "zod";
-import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
-import {
-  ChangesetArray,
-  getChangesetAfter,
-  mergeChanges,
-} from "@will-be-done/slices/common";
-import { mergeSpaceChanges } from "@will-be-done/slices/space";
+import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
 import {
   enforceRateLimit,
@@ -13,8 +7,6 @@ import {
   publicProcedure,
   router,
 } from "./trpc";
-import { getHyperDB } from "./db/db";
-import { dbConfigByType } from "./db/configs";
 import {
   generateToken,
   getTokensByUserId,
@@ -63,78 +55,6 @@ export function createAppRouter({
   };
 
   return router({
-    getChangesAfter: protectedProcedure
-      .input(
-        z.object({
-          lastServerUpdatedAt: z.string(),
-          dbId: z.string(),
-          dbType: z.union([z.literal("user"), z.literal("space")]),
-          clientId: z.string(),
-          syncVersion: z.number().int().optional(),
-        }),
-      )
-      .query(async (opts) => {
-        assertSupportedSyncVersion(opts.input.syncVersion);
-        if (!opts.ctx.user) {
-          throw new TRPCError({ code: "UNAUTHORIZED" });
-        }
-
-        await checkDatabaseAccess(
-          opts.input.dbId,
-          opts.input.dbType,
-          opts.ctx.user.id,
-        );
-
-        const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
-        const { db } = await getHyperDB(config);
-
-        return selectAsync(db, {
-          selector: getChangesetAfter,
-          args: {
-            after: opts.input.lastServerUpdatedAt,
-            registeredSyncableTableNameMap: config.tableNameMap,
-          },
-        });
-      }),
-
-    handleChanges: protectedProcedure
-      .input(
-        z.object({
-          dbId: z.string(),
-          dbType: z.union([z.literal("user"), z.literal("space")]),
-          changeset: ChangesetArray,
-          syncVersion: z.number().int().optional(),
-        }),
-      )
-      .mutation(async (opts) => {
-        assertSupportedSyncVersion(opts.input.syncVersion);
-        if (!opts.ctx.user) {
-          throw new TRPCError({ code: "UNAUTHORIZED" });
-        }
-
-        await checkDatabaseAccess(
-          opts.input.dbId,
-          opts.input.dbType,
-          opts.ctx.user.id,
-        );
-
-        const config = dbConfigByType(opts.input.dbType, opts.input.dbId);
-        const { db, nextClock, clientId } = await getHyperDB(config);
-
-        const mergeArgs = {
-          input: opts.input.changeset,
-          nextClock: nextClock(),
-          clientId,
-          registeredSyncableTableNameMap: config.tableNameMap,
-        };
-        const merge =
-          opts.input.dbType === "space" ? mergeSpaceChanges : mergeChanges;
-        await asyncDispatch<unknown>(
-          db.withTraits({ type: "skip-sync" }),
-          merge(mergeArgs),
-        );
-      }),
-
     onChangesAvailable: protectedProcedure
       .input(
         z.object({
