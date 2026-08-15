@@ -29,6 +29,15 @@
 If you are interacting with HyperDB(@will-be-done/hyperdb), read small guide what is it, and how
 to work with it at @.guides/hyperdb.md
 
+# Sync Protocol
+
+Before changing sync clocks, cursors, merge behavior, change hooks, transport, staging,
+backup recovery, tombstones, or sync persistence, read and follow @docs/sync.md.
+
+The consistency, recovery, echo-suppression, and idempotency rules in that document are
+mandatory invariants. A sync change must update the document and its regression tests when it
+changes protocol state or behavior; it must not introduce a path that bypasses those invariants.
+
 # Query Performance
 
 For API handlers, request hooks, and user-triggered actions:
