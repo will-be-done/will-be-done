@@ -30,32 +30,27 @@ export const serverChangeFeedTable = defineTable("server_change_feed_v4", {
 }).index("byRevisionId", ["revision", "id"]);
 export type ServerChangeFeed = ExtractSchema<typeof serverChangeFeedTable>;
 
-export const syncUploadSessionsTable = defineTable(
-  "sync_upload_sessions_v4",
-  {
-    id: v.string(),
-    userId: v.string(),
-    clientId: v.string(),
-    baseClientClock: v.union(v.string(), v.null()),
-    baseClientChangeId: v.union(v.string(), v.null()),
-    downloadFromRevision: v.number(),
-    status: v.union(
-      v.literal("uploading"),
-      v.literal("committed"),
-      v.literal("failed"),
-    ),
-    expiresAt: v.number(),
-    uploadedChangeCount: v.number(),
-    uploadedByteCount: v.number(),
-    maxObservedClock: v.union(v.string(), v.null()),
-    maxClientClock: v.union(v.string(), v.null()),
-    maxClientChangeId: v.union(v.string(), v.null()),
-    resultJson: v.union(v.string(), v.null()),
-  },
-).index("byExpiresAtId", ["expiresAt", "id"]);
-export type SyncUploadSession = ExtractSchema<
-  typeof syncUploadSessionsTable
->;
+export const syncUploadSessionsTable = defineTable("sync_upload_sessions_v4", {
+  id: v.string(),
+  userId: v.string(),
+  clientId: v.string(),
+  baseClientClock: v.union(v.string(), v.null()),
+  baseClientChangeId: v.union(v.string(), v.null()),
+  downloadFromRevision: v.number(),
+  status: v.union(
+    v.literal("uploading"),
+    v.literal("committed"),
+    v.literal("failed"),
+  ),
+  expiresAt: v.number(),
+  uploadedChangeCount: v.number(),
+  uploadedByteCount: v.number(),
+  maxObservedClock: v.union(v.string(), v.null()),
+  maxClientClock: v.union(v.string(), v.null()),
+  maxClientChangeId: v.union(v.string(), v.null()),
+  resultJson: v.union(v.string(), v.null()),
+}).index("byExpiresAtId", ["expiresAt", "id"]);
+export type SyncUploadSession = ExtractSchema<typeof syncUploadSessionsTable>;
 
 export const syncUploadItemsTable = defineTable("sync_upload_items_v4", {
   id: v.string(),
@@ -88,9 +83,7 @@ export const syncUploadChunksTable = defineTable("sync_upload_chunks_v4", {
   changeCount: v.number(),
   byteCount: v.number(),
 }).index("byUploadSequence", ["uploadId", "sequence"]);
-export type SyncUploadChunkRow = ExtractSchema<
-  typeof syncUploadChunksTable
->;
+export type SyncUploadChunkRow = ExtractSchema<typeof syncUploadChunksTable>;
 
 export const syncDownloadSessionsTable = defineTable(
   "sync_download_sessions_v4",
@@ -106,16 +99,13 @@ export const syncDownloadSessionsTable = defineTable(
   },
 ).index("byExpiresAtId", ["expiresAt", "id"]);
 
-export const syncDownloadChunksTable = defineTable(
-  "sync_download_chunks_v4",
-  {
-    id: v.string(),
-    downloadId: v.string(),
-    sequence: v.number(),
-    payload: v.string(),
-    checksum: v.string(),
-  },
-).index("byDownloadSequence", ["downloadId", "sequence"]);
+export const syncDownloadChunksTable = defineTable("sync_download_chunks_v4", {
+  id: v.string(),
+  downloadId: v.string(),
+  sequence: v.number(),
+  payload: v.string(),
+  checksum: v.string(),
+}).index("byDownloadSequence", ["downloadId", "sequence"]);
 
 export const serverSyncTables = [
   serverSyncStateTable,

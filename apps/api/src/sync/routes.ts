@@ -6,6 +6,7 @@ import {
   SYNC_V4_MAX_SESSION_BYTES,
   SYNC_V4_MAX_SESSION_CHUNKS,
   SYNC_V4_SESSION_TTL_MS,
+  ChangesetArray,
   SyncCommitRequestSchema,
   SyncSessionRequestSchema,
   SyncUploadChunkSchema,
@@ -30,7 +31,10 @@ import {
 type DatabaseParams = { dbType: "user" | "space"; dbId: string };
 type UploadParams = DatabaseParams & { uploadId: string };
 type ChunkParams = UploadParams & { sequence: string };
-type DownloadParams = DatabaseParams & { downloadId: string; sequence?: string };
+type DownloadParams = DatabaseParams & {
+  downloadId: string;
+  sequence?: string;
+};
 
 const sha256 = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -74,7 +78,8 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     if (error instanceof ZodError) {
       return reply.code(400).send({ error: "Invalid sync request" });
     }
-    const knownError = error instanceof Error ? error : new Error(String(error));
+    const knownError =
+      error instanceof Error ? error : new Error(String(error));
     if (knownError.name === "DatabaseAccessDeniedError") {
       return reply.code(403).send({ error: "Forbidden" });
     }
@@ -91,7 +96,10 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
       const prepared = await prepare(request, request.params, options.mainDB);
       if (!prepared) return reply.code(401).send({ error: "Unauthorized" });
       const body = SyncSessionRequestSchema.parse(request.body);
-      if (body.dbId !== request.params.dbId || body.dbType !== request.params.dbType) {
+      if (
+        body.dbId !== request.params.dbId ||
+        body.dbType !== request.params.dbType
+      ) {
         return reply.code(400).send({ error: "Database path and body differ" });
       }
       const now = Date.now();
@@ -132,18 +140,28 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
         return reply.code(400).send({ error: "Invalid chunk sequence" });
       }
       const chunk = SyncUploadChunkSchema.parse(request.body);
-      const changeCount = chunk.changesets.reduce(
+      const payload = chunk.payload;
+      if (
+        Buffer.byteLength(payload) > SYNC_V4_MAX_CHUNK_BYTES ||
+        sha256(payload) !== chunk.checksum
+      ) {
+        return reply.code(400).send({ error: "Invalid sync chunk" });
+      }
+      let changesets;
+      try {
+        changesets = ChangesetArray.parse(JSON.parse(payload));
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          return reply.code(400).send({ error: "Invalid sync chunk" });
+        }
+        throw error;
+      }
+      const changeCount = changesets.reduce(
         (sum, changeset) => sum + changeset.data.length,
         0,
       );
-      const payload = JSON.stringify(chunk.changesets);
       const byteCount = Buffer.byteLength(payload);
-      if (
-        changeCount === 0 ||
-        changeCount > SYNC_V4_MAX_CHUNK_CHANGES ||
-        byteCount > SYNC_V4_MAX_CHUNK_BYTES ||
-        sha256(payload) !== chunk.checksum
-      ) {
+      if (changeCount === 0 || changeCount > SYNC_V4_MAX_CHUNK_CHANGES) {
         return reply.code(400).send({ error: "Invalid sync chunk" });
       }
       const session = await asyncDispatch(
@@ -154,7 +172,10 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
         return reply.code(404).send({ error: "Upload session not found" });
       }
       const tableRanks = Object.fromEntries(
-        Object.keys(prepared.config.tableNameMap).map((name) => [name, tableRank(name)]),
+        Object.keys(prepared.config.tableNameMap).map((name) => [
+          name,
+          tableRank(name),
+        ]),
       );
       return await asyncDispatch(
         prepared.db.withTraits({ type: "skip-sync" }),
@@ -162,7 +183,7 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
           uploadId: request.params.uploadId,
           sequence,
           byteCount,
-          chunk,
+          chunk: { checksum: chunk.checksum, changesets },
           tableNameMap: prepared.config.tableNameMap,
           tableRanks,
           maxSessionBytes: SYNC_V4_MAX_SESSION_BYTES,
@@ -188,12 +209,16 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
       if (!manifest.session || manifest.session.userId !== prepared.user.id) {
         return reply.code(404).send({ error: "Upload session not found" });
       }
-      const chunks = [...manifest.chunks].sort((a, b) => a.sequence - b.sequence);
+      const chunks = [...manifest.chunks].sort(
+        (a, b) => a.sequence - b.sequence,
+      );
       const validManifest =
         chunks.length === body.chunkCount &&
         chunks.every((chunk, index) => chunk.sequence === index) &&
-        chunks.reduce((sum, chunk) => sum + chunk.changeCount, 0) === body.changeCount &&
-        sha256(chunks.map((chunk) => chunk.checksum).join("\n")) === body.checksum;
+        chunks.reduce((sum, chunk) => sum + chunk.changeCount, 0) ===
+          body.changeCount &&
+        sha256(chunks.map((chunk) => chunk.checksum).join("\n")) ===
+          body.checksum;
       if (!validManifest) {
         return reply.code(409).send({ error: "Incomplete sync upload" });
       }

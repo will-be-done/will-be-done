@@ -1,4 +1,10 @@
-import { deleteRows, insert, selectFrom, upsert, v } from "@will-be-done/hyperdb";
+import {
+  deleteRows,
+  insert,
+  selectFrom,
+  upsert,
+  v,
+} from "@will-be-done/hyperdb";
 import {
   changesTable,
   clientCursorFromChange,

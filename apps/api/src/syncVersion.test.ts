@@ -14,18 +14,21 @@ describe("sync version enforcement", () => {
     expect(() => assertSupportedSyncVersion(4)).not.toThrow();
   });
 
-  it.each([undefined, 0, 1, 2, 3])("rejects unsupported version %s", (version) => {
-    try {
-      assertSupportedSyncVersion(version);
-      throw new Error("Expected sync version rejection");
-    } catch (error) {
-      expect(error).toBeInstanceOf(TRPCError);
-      expect(error).toMatchObject({ code: "PRECONDITION_FAILED" });
-      expect((error as TRPCError).cause).toBeInstanceOf(
-        UnsupportedSyncVersionError,
-      );
-    }
-  });
+  it.each([undefined, 0, 1, 2, 3])(
+    "rejects unsupported version %s",
+    (version) => {
+      try {
+        assertSupportedSyncVersion(version);
+        throw new Error("Expected sync version rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect(error).toMatchObject({ code: "PRECONDITION_FAILED" });
+        expect((error as TRPCError).cause).toBeInstanceOf(
+          UnsupportedSyncVersionError,
+        );
+      }
+    },
+  );
 
   it("serializes compatibility data from an unsupported router request", async () => {
     const syncRouter = router({

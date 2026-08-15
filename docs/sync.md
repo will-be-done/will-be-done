@@ -182,7 +182,9 @@ Transport chunks are never consistency boundaries.
 1. The client starts a session and receives the authoritative upload cursor.
 2. In one local database transaction, it freezes every materialized change
    after `[clock, changeId]` into temporary chunk rows.
-3. It uploads those chunks independently and may retry them.
+3. It uploads those chunks as their exact frozen JSON payload strings and may
+   retry them. The checksum covers those payload bytes before schema parsing,
+   so object-key reconstruction cannot change the checksum identity.
 4. The server keeps them only in staging tables. Staged rows are invisible to
    the live domain tables.
 5. Commit validates a complete, contiguous manifest.
@@ -240,7 +242,9 @@ check, not a correctness rule.
 Every retry boundary is effect-idempotent:
 
 - Upload chunks use `(uploadId, sequence)` as identity. Repeating the same
-  checksum succeeds; sending different content for that identity fails.
+  checksum succeeds; sending different content for that identity fails. The
+  checksum is verified against the exact frozen payload before the server
+  parses and validates its changesets.
 - Commit checks the contiguous chunk count, total change count, through cursor,
   and SHA-256 manifest checksum.
 - The server persists the successful commit response. A commit retry returns

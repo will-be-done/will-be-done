@@ -52,7 +52,7 @@ export type SyncSessionRequest = z.infer<typeof SyncSessionRequestSchema>;
 
 export const SyncUploadChunkSchema = z.object({
   checksum: z.string(),
-  changesets: z.array(Changeset),
+  payload: z.string(),
 });
 export type SyncUploadChunk = z.infer<typeof SyncUploadChunkSchema>;
 

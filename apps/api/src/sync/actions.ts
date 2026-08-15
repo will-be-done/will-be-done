@@ -12,7 +12,6 @@ import {
   maxClientCursor,
   type ClientCursor,
   type SyncSessionRequest,
-  type SyncUploadChunk,
   type Change,
   maxHlc,
   observedChangeClocks,
@@ -148,10 +147,7 @@ export const startSyncUpload = action({
       .where((q) => q.eq("id", SERVER_SYNC_STATE_ID))
       .first();
     const currentRevision = server?.currentRevision ?? 0;
-    const currentClient = (yield* selectFrom(
-      serverClientSyncStateTable,
-      "byId",
-    )
+    const currentClient = (yield* selectFrom(serverClientSyncStateTable, "byId")
       .where((q) => q.eq("id", request.clientId))
       .first()) as ServerClientSyncState | undefined;
     const storedCursor = cursorFromServerState(currentClient);
@@ -242,10 +238,7 @@ export const getUploadManifest = action({
     const session = (yield* selectFrom(syncUploadSessionsTable, "byId")
       .where((q) => q.eq("id", uploadId))
       .first()) as SyncUploadSession | undefined;
-    const chunks = yield* selectFrom(
-      syncUploadChunksTable,
-      "byUploadSequence",
-    )
+    const chunks = yield* selectFrom(syncUploadChunksTable, "byUploadSequence")
       .where((q) => q.eq("uploadId", uploadId))
       .order("asc");
     return { session, chunks };
@@ -258,7 +251,10 @@ export const stageUploadChunk = action({
     uploadId: v.string(),
     sequence: v.number(),
     byteCount: v.number(),
-    chunk: v.pass<SyncUploadChunk>(),
+    chunk: v.pass<{
+      checksum: string;
+      changesets: ChangesetArrayType;
+    }>(),
     tableNameMap: v.pass<Record<string, TableDefinition>>(),
     tableRanks: v.pass<Record<string, number>>(),
     maxSessionBytes: v.number(),
@@ -446,10 +442,7 @@ export const commitSyncUpload = action({
       throw new Error("Sync upload manifest does not match staged changes");
     }
 
-    const currentClient = (yield* selectFrom(
-      serverClientSyncStateTable,
-      "byId",
-    )
+    const currentClient = (yield* selectFrom(serverClientSyncStateTable, "byId")
       .where((q) => q.eq("id", session.clientId))
       .first()) as ServerClientSyncState | undefined;
     const baseCursor =
@@ -460,7 +453,8 @@ export const commitSyncUpload = action({
           }
         : null;
     if (
-      compareClientCursor(cursorFromServerState(currentClient), baseCursor) !== 0
+      compareClientCursor(cursorFromServerState(currentClient), baseCursor) !==
+      0
     ) {
       throw new Error("Client cursor advanced in another sync session");
     }
@@ -488,7 +482,9 @@ export const commitSyncUpload = action({
         if (items.length === 0) break;
         const data = items.map(
           (item) =>
-            JSON.parse(item.payload) as ChangesetArrayType[number]["data"][number],
+            JSON.parse(
+              item.payload,
+            ) as ChangesetArrayType[number]["data"][number],
         );
         yield* merge({
           input: [{ tableName, data }],
@@ -504,8 +500,8 @@ export const commitSyncUpload = action({
       .where((q) => q.eq("id", SERVER_SYNC_STATE_ID))
       .first();
     const serverRevision = serverState?.currentRevision ?? 0;
-    const acceptedClientCursor = request.throughCursor ??
-      cursorFromServerState(currentClient);
+    const acceptedClientCursor =
+      request.throughCursor ?? cursorFromServerState(currentClient);
     yield* upsert(serverClientSyncStateTable, [
       {
         id: session.clientId,
@@ -537,9 +533,7 @@ export const commitSyncUpload = action({
           serverChangeFeedTable,
           "byRevisionId",
         )
-          .where((q) =>
-            q.eq("revision", cursorRevision).gte("id", cursorId!),
-          )
+          .where((q) => q.eq("revision", cursorRevision).gte("id", cursorId!))
           .order("asc")
           .limit(257);
         feedPage =
@@ -734,10 +728,7 @@ export const cleanupExpiredSyncSessions = action({
   name: "cleanupExpiredSyncSessionsV4",
   args: { now: v.number() },
   handler: function* ({ now }) {
-    const uploads = yield* selectFrom(
-      syncUploadSessionsTable,
-      "byExpiresAtId",
-    )
+    const uploads = yield* selectFrom(syncUploadSessionsTable, "byExpiresAtId")
       .where((q) => q.lte("expiresAt", now))
       .order("asc")
       .limit(50);

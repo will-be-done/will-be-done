@@ -38,9 +38,11 @@ describe("hybrid logical clock", () => {
 
   it("remains monotonic when wall time moves backwards", () => {
     const local = formatHlc({ physical: 200, logical: 5, actorId: "local" });
-    expect(
-      parseHlc(nextHlc({ actorId: "local", now: 100, local })),
-    ).toEqual({ physical: 200, logical: 6, actorId: "local" });
+    expect(parseHlc(nextHlc({ actorId: "local", now: 100, local }))).toEqual({
+      physical: 200,
+      logical: 6,
+      actorId: "local",
+    });
   });
 
   it("moves physical time forward when the logical field overflows", () => {
@@ -49,8 +51,10 @@ describe("hybrid logical clock", () => {
       logical: 99_999_999,
       actorId: "local",
     });
-    expect(
-      parseHlc(nextHlc({ actorId: "local", now: 100, local })),
-    ).toEqual({ physical: 201, logical: 0, actorId: "local" });
+    expect(parseHlc(nextHlc({ actorId: "local", now: 100, local }))).toEqual({
+      physical: 201,
+      logical: 0,
+      actorId: "local",
+    });
   });
 });

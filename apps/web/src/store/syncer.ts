@@ -213,10 +213,7 @@ export class Syncer {
 
   private async syncV4() {
     const baseUrl = this.syncV4BaseUrl();
-    let pending = await asyncDispatch(
-      this.syncDB,
-      getPendingSyncV4Upload({}),
-    );
+    let pending = await asyncDispatch(this.syncDB, getPendingSyncV4Upload({}));
     if (pending && Date.now() - pending.createdAt >= 24 * 60 * 60 * 1000) {
       await asyncDispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
@@ -290,7 +287,6 @@ export class Syncer {
         getSyncV4UploadChunk({ uploadId, sequence }),
       );
       if (!localChunk) throw new Error("Local sync upload is incomplete");
-      const changesets = JSON.parse(localChunk.payload) as ChangesetArrayType;
       const checksum = await this.sha256(localChunk.payload);
       chunkChecksums.push(checksum);
       try {
@@ -302,7 +298,7 @@ export class Syncer {
               {
                 method: "PUT",
                 signal,
-                body: JSON.stringify({ checksum, changesets }),
+                body: JSON.stringify({ checksum, payload: localChunk.payload }),
               },
             ),
           SYNC_UPLOAD_TIMEOUT_MS,
@@ -388,7 +384,11 @@ export class Syncer {
           chunkCount: commit.download.chunkCount,
         }),
       );
-      for (let sequence = 0; sequence < commit.download.chunkCount; sequence += 1) {
+      for (
+        let sequence = 0;
+        sequence < commit.download.chunkCount;
+        sequence += 1
+      ) {
         const chunk = await this.syncFetch<{
           checksum: string;
           changesets: ChangesetArrayType;
@@ -490,5 +490,4 @@ export class Syncer {
       }
     });
   }
-
 }

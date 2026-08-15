@@ -26,7 +26,8 @@ export const migrateSyncV4Clocks = action({
       ),
     }));
     const changed = migrated.filter(
-      (change, index) => JSON.stringify(change) !== JSON.stringify(changes[index]),
+      (change, index) =>
+        JSON.stringify(change) !== JSON.stringify(changes[index]),
     );
     if (changed.length > 0) yield* upsert(changesTable, changed);
 

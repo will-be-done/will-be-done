@@ -43,9 +43,7 @@ export const parseHlc = (timestamp: HlcTimestamp): HlcParts => {
   }
 
   const physical = Number(timestamp.slice(0, firstSeparator));
-  const logical = Number(
-    timestamp.slice(firstSeparator + 1, secondSeparator),
-  );
+  const logical = Number(timestamp.slice(firstSeparator + 1, secondSeparator));
   const actorId = timestamp.slice(secondSeparator + 1);
   assertNonNegativeSafeInteger(physical, "HLC physical time");
   assertNonNegativeSafeInteger(logical, "HLC logical counter");
@@ -59,10 +57,7 @@ export const parseHlc = (timestamp: HlcTimestamp): HlcParts => {
 export const canonicalizeHlc = (timestamp: HlcTimestamp): HlcTimestamp =>
   formatHlc(parseHlc(timestamp));
 
-export const compareHlc = (
-  left: HlcTimestamp,
-  right: HlcTimestamp,
-): number => {
+export const compareHlc = (left: HlcTimestamp, right: HlcTimestamp): number => {
   const a = parseHlc(left);
   const b = parseHlc(right);
 
