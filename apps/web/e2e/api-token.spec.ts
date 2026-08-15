@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { formatHlc } from "@will-be-done/slices/common";
 import { expect, test, type Page } from "playwright/test";
 
 import {
@@ -285,7 +286,11 @@ test("resends newer client state after server history loss and retries commit id
   const spaceId = randomUUID();
   const spaceName = uniqueE2EName("E2E server recovery space");
   const clientId = `e2e-recovery-${randomUUID()}`;
-  const clock = `${Date.now().toString().padStart(16, "0")}-00000000-${clientId}`;
+  const clock = formatHlc({
+    physical: Date.now(),
+    logical: 0,
+    actorId: clientId,
+  });
   const changeId = `spaces:${spaceId}`;
   const cursor = { clock, changeId };
   const authorization = { Authorization: `Bearer ${sessionToken}` };
