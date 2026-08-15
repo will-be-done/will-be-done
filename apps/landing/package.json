@@ -13,5 +13,9 @@
     "astro": "^5.17.1",
     "posthog-js": "^1.352.1",
     "tailwindcss": "^4.1.11"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.2",
+    "wrangler": "^4.123.0"
   }
 }

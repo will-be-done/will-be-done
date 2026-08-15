@@ -15,6 +15,7 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   sharp: true
+  workerd: true
 minimumReleaseAgeExclude:
   - "@will-be-done/hyperdb-devtool"
   - "@will-be-done/hyperdb"
