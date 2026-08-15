@@ -1,0 +1,33 @@
+name: Deploy prod tursod
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fly-wbd-tursod-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy wbd-tursod-prod
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
+
+      - name: Deploy production tursod
+        run: flyctl deploy --remote-only --config fly.tursod.prod.toml --app wbd-tursod-prod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_TURSOD_PROD }}
