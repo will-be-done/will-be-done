@@ -41,7 +41,7 @@ import {
   syncChannelName,
 } from "./syncCompatibility";
 
-const SYNC_POLL_INTERVAL_MS = 5000;
+const SYNC_POLL_INTERVAL_MS = 60000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -473,8 +473,8 @@ export class Syncer {
   ) {
     return new Promise<"timeout" | "ws" | "local">((resolve) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
-      let unsubscribeWs = () => {};
-      let unsubscribeForceSync = () => {};
+      let unsubscribeWs = () => { };
+      let unsubscribeForceSync = () => { };
       let settled = false;
 
       const finish = (reason: "timeout" | "ws" | "local") => {
