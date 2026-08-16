@@ -269,6 +269,10 @@ must never expose a partially applied logical sync response.
 - Tombstones are permanent. A deleted ID cannot be reused.
 - Entry conflicts such as multiple daily/stash entries for one task are
   resolved deterministically before the generic merge.
+- DailyLists are deterministic, ensure-only date scaffolding. They are not
+  user-deletable, and replacement imports preserve existing DailyLists while
+  upserting the canonical lists contained in the backup. Backup omission must
+  never create a DailyList tombstone.
 - Dependency-bearing table types are committed in a stable order: parents and
   lists first, tasks/templates next, then checklist and entry/projection rows.
 - Receipt metadata such as a newly generated `updatedAt` must not by itself

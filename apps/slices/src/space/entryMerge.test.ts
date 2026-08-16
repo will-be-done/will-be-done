@@ -19,6 +19,8 @@ import { registeredSpaceSyncableTableNameMap } from "./syncMap";
 import {
   dailyEntriesTable,
   dailyEntryType,
+  dailyListsTable,
+  dailyListType,
   stashEntriesTable,
   stashEntryType,
   type DailyEntry,
@@ -57,7 +59,14 @@ const makeChange = (
 
 const createDB = () => {
   const db = new DB(new BptreeInmemDriver());
-  execSync(db.loadTables([dailyEntriesTable, stashEntriesTable, changesTable]));
+  execSync(
+    db.loadTables([
+      dailyEntriesTable,
+      dailyListsTable,
+      stashEntriesTable,
+      changesTable,
+    ]),
+  );
   return db;
 };
 
@@ -164,6 +173,91 @@ const incomingStashEntry = (
 ];
 
 describe("entry conflict merge", () => {
+  it("converges concurrent DailyList creation without delete/recreate writes", () => {
+    const db = createSubscribableDB();
+    const row = {
+      type: dailyListType,
+      id: "deterministic-list-id",
+      date: "2026-07-23",
+    };
+    const clientAClock = "0000000010-0001-client-a";
+    const clientBClock = "0000000020-0001-client-b";
+    const input = (clock: string): ChangesetArrayType => [
+      {
+        tableName: dailyListsTable.tableName,
+        data: [
+          {
+            row,
+            change: {
+              id: `${dailyListsTable.tableName}:${row.id}`,
+              entityId: row.id,
+              tableName: dailyListsTable.tableName,
+              createdAt: clock,
+              updatedAt: clock,
+              deletedAt: null,
+              clientId: clock.endsWith("client-a") ? "client-a" : "client-b",
+              changes: {
+                type: clock,
+                id: clock,
+                date: clock,
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    syncDispatch(
+      db,
+      mergeSpaceChanges({
+        input: input(clientAClock),
+        nextClock: "0000000030-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: registeredSpaceSyncableTableNameMap,
+      }),
+    );
+    const writes = observeWrites(db);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      syncDispatch(
+        db,
+        mergeSpaceChanges({
+          input: input(clientBClock),
+          nextClock: `000000004${attempt}-0001-server`,
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredSpaceSyncableTableNameMap,
+        }),
+      );
+    }
+
+    expect(
+      selectSync(db, {
+        selector: selector({
+          name: "dailyListMergeResult",
+          args: {},
+          handler: function* () {
+            return {
+              rows: yield* selectFrom(dailyListsTable, "byIds"),
+              change: yield* selectFrom(changesTable, "byId")
+                .where((q) =>
+                  q.eq("id", `${dailyListsTable.tableName}:${row.id}`),
+                )
+                .first(),
+            };
+          },
+        }),
+        args: {},
+      }),
+    ).toEqual({
+      rows: [row],
+      change: expect.objectContaining({ deletedAt: null }),
+    });
+    expect(writes.result()).toEqual({
+      committedOperations: 0,
+      mutationHookCalls: 0,
+    });
+    writes.stop();
+  });
+
   it("replaces an older task entry before the uniqhash insert", () => {
     const db = createDB();
     syncDispatch(db, seedEntry({}));

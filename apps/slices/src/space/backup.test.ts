@@ -8,6 +8,7 @@ import {
   syncDispatch,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { createDailyList, dailyListById } from "./dailyLists";
 import {
   getSpaceBackup,
   loadSpaceBackup,
@@ -51,6 +52,67 @@ const seedDailyEntry = action({
 });
 
 describe("space backup compatibility", () => {
+  it("preserves DailyLists omitted from a replacement backup", () => {
+    const db = new DB(new BptreeInmemDriver(), {
+      traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+    });
+    execSync(db.loadTables(registeredSpaceSyncableTables));
+    const dailyList = syncDispatch(
+      db,
+      createDailyList({ dailyList: { date: "2026-07-23" } }),
+    );
+
+    syncDispatch(
+      db,
+      loadSpaceBackup({
+        backup: {
+          ...baseBackup,
+          projectSections: [],
+          tasks: [],
+          taskTemplates: [],
+        },
+      }),
+    );
+
+    expect(
+      selectSync(db, {
+        selector: dailyListById,
+        args: { id: dailyList.id },
+      }),
+    ).toEqual(dailyList);
+  });
+
+  it("upserts canonical DailyLists already present during backup load", () => {
+    const db = new DB(new BptreeInmemDriver(), {
+      traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+    });
+    execSync(db.loadTables(registeredSpaceSyncableTables));
+    const dailyList = syncDispatch(
+      db,
+      createDailyList({ dailyList: { date: "2026-07-23" } }),
+    );
+
+    syncDispatch(
+      db,
+      loadSpaceBackup({
+        backup: {
+          ...baseBackup,
+          projectSections: [],
+          tasks: [],
+          taskTemplates: [],
+          dailyLists: [{ id: "backup-list-id", date: dailyList.date }],
+        },
+      }),
+    );
+
+    expect(
+      selectSync(db, {
+        selector: dailyListById,
+        args: { id: dailyList.id },
+      }),
+    ).toEqual(dailyList);
+  });
+
   it("normalizes the legacy category shape", () => {
     const normalized = normalizeSpaceBackup({
       ...baseBackup,

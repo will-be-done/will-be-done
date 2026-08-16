@@ -10,6 +10,8 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
 import {
   createDailyList,
+  dailyListById,
+  deleteDailyLists,
   dailyListGetId,
   dailyListGetIds,
   dailyListIdsByDates,
@@ -108,5 +110,22 @@ describe("dailyListIdsByDates", () => {
     );
 
     expect(ids).toEqual([dailyList.id]);
+  });
+
+  it("does not delete deterministic DailyLists through the model command", () => {
+    const db = createDB();
+    const dailyList = syncDispatch(
+      db,
+      createDailyList({ dailyList: { date: "2026-04-19" } }),
+    ) as DailyList;
+
+    syncDispatch(db, deleteDailyLists({ ids: [dailyList.id] }));
+
+    expect(
+      selectSync(db, {
+        selector: dailyListById,
+        args: { id: dailyList.id },
+      }),
+    ).toEqual(dailyList);
   });
 });

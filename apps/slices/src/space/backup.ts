@@ -1,4 +1,10 @@
-import { v, deleteRows, insert, selectFrom } from "@will-be-done/hyperdb";
+import {
+  v,
+  deleteRows,
+  insert,
+  selectFrom,
+  upsert,
+} from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { getDMY } from "./utils";
 import { allChecklistItems } from "./checklistItems";
@@ -17,6 +23,7 @@ import {
   checklistItemType,
   ChecklistParentType,
   DailyList,
+  dailyListsTable,
   dailyListType,
   Project,
   ProjectSection,
@@ -592,6 +599,9 @@ export const loadSpaceBackup = selector({
   args: { backup: backupInputSchema },
   handler: function* loadSpaceBackup({ backup }) {
     for (const table of registeredSpaceSyncableTables) {
+      // DailyLists are deterministic, ensure-only scaffolding. A backup that
+      // omits a date must not turn that absence into a permanent tombstone.
+      if (table === dailyListsTable) continue;
       const allIds = (yield* selectFrom(table, "byIds")).map((r) => r.id);
 
       yield* deleteRows(table, allIds);
@@ -613,7 +623,11 @@ export const loadSpaceBackup = selector({
     }
 
     for (const [table, tableModels] of modelsByTable) {
-      yield* insert(table, tableModels);
+      if (table === dailyListsTable) {
+        yield* upsert(dailyListsTable, tableModels as DailyList[]);
+      } else {
+        yield* insert(table, tableModels);
+      }
     }
   },
 });

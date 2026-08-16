@@ -1,4 +1,4 @@
-import { deleteRows, insert, selectFrom, v } from "@will-be-done/hyperdb";
+import { insert, selectFrom, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { getDMY, orderPositionArg } from "./utils";
 import { appById } from "./app";
@@ -342,9 +342,9 @@ export const createManyDailyListsIfNotPresent = action({
 export const deleteDailyLists = action({
   name: "deleteDailyLists",
   args: { ids: v.array(v.string()) },
-  handler: function* deleteDailyLists({ ids }) {
-    yield* deleteRows(dailyListsTable, ids);
-  },
+  // DailyLists are deterministic date scaffolding. Keep the registered model
+  // delete command as a no-op so generic deletion cannot create tombstones.
+  handler: function* deleteDailyLists() {},
 });
 
 export const createTaskInList = action({
