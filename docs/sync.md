@@ -331,16 +331,21 @@ chunk limit. Large transfers may be scanned and staged incrementally, but the
 final domain apply remains atomic.
 
 Expired staging is also cleaned by a periodic server task, independently of
-session-creation traffic. Cleanup drains bounded batches, and observability
+session-creation traffic. Each maintenance invocation repeatedly drains bounded
+batches, up to 100 passes per loaded database, and observability
 captures upload, download, and total staged bytes for each loaded database.
+Failure in one database is logged without preventing maintenance of later
+loaded databases.
 Acknowledgement marks a staged download unavailable and immediately eligible
 for that bounded cleanup; it does not load and delete every chunk on the HTTP
 request path.
-Clients discard a persisted upload and start a fresh handshake only when an
-upload or commit request returns an actual HTTP 404. A 409 represents
-conflicting session state and is not treated as expiry; unexpected server
-failures return a generic 500 response while their details remain in server
-logs.
+Clients discard a persisted upload and start a fresh handshake when an upload
+or commit request returns an actual HTTP 404, or when commit returns HTTP 409
+with code `SYNC_CLIENT_CURSOR_ADVANCED` because another session advanced the
+same client's cursor. Other 409 responses, including checksum and manifest
+conflicts, remain errors and do not discard the frozen transfer. Unexpected
+server failures return a generic 500 response while their details remain in
+server logs.
 
 An upload containing an HLC beyond the future-skew limit returns HTTP 422 with
 code `SYNC_CLOCK_SKEW`, the offending maximum clock, server time, and the

@@ -14,7 +14,12 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { changesTable, formatHlc } from "@will-be-done/slices/common";
+import {
+  changesTable,
+  formatHlc,
+  SYNC_CLIENT_CURSOR_ADVANCED,
+  SYNC_V4_MAX_SESSION_CHUNKS,
+} from "@will-be-done/slices/common";
 import { spacesTable } from "@will-be-done/slices/user";
 import {
   acknowledgeDownload,
@@ -208,6 +213,45 @@ const seedExpiredTransfers = testAction({
   },
 });
 
+const seedTerminalExpiredTransfers = testAction({
+  name: "seedTerminalExpiredSyncTransfers",
+  args: {},
+  handler: function* () {
+    yield* upsert(syncUploadSessionsTable, [
+      {
+        id: "terminal-upload",
+        userId: "user-1",
+        clientId: "client-1",
+        baseClientClock: null,
+        baseClientChangeId: null,
+        downloadFromRevision: 0,
+        status: "uploading",
+        expiresAt: 1,
+        uploadedChangeCount: 0,
+        uploadedByteCount: 0,
+        maxObservedClock: null,
+        maxClientClock: null,
+        maxClientChangeId: null,
+        resultJson: null,
+      },
+    ]);
+    yield* upsert(syncDownloadSessionsTable, [
+      {
+        id: "terminal-download",
+        userId: "user-1",
+        clientId: "client-1",
+        serverRevision: 0,
+        chunkCount: 0,
+        changeCount: 0,
+        checksum: "checksum",
+        stagedByteCount: 0,
+        status: "available",
+        expiresAt: 1,
+      },
+    ]);
+  },
+});
+
 describe("sync v4 actions", () => {
   test("asks for incremental resend when the restored server cursor is behind", () => {
     const db = new DB(new BptreeInmemDriver());
@@ -307,6 +351,24 @@ describe("sync v4 actions", () => {
         expiresAt: CLOCK_TIME_MS + 10_000,
       }),
     );
+    const racingSession = syncDispatch(
+      db,
+      startSyncUpload({
+        userId: "user-1",
+        request: {
+          syncVersion: 4,
+          dbId: "user-1",
+          dbType: "user",
+          clientId: "client-1",
+          expectedAcceptedClientCursor: null,
+          coveredClientCursor: null,
+          expectedAcknowledgedServerRevision: 0,
+          appliedServerRevision: 0,
+        },
+        now: CLOCK_TIME_MS,
+        expiresAt: CLOCK_TIME_MS + 10_000,
+      }),
+    );
     const row = {
       id: "space-1",
       type: "space" as const,
@@ -374,6 +436,33 @@ describe("sync v4 actions", () => {
         args: {},
       }),
     ).toEqual(row);
+
+    let conflict: unknown;
+    try {
+      syncDispatch(
+        db,
+        commitSyncUpload({
+          uploadId: racingSession.uploadId,
+          userId: "user-1",
+          request: {
+            chunkCount: 0,
+            changeCount: 0,
+            throughCursor: null,
+            checksum: sha256(""),
+          },
+          registeredSyncableTableNameMap: { spaces: spacesTable },
+          orderedTableNames: ["spaces"],
+          dbType: "user",
+          serverClientId: "server",
+          nextClock: clock(2, "server"),
+          now: CLOCK_TIME_MS + 3,
+          expiresAt: CLOCK_TIME_MS + 10_000,
+        }),
+      );
+    } catch (error) {
+      conflict = error;
+    }
+    expect(conflict).toMatchObject({ code: SYNC_CLIENT_CURSOR_ADVANCED });
   });
 
   test("returns a canonical correction even when it predates the feed cursor", () => {
@@ -533,6 +622,75 @@ describe("sync v4 actions", () => {
       serverRevision: 0,
       download: { type: "inline", changesets: [] },
     });
+  });
+
+  test("bounds the upload manifest chunk query", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(db.loadTables([...serverSyncTables]));
+    syncDispatch(
+      db,
+      testAction({
+        name: "seedOversizedUploadManifest",
+        args: {},
+        handler: function* () {
+          yield* upsert(syncUploadSessionsTable, [
+            {
+              id: "oversized-upload",
+              userId: "user-1",
+              clientId: "client-1",
+              baseClientClock: null,
+              baseClientChangeId: null,
+              downloadFromRevision: 0,
+              status: "uploading",
+              expiresAt: 10_000,
+              uploadedChangeCount: 0,
+              uploadedByteCount: 0,
+              maxObservedClock: null,
+              maxClientClock: null,
+              maxClientChangeId: null,
+              resultJson: null,
+            },
+          ]);
+          yield* upsert(
+            syncUploadChunksTable,
+            Array.from(
+              { length: SYNC_V4_MAX_SESSION_CHUNKS + 1 },
+              (_, sequence) => ({
+                id: `oversized-upload:${sequence}`,
+                uploadId: "oversized-upload",
+                sequence,
+                checksum: "checksum",
+                changeCount: 0,
+                byteCount: 0,
+              }),
+            ),
+          );
+        },
+      })({}),
+    );
+
+    expect(() =>
+      syncDispatch(
+        db,
+        commitSyncUpload({
+          uploadId: "oversized-upload",
+          userId: "user-1",
+          request: {
+            chunkCount: SYNC_V4_MAX_SESSION_CHUNKS,
+            changeCount: 0,
+            throughCursor: null,
+            checksum: "checksum",
+          },
+          registeredSyncableTableNameMap: {},
+          orderedTableNames: [],
+          dbType: "user",
+          serverClientId: "server",
+          nextClock: clock(1, "server"),
+          now: 2,
+          expiresAt: 10_000,
+        }),
+      ),
+    ).toThrow("Sync upload has too many chunks");
   });
 
   test("initializes and stages an oversized download in bounded feed pages", () => {
@@ -721,6 +879,21 @@ describe("sync v4 actions", () => {
       uploadBytes: 0,
       downloadBytes: 0,
       totalBytes: 0,
+    });
+  });
+
+  test("reports no remaining cleanup work after deleting the final sessions", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(db.loadTables([...serverSyncTables]));
+    syncDispatch(db, seedTerminalExpiredTransfers({}));
+
+    expect(
+      syncDispatch(db, cleanupExpiredSyncSessions({ now: 2, maxRows: 2 })),
+    ).toEqual({
+      uploads: 1,
+      downloads: 1,
+      deletedRows: 2,
+      hasMore: false,
     });
   });
 });

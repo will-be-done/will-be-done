@@ -31,7 +31,7 @@ import {
 } from "./syncActions";
 import { withSyncRequestTimeout } from "./syncRequestTimeout";
 import {
-  shouldRestartExpiredUpload,
+  shouldRestartFrozenUpload,
   SyncRequestError,
 } from "./syncRequestError";
 import type { SyncConfig } from "./syncTypes";
@@ -316,11 +316,12 @@ export class Syncer {
           SYNC_UPLOAD_TIMEOUT_MS,
         );
       } catch (error) {
-        if (shouldRestartExpiredUpload(resumingUpload, error)) {
+        if (shouldRestartFrozenUpload(resumingUpload, error)) {
           await asyncDispatch(
             this.syncDB.withTraits({ type: "skip-sync" }),
             discardSyncV4Transfer({ uploadId, downloadId: "" }),
           );
+          this.forceSync();
           return;
         }
         throw error;
@@ -348,11 +349,12 @@ export class Syncer {
         SYNC_UPLOAD_TIMEOUT_MS,
       );
     } catch (error) {
-      if (shouldRestartExpiredUpload(resumingUpload, error)) {
+      if (shouldRestartFrozenUpload(resumingUpload, error)) {
         await asyncDispatch(
           this.syncDB.withTraits({ type: "skip-sync" }),
           discardSyncV4Transfer({ uploadId, downloadId: "" }),
         );
+        this.forceSync();
         return;
       }
       throw error;

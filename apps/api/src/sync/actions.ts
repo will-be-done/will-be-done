@@ -47,6 +47,7 @@ import {
 } from "./tables";
 import {
   assertSyncClockWithinFutureSkew,
+  SyncClientCursorAdvancedError,
   SyncConflictError,
   SyncSessionNotFoundError,
 } from "./errors";
@@ -500,7 +501,11 @@ export const commitSyncUpload = action({
     }
     const chunks = yield* selectFrom(syncUploadChunksTable, "byUploadSequence")
       .where((q) => q.eq("uploadId", uploadId))
-      .order("asc");
+      .order("asc")
+      .limit(SYNC_V4_MAX_SESSION_CHUNKS + 1);
+    if (chunks.length > SYNC_V4_MAX_SESSION_CHUNKS) {
+      throw new SyncConflictError("Sync upload has too many chunks");
+    }
     const validManifest =
       chunks.length === request.chunkCount &&
       chunks.every((chunk, index) => chunk.sequence === index) &&
@@ -541,7 +546,7 @@ export const commitSyncUpload = action({
       compareClientCursor(cursorFromServerState(currentClient), baseCursor) !==
       0
     ) {
-      throw new SyncConflictError(
+      throw new SyncClientCursorAdvancedError(
         "Client cursor advanced in another sync session",
       );
     }
@@ -931,11 +936,25 @@ export const cleanupExpiredSyncSessions = action({
         deletedDownloads = 1;
       }
     }
+    const remainingUploads = yield* selectFrom(
+      syncUploadSessionsTable,
+      "byExpiresAtId",
+    )
+      .where((q) => q.lte("expiresAt", now))
+      .order("asc")
+      .limit(1);
+    const remainingDownloads = yield* selectFrom(
+      syncDownloadSessionsTable,
+      "byExpiresAtId",
+    )
+      .where((q) => q.lte("expiresAt", now))
+      .order("asc")
+      .limit(1);
     return {
       uploads: deletedUploads,
       downloads: deletedDownloads,
       deletedRows,
-      hasMore: uploads.length > 0 || downloads.length > 0,
+      hasMore: remainingUploads.length > 0 || remainingDownloads.length > 0,
     };
   },
 });

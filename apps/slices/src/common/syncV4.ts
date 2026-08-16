@@ -11,6 +11,7 @@ export const SYNC_V4_INLINE_DOWNLOAD_CHANGES = 256;
 export const SYNC_V4_INLINE_DOWNLOAD_BYTES = 1024 * 1024;
 export const SYNC_V4_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 export const SYNC_V4_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+export const SYNC_CLIENT_CURSOR_ADVANCED = "SYNC_CLIENT_CURSOR_ADVANCED";
 
 export const ClientCursorSchema = z.object({
   clock: z.string(),

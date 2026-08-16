@@ -1,5 +1,6 @@
 import {
   parseHlc,
+  SYNC_CLIENT_CURSOR_ADVANCED,
   SYNC_V4_MAX_FUTURE_SKEW_MS,
 } from "@will-be-done/slices/common";
 
@@ -13,6 +14,11 @@ export class SyncInvalidRequestError extends Error {
 
 export class SyncConflictError extends Error {
   override name = "SyncConflictError";
+}
+
+export class SyncClientCursorAdvancedError extends SyncConflictError {
+  override name = "SyncClientCursorAdvancedError";
+  readonly code = SYNC_CLIENT_CURSOR_ADVANCED;
 }
 
 export const SYNC_CLOCK_SKEW = "SYNC_CLOCK_SKEW";

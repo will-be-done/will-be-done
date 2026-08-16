@@ -7,6 +7,7 @@ import { authenticateRequest } from "../services/authentication";
 import { ensureDatabaseAccessOrCreate } from "../services/databaseAccess";
 import {
   SyncClockSkewError,
+  SyncClientCursorAdvancedError,
   SyncConflictError,
   SyncInvalidRequestError,
   SyncSessionNotFoundError,
@@ -99,6 +100,11 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     }
     if (knownError instanceof SyncSessionNotFoundError) {
       return reply.code(404).send({ error: knownError.message });
+    }
+    if (knownError instanceof SyncClientCursorAdvancedError) {
+      return reply
+        .code(409)
+        .send({ error: knownError.message, code: knownError.code });
     }
     if (knownError instanceof SyncConflictError) {
       return reply.code(409).send({ error: knownError.message });
