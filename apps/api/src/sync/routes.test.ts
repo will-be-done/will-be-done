@@ -71,6 +71,24 @@ describe("sync v4 routes", () => {
     });
 
     try {
+      const oversizedSessionResponse = await server.inject({
+        method: "POST",
+        url: `/api/sync/v4/user/${auth.userId}/sessions`,
+        headers: { authorization: `Bearer ${auth.token}` },
+        payload: {
+          syncVersion: 4,
+          dbId: auth.userId,
+          dbType: "user",
+          clientId: "client",
+          expectedAcceptedClientCursor: null,
+          coveredClientCursor: null,
+          expectedAcknowledgedServerRevision: 0,
+          appliedServerRevision: 0,
+          padding: "x".repeat(70 * 1024),
+        },
+      });
+      expect(oversizedSessionResponse.statusCode).toBe(413);
+
       const sessionResponse = await server.inject({
         method: "POST",
         url: `/api/sync/v4/user/${auth.userId}/sessions`,

@@ -66,14 +66,14 @@ describe("server database startup", () => {
       db.loadTables([changesTable, syncStateTable, ...serverSyncTables]),
     );
     syncDispatch(db, seedLegacyChange({}));
-    installServerChangeFeedHook(db);
-
     expect(syncDispatch(db, initializeServerSyncFeed({}))).toBe(1);
     syncDispatch(
       db.withTraits({ type: "skip-sync" }),
       migrateSyncV4Clocks({}),
     );
     expect(syncDispatch(db, readServerRevision({}))).toBe(1);
+
+    installServerChangeFeedHook(db);
 
     const normalClock = formatHlc({
       physical: 1_700_000_000_000,

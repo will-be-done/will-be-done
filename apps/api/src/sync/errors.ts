@@ -7,6 +7,10 @@ export class SyncSessionNotFoundError extends Error {
   override name = "SyncSessionNotFoundError";
 }
 
+export class SyncInvalidRequestError extends Error {
+  override name = "SyncInvalidRequestError";
+}
+
 export class SyncConflictError extends Error {
   override name = "SyncConflictError";
 }

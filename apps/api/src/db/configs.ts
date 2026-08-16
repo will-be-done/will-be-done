@@ -25,6 +25,7 @@ export const userDBConfig = (dbId: string) => {
       ...serverSyncTables,
     ],
     tableNameMap: registeredUserSyncableTableNameMap,
+    syncTableNamesInDependencyOrder: ["spaces"],
   } satisfies DBConfig;
 };
 
@@ -42,6 +43,16 @@ export const spaceDBConfig = (dbId: string) => {
       ...serverSyncTables,
     ],
     tableNameMap: registeredSpaceSyncableTableNameMap,
+    syncTableNamesInDependencyOrder: [
+      "projects",
+      "project_sections",
+      "daily_lists",
+      "tasks",
+      "task_templates",
+      "checklist_items",
+      "daily_entries",
+      "stash_entries",
+    ],
   } satisfies DBConfig;
 };
 

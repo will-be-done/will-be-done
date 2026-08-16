@@ -166,6 +166,10 @@ export class Syncer {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     while (true) {
+      // Snapshot before the session so a local write or server notification
+      // that arrives while syncV4 is running remains a pending wake-up.
+      const wsVersion = this.wsNotification.get();
+      const forceSyncVersion = this.forceSyncNotification.get();
       if (this.runId !== myRunId) {
         syncerLog("runId !== myRunId, stopping syncer loop");
         this.cleanupWebSocket();
@@ -182,7 +186,7 @@ export class Syncer {
         console.error(e);
       }
 
-      await this.waitForNextSyncTrigger();
+      await this.waitForNextSyncTrigger(wsVersion, forceSyncVersion);
     }
   }
 
@@ -275,7 +279,7 @@ export class Syncer {
         this.syncDB.withTraits({ type: "skip-sync" }),
         recordSyncV4Handshake({
           acceptedClientCursor: session.uploadFromCursor,
-          acknowledgedServerRevision: session.downloadFromRevision,
+          acknowledgedServerRevision: session.serverAcknowledgedRevision,
         }),
       );
       snapshot = await asyncDispatch(
@@ -461,10 +465,10 @@ export class Syncer {
     }
   }
 
-  private async waitForNextSyncTrigger() {
-    const wsVersion = this.wsNotification.get();
-    const forceSyncVersion = this.forceSyncNotification.get();
-
+  private async waitForNextSyncTrigger(
+    wsVersion: number,
+    forceSyncVersion: number,
+  ) {
     return new Promise<"timeout" | "ws" | "local">((resolve) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let unsubscribeWs = () => {};
@@ -495,7 +499,13 @@ export class Syncer {
         }
       });
 
-      if (process.env.NODE_ENV !== "development") {
+      if (this.wsNotification.get() > wsVersion) {
+        finish("ws");
+      } else if (this.forceSyncNotification.get() > forceSyncVersion) {
+        finish("local");
+      }
+
+      if (!settled && process.env.NODE_ENV !== "development") {
         timeoutId = setTimeout(() => finish("timeout"), SYNC_POLL_INTERVAL_MS);
       }
     });

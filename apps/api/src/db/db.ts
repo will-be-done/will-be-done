@@ -53,6 +53,7 @@ export interface DBConfig {
   dbType: "user" | "space";
   persistDBTables: TableDefinition[];
   tableNameMap: Record<string, TableDefinition>;
+  syncTableNamesInDependencyOrder: string[];
 }
 
 const sqliteDatabases = new Set<Database>();
@@ -230,9 +231,8 @@ export function installSyncNotificationHook(
 }
 
 export function installServerChangeFeedHook(db: SubscribableDB) {
-  db.afterUpsert(function* (_db, table, traits, ops) {
+  db.afterUpsert(function* (_db, table, _traits, ops) {
     if (table !== changesTable || ops.length === 0) return;
-    if (traits.some((trait) => trait.type === "skip-sync")) return;
     yield* recordServerChanges({
       changes: ops.map((op) => op.newValue as Change),
     });
@@ -328,8 +328,6 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
       yield* noop();
     });
 
-    installServerChangeFeedHook(hyperDB);
-
     await execAsync(hyperDB.loadTables(dbConfig.persistDBTables));
     await asyncDispatch(
       hyperDB.withTraits({ type: "skip-sync" }),
@@ -341,6 +339,12 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
     );
     const latest = await asyncDispatch(hyperDB, getLatestChangeCursor({}));
     nextClock.observe([persistedClock, latest?.clock]);
+
+    // Clock migration rewrites materialized metadata but is not a new domain
+    // change. Install the feed hook only after that one-time rewrite so
+    // `skip-sync` can retain its narrow meaning: suppress local change
+    // generation while still publishing explicit canonical Change writes.
+    installServerChangeFeedHook(hyperDB);
 
     if (dbConfig.dbType === "space") {
       await asyncDispatch(hyperDB, migrateProjectSectionTaskStats({}));

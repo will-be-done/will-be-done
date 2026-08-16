@@ -17,18 +17,23 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { changesTable, formatHlc } from "@will-be-done/slices/common";
 import { spacesTable } from "@will-be-done/slices/user";
 import {
+  acknowledgeDownload,
+  cleanupExpiredSyncSessions,
   commitSyncUpload,
+  getDownloadChunk,
   getSyncStagingMetrics,
   initializeServerSyncFeed,
-  recordServerChanges,
   stageUploadChunk,
   startSyncUpload,
 } from "./actions";
+import { installServerChangeFeedHook } from "../db/db";
 import {
   SERVER_SYNC_STATE_ID,
   serverClientSyncStateTable,
   syncDownloadChunksTable,
   syncDownloadSessionsTable,
+  syncUploadChunksTable,
+  syncUploadItemsTable,
   syncUploadSessionsTable,
   serverSyncStateTable,
   serverSyncTables,
@@ -123,7 +128,81 @@ const seedStagingMetricSessions = testAction({
         changeCount: 1,
         checksum: "checksum",
         stagedByteCount: (index + 1) * 2,
+        status: "available" as const,
         expiresAt: 10_000,
+      })),
+    );
+  },
+});
+
+const seedExpiredTransfers = testAction({
+  name: "seedExpiredSyncTransfers",
+  args: {},
+  handler: function* () {
+    yield* upsert(syncUploadSessionsTable, [
+      {
+        id: "expired-upload",
+        userId: "user-1",
+        clientId: "client-1",
+        baseClientClock: null,
+        baseClientChangeId: null,
+        downloadFromRevision: 0,
+        status: "uploading",
+        expiresAt: 1,
+        uploadedChangeCount: 2,
+        uploadedByteCount: 20,
+        maxObservedClock: null,
+        maxClientClock: null,
+        maxClientChangeId: null,
+        resultJson: null,
+      },
+    ]);
+    yield* upsert(
+      syncUploadChunksTable,
+      [0, 1].map((sequence) => ({
+        id: `expired-upload:${sequence}`,
+        uploadId: "expired-upload",
+        sequence,
+        checksum: `checksum-${sequence}`,
+        changeCount: 1,
+        byteCount: 10,
+      })),
+    );
+    yield* upsert(
+      syncUploadItemsTable,
+      [0, 1].map((sequence) => ({
+        id: `expired-upload:0:${sequence}`,
+        uploadId: "expired-upload",
+        sequence,
+        tableName: "spaces",
+        entityId: `space-${sequence}`,
+        changeId: `spaces:space-${sequence}`,
+        payload: "{}",
+        checksum: "checksum",
+      })),
+    );
+    yield* upsert(syncDownloadSessionsTable, [
+      {
+        id: "expired-download",
+        userId: "user-1",
+        clientId: "client-1",
+        serverRevision: 1,
+        chunkCount: 2,
+        changeCount: 2,
+        checksum: "checksum",
+        stagedByteCount: 20,
+        status: "available",
+        expiresAt: 1,
+      },
+    ]);
+    yield* upsert(
+      syncDownloadChunksTable,
+      [0, 1].map((sequence) => ({
+        id: `expired-download:${sequence}`,
+        downloadId: "expired-download",
+        sequence,
+        payload: "[]",
+        checksum: `checksum-${sequence}`,
       })),
     );
   },
@@ -168,16 +247,47 @@ describe("sync v4 actions", () => {
     expect(session.downloadFromRevision).toBe(5);
   });
 
+  test("keeps the server acknowledgement when the client applied revision rolls back", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(db.loadTables([...serverSyncTables]));
+    syncDispatch(db, seedRestoredSyncState({}));
+
+    const session = syncDispatch(
+      db,
+      startSyncUpload({
+        userId: "user-1",
+        request: {
+          syncVersion: 4,
+          dbId: "user-1",
+          dbType: "user",
+          clientId: "client-1",
+          expectedAcceptedClientCursor: {
+            clock: clock(5),
+            changeId: "change-5",
+          },
+          coveredClientCursor: {
+            clock: clock(5),
+            changeId: "change-5",
+          },
+          expectedAcknowledgedServerRevision: 5,
+          appliedServerRevision: 2,
+        },
+        now: 1,
+        expiresAt: 10_000,
+      }),
+    );
+
+    expect(session.serverHistoryLost).toBe(false);
+    expect(session.serverAhead).toBe(true);
+    expect(session.downloadFromRevision).toBe(2);
+    expect(session.serverAcknowledgedRevision).toBe(5);
+  });
+
   test("commits an upload and suppresses its exact canonical echo", () => {
     const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
     execSync(db.loadTables([spacesTable, changesTable, ...serverSyncTables]));
-    db.afterUpsert(function* (_db, table, _traits, ops) {
-      if (table !== changesTable || ops.length === 0) return;
-      yield* recordServerChanges({
-        changes: ops.map((op) => op.newValue as never),
-      });
-    });
     syncDispatch(db, initializeServerSyncFeed({}));
+    installServerChangeFeedHook(db);
 
     const session = syncDispatch(
       db,
@@ -220,6 +330,7 @@ describe("sync v4 actions", () => {
       db,
       stageUploadChunk({
         uploadId: session.uploadId,
+        userId: "user-1",
         sequence: 0,
         byteCount: 100,
         chunk: {
@@ -227,13 +338,11 @@ describe("sync v4 actions", () => {
           changesets: [{ tableName: "spaces", data: [{ row, change }] }],
         },
         tableNameMap: { spaces: spacesTable },
-        tableRanks: { spaces: 0 },
-        maxSessionBytes: 1_000,
         now: CLOCK_TIME_MS + 1,
       }),
     );
     const result = syncDispatch(
-      db,
+      db.withTraits({ type: "skip-sync" }),
       commitSyncUpload({
         uploadId: session.uploadId,
         userId: "user-1",
@@ -241,7 +350,7 @@ describe("sync v4 actions", () => {
           chunkCount: 1,
           changeCount: 1,
           throughCursor: { clock: clock(0), changeId: change.id },
-          checksum: "manifest",
+          checksum: sha256("chunk"),
         },
         registeredSyncableTableNameMap: { spaces: spacesTable },
         orderedTableNames: ["spaces"],
@@ -265,6 +374,114 @@ describe("sync v4 actions", () => {
         args: {},
       }),
     ).toEqual(row);
+  });
+
+  test("returns a canonical correction even when it predates the feed cursor", () => {
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(db.loadTables([spacesTable, changesTable, ...serverSyncTables]));
+    const serverRow = {
+      id: "space-1",
+      type: "space" as const,
+      name: "Server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const serverChange = {
+      id: "spaces:space-1",
+      entityId: "space-1",
+      tableName: "spaces",
+      createdAt: clock(10, "server"),
+      updatedAt: clock(10, "server"),
+      deletedAt: null,
+      clientId: "server",
+      changes: Object.fromEntries(
+        Object.keys(serverRow).map((key) => [key, clock(10, "server")]),
+      ),
+    };
+    syncDispatch(
+      db,
+      seedChanges({ rows: [serverRow], changes: [serverChange] }),
+    );
+    expect(syncDispatch(db, initializeServerSyncFeed({}))).toBe(1);
+    installServerChangeFeedHook(db);
+
+    const session = syncDispatch(
+      db,
+      startSyncUpload({
+        userId: "user-1",
+        request: {
+          syncVersion: 4,
+          dbId: "user-1",
+          dbType: "user",
+          clientId: "client-1",
+          expectedAcceptedClientCursor: null,
+          coveredClientCursor: null,
+          expectedAcknowledgedServerRevision: 0,
+          appliedServerRevision: 1,
+        },
+        now: CLOCK_TIME_MS,
+        expiresAt: CLOCK_TIME_MS + 10_000,
+      }),
+    );
+    const clientRow = { ...serverRow, name: "Client" };
+    const clientChange = {
+      ...serverChange,
+      updatedAt: clock(0),
+      clientId: "client-1",
+      changes: Object.fromEntries(
+        Object.keys(clientRow).map((key) => [key, clock(0)]),
+      ),
+    };
+    syncDispatch(
+      db,
+      stageUploadChunk({
+        uploadId: session.uploadId,
+        userId: "user-1",
+        sequence: 0,
+        byteCount: 100,
+        chunk: {
+          checksum: "chunk",
+          changesets: [
+            {
+              tableName: "spaces",
+              data: [{ row: clientRow, change: clientChange }],
+            },
+          ],
+        },
+        tableNameMap: { spaces: spacesTable },
+        now: CLOCK_TIME_MS + 1,
+      }),
+    );
+
+    const result = syncDispatch(
+      db.withTraits({ type: "skip-sync" }),
+      commitSyncUpload({
+        uploadId: session.uploadId,
+        userId: "user-1",
+        request: {
+          chunkCount: 1,
+          changeCount: 1,
+          throughCursor: { clock: clock(0), changeId: clientChange.id },
+          checksum: sha256("chunk"),
+        },
+        registeredSyncableTableNameMap: { spaces: spacesTable },
+        orderedTableNames: ["spaces"],
+        dbType: "user",
+        serverClientId: "server",
+        nextClock: clock(11, "server"),
+        now: CLOCK_TIME_MS + 2,
+        expiresAt: CLOCK_TIME_MS + 10_000,
+      }),
+    );
+
+    expect(result.serverRevision).toBe(1);
+    expect(result.download.type).toBe("inline");
+    if (result.download.type !== "inline") throw new Error("Expected inline");
+    expect(result.download.changesets).toHaveLength(1);
+    expect(result.download.changesets[0]?.data[0]).toEqual({
+      row: serverRow,
+      change: serverChange,
+    });
   });
 
   test("commits a zero-change upload with a null cursor", () => {
@@ -449,5 +666,61 @@ describe("sync v4 actions", () => {
     });
     expect(pageSizes.filter((size) => size > 0).length).toBeGreaterThan(2);
     expect(pageSizes.every((size) => size <= 257)).toBe(true);
+  });
+
+  test("acknowledges downloads and cleans transfer rows within a row budget", () => {
+    const db = new DB(new BptreeInmemDriver());
+    execSync(db.loadTables([...serverSyncTables]));
+    syncDispatch(db, seedExpiredTransfers({}));
+
+    expect(
+      syncDispatch(
+        db,
+        getDownloadChunk({
+          downloadId: "expired-download",
+          sequence: 0,
+          userId: "user-1",
+          now: 0,
+        }),
+      ),
+    ).toBeTruthy();
+    expect(
+      syncDispatch(
+        db,
+        acknowledgeDownload({
+          downloadId: "expired-download",
+          userId: "user-1",
+        }),
+      ),
+    ).toBe(true);
+    expect(() =>
+      syncDispatch(
+        db,
+        getDownloadChunk({
+          downloadId: "expired-download",
+          sequence: 0,
+          userId: "user-1",
+          now: 0,
+        }),
+      ),
+    ).toThrow("Sync download session is not active");
+
+    let hasMore = true;
+    let passes = 0;
+    while (hasMore && passes < 10) {
+      const cleaned = syncDispatch(
+        db,
+        cleanupExpiredSyncSessions({ now: 2, maxRows: 2 }),
+      );
+      expect(cleaned.deletedRows).toBeLessThanOrEqual(2);
+      hasMore = cleaned.hasMore;
+      passes += 1;
+    }
+    expect(passes).toBeGreaterThan(1);
+    expect(syncDispatch(db, getSyncStagingMetrics({}))).toEqual({
+      uploadBytes: 0,
+      downloadBytes: 0,
+      totalBytes: 0,
+    });
   });
 });

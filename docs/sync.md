@@ -95,9 +95,18 @@ Revision/feed writes occur in the same database transaction as the associated
 an atomic server operation; it must not treat an individual internal feed
 revision as a separately visible domain transaction.
 
+The `skip-sync` database trait has one narrow meaning: suppress generation of a
+new local `changes` record from a domain-table hook. It does not suppress feed
+publication when a merge explicitly writes a canonical `changes` record.
+
 The WebSocket notification is only a wake-up hint. It carries no authoritative
 cursor and may be duplicated or lost. The persisted server revision is the
 authority.
+
+The client snapshots local and WebSocket wake-up versions before each sync
+session. A notification that arrives while that session is running therefore
+remains pending and starts another session instead of being lost between the
+session and the next wait.
 
 ## Persisted State
 
@@ -154,9 +163,13 @@ and what its current local database covers. The server compares those claims
 with its persisted per-client state.
 
 The response also carries `serverTimeMs` and the enforced
-`maxFutureSkewMs`. Before freezing a new upload, the client calibrates its HLC
-time source from `serverTimeMs`. A resumed, already frozen upload keeps its
-original bytes and clocks; retry identity is never changed by calibration.
+`maxFutureSkewMs`. It returns `downloadFromRevision` and
+`serverAcknowledgedRevision` as separate facts: the former is where this
+client must start downloading, while the latter is the greatest client
+acknowledgement persisted by the server. Before freezing a new upload, the
+client calibrates its HLC time source from `serverTimeMs`. A resumed, already
+frozen upload keeps its original bytes and clocks; retry identity is never
+changed by calibration.
 
 ### Normal case
 
@@ -194,6 +207,12 @@ If the server is ahead of the client's expected state, `serverAhead` is true.
 The server remains authoritative. The client starts after the server's accepted
 cursor and downloads canonical state after its applied revision. It must not
 force the server cursor backward.
+
+This also applies when the client's expected server acknowledgement matches,
+but its locally applied revision is lower, such as after recording a handshake
+and then restoring or crashing before download apply. The persisted server
+acknowledgement never moves backward; the lower applied revision is used only
+as the download start.
 
 A committed upload result is stored on the server. If the commit response was
 lost, retrying the same commit returns the stored result rather than merging a
@@ -263,7 +282,11 @@ comparison includes the row, creation/deletion state, winning client, and
 per-field clocks; it ignores the server's receipt/materialization `updatedAt`.
 
 If the server changed any semantic value while resolving a conflict, the
-canonical correction is returned to the uploader.
+canonical correction is returned to the uploader. Commit derives these
+corrections directly from the bounded staged-upload pages as well as walking
+the revision feed. Therefore a canonical value that predates the client's feed
+cursor cannot be hidden merely because merging the stale upload produced no new
+domain write.
 
 Never suppress changes solely because `clientId` matches. A change from the
 same client may be required after a lost response, client restore, conflict, or
@@ -310,6 +333,9 @@ final domain apply remains atomic.
 Expired staging is also cleaned by a periodic server task, independently of
 session-creation traffic. Cleanup drains bounded batches, and observability
 captures upload, download, and total staged bytes for each loaded database.
+Acknowledgement marks a staged download unavailable and immediately eligible
+for that bounded cleanup; it does not load and delete every chunk on the HTTP
+request path.
 Clients discard a persisted upload and start a fresh handshake only when an
 upload or commit request returns an actual HTTP 404. A 409 represents
 conflicting session state and is not treated as expiry; unexpected server
@@ -340,6 +366,20 @@ Protocol v4 uses authenticated routes under:
 The flow consists of session creation, idempotent chunk `PUT`s, commit,
 optional staged download chunk reads, and download acknowledgement. These are
 internal sync routes, not public v1 API operations.
+
+Fastify is intentionally the transport adapter for this data plane. The
+protocol relies on ordinary HTTP details such as idempotent `PUT` identities,
+per-route body limits, status codes, request deadlines, and direct chunk reads.
+tRPC remains appropriate for the WebSocket wake-up/control plane, but wrapping
+bulk sync payloads in tRPC would not remove the protocol's staging, checksums,
+or recovery state. The route handlers therefore authenticate and authorize,
+then delegate to a database-bound `ServerSyncV4` module that owns validation,
+clocks, staging, commit, download, and acknowledgement behavior.
+
+Handshake, commit, and acknowledgement bodies are limited to 64 KiB. Upload
+chunk HTTP bodies are limited to 4 MiB so the nested JSON representation can
+carry at most 1 MiB of decoded frozen payload. The decoded payload limit remains
+authoritative.
 
 No direct "send changes and merge immediately" endpoint may coexist with v4.
 Such an endpoint would bypass staging, manifest validation, recovery cursors,

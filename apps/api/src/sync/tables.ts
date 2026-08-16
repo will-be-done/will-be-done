@@ -64,7 +64,6 @@ export const syncUploadItemsTable = defineTable("sync_upload_items_v4", {
   id: v.string(),
   uploadId: v.string(),
   sequence: v.number(),
-  tableRank: v.number(),
   tableName: v.string(),
   entityId: v.string(),
   changeId: v.string(),
@@ -98,6 +97,9 @@ export const syncDownloadSessionsTable = defineTable(
     changeCount: v.number(),
     checksum: v.string(),
     stagedByteCount: v.optional(v.number()),
+    status: v.optional(
+      v.union(v.literal("available"), v.literal("acknowledged")),
+    ),
     expiresAt: v.number(),
   },
 ).index("byExpiresAtId", ["expiresAt", "id"]);

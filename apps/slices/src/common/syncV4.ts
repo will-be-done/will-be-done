@@ -70,6 +70,7 @@ export type SyncSessionResponse = {
   uploadId: string;
   uploadFromCursor: ClientCursor | null;
   downloadFromRevision: number;
+  serverAcknowledgedRevision: number;
   serverHistoryLost: boolean;
   serverAhead: boolean;
   expiresAt: number;

@@ -22,6 +22,8 @@ import {
   SYNC_V4_INLINE_DOWNLOAD_BYTES,
   SYNC_V4_INLINE_DOWNLOAD_CHANGES,
   SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS,
+  SYNC_V4_MAX_SESSION_BYTES,
+  SYNC_V4_MAX_SESSION_CHUNKS,
 } from "@will-be-done/slices/common";
 import { action } from "@will-be-done/slices";
 import { mergeSpaceChanges } from "@will-be-done/slices/space";
@@ -196,7 +198,11 @@ export const startSyncUpload = action({
       (currentClient?.acknowledgedServerRevision ?? 0) -
       request.expectedAcknowledgedServerRevision;
     const serverHistoryLost = cursorOrder < 0 || revisionOrder < 0;
-    const serverAhead = cursorOrder > 0 || revisionOrder > 0;
+    const serverAhead =
+      cursorOrder > 0 ||
+      revisionOrder > 0 ||
+      request.appliedServerRevision <
+        (currentClient?.acknowledgedServerRevision ?? 0);
 
     const activeUploads = yield* selectFrom(
       syncUploadSessionsTable,
@@ -218,16 +224,18 @@ export const startSyncUpload = action({
 
     let uploadFromCursor = storedCursor;
     let downloadFromRevision = request.appliedServerRevision;
+    let serverAcknowledgedRevision =
+      currentClient?.acknowledgedServerRevision ?? 0;
     if (serverHistoryLost) {
-      downloadFromRevision = currentClient?.acknowledgedServerRevision ?? 0;
+      downloadFromRevision = serverAcknowledgedRevision;
     } else if (!serverAhead) {
       uploadFromCursor = maxClientCursor([
         storedCursor,
         request.coveredClientCursor,
       ]);
-      const acknowledgedServerRevision = Math.min(
-        request.appliedServerRevision,
-        currentRevision,
+      const acknowledgedServerRevision = Math.max(
+        currentClient?.acknowledgedServerRevision ?? 0,
+        Math.min(request.appliedServerRevision, currentRevision),
       );
       yield* upsert(serverClientSyncStateTable, [
         {
@@ -237,6 +245,7 @@ export const startSyncUpload = action({
           lastSeenAt: now,
         },
       ]);
+      serverAcknowledgedRevision = acknowledgedServerRevision;
       downloadFromRevision = acknowledgedServerRevision;
     } else {
       downloadFromRevision = Math.min(
@@ -269,6 +278,7 @@ export const startSyncUpload = action({
       uploadId,
       uploadFromCursor,
       downloadFromRevision,
+      serverAcknowledgedRevision,
       serverHistoryLost,
       serverAhead,
       expiresAt,
@@ -286,24 +296,11 @@ export const getUploadSession = action({
   },
 });
 
-export const getUploadManifest = action({
-  name: "getUploadManifestV4",
-  args: { uploadId: v.string() },
-  handler: function* ({ uploadId }) {
-    const session = (yield* selectFrom(syncUploadSessionsTable, "byId")
-      .where((q) => q.eq("id", uploadId))
-      .first()) as SyncUploadSession | undefined;
-    const chunks = yield* selectFrom(syncUploadChunksTable, "byUploadSequence")
-      .where((q) => q.eq("uploadId", uploadId))
-      .order("asc");
-    return { session, chunks };
-  },
-});
-
 export const stageUploadChunk = action({
   name: "stageUploadChunkV4",
   args: {
     uploadId: v.string(),
+    userId: v.string(),
     sequence: v.number(),
     byteCount: v.number(),
     chunk: v.pass<{
@@ -311,24 +308,21 @@ export const stageUploadChunk = action({
       changesets: ChangesetArrayType;
     }>(),
     tableNameMap: v.pass<Record<string, TableDefinition>>(),
-    tableRanks: v.pass<Record<string, number>>(),
-    maxSessionBytes: v.number(),
     now: v.number(),
   },
   handler: function* ({
     uploadId,
+    userId,
     sequence,
     byteCount,
     chunk,
     tableNameMap,
-    tableRanks,
-    maxSessionBytes,
     now,
   }) {
     const session = (yield* selectFrom(syncUploadSessionsTable, "byId")
       .where((q) => q.eq("id", uploadId))
       .first()) as SyncUploadSession | undefined;
-    if (!session || session.expiresAt <= now) {
+    if (!session || session.userId !== userId || session.expiresAt <= now) {
       throw new SyncSessionNotFoundError("Sync upload session is not active");
     }
 
@@ -349,7 +343,7 @@ export const stageUploadChunk = action({
         "Sync upload session is not accepting new chunks",
       );
     }
-    if (session.uploadedByteCount + byteCount > maxSessionBytes) {
+    if (session.uploadedByteCount + byteCount > SYNC_V4_MAX_SESSION_BYTES) {
       throw new SyncConflictError("Sync upload session exceeds its byte limit");
     }
 
@@ -371,7 +365,6 @@ export const stageUploadChunk = action({
           id: `${chunkId}:${itemIndex}`,
           uploadId,
           sequence: sequence * 1_000_000 + itemIndex,
-          tableRank: tableRanks[changeset.tableName] ?? 1_000,
           tableName: changeset.tableName,
           entityId: data.change.entityId,
           changeId: data.change.id,
@@ -421,16 +414,18 @@ export const stageUploadChunk = action({
 
 export const deleteSyncUpload = action({
   name: "deleteSyncUploadV4",
-  args: { uploadId: v.string() },
-  handler: function* ({ uploadId }) {
-    const chunks = yield* selectFrom(
-      syncUploadChunksTable,
-      "byUploadSequence",
-    ).where((q) => q.eq("uploadId", uploadId));
-    const items = yield* selectFrom(
-      syncUploadItemsTable,
-      "byUploadSequenceId",
-    ).where((q) => q.eq("uploadId", uploadId));
+  args: { uploadId: v.string(), maxRows: v.number() },
+  handler: function* ({ uploadId, maxRows }) {
+    const chunks = yield* selectFrom(syncUploadChunksTable, "byUploadSequence")
+      .where((q) => q.eq("uploadId", uploadId))
+      .limit(maxRows);
+    const remaining = Math.max(0, maxRows - chunks.length);
+    const items =
+      remaining === 0
+        ? []
+        : yield* selectFrom(syncUploadItemsTable, "byUploadSequenceId")
+            .where((q) => q.eq("uploadId", uploadId))
+            .limit(remaining);
     yield* deleteRows(
       syncUploadChunksTable,
       chunks.map((row) => row.id),
@@ -439,7 +434,11 @@ export const deleteSyncUpload = action({
       syncUploadItemsTable,
       items.map((row) => row.id),
     );
-    yield* deleteRows(syncUploadSessionsTable, [uploadId]);
+    let deletedRows = chunks.length + items.length;
+    const deletedSession = deletedRows === 0 && maxRows > 0;
+    if (deletedSession) yield* deleteRows(syncUploadSessionsTable, [uploadId]);
+    if (deletedSession) deletedRows += 1;
+    return { deletedRows, deletedSession };
   },
 });
 
@@ -495,6 +494,22 @@ export const commitSyncUpload = action({
     }
     if (session.status !== "uploading") {
       throw new SyncConflictError("Sync upload session cannot be committed");
+    }
+    if (request.chunkCount > SYNC_V4_MAX_SESSION_CHUNKS) {
+      throw new SyncConflictError("Sync upload has too many chunks");
+    }
+    const chunks = yield* selectFrom(syncUploadChunksTable, "byUploadSequence")
+      .where((q) => q.eq("uploadId", uploadId))
+      .order("asc");
+    const validManifest =
+      chunks.length === request.chunkCount &&
+      chunks.every((chunk, index) => chunk.sequence === index) &&
+      chunks.reduce((sum, chunk) => sum + chunk.changeCount, 0) ===
+        request.changeCount &&
+      sha256(chunks.map((chunk) => chunk.checksum).join("\n")) ===
+        request.checksum;
+    if (!validManifest) {
+      throw new SyncConflictError("Incomplete sync upload");
     }
     const expectedThroughCursor =
       session.maxClientClock && session.maxClientChangeId
@@ -592,7 +607,129 @@ export const commitSyncUpload = action({
     let downloadChunkCount = 0;
     let downloadChangeCount = 0;
     let stagedDownloadBytes = 0;
-    const downloadChecksums: string[] = [];
+    const downloadManifestHash = createHash("sha256");
+    let hashedDownloadChunks = 0;
+
+    const recordDownloadChecksum = (checksum: string) => {
+      if (hashedDownloadChunks > 0) downloadManifestHash.update("\n");
+      downloadManifestHash.update(checksum);
+      hashedDownloadChunks += 1;
+    };
+    const appendDownloadChangesets = function* (
+      changesets: ChangesetArrayType,
+    ) {
+      const pageChangeCount = changesets.reduce(
+        (sum, changeset) => sum + changeset.data.length,
+        0,
+      );
+      if (pageChangeCount === 0) return;
+
+      const payload = JSON.stringify(changesets);
+      const payloadBytes = new TextEncoder().encode(payload).byteLength;
+      downloadChangeCount += pageChangeCount;
+      if (
+        downloadId === null &&
+        downloadChangeCount <= SYNC_V4_INLINE_DOWNLOAD_CHANGES &&
+        inlineBytes + payloadBytes <= SYNC_V4_INLINE_DOWNLOAD_BYTES
+      ) {
+        inlineChangesets.push(...changesets);
+        inlineBytes += payloadBytes;
+        return;
+      }
+
+      if (downloadId === null) {
+        downloadId = uuidv7();
+        if (inlineChangesets.length > 0) {
+          const firstPayload = JSON.stringify(inlineChangesets);
+          const firstChecksum = sha256(firstPayload);
+          yield* insert(syncDownloadChunksTable, [
+            {
+              id: `${downloadId}:0`,
+              downloadId,
+              sequence: 0,
+              payload: firstPayload,
+              checksum: firstChecksum,
+            },
+          ]);
+          recordDownloadChecksum(firstChecksum);
+          stagedDownloadBytes += new TextEncoder().encode(
+            firstPayload,
+          ).byteLength;
+          downloadChunkCount = 1;
+          inlineChangesets = [];
+        }
+      }
+
+      const checksum = sha256(payload);
+      yield* insert(syncDownloadChunksTable, [
+        {
+          id: `${downloadId}:${downloadChunkCount}`,
+          downloadId,
+          sequence: downloadChunkCount,
+          payload,
+          checksum,
+        },
+      ]);
+      recordDownloadChecksum(checksum);
+      stagedDownloadBytes += payloadBytes;
+      downloadChunkCount += 1;
+    };
+
+    // A merge can keep a newer server value instead of an uploaded value. Such
+    // a correction must be returned even when the canonical change predates the
+    // client's feed cursor, so derive it directly from the staged upload.
+    for (const tableName of orderedTableNames) {
+      const table = registeredSyncableTableNameMap[tableName];
+      if (!table) continue;
+      let afterSequence = -1;
+      while (true) {
+        const queriedItems = yield* selectFrom(
+          syncUploadItemsTable,
+          "byUploadTableSequence",
+        )
+          .where((q) =>
+            q
+              .eq("uploadId", uploadId)
+              .eq("tableName", tableName)
+              .gte("sequence", afterSequence),
+          )
+          .order("asc")
+          .limit(257);
+        const items =
+          queriedItems[0]?.sequence === afterSequence
+            ? queriedItems.slice(1)
+            : queriedItems.slice(0, 256);
+        if (items.length === 0) break;
+
+        const canonicalChanges = (yield* selectFrom(changesTable, "byId").where(
+          (q) => items.map((item) => q.eq("id", item.changeId)),
+        )) as Change[];
+        const changesById = new Map(
+          canonicalChanges.map((change) => [change.id, change]),
+        );
+        const rows = yield* selectFrom(table, "byId").where((q) =>
+          items.map((item) => q.eq("id", item.entityId)),
+        );
+        const rowsById = new Map(rows.map((row) => [row.id, row]));
+        const corrections = items.flatMap((item) => {
+          const change = changesById.get(item.changeId);
+          if (!change) return [];
+          const canonical = {
+            change,
+            ...(rowsById.get(change.entityId)
+              ? { row: rowsById.get(change.entityId) as never }
+              : {}),
+          };
+          return semanticallyEqualUpload(item.payload, canonical)
+            ? []
+            : [canonical];
+        });
+        if (corrections.length > 0) {
+          yield* appendDownloadChangesets([{ tableName, data: corrections }]);
+        }
+        afterSequence = items.at(-1)!.sequence;
+      }
+    }
 
     while (true) {
       let feedPage;
@@ -635,9 +772,7 @@ export const commitSyncUpload = action({
           q.eq("uploadId", uploadId).eq("changeId", change.id),
         ),
       );
-      const stagedByChangeId = new Map(
-        staged.map((item) => [item.changeId, item.payload]),
-      );
+      const stagedChangeIds = new Set(staged.map((item) => item.changeId));
       const changesets: ChangesetArrayType = [];
       for (const [tableName, table] of Object.entries(
         registeredSyncableTableNameMap,
@@ -657,71 +792,17 @@ export const commitSyncUpload = action({
               ? { row: rowsById.get(change.entityId) as never }
               : {}),
           }))
-          .filter(
-            (canonical) =>
-              !semanticallyEqualUpload(
-                stagedByChangeId.get(canonical.change.id),
-                canonical,
-              ),
-          );
+          .filter((canonical) => !stagedChangeIds.has(canonical.change.id));
         if (data.length > 0) changesets.push({ tableName, data });
       }
-
-      const pageChangeCount = changesets.reduce(
-        (sum, changeset) => sum + changeset.data.length,
-        0,
-      );
-      if (pageChangeCount > 0) {
-        const payload = JSON.stringify(changesets);
-        const payloadBytes = new TextEncoder().encode(payload).byteLength;
-        downloadChangeCount += pageChangeCount;
-        if (
-          downloadId === null &&
-          downloadChangeCount <= SYNC_V4_INLINE_DOWNLOAD_CHANGES &&
-          inlineBytes + payloadBytes <= SYNC_V4_INLINE_DOWNLOAD_BYTES
-        ) {
-          inlineChangesets.push(...changesets);
-          inlineBytes += payloadBytes;
-        } else {
-          if (downloadId === null) {
-            downloadId = uuidv7();
-            if (inlineChangesets.length > 0) {
-              const firstPayload = JSON.stringify(inlineChangesets);
-              yield* insert(syncDownloadChunksTable, [
-                {
-                  id: `${downloadId}:0`,
-                  downloadId,
-                  sequence: 0,
-                  payload: firstPayload,
-                  checksum: sha256(firstPayload),
-                },
-              ]);
-              downloadChecksums.push(sha256(firstPayload));
-              stagedDownloadBytes += new TextEncoder().encode(
-                firstPayload,
-              ).byteLength;
-              downloadChunkCount = 1;
-              inlineChangesets = [];
-            }
-          }
-          yield* insert(syncDownloadChunksTable, [
-            {
-              id: `${downloadId}:${downloadChunkCount}`,
-              downloadId,
-              sequence: downloadChunkCount,
-              payload,
-              checksum: sha256(payload),
-            },
-          ]);
-          downloadChecksums.push(sha256(payload));
-          stagedDownloadBytes += payloadBytes;
-          downloadChunkCount += 1;
-        }
-      }
+      yield* appendDownloadChangesets(changesets);
       const lastFeed = feedPage.at(-1)! as ServerChangeFeed;
       cursorRevision = lastFeed.revision;
       cursorId = lastFeed.id;
     }
+
+    const downloadChecksum =
+      downloadId === null ? null : downloadManifestHash.digest("hex");
 
     const download =
       downloadId === null
@@ -731,7 +812,7 @@ export const commitSyncUpload = action({
             downloadId,
             chunkCount: downloadChunkCount,
             changeCount: downloadChangeCount,
-            checksum: sha256(downloadChecksums.join("\n")),
+            checksum: downloadChecksum!,
           } as const);
     if (downloadId !== null) {
       yield* insert(syncDownloadSessionsTable, [
@@ -742,8 +823,9 @@ export const commitSyncUpload = action({
           serverRevision,
           chunkCount: downloadChunkCount,
           changeCount: downloadChangeCount,
-          checksum: sha256(downloadChecksums.join("\n")),
+          checksum: downloadChecksum!,
           stagedByteCount: stagedDownloadBytes,
+          status: "available",
           expiresAt,
         },
       ]);
@@ -772,7 +854,12 @@ export const getDownloadChunk = action({
     const session = yield* selectFrom(syncDownloadSessionsTable, "byId")
       .where((q) => q.eq("id", downloadId))
       .first();
-    if (!session || session.userId !== userId || session.expiresAt <= now) {
+    if (
+      !session ||
+      session.userId !== userId ||
+      session.status === "acknowledged" ||
+      session.expiresAt <= now
+    ) {
       throw new SyncSessionNotFoundError("Sync download session is not active");
     }
     return yield* selectFrom(syncDownloadChunksTable, "byId")
@@ -789,29 +876,32 @@ export const acknowledgeDownload = action({
       .where((q) => q.eq("id", downloadId))
       .first();
     if (!session || session.userId !== userId) return false;
-    const chunks = yield* selectFrom(
-      syncDownloadChunksTable,
-      "byDownloadSequence",
-    ).where((q) => q.eq("downloadId", downloadId));
-    yield* deleteRows(
-      syncDownloadChunksTable,
-      chunks.map((chunk) => chunk.id),
-    );
-    yield* deleteRows(syncDownloadSessionsTable, [downloadId]);
+    if (session.status !== "acknowledged") {
+      yield* upsert(syncDownloadSessionsTable, [
+        { ...session, status: "acknowledged", expiresAt: 0 },
+      ]);
+    }
     return true;
   },
 });
 
 export const cleanupExpiredSyncSessions = action({
   name: "cleanupExpiredSyncSessionsV4",
-  args: { now: v.number() },
-  handler: function* ({ now }) {
+  args: { now: v.number(), maxRows: v.number() },
+  handler: function* ({ now, maxRows }) {
     const uploads = yield* selectFrom(syncUploadSessionsTable, "byExpiresAtId")
       .where((q) => q.lte("expiresAt", now))
       .order("asc")
-      .limit(50);
-    for (const upload of uploads) {
-      yield* deleteSyncUpload({ uploadId: upload.id });
+      .limit(1);
+    let deletedRows = 0;
+    let deletedUploads = 0;
+    if (uploads[0]) {
+      const deleted = yield* deleteSyncUpload({
+        uploadId: uploads[0].id,
+        maxRows,
+      });
+      deletedRows += deleted.deletedRows;
+      if (deleted.deletedSession) deletedUploads = 1;
     }
     const downloads = yield* selectFrom(
       syncDownloadSessionsTable,
@@ -819,19 +909,34 @@ export const cleanupExpiredSyncSessions = action({
     )
       .where((q) => q.lte("expiresAt", now))
       .order("asc")
-      .limit(50);
-    for (const download of downloads) {
+      .limit(1);
+    let deletedDownloads = 0;
+    const remaining = Math.max(0, maxRows - deletedRows);
+    if (downloads[0] && remaining > 0) {
+      const download = downloads[0];
       const chunks = yield* selectFrom(
         syncDownloadChunksTable,
         "byDownloadSequence",
-      ).where((q) => q.eq("downloadId", download.id));
+      )
+        .where((q) => q.eq("downloadId", download.id))
+        .limit(remaining);
       yield* deleteRows(
         syncDownloadChunksTable,
         chunks.map((chunk) => chunk.id),
       );
-      yield* deleteRows(syncDownloadSessionsTable, [download.id]);
+      deletedRows += chunks.length;
+      if (chunks.length === 0) {
+        yield* deleteRows(syncDownloadSessionsTable, [download.id]);
+        deletedRows += 1;
+        deletedDownloads = 1;
+      }
     }
-    return { uploads: uploads.length, downloads: downloads.length };
+    return {
+      uploads: deletedUploads,
+      downloads: deletedDownloads,
+      deletedRows,
+      hasMore: uploads.length > 0 || downloads.length > 0,
+    };
   },
 });
 
