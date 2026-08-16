@@ -6,6 +6,18 @@ import { changesTable, syncStateId, syncStateTable } from "./tables";
 const canonicalizeOptional = (value: string | undefined) =>
   value && value !== "" ? canonicalizeHlc(value) : value;
 
+const observedSyncStateClocks = (state: {
+  lastSentClock: string;
+  lastServerAppliedClock: string;
+  serverConfirmedClientClock?: string;
+  localCoveredClientClock?: string;
+}) => [
+  state.lastSentClock,
+  state.lastServerAppliedClock,
+  state.serverConfirmedClientClock,
+  state.localCoveredClientClock,
+];
+
 /** Full-table v4 upgrade; intentionally runs only while opening a database. */
 export const migrateSyncV4Clocks = action({
   name: "migrateSyncV4Clocks",
@@ -14,7 +26,10 @@ export const migrateSyncV4Clocks = action({
     const states = yield* selectFrom(syncStateTable, "byId").where((q) =>
       q.eq("id", syncStateId),
     );
-    if (states[0]?.syncV4ClocksMigrated) return null;
+    if (states[0]?.syncV4ClocksMigrated) {
+      const persistedClock = maxHlc(states.flatMap(observedSyncStateClocks));
+      return persistedClock ? canonicalizeHlc(persistedClock) : null;
+    }
 
     const changes = yield* selectFrom(changesTable, "byUpdatedAtId");
     const migrated = changes.map((change) => ({
@@ -64,12 +79,7 @@ export const migrateSyncV4Clocks = action({
     return (
       maxHlc([
         ...migrated.flatMap((change) => observedChangeClocks(change)),
-        ...migratedStates.flatMap((state) => [
-          state.lastSentClock,
-          state.lastServerAppliedClock,
-          state.serverConfirmedClientClock,
-          state.localCoveredClientClock,
-        ]),
+        ...migratedStates.flatMap(observedSyncStateClocks),
       ]) ?? null
     );
   },

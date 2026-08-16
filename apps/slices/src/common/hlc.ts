@@ -135,20 +135,39 @@ export const observedChangeClocks = (change: {
 
 export type HlcClock = (() => HlcTimestamp) & {
   observe: (timestamps: Iterable<HlcTimestamp | null | undefined>) => void;
+  calibrate: (serverTimeMs: number) => void;
   current: () => HlcTimestamp | undefined;
+};
+
+export type HlcTimeSource = {
+  wallTime?: () => number;
+  monotonicTime?: () => number;
 };
 
 /**
  * Process-local HLC state. Call `observe` before producing a timestamp for a
- * merge so the resulting clock is causally after every received value.
+ * merge so the resulting clock is causally after every received value. A
+ * server-time calibration anchors future physical time to a monotonic timer;
+ * it never lowers `local` or rewrites an existing timestamp.
  */
 export const createHlcClock = (
   actorId: string,
   initial?: HlcTimestamp | null,
+  timeSource: HlcTimeSource = {},
 ): HlcClock => {
+  const wallTime = timeSource.wallTime ?? Date.now;
+  const monotonicTime = timeSource.monotonicTime ?? (() => performance.now());
   let local = initial ? canonicalizeHlc(initial) : undefined;
+  let calibration:
+    | { serverTimeMs: number; monotonicTimeMs: number }
+    | undefined;
+  const calibratedWallTime = () => {
+    if (!calibration) return wallTime();
+    const elapsed = Math.max(0, monotonicTime() - calibration.monotonicTimeMs);
+    return Math.floor(calibration.serverTimeMs + elapsed);
+  };
   const clock = (() => {
-    local = nextHlc({ actorId, local });
+    local = nextHlc({ actorId, local, now: calibratedWallTime() });
     return local;
   }) as HlcClock;
   clock.observe = (timestamps) => {
@@ -156,6 +175,14 @@ export const createHlcClock = (
     if (observed && (!local || compareHlc(observed, local) > 0)) {
       local = canonicalizeHlc(observed);
     }
+  };
+  clock.calibrate = (serverTimeMs) => {
+    assertNonNegativeSafeInteger(serverTimeMs, "HLC server time");
+    const monotonicTimeMs = monotonicTime();
+    if (!Number.isFinite(monotonicTimeMs) || monotonicTimeMs < 0) {
+      throw new Error("HLC monotonic time must be a non-negative number");
+    }
+    calibration = { serverTimeMs, monotonicTimeMs };
   };
   clock.current = () => local;
   return clock;

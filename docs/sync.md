@@ -61,6 +61,27 @@ in addition to the stable client ID, preventing simultaneous tabs from
 producing the same timestamp. Existing legacy clocks are canonicalized when a
 database is opened.
 
+The session handshake returns the server's current Unix time. The browser
+anchors HLC physical time to that value and advances it with a process-local
+monotonic timer. This prevents a fast or slow device wall clock, including a
+wall-clock correction after the handshake, from directly skewing newly
+generated HLC values. Calibration never rewrites or lowers an HLC that has
+already been generated or persisted.
+
+Uploaded materialized changes may be at most five minutes ahead of current
+server wall time. The server validates the maximum creation, field, deletion,
+and materialization HLC before staging and validates the session maximum again
+before commit. A value beyond the bound is rejected with
+`SYNC_CLOCK_SKEW`; it is never clamped, merged, or observed by the server HLC.
+Clamping is forbidden because it can change causal order or make distinct
+timestamps collide. Past timestamps are not rejected merely for being old.
+
+The future-skew check is relative to trusted current server time, not the
+server's persisted HLC or revision. Consequently, restoring an older database
+backup does not make valid newer client recovery state fail the check. A
+server whose own wall clock is incorrect must be repaired operationally; the
+database backup's age is not a clock-skew signal.
+
 HLC is not the server download cursor. Wall-clock rollback must never make a
 new HLC smaller, but HLC values still describe causal domain state rather than
 server history.
@@ -131,6 +152,11 @@ reload or lost response.
 At session start the client sends both what it believes the server confirmed
 and what its current local database covers. The server compares those claims
 with its persisted per-client state.
+
+The response also carries `serverTimeMs` and the enforced
+`maxFutureSkewMs`. Before freezing a new upload, the client calibrates its HLC
+time source from `serverTimeMs`. A resumed, already frozen upload keeps its
+original bytes and clocks; retry identity is never changed by calibration.
 
 ### Normal case
 
@@ -273,7 +299,8 @@ Current v4 limits are:
 - at most 1 MiB of encoded changes per upload chunk;
 - at most 4,096 chunks and 256 MiB per upload session;
 - inline download only up to 256 changes and 1 MiB;
-- temporary server sessions expire after 24 hours.
+- uploaded HLC physical time at most five minutes ahead of server wall time;
+- temporary server sessions expire after 24 hours;
 - one client may have at most 8 active upload sessions per user/database.
 
 Request-path reads must remain bounded by a session, indexed cursor, table, or
@@ -288,6 +315,12 @@ upload or commit request returns an actual HTTP 404. A 409 represents
 conflicting session state and is not treated as expiry; unexpected server
 failures return a generic 500 response while their details remain in server
 logs.
+
+An upload containing an HLC beyond the future-skew limit returns HTTP 422 with
+code `SYNC_CLOCK_SKEW`, the offending maximum clock, server time, and the
+configured skew bound. Rejected chunks leave no staged rows. A commit repeats
+the validation so chunks staged by an older server version cannot advance the
+server clock after deployment of this rule.
 
 Download chunk reads and acknowledgements use the same request deadline as the
 other sync requests. If a new local change appears after the upload snapshot
@@ -338,11 +371,13 @@ Any sync change must preserve all of the following:
     input and must never silently discard it because the server backup is older.
 15. Keep queries and memory bounded during snapshotting, staging, and download
     construction.
-16. Update this document and add regression tests whenever protocol state or an
+16. Never observe, stage, or merge an uploaded HLC beyond the future-skew bound,
+    and never clamp a received timestamp.
+17. Update this document and add regression tests whenever protocol state or an
     invariant changes.
 
 At minimum, sync-logic changes must test normal convergence, exact echo
 suppression, canonical conflict correction, duplicate chunk/commit retries,
 atomic parent-and-projection application, server backup rollback, client backup
-rollback, HLC wall-clock rollback, permanent tombstones, and staged-download
-recovery.
+rollback, HLC wall-clock rollback, fast and slow client-clock calibration,
+future-skew rejection, permanent tombstones, and staged-download recovery.

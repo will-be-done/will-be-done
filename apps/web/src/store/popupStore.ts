@@ -30,7 +30,7 @@ import {
   openPersistentDriver,
   resolvePersistentDriverKind,
 } from "./persistentDriver";
-import { getClientId, initClock } from "./syncClock";
+import { getClientId, initClock, observePersistedClock } from "./syncClock";
 import { syncChannelName } from "./syncCompatibility";
 import { withStoreStartupLock } from "./storeDbs";
 
@@ -69,8 +69,7 @@ export async function initPopupStore(spaceId: string) {
     asyncDB.withTraits({ type: "skip-sync" }),
     migrateSyncV4Clocks({}),
   );
-  const latest = await asyncDispatch(asyncDB, getLatestChangeCursor({}));
-  nextClock.observe([latest?.clock]);
+  await observePersistedClock(asyncDB, nextClock);
 
   // Ensure inbox exists
   await asyncDispatch(asyncDB, createInboxIfNotExists({}));

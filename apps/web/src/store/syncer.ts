@@ -269,6 +269,7 @@ export class Syncer {
             }),
           }),
       );
+      this.nextClock.calibrate(session.serverTimeMs);
       uploadId = session.uploadId;
       await asyncDispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),

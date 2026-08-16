@@ -43,9 +43,14 @@ import {
   type SyncUploadSession,
   type ServerChangeFeed,
 } from "./tables";
-import { SyncConflictError, SyncSessionNotFoundError } from "./errors";
+import {
+  assertSyncClockWithinFutureSkew,
+  SyncConflictError,
+  SyncSessionNotFoundError,
+} from "./errors";
 
 const INITIAL_FEED_PAGE_SIZE = 256;
+const STAGING_METRICS_PAGE_SIZE = 256;
 
 export const cursorFromServerState = (
   state: ServerClientSyncState | undefined,
@@ -377,6 +382,9 @@ export const stageUploadChunk = action({
       }
     }
 
+    const maxObservedClock = maxHlc(observedClocks) ?? null;
+    assertSyncClockWithinFutureSkew(maxObservedClock, now);
+
     yield* insert(syncUploadItemsTable, items);
     yield* insert(syncUploadChunksTable, [
       {
@@ -402,7 +410,7 @@ export const stageUploadChunk = action({
         uploadedChangeCount: session.uploadedChangeCount + itemIndex,
         uploadedByteCount: session.uploadedByteCount + byteCount,
         maxObservedClock:
-          maxHlc([session.maxObservedClock, ...observedClocks]) ?? null,
+          maxHlc([session.maxObservedClock, maxObservedClock]) ?? null,
         maxClientClock: maxCursor?.clock ?? null,
         maxClientChangeId: maxCursor?.changeId ?? null,
       },
@@ -831,19 +839,89 @@ export const getSyncStagingMetrics = action({
   name: "getSyncStagingMetricsV4",
   args: {},
   handler: function* () {
-    const uploads = yield* selectFrom(syncUploadSessionsTable, "byExpiresAtId");
-    const downloads = yield* selectFrom(
-      syncDownloadSessionsTable,
-      "byExpiresAtId",
-    );
-    const uploadBytes = uploads.reduce(
-      (total, session) => total + session.uploadedByteCount,
-      0,
-    );
-    const downloadBytes = downloads.reduce(
-      (total, session) => total + (session.stagedByteCount ?? 0),
-      0,
-    );
+    let uploadBytes = 0;
+    let uploadCursor: { expiresAt: number; id: string } | null = null;
+    while (true) {
+      let uploads;
+      if (uploadCursor === null) {
+        uploads = yield* selectFrom(syncUploadSessionsTable, "byExpiresAtId")
+          .order("asc")
+          .limit(STAGING_METRICS_PAGE_SIZE);
+      } else {
+        const atExpiry = yield* selectFrom(
+          syncUploadSessionsTable,
+          "byExpiresAtId",
+        )
+          .where((q) =>
+            q
+              .eq("expiresAt", uploadCursor!.expiresAt)
+              .gte("id", uploadCursor!.id),
+          )
+          .order("asc")
+          .limit(STAGING_METRICS_PAGE_SIZE + 1);
+        uploads =
+          atExpiry[0]?.id === uploadCursor.id
+            ? atExpiry.slice(1)
+            : atExpiry.slice(0, STAGING_METRICS_PAGE_SIZE);
+        if (uploads.length < STAGING_METRICS_PAGE_SIZE) {
+          uploads.push(
+            ...(yield* selectFrom(syncUploadSessionsTable, "byExpiresAtId")
+              .where((q) => q.gt("expiresAt", uploadCursor!.expiresAt))
+              .order("asc")
+              .limit(STAGING_METRICS_PAGE_SIZE - uploads.length)),
+          );
+        }
+      }
+      if (uploads.length === 0) break;
+      for (const session of uploads) uploadBytes += session.uploadedByteCount;
+      const last: { expiresAt: number; id: string } = uploads.at(-1)!;
+      uploadCursor = { expiresAt: last.expiresAt, id: last.id };
+    }
+
+    let downloadBytes = 0;
+    let downloadCursor: { expiresAt: number; id: string } | null = null;
+    while (true) {
+      let downloads;
+      if (downloadCursor === null) {
+        downloads = yield* selectFrom(
+          syncDownloadSessionsTable,
+          "byExpiresAtId",
+        )
+          .order("asc")
+          .limit(STAGING_METRICS_PAGE_SIZE);
+      } else {
+        const atExpiry = yield* selectFrom(
+          syncDownloadSessionsTable,
+          "byExpiresAtId",
+        )
+          .where((q) =>
+            q
+              .eq("expiresAt", downloadCursor!.expiresAt)
+              .gte("id", downloadCursor!.id),
+          )
+          .order("asc")
+          .limit(STAGING_METRICS_PAGE_SIZE + 1);
+        downloads =
+          atExpiry[0]?.id === downloadCursor.id
+            ? atExpiry.slice(1)
+            : atExpiry.slice(0, STAGING_METRICS_PAGE_SIZE);
+        if (downloads.length < STAGING_METRICS_PAGE_SIZE) {
+          downloads.push(
+            ...(yield* selectFrom(syncDownloadSessionsTable, "byExpiresAtId")
+              .where((q) => q.gt("expiresAt", downloadCursor!.expiresAt))
+              .order("asc")
+              .limit(STAGING_METRICS_PAGE_SIZE - downloads.length)),
+          );
+        }
+      }
+      if (downloads.length === 0) break;
+      for (const session of downloads) {
+        downloadBytes += session.stagedByteCount ?? 0;
+      }
+      const last: { expiresAt: number; id: string } = downloads.at(-1)!;
+      downloadCursor = { expiresAt: last.expiresAt, id: last.id };
+    }
+
     return {
       uploadBytes,
       downloadBytes,

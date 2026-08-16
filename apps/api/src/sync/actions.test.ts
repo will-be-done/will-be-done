@@ -5,6 +5,7 @@ import {
   createSelector,
   createAction,
   execSync,
+  noop,
   selectFrom,
   selectSync,
   SubscribableDB,
@@ -17,6 +18,7 @@ import { changesTable, formatHlc } from "@will-be-done/slices/common";
 import { spacesTable } from "@will-be-done/slices/user";
 import {
   commitSyncUpload,
+  getSyncStagingMetrics,
   initializeServerSyncFeed,
   recordServerChanges,
   stageUploadChunk,
@@ -26,12 +28,15 @@ import {
   SERVER_SYNC_STATE_ID,
   serverClientSyncStateTable,
   syncDownloadChunksTable,
+  syncDownloadSessionsTable,
+  syncUploadSessionsTable,
   serverSyncStateTable,
   serverSyncTables,
 } from "./tables";
 
 const clock = (logical: number, actorId = "client") =>
   formatHlc({ physical: 1_700_000_000_000, logical, actorId });
+const CLOCK_TIME_MS = 1_700_000_000_000;
 const selector = createSelector();
 const testAction = createAction();
 const sha256 = (value: string) =>
@@ -81,6 +86,46 @@ const getDownloadChunks = selector({
     return yield* selectFrom(syncDownloadChunksTable, "byDownloadSequence")
       .where((q) => q.eq("downloadId", downloadId))
       .order("asc");
+  },
+});
+
+const seedStagingMetricSessions = testAction({
+  name: "seedStagingMetricSessions",
+  args: {},
+  handler: function* () {
+    yield* upsert(
+      syncUploadSessionsTable,
+      Array.from({ length: 300 }, (_, index) => ({
+        id: `upload-${index.toString().padStart(3, "0")}`,
+        userId: "user-1",
+        clientId: "client-1",
+        baseClientClock: null,
+        baseClientChangeId: null,
+        downloadFromRevision: 0,
+        status: "uploading" as const,
+        expiresAt: 10_000,
+        uploadedChangeCount: 0,
+        uploadedByteCount: index + 1,
+        maxObservedClock: null,
+        maxClientClock: null,
+        maxClientChangeId: null,
+        resultJson: null,
+      })),
+    );
+    yield* upsert(
+      syncDownloadSessionsTable,
+      Array.from({ length: 300 }, (_, index) => ({
+        id: `download-${index.toString().padStart(3, "0")}`,
+        userId: "user-1",
+        clientId: "client-1",
+        serverRevision: 1,
+        chunkCount: 1,
+        changeCount: 1,
+        checksum: "checksum",
+        stagedByteCount: (index + 1) * 2,
+        expiresAt: 10_000,
+      })),
+    );
   },
 });
 
@@ -148,8 +193,8 @@ describe("sync v4 actions", () => {
           expectedAcknowledgedServerRevision: 0,
           appliedServerRevision: 0,
         },
-        now: 1,
-        expiresAt: 10_000,
+        now: CLOCK_TIME_MS,
+        expiresAt: CLOCK_TIME_MS + 10_000,
       }),
     );
     const row = {
@@ -184,7 +229,7 @@ describe("sync v4 actions", () => {
         tableNameMap: { spaces: spacesTable },
         tableRanks: { spaces: 0 },
         maxSessionBytes: 1_000,
-        now: 2,
+        now: CLOCK_TIME_MS + 1,
       }),
     );
     const result = syncDispatch(
@@ -203,8 +248,8 @@ describe("sync v4 actions", () => {
         dbType: "user",
         serverClientId: "server",
         nextClock: clock(1, "server"),
-        now: 3,
-        expiresAt: 10_000,
+        now: CLOCK_TIME_MS + 2,
+        expiresAt: CLOCK_TIME_MS + 10_000,
       }),
     );
 
@@ -379,5 +424,30 @@ describe("sync v4 actions", () => {
     expect(start).toThrow(
       "Too many active sync upload sessions for this client",
     );
+  });
+
+  test("accumulates staging metrics through bounded index pages", () => {
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(db.loadTables([...serverSyncTables]));
+    syncDispatch(db, seedStagingMetricSessions({}));
+    const pageSizes: number[] = [];
+    db.afterScan(function* (_db, table, indexName, _clauses, _options, rows) {
+      if (
+        (table === syncUploadSessionsTable ||
+          table === syncDownloadSessionsTable) &&
+        indexName === "byExpiresAtId"
+      ) {
+        pageSizes.push(rows.length);
+      }
+      yield* noop();
+    });
+
+    expect(syncDispatch(db, getSyncStagingMetrics({}))).toEqual({
+      uploadBytes: 45_150,
+      downloadBytes: 90_300,
+      totalBytes: 135_450,
+    });
+    expect(pageSizes.filter((size) => size > 0).length).toBeGreaterThan(2);
+    expect(pageSizes.every((size) => size <= 257)).toBe(true);
   });
 });

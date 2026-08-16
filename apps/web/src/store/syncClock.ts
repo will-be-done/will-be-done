@@ -1,10 +1,15 @@
 import { nanoid } from "nanoid";
+import { asyncDispatch, type HyperDB } from "@will-be-done/hyperdb";
 import {
   getPersistentDriverKind,
   type PersistentDriverKind,
 } from "./persistentDriver";
 import type { SyncConfig } from "./syncTypes";
-import { createHlcClock } from "@will-be-done/slices/common";
+import {
+  createHlcClock,
+  getLatestPersistedClock,
+  type HlcClock,
+} from "@will-be-done/slices/common";
 
 export const getDbName = (syncConfig: Pick<SyncConfig, "dbType" | "dbId">) => {
   return syncConfig.dbType + "-" + syncConfig.dbId;
@@ -17,6 +22,11 @@ const writerInstanceId = nanoid(8);
 // HLC timestamp.
 export const initClock = (clientId: string) =>
   createHlcClock(`${clientId}:${writerInstanceId}`);
+
+export const observePersistedClock = async (db: HyperDB, clock: HlcClock) => {
+  const persistedClock = await asyncDispatch(db, getLatestPersistedClock({}));
+  clock.observe([persistedClock]);
+};
 
 export const getClientId = (
   dbName: string,

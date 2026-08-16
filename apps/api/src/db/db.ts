@@ -229,6 +229,16 @@ export function installSyncNotificationHook(
   });
 }
 
+export function installServerChangeFeedHook(db: SubscribableDB) {
+  db.afterUpsert(function* (_db, table, traits, ops) {
+    if (table !== changesTable || ops.length === 0) return;
+    if (traits.some((trait) => trait.type === "skip-sync")) return;
+    yield* recordServerChanges({
+      changes: ops.map((op) => op.newValue as Change),
+    });
+  });
+}
+
 export const getHyperDB = async (dbConfig: DBConfig) => {
   const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
   const db = dbs.get(dbName);
@@ -318,12 +328,7 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
       yield* noop();
     });
 
-    hyperDB.afterUpsert(function* (_db, table, _traits, ops) {
-      if (table !== changesTable || ops.length === 0) return;
-      yield* recordServerChanges({
-        changes: ops.map((op) => op.newValue as Change),
-      });
-    });
+    installServerChangeFeedHook(hyperDB);
 
     await execAsync(hyperDB.loadTables(dbConfig.persistDBTables));
     await asyncDispatch(

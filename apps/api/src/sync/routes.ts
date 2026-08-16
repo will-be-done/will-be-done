@@ -3,6 +3,7 @@ import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
 import {
   SYNC_V4_MAX_CHUNK_BYTES,
   SYNC_V4_MAX_CHUNK_CHANGES,
+  SYNC_V4_MAX_FUTURE_SKEW_MS,
   SYNC_V4_MAX_SESSION_BYTES,
   SYNC_V4_MAX_SESSION_CHUNKS,
   SYNC_V4_SESSION_TTL_MS,
@@ -27,7 +28,12 @@ import {
   stageUploadChunk,
   startSyncUpload,
 } from "./actions";
-import { SyncConflictError, SyncSessionNotFoundError } from "./errors";
+import {
+  assertSyncClockWithinFutureSkew,
+  SyncClockSkewError,
+  SyncConflictError,
+  SyncSessionNotFoundError,
+} from "./errors";
 import { runSyncMaintenance } from "./maintenance";
 
 type DatabaseParams = { dbType: "user" | "space"; dbId: string };
@@ -120,6 +126,15 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     if (knownError instanceof SyncConflictError) {
       return reply.code(409).send({ error: knownError.message });
     }
+    if (knownError instanceof SyncClockSkewError) {
+      return reply.code(422).send({
+        error: knownError.message,
+        code: knownError.code,
+        observedClock: knownError.observedClock,
+        serverTimeMs: knownError.serverTimeMs,
+        maxFutureSkewMs: knownError.maxFutureSkewMs,
+      });
+    }
     request.log.error(knownError, "Sync v4 request failed");
     return reply.code(500).send({ error: "Internal server error" });
   });
@@ -152,9 +167,11 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
       );
       return {
         ...result,
+        serverTimeMs: Date.now(),
         limits: {
           maxChunkChanges: SYNC_V4_MAX_CHUNK_CHANGES,
           maxChunkBytes: SYNC_V4_MAX_CHUNK_BYTES,
+          maxFutureSkewMs: SYNC_V4_MAX_FUTURE_SKEW_MS,
         },
       };
     },
@@ -256,11 +273,12 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
       if (!validManifest) {
         return reply.code(409).send({ error: "Incomplete sync upload" });
       }
+      const now = Date.now();
+      assertSyncClockWithinFutureSkew(manifest.session.maxObservedClock, now);
       prepared.nextClock.observe([manifest.session.maxObservedClock]);
       const orderedTableNames = Object.keys(prepared.config.tableNameMap).sort(
         (a, b) => tableRank(a) - tableRank(b) || a.localeCompare(b),
       );
-      const now = Date.now();
       return await asyncDispatch(
         prepared.db.withTraits({ type: "skip-sync" }),
         commitSyncUpload({

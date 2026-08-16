@@ -10,6 +10,7 @@ export const SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS = 8;
 export const SYNC_V4_INLINE_DOWNLOAD_CHANGES = 256;
 export const SYNC_V4_INLINE_DOWNLOAD_BYTES = 1024 * 1024;
 export const SYNC_V4_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+export const SYNC_V4_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 
 export const ClientCursorSchema = z.object({
   clock: z.string(),
@@ -72,9 +73,11 @@ export type SyncSessionResponse = {
   serverHistoryLost: boolean;
   serverAhead: boolean;
   expiresAt: number;
+  serverTimeMs: number;
   limits: {
     maxChunkChanges: number;
     maxChunkBytes: number;
+    maxFutureSkewMs: number;
   };
 };
 

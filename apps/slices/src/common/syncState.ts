@@ -1,6 +1,13 @@
 import { selectFrom, upsert, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
-import { syncStateTable, syncStateId, type SyncState } from "./tables";
+import {
+  changesTable,
+  syncStateTable,
+  syncStateId,
+  type Change,
+  type SyncState,
+} from "./tables";
+import { maxHlc } from "./hlc";
 
 export { syncStateTable, type SyncState } from "./tables";
 
@@ -17,6 +24,27 @@ export const getSyncStateOrDefault = selector({
       lastSentClock: "",
       lastServerAppliedClock: "",
     }) as SyncState;
+  },
+});
+
+export const getLatestPersistedClock = selector({
+  name: "getLatestPersistedClock",
+  args: {},
+  handler: function* () {
+    const latestChanges = (yield* selectFrom(changesTable, "byUpdatedAtId")
+      .order("desc")
+      .limit(1)) as Change[];
+    const state = yield* getSyncStateOrDefault({});
+
+    return (
+      maxHlc([
+        latestChanges[0]?.updatedAt,
+        state.lastSentClock,
+        state.lastServerAppliedClock,
+        state.serverConfirmedClientClock,
+        state.localCoveredClientClock,
+      ]) ?? null
+    );
   },
 });
 
