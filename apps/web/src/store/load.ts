@@ -3,7 +3,12 @@ import AwaitLock from "await-lock";
 import { AutoBackuper } from "./autoBackup.ts";
 import { createCrossTabChanges } from "./crossTabChanges";
 import { createLocalPersistQueue } from "./localPersistQueue";
-import { getClientId, getDbName, initClock } from "./syncClock";
+import {
+  getClientId,
+  getDbName,
+  initClock,
+  observePersistedClock,
+} from "./syncClock";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 import { Syncer } from "./syncer";
 import {
@@ -14,6 +19,7 @@ import { resetEmptyPersistedSyncCursor } from "./syncActions";
 import { createStoreDbs } from "./storeDbs";
 import type { SyncConfig } from "./syncTypes";
 import { spaceDbType } from "./configs.ts";
+import { migrateSyncV4Clocks } from "@will-be-done/slices/common";
 
 export type { SyncConfig } from "./syncTypes";
 
@@ -54,6 +60,11 @@ export const initDbStore = async (
       dbName,
       syncConfig,
     );
+    await asyncDispatch(
+      persistentDB.withTraits({ type: "skip-sync" }),
+      migrateSyncV4Clocks({}),
+    );
+    await observePersistedClock(persistentDB, nextClock);
     await asyncDispatch(persistentDB, resetEmptyPersistedSyncCursor({}));
 
     registerSyncChangeHooks({

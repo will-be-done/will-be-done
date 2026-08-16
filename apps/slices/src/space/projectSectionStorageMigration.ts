@@ -247,7 +247,7 @@ export const migrateLegacyProjectSections = action({
 
     const changes = (yield* selectFrom(
       changesTable,
-      "byUpdatedAt",
+      "byUpdatedAtId",
     )) as Change[];
     const changeIds = new Set(changes.map((change) => change.id));
     const changesToUpsert: Change[] = [];

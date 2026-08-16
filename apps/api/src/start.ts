@@ -22,12 +22,14 @@ const start = async () => {
       );
     }
 
+    const mainDB = await getMainHyperDB();
     const appRouter = createAppRouter({
-      mainDB: await getMainHyperDB(),
+      mainDB,
       captchaConfig: getCaptchaConfig(),
     });
     const server = createServer({
       appRouter,
+      mainDB,
       rateLimit: {
         enabled: env.WBD_RATE_LIMIT_ENABLED,
         backend: env.WBD_RATE_LIMIT_BACKEND,

@@ -1,34 +1,31 @@
 import { nanoid } from "nanoid";
+import { asyncDispatch, type HyperDB } from "@will-be-done/hyperdb";
 import {
   getPersistentDriverKind,
   type PersistentDriverKind,
 } from "./persistentDriver";
 import type { SyncConfig } from "./syncTypes";
+import {
+  createHlcClock,
+  getLatestPersistedClock,
+  type HlcClock,
+} from "@will-be-done/slices/common";
 
 export const getDbName = (syncConfig: Pick<SyncConfig, "dbType" | "dbId">) => {
   return syncConfig.dbType + "-" + syncConfig.dbId;
 };
 
-export const initClock = (clientId: string) => {
-  let now = Date.now();
-  let n = 0;
+const writerInstanceId = nanoid(8);
 
-  return () => {
-    const newNow = Date.now();
+// A persisted client id identifies the replica on the server; the ephemeral
+// suffix identifies this tab/window so concurrent writers never emit the same
+// HLC timestamp.
+export const initClock = (clientId: string) =>
+  createHlcClock(`${clientId}:${writerInstanceId}`);
 
-    if (newNow === now) {
-      n++;
-    } else if (newNow > now) {
-      now = newNow;
-      n = 0;
-    } else {
-      // Clock went backwards — keep `now` at its current high-water mark
-      // and increment the counter to preserve strict monotonicity.
-      n++;
-    }
-
-    return `${now}-${n.toString().padStart(4, "0")}-${clientId}`;
-  };
+export const observePersistedClock = async (db: HyperDB, clock: HlcClock) => {
+  const persistedClock = await asyncDispatch(db, getLatestPersistedClock({}));
+  clock.observe([persistedClock]);
 };
 
 export const getClientId = (

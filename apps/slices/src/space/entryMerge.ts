@@ -1,5 +1,6 @@
 import { selectFrom, v, type TableDefinition } from "@will-be-done/hyperdb";
 import { action } from "../builders";
+import { compareHlc } from "../common/hlc";
 import {
   changeId,
   changesetArrayValidator,
@@ -87,9 +88,17 @@ const fallbackChange = (
 const compareCreation = (
   left: { id: string; createdAt: string },
   right: { id: string; createdAt: string },
-) =>
-  left.createdAt.localeCompare(right.createdAt) ||
-  left.id.localeCompare(right.id);
+) => {
+  const clockOrder =
+    left.createdAt === right.createdAt
+      ? 0
+      : left.createdAt === ""
+        ? -1
+        : right.createdAt === ""
+          ? 1
+          : compareHlc(left.createdAt, right.createdAt);
+  return clockOrder || left.id.localeCompare(right.id);
+};
 
 /**
  * Step 1: keep an existing entry id attached to its original task.
@@ -197,7 +206,8 @@ const resolveEntriesSharingTask = ({
       id: data.change.entityId,
       // An update or retry must not make an existing entry look newer.
       createdAt:
-        storedCreatedAt === undefined || data.change.createdAt < storedCreatedAt
+        storedCreatedAt === undefined ||
+        compareHlc(data.change.createdAt, storedCreatedAt) < 0
           ? data.change.createdAt
           : storedCreatedAt,
     });

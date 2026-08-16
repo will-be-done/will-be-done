@@ -14,6 +14,12 @@ import {
   insertChangeFromUpdate,
   insertChangeFromDelete,
   type PrimitiveRow,
+  type Change,
+  type HlcClock,
+  createHlcClock,
+  changesTable,
+  migrateSyncV4Clocks,
+  getLatestChangeCursor,
 } from "@will-be-done/slices/common";
 import { noop } from "@will-be-done/hyperdb";
 import { usersTable, tokensTable } from "../slices/authSlice";
@@ -40,34 +46,18 @@ import {
 } from "./turso";
 import { createTursodSqlDriver } from "./tursod";
 import { createServerClientId } from "../serverInstance";
+import { initializeServerSyncFeed, recordServerChanges } from "../sync/actions";
 
 export interface DBConfig {
   dbId: string;
   dbType: "user" | "space";
   persistDBTables: TableDefinition[];
   tableNameMap: Record<string, TableDefinition>;
+  syncTableNamesInDependencyOrder: string[];
 }
 
 const sqliteDatabases = new Set<Database>();
 const asyncDatabaseClosers = new Set<() => Promise<void>>();
-
-const initClock = (clientId: string) => {
-  let now = Date.now();
-  let n = 0;
-
-  return () => {
-    const newNow = Date.now();
-
-    if (newNow === now) {
-      n++;
-    } else if (newNow > now) {
-      now = newNow;
-      n = 0;
-    }
-
-    return `${now}-${n.toString().padStart(4, "0")}-${clientId}`;
-  };
-};
 
 const createLocalDB = (dbType: string, dbId: string) => {
   const dbName = dbType + "-" + dbId;
@@ -180,12 +170,18 @@ export const getMainHyperDB = async () => {
 type HyperDBCacheEntry = {
   dbConfig: DBConfig;
   db: SubscribableDB;
-  nextClock: () => string;
+  nextClock: HlcClock;
   clientId: string;
 };
 
 const dbs = new Map<string, HyperDBCacheEntry>();
 const dbPromises = new Map<string, Promise<HyperDBCacheEntry>>();
+
+export const getLoadedHyperDBs = () =>
+  [...dbs.entries()].map(([database, entry]) => ({
+    database,
+    db: entry.db,
+  }));
 
 export async function closeDatabases() {
   dbs.clear();
@@ -234,6 +230,15 @@ export function installSyncNotificationHook(
   });
 }
 
+export function installServerChangeFeedHook(db: SubscribableDB) {
+  db.afterUpsert(function* (_db, table, _traits, ops) {
+    if (table !== changesTable || ops.length === 0) return;
+    yield* recordServerChanges({
+      changes: ops.map((op) => op.newValue as Change),
+    });
+  });
+}
+
 export const getHyperDB = async (dbConfig: DBConfig) => {
   const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
   const db = dbs.get(dbName);
@@ -245,7 +250,7 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
 
   const dbPromise = (async () => {
     const clientId = createServerClientId(dbName);
-    const nextClock = initClock(clientId);
+    const nextClock = createHlcClock(clientId);
     const hyperDB = new SubscribableDB(
       await getDB(dbConfig.dbType, dbConfig.dbId),
     );
@@ -262,6 +267,8 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
       if (!isSyncableTable(table)) return;
       if (traits.some((t) => t.type === "skip-sync")) return;
 
+      const latest = yield* getLatestChangeCursor({});
+      nextClock.observe([latest?.clock]);
       for (const op of ops) {
         yield* insertChangeFromInsert({
           tableDef: op.table,
@@ -278,6 +285,8 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
       if (!isSyncableTable(table)) return;
       if (traits.some((t) => t.type === "skip-sync")) return;
 
+      const latest = yield* getLatestChangeCursor({});
+      nextClock.observe([latest?.clock]);
       for (const op of ops) {
         if (!op.oldValue) {
           yield* insertChangeFromInsert({
@@ -305,6 +314,8 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
       if (!isSyncableTable(table)) return;
       if (traits.some((t) => t.type === "skip-sync")) return;
 
+      const latest = yield* getLatestChangeCursor({});
+      nextClock.observe([latest?.clock]);
       for (const op of ops) {
         yield* insertChangeFromDelete({
           tableDef: op.table,
@@ -318,6 +329,22 @@ export const getHyperDB = async (dbConfig: DBConfig) => {
     });
 
     await execAsync(hyperDB.loadTables(dbConfig.persistDBTables));
+    await asyncDispatch(
+      hyperDB.withTraits({ type: "skip-sync" }),
+      initializeServerSyncFeed({}),
+    );
+    const persistedClock = await asyncDispatch(
+      hyperDB.withTraits({ type: "skip-sync" }),
+      migrateSyncV4Clocks({}),
+    );
+    const latest = await asyncDispatch(hyperDB, getLatestChangeCursor({}));
+    nextClock.observe([persistedClock, latest?.clock]);
+
+    // Clock migration rewrites materialized metadata but is not a new domain
+    // change. Install the feed hook only after that one-time rewrite so
+    // `skip-sync` can retain its narrow meaning: suppress local change
+    // generation while still publishing explicit canonical Change writes.
+    installServerChangeFeedHook(hyperDB);
 
     if (dbConfig.dbType === "space") {
       await asyncDispatch(hyperDB, migrateProjectSectionTaskStats({}));

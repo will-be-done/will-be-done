@@ -14,6 +14,8 @@ import { uniq } from "es-toolkit/array";
 import { z } from "zod";
 import { groupBy } from "es-toolkit";
 import { changesTable, type Change } from "./tables";
+import { compareHlc } from "./hlc";
+import type { ClientCursor } from "./syncV4";
 
 export { changesTable, type Change } from "./tables";
 
@@ -82,18 +84,30 @@ const getChangeByEntityAndTableName = selector({
 
 const allChangesAfter = selector({
   name: "allChangesAfter",
-  args: { after: v.string() },
+  args: { after: v.pass<ClientCursor | null>() },
   handler: function* allChangesAfter({ after }) {
-    return (yield* selectFrom(changesTable, "byUpdatedAt").where((q) =>
-      q.gt("updatedAt", after),
-    )) as Change[];
+    if (after === null) {
+      return (yield* selectFrom(changesTable, "byUpdatedAtId").order(
+        "asc",
+      )) as Change[];
+    }
+    const atClock = (yield* selectFrom(changesTable, "byUpdatedAtId")
+      .where((q) => q.eq("updatedAt", after.clock).gte("id", after.changeId))
+      .order("asc")) as Change[];
+    const afterClock = (yield* selectFrom(changesTable, "byUpdatedAtId")
+      .where((q) => q.gt("updatedAt", after.clock))
+      .order("asc")) as Change[];
+    return [
+      ...(atClock[0]?.id === after.changeId ? atClock.slice(1) : atClock),
+      ...afterClock,
+    ];
   },
 });
 
 export const getChangesetAfter = selector({
   name: "getChangesetAfter",
   args: {
-    after: v.string(),
+    after: v.pass<ClientCursor | null>(),
     registeredSyncableTableNameMap: v.record(
       v.string(),
       tableDefinitionArgSchema,
@@ -105,16 +119,15 @@ export const getChangesetAfter = selector({
   }) {
     const allChangesToSend = yield* allChangesAfter({ after });
     const changesets: ChangesetArrayType = [];
-    let maxClock = "";
-
-    for (const c of allChangesToSend) {
-      if (c.updatedAt > maxClock) {
-        maxClock = c.updatedAt;
-      }
-    }
+    const throughCursor = allChangesToSend.at(-1)
+      ? {
+          clock: allChangesToSend.at(-1)!.updatedAt,
+          changeId: allChangesToSend.at(-1)!.id,
+        }
+      : after;
 
     if (allChangesToSend.length === 0) {
-      return { changesets: [], maxClock };
+      return { changesets: [], throughCursor };
     }
 
     const groupedChanges = groupBy(allChangesToSend, (c) => c.tableName);
@@ -168,7 +181,20 @@ export const getChangesetAfter = selector({
       });
     }
 
-    return { changesets, maxClock };
+    return { changesets, throughCursor };
+  },
+});
+
+export const getLatestChangeCursor = selector({
+  name: "getLatestChangeCursor",
+  args: {},
+  handler: function* () {
+    const latest = (yield* selectFrom(changesTable, "byUpdatedAtId")
+      .order("desc")
+      .limit(1)) as Change[];
+    return latest[0]
+      ? { clock: latest[0].updatedAt, changeId: latest[0].id }
+      : null;
   },
 });
 
@@ -393,7 +419,7 @@ export const mergeChanges = action({
           currentChanges.createdAt !== incomingChange.createdAt
         ) {
           const currentCreatedFirst =
-            currentChanges.createdAt <= incomingChange.createdAt;
+            compareHlc(currentChanges.createdAt, incomingChange.createdAt) <= 0;
 
           // Winner's fields overwrite loser's (spread winner second)
           const winnerRow = currentCreatedFirst
@@ -462,13 +488,13 @@ export const mergeChanges = action({
             ? incomingDeletedAt
             : incomingDeletedAt == null
               ? currentDeletedAt
-              : currentDeletedAt > incomingDeletedAt
+              : compareHlc(currentDeletedAt, incomingDeletedAt) > 0
                 ? currentDeletedAt
                 : incomingDeletedAt;
         const incomingDeleteWins =
           incomingDeletedAt != null &&
           (currentDeletedAt == null ||
-            incomingDeletedAt > currentDeletedAt ||
+            compareHlc(incomingDeletedAt, currentDeletedAt) > 0 ||
             (incomingDeletedAt === currentDeletedAt &&
               incomingChange.clientId >
                 (currentChanges?.clientId ?? incomingChange.clientId)));
@@ -484,7 +510,7 @@ export const mergeChanges = action({
               : currentChanges.clientId;
         const mergedCreatedAt =
           currentChanges == null ||
-          incomingChange.createdAt < currentChanges.createdAt
+          compareHlc(incomingChange.createdAt, currentChanges.createdAt) < 0
             ? incomingChange.createdAt
             : currentChanges.createdAt;
 
@@ -603,7 +629,7 @@ const lwwMerge = (
     if (changeTimestampA !== undefined && changeTimestampB !== undefined) {
       // --- Conflict: The key was changed in both branches ---
       // Compare the timestamps to find the winner.
-      if (changeTimestampA > changeTimestampB) {
+      if (compareHlc(changeTimestampA, changeTimestampB) > 0) {
         // A is the winner
         winningTimestamp = changeTimestampA;
         winningValue = primitiveARow[key]!;

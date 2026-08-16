@@ -8,6 +8,8 @@ import {
   insertChangeFromDelete,
   insertChangeFromInsert,
   insertChangeFromUpdate,
+  getLatestChangeCursor,
+  type HlcClock,
   type PrimitiveRow,
 } from "@will-be-done/slices/common";
 
@@ -15,7 +17,7 @@ type RegisterSyncChangeHooksArgs = {
   syncSubDb: SubscribableDB;
   syncableDBTables: TableDefinition[];
   clientId: string;
-  nextClock: () => string;
+  nextClock: HlcClock;
 };
 
 export const registerSyncChangeHooks = ({
@@ -35,6 +37,8 @@ export const registerSyncChangeHooks = ({
       return;
     }
 
+    const latest = yield* getLatestChangeCursor({});
+    nextClock.observe([latest?.clock]);
     for (const op of ops) {
       yield* insertChangeFromInsert({
         tableDef: op.table,
@@ -52,6 +56,8 @@ export const registerSyncChangeHooks = ({
       return;
     }
 
+    const latest = yield* getLatestChangeCursor({});
+    nextClock.observe([latest?.clock]);
     for (const op of ops) {
       if (!op.oldValue) {
         yield* insertChangeFromInsert({
@@ -80,6 +86,8 @@ export const registerSyncChangeHooks = ({
       return;
     }
 
+    const latest = yield* getLatestChangeCursor({});
+    nextClock.observe([latest?.clock]);
     for (const op of ops) {
       yield* insertChangeFromDelete({
         tableDef: op.table,

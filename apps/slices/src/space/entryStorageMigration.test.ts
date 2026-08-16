@@ -123,7 +123,7 @@ const entryRows = selector({
         "byIds",
       ),
       stashEntries: yield* selectFrom(stashEntriesMigrationTable, "byIds"),
-      changes: yield* selectFrom(changesTable, "byUpdatedAt"),
+      changes: yield* selectFrom(changesTable, "byUpdatedAtId"),
       migrations: yield* selectFrom(spaceMigrationsTable, "byIds"),
     };
   },

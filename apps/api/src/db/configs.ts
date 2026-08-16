@@ -1,4 +1,4 @@
-import { changesTable } from "@will-be-done/slices/common";
+import { changesTable, syncStateTable } from "@will-be-done/slices/common";
 import { DBConfig } from "./db";
 import {
   registeredUserSyncableTableNameMap,
@@ -12,13 +12,20 @@ import {
   scheduledTodoTasksTable,
   spaceMigrationsTable,
 } from "@will-be-done/slices/space";
+import { serverSyncTables } from "../sync/tables";
 
 export const userDBConfig = (dbId: string) => {
   return {
     dbId,
     dbType: "user",
-    persistDBTables: [...registeredUserSyncableTables, changesTable],
+    persistDBTables: [
+      ...registeredUserSyncableTables,
+      changesTable,
+      syncStateTable,
+      ...serverSyncTables,
+    ],
     tableNameMap: registeredUserSyncableTableNameMap,
+    syncTableNamesInDependencyOrder: ["spaces"],
   } satisfies DBConfig;
 };
 
@@ -32,8 +39,20 @@ export const spaceDBConfig = (dbId: string) => {
       scheduledTodoTasksTable,
       spaceMigrationsTable,
       changesTable,
+      syncStateTable,
+      ...serverSyncTables,
     ],
     tableNameMap: registeredSpaceSyncableTableNameMap,
+    syncTableNamesInDependencyOrder: [
+      "projects",
+      "project_sections",
+      "daily_lists",
+      "tasks",
+      "task_templates",
+      "checklist_items",
+      "daily_entries",
+      "stash_entries",
+    ],
   } satisfies DBConfig;
 };
 

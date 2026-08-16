@@ -10,22 +10,25 @@ import { publicProcedure, router } from "./trpc";
 import { assertSupportedSyncVersion } from "./syncVersion";
 
 describe("sync version enforcement", () => {
-  it("accepts version 3", () => {
-    expect(() => assertSupportedSyncVersion(3)).not.toThrow();
+  it("accepts version 4", () => {
+    expect(() => assertSupportedSyncVersion(4)).not.toThrow();
   });
 
-  it.each([undefined, 0, 1, 2])("rejects unsupported version %s", (version) => {
-    try {
-      assertSupportedSyncVersion(version);
-      throw new Error("Expected sync version rejection");
-    } catch (error) {
-      expect(error).toBeInstanceOf(TRPCError);
-      expect(error).toMatchObject({ code: "PRECONDITION_FAILED" });
-      expect((error as TRPCError).cause).toBeInstanceOf(
-        UnsupportedSyncVersionError,
-      );
-    }
-  });
+  it.each([undefined, 0, 1, 2, 3])(
+    "rejects unsupported version %s",
+    (version) => {
+      try {
+        assertSupportedSyncVersion(version);
+        throw new Error("Expected sync version rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(TRPCError);
+        expect(error).toMatchObject({ code: "PRECONDITION_FAILED" });
+        expect((error as TRPCError).cause).toBeInstanceOf(
+          UnsupportedSyncVersionError,
+        );
+      }
+    },
+  );
 
   it("serializes compatibility data from an unsupported router request", async () => {
     const syncRouter = router({
@@ -59,8 +62,8 @@ describe("sync version enforcement", () => {
     expect(body.error.data.syncVersion).toEqual({
       code: SYNC_VERSION_UNSUPPORTED,
       received: 1,
-      minimum: 3,
-      maximum: 3,
+      minimum: 4,
+      maximum: 4,
     });
   });
 });
