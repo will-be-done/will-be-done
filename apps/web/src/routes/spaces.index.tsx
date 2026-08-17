@@ -225,6 +225,7 @@ function SpacePageComponent() {
                     spaceId: space.id,
                   }}
                   key={space.id}
+                  data-space-card
                   className="group relative overflow-hidden rounded-lg bg-white/[0.03] p-5 ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.05] hover:ring-white/[0.1]"
                 >
                   <div className="flex items-center justify-between">
@@ -233,7 +234,7 @@ function SpacePageComponent() {
                         {space.name}
                       </span>
                     </div>
-                    <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="relative z-10 flex items-center opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         onClick={(e) =>
                           void handleUpdateSpace(space.id, space.name, e)
@@ -255,7 +256,7 @@ function SpacePageComponent() {
                     </div>
                   </div>
                   {/* Subtle arrow indicator */}
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 transition-all group-hover:translate-x-2 group-hover:text-slate-400">
+                  <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 transition-all group-hover:translate-x-2 group-hover:text-slate-400">
                     <svg
                       className="h-5 w-5"
                       fill="none"
