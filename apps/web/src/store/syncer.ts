@@ -473,8 +473,8 @@ export class Syncer {
   ) {
     return new Promise<"timeout" | "ws" | "local">((resolve) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
-      let unsubscribeWs = () => { };
-      let unsubscribeForceSync = () => { };
+      let unsubscribeWs = () => {};
+      let unsubscribeForceSync = () => {};
       let settled = false;
 
       const finish = (reason: "timeout" | "ws" | "local") => {
