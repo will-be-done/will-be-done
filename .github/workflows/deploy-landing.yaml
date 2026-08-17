@@ -49,6 +49,11 @@ jobs:
 
       - name: Build landing
         run: pnpm -C apps/landing build
+        env:
+          # Astro embeds public variables into the static HTML at build time.
+          PUBLIC_POSTHOG_KEY: phc_qrPoGFFkFW2yTiRH8Fjt4mHBIm4ZzZK2kSJoI5AqvPu
+          PUBLIC_POSTHOG_HOST: https://a.will-be-done.app
+          PUBLIC_POSTHOG_UI_HOST: https://eu.posthog.com
 
       - name: Deploy
         id: deploy
