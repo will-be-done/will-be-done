@@ -22,7 +22,7 @@ import {
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import TextareaAutosize from "react-textarea-autosize";
 import clsx from "clsx";
-import { GripVertical, Plus } from "lucide-react";
+import { GripVertical, Plus, X } from "lucide-react";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
@@ -296,6 +296,25 @@ const ChecklistItemComp = ({
     });
   };
 
+  const removeItem = () => {
+    void (async () => {
+      const [before, after] = await select({
+        selector: checklistItemSiblings,
+        args: { itemId: item.id },
+      });
+      flushContent();
+      await dispatch(deleteItems({ ids: [item.id] }));
+
+      if (before) {
+        focusItemInCurrentChecklist(before.id, { caret: "end" });
+      } else if (after) {
+        focusItemInCurrentChecklist(after.id, { caret: "end" });
+      } else {
+        onItemsRemoved();
+      }
+    })();
+  };
+
   return (
     <div className="relative">
       {closestEdge === "top" && <DropChecklistIndicator direction="top" />}
@@ -352,23 +371,7 @@ const ChecklistItemComp = ({
               ) {
                 e.preventDefault();
                 e.stopPropagation();
-
-                void (async () => {
-                  const [before, after] = await select({
-                    selector: checklistItemSiblings,
-                    args: { itemId: item.id },
-                  });
-                  flushContent();
-                  await dispatch(deleteItems({ ids: [item.id] }));
-
-                  if (before) {
-                    focusItemInCurrentChecklist(before.id, { caret: "end" });
-                  } else if (after) {
-                    focusItemInCurrentChecklist(after.id, { caret: "end" });
-                  } else {
-                    onItemsRemoved();
-                  }
-                })();
+                removeItem();
               }
             }}
             onFocus={() => focusParentFromChecklist(focusableItemKey)}
@@ -406,6 +409,19 @@ const ChecklistItemComp = ({
             {content}
           </div>
         )}
+        <button
+          type="button"
+          aria-label="Delete checklist item"
+          onClick={(event) => {
+            event.stopPropagation();
+            removeItem();
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          className="-my-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-content-tinted opacity-100 transition-[color,opacity] hover:text-content focus-visible:bg-task-panel-hover focus-visible:text-content focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring-hover [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover/checklist-item:opacity-100"
+        >
+          <X className="size-3.5" />
+        </button>
       </div>
       {closestEdge === "bottom" && (
         <DropChecklistIndicator direction="bottom" />
