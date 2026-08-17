@@ -6,12 +6,41 @@ import {
   dailyTaskItem,
   openSpace,
   openTaskActions,
+  openTaskDetails,
   projectTaskItem,
   signupUser,
   stashPanel,
   stashTaskItem,
   uniqueE2EName,
 } from "./helpers";
+
+test("shows details for a selected stashed task", async ({ page }) => {
+  const spaceName = uniqueE2EName("E2E Stash Details Space");
+  const taskTitle = uniqueE2EName("E2E stashed task with details");
+  const description = uniqueE2EName("E2E stashed task description");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+
+  const task = await createTodayTask(page, taskTitle);
+  await task.click();
+  await page.keyboard.press("Digit1");
+  await expect(task.locator(".bg-nature-red")).toBeVisible();
+
+  const details = await openTaskDetails(page, taskTitle);
+  await details.description.fill(description);
+
+  await openTaskActions(page, taskTitle);
+  await page.getByRole("menuitem", { name: /stash task/i }).click();
+
+  await page.keyboard.press("Backslash");
+  await stashTaskItem(page, taskTitle).click();
+
+  await expect(page.getByLabel("Edit task description")).toHaveValue(
+    description,
+  );
+});
 
 test("stashes a task and keeps it available across Today and Inbox", async ({
   page,
