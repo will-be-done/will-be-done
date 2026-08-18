@@ -31,7 +31,7 @@ Will Be Done is for people who want a fast, private task manager that is built f
 - **Live demo:** [demo.will-be-done.app](https://demo.will-be-done.app) - no sign-up required.
 - **Cloud app:** [app.will-be-done.app](https://app.will-be-done.app/signup) - try it before self-hosting.
 - **Desktop app:** [download the latest release](https://github.com/will-be-done/will-be-done/releases) for Windows, macOS, or Linux.
-- **Mobile:** install the web app as a PWA. Native mobile clients are planned.
+- **Mobile:** install the web app as a PWA. App store builds that package the same web app for iOS and Android are planned.
 
 ## HTTP API
 
@@ -297,7 +297,7 @@ Possible next features:
 - [ ] Global search
 - [ ] Mobile widgets
 - [ ] Notifications on web, mobile, and desktop
-- [ ] Native mobile app
+- [ ] Mobile app store builds (the web app packaged for iOS and Android)
 
 Not planned for now:
 
