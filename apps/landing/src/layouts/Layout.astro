@@ -11,6 +11,112 @@ const {
   title = 'Will Be Done: Plan Your Week | Open Source, Local-First Task Manager',
   description = 'Will Be Done is a local-first task manager built around a visual weekly timeline. It works fully offline, syncs across devices, and can be self-hosted with one Docker command. Open source, AGPL-3.0, keyboard-first with Vim navigation.',
 } = Astro.props;
+
+const siteUrl = 'https://will-be-done.app/';
+const repoUrl = 'https://github.com/will-be-done/will-be-done';
+const screenshotUrl = `${siteUrl}screen.png`;
+
+// One connected graph: everything hangs off stable @id values so the site,
+// page, app and publisher describe the same entity.
+const organizationId = `${siteUrl}#organization`;
+const websiteId = `${siteUrl}#website`;
+const webPageId = `${siteUrl}#webpage`;
+const applicationId = `${siteUrl}#app`;
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': organizationId,
+      name: 'Will Be Done',
+      url: siteUrl,
+      description:
+        'Maker of Will Be Done, an open source, local-first task manager built around weekly planning.',
+      logo: {
+        '@type': 'ImageObject',
+        '@id': `${siteUrl}#logo`,
+        url: `${siteUrl}ios/512.png`,
+        width: 512,
+        height: 512,
+        caption: 'Will Be Done',
+      },
+      sameAs: [repoUrl, 'https://github.com/will-be-done'],
+    },
+    {
+      '@type': 'WebSite',
+      '@id': websiteId,
+      name: 'Will Be Done',
+      url: siteUrl,
+      description,
+      inLanguage: 'en',
+      publisher: { '@id': organizationId },
+    },
+    {
+      '@type': 'WebPage',
+      '@id': webPageId,
+      url: siteUrl,
+      name: title,
+      description,
+      inLanguage: 'en',
+      isPartOf: { '@id': websiteId },
+      about: { '@id': applicationId },
+      primaryImageOfPage: {
+        '@type': 'ImageObject',
+        '@id': `${siteUrl}#primaryimage`,
+        url: screenshotUrl,
+        caption: 'Will Be Done weekly timeline',
+      },
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': applicationId,
+      name: 'Will Be Done',
+      url: siteUrl,
+      description,
+      // Google only recognises a fixed set of app categories, and
+      // ProductivityApplication is not one of them.
+      applicationCategory: 'BusinessApplication',
+      applicationSubCategory: 'Task manager',
+      operatingSystem: 'Web, Linux, macOS, Windows',
+      softwareRequirements: 'Modern web browser, or Docker for self-hosting',
+      installUrl: `${repoUrl}/releases`,
+      downloadUrl: `${repoUrl}/releases`,
+      isAccessibleForFree: true,
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'USD',
+        availability: 'https://schema.org/InStock',
+      },
+      featureList: [
+        'Visual weekly timeline with a column per day',
+        'Drag and drop tasks between days, projects and sections',
+        'Local-first: full database on the device, works fully offline',
+        'Sync across devices through your own server or the cloud',
+        'Vim keybindings and keyboard-first navigation',
+        'Global quick add shortcut on the desktop app',
+        'Kanban board per project with custom sections',
+        'Separate spaces for work and personal',
+        'Recurring tasks by day of week, month or year',
+        'Mobile-ready PWA and desktop apps for Linux, macOS and Windows',
+        'HTTP API with OpenAPI documentation',
+        'Todoist and TickTick import',
+        'Self-hosted with one Docker container and SQLite storage',
+      ],
+      screenshot: {
+        '@type': 'ImageObject',
+        url: screenshotUrl,
+        caption: 'Will Be Done weekly timeline',
+      },
+      license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+      codeRepository: repoUrl,
+      publisher: { '@id': organizationId },
+      author: { '@id': organizationId },
+      sameAs: [repoUrl],
+    },
+  ],
+};
 ---
 
 <!doctype html>
@@ -45,47 +151,7 @@ const {
     <PostHog />
 
     <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@graph": [
-        {
-          "@type": "WebSite",
-          "name": "Will Be Done",
-          "url": "https://will-be-done.app",
-          "description": "Open source task management that's actually instant and actually works offline. Local-first architecture with real-time sync, weekly planning, and kanban boards."
-        },
-        {
-          "@type": "SoftwareApplication",
-          "name": "Will Be Done",
-          "description": "Open source task management with local-first architecture. Every action is instant, works offline, and syncs in real-time. Weekly planning, kanban boards, mobile-ready. Self-host with Docker or use the free cloud version.",
-          "applicationCategory": "ProductivityApplication",
-          "operatingSystem": "Web, Docker",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-          },
-          "featureList": [
-            "Weekly timeline view",
-            "Kanban boards per project",
-            "Drag & drop task management",
-            "Vim keybindings",
-            "Multiple workspaces",
-            "Local-first architecture",
-            "True offline support",
-            "Mobile-friendly UI",
-            "Offline-first with sync",
-            "Self-hosted via Docker",
-            "Real-time sync across tabs"
-          ],
-          "screenshot": "https://will-be-done.app/screen.png",
-          "license": "https://www.gnu.org/licenses/agpl-3.0.html",
-          "codeRepository": "https://github.com/will-be-done/will-be-done"
-        }
-      ]
-    }
-    </script>
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
   </head>
   <body>
     <slot />

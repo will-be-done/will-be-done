@@ -46,9 +46,17 @@ const faqs = [
   },
 ];
 
+// Attached to the page graph defined in Layout.astro. Google no longer shows
+// FAQ rich results, but this keeps the answers machine-readable for other
+// consumers.
 const faqSchema = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
+  '@id': 'https://will-be-done.app/#faq',
+  url: 'https://will-be-done.app/',
+  name: 'Will Be Done — frequently asked questions',
+  isPartOf: { '@id': 'https://will-be-done.app/#webpage' },
+  about: { '@id': 'https://will-be-done.app/#app' },
   mainEntity: faqs.map((faq) => ({
     '@type': 'Question',
     name: faq.q,
