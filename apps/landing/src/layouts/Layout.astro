@@ -22,10 +22,21 @@ const organizationId = `${siteUrl}#organization`;
 const websiteId = `${siteUrl}#website`;
 const webPageId = `${siteUrl}#webpage`;
 const applicationId = `${siteUrl}#app`;
+const personId = `${siteUrl}#sergey`;
 
 const structuredData = {
   '@context': 'https://schema.org',
   '@graph': [
+    {
+      '@type': 'Person',
+      '@id': personId,
+      name: 'Sergey Popov',
+      url: 'https://github.com/quolpr',
+      description:
+        'Solo developer of Will Be Done, with more than 10 years of development experience including 4 years on offline-first apps.',
+      knowsAbout: ['Local-first software', 'Offline-first applications', 'TypeScript', 'Task management'],
+      sameAs: ['https://github.com/quolpr'],
+    },
     {
       '@type': 'Organization',
       '@id': organizationId,
@@ -41,6 +52,7 @@ const structuredData = {
         height: 512,
         caption: 'Will Be Done',
       },
+      founder: { '@id': personId },
       sameAs: [repoUrl, 'https://github.com/will-be-done'],
     },
     {
@@ -110,9 +122,21 @@ const structuredData = {
         caption: 'Will Be Done weekly timeline',
       },
       license: 'https://www.gnu.org/licenses/agpl-3.0.html',
-      codeRepository: repoUrl,
       publisher: { '@id': organizationId },
-      author: { '@id': organizationId },
+      author: { '@id': personId },
+      creator: { '@id': personId },
+      sameAs: [repoUrl],
+    },
+    {
+      // codeRepository belongs to SoftwareSourceCode, not SoftwareApplication.
+      '@type': 'SoftwareSourceCode',
+      '@id': `${siteUrl}#source`,
+      name: 'Will Be Done source code',
+      codeRepository: repoUrl,
+      targetProduct: { '@id': applicationId },
+      programmingLanguage: 'TypeScript',
+      license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+      author: { '@id': personId },
       sameAs: [repoUrl],
     },
   ],
