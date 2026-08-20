@@ -42,11 +42,22 @@ pnpm sync:releases --tag v0.10.1   # only this release
 
 It downloads the images a release body references, converts them to webp at the width the release
 author asked for, and rewrites the body to point at the local copies — so the images are served
-from our domain and optimised by Astro instead of hotlinked from GitHub.
+from our domain and optimised by Astro instead of hotlinked from GitHub. Downloads are staged and
+swapped in at the end, so a failure never leaves the assets out of step with the markdown.
+
+`--images-only` refuses to run when a release body has gained, lost or reordered an image upstream,
+because the numbering would have moved and the hand-edited markdown would end up pointing at the
+wrong pictures. Regenerate that release with `--force --tag <tag>` instead.
+
+A release tag has to be a single safe path segment — it is both the file name and the URL segment.
+Tags that are not (one containing `/`, say) are skipped with a warning; the rule lives in
+`src/lib/releaseTag.ts` and the content schema enforces the same one.
 
 **The generated `headline`, `summary` and `highlights` are a starting point.** They become the
 `<h1>`, the meta description and the at-a-glance list, so they are worth rewriting by hand. The
 script never touches a file that already exists unless you pass `--force`.
 
 `.github/workflows/sync-release-pages.yaml` runs the script when a release is published and opens
-a pull request with the result, so the copy gets reviewed before it goes live.
+a pull request with the result, so the copy gets reviewed before it goes live. It works on one
+long-lived `release-pages/pending` branch: a release published while an earlier pull request is
+still open adds to that pull request rather than opening a second one that repeats it.

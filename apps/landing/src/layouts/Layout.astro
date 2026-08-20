@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import PostHog from '../components/posthog.astro';
+import { serialiseJsonLd } from '../lib/jsonLd';
 
 interface Props {
   title?: string;
@@ -195,7 +196,7 @@ const structuredData = {
     <PostHog />
 
     <!-- Structured Data -->
-    <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
+    <script type="application/ld+json" is:inline set:html={serialiseJsonLd(structuredData)} />
   </head>
   <body>
     <slot />

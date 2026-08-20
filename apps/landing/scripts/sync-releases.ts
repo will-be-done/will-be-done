@@ -17,12 +17,23 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import sharp from "sharp";
+import {
+  isSafeReleaseTag,
+  RELEASE_TAG_MESSAGE,
+} from "../src/lib/releaseTag.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -212,17 +223,36 @@ async function downloadImage(
 interface RewriteResult {
   body: string;
   imageCount: number;
+  /**
+   * Moves the downloaded images into place. Nothing under `src/assets/releases`
+   * changes until this is called, so a caller that rejects the new body leaves
+   * the images the committed markdown points at untouched.
+   */
+  commit: () => Promise<void>;
+  /** Throws away the staged download, leaving the current images in place. */
+  discard: () => Promise<void>;
 }
+
+const NO_IMAGES: Pick<RewriteResult, "imageCount" | "commit" | "discard"> = {
+  imageCount: 0,
+  commit: async () => {},
+  discard: async () => {},
+};
 
 /**
  * Downloads every remote image in the body and points the markdown at the local
  * copy, so Astro can emit responsive, optimised images at build time.
+ *
+ * Images land in a staging directory first. `commit` swaps it in, which keeps
+ * the asset directory consistent with the markdown even if a download throws
+ * halfway through or the caller decides the new body is unusable.
  */
 async function localiseImages(
   body: string,
   release: ReleaseDetail,
 ): Promise<RewriteResult> {
   const releaseAssetsDir = path.join(assetsDir, release.tagName);
+  const stagingDir = `${releaseAssetsDir}.staging`;
   const found: {
     placeholder: string;
     alt: string;
@@ -253,36 +283,53 @@ async function localiseImages(
       return placeholder;
     });
 
-  if (found.length === 0) return { body: withPlaceholders, imageCount: 0 };
+  if (found.length === 0) return { body: withPlaceholders, ...NO_IMAGES };
 
-  await rm(releaseAssetsDir, { recursive: true, force: true });
-  await mkdir(releaseAssetsDir, { recursive: true });
+  await rm(stagingDir, { recursive: true, force: true });
+  await mkdir(stagingDir, { recursive: true });
 
   let result = withPlaceholders;
 
-  for (const [position, image] of found.entries()) {
-    const number = position + 1;
-    const filePath = await downloadImage(
-      image.url,
-      path.join(releaseAssetsDir, String(number)),
-      image.width,
-    );
-    const relativePath = path
-      .relative(contentDir, filePath)
-      .split(path.sep)
-      .join("/");
+  try {
+    for (const [position, image] of found.entries()) {
+      const number = position + 1;
+      const stagedPath = await downloadImage(
+        image.url,
+        path.join(stagingDir, String(number)),
+        image.width,
+      );
+      // The markdown must reference the final location, not the staging one.
+      const finalPath = path.join(releaseAssetsDir, path.basename(stagedPath));
+      const relativePath = path
+        .relative(contentDir, finalPath)
+        .split(path.sep)
+        .join("/");
 
-    const alt = isPlaceholderAlt(image.alt)
-      ? `Will Be Done ${release.tagName} screenshot ${number}`
-      : image.alt.trim();
+      const alt = isPlaceholderAlt(image.alt)
+        ? `Will Be Done ${release.tagName} screenshot ${number}`
+        : image.alt.trim();
 
-    result = result.replace(
-      image.placeholder,
-      `![${escapeMarkdown(alt)}](${relativePath})`,
-    );
+      result = result.replace(
+        image.placeholder,
+        `![${escapeMarkdown(alt)}](${relativePath})`,
+      );
+    }
+  } catch (error) {
+    await rm(stagingDir, { recursive: true, force: true });
+    throw error;
   }
 
-  return { body: result, imageCount: found.length };
+  return {
+    body: result,
+    imageCount: found.length,
+    commit: async () => {
+      await rm(releaseAssetsDir, { recursive: true, force: true });
+      await rename(stagingDir, releaseAssetsDir);
+    },
+    discard: async () => {
+      await rm(stagingDir, { recursive: true, force: true });
+    },
+  };
 }
 
 function escapeMarkdown(text: string): string {
@@ -425,17 +472,60 @@ function renderFrontmatter(fields: Record<string, unknown>): string {
   return lines.join("\n");
 }
 
+const LOCAL_IMAGE_RE = /!\[[^\]]*\]\((\.\.\/[^)\s]+)\)/g;
+
+function localImagePaths(markdown: string): string[] {
+  return [...markdown.matchAll(LOCAL_IMAGE_RE)].map((match) => match[1]).sort();
+}
+
 async function writeRelease(
   release: ReleaseDetail,
   imagesOnly: boolean,
 ): Promise<void> {
+  const filePath = path.join(contentDir, `${release.tagName}.md`);
+
+  const existing = imagesOnly
+    ? await readFile(filePath, "utf8").catch(() => undefined)
+    : undefined;
+
+  if (imagesOnly && existing === undefined) {
+    console.log("  no page for this release yet, skipped");
+    return;
+  }
+
   // Images are localised first so that `normaliseBody` sees markdown images and
   // can give them the blank lines they need to render as their own block.
   const raw = (release.body ?? "").replace(/\r\n/g, "\n");
-  const { body: localised, imageCount } = await localiseImages(raw, release);
+  const {
+    body: localised,
+    imageCount,
+    commit,
+    discard,
+  } = await localiseImages(raw, release);
   const { body, compareUrl } = normaliseBody(localised);
 
   if (imagesOnly) {
+    // The markdown on disk is hand-edited and stays as it is, so the refreshed
+    // files have to be exactly the ones it already references. If the release
+    // body gained, lost or reordered an image upstream, the numbering has moved
+    // and swapping the directory in would point the page at the wrong pictures.
+    const wanted = localImagePaths(existing!);
+    const generated = localImagePaths(body);
+
+    if (wanted.join("\n") !== generated.join("\n")) {
+      await discard();
+      throw new Error(
+        `The images in ${release.tagName} no longer line up with ` +
+          `src/content/releases/${release.tagName}.md.\n` +
+          `  the page references: ${wanted.join(", ") || "(none)"}\n` +
+          `  the release body has: ${generated.join(", ") || "(none)"}\n` +
+          "Re-run with --force --tag " +
+          release.tagName +
+          " to regenerate the page, then redo any edits to it.",
+      );
+    }
+
+    await commit();
     console.log(
       `  refreshed ${imageCount} image${imageCount === 1 ? "" : "s"}`,
     );
@@ -462,7 +552,7 @@ async function writeRelease(
     prerelease: release.isPrerelease,
   });
 
-  const filePath = path.join(contentDir, `${release.tagName}.md`);
+  await commit();
   await writeFile(filePath, `${frontmatter}\n\n${body}\n`);
 
   console.log(
@@ -501,7 +591,17 @@ async function main(): Promise<void> {
     throw new Error(`No published release found for tag ${args.tag}`);
   }
 
-  const targets = selected.filter(
+  // A tag is used as a file name and as a URL segment, so anything that is not
+  // a single safe segment is dropped before it can be written anywhere. One odd
+  // tag should not stop the rest of the releases from syncing.
+  const usable = selected.filter((release) => {
+    if (isSafeReleaseTag(release.tagName)) return true;
+    console.warn(`! skipping ${release.tagName}: ${RELEASE_TAG_MESSAGE}`);
+    return false;
+  });
+  const skipped = selected.length - usable.length;
+
+  const targets = usable.filter(
     (release) =>
       args.force ||
       args.imagesOnly ||
@@ -513,6 +613,9 @@ async function main(): Promise<void> {
     console.log(
       `Up to date: ${existing.size} release page(s), nothing new on GitHub.`,
     );
+    if (skipped > 0) {
+      console.warn(`${skipped} release(s) were skipped for an unusable tag.`);
+    }
     return;
   }
 
@@ -528,6 +631,10 @@ async function main(): Promise<void> {
       "\nDone. Images were re-downloaded; the markdown was left untouched.",
     );
     return;
+  }
+
+  if (skipped > 0) {
+    console.warn(`\n${skipped} release(s) were skipped for an unusable tag.`);
   }
 
   console.log(

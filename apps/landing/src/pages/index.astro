@@ -3,6 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import DockerInstall from '../components/DockerInstall.astro';
 import TopBar from '../components/TopBar.astro';
 import PageBackdrop from '../components/PageBackdrop.astro';
+import { serialiseJsonLd } from '../lib/jsonLd';
 import SiteFooter from '../components/SiteFooter.astro';
 import { Image } from 'astro:assets';
 import punishmentImg from '../assets/punishment.png';
@@ -1254,7 +1255,7 @@ const everythingElse = [
     </dialog>
   </PageBackdrop>
 
-  <script type="application/ld+json" is:inline set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" is:inline set:html={serialiseJsonLd(faqSchema)} />
 </Layout>
 
 <style>
