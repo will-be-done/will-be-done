@@ -31,7 +31,7 @@ const faqs = [
   },
   {
     q: 'Where is my data stored?',
-    a: 'A copy lives locally on every device you use, and the synced copy lives on whichever server you choose: your own Docker container (SQLite under /var/lib/will-be-done) or the hosted cloud.',
+    a: 'A copy lives locally on every device you use, and the synced copy lives on whichever server you choose: your own Docker container, which keeps SQLite under /var/lib/will-be-done, or the hosted cloud.',
   },
   {
     q: 'Do I need an account?',
@@ -39,15 +39,15 @@ const faqs = [
   },
   {
     q: 'Is there a cloud version?',
-    a: 'Yes. app.will-be-done.app is free to start and is the fastest way to try Will Be Done with real sync before you decide to self-host.',
+    a: 'Yes. app.will-be-done.app is free to start. Use it if you want sync across devices without running a server yourself.',
   },
   {
     q: 'What happens if my self-hosted server goes offline?',
-    a: 'The app keeps working. Reads and writes hit your local database, and pending changes are sent to the server as soon as it comes back.',
+    a: 'The app keeps working. Reads and writes hit your local database, and the app sends pending changes the moment the server comes back.',
   },
   {
     q: 'What happens if I edit the same task on two devices while offline?',
-    a: 'Both devices keep working, and the changes are merged field by field when they reconnect, with the last write winning. Say your phone is offline on the train and you rename a task to "Draft Q2 budget", then ten minutes later you rename the same task to "Draft Q2 budget deck" on your desktop: once both sync, the title is the desktop one, because it was edited later. Ordering comes from a hybrid logical clock rather than who reconnects first, so a stale edit uploaded later does not overwrite a newer one.',
+    a: 'Both devices keep working, and they merge their changes field by field once they reconnect, with the last write winning. Say your phone is offline on the train and you rename a task to "Draft Q2 budget", then ten minutes later you rename the same task to "Draft Q2 budget deck" on your desktop: once both sync, the title is the desktop one, because it was edited later. Ordering comes from a hybrid logical clock rather than who reconnects first, so a stale edit uploaded later does not overwrite a newer one.',
   },
   {
     q: 'Does a conflict ever lose my other changes?',
@@ -67,11 +67,11 @@ const faqs = [
   },
   {
     q: 'Can I schedule a task for a specific time of day?',
-    a: 'No. Tasks are scheduled to days, not to times, because the app is built around planning a week rather than filling a calendar. Time-of-day scheduling is not planned for now.',
+    a: 'No. You schedule tasks to days, not to times, because the app plans a week rather than fills a calendar. Time-of-day scheduling is not planned for now.',
   },
   {
     q: 'Is my data end-to-end encrypted?',
-    a: 'Not today. Data is stored locally on your devices and on the server you sync with, which can be your own machine. End-to-end encryption is on the roadmap but is not implemented yet.',
+    a: 'Not today. The data sits locally on your devices and on the server you sync with, which can be your own machine. End-to-end encryption is on the roadmap but is not implemented yet.',
   },
 ];
 
@@ -431,7 +431,7 @@ const everythingElse = [
                   <span class="font-medium text-slate-200">Weekly timeline</span>: See the full week, drag tasks between any day
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="1" style="opacity:0;transform:translateY(8px)">
-                  <span class="font-medium text-slate-200">Desktop app</span>: Full task management experience
+                  <span class="font-medium text-slate-200">Desktop app</span>: the whole planner in its own window
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="2" style="opacity:0;transform:translateY(8px)">
                   <span class="font-medium text-slate-200">Quick add</span>: Capture tasks instantly without breaking focus
@@ -440,7 +440,7 @@ const everythingElse = [
                   <span class="font-medium text-slate-200">Project board</span>: Kanban view for your project areas
                 </p>
                 <p class="carousel-caption absolute inset-0 text-[13px] text-slate-400 transition-all duration-500" data-caption="4" style="opacity:0;transform:translateY(8px)">
-                  <span class="font-medium text-slate-200">Today view</span>: Your focused daily task list with instant capture
+                  <span class="font-medium text-slate-200">Today view</span>: only the tasks you scheduled for today
                 </p>
               </div>
 
@@ -559,9 +559,9 @@ const everythingElse = [
               your list is a monument to everything you didn't do.
             </p>
             <p class="text-[17px] leading-relaxed text-slate-400">
-              Will Be Done keeps the whole week visible. Every day is a column, so you can see what is realistic, drag
-              work between days as plans change, and keep missed tasks in context instead of turning them into an
-              overdue pile.
+              Will Be Done keeps the whole week visible. Every day is a column, so you can see what is realistic and
+              drag work between days as plans change. Missed tasks stay where you can see them instead of piling up as
+              overdue.
             </p>
           </div>
 
@@ -598,8 +598,8 @@ const everythingElse = [
               <div class="p-6">
                 <h3 class="mb-2 text-[16px] font-semibold text-white">No punishment for being human</h3>
                 <p class="text-[14px] leading-relaxed text-slate-400">
-                  No angry red "OVERDUE" badges. Missed tasks get a gentle nudge, not a panic attack. You stay in
-                  control, not in shame.
+                  No angry red "OVERDUE" badges. A missed task gets a quiet yellow marker and stays where you left
+                  it, ready to move to another day.
                 </p>
               </div>
               <div class="mt-auto flex h-56 items-center justify-center overflow-hidden border-t border-white/[0.06] px-6 py-5">
@@ -661,19 +661,19 @@ const everythingElse = [
               </h2>
               <div class="space-y-4 text-[15px] leading-relaxed text-slate-400">
                 <p>
-                  That framing sets the bar: it has to stay fast with years of task history, open without waiting on a
-                  full database load, keep working when the internet disappears, and keep my task data under my own
+                  That sets the bar. It has to stay fast with years of task history, open without waiting on a full
+                  database load, keep working when the internet disappears, and keep my task data on hardware I
                   control.
                 </p>
                 <p>
                   This is my third attempt in three years. The first two failed because the technology for genuinely
                   fast offline-first apps wasn't ready for the experience I wanted. I have more than 10 years of
-                  development experience, including 4 years specialising in offline-first apps, and the third attempt
+                  development experience, including 4 years specializing in offline-first apps, and the third attempt
                   is built on all of it.
                 </p>
                 <p>
-                  Super Productivity came closest to what I wanted from the self-hosted ecosystem, but I wanted a more
-                  opinionated workflow around weekly planning, local-first sync and Vim-style ergonomics. So I built it.
+                  Super Productivity came closest of the self-hosted apps I tried, but I wanted something more
+                  opinionated about weekly planning, local-first sync and Vim-style keys. So I built it.
                 </p>
               </div>
 
@@ -708,7 +708,7 @@ const everythingElse = [
                 </svg>
               </div>
               <div>
-                <h3 class="mb-3 text-[18px] font-semibold text-white">Powered by HyperDB</h3>
+                <h3 class="mb-3 text-[18px] font-semibold text-white">Built on HyperDB</h3>
                 <div class="grid gap-x-10 gap-y-3 lg:grid-cols-2">
                   <p class="text-[14px] leading-relaxed text-slate-400">
                     Will Be Done runs on HyperDB, the local-first database layer I wrote for it after more than two
@@ -760,8 +760,8 @@ const everythingElse = [
               </h2>
               <p class="mb-6 text-[16px] leading-relaxed text-slate-400">
                 Every device runs a complete local database. Opening a task, moving it across the week or creating a new
-                one never waits for the network. The server's job is only to synchronize changes between your devices
-                whenever connectivity is available.
+                one never waits for the network. The server only passes changes between your devices when there is a
+                connection.
               </p>
 
               <ul class="space-y-3 text-[14px] text-slate-400">
@@ -876,10 +876,10 @@ const everythingElse = [
                     style="mask: url('/vim-svgrepo-com.svg') center / contain no-repeat; -webkit-mask: url('/vim-svgrepo-com.svg') center / contain no-repeat;"
                   ></span>
                 </div>
-                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Manage tasks at the speed of thought</h2>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Your hands never leave the keyboard</h2>
                 <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
-                  Will Be Done supports Vim keybinds, so your task list keeps up with how you think. Move with h/j/k/l,
-                  create tasks with o/O, complete with space, and shift work around without reaching for the mouse.
+                  Vim keybinds cover the whole app. Move with h/j/k/l, create tasks with o/O, complete with space,
+                  and push work to another day without reaching for the mouse.
                 </p>
               </div>
               <div class="why-feature-media order-2">
@@ -910,9 +910,9 @@ const everythingElse = [
                 </div>
                 <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Don't break focus to capture a task</h2>
                 <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
-                  A thought surfaces mid-work. Switching apps kills your flow. One global shortcut from anywhere on your
-                  Mac, Windows, or Linux machine: type it, hit enter, and you're back. The popup disappears. Your focus
-                  doesn't.
+                  A thought surfaces mid-work. Switching apps kills your flow. One global shortcut works anywhere on
+                  your Mac, Windows or Linux machine. Type the task, hit enter, and you're back. The popup disappears.
+                  Your focus doesn't.
                 </p>
               </div>
               <div class="why-feature-media order-2">
@@ -937,10 +937,11 @@ const everythingElse = [
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
                   </svg>
                 </div>
-                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Tasks when you need them, structure when you don't</h2>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Projects for the work that outlives a week</h2>
                 <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
-                  Each project gets its own kanban board with columns you define: Week, Month, Ideas, Someday. Separate
-                  spaces keep work and personal apart. Everything has a place, and nothing falls through the cracks.
+                  Each project gets its own kanban board with columns you define, such as Week, Month, Ideas and
+                  Someday. Separate spaces keep work and personal apart, so an idea you are not ready for waits in
+                  Someday instead of crowding this week.
                 </p>
               </div>
               <div class="why-feature-media order-2">
@@ -1032,7 +1033,7 @@ const everythingElse = [
             </div>
             <div class="rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/[0.06] transition-colors hover:bg-white/[0.04] hover:ring-white/[0.12]">
               <h3 class="mb-2 text-[15px] font-semibold text-white">Developers</h3>
-              <p class="text-[13px] leading-relaxed text-slate-400">Automate your workflow through the HTTP API, with OpenAPI docs served by your own instance.</p>
+              <p class="text-[13px] leading-relaxed text-slate-400">Drive your tasks from scripts through the HTTP API. Your own instance serves the OpenAPI docs.</p>
             </div>
           </div>
         </div>
@@ -1049,7 +1050,7 @@ const everythingElse = [
               </h2>
               <p class="mb-6 text-[15px] leading-relaxed text-slate-400">
                 Spaces, projects, sections, tasks, checklists and schedules are all reachable over a documented HTTP
-                API, so a Telegram bot, a cron job or your own script can drop work straight into your week. Create a
+                API. A Telegram bot, a cron job or your own script can drop work straight into your week. Create a
                 token in <span class="text-slate-200">Space settings → Tokens</span> and send it as a bearer token.
               </p>
               <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">

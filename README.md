@@ -2,9 +2,9 @@
 
 **An offline-first, self-hosted task planner built around a visual weekly timeline.**
 
-Will Be Done is built around a simple workflow: collect tasks, place them on a weekly timeline, and keep the few you care about right now in Stash.
+The workflow is short. Collect tasks, place them on a weekly timeline, and keep the few you care about right now in Stash.
 
-It is also local-first: your tasks stay available offline, changes feel instant, and sync catches up across devices when your server is available.
+It is also local-first. Your tasks stay available offline, changes apply without a round trip to the server, and sync catches up across devices when your server is back.
 
 I want it to feel fast in the same way Linear feels fast. The app should open straight into your tasks, without a big loading spinner first. It reads from local persistent storage on demand, so startup should stay quick even after years of saved tasks.
 
@@ -16,27 +16,27 @@ Under the hood, Will Be Done runs on [HyperDB](https://github.com/will-be-done/h
 
 ## Why Will Be Done?
 
-Will Be Done is for people who want a fast, private task manager that is built for planning, not just capture.
+Will Be Done is for people who want a fast, private task manager aimed at planning rather than capture.
 
 - **Plan the week visually.** Each day is a column, so you can see what is realistic and rebalance by dragging tasks around.
-- **Keep the UX instant.** The app should open directly into your tasks, without a blocking spinner or a full database load first.
+- **Keep it instant.** The app should open directly into your tasks, without a blocking spinner or a full database load first.
 - **Stay useful offline.** The app keeps a full local database in the browser, so you can read and write tasks without waiting on the network.
 - **Start fast, even with years of tasks.** Will Be Done reads data on demand from local storage, so it can stay useful as a lifelong task archive.
 - **Own the data.** Self-host the sync server with Docker, store data in SQLite, and avoid handing your task history to a third-party task app.
-- **Move fast from the keyboard.** Vim-style navigation, quick task creation, project movement, stashing, scheduling, and task actions are all keyboard-friendly.
+- **Move fast from the keyboard.** Vim-style navigation. Create a task, move it between projects, stash it, schedule it, or run any task action without leaving the keyboard.
 - **Keep focus visible.** Stash is a persistent focus list available from any page for the tasks you want close at hand this week or month.
 
-## Try It
+## Try it
 
-- **Live demo:** [demo.will-be-done.app](https://demo.will-be-done.app) - no sign-up required.
-- **Cloud app:** [app.will-be-done.app](https://app.will-be-done.app/signup) - try it before self-hosting.
+- **Live demo:** [demo.will-be-done.app](https://demo.will-be-done.app). No sign-up required.
+- **Cloud app:** [app.will-be-done.app](https://app.will-be-done.app/signup). Try it before self-hosting.
 - **Desktop app:** [download the latest release](https://github.com/will-be-done/will-be-done/releases) for Windows, macOS, or Linux.
 - **Mobile:** install the web app as a PWA. App store builds that package the same web app for iOS and Android are planned.
 
 ## HTTP API
 
-Will Be Done provides a HTTP API for integrating with your tasks,
-projects, schedules, and other data.
+Will Be Done has an HTTP API for your tasks, projects, schedules, and
+other data.
 
 - **Will Be Done Cloud:** [read the API documentation](https://app.will-be-done.app/api/docs).
 - **Self-hosted with Docker:** open `/api/docs` on your server, for example
@@ -57,12 +57,12 @@ curl \
   https://app.will-be-done.app/api/v1/spaces
 ```
 
-When you open the Scalar documentation in the same browser and on the same
-server where you are signed in, it automatically uses the current session
-token stored by the web app. If no current token is available, you can enter
-one through Scalar's **Authentication** controls.
+Open the Scalar documentation in the same browser and on the same server
+where you signed in, and it reuses the session token the web app already
+stored. If there is no current token, enter one through Scalar's
+**Authentication** controls.
 
-## Self-Host With Docker
+## Self-host with Docker
 
 Run the server:
 
@@ -76,7 +76,7 @@ docker run -d \
 
 Then open http://localhost:3000 in your browser.
 
-The Docker server hosts the web app, stores server-side data under `/var/lib/will-be-done`, and provides sync for browser, PWA, and desktop clients. SQLite is the default; the API can optionally use Turso Cloud or the local Rust tursod service. See [the API database configuration](apps/api/README.md#database-engines) for setup instructions.
+The Docker server hosts the web app, stores server-side data under `/var/lib/will-be-done`, and syncs browser, PWA, and desktop clients. SQLite is the default; the API can optionally use Turso Cloud or the local Rust tursod service. See [the API database configuration](apps/api/README.md#database-engines) for setup instructions.
 
 ## Screenshots
 
@@ -123,7 +123,7 @@ The Docker server hosts the web app, stores server-side data under `/var/lib/wil
   </tr>
 </table>
 
-## Available Today
+## Available today
 
 **Task management**
 
@@ -174,7 +174,7 @@ The Docker server hosts the web app, stores server-side data under `/var/lib/wil
 - Todoist import by API token.
 - TickTick import from CSV export.
 
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
 ### Global quick add on Wayland
 
@@ -222,8 +222,8 @@ hl.bind(
 ```
 
 Replace the command portion of either compositor example when using Flatpak or AppImage.
-The command starts Will Be Done when necessary. If it is already running, the request is
-forwarded to the existing process. Starting with `--show-quick-add` keeps the main window
+The command starts Will Be Done when necessary. If it is already running, it forwards the
+request to the existing process. Starting with `--show-quick-add` keeps the main window
 hidden. Closing the main window also keeps Will Be Done running in the system tray, where
 you can reopen the app, show Quick Add, or quit it completely.
 
@@ -337,13 +337,13 @@ pnpm test
 pnpm test:e2e
 ```
 
-## Why Another Task Manager?
+## Why another task manager?
 
 I am building Will Be Done as the task manager I want to use for the rest of my life.
 
 That means it needs to stay fast with years of task history, start quickly without waiting on a full database load, work even when the internet disappears, and keep sensitive task data under my control. It also needs to fit the way I work: weekly planning, keyboard-first navigation, a persistent focus stash, desktop quick add, and an API that can connect to tools like Telegram or an MCP server.
 
-Super Productivity came closest to what I wanted from the self-hosted ecosystem, but I wanted a more opinionated workflow around weekly planning, local-first sync, visual customization, and Vim-style ergonomics.
+Super Productivity came closest of the self-hosted apps I tried, but I wanted something more opinionated about weekly planning, local-first sync, visual customization, and Vim-style keys.
 
 ## Comparison
 
@@ -364,7 +364,7 @@ This table captures the feature set I was optimizing for while building Will Be 
 | Desktop app with global quick add       | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
 | Local-first architecture                | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
 
-## Note on AI Usage
+## Note on AI usage
 
 I have been developing this project for more than a year, and this is my third attempt in three years. The first two attempts failed because the technology for fast offline-first apps was not ready for the experience I wanted.
 
