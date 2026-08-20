@@ -31,6 +31,14 @@ Will Be Done is for people who want a fast, private task manager aimed at planni
 - **Desktop app:** [download the latest release](https://github.com/will-be-done/will-be-done/releases) for Windows, macOS, or Linux.
 - **Mobile:** install the web app as a PWA. App store builds that package the same web app for iOS and Android are planned.
 
+## How Will Be Done will make money
+
+The hosted cloud version will make money through paid plans. Self-hosting will never have a paywall. I promise that no feature in the self-hosted version will require payment to Will Be Done.
+
+The self-hosted version will have the same features as the cloud unless a cloud feature cannot reasonably run without hosted infrastructure. In those cases, I will provide a self-hosted alternative when possible. For example, a self-hosted AI assistant will let you use your own OpenRouter API key.
+
+I will also keep the self-hosted infrastructure as simple as I can. The standard setup will use SQLite and a directory for uploaded attachments. It will not require Redis, an external database service, or S3.
+
 ## HTTP API
 
 Will Be Done has an HTTP API for your tasks, projects, schedules, and
