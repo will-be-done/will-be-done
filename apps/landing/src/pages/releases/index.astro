@@ -1,0 +1,217 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import TopBar from '../../components/TopBar.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import PageBackdrop from '../../components/PageBackdrop.astro';
+import { formatDate, getReleases, isoDate, releasePath } from '../../lib/releases';
+
+const releases = await getReleases();
+const [latest, ...previous] = releases;
+
+const siteUrl = 'https://will-be-done.app';
+const pagePath = '/releases/';
+const canonical = `${siteUrl}${pagePath}`;
+
+const title = 'Will Be Done release notes: every version and what changed';
+const description = `Release notes for Will Be Done, the open source local-first task manager. ${releases.length} releases from ${formatDate(releases[releases.length - 1].data.publishedAt)} to ${formatDate(latest.data.publishedAt)}, with screenshots of each change.`;
+
+const schema = [
+  {
+    '@type': 'BreadcrumbList',
+    '@id': `${canonical}#breadcrumbs`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/` },
+      { '@type': 'ListItem', position: 2, name: 'Releases', item: canonical },
+    ],
+  },
+  {
+    '@type': 'ItemList',
+    '@id': `${canonical}#releases`,
+    name: 'Will Be Done releases',
+    description: 'Every published version of Will Be Done, newest first.',
+    numberOfItems: releases.length,
+    itemListOrder: 'https://schema.org/ItemListOrderDescending',
+    itemListElement: releases.map((release, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      url: `${siteUrl}${releasePath(release.data.tag)}`,
+      name: `Will Be Done ${release.data.tag}: ${release.data.headline}`,
+    })),
+  },
+];
+---
+
+<Layout
+  title={title}
+  description={description}
+  path={pagePath}
+  ogTitle="Will Be Done release notes"
+  ogDescription={description}
+  schema={schema}
+>
+  <PageBackdrop>
+    <main>
+      <TopBar active="releases" />
+
+      <!-- Header -->
+      <section aria-label="Release notes" class="relative px-6 pb-10 pt-28 md:pt-32">
+        <div class="mx-auto max-w-3xl">
+          <p class="mb-6 inline-flex items-center gap-2 rounded-full bg-white/[0.03] px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-blue-300/90 ring-1 ring-blue-400/[0.18] sm:px-4 sm:text-[11px] sm:tracking-[0.14em]">
+            <span>Changelog</span>
+            <span class="text-blue-400/40">·</span>
+            <span>{releases.length} releases</span>
+          </p>
+
+          <h1 class="mb-5 text-4xl font-bold tracking-tight text-white md:text-5xl">
+            Release notes
+          </h1>
+
+          <div class="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+            <a
+              href="https://github.com/will-be-done/will-be-done/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 text-slate-400 transition-colors hover:text-white"
+              data-ph-event="github_releases_clicked"
+              data-ph-section="releases_index"
+            >
+              <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
+              </svg>
+              Downloads on GitHub
+            </a>
+            <a
+              href="/releases/rss.xml"
+              class="inline-flex items-center gap-1.5 text-slate-400 transition-colors hover:text-white"
+              data-ph-event="releases_rss_clicked"
+              data-ph-section="releases_index"
+            >
+              <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M6.18 15.64a2.18 2.18 0 1 1 0 4.36 2.18 2.18 0 0 1 0-4.36ZM4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56Zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9Z" />
+              </svg>
+              RSS feed
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Latest release -->
+      <section aria-label="Latest release" class="relative px-6 pb-4">
+        <div class="mx-auto max-w-3xl">
+          <a
+            href={releasePath(latest.data.tag)}
+            class="group block rounded-2xl bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10 p-6 ring-1 ring-white/[0.08] transition-all hover:ring-white/[0.16] md:p-8"
+            data-ph-event="release_opened"
+            data-ph-section="releases_index_latest"
+          >
+            <div class="mb-3 flex flex-wrap items-center gap-3">
+              <span class="inline-flex items-center rounded-full bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-blue-300 ring-1 ring-blue-400/25">
+                Latest
+              </span>
+              <span class="font-mono text-[15px] font-semibold text-white">{latest.data.tag}</span>
+              <time datetime={isoDate(latest.data.publishedAt)} class="text-[13px] text-slate-500">
+                {formatDate(latest.data.publishedAt)}
+              </time>
+            </div>
+
+            <h2 class="mb-3 text-xl font-bold tracking-tight text-white transition-colors group-hover:text-blue-100 md:text-2xl">
+              {latest.data.headline}
+            </h2>
+
+            <p class="mb-5 text-[15px] leading-relaxed text-slate-400">{latest.data.summary}</p>
+
+            {latest.data.highlights.length > 0 && (
+              <ul class="mb-5 space-y-2">
+                {latest.data.highlights.slice(0, 4).map((highlight) => (
+                  <li class="flex gap-2.5 text-[14px] leading-relaxed text-slate-400">
+                    <svg class="mt-1 h-3.5 w-3.5 shrink-0 text-blue-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    <span>{highlight}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <span class="inline-flex items-center gap-1.5 text-[14px] font-medium text-blue-300 transition-colors group-hover:text-blue-200">
+              Read the release notes
+              <span class="transition-transform duration-200 group-hover:translate-x-0.5">&rarr;</span>
+            </span>
+          </a>
+        </div>
+      </section>
+
+      <!-- All releases -->
+      <section aria-label="Previous releases" class="relative px-6 py-10">
+        <div class="mx-auto max-w-3xl">
+          <h2 class="mb-6 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
+            Previous releases
+          </h2>
+
+          <ol class="relative space-y-3 border-l border-white/[0.06] pl-6 md:pl-8">
+            {previous.map((release) => (
+              <li class="relative">
+                <span
+                  class="absolute -left-[25px] top-6 h-2 w-2 rounded-full bg-slate-600 ring-4 ring-[#0a0a0f] md:-left-[33px]"
+                  aria-hidden="true"
+                ></span>
+
+                <a
+                  href={releasePath(release.data.tag)}
+                  class="group block rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.035] hover:ring-white/[0.12]"
+                  data-ph-event="release_opened"
+                  data-ph-section="releases_index_list"
+                >
+                  <div class="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span class="font-mono text-[14px] font-semibold text-slate-200">{release.data.tag}</span>
+                    <time datetime={isoDate(release.data.publishedAt)} class="text-[12px] text-slate-500">
+                      {formatDate(release.data.publishedAt)}
+                    </time>
+                  </div>
+
+                  <h3 class="mb-2 text-[16px] font-semibold text-white transition-colors group-hover:text-blue-100">
+                    {release.data.headline}
+                  </h3>
+
+                  <p class="text-[14px] leading-relaxed text-slate-400">{release.data.summary}</p>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section aria-label="Call to action" class="relative border-t border-white/[0.04] px-6 py-16">
+        <div class="mx-auto max-w-3xl text-center">
+          <h2 class="mb-4 text-2xl font-bold tracking-tight text-white">Try the version you just read about</h2>
+          <p class="mb-8 text-[15px] text-slate-400">
+            The demo runs entirely in your browser with no account, or start free in the cloud.
+          </p>
+          <div class="flex flex-wrap justify-center gap-3">
+            <a
+              href="https://demo.will-be-done.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_12px_rgba(59,130,246,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all hover:bg-blue-400 hover:shadow-[0_4px_20px_rgba(59,130,246,0.45),inset_0_1px_0_rgba(255,255,255,0.15)]"
+              data-ph-event="demo_clicked"
+              data-ph-section="releases_index_cta"
+            >
+              Try live demo
+            </a>
+            <a
+              href="/"
+              class="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-6 py-3.5 text-[15px] font-medium text-slate-200 ring-1 ring-white/[0.10] transition-all hover:bg-white/[0.08] hover:text-white hover:ring-white/[0.18]"
+              data-ph-event="home_link_clicked"
+              data-ph-section="releases_index_cta"
+            >
+              What is Will Be Done?
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <SiteFooter />
+  </PageBackdrop>
+</Layout>

@@ -1,6 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import DockerInstall from '../components/DockerInstall.astro';
+import TopBar from '../components/TopBar.astro';
+import PageBackdrop from '../components/PageBackdrop.astro';
+import SiteFooter from '../components/SiteFooter.astro';
 import { Image } from 'astro:assets';
 import punishmentImg from '../assets/punishment.png';
 import badDayImg from '../assets/bad_day2.png';
@@ -12,9 +15,6 @@ import quickAddImg from '../assets/quick-add.png';
 import meImg from '../assets/me.png';
 import desktopImg from '../assets/desktop.png';
 import quickAddFullImg from '../assets/quick-add-full.png';
-
-const logoPath =
-  'M40.4835 111.929C39.5895 111.929 38.7321 111.575 38.0999 110.945C37.4678 110.316 37.1126 109.462 37.1126 108.571V41.4286C37.1126 40.5382 37.4678 39.6843 38.0999 39.0547C38.7321 38.4251 39.5895 38.0714 40.4835 38.0714H102.845C104.186 38.0714 105.472 37.5409 106.42 36.5965C107.368 35.6521 107.901 34.3713 107.901 33.0357C107.901 31.7002 107.368 30.4193 106.42 29.4749C105.472 28.5305 104.186 28 102.845 28H40.4835C36.9074 28 33.4779 29.4148 30.9492 31.9331C28.4206 34.4515 27 37.8671 27 41.4286V108.571C27 112.133 28.4206 115.549 30.9492 118.067C33.4779 120.585 36.9074 122 40.4835 122H107.901C111.477 122 114.907 120.585 117.435 118.067C119.964 115.549 121.384 112.133 121.384 108.571V86.75C121.384 85.4144 120.852 84.1336 119.903 83.1892C118.955 82.2448 117.669 81.7143 116.328 81.7143C114.987 81.7143 113.701 82.2448 112.753 83.1892C111.804 84.1336 111.272 85.4144 111.272 86.75V108.571C111.272 109.462 110.917 110.316 110.284 110.945C109.652 111.575 108.795 111.929 107.901 111.929H40.4835ZM126.643 52.7086C127.536 51.754 128.022 50.4914 127.999 49.1868C127.976 47.8822 127.445 46.6375 126.519 45.7148C125.593 44.7922 124.343 44.2637 123.033 44.2407C121.723 44.2177 120.455 44.7019 119.497 45.5914L82.0261 82.9027L69.3988 69.9039C68.9381 69.4244 68.3868 69.0404 67.7766 68.7739C67.1664 68.5074 66.5093 68.3636 65.843 68.3508C65.1768 68.3381 64.5147 68.4566 63.8946 68.6995C63.2746 68.9425 62.7088 69.3051 62.23 69.7666C61.7511 70.228 61.3685 70.7791 61.1042 71.3883C60.84 71.9975 60.6992 72.6527 60.69 73.3163C60.6808 73.9798 60.8034 74.6386 61.0508 75.2548C61.2981 75.871 61.6653 76.4325 62.1312 76.9069L78.3316 93.5851C78.7978 94.0666 79.3555 94.4508 79.9724 94.7152C80.5892 94.9797 81.2528 95.1191 81.9243 95.1254C82.5959 95.1316 83.2619 95.0046 83.8836 94.7517C84.5053 94.4987 85.0702 94.125 85.5453 93.6523L126.643 52.7086Z';
 
 const faqs = [
   {
@@ -110,85 +110,9 @@ const everythingElse = [
 ---
 
 <Layout>
-  <div class="relative min-h-screen bg-[#0a0a0f] text-slate-100 antialiased">
-    <!-- Subtle gradient orbs -->
-    <div class="pointer-events-none fixed inset-0 overflow-hidden">
-      <div class="absolute -top-[400px] left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-blue-600/8 blur-[120px]"></div>
-      <div class="absolute -bottom-[200px] -right-[200px] h-[600px] w-[600px] rounded-full bg-indigo-500/6 blur-[100px]"></div>
-    </div>
-
-    <!-- Noise texture overlay -->
-    <div
-      class="pointer-events-none fixed inset-0 opacity-[0.015]"
-      style={`background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`}
-    ></div>
-
+  <PageBackdrop>
     <main>
-      <!-- Top bar -->
-      <div class="pointer-events-none fixed inset-x-0 top-4 z-50 px-6 md:top-6">
-        <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <a
-            href="/"
-            class="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-[#0a0a0f]/80 px-2 py-1.5 backdrop-blur-xl"
-            aria-label="Will Be Done home"
-          >
-            <svg width="22" height="22" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="150" height="150" rx="19" fill="url(#paint0_nav)" />
-              <path fill-rule="evenodd" clip-rule="evenodd" d={logoPath} fill="url(#paint1_nav)" />
-              <defs>
-                <linearGradient id="paint0_nav" x1="9" y1="5.5" x2="150" y2="150" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#3b82f6" />
-                  <stop offset="1" stop-color="#1e40af" />
-                </linearGradient>
-                <linearGradient id="paint1_nav" x1="27" y1="28" x2="118.5" y2="120.5" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#93c5fd" />
-                  <stop offset="1" stop-color="#60a5fa" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <span class="hidden text-[13px] font-medium text-slate-300 sm:inline">Will Be Done</span>
-          </a>
-
-          <nav aria-label="Main navigation" class="pointer-events-auto inline-flex items-center gap-1 rounded-full bg-[#0a0a0f]/80 px-1.5 py-1 backdrop-blur-xl">
-            <a
-              href="https://demo.will-be-done.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="hidden items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex"
-              data-ph-event="demo_clicked"
-              data-ph-section="topbar"
-            >
-              Demo
-            </a>
-            <a
-              href="https://github.com/will-be-done/will-be-done"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="hidden items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex"
-              data-ph-event="github_link_clicked"
-              data-ph-section="topbar"
-            >
-              GitHub
-            </a>
-            <a
-              href="https://app.will-be-done.app/login"
-              class="inline-flex items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white"
-              data-ph-event="login_clicked"
-              data-ph-section="topbar"
-            >
-              Log in
-            </a>
-            <a
-              href="https://app.will-be-done.app/signup"
-              class="inline-flex items-center rounded-full bg-blue-500 px-4 py-2 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all duration-200 hover:bg-blue-400 hover:shadow-[0_2px_8px_rgba(59,130,246,0.35),inset_0_1px_0_rgba(255,255,255,0.15)]"
-              data-ph-event="signup_clicked"
-              data-ph-section="topbar"
-            >
-              Start free
-            </a>
-          </nav>
-        </div>
-      </div>
+      <TopBar />
 
       <!-- Hero -->
       <section aria-label="Hero" class="relative px-6 pb-10 pt-28 md:pt-32">
@@ -1299,63 +1223,7 @@ const everythingElse = [
       </section>
     </main>
 
-    <!-- Footer -->
-    <footer class="relative border-t border-white/[0.04] px-6 py-8">
-      <div class="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 md:flex-row">
-        <div class="flex items-center gap-2.5">
-          <!-- Logo -->
-          <div class="relative" style="width: 24px; height: 24px;">
-            <div class="absolute inset-0 rounded-[13%] bg-blue-500/30 blur-md" style="transform: scale(1.15);"></div>
-            <svg width="24" height="24" viewBox="0 0 150 150" fill="none" xmlns="http://www.w3.org/2000/svg" class="relative">
-              <rect width="150" height="150" rx="19" fill="url(#paint0_footer)" />
-              <path fill-rule="evenodd" clip-rule="evenodd" d={logoPath} fill="url(#paint1_footer)" />
-              <defs>
-                <linearGradient id="paint0_footer" x1="9" y1="5.5" x2="150" y2="150" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#3b82f6" />
-                  <stop offset="1" stop-color="#1e40af" />
-                </linearGradient>
-                <linearGradient id="paint1_footer" x1="27" y1="28" x2="118.5" y2="120.5" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#93c5fd" />
-                  <stop offset="1" stop-color="#60a5fa" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <span class="text-[13px] font-medium text-slate-400">Will Be Done</span>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-center gap-4 text-[12px] text-slate-500">
-          <a
-            href="https://demo.will-be-done.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-slate-400 transition-colors hover:text-white"
-            data-ph-event="demo_clicked"
-            data-ph-section="footer"
-          >
-            Live demo
-          </a>
-          <span class="text-slate-700">·</span>
-          <span>Open Source</span>
-          <span class="text-slate-700">·</span>
-          <span>AGPL license</span>
-          <span class="text-slate-700">·</span>
-          <a
-            href="https://github.com/will-be-done/will-be-done"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex items-center gap-1.5 text-slate-400 transition-colors hover:text-white"
-            data-ph-event="github_link_clicked"
-            data-ph-section="footer"
-          >
-            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-              <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
-            </svg>
-            GitHub
-          </a>
-        </div>
-      </div>
-    </footer>
+    <SiteFooter />
 
     <!-- Video modal (native dialog) -->
     <dialog
@@ -1384,7 +1252,7 @@ const everythingElse = [
         </video>
       </div>
     </dialog>
-  </div>
+  </PageBackdrop>
 
   <script type="application/ld+json" is:inline set:html={JSON.stringify(faqSchema)} />
 </Layout>

@@ -5,22 +5,40 @@ import PostHog from '../components/posthog.astro';
 interface Props {
   title?: string;
   description?: string;
+  /** Path of this page, e.g. "/releases/". Drives the canonical and og:url. */
+  path?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  /** Absolute or site-relative image used for og:image and twitter:image. */
+  ogImage?: string;
+  ogType?: string;
+  /** Extra schema.org nodes merged into the site graph for this page. */
+  schema?: Record<string, unknown>[];
 }
 
 const {
   title = 'Will Be Done: Plan Your Week | Open Source, Local-First Task Manager',
   description = 'Will Be Done is a local-first task manager built around a visual weekly timeline. It works fully offline, syncs across devices, and can be self-hosted with one Docker command. Open source, AGPL-3.0, keyboard-first with Vim navigation.',
+  path = '/',
+  ogTitle = 'Will Be Done: Plan your week, not just your tasks.',
+  ogDescription = 'A local-first task manager built around a visual weekly timeline. Works fully offline, syncs across devices, self-hostable with one Docker command. Open source and AGPL-3.0.',
+  ogImage = '/screen.png',
+  ogType = 'website',
+  schema = [],
 } = Astro.props;
 
 const siteUrl = 'https://will-be-done.app/';
 const repoUrl = 'https://github.com/will-be-done/will-be-done';
 const screenshotUrl = `${siteUrl}screen.png`;
 
+const canonicalUrl = new URL(path, siteUrl).href;
+const ogImageUrl = new URL(ogImage, siteUrl).href;
+
 // One connected graph: everything hangs off stable @id values so the site,
 // page, app and publisher describe the same entity.
 const organizationId = `${siteUrl}#organization`;
 const websiteId = `${siteUrl}#website`;
-const webPageId = `${siteUrl}#webpage`;
+const webPageId = `${canonicalUrl}#webpage`;
 const applicationId = `${siteUrl}#app`;
 const personId = `${siteUrl}#sergey`;
 
@@ -67,7 +85,7 @@ const structuredData = {
     {
       '@type': 'WebPage',
       '@id': webPageId,
-      url: siteUrl,
+      url: canonicalUrl,
       name: title,
       description,
       inLanguage: 'en',
@@ -75,8 +93,8 @@ const structuredData = {
       about: { '@id': applicationId },
       primaryImageOfPage: {
         '@type': 'ImageObject',
-        '@id': `${siteUrl}#primaryimage`,
-        url: screenshotUrl,
+        '@id': `${canonicalUrl}#primaryimage`,
+        url: ogImageUrl,
         caption: 'Will Be Done weekly timeline',
       },
     },
@@ -139,6 +157,7 @@ const structuredData = {
       author: { '@id': personId },
       sameAs: [repoUrl],
     },
+    ...schema,
   ],
 };
 ---
@@ -156,21 +175,22 @@ const structuredData = {
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="theme-color" content="#0a0a0f" />
-    <link rel="canonical" href="https://will-be-done.app/" />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="alternate" type="application/rss+xml" title="Will Be Done releases" href="/releases/rss.xml" />
 
     <!-- Open Graph -->
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content="Will Be Done" />
-    <meta property="og:title" content="Will Be Done: Plan your week, not just your tasks." />
-    <meta property="og:description" content="A local-first task manager built around a visual weekly timeline. Works fully offline, syncs across devices, self-hostable with one Docker command. Open source and AGPL-3.0." />
-    <meta property="og:url" content="https://will-be-done.app/" />
-    <meta property="og:image" content="https://will-be-done.app/screen.png" />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Will Be Done: Plan your week, not just your tasks." />
-    <meta name="twitter:description" content="A local-first task manager built around a visual weekly timeline. Works fully offline, syncs across devices, self-hostable with one Docker command." />
-    <meta name="twitter:image" content="https://will-be-done.app/screen.png" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
 
     <PostHog />
 
