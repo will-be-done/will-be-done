@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://will-be-done.app/sitemap-index.xml

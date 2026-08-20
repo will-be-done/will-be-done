@@ -1,0 +1,441 @@
+---
+import { render } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import Layout from '../../layouts/Layout.astro';
+import TopBar from '../../components/TopBar.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import PageBackdrop from '../../components/PageBackdrop.astro';
+import { formatDate, getReleases, isoDate, releasePath, type Release } from '../../lib/releases';
+
+export const getStaticPaths = (async () => {
+  const releases = await getReleases();
+
+  return releases.map((release, index) => ({
+    params: { tag: release.data.tag },
+    props: {
+      release,
+      // Newest first, so the next entry in the array is the older release.
+      newer: index > 0 ? releases[index - 1] : undefined,
+      older: releases[index + 1],
+      isLatest: index === 0,
+    },
+  }));
+}) satisfies GetStaticPaths;
+
+interface Props {
+  release: Release;
+  newer?: Release;
+  older?: Release;
+  isLatest: boolean;
+}
+
+const { release, newer, older, isLatest } = Astro.props;
+const { data } = release;
+const { Content } = await render(release);
+
+const siteUrl = 'https://will-be-done.app';
+const pagePath = releasePath(data.tag);
+const canonical = `${siteUrl}${pagePath}`;
+const publishedOn = formatDate(data.publishedAt);
+
+const title = `Will Be Done ${data.tag}: ${data.headline}`;
+const description = `Will Be Done ${data.tag}, released ${publishedOn}. ${data.summary}`;
+
+const schema = [
+  {
+    '@type': 'BreadcrumbList',
+    '@id': `${canonical}#breadcrumbs`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/` },
+      { '@type': 'ListItem', position: 2, name: 'Releases', item: `${siteUrl}/releases/` },
+      { '@type': 'ListItem', position: 3, name: data.tag, item: canonical },
+    ],
+  },
+  {
+    // The page itself is a technical article about the release; the release it
+    // describes is modelled separately below so the version is machine-readable.
+    '@type': 'TechArticle',
+    '@id': `${canonical}#article`,
+    headline: title,
+    description: data.summary,
+    datePublished: data.publishedAt.toISOString(),
+    dateModified: data.publishedAt.toISOString(),
+    inLanguage: 'en',
+    isPartOf: { '@id': `${canonical}#webpage` },
+    mainEntityOfPage: { '@id': `${canonical}#webpage` },
+    about: { '@id': `${siteUrl}/#app` },
+    author: { '@id': `${siteUrl}/#sergey` },
+    publisher: { '@id': `${siteUrl}/#organization` },
+    articleSection: 'Release notes',
+  },
+  {
+    '@type': 'SoftwareApplication',
+    '@id': `${canonical}#release`,
+    name: `Will Be Done ${data.tag}`,
+    softwareVersion: data.version,
+    releaseNotes: canonical,
+    datePublished: data.publishedAt.toISOString(),
+    applicationCategory: 'BusinessApplication',
+    applicationSubCategory: 'Task manager',
+    operatingSystem: 'Web, Linux, macOS, Windows',
+    downloadUrl: data.githubUrl,
+    isAccessibleForFree: true,
+    license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+    },
+    isVariantOf: { '@id': `${siteUrl}/#app` },
+    author: { '@id': `${siteUrl}/#sergey` },
+    publisher: { '@id': `${siteUrl}/#organization` },
+    ...(data.highlights.length > 0 ? { featureList: data.highlights } : {}),
+  },
+];
+---
+
+<Layout
+  title={title}
+  description={description}
+  path={pagePath}
+  ogTitle={title}
+  ogDescription={data.summary}
+  ogType="article"
+  schema={schema}
+>
+  <PageBackdrop>
+    <main>
+      <TopBar active="releases" />
+
+      <article class="relative px-6 pb-10 pt-28 md:pt-32">
+        <div class="mx-auto max-w-3xl">
+          <!-- Breadcrumbs -->
+          <nav aria-label="Breadcrumb" class="mb-8">
+            <ol class="flex flex-wrap items-center gap-2 text-[12px] text-slate-500">
+              <li><a href="/" class="transition-colors hover:text-slate-300">Home</a></li>
+              <li aria-hidden="true" class="text-slate-700">/</li>
+              <li><a href="/releases/" class="transition-colors hover:text-slate-300">Releases</a></li>
+              <li aria-hidden="true" class="text-slate-700">/</li>
+              <li aria-current="page" class="font-mono text-slate-400">{data.tag}</li>
+            </ol>
+          </nav>
+
+          <!-- Header -->
+          <header class="mb-10">
+            <div class="mb-5 flex flex-wrap items-center gap-3">
+              {isLatest && (
+                <span class="inline-flex items-center rounded-full bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-blue-300 ring-1 ring-blue-400/25">
+                  Latest
+                </span>
+              )}
+              {data.prerelease && (
+                <span class="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-300/90 ring-1 ring-amber-400/25">
+                  Pre-release
+                </span>
+              )}
+              <time datetime={isoDate(data.publishedAt)} class="text-[13px] text-slate-500">
+                Released {publishedOn}
+              </time>
+            </div>
+
+            <p class="mb-2 font-mono text-[14px] font-medium text-blue-300/80">{data.tag}</p>
+            <h1 class="mb-5 text-3xl font-bold tracking-tight text-white md:text-4xl">
+              {data.headline}
+            </h1>
+            <p class="text-[16px] leading-relaxed text-slate-400 md:text-[17px]">
+              {data.summary}
+            </p>
+          </header>
+
+          {data.highlights.length > 0 && (
+            <!-- A plain-language digest of the release, for readers skimming and
+                 for assistants summarising the page. -->
+            <section aria-label="What changed at a glance" class="mb-10 rounded-2xl bg-white/[0.02] p-6 ring-1 ring-white/[0.06]">
+              <h2 class="mb-4 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
+                At a glance
+              </h2>
+              <ul class="space-y-2.5">
+                {data.highlights.map((highlight) => (
+                  <li class="flex gap-2.5 text-[14px] leading-relaxed text-slate-300">
+                    <svg class="mt-1 h-3.5 w-3.5 shrink-0 text-blue-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    <span>{highlight}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <!-- Release notes -->
+          <div class="release-prose">
+            <Content />
+          </div>
+
+          <!-- Links out -->
+          <div class="mt-12 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-6 text-[13px]">
+            <a
+              href={data.githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 text-slate-400 transition-colors hover:text-white"
+              data-ph-event="github_release_clicked"
+              data-ph-section="release_page"
+            >
+              <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
+              </svg>
+              Downloads for {data.tag}
+            </a>
+            {data.compareUrl && (
+              <a
+                href={data.compareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-slate-400 transition-colors hover:text-white"
+                data-ph-event="release_compare_clicked"
+                data-ph-section="release_page"
+              >
+                Full commit changelog
+              </a>
+            )}
+          </div>
+
+          <!-- Prev / next -->
+          <nav aria-label="Other releases" class="mt-8 grid gap-3 sm:grid-cols-2">
+            {older ? (
+              <a
+                href={releasePath(older.data.tag)}
+                class="group rounded-xl bg-white/[0.02] p-4 ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.035] hover:ring-white/[0.12]"
+                data-ph-event="release_opened"
+                data-ph-section="release_page_prev"
+              >
+                <span class="mb-1.5 block text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                  &larr; Older
+                </span>
+                <span class="block font-mono text-[13px] font-semibold text-slate-200">{older.data.tag}</span>
+                <span class="mt-1 block text-[13px] text-slate-400 transition-colors group-hover:text-slate-300">
+                  {older.data.headline}
+                </span>
+              </a>
+            ) : (
+              <span></span>
+            )}
+
+            {newer && (
+              <a
+                href={releasePath(newer.data.tag)}
+                class="group rounded-xl bg-white/[0.02] p-4 text-right ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.035] hover:ring-white/[0.12]"
+                data-ph-event="release_opened"
+                data-ph-section="release_page_next"
+              >
+                <span class="mb-1.5 block text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                  Newer &rarr;
+                </span>
+                <span class="block font-mono text-[13px] font-semibold text-slate-200">{newer.data.tag}</span>
+                <span class="mt-1 block text-[13px] text-slate-400 transition-colors group-hover:text-slate-300">
+                  {newer.data.headline}
+                </span>
+              </a>
+            )}
+          </nav>
+        </div>
+      </article>
+
+      <!-- CTA -->
+      <section aria-label="Call to action" class="relative border-t border-white/[0.04] px-6 py-16">
+        <div class="mx-auto max-w-3xl">
+          <div class="rounded-2xl bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10 p-8 ring-1 ring-white/[0.06]">
+            <div class="mx-auto max-w-xl text-center">
+              <h2 class="mb-4 text-2xl font-bold tracking-tight text-white">
+                Plan your week, not just your tasks
+              </h2>
+              <p class="mb-8 text-[15px] text-slate-400">
+                Will Be Done is an open source, local-first task manager. Works offline, syncs across
+                devices, self-hostable with one Docker command.
+              </p>
+              <div class="flex flex-wrap justify-center gap-3">
+                <a
+                  href="https://demo.will-be-done.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_12px_rgba(59,130,246,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all hover:bg-blue-400 hover:shadow-[0_4px_20px_rgba(59,130,246,0.45),inset_0_1px_0_rgba(255,255,255,0.15)]"
+                  data-ph-event="demo_clicked"
+                  data-ph-section="release_page_cta"
+                >
+                  Try live demo
+                </a>
+                <a
+                  href="/releases/"
+                  class="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-6 py-3.5 text-[15px] font-medium text-slate-200 ring-1 ring-white/[0.10] transition-all hover:bg-white/[0.08] hover:text-white hover:ring-white/[0.18]"
+                  data-ph-event="releases_link_clicked"
+                  data-ph-section="release_page_cta"
+                >
+                  All releases
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <SiteFooter />
+  </PageBackdrop>
+</Layout>
+
+<style is:global>
+  /* Release bodies come from GitHub markdown, so the elements are styled here
+     rather than with utility classes on the source. */
+  .release-prose {
+    color: #94a3b8; /* slate-400 */
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .release-prose > *:first-child {
+    margin-top: 0;
+  }
+
+  .release-prose h2 {
+    margin: 2.75rem 0 1rem;
+    color: #fff;
+    font-size: 1.375rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .release-prose h3 {
+    margin: 2rem 0 0.75rem;
+    color: #e2e8f0; /* slate-200 */
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .release-prose h4,
+  .release-prose h5,
+  .release-prose h6 {
+    margin: 1.5rem 0 0.5rem;
+    color: #e2e8f0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .release-prose p {
+    margin: 1rem 0;
+  }
+
+  .release-prose ul,
+  .release-prose ol {
+    margin: 1rem 0;
+    padding-left: 1.25rem;
+    list-style-position: outside;
+  }
+
+  .release-prose ul {
+    list-style-type: disc;
+  }
+
+  .release-prose ol {
+    list-style-type: decimal;
+  }
+
+  .release-prose li {
+    margin: 0.5rem 0;
+    padding-left: 0.25rem;
+  }
+
+  .release-prose li::marker {
+    color: #475569; /* slate-600 */
+  }
+
+  .release-prose strong {
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+
+  .release-prose a {
+    color: #93c5fd; /* blue-300 */
+    text-decoration: underline;
+    text-decoration-color: rgba(147, 197, 253, 0.35);
+    text-underline-offset: 3px;
+    transition: color 0.2s, text-decoration-color 0.2s;
+  }
+
+  .release-prose a:hover {
+    color: #bfdbfe;
+    text-decoration-color: rgba(191, 219, 254, 0.7);
+  }
+
+  .release-prose code {
+    padding: 0.15em 0.4em;
+    border-radius: 0.375rem;
+    background: rgba(255, 255, 255, 0.06);
+    color: #cbd5e1; /* slate-300 */
+    font-size: 0.875em;
+  }
+
+  .release-prose pre {
+    margin: 1.25rem 0;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.03) !important;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+  }
+
+  .release-prose pre code {
+    padding: 0;
+    background: none;
+    font-size: inherit;
+  }
+
+  /* Each file is stored at the width the release author asked for, so `auto`
+     reproduces their intended size instead of blowing screenshots up. */
+  .release-prose img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    margin: 1.5rem 0;
+    border-radius: 0.75rem;
+    box-shadow:
+      0 8px 30px rgba(0, 0, 0, 0.35),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .release-prose blockquote {
+    margin: 1.25rem 0;
+    padding: 0.25rem 0 0.25rem 1rem;
+    border-left: 2px solid rgba(59, 130, 246, 0.4);
+    color: #cbd5e1;
+  }
+
+  .release-prose hr {
+    margin: 2.5rem 0;
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .release-prose table {
+    width: 100%;
+    margin: 1.25rem 0;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .release-prose th,
+  .release-prose td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    text-align: left;
+  }
+
+  .release-prose th {
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+</style>

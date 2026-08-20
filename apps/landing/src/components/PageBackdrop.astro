@@ -1,0 +1,20 @@
+---
+// The gradient orbs and noise texture the landing page uses, so secondary pages
+// sit on exactly the same background.
+---
+
+<div class="relative min-h-screen bg-[#0a0a0f] text-slate-100 antialiased">
+  <!-- Subtle gradient orbs -->
+  <div class="pointer-events-none fixed inset-0 overflow-hidden">
+    <div class="absolute -top-[400px] left-1/2 h-[800px] w-[800px] -translate-x-1/2 rounded-full bg-blue-600/8 blur-[120px]"></div>
+    <div class="absolute -bottom-[200px] -right-[200px] h-[600px] w-[600px] rounded-full bg-indigo-500/6 blur-[100px]"></div>
+  </div>
+
+  <!-- Noise texture overlay -->
+  <div
+    class="pointer-events-none fixed inset-0 opacity-[0.015]"
+    style={`background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`}
+  ></div>
+
+  <slot />
+</div>

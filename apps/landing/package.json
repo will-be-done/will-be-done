@@ -2,16 +2,23 @@
   "name": "landing",
   "type": "module",
   "version": "0.0.1",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "sync:releases": "node scripts/sync-releases.ts"
   },
   "dependencies": {
+    "@astrojs/rss": "^4.0.19",
+    "@astrojs/sitemap": "^3.7.3",
     "@tailwindcss/vite": "^4.1.11",
     "astro": "^5.17.1",
     "posthog-js": "^1.352.1",
+    "rehype-external-links": "^3.0.0",
     "tailwindcss": "^4.1.11"
   },
   "devDependencies": {
