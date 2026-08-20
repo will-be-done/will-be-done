@@ -2,9 +2,7 @@
 
 **An offline-first, self-hosted task planner built around a visual weekly timeline.**
 
-The workflow is short. Collect tasks, place them on a weekly timeline, and keep the few you care about right now in Stash.
-
-It is also local-first. Your tasks stay available offline, changes apply without a round trip to the server, and sync catches up across devices when your server is back.
+The workflow is short. Collect tasks, place them on a weekly timeline, and keep the few you care about right now in Stash. It is also local-first. Your tasks stay available offline, changes apply without a round trip to the server, and sync catches up across devices when your server is back.
 
 I want it to feel fast in the same way Linear feels fast. The app should open straight into your tasks, without a big loading spinner first. It reads from local persistent storage on demand, so startup should stay quick even after years of saved tasks.
 
