@@ -8,7 +8,10 @@ import { useUnmount } from "../../utils";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import { cn as cnBase } from "@/lib/utils";
+import {
+  TimePicker,
+  formatClockMinutes,
+} from "@/components/TimePicker/TimePicker.tsx";
 
 // Non-portaled popover content — stays inside the Dialog DOM tree so
 // Headless UI's focus trap doesn't close it.
@@ -22,7 +25,7 @@ function InlinePopoverContent({
     <PopoverPrimitive.Content
       align={align}
       sideOffset={sideOffset}
-      className={cnBase(
+      className={cn(
         "z-50 w-auto rounded-lg border border-dialog-border bg-dialog-bg shadow-lg",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
@@ -266,18 +269,27 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Main component ────────────────────────────────────────────────────────
 
+export interface RepeatConfirmOptions {
+  startsAtMinutes?: number;
+}
+
 export interface RepeatModalProps {
   initialRule?: string;
-  onConfirm: (rule: string) => void;
+  initialStartsAtMinutes?: number;
+  onConfirm: (rule: string, options?: RepeatConfirmOptions) => void;
   onCancel: () => void;
 }
 
 export function RepeatModal({
   initialRule,
+  initialStartsAtMinutes,
   onConfirm,
   onCancel,
 }: RepeatModalProps) {
   const [state, setState] = useState<ModalState>(() => parseRule(initialRule));
+  const [startsAtMinutes, setStartsAtMinutes] = useState<number | null>(
+    initialStartsAtMinutes ?? null,
+  );
   const [calendarOpen, setCalendarOpen] = useState(false);
   // Controlled so we can toggle it from both the button and RadioRow clicks
 
@@ -372,6 +384,11 @@ export function RepeatModal({
                 {nextDates.length > 0 && (
                   <p className="text-xs text-content-secondary leading-relaxed mt-1">
                     Next: {nextDates.map((d) => format(d, "MMM d")).join(" · ")}
+                  </p>
+                )}
+                {startsAtMinutes != null && (
+                  <p className="text-xs text-content-secondary leading-relaxed mt-1">
+                    At {formatClockMinutes(startsAtMinutes)}
                   </p>
                 )}
               </div>
@@ -484,6 +501,43 @@ export function RepeatModal({
                 )}
               </div>
 
+              {/* Optional clock time for generated occurrences */}
+              <div>
+                <SectionLabel>Time</SectionLabel>
+                <div className="flex items-center gap-2.5">
+                  <TimePicker
+                    inline
+                    value={startsAtMinutes ?? 9 * 60}
+                    onChange={setStartsAtMinutes}
+                  >
+                    <button
+                      type="button"
+                      className={cn(
+                        "text-sm py-1.5 px-3 rounded-lg cursor-pointer",
+                        "bg-transparent border border-border",
+                        "hover:border-accent transition-colors",
+                        startsAtMinutes == null
+                          ? "text-content-tinted"
+                          : "text-content",
+                      )}
+                    >
+                      {startsAtMinutes == null
+                        ? "Add a time"
+                        : formatClockMinutes(startsAtMinutes)}
+                    </button>
+                  </TimePicker>
+                  {startsAtMinutes != null && (
+                    <button
+                      type="button"
+                      onClick={() => setStartsAtMinutes(null)}
+                      className="text-sm text-content-tinted hover:text-content transition-colors cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* End */}
               <div>
                 <SectionLabel>End</SectionLabel>
@@ -579,7 +633,11 @@ export function RepeatModal({
               Cancel
             </button>
             <button
-              onClick={() => onConfirm(rule.toString())}
+              onClick={() =>
+                onConfirm(rule.toString(), {
+                  startsAtMinutes: startsAtMinutes ?? undefined,
+                })
+              }
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-accent hover:bg-accent-hover transition-colors cursor-pointer"
             >
               Ok

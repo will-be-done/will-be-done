@@ -8,6 +8,7 @@ import {
   dailyEntryChildrenForDisplay,
   doneDailyEntryChildrenForDisplay,
   inboxProjectId,
+  upcomingTemplateOccurrencesInRange,
 } from "@will-be-done/slices/space";
 
 export const Route = createFileRoute(
@@ -34,6 +35,15 @@ export const Route = createFileRoute(
 
     appendPromise(
       preloadSelectorAsync(db, { selector: inboxProjectId, args: {} }),
+    );
+    appendPromise(
+      preloadSelectorAsync(db, {
+        selector: upcomingTemplateOccurrencesInRange,
+        args: {
+          fromInclusive: selectedDate.getTime(),
+          toExclusive: selectedDate.getTime() + 24 * 60 * 60 * 1000,
+        },
+      }),
     );
 
     for (const dailyList of dailyLists) {

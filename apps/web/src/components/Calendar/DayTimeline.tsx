@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { addMinutes, format, isSameDay, startOfDay } from "date-fns";
+import { format, isSameDay, startOfDay } from "date-fns";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
-  draggable,
   dropTargetForElements,
   monitorForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
-import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import {
   useAsyncDispatch,
   useAsyncSelector,
@@ -16,20 +13,23 @@ import {
 } from "@will-be-done/hyperdb/react";
 import {
   appById,
+  dailyEntryByTaskId,
   dailyEntryType,
   hasTimeBlock,
   placeTaskOnCalendar,
-  stashEntryType,
   taskOfModel,
+  taskTemplateType,
   taskTimeBlockEnd,
   taskType,
   timedTasksForRange,
+  upcomingTemplateOccurrencesInRange,
   type Task,
   spacePreferences,
   DEFAULT_DAY_START_MINUTES,
   DEFAULT_DAY_END_MINUTES,
 } from "@will-be-done/slices/space";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import {
   dayTimelineDropData,
   isModelDNDData,
@@ -43,7 +43,6 @@ import {
   HOURS,
   START_HOUR,
   formatMinutesOfDay,
-  grabOffsetMinutes,
   heightForDuration,
   minutesFromMidnight,
   scrollTopToCenterMinutes,
@@ -51,15 +50,18 @@ import {
   topForMinutes,
 } from "./timeGrid.ts";
 import { WorkdayLayer } from "./WorkdayLayer.tsx";
+import { useEventDurationResize } from "./useEventDurationResize.ts";
+import {
+  attachTimedEventDrag,
+  canDropOnTimeGrid,
+  previewFromCalendarDrag,
+  startsAtFromPreview,
+  useLockCalendarScroll,
+  type CalendarMovePreview,
+} from "./calendarMove.ts";
 import "./DayTimeline.css";
 
-type TimelinePreview = {
-  taskId: string;
-  startMinutes: number;
-  durationMinutes: number;
-  title: string;
-  done: boolean;
-};
+type TimelinePreview = CalendarMovePreview;
 
 function eventStyle(task: Task, overlapIndex: number) {
   if (!hasTimeBlock(task)) return null;
@@ -93,29 +95,6 @@ function overlapIndex(task: Task, tasks: Task[]): number {
   }).length;
 }
 
-function previewFromDrag({
-  source,
-  clientY,
-  columnTop,
-}: {
-  source: DndModelData;
-  clientY: number;
-  columnTop: number;
-}): Omit<TimelinePreview, "title" | "done"> {
-  const durationMinutes =
-    source.timelineDurationMinutes ?? DEFAULT_DURATION_MINUTES;
-  return {
-    taskId: source.modelId,
-    durationMinutes,
-    startMinutes: startMinutesFromPointer({
-      clientY,
-      columnTop,
-      grabOffsetMinutes: source.timelineGrabOffsetMinutes ?? 0,
-      durationMinutes,
-    }),
-  };
-}
-
 export function DayTimeline({ date }: { date: Date }) {
   const select = useSelectAsync();
   const dispatch = useAsyncDispatch();
@@ -130,6 +109,14 @@ export function DayTimeline({ date }: { date: Date }) {
 
   const { data: rangedTasks = [] } = useAsyncSelector({
     selector: timedTasksForRange,
+    args: {
+      fromInclusive: dayStart.getTime(),
+      toExclusive: dayEnd.getTime(),
+    },
+    defaultValue: [],
+  });
+  const { data: upcomingOccurrences = [] } = useAsyncSelector({
+    selector: upcomingTemplateOccurrencesInRange,
     args: {
       fromInclusive: dayStart.getTime(),
       toExclusive: dayEnd.getTime(),
@@ -152,6 +139,18 @@ export function DayTimeline({ date }: { date: Date }) {
           hasTimeBlock(task) && isSameDay(new Date(task.startsAt), dayStart),
       ),
     [dayStart, rangedTasks],
+  );
+  const dayKey = format(dayStart, "yyyy-MM-dd");
+  const upcomingForDay = useMemo(
+    () =>
+      upcomingOccurrences.filter((occurrence) => occurrence.date === dayKey),
+    [dayKey, upcomingOccurrences],
+  );
+  const untimedUpcoming = upcomingForDay.filter(
+    (occurrence) => occurrence.startsAtMinutes == null,
+  );
+  const timedUpcoming = upcomingForDay.filter(
+    (occurrence) => occurrence.startsAtMinutes != null,
   );
 
   const now = new Date();
@@ -178,10 +177,11 @@ export function DayTimeline({ date }: { date: Date }) {
     if (!grid || !scrollable) return;
 
     const previewFromLocation = (source: DndModelData, clientY: number) => {
-      const next = previewFromDrag({
+      const next = previewFromCalendarDrag({
         source,
         clientY,
         columnTop: grid.getBoundingClientRect().top,
+        dayTime: dayStart.getTime(),
       });
       const task = tasks.find((item) => item.id === source.modelId);
       setPreview({
@@ -195,14 +195,7 @@ export function DayTimeline({ date }: { date: Date }) {
       dropTargetForElements({
         element: grid,
         getData: () => dayTimelineDropData,
-        canDrop: ({ source }) => {
-          if (!isModelDNDData(source.data)) return false;
-          return (
-            source.data.modelType === dailyEntryType ||
-            source.data.modelType === stashEntryType ||
-            source.data.modelType === taskType
-          );
-        },
+        canDrop: ({ source }) => canDropOnTimeGrid(source.data),
         getIsSticky: () => true,
         onDrag: ({ source, location }) => {
           if (!isModelDNDData(source.data)) return;
@@ -239,16 +232,12 @@ export function DayTimeline({ date }: { date: Date }) {
             await dispatch(
               placeTaskOnCalendar({
                 taskId: task.id,
-                startsAt: addMinutes(dayStart, minutes).getTime(),
+                startsAt: startsAtFromPreview(dayStart, minutes),
                 durationMinutes,
               }),
             );
           })();
         },
-      }),
-      autoScrollForElements({
-        element: scrollable,
-        canScroll: ({ source }) => isModelDNDData(source.data),
       }),
       monitorForElements({
         onDrop: () => setPreview(null),
@@ -256,8 +245,32 @@ export function DayTimeline({ date }: { date: Date }) {
     );
   }, [dayStart, dispatch, select, tasks]);
 
+  useLockCalendarScroll(preview != null, scrollRef);
+
   return (
     <div className="day-timeline">
+      {untimedUpcoming.length > 0 && (
+        <div className="day-timeline__allday">
+          {untimedUpcoming.map((occurrence) => (
+            <button
+              key={occurrence.id}
+              type="button"
+              className="day-timeline__allday-chip"
+              onClick={() => {
+                useItemDetailsOpen.getState().setOpen(true);
+                useFocusStore
+                  .getState()
+                  .focusByKey(
+                    buildFocusKey(occurrence.templateId, taskTemplateType),
+                    true,
+                  );
+              }}
+            >
+              {occurrence.title || "Untitled"}
+            </button>
+          ))}
+        </div>
+      )}
       <div ref={scrollRef} className="day-timeline__scroll">
         <div
           ref={gridRef}
@@ -275,7 +288,7 @@ export function DayTimeline({ date }: { date: Date }) {
               </div>
             ))}
           </div>
-          <div className="day-timeline__column">
+          <div className="day-timeline__column" data-calendar-column>
             {Array.from({ length: HOURS }, (_, index) => (
               <div
                 key={index}
@@ -304,13 +317,47 @@ export function DayTimeline({ date }: { date: Date }) {
                   key={task.id}
                   task={task}
                   top={layout.top}
-                  height={layout.height}
                   left={layout.left}
                   right={layout.right}
+                  startMinutes={minutesFromMidnight(new Date(task.startsAt))}
                   startLabel={layout.startLabel}
-                  endLabel={layout.endLabel}
                   isOrigin={preview?.taskId === task.id}
                 />
+              );
+            })}
+            {timedUpcoming.map((occurrence) => {
+              const startMinutes = occurrence.startsAtMinutes ?? 0;
+              return (
+                <button
+                  key={occurrence.id}
+                  type="button"
+                  className="day-timeline__event day-timeline__event--upcoming"
+                  style={{
+                    top: topForMinutes(startMinutes),
+                    height: heightForDuration(occurrence.durationMinutes ?? 30),
+                    left: 8,
+                    right: 8,
+                  }}
+                  onClick={() => {
+                    useItemDetailsOpen.getState().setOpen(true);
+                    useFocusStore
+                      .getState()
+                      .focusByKey(
+                        buildFocusKey(occurrence.templateId, taskTemplateType),
+                        true,
+                      );
+                  }}
+                >
+                  <span className="day-timeline__event-title">
+                    {occurrence.title || "Untitled"}
+                  </span>
+                  <span className="day-timeline__event-time">
+                    {formatMinutesOfDay(startMinutes)} -{" "}
+                    {formatMinutesOfDay(
+                      startMinutes + (occurrence.durationMinutes ?? 30),
+                    )}
+                  </span>
+                </button>
               );
             })}
             {preview && (
@@ -348,57 +395,69 @@ export function DayTimeline({ date }: { date: Date }) {
 function TimelineEvent({
   task,
   top,
-  height,
   left,
   right,
+  startMinutes,
   startLabel,
-  endLabel,
   isOrigin,
 }: {
   task: Task;
   top: number;
-  height: number;
   left: number;
   right: number;
+  startMinutes: number;
   startLabel: string;
-  endLabel: string;
   isOrigin: boolean;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
+  const select = useSelectAsync();
+  const dispatch = useAsyncDispatch();
+  const durationMinutes = task.durationMinutes ?? DEFAULT_DURATION_MINUTES;
+  const resize = useEventDurationResize({
+    startMinutes,
+    durationMinutes,
+    onCommit: (nextDuration) => {
+      if (task.startsAt == null) return;
+      void dispatch(
+        placeTaskOnCalendar({
+          taskId: task.id,
+          startsAt: task.startsAt,
+          durationMinutes: nextDuration,
+        }),
+      );
+    },
+  });
+
+  const openDetails = () => {
+    if (resize.consumeClick()) return;
+    void (async () => {
+      const entry = await select({
+        selector: dailyEntryByTaskId,
+        args: { taskId: task.id },
+      });
+      useItemDetailsOpen.getState().setOpen(true);
+      useFocusStore
+        .getState()
+        .focusByKey(
+          entry
+            ? buildFocusKey(entry.id, dailyEntryType)
+            : buildFocusKey(task.id, taskType),
+          true,
+        );
+    })();
+  };
 
   useEffect(() => {
     const element = ref.current;
     invariant(element);
-    return draggable({
-      element,
-      getInitialData: ({ input }): DndModelData => ({
-        modelId: task.id,
-        modelType: taskType,
-        timelineGrabOffsetMinutes: grabOffsetMinutes(
-          input.clientY,
-          element.getBoundingClientRect().top,
-        ),
-        timelineDurationMinutes:
-          task.durationMinutes ?? DEFAULT_DURATION_MINUTES,
-        timelineTitle: task.title,
-        timelineDone: task.state === "done",
-      }),
-      onGenerateDragPreview: ({ nativeSetDragImage }) => {
-        setCustomNativeDragPreview({
-          nativeSetDragImage,
-          getOffset: () => ({ x: 0, y: 0 }),
-          render({ container }) {
-            Object.assign(container.style, {
-              width: "1px",
-              height: "1px",
-              opacity: "0",
-              overflow: "hidden",
-            });
-          },
-        });
-      },
+    return attachTimedEventDrag(element, {
+      id: task.id,
+      title: task.title,
+      state: task.state,
+      durationMinutes,
     });
-  }, [task.durationMinutes, task.id, task.state, task.title]);
+  }, [durationMinutes, task.id, task.state, task.title]);
 
   return (
     <button
@@ -409,17 +468,40 @@ function TimelineEvent({
         task.state === "done" && "day-timeline__event--done",
         isOrigin && "day-timeline__event--origin",
       )}
-      style={{ top, height, left, right }}
-      onClick={() =>
-        useFocusStore.getState().focusByKey(buildFocusKey("task", task.id))
-      }
+      style={{
+        top,
+        height: heightForDuration(resize.displayDuration),
+        left,
+        right,
+      }}
+      onPointerDown={(event) => {
+        if (
+          event.button !== 0 ||
+          (event.target instanceof Element &&
+            event.target.closest("[data-calendar-resize]"))
+        ) {
+          return;
+        }
+        pointerStart.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerUp={(event) => {
+        const start = pointerStart.current;
+        pointerStart.current = null;
+        if (!start) return;
+        if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) {
+          return;
+        }
+        openDetails();
+      }}
     >
       <span className="day-timeline__event-title">
         {task.title || "Untitled"}
       </span>
       <span className="day-timeline__event-time">
-        {startLabel} - {endLabel}
+        {startLabel} -{" "}
+        {formatMinutesOfDay(startMinutes + resize.displayDuration)}
       </span>
+      <div {...resize.handleProps} />
     </button>
   );
 }

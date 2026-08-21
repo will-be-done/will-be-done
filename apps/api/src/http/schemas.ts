@@ -245,6 +245,13 @@ export const TaskSchema = z.object({
     .describe("Calendar duration in minutes, or null"),
 });
 
+const ClockMinutesSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(1439)
+  .describe("Minutes from midnight, 0-1439");
+
 export const TaskTemplateSchema = z.object({
   type: z.literal("template"),
   id: z.string().describe("Task template identifier"),
@@ -256,6 +263,8 @@ export const TaskTemplateSchema = z.object({
   repeatRuleDtStart: z.number().int().nonnegative(),
   createdAt: z.number().int().nonnegative(),
   lastGeneratedAt: z.number().int().nonnegative(),
+  startsAtMinutes: ClockMinutesSchema.optional(),
+  durationMinutes: z.number().int().positive().optional(),
 });
 
 export const TaskTemplateParamsSchema = z.object({
@@ -270,6 +279,8 @@ export const CreateTaskTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    startsAtMinutes: ClockMinutesSchema.nullable().optional(),
+    durationMinutes: z.number().int().positive().nullable().optional(),
     placement: PlacementSchema.optional(),
   })
   .strict();
@@ -281,6 +292,8 @@ export const UpdateTaskTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    startsAtMinutes: ClockMinutesSchema.nullable().optional(),
+    durationMinutes: z.number().int().positive().nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -294,6 +307,8 @@ export const ConvertTaskToTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    startsAtMinutes: ClockMinutesSchema.nullable().optional(),
+    durationMinutes: z.number().int().positive().nullable().optional(),
   })
   .strict();
 

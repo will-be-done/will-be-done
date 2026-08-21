@@ -7,6 +7,7 @@ import { asyncDispatch, preloadSelectorAsync } from "@will-be-done/hyperdb";
 import {
   createManyDailyListsIfNotPresent,
   timedTasksForRange,
+  upcomingTemplateOccurrencesInRange,
 } from "@will-be-done/slices/space";
 
 export const Route = createFileRoute("/spaces/$spaceId/calendar")({
@@ -21,6 +22,13 @@ export const Route = createFileRoute("/spaces/$spaceId/calendar")({
     await asyncDispatch(db, createManyDailyListsIfNotPresent({ dates }));
     await preloadSelectorAsync(db, {
       selector: timedTasksForRange,
+      args: {
+        fromInclusive: weekStart.getTime(),
+        toExclusive: addDays(weekStart, 7).getTime(),
+      },
+    });
+    await preloadSelectorAsync(db, {
+      selector: upcomingTemplateOccurrencesInRange,
       args: {
         fromInclusive: weekStart.getTime(),
         toExclusive: addDays(weekStart, 7).getTime(),

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/ios/180.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Will Be Done</title>
+    <meta
+      name="description"
+      content="Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, navigate with vim keybindings. Self-host with Docker or use the cloud version. Offline-first, syncs when you're back online."
+    />
+    <meta name="theme-color" content="#f5f5f3" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("vite-ui-theme") || "light";
+          var theme =
+            stored === "system"
+              ? matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : stored;
+          document.documentElement.classList.add(theme);
+          document.documentElement.style.colorScheme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", theme === "dark" ? "#100c09" : "#f5f5f3");
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="canonical" href="https://will-be-done.app/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Will Be Done" />
+    <meta
+      property="og:title"
+      content="Will Be Done — Open Source Weekly Planner"
+    />
+    <meta
+      property="og:description"
+      content="Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, vim keybindings, self-hosted with Docker. Offline-first."
+    />
+    <meta property="og:url" content="https://will-be-done.app/" />
+    <meta property="og:image" content="https://will-be-done.app/screen.png" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Will Be Done — Open Source Weekly Planner"
+    />
+    <meta
+      name="twitter:description"
+      content="Open source kanban for visual weekly planning. Drag & drop, vim keybindings, self-hosted with Docker. Offline-first."
+    />
+    <meta name="twitter:image" content="https://will-be-done.app/screen.png" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "name": "Will Be Done",
+            "url": "https://will-be-done.app",
+            "description": "Open source weekly planner and task manager with kanban boards, drag & drop, and vim keybindings."
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Will Be Done",
+            "description": "Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, navigate with vim keybindings. Self-host with Docker or use the cloud version.",
+            "applicationCategory": "ProductivityApplication",
+            "operatingSystem": "Web, Docker",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "featureList": [
+              "Weekly timeline view",
+              "Kanban boards per project",
+              "Drag & drop task management",
+              "Vim keybindings",
+              "Multiple workspaces",
+              "Offline-first with sync",
+              "Self-hosted via Docker",
+              "Real-time sync across tabs"
+            ],
+            "screenshot": "https://will-be-done.app/screen.png",
+            "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+            "codeRepository": "https://github.com/will-be-done/will-be-done"
+          }
+        ]
+      }
+    </script>
+
+    <style>
+      html,
+      body {
+        background-color: #f5f5f3;
+      }
+      html.dark,
+      html.dark body {
+        background-color: #100c09;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-DDUgtJ_r.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Dvc36zzI.css">
+  <link rel="manifest" href="/manifest.webmanifest"></head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div
+        style="
+          max-width: 640px;
+          margin: 2rem auto;
+          padding: 1rem;
+          font-family: system-ui, sans-serif;
+          color: #ebe7e0;
+          background: #100c09;
+        "
+      >
+        <h1>Will Be Done — Open Source Weekly Planner</h1>
+        <p>
+          An open source, self-hosted task manager with visual weekly planning,
+          kanban boards, drag & drop, vim keybindings, and offline-first sync.
+        </p>
+        <ul>
+          <li>
+            Weekly timeline — see your entire week as columns, drag tasks
+            between days
+          </li>
+          <li>Kanban per project — organize tasks within project sections</li>
+          <li>Drag & drop — move tasks between days, projects, and sections</li>
+          <li>
+            Vim keybindings — navigate with j/k, quick actions with shortcuts
+          </li>
+          <li>Multiple spaces — separate workspaces for work and personal</li>
+          <li>Offline first — works offline, syncs when connected</li>
+          <li>
+            Self-hosted — one Docker command, SQLite database, no dependencies
+          </li>
+        </ul>
+        <p>
+          <a href="https://github.com/will-be-done/will-be-done"
+            >View on GitHub</a
+          >
+        </p>
+      </div>
+    </noscript>
+  </body>
+</html>

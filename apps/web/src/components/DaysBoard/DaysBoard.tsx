@@ -1,6 +1,13 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useMemo } from "react";
-import { addDays, addWeeks, format, startOfDay, subWeeks } from "date-fns";
+import {
+  addDays,
+  addWeeks,
+  format,
+  parseISO,
+  startOfDay,
+  subWeeks,
+} from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
@@ -10,10 +17,13 @@ import {
   dailyEntryChildrenForDisplay,
   doneDailyEntryChildrenForDisplay,
   inboxProjectId,
+  upcomingTemplateOccurrencesInRange,
+  type UpcomingTemplateOccurrence,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
+import { UpcomingOccurrenceCard } from "@/components/Task/UpcomingOccurrenceCard.tsx";
 import { AddTaskComposer } from "@/components/Task/AddTaskComposer.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
@@ -42,9 +52,11 @@ import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts
 const ColumnView = ({
   dailyList,
   inboxId,
+  upcomingOccurrences,
 }: {
   dailyList: DailyList;
   inboxId: string;
+  upcomingOccurrences: UpcomingTemplateOccurrence[];
 }) => {
   const currentDate = useCurrentDMY();
   const isToday = currentDate === dailyList.date;
@@ -68,12 +80,9 @@ const ColumnView = ({
           <div className="flex min-w-0 flex-col items-start">
             <div className="flex items-center gap-2">
               <div
-                className={cn(
-                  "truncate text-content text-xl font-bold",
-                  {
-                    "text-accent": isToday,
-                  },
-                )}
+                className={cn("truncate text-content text-xl font-bold", {
+                  "text-accent": isToday,
+                })}
               >
                 {format(dailyList.date, "EEEE")}
               </div>
@@ -111,6 +120,13 @@ const ColumnView = ({
               />
             );
           })}
+
+          {upcomingOccurrences.map((occurrence) => (
+            <UpcomingOccurrenceCard
+              key={occurrence.id}
+              occurrence={occurrence}
+            />
+          ))}
 
           {doneItemsForDisplay.map((displayData) => {
             return (
@@ -184,6 +200,31 @@ const BoardView = ({
     selector: inboxProjectId,
     args: {},
   });
+  const occurrenceRange = useMemo(() => {
+    if (dailyLists.length === 0) return null;
+    const dates = dailyLists.map((list) => list.date).sort();
+    const first = startOfDay(parseISO(dates[0]!));
+    const last = startOfDay(parseISO(dates[dates.length - 1]!));
+    return {
+      fromInclusive: first.getTime(),
+      toExclusive: addDays(last, 1).getTime(),
+    };
+  }, [dailyLists]);
+  const { data: upcomingOccurrences = [] } = useAsyncSelector({
+    selector: upcomingTemplateOccurrencesInRange,
+    args: occurrenceRange ?? { fromInclusive: 0, toExclusive: 1 },
+    enabled: occurrenceRange != null,
+    defaultValue: [],
+  });
+  const upcomingByDate = useMemo(() => {
+    const grouped = new Map<string, UpcomingTemplateOccurrence[]>();
+    for (const occurrence of upcomingOccurrences) {
+      const bucket = grouped.get(occurrence.date) ?? [];
+      bucket.push(occurrence);
+      grouped.set(occurrence.date, bucket);
+    }
+    return grouped;
+  }, [upcomingOccurrences]);
   const isStashOpen = useStashOpen((s) => s.isOpen);
   const setStashOpen = useStashOpen((s) => s.setOpen);
   const stashWidth = useStashSize((s) => s.width);
@@ -316,6 +357,7 @@ const BoardView = ({
                 <ColumnView
                   dailyList={dailyList}
                   inboxId={inboxId}
+                  upcomingOccurrences={upcomingByDate.get(dailyList.date) ?? []}
                   key={dailyList.id}
                 />
               ))}

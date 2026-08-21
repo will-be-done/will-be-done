@@ -2594,6 +2594,17 @@ export type ListSectionItems200ItemsItem =
        * @maximum 9007199254740991
        */
       lastGeneratedAt: number;
+      /**
+       * Minutes from midnight, 0-1439
+       * @minimum 0
+       * @maximum 1439
+       */
+      startsAtMinutes?: number;
+      /**
+       * @maximum 9007199254740991
+       * @exclusiveMinimum 0
+       */
+      durationMinutes?: number;
     };
 
 export type ListSectionItems200 = {
@@ -4961,6 +4972,8 @@ export type CreateTaskTemplateBody = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart?: number;
+  startsAtMinutes?: number | null;
+  durationMinutes?: number | null;
   /** Position within an ordered collection */
   placement?: CreateTaskTemplateBodyPlacement;
 };
@@ -5006,6 +5019,17 @@ export type CreateTaskTemplate201Template = {
    * @maximum 9007199254740991
    */
   lastGeneratedAt: number;
+  /**
+   * Minutes from midnight, 0-1439
+   * @minimum 0
+   * @maximum 1439
+   */
+  startsAtMinutes?: number;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  durationMinutes?: number;
 };
 
 export type CreateTaskTemplate201 = {
@@ -5173,6 +5197,17 @@ export type GetTaskTemplate200Template = {
    * @maximum 9007199254740991
    */
   lastGeneratedAt: number;
+  /**
+   * Minutes from midnight, 0-1439
+   * @minimum 0
+   * @maximum 1439
+   */
+  startsAtMinutes?: number;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  durationMinutes?: number;
 };
 
 export type GetTaskTemplate200 = {
@@ -5304,6 +5339,8 @@ export type UpdateTaskTemplateBody = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart?: number;
+  startsAtMinutes?: number | null;
+  durationMinutes?: number | null;
 };
 
 export type UpdateTaskTemplate200TemplateType =
@@ -5347,6 +5384,17 @@ export type UpdateTaskTemplate200Template = {
    * @maximum 9007199254740991
    */
   lastGeneratedAt: number;
+  /**
+   * Minutes from midnight, 0-1439
+   * @minimum 0
+   * @maximum 1439
+   */
+  startsAtMinutes?: number;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  durationMinutes?: number;
 };
 
 export type UpdateTaskTemplate200 = {
@@ -5628,6 +5676,17 @@ export type MoveTaskTemplate200Template = {
    * @maximum 9007199254740991
    */
   lastGeneratedAt: number;
+  /**
+   * Minutes from midnight, 0-1439
+   * @minimum 0
+   * @maximum 1439
+   */
+  startsAtMinutes?: number;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  durationMinutes?: number;
 };
 
 export type MoveTaskTemplate200 = {
@@ -5779,6 +5838,8 @@ export type ConvertTaskToTemplateBody = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart?: number;
+  startsAtMinutes?: number | null;
+  durationMinutes?: number | null;
 };
 
 export type ConvertTaskToTemplate200TemplateType =
@@ -5822,6 +5883,17 @@ export type ConvertTaskToTemplate200Template = {
    * @maximum 9007199254740991
    */
   lastGeneratedAt: number;
+  /**
+   * Minutes from midnight, 0-1439
+   * @minimum 0
+   * @maximum 1439
+   */
+  startsAtMinutes?: number;
+  /**
+   * @maximum 9007199254740991
+   * @exclusiveMinimum 0
+   */
+  durationMinutes?: number;
 };
 
 export type ConvertTaskToTemplate200 = {

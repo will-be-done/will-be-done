@@ -1,13 +1,13 @@
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { type WorkBreak } from "@will-be-done/slices/space";
 import {
-  minutesToTimeInput,
-  timeInputToMinutes,
-  type WorkBreak,
-} from "@will-be-done/slices/space";
+  TimePicker,
+  formatClockMinutes,
+} from "@/components/TimePicker/TimePicker.tsx";
 
 const timeInputClassName =
-  "h-9 cursor-pointer rounded-lg bg-panel px-3 text-[13px] text-content ring-1 ring-border";
+  "h-9 w-full cursor-pointer rounded-lg bg-panel px-3 text-left text-[13px] tabular-nums text-content ring-1 ring-border";
 
 export type WorkdayValue = {
   dayStartMinutes: number;
@@ -37,35 +37,37 @@ export function WorkdayFields({
             <span className="text-[11px] font-medium text-content-tinted">
               Starts
             </span>
-            <input
-              type="time"
-              step={900}
-              aria-label="Day starts at"
-              value={minutesToTimeInput(dayStartMinutes)}
-              onChange={(event) =>
-                onChange({
-                  dayStartMinutes: timeInputToMinutes(event.target.value),
-                })
-              }
-              className={timeInputClassName}
-            />
+            <TimePicker
+              inline
+              value={dayStartMinutes}
+              onChange={(dayStartMinutes) => onChange({ dayStartMinutes })}
+            >
+              <button
+                type="button"
+                aria-label="Day starts at"
+                className={timeInputClassName}
+              >
+                {formatClockMinutes(dayStartMinutes)}
+              </button>
+            </TimePicker>
           </label>
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-[11px] font-medium text-content-tinted">
               Ends
             </span>
-            <input
-              type="time"
-              step={900}
-              aria-label="Day ends at"
-              value={minutesToTimeInput(dayEndMinutes)}
-              onChange={(event) =>
-                onChange({
-                  dayEndMinutes: timeInputToMinutes(event.target.value),
-                })
-              }
-              className={timeInputClassName}
-            />
+            <TimePicker
+              inline
+              value={dayEndMinutes}
+              onChange={(dayEndMinutes) => onChange({ dayEndMinutes })}
+            >
+              <button
+                type="button"
+                aria-label="Day ends at"
+                className={timeInputClassName}
+              >
+                {formatClockMinutes(dayEndMinutes)}
+              </button>
+            </TimePicker>
           </label>
         </div>
       )}
@@ -110,49 +112,49 @@ export function WorkdayFields({
             <div className="mt-2 flex flex-col gap-2">
               {breaks.map((item) => (
                 <div key={item.id} className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    step={900}
-                    aria-label="Break starts at"
-                    value={minutesToTimeInput(item.startMinutes)}
-                    onChange={(event) =>
+                  <TimePicker
+                    inline
+                    value={item.startMinutes}
+                    onChange={(startMinutes) =>
                       onChange({
                         breaks: breaks.map((current) =>
                           current.id === item.id
-                            ? {
-                                ...current,
-                                startMinutes: timeInputToMinutes(
-                                  event.target.value,
-                                ),
-                              }
+                            ? { ...current, startMinutes }
                             : current,
                         ),
                       })
                     }
-                    className={cn(timeInputClassName, "min-w-0 flex-1")}
-                  />
+                  >
+                    <button
+                      type="button"
+                      aria-label="Break starts at"
+                      className={cn(timeInputClassName, "min-w-0 flex-1")}
+                    >
+                      {formatClockMinutes(item.startMinutes)}
+                    </button>
+                  </TimePicker>
                   <span className="text-[12px] text-content-tinted">to</span>
-                  <input
-                    type="time"
-                    step={900}
-                    aria-label="Break ends at"
-                    value={minutesToTimeInput(item.endMinutes)}
-                    onChange={(event) =>
+                  <TimePicker
+                    inline
+                    value={item.endMinutes}
+                    onChange={(endMinutes) =>
                       onChange({
                         breaks: breaks.map((current) =>
                           current.id === item.id
-                            ? {
-                                ...current,
-                                endMinutes: timeInputToMinutes(
-                                  event.target.value,
-                                ),
-                              }
+                            ? { ...current, endMinutes }
                             : current,
                         ),
                       })
                     }
-                    className={cn(timeInputClassName, "min-w-0 flex-1")}
-                  />
+                  >
+                    <button
+                      type="button"
+                      aria-label="Break ends at"
+                      className={cn(timeInputClassName, "min-w-0 flex-1")}
+                    >
+                      {formatClockMinutes(item.endMinutes)}
+                    </button>
+                  </TimePicker>
                   <button
                     type="button"
                     aria-label="Remove break"

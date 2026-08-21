@@ -61,6 +61,8 @@ export const taskTemplatesTable = defineTable("task_templates", {
   nature: v.optional(
     v.union(v.literal("red"), v.literal("green"), v.literal("unknown")),
   ),
+  startsAtMinutes: v.optional(v.number()),
+  durationMinutes: v.optional(v.number()),
 })
   .index("byIds", ["id"])
   .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"])

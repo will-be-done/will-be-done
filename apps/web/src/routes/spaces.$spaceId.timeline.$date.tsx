@@ -17,6 +17,7 @@ import {
   projectSectionsByProjectId,
   projectSectionItemsForDisplayChildren,
   projectsWithTaskStats,
+  upcomingTemplateOccurrencesInRange,
 } from "@will-be-done/slices/space";
 
 const filterParams = z.object({
@@ -99,6 +100,16 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
         }),
       );
     }
+
+    appendPromise(
+      preloadSelectorAsync(db, {
+        selector: upcomingTemplateOccurrencesInRange,
+        args: {
+          fromInclusive: dates[0]!,
+          toExclusive: addDays(selectedDate, 7).getTime(),
+        },
+      }),
+    );
 
     await Promise.all(promises);
   },

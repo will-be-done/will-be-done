@@ -92,7 +92,7 @@
 
 .calendar-week__event {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   right: 4px;
   left: 4px;
   display: flex;
@@ -102,9 +102,24 @@
   border-radius: 6px;
   background: oklch(91% 0.055 55);
   color: oklch(38% 0.07 50);
-  padding: 4px 6px;
+  padding: 4px 6px 10px;
   text-align: left;
-  cursor: pointer;
+  cursor: grab;
+  user-select: none;
+}
+
+.calendar-week__event:active {
+  cursor: grabbing;
+}
+
+.calendar-week__event--origin {
+  opacity: 0.12;
+}
+
+.calendar-week__event--preview {
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgb(16 16 14 / 0.12);
 }
 
 .calendar-week__event--done {
@@ -125,6 +140,66 @@
   line-height: 1.2;
 }
 
+.calendar-event-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.calendar-event-resize::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.4;
+  transform: translateX(-50%);
+}
+
+.calendar-week__event--upcoming {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.calendar-week__allday {
+  display: grid;
+  grid-template-columns: 56px repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid var(--calendar-border);
+  background: var(--panel);
+}
+
+.calendar-week__allday-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 4px;
+  padding: 4px;
+  border-left: 1px solid var(--calendar-border);
+}
+
+.calendar-week__allday-chip {
+  overflow: hidden;
+  border: 1px dashed oklch(80% 0.07 55);
+  border-radius: 4px;
+  background: oklch(91% 0.055 55);
+  color: oklch(38% 0.07 50);
+  opacity: 0.45;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .dark .calendar-week__bound {
   border-top-color: oklch(62% 0.08 18);
 }
@@ -139,4 +214,10 @@
   border-color: oklch(52% 0.07 155);
   background: oklch(38% 0.05 155);
   color: oklch(90% 0.03 155);
+}
+
+.dark .calendar-week__allday-chip {
+  border-color: oklch(58% 0.08 55);
+  background: oklch(42% 0.07 55);
+  color: oklch(94% 0.03 80);
 }

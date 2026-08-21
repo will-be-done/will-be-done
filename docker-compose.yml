@@ -1,0 +1,15 @@
+services:
+  will-be-done:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: will-be-done:local
+    container_name: will-be-done
+    ports:
+      - "3000:3000"
+    environment:
+      WBD_CF_CAPTCHA_ENABLED: "false"
+      WBD_DB_ENGINE: sqlite
+    volumes:
+      - ./db:/var/lib/will-be-done/db
+    restart: unless-stopped

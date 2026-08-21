@@ -90,7 +90,10 @@ import {
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
-import { PlannedDurationPicker } from "./PlannedDurationPicker";
+import {
+  PlannedDurationPicker,
+  TaskStartTimeField,
+} from "./PlannedDurationPicker";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal";
 import {
   useItemDetailsEditRequest,
@@ -617,7 +620,7 @@ export const PreloadedTaskComp = ({
   }, [item]);
 
   const handleConvertToTemplateConfirm = useCallback(
-    (ruleString: string) => {
+    (ruleString: string, options?: { startsAtMinutes?: number }) => {
       if (!isTask(item) || item.templateId) return;
 
       setIsRepeatModalOpen(false);
@@ -626,12 +629,19 @@ export const PreloadedTaskComp = ({
       void (async () => {
         const task =
           (await select({ selector: taskById, args: { id: taskId } })) ?? item;
+        const startsAtMinutes = options?.startsAtMinutes;
         const template = await dispatch(
           createTaskTemplateFromTask({
             task: task,
             now: Date.now(),
             data: {
               repeatRule: ruleString,
+              ...(startsAtMinutes == null ? {} : { startsAtMinutes }),
+              ...(task.durationMinutes != null
+                ? { durationMinutes: task.durationMinutes }
+                : startsAtMinutes != null
+                  ? { durationMinutes: 30 }
+                  : {}),
             },
           }),
         );
@@ -1282,6 +1292,12 @@ export const PreloadedTaskComp = ({
                 )}
                 {isRepeatModalOpen && (
                   <RepeatModal
+                    initialStartsAtMinutes={
+                      isTask(item) && item.startsAt != null
+                        ? new Date(item.startsAt).getHours() * 60 +
+                          new Date(item.startsAt).getMinutes()
+                        : undefined
+                    }
                     onConfirm={handleConvertToTemplateConfirm}
                     onCancel={handleConvertToTemplateCancel}
                   />
@@ -1435,12 +1451,31 @@ export const PreloadedTaskComp = ({
                   />
                 )}
                 <div
+                  className="flex items-center gap-1.5"
                   onPointerDown={(event) => event.stopPropagation()}
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
                 >
+                  <TaskStartTimeField
+                    startsAt={item.startsAt}
+                    day={
+                      lastScheduleTime ??
+                      (item.startsAt != null
+                        ? startOfDay(new Date(item.startsAt))
+                        : date)
+                    }
+                    onChange={(startsAt) =>
+                      void dispatch(
+                        setTaskTimeBlock({
+                          id: taskId,
+                          startsAt,
+                        }),
+                      )
+                    }
+                  />
                   <PlannedDurationPicker
-                    showIcon={false}
+                    compact
+                    showIcon
                     align="center"
                     value={item.durationMinutes}
                     onChange={(minutes) =>

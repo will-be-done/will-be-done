@@ -15,7 +15,13 @@ export const dayTimelineDropData = {
   kind: dayTimelineDropKind,
 } as const;
 
-export type DayTimelineDropData = typeof dayTimelineDropData;
+export function calendarColumnDropData(dayTime: number) {
+  return { kind: dayTimelineDropKind, dayTime } as const;
+}
+
+export type DayTimelineDropData =
+  | typeof dayTimelineDropData
+  | ReturnType<typeof calendarColumnDropData>;
 
 export function isModelDNDData(data: unknown): data is DndModelData {
   return typeof data == "object" && data !== null && "modelId" in data;

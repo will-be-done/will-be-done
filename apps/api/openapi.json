@@ -4276,6 +4276,17 @@
                                 "type": "integer",
                                 "minimum": 0,
                                 "maximum": 9007199254740991
+                              },
+                              "startsAtMinutes": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1439,
+                                "description": "Minutes from midnight, 0-1439"
+                              },
+                              "durationMinutes": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
                               }
                             },
                             "required": [
@@ -8045,6 +8056,27 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
+                  "startsAtMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1439,
+                        "description": "Minutes from midnight, 0-1439"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      { "type": "null" }
+                    ]
+                  },
                   "placement": {
                     "oneOf": [
                       {
@@ -8156,6 +8188,17 @@
                         "lastGeneratedAt": {
                           "type": "integer",
                           "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "startsAtMinutes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1439,
+                          "description": "Minutes from midnight, 0-1439"
+                        },
+                        "durationMinutes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
                           "maximum": 9007199254740991
                         }
                       },
@@ -8407,6 +8450,17 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "startsAtMinutes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1439,
+                          "description": "Minutes from midnight, 0-1439"
+                        },
+                        "durationMinutes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -8596,6 +8650,27 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "startsAtMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1439,
+                        "description": "Minutes from midnight, 0-1439"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      { "type": "null" }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -8660,6 +8735,17 @@
                         "lastGeneratedAt": {
                           "type": "integer",
                           "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "startsAtMinutes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1439,
+                          "description": "Minutes from midnight, 0-1439"
+                        },
+                        "durationMinutes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
                           "maximum": 9007199254740991
                         }
                       },
@@ -9106,6 +9192,17 @@
                           "type": "integer",
                           "minimum": 0,
                           "maximum": 9007199254740991
+                        },
+                        "startsAtMinutes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1439,
+                          "description": "Minutes from midnight, 0-1439"
+                        },
+                        "durationMinutes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "required": [
@@ -9324,6 +9421,27 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "startsAtMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1439,
+                        "description": "Minutes from midnight, 0-1439"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      { "type": "null" }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -9388,6 +9506,17 @@
                         "lastGeneratedAt": {
                           "type": "integer",
                           "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "startsAtMinutes": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1439,
+                          "description": "Minutes from midnight, 0-1439"
+                        },
+                        "durationMinutes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
                           "maximum": 9007199254740991
                         }
                       },

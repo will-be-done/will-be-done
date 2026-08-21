@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDays,
   addWeeks,
@@ -10,32 +10,59 @@ import {
   subWeeks,
 } from "date-fns";
 import {
+  dropTargetForElements,
+  monitorForElements,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
   useAsyncDispatch,
   useAsyncSelector,
+  useSelectAsync,
 } from "@will-be-done/hyperdb/react";
 import {
+  appById,
   createManyDailyListsIfNotPresent,
   DEFAULT_DAY_END_MINUTES,
   DEFAULT_DAY_START_MINUTES,
   hasTimeBlock,
   placeTaskOnCalendar,
   spacePreferences,
+  taskOfModel,
+  taskTemplateType,
   taskTimeBlockEnd,
+  taskType,
   timedTasksForRange,
+  upcomingTemplateOccurrencesInRange,
   type Task,
+  type UpcomingTemplateOccurrence,
+  type WorkBreak,
 } from "@will-be-done/slices/space";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
+import {
+  calendarColumnDropData,
+  isModelDNDData,
+  type DndModelData,
+} from "@/lib/dnd/models.ts";
 import { cn } from "@/lib/utils.ts";
 import { WorkdayLayer } from "./WorkdayLayer.tsx";
+import { useEventDurationResize } from "./useEventDurationResize.ts";
 import {
+  attachTimedEventDrag,
+  canDropOnTimeGrid,
+  previewFromCalendarDrag,
+  startsAtFromPreview,
+  useLockCalendarScroll,
+  type CalendarMovePreview,
+} from "./calendarMove.ts";
+import {
+  DEFAULT_DURATION_MINUTES,
   END_HOUR,
   HOUR_HEIGHT,
   HOURS,
   SNAP_MINUTES,
   START_HOUR,
-  grabOffsetMinutes,
+  formatClockOfDay,
   scrollTopToCenterMinutes,
-  startMinutesFromPointer,
 } from "./timeGrid.ts";
 import "./CalendarView.css";
 
@@ -83,21 +110,45 @@ function weekDates(weekStart: Date): number[] {
   );
 }
 
-function eventLayout(task: Task) {
-  if (!hasTimeBlock(task)) return null;
-  const end = taskTimeBlockEnd(task);
-  if (end == null) return null;
-
-  const start = new Date(task.startsAt);
+function blockLayout(startsAt: number, durationMinutes: number) {
+  const start = new Date(startsAt);
   const minutesFromMidnight = differenceInMinutes(start, startOfDay(start));
   const minutesFromGrid = minutesFromMidnight - START_HOUR * 60;
-  const duration = Math.max(SNAP_MINUTES, task.durationMinutes);
+  const duration = Math.max(SNAP_MINUTES, durationMinutes);
 
   return {
     top: (minutesFromGrid / 60) * HOUR_HEIGHT,
     height: (duration / 60) * HOUR_HEIGHT,
-    startLabel: format(start, "HH:mm"),
+    startMinutes: minutesFromMidnight,
+    startLabel: formatClockOfDay(minutesFromMidnight),
+    endLabel: formatClockOfDay(minutesFromMidnight + duration),
   };
+}
+
+function eventLayout(task: Task) {
+  if (!hasTimeBlock(task)) return null;
+  const end = taskTimeBlockEnd(task);
+  if (end == null) return null;
+  return blockLayout(task.startsAt, task.durationMinutes);
+}
+
+function dayIso(day: Date) {
+  return format(day, "yyyy-MM-dd");
+}
+
+function focusCalendarItem(id: string, type: string) {
+  useItemDetailsOpen.getState().setOpen(true);
+  useFocusStore.getState().focusByKey(buildFocusKey(id, type), true);
+}
+
+function groupUpcomingByDate(occurrences: UpcomingTemplateOccurrence[]) {
+  const grouped = new Map<string, UpcomingTemplateOccurrence[]>();
+  for (const occurrence of occurrences) {
+    const bucket = grouped.get(occurrence.date) ?? [];
+    bucket.push(occurrence);
+    grouped.set(occurrence.date, bucket);
+  }
+  return grouped;
 }
 
 export function CalendarView() {
@@ -114,6 +165,14 @@ export function CalendarView() {
 
   const { data: tasks = [] } = useAsyncSelector({
     selector: timedTasksForRange,
+    args: {
+      fromInclusive: weekStart.getTime(),
+      toExclusive: weekEnd.getTime(),
+    },
+    defaultValue: [],
+  });
+  const { data: upcomingOccurrences = [] } = useAsyncSelector({
+    selector: upcomingTemplateOccurrencesInRange,
     args: {
       fromInclusive: weekStart.getTime(),
       toExclusive: weekEnd.getTime(),
@@ -140,39 +199,22 @@ export function CalendarView() {
     return grouped;
   }, [days, tasks]);
 
+  const upcomingByDate = useMemo(
+    () => groupUpcomingByDate(upcomingOccurrences),
+    [upcomingOccurrences],
+  );
+
+  const hasUntimedUpcoming = upcomingOccurrences.some(
+    (occurrence) => occurrence.startsAtMinutes == null,
+  );
+
   const goToWeek = (nextStart: Date) => {
     const next = startOfWeek(nextStart, { weekStartsOn: WEEK_STARTS_ON });
     setWeekStart(next);
     void dispatch(createManyDailyListsIfNotPresent({ dates: weekDates(next) }));
   };
 
-  const dropOnDay = (day: Date, event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    const taskId = event.dataTransfer.getData("text/plain");
-    if (!taskId) return;
-
-    const current = tasks.find((task) => task.id === taskId);
-    const durationMinutes = current?.durationMinutes ?? 30;
-    const minutes = startMinutesFromPointer({
-      clientY: event.clientY,
-      columnTop: event.currentTarget.getBoundingClientRect().top,
-      grabOffsetMinutes: Number(
-        event.dataTransfer.getData("application/x-wbd-grab"),
-      ),
-      durationMinutes,
-    });
-    const next = startOfDay(day);
-    next.setMinutes(minutes);
-
-    void dispatch(
-      placeTaskOnCalendar({
-        taskId,
-        startsAt: next.getTime(),
-        durationMinutes,
-      }),
-    );
-  };
-
+  const [preview, setPreview] = useState<CalendarMovePreview | null>(null);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const showNow = nowMinutes >= START_HOUR * 60 && nowMinutes < END_HOUR * 60;
   const nowTop = ((nowMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
@@ -188,6 +230,16 @@ export function CalendarView() {
       scrollable.clientHeight,
     );
   }, [dayStartMinutes, dayEndMinutes, weekStart]);
+
+  useEffect(() => {
+    const scrollable = bodyRef.current;
+    if (!scrollable) return;
+    return monitorForElements({
+      onDrop: () => setPreview(null),
+    });
+  }, []);
+
+  useLockCalendarScroll(preview != null, bodyRef);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col bg-surface px-4 pb-4 pt-3">
@@ -230,6 +282,33 @@ export function CalendarView() {
           ))}
         </div>
 
+        {hasUntimedUpcoming && (
+          <div className="calendar-week__allday">
+            <div />
+            {days.map((day) => (
+              <div key={day.getTime()} className="calendar-week__allday-cell">
+                {(upcomingByDate.get(dayIso(day)) ?? [])
+                  .filter((occurrence) => occurrence.startsAtMinutes == null)
+                  .map((occurrence) => (
+                    <button
+                      key={occurrence.id}
+                      type="button"
+                      className="calendar-week__allday-chip"
+                      onClick={() =>
+                        focusCalendarItem(
+                          occurrence.templateId,
+                          taskTemplateType,
+                        )
+                      }
+                    >
+                      {occurrence.title || "Untitled"}
+                    </button>
+                  ))}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div ref={bodyRef} className="calendar-week__body">
           <div
             className="calendar-week__grid"
@@ -248,84 +327,290 @@ export function CalendarView() {
             </div>
 
             {days.map((day) => (
-              <div
+              <WeekDayColumn
                 key={day.getTime()}
-                className={cn(
-                  "calendar-week__column",
-                  isSameDay(day, now) && "calendar-week__column--today",
-                )}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => dropOnDay(day, event)}
-              >
-                {Array.from({ length: HOURS }, (_, index) => (
-                  <div
-                    key={index}
-                    className="calendar-week__slot"
-                    style={{ height: HOUR_HEIGHT }}
-                  />
-                ))}
-
-                {isSameDay(day, now) && showNow && (
-                  <div className="calendar-week__now" style={{ top: nowTop }} />
-                )}
-                <WorkdayLayer
-                  dayStartMinutes={dayStartMinutes}
-                  dayEndMinutes={dayEndMinutes}
-                  breaks={breaks}
-                  boundClassName="calendar-week__bound"
-                  breakClassName="calendar-week__break"
-                />
-
-                {(tasksByDay.get(day.getTime()) ?? []).map((task) => {
-                  const layout = eventLayout(task);
-                  if (!layout) return null;
-                  return (
-                    <button
-                      key={task.id}
-                      type="button"
-                      className={cn(
-                        "calendar-week__event",
-                        task.state === "done" && "calendar-week__event--done",
-                      )}
-                      style={{ top: layout.top, height: layout.height }}
-                      onClick={() =>
-                        useFocusStore
-                          .getState()
-                          .focusByKey(buildFocusKey("task", task.id))
-                      }
-                      draggable
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData("text/plain", task.id);
-                        event.dataTransfer.setData(
-                          "application/x-wbd-grab",
-                          String(
-                            grabOffsetMinutes(
-                              event.clientY,
-                              event.currentTarget.getBoundingClientRect().top,
-                            ),
-                          ),
-                        );
-                        event.dataTransfer.effectAllowed = "move";
-                        event.currentTarget.style.opacity = "0.12";
-                      }}
-                      onDragEnd={(event) => {
-                        event.currentTarget.style.opacity = "";
-                      }}
-                    >
-                      <span className="calendar-week__event-time">
-                        {layout.startLabel}
-                      </span>
-                      <span className="calendar-week__event-title">
-                        {task.title || "Untitled"}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                day={day}
+                now={now}
+                showNow={showNow}
+                nowTop={nowTop}
+                tasks={tasksByDay.get(day.getTime()) ?? []}
+                upcoming={upcomingByDate.get(dayIso(day)) ?? []}
+                preview={preview}
+                setPreview={setPreview}
+                dayStartMinutes={dayStartMinutes}
+                dayEndMinutes={dayEndMinutes}
+                breaks={breaks}
+              />
             ))}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function WeekDayColumn({
+  day,
+  now,
+  showNow,
+  nowTop,
+  tasks,
+  upcoming,
+  preview,
+  setPreview,
+  dayStartMinutes,
+  dayEndMinutes,
+  breaks,
+}: {
+  day: Date;
+  now: Date;
+  showNow: boolean;
+  nowTop: number;
+  tasks: Task[];
+  upcoming: UpcomingTemplateOccurrence[];
+  preview: CalendarMovePreview | null;
+  setPreview: (preview: CalendarMovePreview | null) => void;
+  dayStartMinutes: number;
+  dayEndMinutes: number;
+  breaks: WorkBreak[];
+}) {
+  const columnRef = useRef<HTMLDivElement>(null);
+  const select = useSelectAsync();
+  const dispatch = useAsyncDispatch();
+  const dayTime = day.getTime();
+
+  useEffect(() => {
+    const column = columnRef.current;
+    if (!column) return;
+
+    const previewFromLocation = (source: DndModelData, clientY: number) => {
+      const next = previewFromCalendarDrag({
+        source,
+        clientY,
+        columnTop: column.getBoundingClientRect().top,
+        dayTime,
+      });
+      const task = tasks.find((item) => item.id === source.modelId);
+      setPreview({
+        ...next,
+        title: source.timelineTitle ?? task?.title ?? "",
+        done: source.timelineDone ?? task?.state === "done",
+      });
+    };
+
+    return dropTargetForElements({
+      element: column,
+      getData: () => calendarColumnDropData(dayTime),
+      canDrop: ({ source }) => canDropOnTimeGrid(source.data),
+      getIsSticky: () => true,
+      onDrag: ({ source, location }) => {
+        if (!isModelDNDData(source.data)) return;
+        previewFromLocation(source.data, location.current.input.clientY);
+      },
+      onDrop: ({ source, location }) => {
+        setPreview(null);
+        void (async () => {
+          if (!isModelDNDData(source.data)) return;
+          const entity = await select({
+            selector: appById,
+            args: {
+              id: source.data.modelId,
+              modelType: source.data.modelType,
+            },
+          });
+          if (!entity) return;
+          const task = await select({
+            selector: taskOfModel,
+            args: { model: entity },
+          });
+          if (!task) return;
+
+          const durationMinutes =
+            source.data.timelineDurationMinutes ??
+            task.durationMinutes ??
+            DEFAULT_DURATION_MINUTES;
+          const minutes = previewFromCalendarDrag({
+            source: source.data,
+            clientY: location.current.input.clientY,
+            columnTop: column.getBoundingClientRect().top,
+            dayTime,
+          }).startMinutes;
+          await dispatch(
+            placeTaskOnCalendar({
+              taskId: task.id,
+              startsAt: startsAtFromPreview(day, minutes),
+              durationMinutes,
+            }),
+          );
+        })();
+      },
+    });
+  }, [day, dayTime, dispatch, select, setPreview, tasks]);
+
+  const columnPreview = preview?.dayTime === dayTime ? preview : null;
+
+  return (
+    <div
+      ref={columnRef}
+      data-calendar-column
+      className={cn(
+        "calendar-week__column",
+        isSameDay(day, now) && "calendar-week__column--today",
+      )}
+    >
+      {Array.from({ length: HOURS }, (_, index) => (
+        <div
+          key={index}
+          className="calendar-week__slot"
+          style={{ height: HOUR_HEIGHT }}
+        />
+      ))}
+
+      {isSameDay(day, now) && showNow && (
+        <div className="calendar-week__now" style={{ top: nowTop }} />
+      )}
+      <WorkdayLayer
+        dayStartMinutes={dayStartMinutes}
+        dayEndMinutes={dayEndMinutes}
+        breaks={breaks}
+        boundClassName="calendar-week__bound"
+        breakClassName="calendar-week__break"
+      />
+
+      {tasks.map((task) => {
+        const layout = eventLayout(task);
+        if (!layout) return null;
+        return (
+          <TimedCalendarEvent
+            key={task.id}
+            task={task}
+            top={layout.top}
+            startMinutes={layout.startMinutes}
+            isOrigin={preview?.taskId === task.id}
+          />
+        );
+      })}
+
+      {upcoming.map((occurrence) => {
+        if (occurrence.startsAtMinutes == null) return null;
+        const layout = blockLayout(
+          startOfDay(day).getTime() + occurrence.startsAtMinutes * 60 * 1000,
+          occurrence.durationMinutes ?? 30,
+        );
+        return (
+          <button
+            key={occurrence.id}
+            type="button"
+            className="calendar-week__event calendar-week__event--upcoming"
+            style={{ top: layout.top, height: layout.height }}
+            onClick={() =>
+              focusCalendarItem(occurrence.templateId, taskTemplateType)
+            }
+          >
+            <span className="calendar-week__event-time">
+              {layout.startLabel} - {layout.endLabel}
+            </span>
+            <span className="calendar-week__event-title">
+              {occurrence.title || "Untitled"}
+            </span>
+          </button>
+        );
+      })}
+
+      {columnPreview && (
+        <div
+          className={cn(
+            "calendar-week__event",
+            "calendar-week__event--preview",
+            columnPreview.done && "calendar-week__event--done",
+          )}
+          style={{
+            top: (columnPreview.startMinutes / 60) * HOUR_HEIGHT,
+            height:
+              (Math.max(SNAP_MINUTES, columnPreview.durationMinutes) / 60) *
+              HOUR_HEIGHT,
+          }}
+        >
+          <span className="calendar-week__event-time">
+            {formatClockOfDay(columnPreview.startMinutes)} -{" "}
+            {formatClockOfDay(
+              columnPreview.startMinutes + columnPreview.durationMinutes,
+            )}
+          </span>
+          <span className="calendar-week__event-title">
+            {columnPreview.title || "Untitled"}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimedCalendarEvent({
+  task,
+  top,
+  startMinutes,
+  isOrigin,
+}: {
+  task: Task;
+  top: number;
+  startMinutes: number;
+  isOrigin: boolean;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const dispatch = useAsyncDispatch();
+  const durationMinutes = task.durationMinutes ?? 30;
+  const resize = useEventDurationResize({
+    startMinutes,
+    durationMinutes,
+    onCommit: (nextDuration) => {
+      if (task.startsAt == null) return;
+      void dispatch(
+        placeTaskOnCalendar({
+          taskId: task.id,
+          startsAt: task.startsAt,
+          durationMinutes: nextDuration,
+        }),
+      );
+    },
+  });
+  const height =
+    (Math.max(SNAP_MINUTES, resize.displayDuration) / 60) * HOUR_HEIGHT;
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    return attachTimedEventDrag(element, {
+      id: task.id,
+      title: task.title,
+      state: task.state,
+      durationMinutes,
+    });
+  }, [durationMinutes, task.id, task.state, task.title]);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cn(
+        "calendar-week__event",
+        task.state === "done" && "calendar-week__event--done",
+        isOrigin && "calendar-week__event--origin",
+      )}
+      style={{ top, height }}
+      onClick={() => {
+        if (resize.consumeClick()) return;
+        focusCalendarItem(task.id, taskType);
+      }}
+    >
+      <span className="calendar-week__event-time">
+        {formatClockOfDay(startMinutes)} -{" "}
+        {formatClockOfDay(startMinutes + resize.displayDuration)}
+      </span>
+      <span className="calendar-week__event-title">
+        {task.title || "Untitled"}
+      </span>
+      <div {...resize.handleProps} />
+    </button>
   );
 }

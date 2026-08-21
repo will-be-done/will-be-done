@@ -114,6 +114,8 @@ interface TaskTemplateBackup {
   createdAt: number;
   lastGeneratedAt: number;
   projectSectionId: string;
+  startsAtMinutes?: number;
+  durationMinutes?: number;
 }
 
 interface ChecklistItemBackup {
@@ -211,6 +213,8 @@ const backupSchema = v.object({
       createdAt: v.number(),
       lastGeneratedAt: v.number(),
       projectSectionId: v.string(),
+      startsAtMinutes: v.optional(v.number()),
+      durationMinutes: v.optional(v.number()),
     }),
   ),
   projectSections: v.array(
@@ -328,6 +332,8 @@ const legacyBackupSchema = v.object({
       createdAt: v.number(),
       lastGeneratedAt: v.number(),
       projectCategoryId: v.string(),
+      startsAtMinutes: v.optional(v.number()),
+      durationMinutes: v.optional(v.number()),
     }),
   ),
   projectCategories: v.array(
@@ -566,6 +572,12 @@ const getNewModels = action({
         createdAt: templateBackup.createdAt,
         lastGeneratedAt: templateBackup.lastGeneratedAt,
         projectSectionId: section.id,
+        ...(templateBackup.startsAtMinutes == null
+          ? {}
+          : { startsAtMinutes: templateBackup.startsAtMinutes }),
+        ...(templateBackup.durationMinutes == null
+          ? {}
+          : { durationMinutes: templateBackup.durationMinutes }),
       };
 
       models.push(template);
@@ -803,6 +815,12 @@ export const getSpaceBackup = selector({
         createdAt: template.createdAt,
         lastGeneratedAt: template.lastGeneratedAt,
         projectSectionId: template.projectSectionId,
+        ...(template.startsAtMinutes == null
+          ? {}
+          : { startsAtMinutes: template.startsAtMinutes }),
+        ...(template.durationMinutes == null
+          ? {}
+          : { durationMinutes: template.durationMinutes }),
       })),
       checklistItems: checklistItems.map((item) => ({
         id: item.id,
