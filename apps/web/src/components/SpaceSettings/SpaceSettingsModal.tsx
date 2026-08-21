@@ -51,13 +51,13 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
     <Dialog open={open} onClose={onClose} className="relative z-50">
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+        className="fixed inset-0 bg-scrim"
         aria-hidden="true"
       />
 
       {/* Panel */}
       <div className="fixed inset-0 flex items-center justify-center p-3 sm:p-6">
-        <DialogPanel className="w-full max-w-[680px] flex flex-col h-[min(90vh,520px)] rounded-2xl bg-dialog-bg ring-1 ring-dialog-border shadow-[0_32px_80px_rgba(0,0,0,0.85)]">
+        <DialogPanel className="w-full max-w-[680px] flex flex-col h-[min(90vh,520px)] rounded-2xl bg-dialog-bg ring-1 ring-dialog-border shadow-[0_24px_60px_rgb(16_16_14_/_0.18)] dark:shadow-[0_32px_80px_rgba(0,0,0,0.85)]">
           {/* Header row: title + space name + close */}
           <div className="flex items-center justify-between px-6 pt-5 pb-0 flex-shrink-0">
             <div className="flex items-baseline gap-2">
@@ -71,7 +71,7 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
             <button
               aria-label="Close settings"
               onClick={onClose}
-              className="cursor-pointer rounded-lg p-1.5 text-content-tinted/50 transition-colors hover:text-content hover:bg-white/8"
+              className="cursor-pointer rounded-lg p-1.5 text-content-tinted/50 transition-colors hover:text-content hover:bg-overlay"
             >
               <X className="h-4 w-4" />
             </button>
@@ -87,7 +87,7 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
                   "flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl cursor-pointer transition-colors min-w-[72px] flex-shrink-0",
                   activeSection === s.id
                     ? "bg-dialog-item-active text-content"
-                    : "text-content-tinted/60 hover:text-content-tinted hover:bg-white/5",
+                    : "text-content-tinted/60 hover:text-content-tinted hover:bg-overlay",
                 )}
               >
                 {s.icon}

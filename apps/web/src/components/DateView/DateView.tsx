@@ -1,26 +1,17 @@
-import { useEffect, useCallback, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
-  createTaskInList,
   type DailyList,
   dailyListsByDates,
   dailyEntryChildrenForDisplay,
-  dailyEntryByTaskId,
   doneDailyEntryChildrenForDisplay,
-  dailyEntryType,
   inboxProjectId,
 } from "@will-be-done/slices/space";
 
 import { cn } from "@/lib/utils.ts";
-import {
-  buildFocusKey,
-  focusTaskTitleTextareaByKey,
-  prepareTextInputFocus,
-  useFocusStore,
-} from "@/store/focusSlice.ts";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
+import { AddTaskComposer } from "@/components/Task/AddTaskComposer.tsx";
 import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
@@ -37,6 +28,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
+import { DayTimeline } from "@/components/Calendar/DayTimeline.tsx";
 
 const ChevronLeft = () => (
   <svg
@@ -76,12 +68,12 @@ const ChevronRight = () => (
 
 const SingleDayColumn = ({
   dailyList,
-  onTaskAdd,
+  inboxId,
   previousDate,
   nextDate,
 }: {
   dailyList: DailyList;
-  onTaskAdd: (dailyList: DailyList) => void;
+  inboxId: string;
   previousDate: Date;
   nextDate: Date;
 }) => {
@@ -159,16 +151,16 @@ const SingleDayColumn = ({
 
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
-            <div className="flex items-baseline gap-2.5 cursor-pointer transition-opacity select-none">
-              <span className="text-xs text-subheader">
-                {format(dailyList.date, "dd MMM")}
-              </span>
+            <div className="flex flex-col items-center cursor-pointer transition-opacity select-none">
               <span
-                className={cn("uppercase text-content text-3xl font-bold", {
+                className={cn("text-content text-3xl font-bold leading-none", {
                   "text-accent": isToday,
                 })}
               >
                 {format(dailyList.date, "EEEE")}
+              </span>
+              <span className="mt-1 text-xs text-subheader">
+                {format(dailyList.date, "dd MMM")}
               </span>
             </div>
           </PopoverTrigger>
@@ -205,31 +197,6 @@ const SingleDayColumn = ({
         </Link>
       </div>
 
-      {/* Add task row at the top of the list */}
-      <button
-        type="button"
-        onClick={() => onTaskAdd(dailyList)}
-        className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 mb-3 transition-colors group cursor-pointer"
-      >
-        <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-          <svg
-            width="8"
-            height="8"
-            viewBox="0 0 8 8"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M4 1v6M1 4h6"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-        <span>Add task</span>
-      </button>
-
       <div
         ref={scrollableRef}
         className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
@@ -264,11 +231,34 @@ const SingleDayColumn = ({
           />
         ))}
 
-        {/* {taskIds.length === 0 && doneTaskIds.length === 0 && ( */}
-        {/*   <div className="text-content-tinted text-sm text-center py-8"> */}
-        {/*     No tasks for this day */}
-        {/*   </div> */}
-        {/* )} */}
+        <AddTaskComposer
+          destination={{ type: "dailyList" }}
+          defaultProjectId={inboxId}
+          defaultDate={dailyList.date}
+        >
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 transition-colors group cursor-pointer"
+          >
+            <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 8 8"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M4 1v6M1 4h6"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <span>Add task</span>
+          </button>
+        </AddTaskComposer>
       </div>
     </div>
   );
@@ -287,67 +277,39 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
     selector: dailyListsByDates,
     args: { dates: [startingDate.getTime()] },
   });
-  const dispatch = useAsyncDispatch();
-  const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
   });
   const stashOffset = useStashDesktopOffset();
 
-  const handleAddTask = useCallback(
-    (dailyList: DailyList) => {
-      prepareTextInputFocus();
-
-      void (async () => {
-        const task = await dispatch(
-          createTaskInList({
-            dailyListId: dailyList.id,
-            projectId: inboxId,
-            listPosition: "prepend",
-            sectionPosition: "prepend",
-          }),
-        );
-
-        const entry = await select({
-          selector: dailyEntryByTaskId,
-          args: { taskId: task.id },
-        });
-        if (!entry) return;
-
-        const focusKey = buildFocusKey(entry.id, dailyEntryType);
-        useFocusStore.getState().editByKey(focusKey);
-
-        if (focusTaskTitleTextareaByKey(focusKey)) return;
-
-        window.requestAnimationFrame(() => {
-          focusTaskTitleTextareaByKey(focusKey);
-        });
-      })();
-    },
-    [dispatch, inboxId, select],
-  );
-
   return (
     <div className="relative h-full min-w-0 overflow-hidden">
       <Stash />
       <div
-        data-scroll-restoration-id={scrollRestorationId}
-        className="h-full min-w-0 overflow-y-auto"
+        className="flex h-full min-h-0"
         style={{
           paddingLeft: stashOffset ? `${stashOffset}px` : undefined,
           transition: "padding-left 200ms ease-out",
         }}
       >
-        <div className="max-w-lg mx-auto px-4 py-4">
-          {dailyLists[0] && (
-            <SingleDayColumn
-              dailyList={dailyLists[0]}
-              onTaskAdd={handleAddTask}
-              previousDate={previousDate}
-              nextDate={nextDate}
-            />
-          )}
+        <div
+          data-scroll-restoration-id={scrollRestorationId}
+          className="h-full w-full min-w-[280px] max-w-lg overflow-y-auto"
+        >
+          <div className="max-w-lg mx-auto px-4 py-4">
+            {dailyLists[0] && (
+              <SingleDayColumn
+                dailyList={dailyLists[0]}
+                inboxId={inboxId}
+                previousDate={previousDate}
+                nextDate={nextDate}
+              />
+            )}
+          </div>
+        </div>
+        <div className="hidden h-full min-w-[260px] flex-1 md:block">
+          <DayTimeline date={startingDate} />
         </div>
       </div>
     </div>

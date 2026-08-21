@@ -2220,6 +2220,10 @@ export type ListTasks200TasksItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -2409,6 +2413,10 @@ export type ListScheduledTasks200TasksItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -2556,6 +2564,10 @@ export type ListSectionItems200ItemsItem =
       lastToggledAt: number;
       /** Current schedule date, or null when the task is unscheduled */
       scheduledDate: string | null;
+      /** Calendar start time as Unix milliseconds, or null */
+      startsAt: number | null;
+      /** Calendar duration in minutes, or null */
+      durationMinutes: number | null;
     }
   | {
       type: "template";
@@ -2781,6 +2793,10 @@ export type CreateSectionTask201Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -2958,6 +2974,10 @@ export type GetTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -3091,6 +3111,8 @@ export type UpdateTaskBody = {
   content?: string | null;
   state?: UpdateTaskBodyState;
   nature?: UpdateTaskBodyNature;
+  startsAt?: number | null;
+  durationMinutes?: number | null;
 };
 
 export type UpdateTask200TaskType =
@@ -3141,6 +3163,10 @@ export type UpdateTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -3555,6 +3581,10 @@ export type ScheduleTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 export type ScheduleTask200 = {
@@ -3765,6 +3795,10 @@ export type MoveTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -3971,6 +4005,10 @@ export type ListDailyLists200DailyListsItemItemsItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 export type ListDailyLists200DailyListsItem = {
@@ -4147,6 +4185,10 @@ export type ListDailyListItems200ItemsItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 export type ListDailyListItems200 = {
@@ -4250,6 +4292,620 @@ export const ListDailyListItems500Code = {
  */
 export type ListDailyListItems500 = {
   code: ListDailyListItems500Code;
+  message: string;
+};
+
+export type ListDailyReportsParams = {
+  /**
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+   */
+  from: string;
+  /**
+   * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+   */
+  to: string;
+  /**
+   * @minLength 1
+   */
+  cursor?: string;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+export type ListDailyReports200DailyReportsItemCompletedTasksItem = {
+  /**
+   * Task identifier at the time of the report
+   * @minLength 1
+   */
+  id: string;
+  /** Task title snapshot */
+  title: string;
+};
+
+export type ListDailyReports200DailyReportsItem = {
+  /** @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$ */
+  date: string;
+  notes: string;
+  completedTasks: ListDailyReports200DailyReportsItemCompletedTasksItem[];
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  mood?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  energy?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  focus?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  accomplishment?: number;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  updatedAt: number;
+};
+
+/**
+ * Page of daily reports in descending date order with an optional continuation cursor
+ */
+export type ListDailyReports200 = {
+  dailyReports: ListDailyReports200DailyReportsItem[];
+  nextCursor: string | null;
+};
+
+export type ListDailyReports400Code =
+  (typeof ListDailyReports400Code)[keyof typeof ListDailyReports400Code];
+
+export const ListDailyReports400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListDailyReports400 = {
+  code: ListDailyReports400Code;
+  message: string;
+};
+
+export type ListDailyReports401Code =
+  (typeof ListDailyReports401Code)[keyof typeof ListDailyReports401Code];
+
+export const ListDailyReports401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListDailyReports401 = {
+  code: ListDailyReports401Code;
+  message: string;
+};
+
+export type ListDailyReports403Code =
+  (typeof ListDailyReports403Code)[keyof typeof ListDailyReports403Code];
+
+export const ListDailyReports403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListDailyReports403 = {
+  code: ListDailyReports403Code;
+  message: string;
+};
+
+export type ListDailyReports404Code =
+  (typeof ListDailyReports404Code)[keyof typeof ListDailyReports404Code];
+
+export const ListDailyReports404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListDailyReports404 = {
+  code: ListDailyReports404Code;
+  message: string;
+};
+
+export type ListDailyReports500Code =
+  (typeof ListDailyReports500Code)[keyof typeof ListDailyReports500Code];
+
+export const ListDailyReports500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ListDailyReports500 = {
+  code: ListDailyReports500Code;
+  message: string;
+};
+
+export type GetDailyReport200DailyReportCompletedTasksItem = {
+  /**
+   * Task identifier at the time of the report
+   * @minLength 1
+   */
+  id: string;
+  /** Task title snapshot */
+  title: string;
+};
+
+export type GetDailyReport200DailyReport = {
+  /** @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$ */
+  date: string;
+  notes: string;
+  completedTasks: GetDailyReport200DailyReportCompletedTasksItem[];
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  mood?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  energy?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  focus?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  accomplishment?: number;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  updatedAt: number;
+};
+
+/**
+ * Daily report details
+ */
+export type GetDailyReport200 = {
+  dailyReport: GetDailyReport200DailyReport;
+};
+
+export type GetDailyReport400Code =
+  (typeof GetDailyReport400Code)[keyof typeof GetDailyReport400Code];
+
+export const GetDailyReport400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetDailyReport400 = {
+  code: GetDailyReport400Code;
+  message: string;
+};
+
+export type GetDailyReport401Code =
+  (typeof GetDailyReport401Code)[keyof typeof GetDailyReport401Code];
+
+export const GetDailyReport401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetDailyReport401 = {
+  code: GetDailyReport401Code;
+  message: string;
+};
+
+export type GetDailyReport403Code =
+  (typeof GetDailyReport403Code)[keyof typeof GetDailyReport403Code];
+
+export const GetDailyReport403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetDailyReport403 = {
+  code: GetDailyReport403Code;
+  message: string;
+};
+
+export type GetDailyReport404Code =
+  (typeof GetDailyReport404Code)[keyof typeof GetDailyReport404Code];
+
+export const GetDailyReport404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetDailyReport404 = {
+  code: GetDailyReport404Code;
+  message: string;
+};
+
+export type GetDailyReport500Code =
+  (typeof GetDailyReport500Code)[keyof typeof GetDailyReport500Code];
+
+export const GetDailyReport500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetDailyReport500 = {
+  code: GetDailyReport500Code;
+  message: string;
+};
+
+export type PutDailyReportBodyCompletedTasksItem = {
+  /**
+   * Task identifier at the time of the report
+   * @minLength 1
+   */
+  id: string;
+  /** Task title snapshot */
+  title: string;
+};
+
+export type PutDailyReportBody = {
+  notes?: string;
+  completedTasks?: PutDailyReportBodyCompletedTasksItem[];
+  mood?: number | null;
+  energy?: number | null;
+  focus?: number | null;
+  accomplishment?: number | null;
+};
+
+export type PutDailyReport200DailyReportCompletedTasksItem = {
+  /**
+   * Task identifier at the time of the report
+   * @minLength 1
+   */
+  id: string;
+  /** Task title snapshot */
+  title: string;
+};
+
+export type PutDailyReport200DailyReport = {
+  /** @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$ */
+  date: string;
+  notes: string;
+  completedTasks: PutDailyReport200DailyReportCompletedTasksItem[];
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  mood?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  energy?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  focus?: number;
+  /**
+   * Integer rating from 1 (low) to 5 (high)
+   * @minimum 1
+   * @maximum 5
+   */
+  accomplishment?: number;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  updatedAt: number;
+};
+
+/**
+ * Daily report details
+ */
+export type PutDailyReport200 = {
+  dailyReport: PutDailyReport200DailyReport;
+};
+
+export type PutDailyReport400Code =
+  (typeof PutDailyReport400Code)[keyof typeof PutDailyReport400Code];
+
+export const PutDailyReport400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type PutDailyReport400 = {
+  code: PutDailyReport400Code;
+  message: string;
+};
+
+export type PutDailyReport401Code =
+  (typeof PutDailyReport401Code)[keyof typeof PutDailyReport401Code];
+
+export const PutDailyReport401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type PutDailyReport401 = {
+  code: PutDailyReport401Code;
+  message: string;
+};
+
+export type PutDailyReport403Code =
+  (typeof PutDailyReport403Code)[keyof typeof PutDailyReport403Code];
+
+export const PutDailyReport403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type PutDailyReport403 = {
+  code: PutDailyReport403Code;
+  message: string;
+};
+
+export type PutDailyReport404Code =
+  (typeof PutDailyReport404Code)[keyof typeof PutDailyReport404Code];
+
+export const PutDailyReport404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type PutDailyReport404 = {
+  code: PutDailyReport404Code;
+  message: string;
+};
+
+export type PutDailyReport500Code =
+  (typeof PutDailyReport500Code)[keyof typeof PutDailyReport500Code];
+
+export const PutDailyReport500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type PutDailyReport500 = {
+  code: PutDailyReport500Code;
+  message: string;
+};
+
+export type DeleteDailyReport400Code =
+  (typeof DeleteDailyReport400Code)[keyof typeof DeleteDailyReport400Code];
+
+export const DeleteDailyReport400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteDailyReport400 = {
+  code: DeleteDailyReport400Code;
+  message: string;
+};
+
+export type DeleteDailyReport401Code =
+  (typeof DeleteDailyReport401Code)[keyof typeof DeleteDailyReport401Code];
+
+export const DeleteDailyReport401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteDailyReport401 = {
+  code: DeleteDailyReport401Code;
+  message: string;
+};
+
+export type DeleteDailyReport403Code =
+  (typeof DeleteDailyReport403Code)[keyof typeof DeleteDailyReport403Code];
+
+export const DeleteDailyReport403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteDailyReport403 = {
+  code: DeleteDailyReport403Code;
+  message: string;
+};
+
+export type DeleteDailyReport404Code =
+  (typeof DeleteDailyReport404Code)[keyof typeof DeleteDailyReport404Code];
+
+export const DeleteDailyReport404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteDailyReport404 = {
+  code: DeleteDailyReport404Code;
+  message: string;
+};
+
+export type DeleteDailyReport500Code =
+  (typeof DeleteDailyReport500Code)[keyof typeof DeleteDailyReport500Code];
+
+export const DeleteDailyReport500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteDailyReport500 = {
+  code: DeleteDailyReport500Code;
   message: string;
 };
 
@@ -5320,6 +5976,10 @@ export type ConvertTaskTemplateToTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -6800,6 +7460,10 @@ export type ListStashTasks200TasksItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -7002,6 +7666,10 @@ export type CreateStashTask201Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -7211,6 +7879,10 @@ export type PutTaskInStash200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Calendar start time as Unix milliseconds, or null */
+  startsAt: number | null;
+  /** Calendar duration in minutes, or null */
+  durationMinutes: number | null;
 };
 
 /**
@@ -9736,6 +10408,326 @@ export const listDailyListItems = async (
     status: res.status,
     headers: res.headers,
   } as listDailyListItemsResponse;
+};
+
+export type listDailyReportsResponse200 = {
+  data: ListDailyReports200;
+  status: 200;
+};
+
+export type listDailyReportsResponse400 = {
+  data: ListDailyReports400;
+  status: 400;
+};
+
+export type listDailyReportsResponse401 = {
+  data: ListDailyReports401;
+  status: 401;
+};
+
+export type listDailyReportsResponse403 = {
+  data: ListDailyReports403;
+  status: 403;
+};
+
+export type listDailyReportsResponse404 = {
+  data: ListDailyReports404;
+  status: 404;
+};
+
+export type listDailyReportsResponse500 = {
+  data: ListDailyReports500;
+  status: 500;
+};
+
+export type listDailyReportsResponseSuccess = listDailyReportsResponse200 & {
+  headers: Headers;
+};
+export type listDailyReportsResponseError = (
+  | listDailyReportsResponse400
+  | listDailyReportsResponse401
+  | listDailyReportsResponse403
+  | listDailyReportsResponse404
+  | listDailyReportsResponse500
+) & {
+  headers: Headers;
+};
+
+export type listDailyReportsResponse =
+  | listDailyReportsResponseSuccess
+  | listDailyReportsResponseError;
+
+export const getListDailyReportsUrl = (
+  spaceId: string,
+  params: ListDailyReportsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/daily-reports?${stringifiedParams}`
+    : `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/daily-reports`;
+};
+
+/**
+ * Returns existing daily reports in descending date order. Empty dates are omitted.
+ * @summary List daily reports in a date range
+ */
+export const listDailyReports = async (
+  spaceId: string,
+  params: ListDailyReportsParams,
+  options?: RequestInit,
+): Promise<listDailyReportsResponse> => {
+  const res = await fetch(getListDailyReportsUrl(spaceId, params), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listDailyReportsResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as listDailyReportsResponse;
+};
+
+export type getDailyReportResponse200 = {
+  data: GetDailyReport200;
+  status: 200;
+};
+
+export type getDailyReportResponse400 = {
+  data: GetDailyReport400;
+  status: 400;
+};
+
+export type getDailyReportResponse401 = {
+  data: GetDailyReport401;
+  status: 401;
+};
+
+export type getDailyReportResponse403 = {
+  data: GetDailyReport403;
+  status: 403;
+};
+
+export type getDailyReportResponse404 = {
+  data: GetDailyReport404;
+  status: 404;
+};
+
+export type getDailyReportResponse500 = {
+  data: GetDailyReport500;
+  status: 500;
+};
+
+export type getDailyReportResponseSuccess = getDailyReportResponse200 & {
+  headers: Headers;
+};
+export type getDailyReportResponseError = (
+  | getDailyReportResponse400
+  | getDailyReportResponse401
+  | getDailyReportResponse403
+  | getDailyReportResponse404
+  | getDailyReportResponse500
+) & {
+  headers: Headers;
+};
+
+export type getDailyReportResponse =
+  | getDailyReportResponseSuccess
+  | getDailyReportResponseError;
+
+export const getGetDailyReportUrl = (spaceId: string, date: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/daily-reports/${date}`;
+};
+
+/**
+ * Returns the daily report for a date, if one exists.
+ * @summary Get a daily report
+ */
+export const getDailyReport = async (
+  spaceId: string,
+  date: string,
+  options?: RequestInit,
+): Promise<getDailyReportResponse> => {
+  const res = await fetch(getGetDailyReportUrl(spaceId, date), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getDailyReportResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as getDailyReportResponse;
+};
+
+export type putDailyReportResponse200 = {
+  data: PutDailyReport200;
+  status: 200;
+};
+
+export type putDailyReportResponse400 = {
+  data: PutDailyReport400;
+  status: 400;
+};
+
+export type putDailyReportResponse401 = {
+  data: PutDailyReport401;
+  status: 401;
+};
+
+export type putDailyReportResponse403 = {
+  data: PutDailyReport403;
+  status: 403;
+};
+
+export type putDailyReportResponse404 = {
+  data: PutDailyReport404;
+  status: 404;
+};
+
+export type putDailyReportResponse500 = {
+  data: PutDailyReport500;
+  status: 500;
+};
+
+export type putDailyReportResponseSuccess = putDailyReportResponse200 & {
+  headers: Headers;
+};
+export type putDailyReportResponseError = (
+  | putDailyReportResponse400
+  | putDailyReportResponse401
+  | putDailyReportResponse403
+  | putDailyReportResponse404
+  | putDailyReportResponse500
+) & {
+  headers: Headers;
+};
+
+export type putDailyReportResponse =
+  | putDailyReportResponseSuccess
+  | putDailyReportResponseError;
+
+export const getPutDailyReportUrl = (spaceId: string, date: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/daily-reports/${date}`;
+};
+
+/**
+ * Creates the report for a date if it does not exist, or updates the existing one. Omitted completed tasks are snapshotted from that day's done scheduled tasks on create.
+ * @summary Create or update a daily report
+ */
+export const putDailyReport = async (
+  spaceId: string,
+  date: string,
+  putDailyReportBody: PutDailyReportBody,
+  options?: RequestInit,
+): Promise<putDailyReportResponse> => {
+  const res = await fetch(getPutDailyReportUrl(spaceId, date), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(putDailyReportBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: putDailyReportResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as putDailyReportResponse;
+};
+
+export type deleteDailyReportResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteDailyReportResponse400 = {
+  data: DeleteDailyReport400;
+  status: 400;
+};
+
+export type deleteDailyReportResponse401 = {
+  data: DeleteDailyReport401;
+  status: 401;
+};
+
+export type deleteDailyReportResponse403 = {
+  data: DeleteDailyReport403;
+  status: 403;
+};
+
+export type deleteDailyReportResponse404 = {
+  data: DeleteDailyReport404;
+  status: 404;
+};
+
+export type deleteDailyReportResponse500 = {
+  data: DeleteDailyReport500;
+  status: 500;
+};
+
+export type deleteDailyReportResponseSuccess = deleteDailyReportResponse204 & {
+  headers: Headers;
+};
+export type deleteDailyReportResponseError = (
+  | deleteDailyReportResponse400
+  | deleteDailyReportResponse401
+  | deleteDailyReportResponse403
+  | deleteDailyReportResponse404
+  | deleteDailyReportResponse500
+) & {
+  headers: Headers;
+};
+
+export type deleteDailyReportResponse =
+  | deleteDailyReportResponseSuccess
+  | deleteDailyReportResponseError;
+
+export const getDeleteDailyReportUrl = (spaceId: string, date: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/daily-reports/${date}`;
+};
+
+/**
+ * Deletes the daily report for a date.
+ * @summary Delete a daily report
+ */
+export const deleteDailyReport = async (
+  spaceId: string,
+  date: string,
+  options?: RequestInit,
+): Promise<deleteDailyReportResponse> => {
+  const res = await fetch(getDeleteDailyReportUrl(spaceId, date), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteDailyReportResponse["data"] = body
+    ? JSON.parse(body)
+    : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteDailyReportResponse;
 };
 
 export type createTaskTemplateResponse201 = {

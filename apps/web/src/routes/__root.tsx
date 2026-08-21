@@ -12,6 +12,7 @@ import { HyperDBDevtools } from "@will-be-done/hyperdb-devtool/react";
 import { useDevtoolsEnabled } from "@/lib/devtools";
 import { Toaster } from "@/components/ui/sonner";
 import { PwaUpdateController } from "@/components/PwaUpdateController";
+import { ThemeProvider } from "@/components/ui/theme-provider";
 
 export const Route = createRootRoute({
   component: RouteComponent,
@@ -25,8 +26,10 @@ function RouteComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <HeadContent />
-        {isPopup ? <PopupRoot /> : <ApplicationRoot />}
+        <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <HeadContent />
+          {isPopup ? <PopupRoot /> : <ApplicationRoot />}
+        </ThemeProvider>
       </TRPCProvider>
     </QueryClientProvider>
   );

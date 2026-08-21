@@ -3,53 +3,89 @@ import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { useSpaceSettingsStore } from "@/components/SpaceSettings/spaceSettingsStore.ts";
-import { useSidebar } from "@/components/ui/sidebar.tsx";
+import { ThemeCycleButton } from "@/components/ui/theme-toggle";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip.tsx";
+
+const iconButtonClass =
+  "flex size-9 items-center justify-center rounded-lg text-content-tinted/70 transition-colors hover:bg-overlay hover:text-content";
 
 export function SpaceBlock() {
   const { spaceId } = Route.useParams();
   const openSettings = useSpaceSettingsStore((s) => s.openSettings);
-  const { isMobile, setOpenMobile } = useSidebar();
 
   const spaceName = isDemoMode()
     ? "Demo Space"
     : (authUtils.getSpaceName(spaceId) ?? spaceId);
 
-  const handleSettingsClick = () => {
-    if (isMobile) setOpenMobile(false);
-    openSettings(spaceName);
-  };
-
   return (
-    <div className="group/space w-full flex items-center gap-3 px-4 py-3 border-t border-ring/40 bg-white/[0.02]">
-      {/* Space avatar */}
-      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-accent/15 ring-1 ring-accent/20">
-        <span className="text-[10px] font-bold text-accent leading-none select-none">
-          {spaceName.slice(0, 2).toUpperCase()}
-        </span>
-      </div>
+    <div
+      className="mt-auto flex flex-col items-center gap-1"
+      role="group"
+      aria-label="Space"
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className="flex size-9 items-center justify-center"
+            aria-label={spaceName}
+          >
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/15 ring-1 ring-accent/20">
+              <span className="text-[10px] font-bold leading-none text-accent select-none">
+                {spaceName.slice(0, 2).toUpperCase()}
+              </span>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>
+          {spaceName}
+        </TooltipContent>
+      </Tooltip>
 
-      {/* Name */}
-      <span className="flex-1 truncate text-left text-[12px] font-medium text-content-tinted">
-        {spaceName}
-      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <ThemeCycleButton
+            className={`${iconButtonClass} [&_svg]:size-[18px]`}
+          />
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>
+          Theme
+        </TooltipContent>
+      </Tooltip>
 
-      {/* Switch space */}
-      <Link
-        to="/spaces"
-        className="flex-shrink-0 text-content-tinted/40 hover:text-accent transition-colors cursor-pointer"
-      >
-        <ArrowLeftRight className="h-3.5 w-3.5" />
-      </Link>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            to="/spaces"
+            aria-label="Switch space"
+            className={iconButtonClass}
+          >
+            <ArrowLeftRight className="size-[18px]" strokeWidth={1.6} />
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>
+          Switch space
+        </TooltipContent>
+      </Tooltip>
 
-      {/* Settings */}
-      <button
-        type="button"
-        aria-label="Space settings"
-        onClick={handleSettingsClick}
-        className="flex-shrink-0 cursor-pointer text-content-tinted/40 hover:text-accent transition-colors"
-      >
-        <Settings className="h-3.5 w-3.5" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="Space settings"
+            onClick={() => openSettings(spaceName)}
+            className={`${iconButtonClass} cursor-pointer`}
+          >
+            <Settings className="size-[18px]" strokeWidth={1.6} />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>
+          Settings
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }

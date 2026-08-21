@@ -1,5 +1,4 @@
 import { GlobalListener } from "@/components/GlobalListener/GlobalListener.tsx";
-import { ThemeProvider } from "@/components/ui/theme-provider";
 import { KeyPressedCtxProvider } from "@/components/GlobalListener/KeyPressedCtxProvider.tsx";
 import {
   Outlet,
@@ -14,6 +13,7 @@ import { authUtils, isDemoMode } from "@/lib/auth";
 import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";
+import { SpaceNavLinks } from "@/components/SpaceNavLinks.tsx";
 
 export const Route = createFileRoute("/spaces/$spaceId")({
   component: RouteComponent,
@@ -48,18 +48,17 @@ function RouteComponent() {
 
   return (
     <DBProvider value={newStore as SubscribableDB}>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <KeyPressedCtxProvider>
-          <div className="relative h-full">
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-10 [app-region:drag]" />
+      <KeyPressedCtxProvider>
+        <div className="relative h-full pl-12">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-10 [app-region:drag]" />
 
-            <GlobalListener />
-            <ResetFocusOnNavigate />
+          <SpaceNavLinks />
+          <GlobalListener />
+          <ResetFocusOnNavigate />
 
-            <Outlet />
-          </div>
-        </KeyPressedCtxProvider>
-      </ThemeProvider>
+          <Outlet />
+        </div>
+      </KeyPressedCtxProvider>
     </DBProvider>
   );
 }

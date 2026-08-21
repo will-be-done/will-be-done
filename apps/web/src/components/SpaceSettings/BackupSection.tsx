@@ -64,11 +64,11 @@ export function BackupSection() {
   return (
     <div className="flex flex-col gap-3 px-5 py-5">
       {/* Export card */}
-      <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/8 p-4">
+      <div className="rounded-xl bg-overlay ring-1 ring-border p-4">
         <div>
           <button
             onClick={handleExport}
-            className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 transition-all hover:bg-white/10 hover:ring-white/20 whitespace-nowrap"
+            className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-overlay-hover px-3 py-2 text-[12px] font-medium text-content ring-1 ring-border transition-all hover:bg-overlay-hover hover:ring-border whitespace-nowrap"
           >
             <Download className="h-3.5 w-3.5 flex-shrink-0" />
             Download
@@ -83,12 +83,12 @@ export function BackupSection() {
       </div>
 
       {/* Import card */}
-      <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/8 p-4">
+      <div className="rounded-xl bg-overlay ring-1 ring-border p-4">
         <div>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 transition-all hover:bg-white/10 hover:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-overlay-hover px-3 py-2 text-[12px] font-medium text-content ring-1 ring-border transition-all hover:bg-overlay-hover hover:ring-border disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             <Upload className="h-3.5 w-3.5 flex-shrink-0" />
             {importing ? "Restoring…" : "Upload file"}

@@ -3,7 +3,9 @@ import {
   allTasks,
   checklistItemsTable,
   createInboxIfNotExists,
+  createSpacePreferencesIfNotExists,
   dailyListsTable,
+  dailyReportsTable,
   generateTasksFromTemplates,
   installProjectTaskStatsHooks,
   loadSpaceBackup,
@@ -16,10 +18,13 @@ import {
   registeredSpaceSyncableTables,
   scheduledTodoTasksTable,
   spaceMigrationsTable,
+  spacePreferencesTable,
   stashEntriesTable,
   dailyEntriesTable,
   tasksTable,
+  updateSpacePreferences,
 } from "@will-be-done/slices/space";
+import { takePendingSpaceWorkday } from "./pendingSpaceWorkday";
 import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
   registeredUserSyncableTableNameMap,
@@ -54,6 +59,11 @@ export const spaceDBConfig = (dbId: string) => {
     },
     afterInit: async (db: SubscribableDB) => {
       await asyncDispatch(db, createInboxIfNotExists({}));
+      await asyncDispatch(db, createSpacePreferencesIfNotExists({}));
+      const pendingWorkday = takePendingSpaceWorkday(dbId);
+      if (pendingWorkday) {
+        await asyncDispatch(db, updateSpacePreferences(pendingWorkday));
+      }
 
       await execAsync(
         db.preloadTables([
@@ -67,6 +77,8 @@ export const spaceDBConfig = (dbId: string) => {
           { table: projectSectionTaskStatsTable, scanIndex: "byIds" },
           { table: scheduledTodoTasksTable, scanIndex: "byIds" },
           { table: checklistItemsTable, scanIndex: "byIds" },
+          { table: dailyReportsTable, scanIndex: "byIds" },
+          { table: spacePreferencesTable, scanIndex: "byIds" },
         ]),
       );
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
@@ -98,6 +110,7 @@ export const demoSpaceDBConfig = () => {
     },
     afterInit: async (db: SubscribableDB) => {
       await asyncDispatch(db, createInboxIfNotExists({}));
+      await asyncDispatch(db, createSpacePreferencesIfNotExists({}));
       const tasks = await selectAsync(db, {
         selector: allTasks,
         args: {},

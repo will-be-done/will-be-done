@@ -309,7 +309,7 @@ function createWindow(showOnReady = true): void {
     minHeight: 400,
     show: false,
     autoHideMenuBar: process.platform !== 'darwin',
-    backgroundColor: '#0a0a0f',
+    backgroundColor: '#100c09',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     icon,

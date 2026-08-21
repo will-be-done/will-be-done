@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isInputElement } from "@/utils/isInputElement.ts";
-import { isModelDNDData } from "@/lib/dnd/models.ts";
+import { isDayTimelineDropData, isModelDNDData } from "@/lib/dnd/models.ts";
 import { DropTargetRecord } from "@atlaskit/pragmatic-drag-and-drop/dist/types/internal-types";
 import { shouldNeverHappen } from "@/utils.ts";
 import { Edge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/dist/types/types";
@@ -173,6 +173,14 @@ export function GlobalListener() {
             const { location, source } = args;
 
             if (!location.current.dropTargets.length) {
+              return;
+            }
+
+            if (
+              location.current.dropTargets.some((target) =>
+                isDayTimelineDropData(target.data),
+              )
+            ) {
               return;
             }
 

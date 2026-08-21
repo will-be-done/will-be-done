@@ -1,31 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   ItemForDisplay,
-  createTaskInStash,
   doneStashEntryChildrenForDisplay,
   inboxProjectId,
   STASH_ID,
   stashEntryChildrenForDisplay,
-  stashEntryByTaskId,
-  stashEntryType,
   stashType,
 } from "@will-be-done/slices/space";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
+import { AddTaskComposer } from "@/components/Task/AddTaskComposer.tsx";
 import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
+import { PlusIcon } from "@/components/ui/icons.tsx";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import { cn } from "@/lib/utils.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
-import {
-  buildFocusKey,
-  focusTaskTitleTextareaByKey,
-  prepareTextInputFocus,
-  useFocusStore,
-} from "@/store/focusSlice.ts";
+import { useFocusStore } from "@/store/focusSlice.ts";
 import { ResizableDivider } from "../DaysBoard/ResizableDivider.tsx";
 import {
   STASH_BUTTON_WIDTH,
@@ -34,11 +27,13 @@ import {
 } from "../DaysBoard/StashStore.ts";
 
 const StashColumnView = ({
-  onTaskAdd,
   itemsForDisplay,
+  onAddTask,
+  panelWidth,
 }: {
-  onTaskAdd: () => void;
   itemsForDisplay: ItemForDisplay[];
+  onAddTask: () => void;
+  panelWidth: number;
 }) => {
   const { data: doneItemsForDisplay = [] } = useAsyncSelector({
     selector: doneStashEntryChildrenForDisplay,
@@ -48,36 +43,25 @@ const StashColumnView = ({
   return (
     <TasksColumn
       isHidden={false}
-      onHideClick={() => {}}
-      header={null}
+      header={
+        <div className="uppercase text-content text-xl font-bold">Stash</div>
+      }
       columnModelId={STASH_ID}
       columnModelType={stashType}
-      panelWidth={200}
-    >
-      <div className={cn("flex flex-col gap-4 w-full py-4 min-h-full")}>
+      panelWidth={panelWidth}
+      onAddClick={onAddTask}
+      actions={
         <button
           type="button"
-          onClick={onTaskAdd}
-          className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 transition-colors group/stash-add cursor-pointer"
+          aria-label="Add task"
+          onClick={onAddTask}
+          className="flex size-7 items-center justify-center rounded-md text-content-tinted hover:bg-panel-hover hover:text-content cursor-pointer"
         >
-          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover/stash-add:opacity-100 transition-opacity">
-            <svg
-              width="8"
-              height="8"
-              viewBox="0 0 8 8"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M4 1v6M1 4h6"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </span>
-          <span>Add task</span>
+          <PlusIcon />
         </button>
+      }
+    >
+      <div className={cn("flex flex-col gap-4 w-full min-h-full")}>
         {itemsForDisplay.map((displayData) => (
           <PreloadedTaskComp
             key={displayData.listItem.id}
@@ -110,8 +94,6 @@ const StashColumnView = ({
 export const Stash = () => {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const dispatch = useAsyncDispatch();
-  const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
@@ -126,6 +108,7 @@ export const Stash = () => {
   const setWidth = useStashSize((s) => s.setWidth);
   const [isTaskOverButton, setIsTaskOverButton] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const focusState = useFocusStore.getState();
@@ -175,35 +158,6 @@ export const Stash = () => {
     );
   }, []);
 
-  const handleAddTask = useCallback(() => {
-    prepareTextInputFocus();
-
-    void (async () => {
-      const task = await dispatch(
-        createTaskInStash({
-          projectId: inboxId,
-          position: "prepend",
-          sectionPosition: "prepend",
-        }),
-      );
-
-      const entry = await select({
-        selector: stashEntryByTaskId,
-        args: { taskId: task.id },
-      });
-      if (!entry) return;
-
-      const focusKey = buildFocusKey(entry.id, stashEntryType);
-      useFocusStore.getState().editByKey(focusKey);
-
-      if (focusTaskTitleTextareaByKey(focusKey)) return;
-
-      window.requestAnimationFrame(() => {
-        focusTaskTitleTextareaByKey(focusKey);
-      });
-    })();
-  }, [dispatch, inboxId, select]);
-
   const handleResize = useCallback(
     (clientX: number) => {
       const rootLeft = rootRef.current?.getBoundingClientRect().left ?? 0;
@@ -213,7 +167,6 @@ export const Stash = () => {
   );
 
   const panelWidth = isOpen ? width : 0;
-  const rootWidth = isOpen ? panelWidth : STASH_BUTTON_WIDTH;
   const widthTransitionClass = isResizing
     ? "transition-none"
     : "transition-[width] duration-300 ease-out";
@@ -228,7 +181,7 @@ export const Stash = () => {
       onClick={toggle}
       className={cn(
         "relative flex w-full flex-col items-center justify-center px-0 py-3",
-        "cursor-pointer rounded-r-md border-r border-ring/30",
+        "cursor-pointer rounded-r-md border border-l-0 border-ring",
         "bg-panel-tinted/80 backdrop-blur-sm transition-colors safari:bg-panel-tinted-opaque safari:backdrop-blur-none",
         "hover:bg-panel-tinted focus:outline-none",
         isTaskOverButton &&
@@ -258,63 +211,68 @@ export const Stash = () => {
   );
 
   return (
-    <div
-      ref={rootRef}
-      data-testid="stash-root"
-      className={cn(
-        "absolute left-0 top-0 z-20 hidden h-full sm:flex",
-        widthTransitionClass,
-      )}
-      style={{ width: `${rootWidth}px` }}
-    >
+    <>
       <div
+        ref={rootRef}
+        data-testid="stash-root"
         className={cn(
+          "absolute left-0 top-0 z-20 hidden h-full min-w-0 sm:flex",
           widthTransitionClass,
-          "h-full bg-surface/95 backdrop-blur-sm safari:bg-surface safari:backdrop-blur-none",
-          "overflow-hidden",
         )}
         style={{ width: `${panelWidth}px` }}
       >
         <div
-          aria-hidden={!isOpen}
-          data-testid="stash-panel"
           className={cn(
-            "h-full overflow-y-auto transition-transform duration-300 ease-out",
-            isOpen ? "translate-x-0" : "-translate-x-6 pointer-events-none",
+            widthTransitionClass,
+            "h-full min-w-0 bg-surface/95 backdrop-blur-sm safari:bg-surface safari:backdrop-blur-none",
+            "overflow-hidden",
+            isOpen && "border-r border-ring",
           )}
-          style={{ width: `${width}px` }}
+          style={{ width: `${panelWidth}px` }}
         >
-          <StashColumnView
-            onTaskAdd={handleAddTask}
-            itemsForDisplay={itemsForDisplay}
+          <div
+            aria-hidden={!isOpen}
+            data-testid="stash-panel"
+            className={cn(
+              "h-full min-w-0 overflow-y-auto transition-transform duration-300 ease-out",
+              isOpen ? "translate-x-0" : "-translate-x-6 pointer-events-none",
+            )}
+            style={{ width: `${width}px` }}
+          >
+            <StashColumnView
+              itemsForDisplay={itemsForDisplay}
+              onAddTask={() => setComposerOpen(true)}
+              panelWidth={width}
+            />
+          </div>
+        </div>
+
+        {isOpen && (
+          <ResizableDivider
+            orientation="vertical"
+            onResizePosition={handleResize}
+            onResizeStart={() => setIsResizing(true)}
+            onResizeEnd={() => setIsResizing(false)}
+            className="left-full top-0"
           />
+        )}
+
+        <div
+          className="pointer-events-auto absolute top-1/2 z-30 flex shrink-0 -translate-y-1/2 items-center justify-center"
+          style={{
+            width: `${STASH_BUTTON_WIDTH}px`,
+            left: `${panelWidth}px`,
+          }}
+        >
+          {stashButton}
         </div>
       </div>
-
-      {isOpen && (
-        <ResizableDivider
-          orientation="vertical"
-          onResizePosition={handleResize}
-          onResizeStart={() => setIsResizing(true)}
-          onResizeEnd={() => setIsResizing(false)}
-          className="left-full top-0"
-        />
-      )}
-
-      <div
-        className={cn(
-          "flex flex-shrink-0 items-center justify-center",
-          isOpen
-            ? "absolute top-1/2 z-30 -translate-y-1/2"
-            : "relative -ml-px h-full border-l border-ring/30",
-        )}
-        style={{
-          width: `${STASH_BUTTON_WIDTH}px`,
-          left: isOpen ? `${panelWidth}px` : undefined,
-        }}
-      >
-        {stashButton}
-      </div>
-    </div>
+      <AddTaskComposer
+        destination={{ type: "stash" }}
+        defaultProjectId={inboxId}
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
+      />
+    </>
   );
 };

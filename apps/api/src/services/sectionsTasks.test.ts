@@ -26,6 +26,7 @@ import {
   dailyEntriesTable,
   rebuildScheduledTodoTasks,
   scheduledTodoTasksTable,
+  spacePreferencesTable,
   stashEntryByTaskId,
   stashEntriesTable,
   tasksTable,
@@ -293,6 +294,7 @@ function setUpDatabases() {
       dailyListsTable,
       dailyEntriesTable,
       scheduledTodoTasksTable,
+      spacePreferencesTable,
       stashEntriesTable,
     ]),
   );

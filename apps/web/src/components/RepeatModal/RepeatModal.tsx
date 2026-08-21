@@ -323,7 +323,7 @@ export function RepeatModal({
 
   return (
     <Dialog static className="relative z-[60]" open onClose={onCancel}>
-      <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="fixed inset-0 flex items-center justify-center p-4 bg-scrim">
         <DialogPanel className="w-full max-w-2xl rounded-2xl overflow-hidden bg-dialog-bg ring-1 ring-dialog-border shadow-[0_32px_80px_rgba(0,0,0,0.85)]">
           {/* ── Header ─────────────────────────────────────────────────── */}
           <div className="flex items-center justify-center gap-2.5 px-6 py-4 border-b border-dialog-border">

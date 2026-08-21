@@ -300,7 +300,10 @@ function SidebarTrigger({
       data-open={isMobile ? openMobile : open}
       variant="ghost"
       size="icon"
-      className={cn("size-7", className)}
+      className={cn(
+        "size-7 text-content-tinted hover:bg-orange-100 hover:text-orange-500 dark:hover:bg-orange-500/20",
+        className,
+      )}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();

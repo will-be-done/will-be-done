@@ -3619,6 +3619,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "startsAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar start time as Unix milliseconds, or null"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar duration in minutes, or null"
                           }
                         },
                         "required": [
@@ -3630,7 +3652,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "startsAt",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -3899,6 +3923,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "startsAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar start time as Unix milliseconds, or null"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar duration in minutes, or null"
                           }
                         },
                         "required": [
@@ -3910,7 +3956,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "startsAt",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -4153,6 +4201,28 @@
                                   { "type": "null" }
                                 ],
                                 "description": "Current schedule date, or null when the task is unscheduled"
+                              },
+                              "startsAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  { "type": "null" }
+                                ],
+                                "description": "Calendar start time as Unix milliseconds, or null"
+                              },
+                              "durationMinutes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991
+                                  },
+                                  { "type": "null" }
+                                ],
+                                "description": "Calendar duration in minutes, or null"
                               }
                             },
                             "required": [
@@ -4164,7 +4234,9 @@
                               "nature",
                               "createdAt",
                               "lastToggledAt",
-                              "scheduledDate"
+                              "scheduledDate",
+                              "startsAt",
+                              "durationMinutes"
                             ],
                             "additionalProperties": false
                           },
@@ -4505,6 +4577,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -4516,7 +4610,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -4764,6 +4860,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -4775,7 +4893,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -4945,6 +5065,22 @@
                       { "type": "string", "enum": ["red", "green", "unknown"] },
                       { "type": "null" }
                     ]
+                  },
+                  "startsAt": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      { "type": "integer", "minimum": 1, "maximum": 480 },
+                      { "type": "null" }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -5018,6 +5154,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -5029,7 +5187,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -5665,6 +5825,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -5676,7 +5858,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     },
@@ -5990,6 +6174,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -6001,7 +6207,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -6305,6 +6513,28 @@
                                     { "type": "null" }
                                   ],
                                   "description": "Current schedule date, or null when the task is unscheduled"
+                                },
+                                "startsAt": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    { "type": "null" }
+                                  ],
+                                  "description": "Calendar start time as Unix milliseconds, or null"
+                                },
+                                "durationMinutes": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991
+                                    },
+                                    { "type": "null" }
+                                  ],
+                                  "description": "Calendar duration in minutes, or null"
                                 }
                               },
                               "required": [
@@ -6316,7 +6546,9 @@
                                 "nature",
                                 "createdAt",
                                 "lastToggledAt",
-                                "scheduledDate"
+                                "scheduledDate",
+                                "startsAt",
+                                "durationMinutes"
                               ],
                               "additionalProperties": false
                             }
@@ -6566,6 +6798,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "startsAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar start time as Unix milliseconds, or null"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar duration in minutes, or null"
                           }
                         },
                         "required": [
@@ -6577,7 +6831,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "startsAt",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -6589,6 +6845,1036 @@
               }
             }
           },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/daily-reports": {
+      "get": {
+        "operationId": "listDailyReports",
+        "summary": "List daily reports in a date range",
+        "tags": ["Daily reports"],
+        "description": "Returns existing daily reports in descending date order. Empty dates are omitted.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "in": "query",
+            "name": "from",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "in": "query",
+            "name": "to",
+            "required": true
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Page of daily reports in descending date order with an optional continuation cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dailyReports": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          "notes": { "type": "string" },
+                          "completedTasks": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "description": "Task identifier at the time of the report"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "Task title snapshot"
+                                }
+                              },
+                              "required": ["id", "title"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "mood": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5,
+                            "description": "Integer rating from 1 (low) to 5 (high)"
+                          },
+                          "energy": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5,
+                            "description": "Integer rating from 1 (low) to 5 (high)"
+                          },
+                          "focus": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5,
+                            "description": "Integer rating from 1 (low) to 5 (high)"
+                          },
+                          "accomplishment": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5,
+                            "description": "Integer rating from 1 (low) to 5 (high)"
+                          },
+                          "createdAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "updatedAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "date",
+                          "notes",
+                          "completedTasks",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [{ "type": "string" }, { "type": "null" }]
+                    }
+                  },
+                  "required": ["dailyReports", "nextCursor"],
+                  "additionalProperties": false,
+                  "description": "Page of daily reports in descending date order with an optional continuation cursor"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spaces/{spaceId}/daily-reports/{date}": {
+      "get": {
+        "operationId": "getDailyReport",
+        "summary": "Get a daily report",
+        "tags": ["Daily reports"],
+        "description": "Returns the daily report for a date, if one exists.",
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "in": "path",
+            "name": "date",
+            "required": true,
+            "description": "Report date in YYYY-MM-DD format"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Daily report details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dailyReport": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        },
+                        "notes": { "type": "string" },
+                        "completedTasks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Task identifier at the time of the report"
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "Task title snapshot"
+                              }
+                            },
+                            "required": ["id", "title"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "mood": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "energy": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "focus": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "accomplishment": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "date",
+                        "notes",
+                        "completedTasks",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["dailyReport"],
+                  "additionalProperties": false,
+                  "description": "Daily report details"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putDailyReport",
+        "summary": "Create or update a daily report",
+        "tags": ["Daily reports"],
+        "description": "Creates the report for a date if it does not exist, or updates the existing one. Omitted completed tasks are snapshotted from that day's done scheduled tasks on create.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "notes": { "type": "string" },
+                  "completedTasks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "Task identifier at the time of the report"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Task title snapshot"
+                        }
+                      },
+                      "required": ["id", "title"]
+                    }
+                  },
+                  "mood": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "description": "Integer rating from 1 (low) to 5 (high)"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "energy": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "description": "Integer rating from 1 (low) to 5 (high)"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "focus": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "description": "Integer rating from 1 (low) to 5 (high)"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "accomplishment": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "description": "Integer rating from 1 (low) to 5 (high)"
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "in": "path",
+            "name": "date",
+            "required": true,
+            "description": "Report date in YYYY-MM-DD format"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Daily report details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dailyReport": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        },
+                        "notes": { "type": "string" },
+                        "completedTasks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "description": "Task identifier at the time of the report"
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "Task title snapshot"
+                              }
+                            },
+                            "required": ["id", "title"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "mood": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "energy": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "focus": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "accomplishment": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5,
+                          "description": "Integer rating from 1 (low) to 5 (high)"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "updatedAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "date",
+                        "notes",
+                        "completedTasks",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["dailyReport"],
+                  "additionalProperties": false,
+                  "description": "Daily report details"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST",
+                        "UNAUTHORIZED",
+                        "FORBIDDEN",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "INTERNAL_SERVER_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false,
+                  "description": "Error response"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDailyReport",
+        "summary": "Delete a daily report",
+        "tags": ["Daily reports"],
+        "description": "Deletes the daily report for a date.",
+        "parameters": [
+          {
+            "schema": { "type": "string", "minLength": 1 },
+            "in": "path",
+            "name": "spaceId",
+            "required": true,
+            "description": "Space identifier"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "in": "path",
+            "name": "date",
+            "required": true,
+            "description": "Report date in YYYY-MM-DD format"
+          }
+        ],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "204": { "description": "Default Response" },
           "400": {
             "description": "Error response",
             "content": {
@@ -8334,6 +9620,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -8345,7 +9653,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -10582,6 +11892,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "startsAt": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar start time as Unix milliseconds, or null"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Calendar duration in minutes, or null"
                           }
                         },
                         "required": [
@@ -10593,7 +11925,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "startsAt",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -10874,6 +12208,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -10885,7 +12241,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -11194,6 +12552,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar start time as Unix milliseconds, or null"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Calendar duration in minutes, or null"
                         }
                       },
                       "required": [
@@ -11205,7 +12585,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "startsAt",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }

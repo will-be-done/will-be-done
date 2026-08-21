@@ -1,25 +1,23 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useMemo } from "react";
-import { addDays, format, startOfDay, subDays } from "date-fns";
-import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
+import { addDays, addWeeks, format, startOfDay, subWeeks } from "date-fns";
+import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   createManyDailyListsIfNotPresent,
-  createTaskInList,
   type DailyList,
   dailyListsByDates,
   dailyEntryChildrenForDisplay,
-  dailyEntryByTaskId,
   doneDailyEntryChildrenForDisplay,
-  dailyEntryType,
   inboxProjectId,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { useFocusStore } from "@/store/focusSlice.ts";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
+import { AddTaskComposer } from "@/components/Task/AddTaskComposer.tsx";
 import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
-import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
+import { useCurrentDMY } from "./hooks.tsx";
 import { ProjectView } from "../ProjectView/ProvecjtView.tsx";
 import {
   TasksColumn,
@@ -29,7 +27,12 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
-import { getStashOpenWidth, useStashOpen, useStashSize } from "./StashStore.ts";
+import {
+  STASH_BUTTON_WIDTH,
+  getStashOpenWidth,
+  useStashOpen,
+  useStashSize,
+} from "./StashStore.ts";
 import { ItemDetails } from "@/components/ItemDetails/ItemDetails.tsx";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
@@ -38,13 +41,14 @@ import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts
 
 const ColumnView = ({
   dailyList,
-  onTaskAdd,
+  inboxId,
 }: {
   dailyList: DailyList;
-  onTaskAdd: (dailyList: DailyList) => void;
+  inboxId: string;
 }) => {
   const currentDate = useCurrentDMY();
   const isToday = currentDate === dailyList.date;
+  const [composerOpen, setComposerOpen] = useState(false);
 
   const { data: itemsForDisplay = [] } = useAsyncSelector({
     selector: dailyEntryChildrenForDisplay,
@@ -56,90 +60,82 @@ const ColumnView = ({
     args: { dailyListId: dailyList.id },
   });
 
-  // const [isHiddenClicked, setIsHiddenClicked] = useState(false);
-
-  const isManuallyHidden = useHiddenDays(
-    (state) => state.hiddenDays[dailyList.id],
-  );
-  const setIsHidden = useHiddenDays((state) => state.setIsHidden);
-  const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
-  const isHidden =
-    isManuallyHidden ||
-    (itemsForDisplay.length == 0 && doneItemsForDisplay.length == 0);
-  const handleHideClick = () => toggleIsHidden(dailyList.id);
-
-  const handleAddClick = () => {
-    if (isHidden) {
-      setIsHidden(dailyList.id, false);
-    }
-
-    onTaskAdd(dailyList);
-  };
-
   return (
-    <TasksColumn
-      isHidden={isHidden}
-      onHideClick={handleHideClick}
-      header={
-        <>
-          <div className="inline-block text-xs text-subheader mr-4">
-            {format(dailyList.date, "dd MMM")}
+    <>
+      <TasksColumn
+        isHidden={false}
+        header={
+          <div className="flex min-w-0 flex-col items-start">
+            <div className="flex items-center gap-2">
+              <div
+                className={cn(
+                  "truncate text-content text-xl font-bold",
+                  {
+                    "text-accent": isToday,
+                  },
+                )}
+              >
+                {format(dailyList.date, "EEEE")}
+              </div>
+              {itemsForDisplay.length > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-content-tinted/10 px-1 text-[11px] font-semibold leading-none tabular-nums text-content-tinted/60">
+                  {itemsForDisplay.length}
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-subheader">
+              {format(dailyList.date, "dd MMM")}
+            </div>
           </div>
-          <div
-            className={cn("uppercase text-content text-3xl font-bold ", {
-              "text-accent": isToday,
-            })}
-          >
-            {format(dailyList.date, "EEEE")}
-          </div>
-          <span
-            className="flex items-center justify-center w-5 h-5 rounded-full bg-content-tinted/10 text-[11px] font-semibold tabular-nums text-content-tinted/60 leading-none self-center"
-            style={{
-              writingMode: "horizontal-tb",
-              textOrientation: "initial",
-              transform: "rotate(180deg)",
-            }}
-          >
-            {itemsForDisplay.length > 0 ? itemsForDisplay.length : ""}
-          </span>
-        </>
-      }
-      columnModelId={dailyList.id}
-      columnModelType={dailyList.type}
-      onAddClick={handleAddClick}
-    >
-      <div className={cn("flex flex-col gap-4 w-full py-4")}>
-        {itemsForDisplay.map((displayData) => {
-          return (
-            <PreloadedTaskComp
-              key={displayData.listItem.id}
-              item={displayData.item}
-              section={displayData.section}
-              listItem={displayData.listItem}
-              project={displayData.project}
-              lastScheduleTime={displayData.lastScheduleTime}
-              hasCheclistItems={displayData.hasChecklist}
-              alwaysShowProject
-            />
-          );
-        })}
+        }
+        columnModelId={dailyList.id}
+        columnModelType={dailyList.type}
+        onAddClick={() => setComposerOpen(true)}
+        progress={{
+          done: doneItemsForDisplay.length,
+          total: itemsForDisplay.length + doneItemsForDisplay.length,
+        }}
+      >
+        <div className={cn("flex flex-col gap-4 w-full")}>
+          {itemsForDisplay.map((displayData) => {
+            return (
+              <PreloadedTaskComp
+                key={displayData.listItem.id}
+                item={displayData.item}
+                section={displayData.section}
+                listItem={displayData.listItem}
+                project={displayData.project}
+                lastScheduleTime={displayData.lastScheduleTime}
+                hasCheclistItems={displayData.hasChecklist}
+                alwaysShowProject
+              />
+            );
+          })}
 
-        {doneItemsForDisplay.map((displayData) => {
-          return (
-            <PreloadedTaskComp
-              key={displayData.listItem.id}
-              item={displayData.item}
-              section={displayData.section}
-              listItem={displayData.listItem}
-              project={displayData.project}
-              lastScheduleTime={displayData.lastScheduleTime}
-              hasCheclistItems={displayData.hasChecklist}
-              alwaysShowProject
-            />
-          );
-        })}
-      </div>
-    </TasksColumn>
+          {doneItemsForDisplay.map((displayData) => {
+            return (
+              <PreloadedTaskComp
+                key={displayData.listItem.id}
+                item={displayData.item}
+                section={displayData.section}
+                listItem={displayData.listItem}
+                project={displayData.project}
+                lastScheduleTime={displayData.lastScheduleTime}
+                hasCheclistItems={displayData.hasChecklist}
+                alwaysShowProject
+              />
+            );
+          })}
+        </div>
+      </TasksColumn>
+      <AddTaskComposer
+        destination={{ type: "dailyList" }}
+        defaultProjectId={inboxId}
+        defaultDate={dailyList.date}
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
+      />
+    </>
   );
 };
 
@@ -184,8 +180,6 @@ const BoardView = ({
   selectedProjectId: string;
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
-  const dispatch = useAsyncDispatch();
-  const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
@@ -195,32 +189,6 @@ const BoardView = ({
   const stashWidth = useStashSize((s) => s.width);
   const setItemDetailsOpen = useItemDetailsOpen((s) => s.setOpen);
   const [isProjectsResizing, setIsProjectsResizing] = useState(false);
-
-  const handleAddTask = useCallback(
-    (dailyList: DailyList) => {
-      void (async () => {
-        const task = await dispatch(
-          createTaskInList({
-            dailyListId: dailyList.id,
-            projectId: inboxId,
-            listPosition: "prepend",
-            sectionPosition: "prepend",
-          }),
-        );
-
-        const entry = await select({
-          selector: dailyEntryByTaskId,
-          args: { taskId: task.id },
-        });
-        if (!entry) return;
-
-        useFocusStore
-          .getState()
-          .editByKey(buildFocusKey(entry.id, dailyEntryType));
-      })();
-    },
-    [dispatch, inboxId, select],
-  );
 
   const {
     projectsViewHeight,
@@ -329,26 +297,31 @@ const BoardView = ({
     <div className="flex h-full w-full">
       <div ref={rootRef} className="flex flex-col h-full flex-1 min-w-0">
         <div
-          className={cn("overflow-y-auto pt-10", heightTransitionClass)}
+          className={cn("relative overflow-hidden", heightTransitionClass)}
           style={{
             height: projectsViewHidden
               ? "100%"
               : `${100 - projectsViewHeight}%`,
           }}
         >
-          <TasksColumnGrid
-            columnsCount={7}
-            floatingColumn={<Stash />}
-            paddingLeft={isStashOpen ? getStashOpenWidth(stashWidth) : 32}
-          >
-            {dailyLists.map((dailyList) => (
-              <ColumnView
-                dailyList={dailyList}
-                onTaskAdd={handleAddTask}
-                key={dailyList.id}
-              />
-            ))}
-          </TasksColumnGrid>
+          <div className="h-full overflow-y-auto pt-10">
+            <TasksColumnGrid
+              paddingLeft={
+                isStashOpen
+                  ? getStashOpenWidth(stashWidth)
+                  : STASH_BUTTON_WIDTH + 16
+              }
+            >
+              {dailyLists.map((dailyList) => (
+                <ColumnView
+                  dailyList={dailyList}
+                  inboxId={inboxId}
+                  key={dailyList.id}
+                />
+              ))}
+            </TasksColumnGrid>
+          </div>
+          <Stash />
           <NavPanel
             previousDate={previousDate}
             nextDate={nextDate}
@@ -357,7 +330,11 @@ const BoardView = ({
           />
         </div>
         <div
-          className={cn("w-full relative", heightTransitionClass)}
+          className={cn(
+            "w-full relative",
+            heightTransitionClass,
+            !projectsViewHidden && "border-t border-ring",
+          )}
           style={{
             height: projectsViewHidden ? "0" : `${projectsViewHeight}%`,
           }}
@@ -403,8 +380,8 @@ export const Board = ({
   selectedProjectId: string;
 }) => {
   const startingDate = useMemo(() => startOfDay(selectedDate), [selectedDate]);
-  const previousDate = useMemo(() => subDays(selectedDate, 1), [selectedDate]);
-  const nextDate = useMemo(() => addDays(selectedDate, 1), [selectedDate]);
+  const previousDate = useMemo(() => subWeeks(selectedDate, 1), [selectedDate]);
+  const nextDate = useMemo(() => addWeeks(selectedDate, 1), [selectedDate]);
 
   const weekDays = useMemo(
     () =>

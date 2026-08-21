@@ -76,6 +76,7 @@ import {
   toggleTaskState,
   updateTask,
   updateTemplate,
+  setTaskTimeBlock,
 } from "@will-be-done/slices/space";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
@@ -89,6 +90,7 @@ import {
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
+import { PlannedDurationPicker } from "./PlannedDurationPicker";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal";
 import {
   useItemDetailsEditRequest,
@@ -1288,7 +1290,7 @@ export const PreloadedTaskComp = ({
             </div>
             <div
               className={clsx(
-                "flex items-start gap-1.5 rounded-t-lg px-2 pt-2 font-medium pr-6",
+                "flex items-start gap-1.5 rounded-t-lg px-2 py-2 font-medium pr-6",
               )}
             >
               {isTask(item) && (
@@ -1364,69 +1366,93 @@ export const PreloadedTaskComp = ({
           >
             <div>{section.title}</div>
 
-            {displayLastScheduleTime && isTask(item) && (
+            {isTask(item) && (
               <div
                 className={cn(
-                  centerScheduleDate ? "flex justify-center" : undefined,
+                  "flex items-center gap-0.5",
+                  centerScheduleDate && displayLastScheduleTime
+                    ? "justify-center"
+                    : undefined,
                 )}
               >
-                <TaskDatePicker
-                  taskId={taskId}
-                  currentDate={lastScheduleTime}
-                  open={isDatePickerOpen}
-                  onOpenChange={setIsDatePickerOpen}
-                  onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
-                  trigger={
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer",
-                        "hover:bg-black/5 dark:hover:bg-white/5",
-                        shouldHighlightTime
-                          ? "text-amber-400"
-                          : "hover:text-content",
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 10 10"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="shrink-0"
+                {displayLastScheduleTime && (
+                  <TaskDatePicker
+                    taskId={taskId}
+                    currentDate={lastScheduleTime}
+                    open={isDatePickerOpen}
+                    onOpenChange={setIsDatePickerOpen}
+                    onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
+                    trigger={
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer",
+                          "hover:bg-black/5 dark:hover:bg-white/5",
+                          shouldHighlightTime
+                            ? "text-amber-400"
+                            : "hover:text-content",
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
                       >
-                        <rect
-                          x="0.5"
-                          y="1.5"
-                          width="9"
-                          height="8"
-                          rx="1.5"
-                          stroke="currentColor"
-                        />
-                        <path
-                          d="M3 0.5V2.5M7 0.5V2.5"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                        />
-                        <path d="M0.5 4.5H9.5" stroke="currentColor" />
-                      </svg>
-                      <span>
-                        {lastScheduleTime
-                          ? format(
-                              lastScheduleTime,
-                              lastScheduleTime.getFullYear() ===
-                                new Date().getFullYear()
-                                ? "MMM d"
-                                : "MMM d, yyyy",
-                            )
-                          : "No date"}
-                      </span>
-                    </button>
-                  }
-                />
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="shrink-0"
+                        >
+                          <rect
+                            x="0.5"
+                            y="1.5"
+                            width="9"
+                            height="8"
+                            rx="1.5"
+                            stroke="currentColor"
+                          />
+                          <path
+                            d="M3 0.5V2.5M7 0.5V2.5"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                          />
+                          <path d="M0.5 4.5H9.5" stroke="currentColor" />
+                        </svg>
+                        <span>
+                          {lastScheduleTime
+                            ? format(
+                                lastScheduleTime,
+                                lastScheduleTime.getFullYear() ===
+                                  new Date().getFullYear()
+                                  ? "MMM d"
+                                  : "MMM d, yyyy",
+                              )
+                            : "No date"}
+                        </span>
+                      </button>
+                    }
+                  />
+                )}
+                <div
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <PlannedDurationPicker
+                    showIcon={false}
+                    align="center"
+                    value={item.durationMinutes}
+                    onChange={(minutes) =>
+                      void dispatch(
+                        setTaskTimeBlock({
+                          id: taskId,
+                          durationMinutes: minutes ?? null,
+                        }),
+                      )
+                    }
+                  />
+                </div>
               </div>
             )}
 

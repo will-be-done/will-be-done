@@ -24,11 +24,13 @@ import {
   toggleTaskState,
   updateTask,
   updateTemplate,
+  setTaskTimeBlock,
 } from "@will-be-done/slices/space";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
+import { PlannedDurationPicker } from "@/components/Task/PlannedDurationPicker.tsx";
 import { useDescriptionEditing, useTitleEditing } from "./hooks.ts";
 import {
   EditableTitle,
@@ -230,6 +232,59 @@ export function TaskBody({
                   <span className="italic">No date</span>
                 )}
               </button>
+            }
+          />
+        </DetailRow>
+
+        <DetailRow icon={<Clock className="h-3 w-3 shrink-0" />} label="Start">
+          <input
+            type="time"
+            value={
+              task.startsAt != null
+                ? format(new Date(task.startsAt), "HH:mm")
+                : ""
+            }
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) {
+                void dispatch(
+                  setTaskTimeBlock({
+                    id: taskId,
+                    startsAt: null,
+                  }),
+                );
+                return;
+              }
+              if (!scheduleDate) return;
+              const next = new Date(scheduleDate);
+              const [hours, minutes] = value.split(":").map(Number);
+              next.setHours(hours, minutes, 0, 0);
+              void dispatch(
+                setTaskTimeBlock({
+                  id: taskId,
+                  startsAt: next.getTime(),
+                }),
+              );
+            }}
+            className="bg-transparent text-content text-xs focus:outline-none cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors"
+          />
+        </DetailRow>
+
+        <DetailRow
+          icon={<Clock className="h-3 w-3 shrink-0" />}
+          label="Duration"
+        >
+          <PlannedDurationPicker
+            showIcon={false}
+            align="start"
+            value={task.durationMinutes}
+            onChange={(minutes) =>
+              void dispatch(
+                setTaskTimeBlock({
+                  id: taskId,
+                  durationMinutes: minutes ?? null,
+                }),
+              )
             }
           />
         </DetailRow>

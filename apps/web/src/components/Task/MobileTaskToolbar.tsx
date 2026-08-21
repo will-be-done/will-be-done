@@ -75,21 +75,12 @@ export const MobileTaskToolbar = () => {
       )}
     >
       {/* Hairline top border */}
-      <div
-        style={{
-          height: "1px",
-          background:
-            "linear-gradient(90deg, transparent 0%, oklch(100% 0 0 / 0.12) 20%, oklch(100% 0 0 / 0.12) 80%, transparent 100%)",
-        }}
-      />
+      <div className="h-px bg-toolbar-border" />
 
       {/* Toolbar body */}
       <div
-        className="flex items-center"
+        className="flex items-center bg-toolbar text-toolbar-content"
         style={{
-          background: "oklch(18% 0.03 260 / 0.96)",
-          backdropFilter: "blur(24px) saturate(1.4)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.4)",
           paddingBottom: "max(8px, env(safe-area-inset-bottom))",
         }}
       >
@@ -115,7 +106,7 @@ const Divider = () => (
     style={{
       width: "1px",
       height: "24px",
-      background: "oklch(100% 0 0 / 0.08)",
+      background: "var(--toolbar-border)",
       flexShrink: 0,
     }}
   />
@@ -139,16 +130,16 @@ const ToolbarButton = ({
     }}
     className={cn(
       "group flex flex-1 flex-col items-center justify-center gap-1 py-2 cursor-pointer",
-      "transition-colors duration-100 active:bg-white/5",
+      "transition-colors duration-100 active:bg-overlay",
     )}
-    style={{ color: "oklch(92% 0.01 260)" }}
+    style={{ color: "var(--toolbar-content)" }}
   >
     <span
       className={cn(
         "transition-colors duration-100",
         destructive
           ? "group-active:text-red-400"
-          : "group-active:text-blue-400",
+          : "group-active:text-accent",
       )}
     >
       {icon}
@@ -158,7 +149,7 @@ const ToolbarButton = ({
         "text-[11px] font-medium tracking-wide transition-colors duration-100",
         destructive
           ? "group-active:text-red-400"
-          : "group-active:text-blue-400",
+          : "group-active:text-accent",
       )}
       style={{ letterSpacing: "0.03em" }}
     >

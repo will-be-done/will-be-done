@@ -154,7 +154,7 @@ export function ItemDetails() {
         className={cn(
           "absolute right-0 top-0 h-full",
           widthTransitionClass,
-          "bg-task-panel/95 backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none",
+          "bg-task-panel",
           isPanelOpen && "border-l border-task-panel-ring/20",
           "overflow-hidden",
         )}
@@ -230,9 +230,9 @@ export function ItemDetailsPage({
   } = useItemDetailsEditing(itemId);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-task-panel/95 text-content shadow-2xl backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none">
+    <div className="flex h-full min-h-0 w-full flex-col bg-task-panel text-content shadow-2xl">
       <div
-        className="sticky top-0 z-10 border-b border-task-panel-divider bg-task-panel/95 px-3 pb-2 backdrop-blur-sm safari:bg-task-panel safari:backdrop-blur-none"
+        className="sticky top-0 z-10 border-b border-task-panel-divider bg-task-panel px-3 pb-2"
         style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}
       >
         <div className="flex h-10 items-center gap-2">
