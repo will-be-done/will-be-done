@@ -24,11 +24,17 @@ import {
   toggleTaskState,
   updateTask,
   updateTemplate,
+  setTaskTimeBlock,
 } from "@will-be-done/slices/space";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
+import {
+  TimePicker,
+  formatClockMinutes,
+} from "@/components/TimePicker/TimePicker.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
+import { PlannedDurationPicker } from "@/components/Task/PlannedDurationPicker.tsx";
 import { useDescriptionEditing, useTitleEditing } from "./hooks.ts";
 import {
   EditableTitle,
@@ -135,37 +141,52 @@ export function TaskBody({
   }, [task.templateId, dispatch]);
 
   const handleRepeatConfirm = useCallback(
-    (ruleString: string) => {
+    (ruleString: string, options?: { startsAtMinutes?: number }) => {
       setIsRepeatModalOpen(false);
+      const startsAtMinutes = options?.startsAtMinutes;
       if (task.templateId) {
         void dispatch(
           updateTemplate({
             id: task.templateId,
             template: {
               repeatRule: ruleString,
+              startsAtMinutes,
+              ...(startsAtMinutes != null &&
+              template?.durationMinutes == null &&
+              task.durationMinutes == null
+                ? { durationMinutes: 30 }
+                : task.durationMinutes != null
+                  ? { durationMinutes: task.durationMinutes }
+                  : {}),
             },
           }),
         );
       } else {
         void (async () => {
-          const template = await dispatch(
+          const created = await dispatch(
             createTaskTemplateFromTask({
               task: task,
               now: Date.now(),
               data: {
                 repeatRule: ruleString,
+                ...(startsAtMinutes == null ? {} : { startsAtMinutes }),
+                ...(task.durationMinutes != null
+                  ? { durationMinutes: task.durationMinutes }
+                  : startsAtMinutes != null
+                    ? { durationMinutes: 30 }
+                    : {}),
               },
             }),
           );
 
           useFocusStore
             .getState()
-            .focusByKey(buildFocusKey(template.id, template.type));
-          onItemIdChange?.(template.id);
+            .focusByKey(buildFocusKey(created.id, created.type));
+          onItemIdChange?.(created.id);
         })();
       }
     },
-    [task, dispatch, onItemIdChange],
+    [task, template, dispatch, onItemIdChange],
   );
 
   if (!project) return null;
@@ -234,6 +255,73 @@ export function TaskBody({
           />
         </DetailRow>
 
+        <DetailRow icon={<Clock className="h-3 w-3 shrink-0" />} label="Start">
+          <TimePicker
+            value={
+              task.startsAt != null
+                ? new Date(task.startsAt).getHours() * 60 +
+                  new Date(task.startsAt).getMinutes()
+                : null
+            }
+            onChange={(nextMinutes) => {
+              const day =
+                scheduleDate != null
+                  ? new Date(scheduleDate)
+                  : task.startsAt != null
+                    ? new Date(task.startsAt)
+                    : new Date();
+              day.setHours(
+                Math.floor(nextMinutes / 60),
+                nextMinutes % 60,
+                0,
+                0,
+              );
+              void dispatch(
+                setTaskTimeBlock({
+                  id: taskId,
+                  startsAt: day.getTime(),
+                }),
+              );
+            }}
+            onClear={() =>
+              void dispatch(
+                setTaskTimeBlock({
+                  id: taskId,
+                  startsAt: null,
+                }),
+              )
+            }
+          >
+            <button
+              type="button"
+              className="cursor-pointer rounded px-1 -mx-1 text-xs tabular-nums hover:bg-task-panel-hover transition-colors"
+            >
+              {task.startsAt != null
+                ? format(new Date(task.startsAt), "HH:mm")
+                : "Add a time"}
+            </button>
+          </TimePicker>
+        </DetailRow>
+
+        <DetailRow
+          icon={<Clock className="h-3 w-3 shrink-0" />}
+          label="Duration"
+        >
+          <PlannedDurationPicker
+            showIcon={false}
+            align="start"
+            value={task.durationMinutes}
+            onChange={(minutes) =>
+              void dispatch(
+                setTaskTimeBlock({
+                  id: taskId,
+                  durationMinutes: minutes ?? null,
+                }),
+              )
+            }
+          />
+        </DetailRow>
+
         <DetailRow
           icon={<CalendarDays className="h-3 w-3 shrink-0" />}
           label="Created"
@@ -256,7 +344,11 @@ export function TaskBody({
             label="Repeat"
           >
             <span className="flex items-center gap-1">
-              <span className="italic">{ruleText || "custom"}</span>
+              <span className="italic">
+                {ruleText || "custom"}
+                {template?.startsAtMinutes != null &&
+                  ` at ${formatClockMinutes(template.startsAtMinutes)}`}
+              </span>
               <button
                 onClick={() => setIsRepeatModalOpen(true)}
                 title="Edit repeat"
@@ -322,6 +414,13 @@ export function TaskBody({
       {isRepeatModalOpen && (
         <RepeatModal
           initialRule={template?.repeatRule}
+          initialStartsAtMinutes={
+            template?.startsAtMinutes ??
+            (task.startsAt != null
+              ? new Date(task.startsAt).getHours() * 60 +
+                new Date(task.startsAt).getMinutes()
+              : undefined)
+          }
           onConfirm={handleRepeatConfirm}
           onCancel={() => setIsRepeatModalOpen(false)}
         />

@@ -6,6 +6,7 @@ import {
   upsert as upsertRows,
   v,
 } from "@will-be-done/hyperdb";
+import { packDailyListTimeBlocks } from "./timeBlockPacking";
 import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import {
@@ -464,7 +465,15 @@ export const deleteDailyEntries = action({
   name: "deleteDailyEntries",
   args: { ids: v.array(v.string()) },
   handler: function* deleteDailyEntries({ ids }) {
+    if (ids.length === 0) return;
+    const entries = (yield* selectFrom(dailyEntriesTable, "byId").where((q) =>
+      ids.map((id) => q.eq("id", id)),
+    )) as DailyEntry[];
+    const listIds = [...new Set(entries.map((entry) => entry.dailyListId))];
     yield* deleteRows(dailyEntriesTable, ids);
+    for (const dailyListId of listIds) {
+      yield* packDailyListTimeBlocks({ dailyListId });
+    }
   },
 });
 
@@ -473,11 +482,15 @@ export const deleteDailyEntriesByTaskIds = action({
   args: { taskIds: v.array(v.string()) },
   handler: function* deleteDailyEntriesByTaskIds({ taskIds }) {
     const entries = yield* dailyEntriesByTaskIds({ taskIds });
+    const listIds = [...new Set(entries.map((entry) => entry.dailyListId))];
     if (entries.length > 0) {
       yield* deleteRows(
         dailyEntriesTable,
         entries.map((entry) => entry.id),
       );
+    }
+    for (const dailyListId of listIds) {
+      yield* packDailyListTimeBlocks({ dailyListId });
     }
   },
 });
@@ -502,6 +515,7 @@ export const createDailyEntry = action({
     };
 
     yield* insert(dailyEntriesTable, [newEntry]);
+    yield* packDailyListTimeBlocks({ dailyListId: newEntry.dailyListId });
     return newEntry;
   },
 });
@@ -527,6 +541,12 @@ export const updateDailyEntry = action({
         taskId: entryInState.taskId,
       },
     ]);
+
+    const listIds = new Set([entryInState.dailyListId]);
+    if (entry.dailyListId) listIds.add(entry.dailyListId);
+    for (const dailyListId of listIds) {
+      yield* packDailyListTimeBlocks({ dailyListId });
+    }
   },
 });
 

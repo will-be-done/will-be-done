@@ -23,6 +23,9 @@ export const tasksTable = defineTable("tasks", {
   createdAt: v.number(),
   templateId: v.union(v.string(), v.null()),
   templateDate: v.union(v.number(), v.null()),
+  startsAt: v.optional(v.number()),
+  durationMinutes: v.optional(v.number()),
+  timeBlockPinned: v.optional(v.boolean()),
 })
   .index("byIds", ["id"])
   .index("byProjectSectionIdOrderStates", [
@@ -58,6 +61,8 @@ export const taskTemplatesTable = defineTable("task_templates", {
   nature: v.optional(
     v.union(v.literal("red"), v.literal("green"), v.literal("unknown")),
   ),
+  startsAtMinutes: v.optional(v.number()),
+  durationMinutes: v.optional(v.number()),
 })
   .index("byIds", ["id"])
   .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"])
@@ -95,6 +100,41 @@ registerSpaceSyncableTable(dailyListsTable, dailyListType);
 
 export type DailyList = ExtractSchema<typeof dailyListsTable>;
 export const isDailyList = isObjectType<DailyList>(dailyListType);
+
+export const dailyReportType = "dailyReport";
+export const dailyReportRating = v.union(
+  v.literal(1),
+  v.literal(2),
+  v.literal(3),
+  v.literal(4),
+  v.literal(5),
+);
+export const dailyReportCompletedTask = v.object({
+  id: v.string(),
+  title: v.string(),
+});
+export const dailyReportsTable = defineTable("daily_reports", {
+  type: v.literal(dailyReportType),
+  id: v.string(),
+  date: v.string(),
+  notes: v.string(),
+  completedTasks: v.array(dailyReportCompletedTask),
+  mood: v.optional(dailyReportRating),
+  energy: v.optional(dailyReportRating),
+  focus: v.optional(dailyReportRating),
+  accomplishment: v.optional(dailyReportRating),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byDateOrdered", ["date", "id"])
+  .index("byDate", ["date"], { type: "uniqhash" });
+registerSpaceSyncableTable(dailyReportsTable, dailyReportType);
+
+export type DailyReport = ExtractSchema<typeof dailyReportsTable>;
+export type DailyReportRating = Infer<typeof dailyReportRating>;
+export type DailyReportCompletedTask = Infer<typeof dailyReportCompletedTask>;
+export const isDailyReport = isObjectType<DailyReport>(dailyReportType);
 
 export const dailyEntryType = "dailyEntry";
 export const dailyEntriesTable = defineTable("daily_entries", {
@@ -158,6 +198,24 @@ export const spaceMigrationsTable = defineTable("space_migrations", {
   appliedAt: v.number(),
 }).index("byIds", ["id"]);
 export type SpaceMigration = ExtractSchema<typeof spaceMigrationsTable>;
+
+export const spacePreferencesType = "spacePreferences";
+export const SPACE_PREFERENCES_ID = "space-preferences";
+export const workBreak = v.object({
+  id: v.string(),
+  startMinutes: v.number(),
+  endMinutes: v.number(),
+});
+export const spacePreferencesTable = defineTable("space_preferences", {
+  type: v.literal(spacePreferencesType),
+  id: v.string(),
+  dayStartMinutes: v.number(),
+  dayEndMinutes: v.optional(v.number()),
+  breaks: v.optional(v.array(workBreak)),
+}).index("byIds", ["id"]);
+registerSpaceSyncableTable(spacePreferencesTable, spacePreferencesType);
+export type SpacePreferences = ExtractSchema<typeof spacePreferencesTable>;
+export type WorkBreak = Infer<typeof workBreak>;
 
 export const stashEntryType = "stashEntry";
 export const stashEntriesTable = defineTable("stash_entries", {
@@ -243,6 +301,7 @@ export const possibleModel = v.union(
   taskTemplatesTable.v(),
   projectsTable.v(),
   dailyListsTable.v(),
+  dailyReportsTable.v(),
   projectSectionsTable.v(),
   dailyEntriesTable.v(),
   stashEntriesTable.v(),
@@ -255,17 +314,20 @@ export type AnyTable =
   | typeof tasksTable
   | typeof taskTemplatesTable
   | typeof dailyListsTable
+  | typeof dailyReportsTable
   | typeof projectsTable
   | typeof dailyEntriesTable
   | typeof projectSectionsTable
   | typeof stashEntriesTable
-  | typeof checklistItemsTable;
+  | typeof checklistItemsTable
+  | typeof spacePreferencesTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
   v.literal(projectType),
   v.literal(dailyListType),
+  v.literal(dailyReportType),
   v.literal(projectSectionType),
   v.literal(dailyEntryType),
   v.literal(stashEntryType),

@@ -84,7 +84,7 @@ export function PromptDialogHost() {
             <button
               type="button"
               onClick={handleCancel}
-              className="cursor-pointer rounded-md px-3.5 py-1.5 text-[13px] font-medium text-content-tinted transition-colors hover:text-content hover:bg-white/[0.05]"
+              className="cursor-pointer rounded-md px-3.5 py-1.5 text-[13px] font-medium text-content-tinted transition-colors hover:text-content hover:bg-overlay"
             >
               Cancel
             </button>

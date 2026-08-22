@@ -69,7 +69,15 @@ export async function signInUser(
   ).toBeVisible();
 }
 
-export async function createSpace(page: Page, spaceName: string) {
+export async function createSpace(
+  page: Page,
+  spaceName: string,
+  options: {
+    dayStart?: string;
+    dayEnd?: string;
+    breaks?: { start: string; end: string }[];
+  } = {},
+) {
   const createFirstSpaceButton = page.getByRole("button", {
     name: "Create your first space",
   });
@@ -80,9 +88,29 @@ export async function createSpace(page: Page, spaceName: string) {
     await page.getByRole("button", { name: "New Space" }).click();
   }
 
-  const dialog = page.getByRole("dialog", { name: "Enter space name:" });
-  await dialog.getByRole("textbox").fill(spaceName);
-  await dialog.getByRole("button", { name: "Confirm" }).click();
+  const dialog = page.getByRole("dialog", { name: "New space" });
+  await dialog.getByLabel("Space name").fill(spaceName);
+  await dialog.getByRole("button", { name: "Next" }).click();
+
+  await expect(dialog.getByLabel("Day starts at")).toBeVisible();
+  if (options.dayStart) {
+    await dialog.getByLabel("Day starts at").fill(options.dayStart);
+  }
+  if (options.dayEnd) {
+    await dialog.getByLabel("Day ends at").fill(options.dayEnd);
+  }
+  await dialog.getByRole("button", { name: "Next" }).click();
+
+  await expect(dialog.getByRole("button", { name: "Add break" })).toBeVisible();
+  for (const item of options.breaks ?? []) {
+    await dialog.getByRole("button", { name: "Add break" }).click();
+    const startInputs = dialog.getByLabel("Break starts at");
+    const endInputs = dialog.getByLabel("Break ends at");
+    const index = (await startInputs.count()) - 1;
+    await startInputs.nth(index).fill(item.start);
+    await endInputs.nth(index).fill(item.end);
+  }
+  await dialog.getByRole("button", { name: "Create space" }).click();
 
   await expect(page.getByText(spaceName, { exact: true })).toBeVisible();
 }
@@ -97,7 +125,7 @@ export async function openSpace(page: Page, spaceName: string) {
 
 export async function createTodayTask(page: Page, title: string) {
   await page.getByRole("button", { name: "Add task" }).click();
-  await page.getByLabel("Edit task title").fill(title);
+  await page.getByLabel("Task description").fill(title);
   await page.keyboard.press("Enter");
 
   const item = taskItem(page, title);
@@ -109,7 +137,7 @@ export async function createTodayTask(page: Page, title: string) {
 export async function createProjectTask(page: Page, title: string) {
   await page.locator("[data-focus-placeholder]").first().focus();
   await page.keyboard.press("KeyO");
-  await page.getByLabel("Edit task title").fill(title);
+  await page.getByLabel("Task description").fill(title);
   await page.keyboard.press("Enter");
 
   const item = projectTaskItem(page, title);

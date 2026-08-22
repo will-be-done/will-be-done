@@ -17,6 +17,8 @@ import {
   generateSpaceTasksIfDue,
   generateTasksForTemplate,
   taskTemplateById,
+  upcomingTemplateOccurrencesInRange,
+  type UpcomingTemplateOccurrence,
 } from "./taskTemplates";
 import { dbIdTrait } from "@/traits";
 import {
@@ -26,10 +28,13 @@ import {
   Task,
   DailyEntry,
   dailyEntriesTable,
+  spacePreferencesTable,
   tasksTable,
   TaskTemplate,
   taskTemplatesTable,
   stashEntriesTable,
+  projectSectionsTable,
+  projectsTable,
 } from "./tables";
 
 const action = createAction();
@@ -62,9 +67,12 @@ function createDB(timezoneOffsetMinutes: number) {
       checklistItemsTable,
       dailyListsTable,
       dailyEntriesTable,
+      spacePreferencesTable,
       tasksTable,
       taskTemplatesTable,
       stashEntriesTable,
+      projectSectionsTable,
+      projectsTable,
     ]),
   );
   return db;
@@ -622,6 +630,127 @@ describe("taskTemplates timezone consistency", () => {
         args: { id: "template-untouched" },
       })?.lastGeneratedAt,
     ).toBe(checkpoint);
+    vi.restoreAllMocks();
+  });
+
+  it("previews ungenerated template occurrences in a date range", () => {
+    const db = createDB(0);
+    const createdAt = new Date("2026-03-01T10:00:00Z").getTime();
+    insertTemplate(db, {
+      type: "template",
+      id: "template-upcoming",
+      title: "Standup",
+      orderToken: "a",
+      repeatRule: "FREQ=DAILY;INTERVAL=1",
+      repeatRuleDtStart: createdAt,
+      createdAt,
+      lastGeneratedAt: createdAt,
+      projectSectionId: "section-1",
+      startsAtMinutes: 9 * 60,
+      durationMinutes: 45,
+    });
+
+    const occurrences = runSelector<UpcomingTemplateOccurrence[]>(
+      db,
+      function* () {
+        return yield* upcomingTemplateOccurrencesInRange({
+          fromInclusive: new Date("2026-03-04T00:00:00Z").getTime(),
+          toExclusive: new Date("2026-03-07T00:00:00Z").getTime(),
+        });
+      },
+      [],
+    );
+
+    expect(occurrences.map((occurrence) => occurrence.date)).toEqual([
+      "2026-03-04",
+      "2026-03-05",
+      "2026-03-06",
+    ]);
+    expect(occurrences[0]?.title).toBe("Standup");
+    expect(occurrences[0]?.startsAtMinutes).toBe(540);
+    expect(occurrences[0]?.durationMinutes).toBe(45);
+    expect(occurrences[0]?.startsAt).toBe(
+      new Date("2026-03-04T09:00:00Z").getTime(),
+    );
+  });
+
+  it("hides preview occurrences once the generated task exists", () => {
+    const db = createDB(0);
+    const createdAt = new Date("2026-03-01T10:00:00Z").getTime();
+    insertTemplate(db, {
+      type: "template",
+      id: "template-upcoming-skip",
+      title: "Daily skip",
+      orderToken: "a",
+      repeatRule: "FREQ=DAILY;INTERVAL=1",
+      repeatRuleDtStart: createdAt,
+      createdAt,
+      lastGeneratedAt: createdAt,
+      projectSectionId: "section-1",
+    });
+
+    const generated = getNewTasksInRange(
+      db,
+      new Date("2026-03-04T00:00:00Z"),
+      new Date("2026-03-07T00:00:00Z"),
+    );
+    expect(generated.length).toBeGreaterThan(0);
+    syncDispatch(
+      db,
+      action({
+        name: "anonymousAction",
+        args: {},
+        handler: function* anonymousAction() {
+          yield* insert(tasksTable, [generated[0]!]);
+        },
+      })({}),
+    );
+
+    const occurrences = runSelector<UpcomingTemplateOccurrence[]>(
+      db,
+      function* () {
+        return yield* upcomingTemplateOccurrencesInRange({
+          fromInclusive: new Date("2026-03-04T00:00:00Z").getTime(),
+          toExclusive: new Date("2026-03-07T00:00:00Z").getTime(),
+        });
+      },
+      [],
+    );
+
+    expect(occurrences.map((occurrence) => occurrence.date)).toEqual([
+      "2026-03-05",
+      "2026-03-06",
+    ]);
+  });
+
+  it("copies the template clock time onto generated tasks", () => {
+    const db = createDB(0);
+    const createdAt = new Date("2026-03-01T10:00:00Z").getTime();
+    insertTemplate(db, {
+      type: "template",
+      id: "template-timed-gen",
+      title: "Timed daily",
+      orderToken: "a",
+      repeatRule: "FREQ=DAILY;INTERVAL=1",
+      repeatRuleDtStart: createdAt,
+      createdAt,
+      lastGeneratedAt: createdAt,
+      projectSectionId: "section-1",
+      startsAtMinutes: 14 * 60 + 30,
+    });
+
+    const tasks = getNewTasksInRange(
+      db,
+      new Date("2026-03-04T00:00:00Z"),
+      new Date("2026-03-05T00:00:00Z"),
+    );
+    expect(tasks.length).toBeGreaterThan(0);
+    for (const task of tasks) {
+      expect(task.durationMinutes).toBe(30);
+      const start = new Date(task.startsAt!);
+      expect(start.getUTCHours()).toBe(14);
+      expect(start.getUTCMinutes()).toBe(30);
+    }
     vi.restoreAllMocks();
   });
 });

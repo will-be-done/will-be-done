@@ -132,17 +132,17 @@ function PopupComponent() {
       data-testid="popup"
       data-status={status}
       className="flex h-screen w-screen flex-col justify-center bg-surface p-4"
-      style={{ fontFamily: "InterVariable, sans-serif" }}
+      style={{ fontFamily: '"DM Sans", sans-serif' }}
     >
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded bg-blue-500/20">
+          <div className="flex h-6 w-6 items-center justify-center rounded bg-accent/20">
             <svg
               width="14"
               height="14"
               viewBox="0 0 14 14"
               fill="none"
-              className="text-blue-400"
+              className="text-accent"
             >
               <path
                 d="M7 1v12M1 7h12"
@@ -152,7 +152,7 @@ function PopupComponent() {
               />
             </svg>
           </div>
-          <span className="text-sm font-medium text-slate-400">
+          <span className="text-sm font-medium text-content-secondary">
             Add to Inbox
           </span>
         </div>
@@ -165,7 +165,7 @@ function PopupComponent() {
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="What needs to be done?"
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
+          className="w-full rounded-lg border border-border bg-panel px-3 py-2.5 text-sm text-content placeholder:text-content-tinted-2 outline-none transition-colors focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
           autoComplete="off"
           spellCheck={false}
         />
@@ -174,16 +174,16 @@ function PopupComponent() {
           {status === "error" ? (
             <span className="text-xs text-red-400">{errorMsg}</span>
           ) : (
-            <span className="text-xs text-slate-600">
+            <span className="text-xs text-content-tinted-2">
               Press{" "}
-              <kbd className="rounded bg-white/10 px-1 py-0.5 text-slate-400">
+              <kbd className="rounded bg-overlay px-1 py-0.5 text-content-secondary">
                 Enter
               </kbd>{" "}
               to add
             </span>
           )}
-          <span className="text-xs text-slate-600">
-            <kbd className="rounded bg-white/10 px-1 py-0.5 text-slate-400">
+          <span className="text-xs text-content-tinted-2">
+            <kbd className="rounded bg-overlay px-1 py-0.5 text-content-secondary">
               Esc
             </kbd>{" "}
             to close

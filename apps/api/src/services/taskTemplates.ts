@@ -28,6 +28,8 @@ export interface TaskTemplateUpdates {
   nature?: "red" | "green" | "unknown" | null;
   repeatRule?: string;
   repeatRuleDtStart?: number;
+  startsAtMinutes?: number | null;
+  durationMinutes?: number | null;
 }
 
 const action = createAction();
@@ -57,9 +59,17 @@ async function applyUpdates(
     ...(updates.repeatRuleDtStart === undefined
       ? {}
       : { repeatRuleDtStart: updates.repeatRuleDtStart }),
+    ...(typeof updates.startsAtMinutes === "number"
+      ? { startsAtMinutes: updates.startsAtMinutes }
+      : {}),
+    ...(typeof updates.durationMinutes === "number"
+      ? { durationMinutes: updates.durationMinutes }
+      : {}),
   };
   if (updates.content === null) delete next.content;
   if (updates.nature === null) delete next.nature;
+  if (updates.startsAtMinutes === null) delete next.startsAtMinutes;
+  if (updates.durationMinutes === null) delete next.durationMinutes;
 
   await asyncDispatch(db, replaceTaskTemplate({ template: next }));
   return next;
@@ -92,6 +102,8 @@ export async function createSectionTaskTemplate({
   nature,
   repeatRule,
   repeatRuleDtStart,
+  startsAtMinutes,
+  durationMinutes,
   placement = { kind: "last" },
 }: {
   spaceId: string;
@@ -102,6 +114,8 @@ export async function createSectionTaskTemplate({
   nature?: "red" | "green" | "unknown" | null;
   repeatRule?: string;
   repeatRuleDtStart?: number;
+  startsAtMinutes?: number | null;
+  durationMinutes?: number | null;
   placement?: Placement;
 }): Promise<PublicTaskTemplate> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -122,6 +136,8 @@ export async function createSectionTaskTemplate({
         ...(typeof nature === "string" ? { nature } : {}),
         ...(repeatRule === undefined ? {} : { repeatRule }),
         repeatRuleDtStart: repeatRuleDtStart ?? now,
+        ...(typeof startsAtMinutes === "number" ? { startsAtMinutes } : {}),
+        ...(typeof durationMinutes === "number" ? { durationMinutes } : {}),
       },
     }),
   );
@@ -240,14 +256,27 @@ export async function convertTaskToTemplate({
           ? {}
           : { repeatRule: updates.repeatRule }),
         repeatRuleDtStart: updates.repeatRuleDtStart ?? now,
+        ...(typeof updates.startsAtMinutes === "number"
+          ? { startsAtMinutes: updates.startsAtMinutes }
+          : {}),
+        ...(typeof updates.durationMinutes === "number"
+          ? { durationMinutes: updates.durationMinutes }
+          : {}),
       },
     }),
   );
 
-  if (updates.content === null || updates.nature === null) {
+  if (
+    updates.content === null ||
+    updates.nature === null ||
+    updates.startsAtMinutes === null ||
+    updates.durationMinutes === null
+  ) {
     template = await applyUpdates(db, template, {
       ...(updates.content === null ? { content: null } : {}),
       ...(updates.nature === null ? { nature: null } : {}),
+      ...(updates.startsAtMinutes === null ? { startsAtMinutes: null } : {}),
+      ...(updates.durationMinutes === null ? { durationMinutes: null } : {}),
     });
   }
   return toPublicTaskTemplate(template);

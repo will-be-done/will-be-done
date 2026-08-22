@@ -102,7 +102,7 @@ const Store =
   (ElectronStore as unknown as { default: typeof ElectronStore }).default || ElectronStore
 const store = new Store<{ serverUrl?: string }>()
 
-const DEFAULT_SERVER = is.dev ? 'http://localhost:5173' : 'https://app.will-be-done.app'
+const DEFAULT_SERVER = is.dev ? 'http://localhost:5173' : 'http://localhost:3000'
 const SERVER_CHECK_TIMEOUT_MS = 5000
 const SERVER_CHECK_FILE = '631521eb-a436-4740-9db3-e6f1d72392fe.json'
 const SERVER_CHECK_NONCE = '4f2c9a71-f7bb-4a57-b9b9-6d433c9f5b2e'
@@ -309,9 +309,10 @@ function createWindow(showOnReady = true): void {
     minHeight: 400,
     show: false,
     autoHideMenuBar: process.platform !== 'darwin',
-    backgroundColor: '#0a0a0f',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    backgroundColor: '#100c09',
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'default' as const }
+      : {}),
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

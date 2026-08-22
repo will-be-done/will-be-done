@@ -23,6 +23,7 @@ import {
   DailyList,
   isDailyEntry,
   isStashEntry,
+  tasksTable,
 } from "./tables";
 
 export const defaultDailyList: DailyList = {
@@ -354,16 +355,19 @@ export const createTaskInList = action({
     projectId: v.string(),
     listPosition: orderPositionArg,
     sectionPosition: orderPositionArg,
+    taskAttrs: v.optional(v.partial(tasksTable.v())),
   },
   handler: function* createTaskInList({
     dailyListId,
     projectId,
     listPosition,
     sectionPosition,
+    taskAttrs,
   }): Generator<unknown, Task, unknown> {
     const task = yield* createProjectTask({
       projectId,
       position: sectionPosition,
+      taskAttrs,
     });
 
     yield* addToDailyList({

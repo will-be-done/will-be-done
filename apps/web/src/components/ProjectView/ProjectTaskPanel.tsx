@@ -3,7 +3,6 @@ import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   createProjectSection,
-  createTaskInSection,
   deleteProjectSections,
   doneProjectSectionItemsForDisplay,
   moveLeft,
@@ -15,12 +14,8 @@ import {
   updateProjectSection,
 } from "@will-be-done/slices/space";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
-import {
-  buildFocusKey,
-  focusTaskTitleTextareaByKey,
-  prepareTextInputFocus,
-  useFocusStore,
-} from "@/store/focusSlice.ts";
+import { AddTaskComposer } from "@/components/Task/AddTaskComposer.tsx";
+import { buildFocusKey } from "@/store/focusSlice.ts";
 import { cn } from "@/lib/utils.ts";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
@@ -86,6 +81,7 @@ const SectionSection = ({
   });
 
   const [isShowMore, setIsShowMore] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const { data: doneItemsForDisplay = [] } = useAsyncSelector({
     selector: doneProjectSectionItemsForDisplay,
     args: { projectSectionId: projectSectionId, limited: !isShowMore },
@@ -128,21 +124,7 @@ const SectionSection = ({
   };
 
   const handleAddTask = () => {
-    prepareTextInputFocus();
-
-    void (async () => {
-      const task = await dispatch(
-        createTaskInSection({ projectSectionId, position: "prepend" }),
-      );
-      const focusKey = buildFocusKey(task.id, "task");
-      useFocusStore.getState().editByKey(focusKey);
-
-      if (focusTaskTitleTextareaByKey(focusKey)) return;
-
-      window.requestAnimationFrame(() => {
-        focusTaskTitleTextareaByKey(focusKey);
-      });
-    })();
+    setComposerOpen(true);
   };
 
   const handleDelete = () => {
@@ -206,23 +188,30 @@ const SectionSection = ({
       </div>
 
       {/* Add task button */}
-      <button
-        type="button"
-        onClick={handleAddTask}
-        className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 mb-2 transition-colors group/add cursor-pointer"
+      <AddTaskComposer
+        destination={{ type: "section", projectSectionId }}
+        defaultProjectId={projectId}
+        showProject={false}
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
       >
-        <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover/add:opacity-100 transition-opacity">
-          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-            <path
-              d="M4 1v6M1 4h6"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-        <span>Add task</span>
-      </button>
+        <button
+          type="button"
+          className="w-full flex items-center justify-center gap-2 text-sm text-content-tinted/60 hover:text-content-tinted py-1.5 mb-2 transition-colors group/add cursor-pointer"
+        >
+          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center flex-shrink-0 opacity-60 group-hover/add:opacity-100 transition-opacity">
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+              <path
+                d="M4 1v6M1 4h6"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <span>Add task</span>
+        </button>
+      </AddTaskComposer>
 
       <div
         ref={columnRef}

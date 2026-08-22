@@ -25,10 +25,10 @@ export const ResizableDivider = ({
   const isHorizontal = orientation === "horizontal";
 
   const resizeHandleClassName = cn(
-    "absolute z-20 border-0 bg-transparent p-0 transition-all ease-linear after:absolute after:bg-ring after:transition-colors after:ease-linear hover:after:bg-content-tinted/50",
+    "absolute z-20 border-0 bg-transparent p-0 transition-all ease-linear",
     isHorizontal
-      ? "left-0 right-0 top-0 h-4 -translate-y-1/2 cursor-row-resize after:left-0 after:right-0 after:top-1/2 after:h-[2px] after:-translate-y-1/2"
-      : "inset-y-0 left-0 w-4 -translate-x-1/2 cursor-col-resize after:inset-y-0 after:left-1/2 after:w-[2px] after:-translate-x-1/2",
+      ? "left-0 right-0 top-0 h-4 -translate-y-1/2 cursor-row-resize"
+      : "inset-y-0 left-0 w-4 -translate-x-1/2 cursor-col-resize",
     className,
   );
 

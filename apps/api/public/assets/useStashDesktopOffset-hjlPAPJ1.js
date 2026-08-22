@@ -1,0 +1,1 @@
+import{c as n}from"./index-DDUgtJ_r.js";import{u as r}from"./use-mobile-CaSldpac.js";import{u,a as p,g as a}from"./Stash-flAq0KVt.js";const O=()=>{const t=n.c(3),i=r(),e=u(c),o=p(m);if(i)return 0;let s;return t[0]!==e||t[1]!==o?(s=e?a(o):0,t[0]=e,t[1]=o,t[2]=s):s=t[2],s};function c(t){return t.isOpen}function m(t){return t.width}export{O as u};

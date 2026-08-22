@@ -231,7 +231,26 @@ export const TaskSchema = z.object({
     .date()
     .nullable()
     .describe("Current schedule date, or null when the task is unscheduled"),
+  startsAt: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .describe("Calendar start time as Unix milliseconds, or null"),
+  durationMinutes: z
+    .number()
+    .int()
+    .positive()
+    .nullable()
+    .describe("Calendar duration in minutes, or null"),
 });
+
+const ClockMinutesSchema = z
+  .number()
+  .int()
+  .min(0)
+  .max(1439)
+  .describe("Minutes from midnight, 0-1439");
 
 export const TaskTemplateSchema = z.object({
   type: z.literal("template"),
@@ -244,6 +263,8 @@ export const TaskTemplateSchema = z.object({
   repeatRuleDtStart: z.number().int().nonnegative(),
   createdAt: z.number().int().nonnegative(),
   lastGeneratedAt: z.number().int().nonnegative(),
+  startsAtMinutes: ClockMinutesSchema.optional(),
+  durationMinutes: z.number().int().positive().optional(),
 });
 
 export const TaskTemplateParamsSchema = z.object({
@@ -258,6 +279,8 @@ export const CreateTaskTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    startsAtMinutes: ClockMinutesSchema.nullable().optional(),
+    durationMinutes: z.number().int().positive().nullable().optional(),
     placement: PlacementSchema.optional(),
   })
   .strict();
@@ -269,6 +292,8 @@ export const UpdateTaskTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    startsAtMinutes: ClockMinutesSchema.nullable().optional(),
+    durationMinutes: z.number().int().positive().nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -282,6 +307,8 @@ export const ConvertTaskToTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    startsAtMinutes: ClockMinutesSchema.nullable().optional(),
+    durationMinutes: z.number().int().positive().nullable().optional(),
   })
   .strict();
 
@@ -448,6 +475,8 @@ export const UpdateTaskBodySchema = z
     content: z.string().nullable().optional(),
     state: TaskStateSchema.optional(),
     nature: TaskNatureSchema.nullable().optional(),
+    startsAt: z.number().int().nonnegative().nullable().optional(),
+    durationMinutes: z.number().int().min(1).max(480).nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -520,5 +549,80 @@ export const MoveChecklistItemBodySchema = z
     parentId: z.string().min(1),
     parentType: ChecklistParentTypeSchema,
     placement: PlacementSchema,
+  })
+  .strict();
+
+export const DailyReportRatingSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(5)
+  .describe("Integer rating from 1 (low) to 5 (high)");
+
+export const DailyReportCompletedTaskSchema = z.object({
+  id: z.string().min(1).describe("Task identifier at the time of the report"),
+  title: z.string().describe("Task title snapshot"),
+});
+
+export const DailyReportSchema = z.object({
+  date: z.iso.date(),
+  notes: z.string(),
+  completedTasks: z.array(DailyReportCompletedTaskSchema),
+  mood: DailyReportRatingSchema.optional(),
+  energy: DailyReportRatingSchema.optional(),
+  focus: DailyReportRatingSchema.optional(),
+  accomplishment: DailyReportRatingSchema.optional(),
+  createdAt: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+});
+
+export const DailyReportParamsSchema = z.object({
+  spaceId: z.string().min(1).describe("Space identifier"),
+  date: z.iso.date().describe("Report date in YYYY-MM-DD format"),
+});
+
+export const DailyReportsRangeQuerySchema = z
+  .object({
+    from: z.iso.date(),
+    to: z.iso.date(),
+    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict()
+  .refine(({ from, to }) => from <= to, {
+    message: "from must be on or before to",
+    path: ["to"],
+  })
+  .refine(
+    ({ from, to }) =>
+      Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`) <=
+      30 * 24 * 60 * 60 * 1000,
+    {
+      message: "Date range cannot exceed 30 days",
+      path: ["to"],
+    },
+  );
+
+export const DailyReportsRangeResponseSchema = z
+  .object({
+    dailyReports: z.array(DailyReportSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .describe(
+    "Page of daily reports in descending date order with an optional continuation cursor",
+  );
+
+export const DailyReportResponseSchema = z
+  .object({ dailyReport: DailyReportSchema })
+  .describe("Daily report details");
+
+export const UpsertDailyReportBodySchema = z
+  .object({
+    notes: z.string().optional(),
+    completedTasks: z.array(DailyReportCompletedTaskSchema).optional(),
+    mood: DailyReportRatingSchema.nullable().optional(),
+    energy: DailyReportRatingSchema.nullable().optional(),
+    focus: DailyReportRatingSchema.nullable().optional(),
+    accomplishment: DailyReportRatingSchema.nullable().optional(),
   })
   .strict();

@@ -99,6 +99,20 @@ test("covers every task operation, including pagination and scheduling", async (
     nature: "green",
   });
 
+  const startsAt = new Date(2035, 0, 3, 9, 30, 0).getTime();
+  const timed = expectResponseStatus(
+    await updateTask(
+      space.id,
+      taskA.id,
+      { startsAt, durationMinutes: 45 },
+      options,
+    ),
+    200,
+  );
+  expect(timed.data.task.startsAt).toBe(startsAt);
+  expect(timed.data.task.durationMinutes).toBe(45);
+  expect(timed.data.task.scheduledDate).toBe("2035-01-03");
+
   const destination = expectResponseStatus(
     await createProjectSection(
       space.id,

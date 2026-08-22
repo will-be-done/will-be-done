@@ -25,6 +25,7 @@ import {
   deleteTasks,
   taskById,
   taskIdsOfTemplateId,
+  tasksByIds,
   updateTask,
 } from "./tasks";
 import { registerModelSlice } from "./maps";
@@ -35,6 +36,8 @@ import {
   tasksTable,
   taskTemplateType,
   taskTemplatesTable,
+  projectSectionsTable,
+  projectsTable,
   Task,
   TaskTemplate,
   possibleModelType,
@@ -74,6 +77,15 @@ const templateToTask = selector({
     epoch: v.number(),
   },
   handler: function* templateToTask({ tmpl, epoch }) {
+    const startsAtMinutes = tmpl.startsAtMinutes;
+    const durationMinutes =
+      tmpl.durationMinutes ??
+      (startsAtMinutes != null ? DEFAULT_TEMPLATE_DURATION_MINUTES : undefined);
+    const startsAt =
+      startsAtMinutes != null
+        ? occurrenceStartsAt(epoch, startsAtMinutes)
+        : undefined;
+
     return {
       type: "task",
       id: yield* genTaskId({
@@ -90,6 +102,9 @@ const templateToTask = selector({
       createdAt: epoch,
       templateId: tmpl.id,
       templateDate: epoch,
+      ...(startsAt != null && durationMinutes != null
+        ? { startsAt, durationMinutes }
+        : {}),
     } satisfies Task;
   },
 });
@@ -107,6 +122,38 @@ function fromUTC(date: Date): Date {
 
 const defaultRule = "FREQ=DAILY;INTERVAL=1";
 const MAX_GENERATION_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks
+const MAX_UPCOMING_OCCURRENCES = 200;
+const DEFAULT_TEMPLATE_DURATION_MINUTES = 30;
+
+export type UpcomingTemplateOccurrence = {
+  id: string;
+  templateId: string;
+  title: string;
+  date: string;
+  epoch: number;
+  projectSectionId: string;
+  sectionTitle: string;
+  projectTitle: string;
+  projectIcon: string;
+  nature?: Task["nature"];
+  startsAtMinutes?: number;
+  durationMinutes?: number;
+  startsAt?: number;
+};
+
+function localCalendarDateFromEpoch(epoch: number): Date {
+  const local = fromUTC(new Date(epoch));
+  return new Date(local.getFullYear(), local.getMonth(), local.getDate());
+}
+
+export function occurrenceStartsAt(
+  epoch: number,
+  startsAtMinutes: number,
+): number {
+  return (
+    localCalendarDateFromEpoch(epoch).getTime() + startsAtMinutes * 60 * 1000
+  );
+}
 
 type RecurrenceRange = {
   from: Date;
@@ -242,11 +289,7 @@ export const allTaskTemplates = selector({
   name: "allTaskTemplates",
   args: {},
   handler: function* allTaskTemplates() {
-    const templates = yield* selectFrom(
-      taskTemplatesTable,
-      "byProjectSectionIdOrderStates",
-    );
-    return templates;
+    return yield* selectFrom(taskTemplatesTable, "byIds").where((q) => q);
   },
 });
 
@@ -313,6 +356,127 @@ export const taskTemplateNewTasksInRange = selector({
     }
 
     return newTasks;
+  },
+});
+
+export const upcomingTemplateOccurrencesInRange = selector({
+  name: "upcomingTemplateOccurrencesInRange",
+  args: {
+    fromInclusive: v.number(),
+    toExclusive: v.number(),
+  },
+  handler: function* upcomingTemplateOccurrencesInRange({
+    fromInclusive,
+    toExclusive,
+  }): Generator<unknown, UpcomingTemplateOccurrence[], unknown> {
+    const templates = yield* allTaskTemplates({});
+    const candidates: { template: TaskTemplate; epoch: number }[] = [];
+
+    for (const template of templates) {
+      if (candidates.length >= MAX_UPCOMING_OCCURRENCES) break;
+      if (!template.repeatRule) continue;
+
+      try {
+        const policy = buildRecurrencePolicy(template);
+        const r = createRuleWithDtstart(template.repeatRule, policy.dtstart);
+        const range = policy.canonicalizeRange(
+          new Date(fromInclusive),
+          new Date(toExclusive - 1),
+        );
+        const dates = r.between(range.from, range.to, policy.inclusiveBetween);
+        for (const date of dates) {
+          if (candidates.length >= MAX_UPCOMING_OCCURRENCES) break;
+          candidates.push({
+            template,
+            epoch: policy.occurrenceEpoch(date),
+          });
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    const taskIds: string[] = [];
+    for (const candidate of candidates) {
+      taskIds.push(
+        yield* genTaskId({
+          taskTemplateId: candidate.template.id,
+          epoch: candidate.epoch,
+        }),
+      );
+    }
+
+    const existing = yield* tasksByIds({ ids: taskIds });
+    const existingIds = new Set(existing.map((task) => task.id));
+    const occurrences: UpcomingTemplateOccurrence[] = [];
+
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i]!;
+      if (existingIds.has(taskIds[i]!)) continue;
+
+      const startsAtMinutes = candidate.template.startsAtMinutes;
+      const durationMinutes =
+        candidate.template.durationMinutes ??
+        (startsAtMinutes == null
+          ? undefined
+          : DEFAULT_TEMPLATE_DURATION_MINUTES);
+      occurrences.push({
+        id: `${candidate.template.id}:${candidate.epoch}`,
+        templateId: candidate.template.id,
+        title: candidate.template.title,
+        date: getDMY(fromUTC(new Date(candidate.epoch))),
+        epoch: candidate.epoch,
+        projectSectionId: candidate.template.projectSectionId,
+        sectionTitle: "",
+        projectTitle: "",
+        projectIcon: "🟡",
+        ...(candidate.template.nature === undefined
+          ? {}
+          : { nature: candidate.template.nature }),
+        ...(durationMinutes == null ? {} : { durationMinutes }),
+        ...(startsAtMinutes == null
+          ? {}
+          : {
+              startsAtMinutes,
+              startsAt: occurrenceStartsAt(candidate.epoch, startsAtMinutes),
+            }),
+      });
+    }
+
+    const sectionIds = [
+      ...new Set(occurrences.map((occurrence) => occurrence.projectSectionId)),
+    ];
+    const sections = sectionIds.length
+      ? yield* selectFrom(projectSectionsTable, "byId").where((q) =>
+          sectionIds.map((id) => q.eq("id", id)),
+        )
+      : [];
+    const sectionById = new Map(
+      sections.map((section) => [section.id, section]),
+    );
+    const projectIds = [
+      ...new Set(sections.map((section) => section.projectId)),
+    ];
+    const projects = projectIds.length
+      ? yield* selectFrom(projectsTable, "byId").where((q) =>
+          projectIds.map((id) => q.eq("id", id)),
+        )
+      : [];
+    const projectById = new Map(
+      projects.map((project) => [project.id, project]),
+    );
+
+    for (const occurrence of occurrences) {
+      const section = sectionById.get(occurrence.projectSectionId);
+      if (!section) continue;
+      occurrence.sectionTitle = section.title;
+      const project = projectById.get(section.projectId);
+      if (!project) continue;
+      occurrence.projectTitle = project.title;
+      occurrence.projectIcon = project.icon || "🟡";
+    }
+
+    return occurrences;
   },
 });
 
@@ -467,7 +631,13 @@ export const updateTemplate = action({
     const templateInState = yield* taskTemplateById({ id });
     if (!templateInState) throw new Error("Template not found");
 
-    const updatedTemplate = { ...templateInState, ...template };
+    const updatedTemplate: TaskTemplate = { ...templateInState, ...template };
+    if (updatedTemplate.startsAtMinutes === undefined) {
+      delete updatedTemplate.startsAtMinutes;
+    }
+    if (updatedTemplate.durationMinutes === undefined) {
+      delete updatedTemplate.durationMinutes;
+    }
     yield* upsert(taskTemplatesTable, [updatedTemplate]);
     return updatedTemplate;
   },

@@ -1,6 +1,13 @@
-import { createContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-type Theme = "dark" | "light" | "system";
+export type Theme = "dark" | "light" | "system";
+export type ResolvedTheme = "dark" | "light";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -10,11 +17,41 @@ type ThemeProviderProps = {
 
 type ThemeProviderState = {
   theme: Theme;
+  resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
 };
 
+const STORAGE_KEY = "vite-ui-theme";
+const LIGHT_THEME_COLOR = "#f5f5f3";
+const DARK_THEME_COLOR = "#100c09";
+
+function getSystemTheme(): ResolvedTheme {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function resolveTheme(theme: Theme): ResolvedTheme {
+  return theme === "system" ? getSystemTheme() : theme;
+}
+
+function applyTheme(resolved: ResolvedTheme) {
+  const root = window.document.documentElement;
+  root.classList.remove("light", "dark");
+  root.classList.add(resolved);
+  root.style.colorScheme = resolved;
+
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute(
+      "content",
+      resolved === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR,
+    );
+}
+
 const initialState: ThemeProviderState = {
   theme: "system",
+  resolvedTheme: "light",
   setTheme: () => null,
 };
 
@@ -22,41 +59,44 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
-  storageKey = "vite-ui-theme",
+  defaultTheme = "light",
+  storageKey = STORAGE_KEY,
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
+  const [theme, setThemeState] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
+  );
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
+    resolveTheme((localStorage.getItem(storageKey) as Theme) || defaultTheme),
   );
 
   useEffect(() => {
-    const root = window.document.documentElement;
+    const resolved = resolveTheme(theme);
+    setResolvedTheme(resolved);
+    applyTheme(resolved);
 
-    root.classList.remove("light", "dark");
+    if (theme !== "system") return;
 
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
-
-      root.classList.add(systemTheme);
-      return;
-    }
-
-    root.classList.add(theme);
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => {
+      const next = getSystemTheme();
+      setResolvedTheme(next);
+      applyTheme(next);
+    };
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
   }, [theme]);
 
   const value = useMemo(
     () => ({
       theme,
-      setTheme: (theme: Theme) => {
-        localStorage.setItem(storageKey, theme);
-        setTheme(theme);
+      resolvedTheme,
+      setTheme: (nextTheme: Theme) => {
+        localStorage.setItem(storageKey, nextTheme);
+        setThemeState(nextTheme);
       },
     }),
-    [storageKey, theme],
+    [resolvedTheme, storageKey, theme],
   );
 
   return (
@@ -64,4 +104,8 @@ export function ThemeProvider({
       {children}
     </ThemeProviderContext>
   );
+}
+
+export function useTheme() {
+  return useContext(ThemeProviderContext);
 }

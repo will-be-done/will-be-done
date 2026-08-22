@@ -4,6 +4,7 @@ import { spaceRoutes } from "./v1/spaces";
 import { sectionRoutes } from "./v1/sections";
 import { taskRoutes } from "./v1/tasks";
 import { dailyListRoutes } from "./v1/dailyLists";
+import { dailyReportRoutes } from "./v1/dailyReports";
 import { taskTemplateRoutes } from "./v1/taskTemplates";
 import { checklistItemRoutes } from "./v1/checklistItems";
 import { stashRoutes } from "./v1/stash";
@@ -67,6 +68,7 @@ export const v1Routes: FastifyPluginAsyncZod = async (server) => {
   server.register(sectionRoutes);
   server.register(taskRoutes);
   server.register(dailyListRoutes);
+  server.register(dailyReportRoutes);
   server.register(taskTemplateRoutes);
   server.register(checklistItemRoutes);
   server.register(stashRoutes);
