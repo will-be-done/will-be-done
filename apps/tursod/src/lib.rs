@@ -25,16 +25,27 @@ pub async fn run() -> anyhow::Result<()> {
         EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| EnvFilter::new("tursod=info,tower_http=info")),
         sentry_monitor.is_enabled(),
+        sentry_monitor.tracing_enabled(),
     );
 
-    let result = run_server(sentry_monitor.is_enabled()).await;
+    tracing::info!(
+        sentry_enabled = sentry_monitor.is_enabled(),
+        sentry_tracing_enabled = sentry_monitor.tracing_enabled(),
+        sentry_traces_sample_rate = sentry_monitor.traces_sample_rate(),
+        "Sentry initialized"
+    );
+    let result = run_server(
+        sentry_monitor.is_enabled(),
+        sentry_monitor.tracing_enabled(),
+    )
+    .await;
     if let Err(error) = &result {
         sentry::capture_error(error.root_cause());
     }
     result
 }
 
-async fn run_server(sentry_enabled: bool) -> anyhow::Result<()> {
+async fn run_server(sentry_enabled: bool, sentry_tracing_enabled: bool) -> anyhow::Result<()> {
     let db_dir = match env::var("TURSOD_DB_PATH") {
         Ok(path) => PathBuf::from(path),
         Err(_) => env::current_dir()?.join("db"),
@@ -50,7 +61,12 @@ async fn run_server(sentry_enabled: bool) -> anyhow::Result<()> {
         "WBD_TURSOD_AUTH_TOKEN must not be empty"
     );
 
-    let app = HttpHandlers::router(Arc::clone(&dbs_state), auth_token, sentry_enabled);
+    let app = HttpHandlers::router(
+        Arc::clone(&dbs_state),
+        auth_token,
+        sentry_enabled,
+        sentry_tracing_enabled,
+    );
 
     let host = env::var("TURSOD_HOST").unwrap_or_else(|_| "127.0.0.1".to_owned());
     let host = host

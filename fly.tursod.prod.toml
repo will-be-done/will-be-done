@@ -11,6 +11,7 @@ kill_timeout = "15s"
   TURSOD_PORT = "3000"
   TURSOD_DB_PATH = "/data"
   WBD_SENTRY_ENVIRONMENT = "production"
+  WBD_SENTRY_TRACES_SAMPLE_RATE = "0"
 
 [mounts]
   source = "tursod_data"

@@ -27,11 +27,13 @@ pub(crate) const QUERY_CANCELLED_MESSAGE: &str = "query cancelled";
 /// a request receives only its request ID for correlation.
 pub(crate) struct JsonEventFormatter;
 
-pub(crate) fn initialize(filter: EnvFilter, sentry_enabled: bool) {
+pub(crate) fn initialize(filter: EnvFilter, sentry_enabled: bool, sentry_tracing_enabled: bool) {
     // `JsonEventFormatter` reads span fields from `FormattedFields` as JSON.
     // Keep `.json()` here, next to the formatter, so production cannot
     // accidentally use the default text field formatter and lose context.
-    let sentry_layer = sentry_enabled.then(sentry::integrations::tracing::layer);
+    let sentry_layer = sentry_enabled.then(|| {
+        sentry::integrations::tracing::layer().span_filter(move |_| sentry_tracing_enabled)
+    });
     let _ = tracing_subscriber::registry()
         .with(filter)
         .with(sentry_layer)

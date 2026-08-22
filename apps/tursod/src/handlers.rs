@@ -133,6 +133,7 @@ impl HttpHandlers {
         dbs_state: Arc<DbsState>,
         auth_token: String,
         sentry_enabled: bool,
+        sentry_tracing_enabled: bool,
     ) -> Router {
         let auth_token_hash = Sha256::digest(auth_token.as_bytes()).into();
         let state = Arc::new(HandlerState {
@@ -152,8 +153,13 @@ impl HttpHandlers {
 
         let router = with_http_logging(router);
         if sentry_enabled {
+            let sentry_http_layer = if sentry_tracing_enabled {
+                SentryHttpLayer::new().enable_transaction()
+            } else {
+                SentryHttpLayer::new()
+            };
             router
-                .layer(SentryHttpLayer::new().enable_transaction())
+                .layer(sentry_http_layer)
                 .layer(NewSentryLayer::<Request<Body>>::new_from_top())
         } else {
             router
@@ -325,6 +331,7 @@ mod tests {
         HttpHandlers::router(
             Arc::new(DbsState::new(directory.path().into())),
             AUTH_TOKEN.to_owned(),
+            false,
             false,
         )
     }
@@ -740,7 +747,7 @@ mod tests {
     async fn exec_recreates_an_evicted_connection() {
         let directory = TempDir::new().unwrap();
         let state = Arc::new(DbsState::new(directory.path().into()));
-        let app = HttpHandlers::router(Arc::clone(&state), AUTH_TOKEN.to_owned(), false);
+        let app = HttpHandlers::router(Arc::clone(&state), AUTH_TOKEN.to_owned(), false, false);
         let connection_id = "0198b10a-b15e-7e6a-b426-c491007f4b65";
         let base_path = format!("/dbs/test-db/conn/{connection_id}");
 

@@ -20,7 +20,13 @@ The existing synchronization API remains available at `/api/trpc`.
 `WBD_SENTRY_DSN` contains a non-empty DSN. Set the secret separately for each
 deployed service. `WBD_SENTRY_ENVIRONMENT` and `WBD_SENTRY_RELEASE` add the
 corresponding event tags but do not enable Sentry by themselves. Both services
-sample 10 percent of traces.
+read `WBD_SENTRY_TRACES_SAMPLE_RATE` as a number from 0 to 1. A value of `0`
+disables tracing without disabling error capture. The API defaults to `0.1`.
+Tursod defaults to `0`.
+
+The API sends an `API Sentry initialized` log when Sentry starts. It also sends
+`console.warn` and `console.error` calls as logs. Set `WBD_SENTRY_DEBUG=true` to
+write Sentry SDK diagnostics to the process log while you investigate delivery.
 
 The Fly configuration sets `WBD_SENTRY_ENVIRONMENT` to `staging` or
 `production`. Store each DSN as a Fly secret:
