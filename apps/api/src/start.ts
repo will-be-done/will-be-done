@@ -27,7 +27,7 @@ const start = async () => {
     const appRouter = createAppRouter({
       mainDB,
       captchaConfig: getCaptchaConfig(),
-      featurebaseJwtSecret: env.WBD_FEATUREBASE_JWT_SECRET,
+      tawkApiKey: env.WBD_TAWK_API_KEY,
     });
     const server = createServer({
       appRouter,

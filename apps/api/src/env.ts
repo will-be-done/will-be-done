@@ -39,7 +39,7 @@ const EnvConfigSchema = z.object({
     .int()
     .min(1_000)
     .default(60_000),
-  WBD_FEATUREBASE_JWT_SECRET: z.string().trim().min(1).optional(),
+  WBD_TAWK_API_KEY: z.string().trim().min(1).optional(),
 });
 
 let envConfig:
@@ -62,7 +62,7 @@ let envConfig:
       WBD_RATE_LIMIT_NAMESPACE: string;
       WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: string;
       WBD_TASK_GENERATION_INTERVAL_MS: number;
-      WBD_FEATUREBASE_JWT_SECRET?: string;
+      WBD_TAWK_API_KEY?: string;
     }
   | undefined;
 
@@ -90,7 +90,7 @@ export function getEnvConfig() {
       process.env.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
     WBD_TASK_GENERATION_INTERVAL_MS:
       process.env.WBD_TASK_GENERATION_INTERVAL_MS,
-    WBD_FEATUREBASE_JWT_SECRET: process.env.WBD_FEATUREBASE_JWT_SECRET,
+    WBD_TAWK_API_KEY: process.env.WBD_TAWK_API_KEY,
   });
 
   if (parsed.WBD_DB_ENGINE === "turso-cloud") {
@@ -154,7 +154,7 @@ export function getEnvConfig() {
     WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
       parsed.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
     WBD_TASK_GENERATION_INTERVAL_MS: parsed.WBD_TASK_GENERATION_INTERVAL_MS,
-    WBD_FEATUREBASE_JWT_SECRET: parsed.WBD_FEATUREBASE_JWT_SECRET,
+    WBD_TAWK_API_KEY: parsed.WBD_TAWK_API_KEY,
   };
 
   return envConfig;

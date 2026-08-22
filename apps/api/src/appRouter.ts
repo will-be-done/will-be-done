@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
@@ -27,20 +28,19 @@ import {
   ensureDatabaseAccessOrCreate,
 } from "./services/databaseAccess";
 import { assertSupportedSyncVersion } from "./syncVersion";
-import jwt from "jsonwebtoken";
 
 const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
 
 export interface AppRouterDependencies {
   mainDB: DB;
   captchaConfig: CaptchaConfig | null;
-  featurebaseJwtSecret?: string;
+  tawkApiKey?: string;
 }
 
 export function createAppRouter({
   mainDB,
   captchaConfig,
-  featurebaseJwtSecret,
+  tawkApiKey,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
     dbId: string,
@@ -58,20 +58,14 @@ export function createAppRouter({
   };
 
   return router({
-    getFeaturebaseIdentity: protectedProcedure.query((opts) => {
-      if (!featurebaseJwtSecret) {
-        return { featurebaseJwt: null };
-      }
+    getTawkIdentity: protectedProcedure.query((opts) => {
+      if (!tawkApiKey) return null;
 
+      const { id: userId, email } = opts.ctx.user;
       return {
-        featurebaseJwt: jwt.sign(
-          {
-            userId: opts.ctx.user.id,
-            email: opts.ctx.user.email,
-          },
-          featurebaseJwtSecret,
-          { algorithm: "HS256" },
-        ),
+        userId,
+        email,
+        hash: createHmac("sha256", tawkApiKey).update(userId).digest("hex"),
       };
     }),
 

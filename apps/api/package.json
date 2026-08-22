@@ -18,7 +18,6 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/bun": "latest",
-    "@types/jsonwebtoken": "^9.0.10",
     "@typescript/native-preview": "^7.0.0-dev.20260304.1",
     "eslint": "^9.39.1",
     "eslint-plugin-unused-imports": "^4.3.0",
@@ -55,7 +54,6 @@
     "fastify-type-provider-zod": "^7.0.0",
     "fractional-indexing-jittered": "^1.0.0",
     "ioredis": "^6.0.0",
-    "jsonwebtoken": "^9.0.3",
     "uuidv7": "^1.1.0",
     "ws": "^8.19.0",
     "zod": "^4.1.13"

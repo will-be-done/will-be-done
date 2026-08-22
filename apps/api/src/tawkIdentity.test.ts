@@ -1,52 +1,46 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import { DB } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { TRPCError } from "@trpc/server";
-import jwt from "jsonwebtoken";
 import { createAppRouter } from "./appRouter";
 
 const user = { id: "user-123", email: "person@example.com" };
 
-describe("Featurebase identity", () => {
-  test("signs the authenticated user with HS256", async () => {
-    const secret = "featurebase-test-secret";
+describe("Tawk identity", () => {
+  test("signs the authenticated user ID with HMAC-SHA256", async () => {
+    const apiKey = "tawk-test-api-key";
     const caller = createAppRouter({
       mainDB: new DB(new BptreeInmemDriver()),
       captchaConfig: null,
-      featurebaseJwtSecret: secret,
+      tawkApiKey: apiKey,
     }).createCaller({ user });
 
-    const { featurebaseJwt } = await caller.getFeaturebaseIdentity();
-
-    expect(featurebaseJwt).not.toBeNull();
-    expect(
-      jwt.verify(featurebaseJwt!, secret, { algorithms: ["HS256"] }),
-    ).toMatchObject({
+    expect(await caller.getTawkIdentity()).toEqual({
       userId: user.id,
       email: user.email,
+      hash: createHmac("sha256", apiKey).update(user.id).digest("hex"),
     });
   });
 
-  test("keeps authenticated users anonymous when no secret is configured", async () => {
+  test("keeps authenticated users anonymous without an API key", async () => {
     const caller = createAppRouter({
       mainDB: new DB(new BptreeInmemDriver()),
       captchaConfig: null,
     }).createCaller({ user });
 
-    expect(await caller.getFeaturebaseIdentity()).toEqual({
-      featurebaseJwt: null,
-    });
+    expect(await caller.getTawkIdentity()).toBeNull();
   });
 
   test("rejects anonymous callers", async () => {
     const caller = createAppRouter({
       mainDB: new DB(new BptreeInmemDriver()),
       captchaConfig: null,
-      featurebaseJwtSecret: "featurebase-test-secret",
+      tawkApiKey: "tawk-test-api-key",
     }).createCaller({ user: null });
 
     try {
-      await caller.getFeaturebaseIdentity();
+      await caller.getTawkIdentity();
       throw new Error("Expected anonymous identity lookup to fail");
     } catch (error) {
       expect(error).toBeInstanceOf(TRPCError);

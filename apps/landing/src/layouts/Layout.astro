@@ -1,7 +1,7 @@
 ---
 import '../styles/global.css';
 import PostHog from '../components/posthog.astro';
-import Featurebase from '../components/Featurebase.astro';
+import Tawk from '../components/Tawk.astro';
 import { serialiseJsonLd } from '../lib/jsonLd';
 
 interface Props {
@@ -201,7 +201,7 @@ const structuredData = {
   </head>
   <body>
     <slot />
-    <Featurebase />
+    <Tawk />
   </body>
 </html>
 

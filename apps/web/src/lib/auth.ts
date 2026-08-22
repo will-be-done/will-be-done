@@ -1,7 +1,5 @@
 import { resetWsClient } from "./trpc";
 import { queryClient } from "./query";
-import { shutdown } from "featurebase-js";
-import { isFeaturebaseHostname } from "@/components/Featurebase/featurebaseHostname";
 
 const AUTH_TOKEN_KEY = "auth_token";
 const USER_ID_KEY = "user_id";
@@ -35,6 +33,7 @@ export const authUtils = {
   },
   setLastUsedSpaceId: (spaceId: string): void => {
     localStorage.setItem(LAST_USED_SPACE_ID_KEY, spaceId);
+    notifyAuthListeners();
   },
 
   removeToken: (): void => {
@@ -47,12 +46,10 @@ export const authUtils = {
   },
   removeLastUsedSpaceId: (): void => {
     localStorage.removeItem(LAST_USED_SPACE_ID_KEY);
+    notifyAuthListeners();
   },
 
   signOut: (): void => {
-    if (isFeaturebaseHostname(window.location.hostname)) {
-      shutdown();
-    }
     authUtils.removeToken();
     authUtils.removeUserId();
     authUtils.removeLastUsedSpaceId();
@@ -66,7 +63,11 @@ export const authUtils = {
     return () => authListeners.delete(listener);
   },
   getSnapshot: (): string => {
-    return `${authUtils.getToken() ?? ""}\0${authUtils.getUserId() ?? ""}`;
+    return [
+      authUtils.getToken() ?? "",
+      authUtils.getUserId() ?? "",
+      authUtils.getLastUsedSpaceId() ?? "",
+    ].join("\0");
   },
 
   // It's a bit hacky, but it works for now

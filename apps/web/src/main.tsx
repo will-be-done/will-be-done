@@ -18,7 +18,7 @@ import { action as webAction, selector as webSelector } from "@/store/builders";
 import reportWebVitals from "./reportWebVitals.ts";
 import { initSentry } from "./instrument.ts";
 import { getRouter } from "./router.tsx";
-import { FeaturebaseRoot } from "./components/Featurebase/FeaturebaseRoot.tsx";
+import { TawkIdentity } from "./components/Tawk/TawkIdentity.tsx";
 
 // scan({
 //   enabled: true,
@@ -88,11 +88,12 @@ if (rootElement && !rootElement.innerHTML) {
       : undefined,
   );
   root.render(
-    <FeaturebaseRoot>
+    <>
+      <TawkIdentity />
       <StrictMode>
         <RouterProvider router={router} />
       </StrictMode>
-    </FeaturebaseRoot>,
+    </>,
   );
 }
 
