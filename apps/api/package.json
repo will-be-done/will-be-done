@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "WBD_DB_PATH=../../db bun run src/start.ts",
+    "dev": "WBD_DB_PATH=../../db bun --preload ./src/instrument.ts src/start.ts",
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -40,6 +40,7 @@
     "@fastify/swagger": "^9.8.1",
     "@fastify/websocket": "^11.2.0",
     "@scalar/fastify-api-reference": "^1.63.0",
+    "@sentry/bun": "^10.70.0",
     "@trpc/client": "^11.7.2",
     "@trpc/server": "^11.7.2",
     "@tursodatabase/api": "^2.0.5",

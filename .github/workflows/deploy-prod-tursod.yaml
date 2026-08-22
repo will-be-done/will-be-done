@@ -27,7 +27,15 @@ jobs:
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master
 
+      - name: Compute Sentry release
+        id: sentry
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "release=${version}-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
       - name: Deploy production tursod
-        run: flyctl deploy --remote-only --config fly.tursod.prod.toml --app wbd-tursod-prod
+        run: |
+          flyctl deploy --remote-only --config fly.tursod.prod.toml --app wbd-tursod-prod \
+            --env WBD_SENTRY_RELEASE="${{ steps.sentry.outputs.release }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_TURSOD_PROD }}

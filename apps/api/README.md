@@ -14,6 +14,22 @@ pnpm dev
 
 The existing synchronization API remains available at `/api/trpc`.
 
+## Sentry
+
+`apps/api` and `apps/tursod` initialize Sentry only when
+`WBD_SENTRY_DSN` contains a non-empty DSN. Set the secret separately for each
+deployed service. `WBD_SENTRY_ENVIRONMENT` and `WBD_SENTRY_RELEASE` add the
+corresponding event tags but do not enable Sentry by themselves. Both services
+sample 10 percent of traces.
+
+The Fly configuration sets `WBD_SENTRY_ENVIRONMENT` to `staging` or
+`production`. Store each DSN as a Fly secret:
+
+```bash
+fly secrets set WBD_SENTRY_DSN=<api-dsn> --app wbd-app-prod
+fly secrets set WBD_SENTRY_DSN=<tursod-dsn> --app wbd-tursod-prod
+```
+
 Every HTTP endpoint has a general limit of 300 requests per minute per IP.
 Login, registration, and Todoist imports have stricter targeted limits. The
 limiter is enabled by default and can be explicitly disabled with

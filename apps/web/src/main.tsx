@@ -2,6 +2,7 @@ import "./fixGlobal";
 // import { scan } from "react-scan";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import * as Sentry from "@sentry/react";
 import "./index.css";
 import { RouterProvider } from "@tanstack/react-router";
 import {
@@ -15,11 +16,16 @@ import { action as webAction, selector as webSelector } from "@/store/builders";
 // Import the generated route tree
 
 import reportWebVitals from "./reportWebVitals.ts";
+import { initSentry } from "./instrument.ts";
 import { getRouter } from "./router.tsx";
 
 // scan({
 //   enabled: true,
 // });
+
+// Create the router before Sentry so navigation tracing can use its route tree.
+const router = getRouter();
+const sentryEnabled = initSentry(router);
 
 const traceStartOn =
   getDevtoolsEnabled() || process.env.NODE_ENV === "development"
@@ -29,9 +35,6 @@ slicesSelector.configure({ trace: { enabled: true, startOn: traceStartOn } });
 slicesAction.configure({ trace: { enabled: true, startOn: traceStartOn } });
 webSelector.configure({ trace: { enabled: true, startOn: traceStartOn } });
 webAction.configure({ trace: { enabled: true, startOn: traceStartOn } });
-
-// Create a new router instance
-const router = getRouter();
 
 // Register the router instance for type safety
 declare module "@tanstack/react-router" {
@@ -73,7 +76,16 @@ if (/Firefox|FxiOS/i.test(navigator.userAgent)) {
 // Render the app
 const rootElement = document.getElementById("root");
 if (rootElement && !rootElement.innerHTML) {
-  const root = createRoot(rootElement);
+  const root = createRoot(
+    rootElement,
+    sentryEnabled
+      ? {
+          onUncaughtError: Sentry.reactErrorHandler(),
+          onCaughtError: Sentry.reactErrorHandler(),
+          onRecoverableError: Sentry.reactErrorHandler(),
+        }
+      : undefined,
+  );
   root.render(
     <StrictMode>
       <RouterProvider router={router} />

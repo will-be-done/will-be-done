@@ -22,6 +22,8 @@ COPY apps/slices ./apps/slices
 # Build the application using pnpm
 # Assumes your build script is named "build" in package.json
 WORKDIR /app/apps/web
+ARG VITE_SENTRY_DSN
+ARG VITE_SENTRY_RELEASE
 RUN pnpm exec vite build
 WORKDIR /app
 
@@ -51,4 +53,4 @@ ENV WBD_DB_PATH=/var/lib/will-be-done/db
 EXPOSE 3000
 
 # Start Bun server
-CMD ["bun", "run", "/app/apps/api/src/start.ts"]
+CMD ["bun", "--preload", "/app/apps/api/src/instrument.ts", "/app/apps/api/src/start.ts"]

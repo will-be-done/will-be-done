@@ -65,6 +65,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute Sentry release
+        id: sentry
+        run: echo "release=${{ needs.validate-tag.outputs.version }}-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -90,6 +94,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ needs.validate-tag.outputs.version }}
+            VITE_SENTRY_DSN=${{ secrets.WBD_WEB_SENTRY_DSN }}
+            VITE_SENTRY_RELEASE=${{ steps.sentry.outputs.release }}
 
       - name: Create release summary
         run: |

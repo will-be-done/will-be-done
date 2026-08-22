@@ -13,6 +13,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use serde_derive::Serialize;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -128,7 +129,11 @@ struct HandlerState {
 }
 
 impl HttpHandlers {
-    pub(crate) fn router(dbs_state: Arc<DbsState>, auth_token: String) -> Router {
+    pub(crate) fn router(
+        dbs_state: Arc<DbsState>,
+        auth_token: String,
+        sentry_enabled: bool,
+    ) -> Router {
         let auth_token_hash = Sha256::digest(auth_token.as_bytes()).into();
         let state = Arc::new(HandlerState {
             dbs: dbs_state,
@@ -145,7 +150,14 @@ impl HttpHandlers {
             )
             .with_state(state);
 
-        with_http_logging(router)
+        let router = with_http_logging(router);
+        if sentry_enabled {
+            router
+                .layer(SentryHttpLayer::new().enable_transaction())
+                .layer(NewSentryLayer::<Request<Body>>::new_from_top())
+        } else {
+            router
+        }
     }
 
     async fn health() -> StatusCode {
@@ -313,6 +325,7 @@ mod tests {
         HttpHandlers::router(
             Arc::new(DbsState::new(directory.path().into())),
             AUTH_TOKEN.to_owned(),
+            false,
         )
     }
 
@@ -727,7 +740,7 @@ mod tests {
     async fn exec_recreates_an_evicted_connection() {
         let directory = TempDir::new().unwrap();
         let state = Arc::new(DbsState::new(directory.path().into()));
-        let app = HttpHandlers::router(Arc::clone(&state), AUTH_TOKEN.to_owned());
+        let app = HttpHandlers::router(Arc::clone(&state), AUTH_TOKEN.to_owned(), false);
         let connection_id = "0198b10a-b15e-7e6a-b426-c491007f4b65";
         let base_path = format!("/dbs/test-db/conn/{connection_id}");
 

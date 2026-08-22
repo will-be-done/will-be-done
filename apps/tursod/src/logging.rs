@@ -7,7 +7,9 @@ use tracing_subscriber::{
         format::Writer,
         time::{FormatTime, SystemTime},
     },
+    layer::SubscriberExt,
     registry::LookupSpan,
+    util::SubscriberInitExt,
 };
 
 const REQUEST_SPAN_NAME: &str = "http_request";
@@ -25,14 +27,19 @@ pub(crate) const QUERY_CANCELLED_MESSAGE: &str = "query cancelled";
 /// a request receives only its request ID for correlation.
 pub(crate) struct JsonEventFormatter;
 
-pub(crate) fn initialize(filter: EnvFilter) {
+pub(crate) fn initialize(filter: EnvFilter, sentry_enabled: bool) {
     // `JsonEventFormatter` reads span fields from `FormattedFields` as JSON.
     // Keep `.json()` here, next to the formatter, so production cannot
     // accidentally use the default text field formatter and lose context.
-    let _ = tracing_subscriber::fmt()
-        .json()
-        .event_format(JsonEventFormatter)
-        .with_env_filter(filter)
+    let sentry_layer = sentry_enabled.then(sentry::integrations::tracing::layer);
+    let _ = tracing_subscriber::registry()
+        .with(filter)
+        .with(sentry_layer)
+        .with(
+            tracing_subscriber::fmt::layer()
+                .json()
+                .event_format(JsonEventFormatter),
+        )
         .try_init();
 }
 

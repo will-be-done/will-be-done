@@ -4,6 +4,7 @@ import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
 import { closeDatabases, getMainHyperDB } from "./db/db";
 import { getEnvConfig } from "./env";
+import { captureException, closeSentry } from "./instrument";
 import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
 import { subscriptionManager } from "./subscriptionManager";
@@ -69,6 +70,7 @@ const start = async () => {
         };
 
         backupWorker.onerror = (error) => {
+          captureException(error);
           console.error("[Backup] Worker error:", error);
         };
 
@@ -78,6 +80,7 @@ const start = async () => {
           dbsPath,
         } satisfies WorkerMessage);
       } catch (error) {
+        captureException(error);
         console.error("[Backup] Failed to initialize backup worker");
         if (error instanceof Error) {
           console.error("[Backup] Error name:", error.name);
@@ -134,9 +137,12 @@ const start = async () => {
             await server.close();
             await subscriptionManager.close();
             await closeDatabases();
+            await closeSentry();
             server.log.info("Server closed successfully");
             process.exit(0);
           } catch (error) {
+            captureException(error);
+            await closeSentry();
             server.log.error(`Error during graceful shutdown: ${error}`);
             process.exit(1);
           }
@@ -144,6 +150,7 @@ const start = async () => {
       });
     }
   } catch (error) {
+    captureException(error);
     console.error(error);
     try {
       await subscriptionManager.close();
@@ -155,6 +162,7 @@ const start = async () => {
     } catch (cleanupError) {
       console.error("Failed to close databases", cleanupError);
     }
+    await closeSentry();
     process.exit(1);
   }
 };

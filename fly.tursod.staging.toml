@@ -10,6 +10,7 @@ kill_timeout = "15s"
   TURSOD_HOST = "::"
   TURSOD_PORT = "3000"
   TURSOD_DB_PATH = "/data"
+  WBD_SENTRY_ENVIRONMENT = "staging"
 
 [mounts]
   source = "tursod_data"

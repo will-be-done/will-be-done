@@ -3,6 +3,7 @@ mod errors;
 mod handlers;
 mod http_logging;
 mod logging;
+mod monitoring;
 mod schema_repair;
 mod state;
 
@@ -19,11 +20,21 @@ use crate::{
 };
 
 pub async fn run() -> anyhow::Result<()> {
+    let sentry_monitor = monitoring::initialize_sentry()?;
     logging::initialize(
         EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| EnvFilter::new("tursod=info,tower_http=info")),
+        sentry_monitor.is_enabled(),
     );
 
+    let result = run_server(sentry_monitor.is_enabled()).await;
+    if let Err(error) = &result {
+        sentry::capture_error(error.root_cause());
+    }
+    result
+}
+
+async fn run_server(sentry_enabled: bool) -> anyhow::Result<()> {
     let db_dir = match env::var("TURSOD_DB_PATH") {
         Ok(path) => PathBuf::from(path),
         Err(_) => env::current_dir()?.join("db"),
@@ -39,7 +50,7 @@ pub async fn run() -> anyhow::Result<()> {
         "WBD_TURSOD_AUTH_TOKEN must not be empty"
     );
 
-    let app = HttpHandlers::router(Arc::clone(&dbs_state), auth_token);
+    let app = HttpHandlers::router(Arc::clone(&dbs_state), auth_token, sentry_enabled);
 
     let host = env::var("TURSOD_HOST").unwrap_or_else(|_| "127.0.0.1".to_owned());
     let host = host

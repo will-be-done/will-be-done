@@ -23,6 +23,7 @@ import { createContext } from "./trpc";
 import { v1Routes } from "./http/v1";
 import { syncV4Routes } from "./sync/routes";
 import type { DB } from "@will-be-done/hyperdb";
+import { setupSentryErrorHandler } from "./instrument";
 
 export interface CreateServerOptions {
   appRouter: AppRouter;
@@ -47,6 +48,8 @@ export function createServer({
     // forwarded headers, so only private-network proxies are trusted.
     trustProxy: ["loopback", "linklocal", "uniquelocal"],
   });
+
+  setupSentryErrorHandler(server);
 
   server.setValidatorCompiler(validatorCompiler);
   server.setSerializerCompiler(serializerCompiler);

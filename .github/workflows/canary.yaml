@@ -22,7 +22,11 @@ jobs:
 
       - name: Generate image tag
         id: tag
-        run: echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          commit="$(git rev-parse --short=8 HEAD)"
+          echo "tag=$commit" >> "$GITHUB_OUTPUT"
+          echo "release=${version}-${commit}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -58,3 +62,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_SENTRY_DSN=${{ secrets.WBD_WEB_SENTRY_DSN }}
+            VITE_SENTRY_RELEASE=${{ steps.tag.outputs.release }}
