@@ -310,8 +310,9 @@ function createWindow(showOnReady = true): void {
     show: false,
     autoHideMenuBar: process.platform !== 'darwin',
     backgroundColor: '#100c09',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    ...(process.platform === 'darwin'
+      ? { titleBarStyle: 'default' as const }
+      : {}),
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

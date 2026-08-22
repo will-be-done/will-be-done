@@ -137,7 +137,7 @@ export const TasksColumn = ({
       ref={columnRef}
       className={cn(
         "relative flex h-full min-h-0 min-w-0 flex-col px-1.5 pt-1 pb-2 group",
-        isHidden || panelWidth != null ? "flex-none" : "flex-1 min-w-80",
+        isHidden || panelWidth != null ? "flex-none" : "w-72 shrink-0",
       )}
       style={
         !isHidden && panelWidth != null
@@ -191,7 +191,7 @@ export const TasksColumn = ({
       )}
       <div
         className={cn(
-          "min-h-0 flex-1 overflow-y-auto rounded-xl bg-panel ring-1 ring-border",
+          "min-h-0 flex-1 overflow-y-auto rounded-xl bg-[#fbfbfa] ring-1 ring-border dark:bg-[oklch(48%_0.02_55)]",
           {
             hidden: isHidden,
             "ring-2 ring-accent": isOver && !isHidden,

@@ -145,10 +145,13 @@ export const setTaskTimeBlock = action({
 
     const next: Task = { ...task };
 
-    if (startsAt === null || durationMinutes === null) {
+    if (startsAt === null) {
       delete next.startsAt;
-      delete next.durationMinutes;
       delete next.timeBlockPinned;
+    }
+
+    if (durationMinutes === null) {
+      delete next.durationMinutes;
     } else if (typeof durationMinutes === "number" && durationMinutes > 0) {
       next.durationMinutes = durationMinutes;
     }

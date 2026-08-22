@@ -15,6 +15,8 @@ import {
   appById,
   dailyEntryByTaskId,
   dailyEntryType,
+  dailyListByDate,
+  dailyListTasksByState,
   hasTimeBlock,
   placeTaskOnCalendar,
   taskOfModel,
@@ -123,6 +125,16 @@ export function DayTimeline({ date }: { date: Date }) {
     },
     defaultValue: [],
   });
+  const dayKey = format(dayStart, "yyyy-MM-dd");
+  const { data: dailyList } = useAsyncSelector({
+    selector: dailyListByDate,
+    args: { date: dayKey },
+  });
+  const { data: dayTasks = [] } = useAsyncSelector({
+    selector: dailyListTasksByState,
+    args: { dailyListId: dailyList?.id ?? "", state: "todo" },
+    defaultValue: [],
+  });
   const { data: preferences } = useAsyncSelector({
     selector: spacePreferences,
     args: {},
@@ -140,7 +152,6 @@ export function DayTimeline({ date }: { date: Date }) {
       ),
     [dayStart, rangedTasks],
   );
-  const dayKey = format(dayStart, "yyyy-MM-dd");
   const upcomingForDay = useMemo(
     () =>
       upcomingOccurrences.filter((occurrence) => occurrence.date === dayKey),
@@ -151,6 +162,10 @@ export function DayTimeline({ date }: { date: Date }) {
   );
   const timedUpcoming = upcomingForDay.filter(
     (occurrence) => occurrence.startsAtMinutes != null,
+  );
+  const untimedTasks = useMemo(
+    () => dayTasks.filter((task) => task.startsAt == null),
+    [dayTasks],
   );
 
   const now = new Date();
@@ -249,8 +264,11 @@ export function DayTimeline({ date }: { date: Date }) {
 
   return (
     <div className="day-timeline">
-      {untimedUpcoming.length > 0 && (
+      {(untimedTasks.length > 0 || untimedUpcoming.length > 0) && (
         <div className="day-timeline__allday">
+          {untimedTasks.map((task) => (
+            <UntimedTaskChip key={task.id} task={task} />
+          ))}
           {untimedUpcoming.map((occurrence) => (
             <button
               key={occurrence.id}
@@ -389,6 +407,36 @@ export function DayTimeline({ date }: { date: Date }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function UntimedTaskChip({ task }: { task: Task }) {
+  const select = useSelectAsync();
+
+  return (
+    <button
+      type="button"
+      className="day-timeline__allday-chip day-timeline__allday-chip--task"
+      onClick={() => {
+        void (async () => {
+          const entry = await select({
+            selector: dailyEntryByTaskId,
+            args: { taskId: task.id },
+          });
+          useItemDetailsOpen.getState().setOpen(true);
+          useFocusStore
+            .getState()
+            .focusByKey(
+              entry
+                ? buildFocusKey(entry.id, dailyEntryType)
+                : buildFocusKey(task.id, taskType),
+              true,
+            );
+        })();
+      }}
+    >
+      {task.title || "Untitled"}
+    </button>
   );
 }
 

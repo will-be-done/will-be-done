@@ -24,7 +24,7 @@ export const LayoutWithSidebar = ({
       <AppSidebar />
       <SidebarInset className="min-h-0 bg-transparent">
         <div className="relative h-full">
-          <SidebarTrigger className="absolute left-2 top-2 z-30 cursor-pointer data-[open=true]:hidden safari:backdrop-blur-none desktop-macos:data-[open=false]:ml-20 desktop-macos:top-2.5 [app-region:no-drag]" />
+          <SidebarTrigger className="absolute left-2 top-2 z-30 cursor-pointer data-[open=true]:hidden safari:backdrop-blur-none [app-region:no-drag]" />
           {children}
         </div>
       </SidebarInset>

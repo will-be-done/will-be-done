@@ -114,9 +114,11 @@ export const Stash = () => {
     const focusState = useFocusStore.getState();
     const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
 
+    const isStashShortcut =
+      noModifiers && (e.code === "KeyS" || e.code === "Backslash");
+
     if (
-      e.code !== "Backslash" ||
-      !noModifiers ||
+      !isStashShortcut ||
       focusState.isFocusDisabled ||
       !!focusState.editItemKey ||
       e.defaultPrevented

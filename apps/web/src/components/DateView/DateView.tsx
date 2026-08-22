@@ -287,29 +287,31 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
     <div className="relative h-full min-w-0 overflow-hidden">
       <Stash />
       <div
-        className="flex h-full min-h-0"
+        className="flex h-full min-h-0 justify-center"
         style={{
           paddingLeft: stashOffset ? `${stashOffset}px` : undefined,
           transition: "padding-left 200ms ease-out",
         }}
       >
-        <div
-          data-scroll-restoration-id={scrollRestorationId}
-          className="h-full w-full min-w-[280px] max-w-lg overflow-y-auto"
-        >
-          <div className="max-w-lg mx-auto px-4 py-4">
-            {dailyLists[0] && (
-              <SingleDayColumn
-                dailyList={dailyLists[0]}
-                inboxId={inboxId}
-                previousDate={previousDate}
-                nextDate={nextDate}
-              />
-            )}
+        <div className="flex h-full min-h-0 w-full max-w-4xl">
+          <div
+            data-scroll-restoration-id={scrollRestorationId}
+            className="h-full w-full min-w-[280px] max-w-lg overflow-y-auto"
+          >
+            <div className="max-w-lg mx-auto px-4 py-4">
+              {dailyLists[0] && (
+                <SingleDayColumn
+                  dailyList={dailyLists[0]}
+                  inboxId={inboxId}
+                  previousDate={previousDate}
+                  nextDate={nextDate}
+                />
+              )}
+            </div>
           </div>
-        </div>
-        <div className="hidden h-full min-w-[260px] flex-1 md:block">
-          <DayTimeline date={startingDate} />
+          <div className="hidden h-full min-w-[260px] flex-1 md:block">
+            <DayTimeline date={startingDate} />
+          </div>
         </div>
       </div>
     </div>

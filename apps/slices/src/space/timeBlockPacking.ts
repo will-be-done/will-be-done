@@ -16,6 +16,8 @@ import {
 } from "./tables";
 import { dailyDateFormat } from "./utils";
 
+export const SNAP_DURATION_MINUTES = 5;
+
 export function startsAtFromDateAndMinutes(
   date: string,
   minutesOfDay: number,
@@ -113,6 +115,23 @@ function withDuration(task: Task): task is Task & { durationMinutes: number } {
   return task.durationMinutes != null && task.durationMinutes > 0;
 }
 
+export function completedDurationMinutes(
+  startsAt: number,
+  durationMinutes: number,
+  now: number,
+): number | null {
+  if (durationMinutes <= 0) return null;
+  const plannedEnd = startsAt + durationMinutes * 60 * 1000;
+  if (now >= plannedEnd) return null;
+  const elapsedMinutes = Math.max(0, (now - startsAt) / 60_000);
+  const snapped =
+    Math.round(elapsedMinutes / SNAP_DURATION_MINUTES) * SNAP_DURATION_MINUTES;
+  return Math.max(
+    SNAP_DURATION_MINUTES,
+    Math.min(durationMinutes, snapped),
+  );
+}
+
 function isFrozenTimeBlock(task: Task): boolean {
   return task.timeBlockPinned === true || task.state === "done";
 }
@@ -164,17 +183,9 @@ export const packDailyListTimeBlocks = action({
       const task = taskById.get(entry.taskId);
       if (!task) continue;
 
-      if (!withDuration(task)) {
-        if (task.startsAt != null || task.timeBlockPinned) {
-          const next = { ...task };
-          delete next.startsAt;
-          delete next.timeBlockPinned;
-          updates.push(next);
-        }
-        continue;
-      }
+      if (!withDuration(task) || task.startsAt == null) continue;
 
-      if (isFrozenTimeBlock(task) && task.startsAt != null) continue;
+      if (isFrozenTimeBlock(task)) continue;
 
       const placed = placeDuration(
         windows,
@@ -196,6 +207,74 @@ export const packDailyListTimeBlocks = action({
     if (updates.length > 0) {
       yield* upsert(tasksTable, updates);
     }
+  },
+});
+
+export const collapseCompletedTimeBlock = action({
+  name: "collapseCompletedTimeBlock",
+  args: {
+    taskId: v.string(),
+    now: v.optional(v.number()),
+  },
+  handler: function* collapseCompletedTimeBlock({
+    taskId,
+    now,
+  }): Generator<unknown, void, unknown> {
+    const at = now ?? Date.now();
+    const rows = yield* selectFrom(tasksTable, "byId")
+      .where((q) => q.eq("id", taskId))
+      .limit(1);
+    const task = rows[0] as Task | undefined;
+    if (!task || task.startsAt == null || !withDuration(task)) return;
+
+    const nextDuration = completedDurationMinutes(
+      task.startsAt,
+      task.durationMinutes,
+      at,
+    );
+    if (nextDuration == null) return;
+
+    const completedStart = task.startsAt;
+    const updates: Task[] = [];
+    if (nextDuration !== task.durationMinutes) {
+      updates.push({ ...task, durationMinutes: nextDuration });
+    }
+
+    const entry = (yield* selectFrom(dailyEntriesTable, "byTaskId")
+      .where((q) => q.eq("taskId", taskId))
+      .first()) as DailyEntry | undefined;
+    if (!entry) {
+      if (updates.length > 0) yield* upsert(tasksTable, updates);
+      return;
+    }
+
+    const entries = (yield* selectFrom(
+      dailyEntriesTable,
+      "byDailyListIdTokenOrdered",
+    ).where((q) => q.eq("dailyListId", entry.dailyListId))) as DailyEntry[];
+    const laterIds = entries
+      .filter((item) => item.taskId !== taskId)
+      .map((item) => item.taskId);
+    const laterTasks =
+      laterIds.length === 0
+        ? []
+        : ((yield* selectFrom(tasksTable, "byId").where((q) =>
+            laterIds.map((id) => q.eq("id", id)),
+          )) as Task[]);
+
+    for (const later of laterTasks) {
+      if (later.state === "done") continue;
+      if (later.startsAt == null || later.startsAt < completedStart) continue;
+      if (!later.timeBlockPinned) continue;
+      const next = { ...later };
+      delete next.timeBlockPinned;
+      updates.push(next);
+    }
+
+    if (updates.length > 0) {
+      yield* upsert(tasksTable, updates);
+    }
+    yield* packDailyListTimeBlocks({ dailyListId: entry.dailyListId });
   },
 });
 

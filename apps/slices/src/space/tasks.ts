@@ -19,6 +19,7 @@ import {
   deleteForParents,
 } from "./checklistItems";
 import { deleteDailyEntriesByTaskIds } from "./dailyEntries";
+import { collapseCompletedTimeBlock } from "./timeBlockPacking";
 import { deleteStashEntriesByTaskIds } from "./stashEntries";
 import { firstProjectSectionChild } from "./projectSections";
 import { projectSectionItemSiblings } from "./projectSectionItems";
@@ -417,13 +418,19 @@ export const toggleTaskState = action({
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 
+    const now = Date.now();
+    const nextState = task.state === "todo" ? "done" : "todo";
     yield* upsert(tasksTable, [
       {
         ...task,
-        state: task.state === "todo" ? "done" : "todo",
-        lastToggledAt: Date.now(),
+        state: nextState,
+        lastToggledAt: now,
       },
     ]);
+
+    if (nextState === "done") {
+      yield* collapseCompletedTimeBlock({ taskId, now });
+    }
   },
 });
 

@@ -283,6 +283,14 @@ export function TaskBody({
                 }),
               );
             }}
+            onClear={() =>
+              void dispatch(
+                setTaskTimeBlock({
+                  id: taskId,
+                  startsAt: null,
+                }),
+              )
+            }
           >
             <button
               type="button"

@@ -3,7 +3,6 @@
   height: 100%;
   min-width: 0;
   flex-direction: column;
-  border-left: 1px solid var(--calendar-border);
   background: transparent;
 }
 
@@ -130,6 +129,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.day-timeline__allday-chip--task {
+  opacity: 1;
+  border-style: solid;
 }
 
 .day-timeline__event:active {

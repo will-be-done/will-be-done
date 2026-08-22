@@ -509,6 +509,7 @@ export function RepeatModal({
                     inline
                     value={startsAtMinutes ?? 9 * 60}
                     onChange={setStartsAtMinutes}
+                    onClear={() => setStartsAtMinutes(null)}
                   >
                     <button
                       type="button"
@@ -526,15 +527,6 @@ export function RepeatModal({
                         : formatClockMinutes(startsAtMinutes)}
                     </button>
                   </TimePicker>
-                  {startsAtMinutes != null && (
-                    <button
-                      type="button"
-                      onClick={() => setStartsAtMinutes(null)}
-                      className="text-sm text-content-tinted hover:text-content transition-colors cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  )}
                 </div>
               </div>
 

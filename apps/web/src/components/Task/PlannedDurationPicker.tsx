@@ -53,6 +53,7 @@ export function TaskStartTimeField({
         next.setHours(Math.floor(nextMinutes / 60), nextMinutes % 60, 0, 0);
         onChange(next.getTime());
       }}
+      onClear={() => onChange(null)}
     >
       <button
         type="button"
@@ -134,6 +135,19 @@ export function PlannedDurationPicker({
           </div>
         </div>
         <div className="max-h-64 overflow-y-auto border-t border-ring py-1">
+          <button
+            type="button"
+            className={cn(
+              "flex w-full cursor-pointer px-3 py-2 text-left text-sm text-content hover:bg-panel-hover",
+              value == null && "bg-panel-hover",
+            )}
+            onClick={() => {
+              onChange(undefined);
+              setOpen(false);
+            }}
+          >
+            None
+          </button>
           {options.map((minutes) => (
             <button
               key={minutes}

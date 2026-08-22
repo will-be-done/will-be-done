@@ -13,6 +13,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { PanelLeftClose } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { format, startOfDay } from "date-fns";
@@ -88,6 +89,22 @@ const InboxIcon = ({ className }: { className?: string }) => (
     />
   </svg>
 );
+
+const HideSidebarButton = () => {
+  const { toggleSidebar } = useSidebar();
+
+  return (
+    <button
+      type="button"
+      aria-label="Hide sidebar"
+      title="Hide sidebar"
+      onClick={toggleSidebar}
+      className="flex size-7 shrink-0 items-center justify-center rounded-md text-content-tinted/70 hover:bg-overlay hover:text-content cursor-pointer"
+    >
+      <PanelLeftClose className="size-4" strokeWidth={1.6} />
+    </button>
+  );
+};
 
 const useCloseMobileOnNav = () => {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -195,19 +212,21 @@ export const AppSidebar = () => {
     <Sidebar
       side="left"
       collapsible="offcanvas"
-      className="left-12 [&_[data-slot=sidebar-container]]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-surface [&_[data-slot=sidebar-inner]]:ring-0 dark:[&_[data-slot=sidebar-inner]]:bg-surface-elevated dark:[&_[data-slot=sidebar-inner]]:ring-1 dark:[&_[data-slot=sidebar-inner]]:ring-ring"
+      className="left-12 [&_[data-slot=sidebar-container]]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-white [&_[data-slot=sidebar-inner]]:ring-0 dark:[&_[data-slot=sidebar-inner]]:bg-surface-elevated dark:[&_[data-slot=sidebar-inner]]:ring-1 dark:[&_[data-slot=sidebar-inner]]:ring-ring"
     >
       <SidebarRail />
       <SidebarHeader className="px-2 pt-3 pb-0 gap-0">
-        {/* Today + Inbox */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <TodayNavItem />
-          {inbox && (
-            <InboxNavItem
-              inboxId={inbox.project.id}
-              notDoneCount={inbox.notDoneCount}
-            />
-          )}
+        <div className="flex items-start gap-1">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5">
+            <TodayNavItem />
+            {inbox && (
+              <InboxNavItem
+                inboxId={inbox.project.id}
+                notDoneCount={inbox.notDoneCount}
+              />
+            )}
+          </div>
+          <HideSidebarButton />
         </div>
 
         {/* Divider + Projects label */}

@@ -101,7 +101,7 @@ export const SpaceNavLinks = () => {
     <TooltipProvider delayDuration={200}>
       <nav
         aria-label="Space navigation"
-        className="fixed inset-y-0 left-0 z-40 flex w-12 flex-col items-center gap-1 border-r border-ring bg-surface py-3 [app-region:no-drag] desktop-macos:pt-10"
+        className="fixed inset-y-0 left-0 z-40 flex w-12 flex-col items-center gap-1 border-r border-ring bg-white py-3 [app-region:no-drag] dark:bg-surface-elevated"
       >
         <NavIconLink
           to="/spaces/$spaceId/dates"

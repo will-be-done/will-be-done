@@ -35,6 +35,7 @@ function parseUnit(raw: string, max: number) {
 export function TimePicker({
   value,
   onChange,
+  onClear,
   children,
   align = "start",
   inline = false,
@@ -43,6 +44,7 @@ export function TimePicker({
 }: {
   value: number | null | undefined;
   onChange: (minutes: number) => void;
+  onClear?: () => void;
   children: ReactNode;
   align?: "start" | "center" | "end";
   inline?: boolean;
@@ -124,6 +126,20 @@ export function TimePicker({
           onEnter={apply}
         />
       </div>
+      {onClear != null && (
+        <div className="flex justify-center px-4 pb-3">
+          <button
+            type="button"
+            onClick={() => {
+              onClear();
+              setOpen(false);
+            }}
+            className="cursor-pointer text-sm font-medium text-content-tinted hover:text-content"
+          >
+            No time
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between border-t border-border px-3 py-2.5">
         <button
           type="button"
