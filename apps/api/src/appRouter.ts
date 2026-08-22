@@ -27,17 +27,20 @@ import {
   ensureDatabaseAccessOrCreate,
 } from "./services/databaseAccess";
 import { assertSupportedSyncVersion } from "./syncVersion";
+import jwt from "jsonwebtoken";
 
 const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
 
 export interface AppRouterDependencies {
   mainDB: DB;
   captchaConfig: CaptchaConfig | null;
+  featurebaseJwtSecret?: string;
 }
 
 export function createAppRouter({
   mainDB,
   captchaConfig,
+  featurebaseJwtSecret,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
     dbId: string,
@@ -55,6 +58,23 @@ export function createAppRouter({
   };
 
   return router({
+    getFeaturebaseIdentity: protectedProcedure.query((opts) => {
+      if (!featurebaseJwtSecret) {
+        return { featurebaseJwt: null };
+      }
+
+      return {
+        featurebaseJwt: jwt.sign(
+          {
+            userId: opts.ctx.user.id,
+            email: opts.ctx.user.email,
+          },
+          featurebaseJwtSecret,
+          { algorithm: "HS256" },
+        ),
+      };
+    }),
+
     onChangesAvailable: protectedProcedure
       .input(
         z.object({

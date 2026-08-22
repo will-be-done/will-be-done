@@ -1,0 +1,8 @@
+<script>
+  import Featurebase from "featurebase-js";
+  import { isFeaturebaseHostname } from "../lib/featurebaseHostname";
+
+  if (isFeaturebaseHostname(window.location.hostname)) {
+    Featurebase({ appId: "6a89c98ba746c43bcaf1774b" });
+  }
+</script>

@@ -18,6 +18,7 @@ import { action as webAction, selector as webSelector } from "@/store/builders";
 import reportWebVitals from "./reportWebVitals.ts";
 import { initSentry } from "./instrument.ts";
 import { getRouter } from "./router.tsx";
+import { FeaturebaseRoot } from "./components/Featurebase/FeaturebaseRoot.tsx";
 
 // scan({
 //   enabled: true,
@@ -87,9 +88,11 @@ if (rootElement && !rootElement.innerHTML) {
       : undefined,
   );
   root.render(
-    <StrictMode>
-      <RouterProvider router={router} />
-    </StrictMode>,
+    <FeaturebaseRoot>
+      <StrictMode>
+        <RouterProvider router={router} />
+      </StrictMode>
+    </FeaturebaseRoot>,
   );
 }
 
