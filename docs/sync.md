@@ -156,6 +156,21 @@ The client also persists temporary frozen upload chunks and staged download
 chunks. This makes a transport retry use the same logical snapshot after a
 reload or lost response.
 
+### Cross-window visibility
+
+Browser windows sharing one persistent database publish committed local
+changesets over the versioned BroadcastChannel. A receiving window observes the
+incoming clocks and runs the normal idempotent merge with `skip-sync`, so this
+coordination path cannot create another local change record or an upload echo.
+
+The persistent write may already be visible to the receiving runtime before
+the merge starts. A receiving preloaded runtime applies the merge with explicit
+external-storage semantics: it compares against its preloaded snapshot, uses
+idempotent persistence for an insert the sender may already have stored, and
+publishes the merge's normal transaction operations to reactive subscribers.
+The accompanying `skip-sync` trait still prevents those cache-coherence writes
+from producing a second local change record or upload echo.
+
 ## Session Handshake and Recovery
 
 At session start the client sends both what it believes the server confirmed

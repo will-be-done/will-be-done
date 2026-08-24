@@ -272,7 +272,7 @@ export const insertChangeFromUpdate = action({
         clientId: clientId,
         changes: {},
       } satisfies Change);
-    const changedRows: Record<string, string> = change.changes;
+    const changedRows: Record<string, string> = { ...change.changes };
 
     for (const col of uniq([...Object.keys(oldRow), ...Object.keys(newRow)])) {
       if (!isEqual(oldRow[col], newRow[col])) {

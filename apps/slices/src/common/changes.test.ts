@@ -21,6 +21,7 @@ import {
   getChangesetAfter,
   changesTable,
   changeId,
+  insertChangeFromUpdate,
   type Change,
   type ChangesetArrayType,
 } from "./changes";
@@ -50,9 +51,9 @@ const testTable = defineTable("testItems", {
   createdAt: v.number(),
 });
 
-function createDB() {
+function createDB(options: { freezeRows?: boolean } = {}) {
   const driver = new BptreeInmemDriver();
-  const db = new DB(driver);
+  const db = new DB(driver, options);
   execSync(db.loadTables([testTable, changesTable]));
   return db;
 }
@@ -287,6 +288,35 @@ function getChange(db: DB | SubscribableDB, entityId: string) {
     [],
   );
 }
+
+describe("local change tracking", () => {
+  it("updates a frozen persisted change without mutating it", () => {
+    const db = createDB({ freezeRows: true });
+    const row = {
+      type: "testItem",
+      id: "frozen-change",
+      title: "before",
+      orderToken: "a0",
+      createdAt: 1,
+    };
+    localCreate(db, row, "0000000001-0001-local");
+    const frozenChange = getChange(db, row.id)!;
+    expect(Object.isFrozen(frozenChange.changes)).toBe(true);
+
+    syncDispatch(
+      db,
+      insertChangeFromUpdate({
+        tableDef: testTable,
+        oldRow: row,
+        newRow: { ...row, title: "after" },
+        clientId: "local",
+        nextClock: "0000000002-0001-local",
+      }),
+    );
+
+    expect(getChange(db, row.id)?.changes.title).toBe("0000000002-0001-local");
+  });
+});
 
 describe("first-creator-wins merge", () => {
   it("basic: earlier creator's title preserved when later creator merges in", () => {

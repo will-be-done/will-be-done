@@ -1,5 +1,61 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { withStoreStartupLock } from "./storeDbs";
+import {
+  asyncDispatch,
+  createAction,
+  createSelector,
+  defineTable,
+  selectAsync,
+  selectFrom,
+  type TableDefinition,
+  upsert,
+  v,
+} from "@will-be-done/hyperdb";
+import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SyncConfig } from "./syncTypes";
+import { createStoreDbs, withStoreStartupLock } from "./storeDbs";
+
+const { openPersistentDriver } = vi.hoisted(() => ({
+  openPersistentDriver: vi.fn(),
+}));
+
+vi.mock("./persistentDriver", () => ({ openPersistentDriver }));
+
+class PersistentInMemoryDriver extends BptreeInmemDriver {
+  private readonly loadedTableNames = new Set<string>();
+
+  *loadTables(tables: TableDefinition[]) {
+    const unloadedTables = tables.filter(
+      (table) => !this.loadedTableNames.has(table.tableName),
+    );
+    yield* super.loadTables(unloadedTables);
+    for (const table of unloadedTables) {
+      this.loadedTableNames.add(table.tableName);
+    }
+  }
+}
+
+const startupItemsTable = defineTable("startup_test_items", {
+  id: v.string(),
+  title: v.string(),
+}).index("byIds", ["id"]);
+const action = createAction();
+const selector = createSelector();
+const prepareStartupItem = action({
+  name: "prepareStartupItem",
+  args: {},
+  handler: function* () {
+    yield* upsert(startupItemsTable, [{ id: "prepared", title: "Prepared" }]);
+  },
+});
+const startupItemById = selector({
+  name: "startupItemById",
+  args: { id: v.string() },
+  handler: function* ({ id }) {
+    return yield* selectFrom(startupItemsTable, "byId")
+      .where((q) => q.eq("id", id))
+      .first();
+  },
+});
 
 const navigatorDescriptor = Object.getOwnPropertyDescriptor(
   globalThis,
@@ -7,6 +63,7 @@ const navigatorDescriptor = Object.getOwnPropertyDescriptor(
 );
 
 afterEach(() => {
+  openPersistentDriver.mockReset();
   if (navigatorDescriptor) {
     Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
   } else {
@@ -15,6 +72,39 @@ afterEach(() => {
 });
 
 describe("store database startup", () => {
+  it("preloads rows written while preparing the persistent database", async () => {
+    openPersistentDriver.mockResolvedValue(new PersistentInMemoryDriver());
+    const syncConfig = {
+      dbId: "startup-test",
+      dbType: "user",
+      persistDBTables: [startupItemsTable],
+      syncableDBTables: [startupItemsTable],
+      tableNameMap: { [startupItemsTable.tableName]: startupItemsTable },
+      afterInit: () => {},
+    } satisfies SyncConfig;
+
+    const { persistentDB, syncSubDb } = await createStoreDbs(
+      "startup-test",
+      syncConfig,
+      async (persistentDB) => {
+        await asyncDispatch(persistentDB, prepareStartupItem({}));
+      },
+    );
+
+    await expect(
+      selectAsync(persistentDB, {
+        selector: startupItemById,
+        args: { id: "prepared" },
+      }),
+    ).resolves.toEqual({ id: "prepared", title: "Prepared" });
+    await expect(
+      selectAsync(syncSubDb, {
+        selector: startupItemById,
+        args: { id: "prepared" },
+      }),
+    ).resolves.toEqual({ id: "prepared", title: "Prepared" });
+  });
+
   it("serializes the versioned migration check across tabs", async () => {
     let lockQueue = Promise.resolve();
     let activeLocks = 0;

@@ -1,5 +1,11 @@
-import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { DB, execAsync, HybridDB, SubscribableDB } from "@will-be-done/hyperdb";
+import {
+  asyncDispatch,
+  DB,
+  execAsync,
+  PreloadedHybridDB,
+  selectAsync,
+  SubscribableDB,
+} from "@will-be-done/hyperdb";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import { getDevtoolsEnabled } from "@/lib/devtools";
 import { openPersistentDriver } from "./persistentDriver";
@@ -10,7 +16,6 @@ import {
   spaceMigrationsTable,
   spaceStorageMigrationTables,
 } from "@will-be-done/slices/space";
-import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 
 const startupQueues = new Map<string, Promise<void>>();
 
@@ -43,6 +48,7 @@ export async function withStoreStartupLock<T>(
 export const createStoreDbs = async (
   dbName: string,
   syncConfig: SyncConfig,
+  preparePersistentDB?: (db: DB) => Promise<void>,
 ) => {
   const tracer =
     process.env.NODE_ENV === "development" || getDevtoolsEnabled()
@@ -77,18 +83,12 @@ export const createStoreDbs = async (
 
     const db = createPersistentDB("persistent");
     await execAsync(db.loadTables(syncConfig.persistDBTables));
+    await preparePersistentDB?.(db);
     return db;
   });
 
-  const cacheDB = new DB(new BptreeInmemDriver(), {
-    traits: [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
-    tracer,
-    dbName: "hybrid-cache",
-  });
-
-  const hybridDB = new HybridDB(persistentDB, cacheDB);
-
-  const syncSubDb = new SubscribableDB(hybridDB);
+  const preloadedDB = new PreloadedHybridDB(persistentDB);
+  const syncSubDb = new SubscribableDB(preloadedDB);
   await execAsync(syncSubDb.loadTables(syncConfig.persistDBTables));
 
   // const canPreloadChanges = syncConfig.persistDBTables.includes(changesTable);
