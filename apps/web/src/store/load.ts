@@ -56,16 +56,18 @@ export const initDbStore = async (
 
     const clientId = getClientId(dbName, persistentDriverKind);
     const nextClock = initClock(clientId);
-    const { persistentDB, syncSubDb } = await createStoreDbs(
+    const { syncSubDb } = await createStoreDbs(
       dbName,
       syncConfig,
+      async (persistentDB) => {
+        await asyncDispatch(
+          persistentDB.withTraits({ type: "skip-sync" }),
+          migrateSyncV4Clocks({}),
+        );
+        await observePersistedClock(persistentDB, nextClock);
+        await asyncDispatch(persistentDB, resetEmptyPersistedSyncCursor({}));
+      },
     );
-    await asyncDispatch(
-      persistentDB.withTraits({ type: "skip-sync" }),
-      migrateSyncV4Clocks({}),
-    );
-    await observePersistedClock(persistentDB, nextClock);
-    await asyncDispatch(persistentDB, resetEmptyPersistedSyncCursor({}));
 
     registerSyncChangeHooks({
       syncSubDb,
