@@ -13,8 +13,33 @@ import { sendError } from "./errors";
 import { asyncDispatch } from "@will-be-done/hyperdb";
 import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
 import { getEnvConfig } from "../env";
+import {
+  capturePublicApiProductEvent,
+  noopBackendAnalytics,
+  type BackendAnalytics,
+} from "../analytics";
+import { getAuthenticatedRequestUser } from "../services/authentication";
 
-export const v1Routes: FastifyPluginAsyncZod = async (server) => {
+interface V1RoutesOptions {
+  analytics?: BackendAnalytics;
+}
+
+function getOperationId(request: {
+  method: string;
+  routeOptions: { schema?: unknown; url?: string };
+}) {
+  const operationId = (
+    request.routeOptions.schema as { operationId?: unknown } | undefined
+  )?.operationId;
+  return typeof operationId === "string"
+    ? operationId
+    : `${request.method} ${request.routeOptions.url ?? "unknown"}`;
+}
+
+export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
+  server,
+  { analytics = noopBackendAnalytics },
+) => {
   server.setErrorHandler((error, _request, reply) => {
     if (error instanceof Error && "validation" in error && error.validation) {
       return reply.code(400).send({
@@ -60,6 +85,27 @@ export const v1Routes: FastifyPluginAsyncZod = async (server) => {
     } catch (error) {
       request.log.error(error, "Failed to generate recurring tasks");
     }
+  });
+
+  server.addHook("onResponse", async (request, reply) => {
+    const user = getAuthenticatedRequestUser(request);
+    if (!user) return;
+
+    const operation = getOperationId(request);
+    analytics.capture({
+      name: "public_api_used",
+      distinctId: user.id,
+      properties: {
+        method: request.method,
+        operation,
+        status_class: `${Math.floor(reply.statusCode / 100)}xx`,
+      },
+    });
+    capturePublicApiProductEvent(analytics, {
+      distinctId: user.id,
+      operation,
+      statusCode: reply.statusCode,
+    });
   });
 
   server.register(spaceRoutes);

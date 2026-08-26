@@ -23,6 +23,7 @@ import {
   deleteSpace,
 } from "@will-be-done/slices/user";
 import { userDBConfig } from "@/store/configs";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export const Route = createFileRoute("/spaces/")({
   component: SpacePage,
@@ -129,6 +130,7 @@ function SpacePageComponent() {
     if (!name?.trim()) return;
 
     const space = await dispatch(createSpace({ name: name }));
+    captureWebAnalytics({ name: "space_created" });
     authUtils.setSpaceNames([{ spaceId: space.id, name: space.name }]);
   };
 

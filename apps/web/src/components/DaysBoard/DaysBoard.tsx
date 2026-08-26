@@ -35,6 +35,7 @@ import { Stash } from "@/components/Stash/Stash.tsx";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const ColumnView = ({
   dailyList,
@@ -207,6 +208,13 @@ const BoardView = ({
             sectionPosition: "prepend",
           }),
         );
+        captureWebAnalytics({
+          name: "task_created",
+          properties: {
+            creation_method: "add_button",
+            location: "daily_list",
+          },
+        });
 
         const entry = await select({
           selector: dailyEntryByTaskId,

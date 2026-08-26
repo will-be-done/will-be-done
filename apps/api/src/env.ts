@@ -39,6 +39,8 @@ const EnvConfigSchema = z.object({
     .int()
     .min(1_000)
     .default(60_000),
+  WBD_POSTHOG_KEY: z.string().trim().min(1).optional(),
+  WBD_POSTHOG_HOST: z.url().default("https://eu.i.posthog.com"),
   WBD_TAWK_API_KEY: z.string().trim().min(1).optional(),
 });
 
@@ -62,6 +64,8 @@ let envConfig:
       WBD_RATE_LIMIT_NAMESPACE: string;
       WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: string;
       WBD_TASK_GENERATION_INTERVAL_MS: number;
+      WBD_POSTHOG_KEY?: string;
+      WBD_POSTHOG_HOST: string;
       WBD_TAWK_API_KEY?: string;
     }
   | undefined;
@@ -90,6 +94,8 @@ export function getEnvConfig() {
       process.env.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
     WBD_TASK_GENERATION_INTERVAL_MS:
       process.env.WBD_TASK_GENERATION_INTERVAL_MS,
+    WBD_POSTHOG_KEY: process.env.WBD_POSTHOG_KEY,
+    WBD_POSTHOG_HOST: process.env.WBD_POSTHOG_HOST,
     WBD_TAWK_API_KEY: process.env.WBD_TAWK_API_KEY,
   });
 
@@ -154,6 +160,8 @@ export function getEnvConfig() {
     WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
       parsed.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
     WBD_TASK_GENERATION_INTERVAL_MS: parsed.WBD_TASK_GENERATION_INTERVAL_MS,
+    WBD_POSTHOG_KEY: parsed.WBD_POSTHOG_KEY,
+    WBD_POSTHOG_HOST: parsed.WBD_POSTHOG_HOST,
     WBD_TAWK_API_KEY: parsed.WBD_TAWK_API_KEY,
   };
 

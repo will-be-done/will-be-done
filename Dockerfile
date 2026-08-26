@@ -24,6 +24,9 @@ COPY apps/slices ./apps/slices
 WORKDIR /app/apps/web
 ARG VITE_SENTRY_DSN
 ARG VITE_SENTRY_RELEASE
+ARG VITE_POSTHOG_KEY=phc_qrPoGFFkFW2yTiRH8Fjt4mHBIm4ZzZK2kSJoI5AqvPu
+ARG VITE_POSTHOG_HOST=https://a.will-be-done.app
+ARG VITE_POSTHOG_UI_HOST=https://eu.posthog.com
 RUN pnpm exec vite build
 WORKDIR /app
 

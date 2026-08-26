@@ -3,6 +3,7 @@ import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { loadSpaceBackup, parseTickTickCSV } from "@will-be-done/slices/space";
 import { Upload, Download, AlertTriangle, CheckCircle } from "lucide-react";
 import { trpcClient } from "@/lib/trpc";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export function ImportSection() {
   const dispatch = useAsyncDispatch();
@@ -37,6 +38,13 @@ export function ImportSection() {
         const text = await file.text();
         const backup = parseTickTickCSV(text);
         await dispatch(loadSpaceBackup({ backup: backup }));
+        captureWebAnalytics({
+          name: "import_completed",
+          properties: {
+            provider: "ticktick",
+            task_count: backup.tasks.length,
+          },
+        });
         setTickTickSuccess(true);
       } catch {
         setTickTickError(
@@ -67,6 +75,13 @@ export function ImportSection() {
           apiToken: todoistToken.trim(),
         });
         await dispatch(loadSpaceBackup({ backup: backup }));
+        captureWebAnalytics({
+          name: "import_completed",
+          properties: {
+            provider: "todoist",
+            task_count: backup.tasks.length,
+          },
+        });
         setTodoistSuccess(true);
         setTodoistToken("");
       } catch {

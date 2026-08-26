@@ -24,6 +24,7 @@ import * as databases from "../db/db";
 import { createServer } from "../server";
 import { register, tokensTable, usersTable } from "../slices/authSlice";
 import { dbsTable } from "../slices/dbSlice";
+import type { BackendAnalyticsEvent } from "../analytics";
 
 const action = createAction();
 
@@ -105,11 +106,21 @@ describe("v1 recurring-task preparation", () => {
             typeof databases.getHyperDB
           >),
     );
+    const analyticsEvents: BackendAnalyticsEvent[] = [];
+    const analytics = {
+      capture: (event: BackendAnalyticsEvent) => analyticsEvents.push(event),
+      shutdown: async () => {},
+    };
 
     const server = createServer({
-      appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+      appRouter: createAppRouter({
+        mainDB,
+        captchaConfig: null,
+        analytics,
+      }),
       logger: false,
       serveFrontend: false,
+      analytics,
     });
     try {
       const response = await server.inject({
@@ -126,6 +137,15 @@ describe("v1 recurring-task preparation", () => {
       expect(
         selectSync(spaceDB, { selector: allTasks, args: {} }),
       ).toHaveLength(3);
+      expect(analyticsEvents).toContainEqual({
+        name: "public_api_used",
+        distinctId: auth.userId,
+        properties: {
+          method: "PATCH",
+          operation: "updateTaskTemplate",
+          status_class: "2xx",
+        },
+      });
     } finally {
       await server.close();
     }

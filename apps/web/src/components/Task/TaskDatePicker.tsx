@@ -15,6 +15,8 @@ import {
   getDMY,
   removeFromDailyList,
 } from "@will-be-done/slices/space";
+import { differenceInCalendarDays } from "date-fns";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 interface TaskDatePickerProps {
   taskId: string;
@@ -57,6 +59,13 @@ export function TaskDatePicker({
           position: "append",
         }),
       );
+      captureWebAnalytics({
+        name: "task_scheduled",
+        properties: {
+          days_ahead: differenceInCalendarDays(date, new Date()),
+          scheduling_method: "date_picker",
+        },
+      });
 
       setIsOpen(false);
     })();

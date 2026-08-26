@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
 import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
 import { focusChecklistItem } from "./focus";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export function CheckboxComp({
   checked,
@@ -477,6 +478,10 @@ const ChecklistItemsView = ({
           },
         }),
       );
+      captureWebAnalytics({
+        name: "checklist_item_created",
+        properties: { creation_method: "web" },
+      });
 
       focusChecklistItem(item.id, { root: containerRef.current });
     })();

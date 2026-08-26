@@ -32,6 +32,7 @@ import {
   TrashIcon,
 } from "@/components/ui/icons.tsx";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const ProjectTasksColumn = ({
   project,
@@ -76,6 +77,10 @@ const ProjectTasksColumn = ({
           position: "prepend",
         }),
       );
+      captureWebAnalytics({
+        name: "task_created",
+        properties: { creation_method: "add_button", location: "project" },
+      });
 
       useFocusStore.getState().editByKey(buildFocusKey(task.id, task.type));
     })();

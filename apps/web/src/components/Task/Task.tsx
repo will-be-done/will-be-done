@@ -95,6 +95,7 @@ import {
   useItemDetailsOpen,
 } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export const DropTaskIndicator = ({
   direction,
@@ -261,6 +262,15 @@ export const PreloadedTaskComp = ({
 
       const taskState = item.state;
       await dispatch(toggleTaskState({ taskId: taskId }));
+      captureWebAnalytics({
+        name: taskState === "todo" ? "task_completed" : "task_reopened",
+        properties: {
+          age_hours: Math.max(
+            0,
+            Math.round(((Date.now() - item.createdAt) / 3_600_000) * 10) / 10,
+          ),
+        },
+      });
 
       if (!isFocused) return;
 
@@ -502,6 +512,10 @@ export const PreloadedTaskComp = ({
           },
         }),
       );
+      captureWebAnalytics({
+        name: "checklist_item_created",
+        properties: { creation_method: "web" },
+      });
 
       focusChecklistItem(checklistItem.id, { root: ref.current });
     })();
@@ -519,6 +533,16 @@ export const PreloadedTaskComp = ({
             taskParams: newTaskParams,
           }),
         );
+        const location =
+          listItem.type === dailyEntryType
+            ? "daily_list"
+            : listItem.type === stashEntryType
+              ? "stash"
+              : "project";
+        captureWebAnalytics({
+          name: "task_created",
+          properties: { creation_method: "sibling", location },
+        });
         unstable_batchedUpdates(() => {
           useFocusStore
             .getState()
@@ -568,6 +592,10 @@ export const PreloadedTaskComp = ({
           position: "append",
         }),
       );
+      captureWebAnalytics({
+        name: "task_scheduled",
+        properties: { days_ahead: 0, scheduling_method: "today_shortcut" },
+      });
     })();
   }, [item, date, dispatch, taskId]);
 

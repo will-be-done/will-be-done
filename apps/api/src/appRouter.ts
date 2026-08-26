@@ -28,18 +28,21 @@ import {
   ensureDatabaseAccessOrCreate,
 } from "./services/databaseAccess";
 import { assertSupportedSyncVersion } from "./syncVersion";
+import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
 
 const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
 
 export interface AppRouterDependencies {
   mainDB: DB;
   captchaConfig: CaptchaConfig | null;
+  analytics?: BackendAnalytics;
   tawkApiKey?: string;
 }
 
 export function createAppRouter({
   mainDB,
   captchaConfig,
+  analytics = noopBackendAnalytics,
   tawkApiKey,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
@@ -150,6 +153,10 @@ export function createAppRouter({
         mainDB,
         generateToken({ userId: opts.ctx.user.id }),
       );
+      analytics.capture({
+        name: "api_token_created",
+        distinctId: opts.ctx.user.id,
+      });
       return { id: created.token, createdAt: created.createdAt };
     }),
 
@@ -262,6 +269,11 @@ export function createAppRouter({
         console.log(
           `[Register ${requestId}] request completed in ${Math.round(performance.now() - requestStartedAt)}ms`,
         );
+        analytics.capture({
+          name: "user_signed_up",
+          distinctId: result.userId,
+          properties: { captcha_enabled: captchaConfig !== null },
+        });
         return result;
       }),
 
@@ -290,7 +302,12 @@ export function createAppRouter({
           throw new Error("Invalid credentials");
         }
 
-        return asyncDispatch(mainDB, generateToken({ userId: user.id }));
+        const result = await asyncDispatch(
+          mainDB,
+          generateToken({ userId: user.id }),
+        );
+        analytics.capture({ name: "login_succeeded", distinctId: user.id });
+        return result;
       }),
   });
 }
