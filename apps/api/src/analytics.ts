@@ -98,14 +98,7 @@ interface AnalyticsEnvironment {
   WBD_POSTHOG_HOST?: string;
 }
 
-interface PostHogClient {
-  capture(event: {
-    distinctId: string;
-    event: string;
-    properties: Record<string, unknown>;
-  }): void;
-  shutdown(): Promise<void>;
-}
+type PostHogClient = Pick<PostHog, "capture" | "shutdown">;
 
 interface PostHogConfig {
   key: string;
