@@ -24,6 +24,7 @@ const EnvConfigSchema = z.object({
     .default("true")
     .transform((value) => value === "true"),
   WBD_RATE_LIMIT_BACKEND: z.enum(["memory", "redis"]).default("memory"),
+  WBD_RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
   WBD_RATE_LIMIT_NAMESPACE: z
     .string()
     .trim()
@@ -61,6 +62,7 @@ let envConfig:
       WBD_REDIS_URL?: string;
       WBD_RATE_LIMIT_ENABLED: boolean;
       WBD_RATE_LIMIT_BACKEND: "memory" | "redis";
+      WBD_RATE_LIMIT_GLOBAL_MAX: number;
       WBD_RATE_LIMIT_NAMESPACE: string;
       WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: string;
       WBD_TASK_GENERATION_INTERVAL_MS: number;
@@ -89,6 +91,7 @@ export function getEnvConfig() {
     WBD_REDIS_URL: process.env.WBD_REDIS_URL,
     WBD_RATE_LIMIT_ENABLED: process.env.WBD_RATE_LIMIT_ENABLED,
     WBD_RATE_LIMIT_BACKEND: process.env.WBD_RATE_LIMIT_BACKEND,
+    WBD_RATE_LIMIT_GLOBAL_MAX: process.env.WBD_RATE_LIMIT_GLOBAL_MAX,
     WBD_RATE_LIMIT_NAMESPACE: process.env.WBD_RATE_LIMIT_NAMESPACE,
     WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
       process.env.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
@@ -156,6 +159,7 @@ export function getEnvConfig() {
     WBD_REDIS_URL: parsed.WBD_REDIS_URL,
     WBD_RATE_LIMIT_ENABLED: parsed.WBD_RATE_LIMIT_ENABLED,
     WBD_RATE_LIMIT_BACKEND: parsed.WBD_RATE_LIMIT_BACKEND,
+    WBD_RATE_LIMIT_GLOBAL_MAX: parsed.WBD_RATE_LIMIT_GLOBAL_MAX,
     WBD_RATE_LIMIT_NAMESPACE: parsed.WBD_RATE_LIMIT_NAMESPACE,
     WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
       parsed.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,

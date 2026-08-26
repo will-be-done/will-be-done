@@ -37,6 +37,8 @@ fly secrets set WBD_SENTRY_DSN=<tursod-dsn> --app wbd-tursod-prod
 ```
 
 Every HTTP endpoint has a general limit of 300 requests per minute per IP.
+Set `WBD_RATE_LIMIT_GLOBAL_MAX` to change the number of requests allowed in
+that one-minute window.
 Login, registration, and Todoist imports have stricter targeted limits. The
 limiter is enabled by default and can be explicitly disabled with
 `WBD_RATE_LIMIT_ENABLED=false`. The default in-memory backend is suitable for

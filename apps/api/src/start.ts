@@ -45,6 +45,7 @@ const start = async () => {
         backend: env.WBD_RATE_LIMIT_BACKEND,
         redisUrl: env.WBD_REDIS_URL,
         namespace: env.WBD_RATE_LIMIT_NAMESPACE,
+        globalOverride: { max: env.WBD_RATE_LIMIT_GLOBAL_MAX },
       },
       analytics,
     });
