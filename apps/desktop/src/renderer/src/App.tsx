@@ -59,7 +59,7 @@ function App(): React.JSX.Element {
   const params = new URLSearchParams(window.location.search)
   const recoveryMode = params.get('mode') === 'recovery'
   const failedUrl = params.get('failedUrl')
-  const [url, setUrl] = useState('https://app.will-be-done.app')
+  const [url, setUrl] = useState('http://localhost:3000')
   const [error, setError] = useState('')
   const [connecting, setConnecting] = useState(false)
   const [resetting, setResetting] = useState(false)
@@ -194,7 +194,7 @@ function App(): React.JSX.Element {
                       setUrl(e.target.value)
                       setError('')
                     }}
-                    placeholder="https://app.will-be-done.app"
+                    placeholder="http://localhost:3000"
                     className="field__input"
                     autoFocus
                     required

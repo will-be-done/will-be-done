@@ -9,6 +9,7 @@
 - Item: primary content shown in project sections. Currently a Task or TaskTemplate; may include other content such as Note in the future.
 - ProjectSection: an ordered section inside a Project that contains Items directly. Tasks and TaskTemplates store their section and section order. Its persisted discriminator is `projectSection`.
 - DailyList: a dated schedule list, identified by date, that contains DailyEntries.
+- DailyReport: an end-of-day record for one date. It stores notes, a snapshot of completed tasks, and ratings for mood, energy, focus, and accomplishment. One report per date. Its persisted discriminator is `dailyReport`.
 - DailyEntry: a scheduled appearance of a Task in a DailyList. It has its own `id`, references the Task through `taskId`, and stores the DailyList and order for that task on that date. Its persisted discriminator is `dailyEntry`.
 - Stash: the unscheduled holding area represented by StashEntries. It keeps items quickly accessible from any page.
 - StashEntry: an unscheduled appearance of a Task in the stash. It has its own `id`, references the Task through `taskId`, and stores the stash order. Its persisted discriminator is `stashEntry`.

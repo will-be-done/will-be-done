@@ -42,7 +42,7 @@ function Logo({ size = 32 }: { size?: number }) {
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <div
-        className="absolute inset-0 rounded-[13%] bg-blue-500/30 blur-md safari:blur-sm"
+        className="absolute inset-0 rounded-[13%] bg-accent/30 blur-md safari:blur-sm"
         style={{ transform: "scale(1.15)" }}
       />
       <svg
@@ -69,8 +69,8 @@ function Logo({ size = 32 }: { size?: number }) {
             y2="150"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#3b82f6" />
-            <stop offset="1" stopColor="#1e40af" />
+            <stop stopColor="#ff953f" />
+            <stop offset="1" stopColor="#e06a1a" />
           </linearGradient>
           <linearGradient
             id={`paint1_${id}`}
@@ -80,8 +80,8 @@ function Logo({ size = 32 }: { size?: number }) {
             y2="120.5"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#93c5fd" />
-            <stop offset="1" stopColor="#60a5fa" />
+            <stop stopColor="#ffc48a" />
+            <stop offset="1" stopColor="#ffb366" />
           </linearGradient>
         </defs>
       </svg>
@@ -148,7 +148,7 @@ function ServerIndicator() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex cursor-pointer items-center gap-2 rounded-full bg-white/[0.04] px-3 py-1.5 text-[12px] text-slate-400 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.07] hover:text-slate-300">
+        <button className="flex cursor-pointer items-center gap-2 rounded-full bg-overlay px-3 py-1.5 text-[12px] text-content-secondary ring-1 ring-border transition-all hover:bg-overlay-hover hover:text-content-tinted">
           <svg
             className="h-3 w-3 text-emerald-400"
             viewBox="0 0 24 24"
@@ -175,10 +175,10 @@ function ServerIndicator() {
       <PopoverContent
         align="center"
         sideOffset={8}
-        className="w-80 rounded-lg bg-[#16161e] p-4 ring-1 ring-white/[0.08]"
+        className="w-80 rounded-lg bg-panel p-4 ring-1 ring-border"
       >
         <div className="space-y-3">
-          <div className="text-[13px] font-medium text-slate-300">
+          <div className="text-[13px] font-medium text-content-tinted">
             Server URL
           </div>
           <input
@@ -191,7 +191,7 @@ function ServerIndicator() {
             onKeyDown={(e) => {
               if (e.key === "Enter") void handleSave();
             }}
-            className="block w-full rounded-md bg-white/[0.05] px-3 py-2 text-[13px] text-white placeholder-slate-500 ring-1 ring-white/[0.08] transition-all focus:bg-white/[0.07] focus:outline-none focus:ring-blue-500/50"
+            className="block w-full rounded-md bg-overlay px-3 py-2 text-[13px] text-content placeholder:text-content-tinted-2 ring-1 ring-border transition-all focus:bg-overlay-hover focus:outline-none focus:ring-accent/50"
             placeholder="https://app.will-be-done.app"
           />
           {error && (
@@ -202,14 +202,14 @@ function ServerIndicator() {
           <button
             onClick={() => void handleSave()}
             disabled={saving}
-            className="w-full cursor-pointer rounded-md bg-blue-500 px-3 py-2 text-[13px] font-semibold text-white transition-all hover:bg-blue-400 disabled:opacity-50"
+            className="w-full cursor-pointer rounded-md bg-accent px-3 py-2 text-[13px] font-semibold text-white transition-all hover:bg-accent-hover disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save & Reconnect"}
           </button>
           <button
             onClick={() => void handleReset()}
             disabled={resetting}
-            className="w-full cursor-pointer rounded-md bg-white/[0.06] px-3 py-2 text-[13px] font-semibold text-slate-200 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.1] disabled:opacity-50"
+            className="w-full cursor-pointer rounded-md bg-overlay-hover px-3 py-2 text-[13px] font-semibold text-content ring-1 ring-border transition-all hover:bg-overlay disabled:opacity-50"
           >
             {resetting ? "Resetting..." : "Reset Server URL"}
           </button>
@@ -242,18 +242,19 @@ function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0f] text-slate-100 antialiased">
+    <div className="relative min-h-screen bg-surface text-content antialiased">
       <div className="absolute inset-x-0 top-0 z-50 h-10 [app-region:drag]" />
 
       {/* Gradient orbs */}
       <BackgroundOrbs
-        topOrbFill="rgb(37 99 235 / 0.08)"
-        bottomOrbFill="rgb(99 102 241 / 0.06)"
+        className="hidden dark:block"
+        topOrbFill="rgb(255 149 63 / 0.1)"
+        bottomOrbFill="rgb(224 106 26 / 0.06)"
       />
 
       {/* Noise texture overlay */}
       <div
-        className="pointer-events-none fixed inset-0 opacity-[0.015]"
+        className="pointer-events-none fixed inset-0 hidden opacity-[0.015] dark:block"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }}
@@ -271,21 +272,21 @@ function LoginPage() {
           {/* Logo and title */}
           <div className="mb-8 flex flex-col items-center">
             <Logo size={48} />
-            <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">
+            <h1 className="mt-4 text-2xl font-bold tracking-tight text-content">
               Welcome back
             </h1>
-            <p className="mt-2 text-[14px] text-slate-400">
+            <p className="mt-2 text-[14px] text-content-secondary">
               Sign in to continue to Will Be Done
             </p>
           </div>
 
           {/* Form card */}
-          <div className="rounded-lg bg-white/[0.03] p-8 ring-1 ring-white/[0.06] backdrop-blur-sm safari:bg-white/[0.08] safari:backdrop-blur-none">
+          <div className="rounded-lg bg-panel p-8 ring-1 ring-border">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label
                   htmlFor="email"
-                  className="mb-2 block text-[13px] font-medium text-slate-300"
+                  className="mb-2 block text-[13px] font-medium text-content-tinted"
                 >
                   Email address
                 </label>
@@ -297,7 +298,7 @@ function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-md bg-white/[0.05] px-4 py-3 text-[14px] text-white placeholder-slate-500 ring-1 ring-white/[0.08] transition-all focus:bg-white/[0.07] focus:outline-none focus:ring-blue-500/50"
+                  className="block w-full rounded-md bg-overlay px-4 py-3 text-[14px] text-content placeholder:text-content-tinted-2 ring-1 ring-border transition-all focus:bg-overlay-hover focus:outline-none focus:ring-accent/50"
                   placeholder="you@example.com"
                 />
               </div>
@@ -305,7 +306,7 @@ function LoginPage() {
               <div>
                 <label
                   htmlFor="password"
-                  className="mb-2 block text-[13px] font-medium text-slate-300"
+                  className="mb-2 block text-[13px] font-medium text-content-tinted"
                 >
                   Password
                 </label>
@@ -318,7 +319,7 @@ function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-md bg-white/[0.05] px-4 py-3 text-[14px] text-white placeholder-slate-500 ring-1 ring-white/[0.08] transition-all focus:bg-white/[0.07] focus:outline-none focus:ring-blue-500/50"
+                  className="block w-full rounded-md bg-overlay px-4 py-3 text-[14px] text-content placeholder:text-content-tinted-2 ring-1 ring-border transition-all focus:bg-overlay-hover focus:outline-none focus:ring-accent/50"
                   placeholder="Enter your password"
                 />
               </div>
@@ -334,7 +335,7 @@ function LoginPage() {
               <button
                 type="submit"
                 disabled={loginMutation.isPending}
-                className="group mt-2 w-full cursor-pointer rounded-lg bg-blue-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                className="group mt-2 w-full cursor-pointer rounded-lg bg-accent px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-accent/25 transition-all hover:bg-accent-hover hover:shadow-accent/30 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loginMutation.isPending ? (
                   <span className="flex items-center justify-center gap-2">
@@ -382,11 +383,11 @@ function LoginPage() {
           </div>
 
           {/* Sign up link */}
-          <p className="mt-6 text-center text-[14px] text-slate-400">
+          <p className="mt-6 text-center text-[14px] text-content-secondary">
             Don't have an account?{" "}
             <Link
               to="/signup"
-              className="font-medium text-blue-400 transition-colors hover:text-blue-300"
+              className="font-medium text-accent transition-colors hover:text-accent-hover"
             >
               Sign up
             </Link>
@@ -396,7 +397,7 @@ function LoginPage() {
             <div className="mt-8 flex justify-center">
               <a
                 href="https://will-be-done.app"
-                className="flex items-center gap-2 text-[13px] text-slate-500 transition-colors hover:text-slate-300"
+                className="flex items-center gap-2 text-[13px] text-content-tinted-2 transition-colors hover:text-content-tinted"
               >
                 <svg
                   className="h-4 w-4"

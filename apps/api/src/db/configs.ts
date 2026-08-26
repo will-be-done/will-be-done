@@ -52,6 +52,7 @@ export const spaceDBConfig = (dbId: string) => {
       "checklist_items",
       "daily_entries",
       "stash_entries",
+      "daily_reports",
     ],
   } satisfies DBConfig;
 };

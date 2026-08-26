@@ -14,7 +14,24 @@
       name="description"
       content="Open source kanban for visual weekly planning. Drag & drop tasks between days and projects, navigate with vim keybindings. Self-host with Docker or use the cloud version. Offline-first, syncs when you're back online."
     />
-    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="theme-color" content="#f5f5f3" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("vite-ui-theme") || "light";
+          var theme =
+            stored === "system"
+              ? matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : stored;
+          document.documentElement.classList.add(theme);
+          document.documentElement.style.colorScheme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", theme === "dark" ? "#100c09" : "#f5f5f3");
+        } catch (e) {}
+      })();
+    </script>
     <link rel="canonical" href="https://will-be-done.app/" />
 
     <!-- Open Graph -->
@@ -84,8 +101,13 @@
     </script>
 
     <style>
+      html,
       body {
-        background-color: #111827;
+        background-color: #f5f5f3;
+      }
+      html.dark,
+      html.dark body {
+        background-color: #100c09;
       }
     </style>
   </head>
@@ -98,8 +120,8 @@
           margin: 2rem auto;
           padding: 1rem;
           font-family: system-ui, sans-serif;
-          color: #e2e8f0;
-          background: #0a0a0f;
+          color: #ebe7e0;
+          background: #100c09;
         "
       >
         <h1>Will Be Done — Open Source Weekly Planner</h1>

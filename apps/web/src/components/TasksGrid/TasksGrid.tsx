@@ -10,14 +10,10 @@ import { PlusIcon } from "@/components/ui/icons.tsx";
 import { buildFocusKey } from "@/store/focusSlice.ts";
 
 export const TasksColumnGrid = ({
-  columnsCount,
   children,
-  floatingColumn,
   paddingLeft,
 }: {
-  columnsCount: number;
   children: React.ReactNode;
-  floatingColumn?: React.ReactNode;
   paddingLeft?: number;
 }) => {
   return (
@@ -25,19 +21,12 @@ export const TasksColumnGrid = ({
       data-focus-region-direction="row"
       className="relative max-h-full h-full overflow-x-clip"
     >
-      {floatingColumn}
-      <div
-        className="max-h-full h-full overflow-x-auto"
-        style={{
-          paddingLeft: paddingLeft ? `${paddingLeft}px` : undefined,
-          transition: "padding-left 200ms ease-out",
-        }}
-      >
+      <div className="max-h-full h-full overflow-x-auto">
         <div
-          className="grid max-h-full h-full"
+          className="flex h-full max-h-full w-max min-w-full"
           style={{
-            gridTemplateColumns: `repeat(${columnsCount}, fit-content(40px))`,
-            gridTemplateRows: `1fr`,
+            paddingLeft: paddingLeft != null ? `${paddingLeft}px` : undefined,
+            transition: "padding-left 200ms ease-out",
           }}
         >
           {children}
@@ -52,6 +41,36 @@ type DailyListDndState = { type: "idle" } | { type: "is-task-over" };
 const idle: DailyListDndState = { type: "idle" };
 const isTaskOver: DailyListDndState = { type: "is-task-over" };
 
+const ColumnProgressBar = ({
+  done,
+  total,
+}: {
+  done: number;
+  total: number;
+}) => {
+  const percent = total === 0 ? 0 : Math.min(100, (done / total) * 100);
+  const isComplete = total > 0 && done >= total;
+
+  return (
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(percent)}
+      aria-label={`${done} of ${total} tasks complete`}
+      className="mx-1 mb-2 h-1.5 overflow-hidden rounded-full bg-overlay"
+    >
+      <div
+        className={cn(
+          "h-full rounded-full transition-[width,background-color] duration-300 ease-out",
+          isComplete ? "bg-complete" : "bg-accent",
+        )}
+        style={{ width: `${percent}%` }}
+      />
+    </div>
+  );
+};
+
 export const TasksColumn = ({
   isHidden,
   onHideClick,
@@ -62,9 +81,10 @@ export const TasksColumn = ({
   panelWidth,
   onAddClick,
   actions,
+  progress,
 }: {
   isHidden: boolean;
-  onHideClick: () => void;
+  onHideClick?: () => void;
   header?: React.ReactNode;
   columnModelId: string;
   columnModelType: AnyModelType;
@@ -72,6 +92,7 @@ export const TasksColumn = ({
   panelWidth?: number;
   onAddClick?: () => void;
   actions?: React.ReactNode;
+  progress?: { done: number; total: number };
 }) => {
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -115,53 +136,73 @@ export const TasksColumn = ({
       data-column-model-type={columnModelType}
       ref={columnRef}
       className={cn(
-        "relative flex h-full px-1 pt-1 flex-shrink-0 min-h-0 group",
+        "relative flex h-full min-h-0 min-w-0 flex-col px-1.5 pt-1 pb-2 group",
+        isHidden || panelWidth != null ? "flex-none" : "w-72 shrink-0",
       )}
-      style={!isHidden ? { minWidth: `${panelWidth ?? 400}px` } : {}}
+      style={
+        !isHidden && panelWidth != null
+          ? { width: `${panelWidth}px` }
+          : undefined
+      }
     >
-      <div
-        className="flex justify-end"
-        style={{
-          writingMode: "vertical-rl",
-          textOrientation: "mixed",
-          transform: "rotate(180deg)",
-        }}
-      >
-        <div className="mb-4 flex">
-          {onAddClick && (
-            <button
-              className="hidden group-hover:block cursor-pointer text-white mb-2"
-              onClick={onAddClick}
-              type="button"
-            >
-              <PlusIcon className="rotate-180" />
-            </button>
+      {(header || actions || onAddClick) && (
+        <>
+          <div
+            className={cn(
+              "flex items-start justify-between gap-2 px-1",
+              progress == null ? "pb-2" : "pb-1",
+            )}
+          >
+            {onHideClick ? (
+              <button
+                type="button"
+                className={cn(
+                  "min-w-0 flex-1 rounded-lg p-1 text-left focus:outline-none transition-all",
+                  "group-focus-visible:ring-2 group-focus-visible:ring-accent",
+                  {
+                    "ring-2 ring-accent":
+                      (isOver || isPlaceholderFocused) && isHidden,
+                  },
+                )}
+                onClick={onHideClick}
+              >
+                {header}
+              </button>
+            ) : (
+              <div className="min-w-0 flex-1 p-1">{header}</div>
+            )}
+            <div className="flex shrink-0 items-center gap-0.5 pt-1">
+              {onAddClick && !actions && (
+                <button
+                  className="hidden cursor-pointer text-content group-hover:block"
+                  onClick={onAddClick}
+                  type="button"
+                >
+                  <PlusIcon />
+                </button>
+              )}
+              {actions}
+            </div>
+          </div>
+          {progress != null && (
+            <ColumnProgressBar done={progress.done} total={progress.total} />
           )}
-          {actions}
-        </div>
-        <button
-          type="button"
-          className={cn(
-            "flex gap-3 justify-end flex-shrink-0 p-1 rounded-lg group focus:outline-none transition-all",
-            "group-focus-visible:ring-2 group-focus-visible:ring-accent",
-            {
-              "ring-2 ring-accent":
-                (isOver || isPlaceholderFocused) && isHidden,
-            },
-          )}
-          onClick={onHideClick}
-        >
-          {header}
-        </button>
-      </div>
+        </>
+      )}
       <div
-        className={cn("w-full min-h-0 flex-1 overflow-y-auto", {
-          hidden: isHidden,
-        })}
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto rounded-xl bg-[#fbfbfa] ring-1 ring-border dark:bg-[oklch(48%_0.02_55)]",
+          {
+            hidden: isHidden,
+            "ring-2 ring-accent": isOver && !isHidden,
+          },
+        )}
         ref={scrollableRef}
         tabIndex={-1}
       >
-        <div className={cn("flex flex-col gap-4 w-full px-1")}>{children}</div>
+        <div className={cn("flex min-h-full w-full flex-col gap-4 px-2 py-3")}>
+          {children}
+        </div>
       </div>
       {onAddClick && (
         <div

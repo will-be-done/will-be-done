@@ -11,6 +11,8 @@ import {
   dailyListById,
   dailyListsByIds,
   deleteTaskById,
+  getDMY,
+  scheduleTask as scheduleTaskOnDate,
   taskById,
   tasksTable,
   updateTask as updateTaskAction,
@@ -41,6 +43,8 @@ export interface PublicTask {
   createdAt: number;
   lastToggledAt: number;
   scheduledDate: string | null;
+  startsAt: number | null;
+  durationMinutes: number | null;
 }
 
 type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
@@ -120,6 +124,8 @@ export function toPublicTask(
     createdAt: task.createdAt,
     lastToggledAt: task.lastToggledAt,
     scheduledDate,
+    startsAt: task.startsAt ?? null,
+    durationMinutes: task.durationMinutes ?? null,
   };
 }
 
@@ -197,6 +203,8 @@ export async function updateTask({
     content?: string | null;
     state?: PublicTaskState;
     nature?: PublicTaskNature | null;
+    startsAt?: number | null;
+    durationMinutes?: number | null;
   };
 }): Promise<PublicTask> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -217,11 +225,30 @@ export async function updateTask({
     ...(updates.state !== undefined && updates.state !== current.state
       ? { lastToggledAt: Date.now() }
       : {}),
+    ...(typeof updates.startsAt === "number"
+      ? { startsAt: updates.startsAt }
+      : {}),
+    ...(typeof updates.durationMinutes === "number"
+      ? { durationMinutes: updates.durationMinutes }
+      : {}),
   };
   if (updates.content === null) delete next.content;
   if (updates.nature === null) delete next.nature;
+  if (updates.startsAt === null) delete next.startsAt;
+  if (updates.durationMinutes === null) delete next.durationMinutes;
 
   await asyncDispatch(db, replaceTask({ task: next }));
+
+  if (typeof updates.startsAt === "number") {
+    await asyncDispatch(
+      db,
+      scheduleTaskOnDate({
+        taskId,
+        date: getDMY(new Date(updates.startsAt)),
+        position: "append",
+      }),
+    );
+  }
 
   return toPublicTask(next, await getTaskScheduledDate(db, taskId));
 }

@@ -1,8 +1,32 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { type Project } from "@will-be-done/slices/space";
+import {
+  deleteProjects,
+  type Project,
+  updateProject,
+} from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
+import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { MoreHorizontal, Smile } from "lucide-react";
+import { PencilIcon, TrashIcon } from "@/components/ui/icons.tsx";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  EmojiPicker,
+  EmojiPickerContent,
+  EmojiPickerSearch,
+} from "@/components/ui/emoji-picker.tsx";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
@@ -57,6 +81,106 @@ const DragPreview = ({
     </span>
   </div>
 );
+
+const SidebarProjectMenu = ({
+  project,
+  isActive,
+}: {
+  project: Project;
+  isActive: boolean;
+}) => {
+  const dispatch = useAsyncDispatch();
+  const navigate = useNavigate();
+  const spaceId = Route.useParams().spaceId;
+  const [open, setOpen] = useState(false);
+
+  const handleRename = async () => {
+    const newTitle = await promptDialog(
+      "Enter new project title",
+      project.title,
+    );
+    if (newTitle == "" || newTitle == null) return;
+    await dispatch(
+      updateProject({ id: project.id, project: { title: newTitle } }),
+    );
+  };
+
+  const handleDelete = () => {
+    const shouldDelete = confirm(
+      "Are you sure you want to delete this project?",
+    );
+    if (!shouldDelete) return;
+
+    void (async () => {
+      await dispatch(deleteProjects({ ids: [project.id] }));
+      if (isActive) {
+        await navigate({
+          to: "/spaces/$spaceId/projects/$projectId",
+          params: { spaceId, projectId: "inbox" },
+        });
+      }
+    })();
+  };
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Project actions"
+          className="flex size-7 flex-shrink-0 items-center justify-center rounded-md mr-0.5 text-content-tinted/50 hover:text-content hover:bg-overlay cursor-pointer data-[state=open]:text-content data-[state=open]:bg-overlay"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <MoreHorizontal className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side="right"
+        className="min-w-52"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={() => void handleRename()}>
+            <PencilIcon />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className="gap-2 cursor-pointer [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0">
+              <Smile />
+              Change icon
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="min-w-0 overflow-visible p-0">
+              <EmojiPicker
+                className="h-[326px] rounded-lg"
+                onKeyDown={(e) => e.stopPropagation()}
+                onEmojiSelect={({ emoji }) => {
+                  void dispatch(
+                    updateProject({
+                      id: project.id,
+                      project: { icon: emoji },
+                    }),
+                  );
+                  setOpen(false);
+                }}
+              >
+                <EmojiPickerSearch />
+                <EmojiPickerContent />
+              </EmojiPicker>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={handleDelete}>
+          <TrashIcon />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 export const SidebarProjectItem = ({
   project,
@@ -160,7 +284,16 @@ export const SidebarProjectItem = ({
   }, [project]);
 
   return (
-    <div ref={ref} className="relative">
+    <div
+      ref={ref}
+      className={cn(
+        "relative flex items-center rounded-lg transition-colors",
+        isActive
+          ? "text-accent bg-panel"
+          : "text-content-tinted hover:text-content hover:bg-surface-elevated",
+        isOver && "ring-2 ring-accent bg-accent/10",
+      )}
+    >
       {closestEdge === "top" && <DropIndicator direction="top" />}
       <Link
         ref={(el) => {
@@ -169,18 +302,17 @@ export const SidebarProjectItem = ({
         to="/spaces/$spaceId/projects/$projectId"
         params={{ spaceId, projectId }}
         onClick={isMobile ? () => setOpenMobile(false) : undefined}
-        className={cn(
-          "flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors w-full min-h-[40px]",
-          isActive
-            ? "text-accent bg-accent/10"
-            : "text-content-tinted hover:text-content hover:bg-surface-elevated",
-          isOver && "ring-2 ring-accent bg-accent/10",
-        )}
+        className="flex items-center gap-2 px-3 py-2 text-sm w-full min-h-[40px] min-w-0 flex-1"
       >
         <span className="text-base flex-shrink-0">{project.icon || "🟡"}</span>
         <span className="flex-1 truncate">{project.title}</span>
         {(notDoneCount > 0 || overdueCount > 0) && (
-          <span className="flex items-center gap-1 text-xs tabular-nums text-content-tinted">
+          <span
+            className={cn(
+              "flex items-center gap-1 text-xs tabular-nums",
+              isActive ? "text-accent" : "text-content-tinted",
+            )}
+          >
             {overdueCount > 0 && (
               <>
                 <span className="text-notice">{overdueCount}</span>
@@ -191,6 +323,7 @@ export const SidebarProjectItem = ({
           </span>
         )}
       </Link>
+      <SidebarProjectMenu project={project} isActive={isActive} />
       {closestEdge === "bottom" && <DropIndicator direction="bottom" />}
       {dndState.type === "preview" &&
         ReactDOM.createPortal(

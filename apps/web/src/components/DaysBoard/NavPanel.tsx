@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { format } from "date-fns";
+import { format, isSameDay, startOfWeek } from "date-fns";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { useState } from "react";
 import {
@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover.tsx";
 import { Calendar } from "@/components/ui/calendar.tsx";
-import { NavBar } from "../NavBar/NavBar";
+import { useCurrentDate } from "./hooks.tsx";
 
 export const NavPanel = ({
   previousDate,
@@ -24,14 +24,13 @@ export const NavPanel = ({
   const spaceId = Route.useParams().spaceId;
   const navigate = useNavigate();
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const today = useCurrentDate();
+  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const isCurrentWeek = isSameDay(selectedDate, currentWeekStart);
 
   return (
     <>
-      <div className="absolute left-0 top-0 [app-region:no-drag]">
-        <NavBar spaceId={spaceId} />
-      </div>
-
-      <div className="top-0 fixed right-0 min-[650px]:left-0 min-[650px]:m-auto min-[650px]:max-w-60 z-40 [app-region:no-drag]">
+      <div className="top-0 fixed right-0 min-[650px]:left-0 min-[650px]:m-auto min-[650px]:max-w-72 z-40 [app-region:no-drag]">
         <div className="bg-surface-elevated rounded-bl-lg min-[650px]:rounded-b-lg text-[13px] text-content flex items-center justify-center h-10 stroke-content ring-1 ring-ring px-3">
           <div className="flex items-center gap-2 h-full shrink-0">
             <Link
@@ -41,7 +40,7 @@ export const NavPanel = ({
                 spaceId,
               }}
               className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
-              aria-label="Previous day"
+              aria-label="Previous week"
               search={{
                 projectId: selectedProjectId,
               }}
@@ -93,7 +92,7 @@ export const NavPanel = ({
                 projectId: selectedProjectId,
               }}
               className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
-              aria-label="Next day"
+              aria-label="Next week"
             >
               <svg
                 width="4"
@@ -109,6 +108,26 @@ export const NavPanel = ({
                 />
               </svg>
             </Link>
+            {isCurrentWeek ? (
+              <span className="text-content-tinted-2 select-none px-1">
+                Today
+              </span>
+            ) : (
+              <Link
+                to="/spaces/$spaceId/timeline/$date"
+                params={{
+                  date: format(currentWeekStart, "yyyy-MM-dd"),
+                  spaceId,
+                }}
+                search={{
+                  projectId: selectedProjectId,
+                }}
+                className="cursor-pointer px-1 text-content-tinted hover:text-primary transition-colors"
+                aria-label="This week"
+              >
+                Today
+              </Link>
+            )}
           </div>
         </div>
       </div>

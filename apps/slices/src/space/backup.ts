@@ -13,6 +13,7 @@ import { allProjects } from "./projectsAll";
 import { allTasks } from "./tasks";
 import { allTaskTemplates } from "./taskTemplates";
 import { dailyListAllIds, dailyListById, dailyListGetId } from "./dailyLists";
+import { allDailyReports, dailyReportGetId } from "./dailyReports";
 import { dailyEntryAllIds, dailyEntryById } from "./dailyEntries";
 import { inboxProjectId as getInboxProjectId } from "./projects";
 import { appTypeTablesMap } from "./maps";
@@ -23,8 +24,12 @@ import {
   checklistItemType,
   ChecklistParentType,
   DailyList,
+  DailyReport,
+  DailyReportRating,
   dailyListsTable,
   dailyListType,
+  dailyReportRating,
+  dailyReportType,
   Project,
   ProjectSection,
   projectSectionType,
@@ -78,6 +83,19 @@ interface DailyListBackup {
   date: string;
 }
 
+interface DailyReportBackup {
+  id: string;
+  date: string;
+  notes: string;
+  completedTasks: { id: string; title: string }[];
+  mood?: DailyReportRating;
+  energy?: DailyReportRating;
+  focus?: DailyReportRating;
+  accomplishment?: DailyReportRating;
+  createdAt: number;
+  updatedAt: number;
+}
+
 interface DailyEntryBackup {
   id: string;
   taskId?: string; // Optional only when loading backups from the task-id era.
@@ -96,6 +114,8 @@ interface TaskTemplateBackup {
   createdAt: number;
   lastGeneratedAt: number;
   projectSectionId: string;
+  startsAtMinutes?: number;
+  durationMinutes?: number;
 }
 
 interface ChecklistItemBackup {
@@ -117,6 +137,7 @@ export interface Backup {
   projectSections: ProjectSectionBackup[];
   dailyEntries?: DailyEntryBackup[];
   checklistItems?: ChecklistItemBackup[];
+  dailyReports?: DailyReportBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -192,6 +213,8 @@ const backupSchema = v.object({
       createdAt: v.number(),
       lastGeneratedAt: v.number(),
       projectSectionId: v.string(),
+      startsAtMinutes: v.optional(v.number()),
+      durationMinutes: v.optional(v.number()),
     }),
   ),
   projectSections: v.array(
@@ -236,6 +259,27 @@ const backupSchema = v.object({
         content: v.string(),
         createdAt: v.number(),
         checkedAt: v.union(v.number(), v.null()),
+      }),
+    ),
+  ),
+  dailyReports: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        date: v.string(),
+        notes: v.string(),
+        completedTasks: v.array(
+          v.object({
+            id: v.string(),
+            title: v.string(),
+          }),
+        ),
+        mood: v.optional(dailyReportRating),
+        energy: v.optional(dailyReportRating),
+        focus: v.optional(dailyReportRating),
+        accomplishment: v.optional(dailyReportRating),
+        createdAt: v.number(),
+        updatedAt: v.number(),
       }),
     ),
   ),
@@ -288,6 +332,8 @@ const legacyBackupSchema = v.object({
       createdAt: v.number(),
       lastGeneratedAt: v.number(),
       projectCategoryId: v.string(),
+      startsAtMinutes: v.optional(v.number()),
+      durationMinutes: v.optional(v.number()),
     }),
   ),
   projectCategories: v.array(
@@ -332,6 +378,27 @@ const legacyBackupSchema = v.object({
         content: v.string(),
         createdAt: v.number(),
         checkedAt: v.union(v.number(), v.null()),
+      }),
+    ),
+  ),
+  dailyReports: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        date: v.string(),
+        notes: v.string(),
+        completedTasks: v.array(
+          v.object({
+            id: v.string(),
+            title: v.string(),
+          }),
+        ),
+        mood: v.optional(dailyReportRating),
+        energy: v.optional(dailyReportRating),
+        focus: v.optional(dailyReportRating),
+        accomplishment: v.optional(dailyReportRating),
+        createdAt: v.number(),
+        updatedAt: v.number(),
       }),
     ),
   ),
@@ -505,6 +572,12 @@ const getNewModels = action({
         createdAt: templateBackup.createdAt,
         lastGeneratedAt: templateBackup.lastGeneratedAt,
         projectSectionId: section.id,
+        ...(templateBackup.startsAtMinutes == null
+          ? {}
+          : { startsAtMinutes: templateBackup.startsAtMinutes }),
+        ...(templateBackup.durationMinutes == null
+          ? {}
+          : { durationMinutes: templateBackup.durationMinutes }),
       };
 
       models.push(template);
@@ -565,6 +638,35 @@ const getNewModels = action({
       };
 
       models.push(checklistItem);
+    }
+
+    for (const reportBackup of backup.dailyReports || []) {
+      let date = reportBackup.date;
+      if (date.length !== 10) {
+        date = getDMY(new Date(date));
+      }
+
+      const dailyReport: DailyReport = {
+        type: dailyReportType,
+        id: yield* dailyReportGetId({ date }),
+        date,
+        notes: reportBackup.notes,
+        completedTasks: reportBackup.completedTasks,
+        createdAt: reportBackup.createdAt,
+        updatedAt: reportBackup.updatedAt,
+        ...(reportBackup.mood !== undefined ? { mood: reportBackup.mood } : {}),
+        ...(reportBackup.energy !== undefined
+          ? { energy: reportBackup.energy }
+          : {}),
+        ...(reportBackup.focus !== undefined
+          ? { focus: reportBackup.focus }
+          : {}),
+        ...(reportBackup.accomplishment !== undefined
+          ? { accomplishment: reportBackup.accomplishment }
+          : {}),
+      };
+
+      models.push(dailyReport);
     }
 
     // Handle legacy backup format where dailyListId was on tasks directly
@@ -662,6 +764,7 @@ export const getSpaceBackup = selector({
     }
 
     const allSections = yield* allProjectSections({});
+    const dailyReports: DailyReport[] = yield* allDailyReports({});
 
     return {
       projectSections: allSections.map((group) => ({
@@ -712,6 +815,12 @@ export const getSpaceBackup = selector({
         createdAt: template.createdAt,
         lastGeneratedAt: template.lastGeneratedAt,
         projectSectionId: template.projectSectionId,
+        ...(template.startsAtMinutes == null
+          ? {}
+          : { startsAtMinutes: template.startsAtMinutes }),
+        ...(template.durationMinutes == null
+          ? {}
+          : { durationMinutes: template.durationMinutes }),
       })),
       checklistItems: checklistItems.map((item) => ({
         id: item.id,
@@ -722,6 +831,20 @@ export const getSpaceBackup = selector({
         content: item.content,
         createdAt: item.createdAt,
         checkedAt: item.checkedAt,
+      })),
+      dailyReports: dailyReports.map((report) => ({
+        id: report.id,
+        date: report.date,
+        notes: report.notes,
+        completedTasks: report.completedTasks,
+        createdAt: report.createdAt,
+        updatedAt: report.updatedAt,
+        ...(report.mood !== undefined ? { mood: report.mood } : {}),
+        ...(report.energy !== undefined ? { energy: report.energy } : {}),
+        ...(report.focus !== undefined ? { focus: report.focus } : {}),
+        ...(report.accomplishment !== undefined
+          ? { accomplishment: report.accomplishment }
+          : {}),
       })),
     } satisfies Backup;
   },

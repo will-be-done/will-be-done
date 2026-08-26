@@ -3,11 +3,14 @@
 import type { CSSProperties } from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import "sonner/dist/styles.css";
+import { useTheme } from "@/components/ui/theme-provider";
 
 function Toaster({ ...props }: ToasterProps) {
+  const { resolvedTheme } = useTheme();
+
   return (
     <Sonner
-      theme="dark"
+      theme={resolvedTheme}
       position="bottom-right"
       gap={10}
       expand={false}

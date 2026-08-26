@@ -8,8 +8,8 @@ type BackgroundOrbsProps = {
 
 export function BackgroundOrbs({
   className,
-  topOrbFill = "rgb(37 99 235 / 0.08)",
-  bottomOrbFill = "rgb(99 102 241 / 0.06)",
+  topOrbFill = "rgb(255 149 63 / 0.1)",
+  bottomOrbFill = "rgb(224 106 26 / 0.06)",
 }: BackgroundOrbsProps) {
   const isSafari =
     typeof document !== "undefined" &&

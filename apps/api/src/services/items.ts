@@ -20,6 +20,8 @@ export interface PublicTaskTemplate {
   repeatRuleDtStart: number;
   createdAt: number;
   lastGeneratedAt: number;
+  startsAtMinutes?: number;
+  durationMinutes?: number;
 }
 
 export type PublicItem = PublicTask | PublicTaskTemplate;
@@ -38,6 +40,12 @@ export function toPublicTaskTemplate(
     repeatRuleDtStart: template.repeatRuleDtStart,
     createdAt: template.createdAt,
     lastGeneratedAt: template.lastGeneratedAt,
+    ...(template.startsAtMinutes == null
+      ? {}
+      : { startsAtMinutes: template.startsAtMinutes }),
+    ...(template.durationMinutes == null
+      ? {}
+      : { durationMinutes: template.durationMinutes }),
   };
 }
 

@@ -551,7 +551,7 @@ export const ProjectView = ({
   return (
     <div className="flex h-full w-full shrink-0">
       <div
-        className={cn("overflow-y-auto ", {
+        className={cn("h-full min-w-0 flex-1 overflow-auto", {
           "mt-10": marginTop,
           "-mt-1 pt-1": !marginTop,
         })}

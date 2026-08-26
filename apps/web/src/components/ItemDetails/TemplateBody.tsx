@@ -15,6 +15,7 @@ import {
 } from "@will-be-done/slices/space";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
+import { formatClockMinutes } from "@/components/TimePicker/TimePicker.tsx";
 import { useDescriptionEditing, useTitleEditing } from "./hooks.ts";
 import {
   EditableTitle,
@@ -117,18 +118,23 @@ export function TemplateBody({
   }, [template, dispatch, onItemIdChange]);
 
   const handleRepeatConfirm = useCallback(
-    (ruleString: string) => {
+    (ruleString: string, options?: { startsAtMinutes?: number }) => {
       setIsRepeatModalOpen(false);
       void dispatch(
         updateTemplate({
           id: templateId,
           template: {
             repeatRule: ruleString,
+            startsAtMinutes: options?.startsAtMinutes,
+            ...(options?.startsAtMinutes != null &&
+            template.durationMinutes == null
+              ? { durationMinutes: 30 }
+              : {}),
           },
         }),
       );
     },
-    [dispatch, templateId],
+    [dispatch, templateId, template.durationMinutes],
   );
 
   if (!project) return null;
@@ -182,6 +188,8 @@ export function TemplateBody({
             onClick={() => setIsRepeatModalOpen(true)}
           >
             {ruleText || "custom"}
+            {template.startsAtMinutes != null &&
+              ` at ${formatClockMinutes(template.startsAtMinutes)}`}
           </button>
         </DetailRow>
 
@@ -240,6 +248,7 @@ export function TemplateBody({
       {isRepeatModalOpen && (
         <RepeatModal
           initialRule={template.repeatRule}
+          initialStartsAtMinutes={template.startsAtMinutes}
           onConfirm={handleRepeatConfirm}
           onCancel={() => setIsRepeatModalOpen(false)}
         />

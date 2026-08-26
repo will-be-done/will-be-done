@@ -4,9 +4,13 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
+import {
+  CreateSpaceDialog,
+  type CreateSpaceValues,
+} from "@/components/CreateSpace/CreateSpaceDialog";
 import { BackgroundOrbs } from "@/components/Layout/BackgroundOrbs.tsx";
 import { Pencil, Plus, Trash2, LogOut } from "lucide-react";
 import { initDbStore } from "@/store/load";
@@ -23,6 +27,7 @@ import {
   deleteSpace,
 } from "@will-be-done/slices/user";
 import { userDBConfig } from "@/store/configs";
+import { setPendingSpaceWorkday } from "@/store/pendingSpaceWorkday";
 
 export const Route = createFileRoute("/spaces/")({
   component: SpacePage,
@@ -57,7 +62,7 @@ function Logo({ size = 32 }: { size?: number }) {
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <div
-        className="absolute inset-0 rounded-[13%] bg-blue-500/30 blur-md safari:blur-sm"
+        className="absolute inset-0 rounded-[13%] bg-accent/30 blur-md safari:blur-sm"
         style={{ transform: "scale(1.15)" }}
       />
       <svg
@@ -84,8 +89,8 @@ function Logo({ size = 32 }: { size?: number }) {
             y2="150"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#3b82f6" />
-            <stop offset="1" stopColor="#1e40af" />
+            <stop stopColor="#ff953f" />
+            <stop offset="1" stopColor="#e06a1a" />
           </linearGradient>
           <linearGradient
             id={`paint1_${id}`}
@@ -95,8 +100,8 @@ function Logo({ size = 32 }: { size?: number }) {
             y2="120.5"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#93c5fd" />
-            <stop offset="1" stopColor="#60a5fa" />
+            <stop stopColor="#ffc48a" />
+            <stop offset="1" stopColor="#ffb366" />
           </linearGradient>
         </defs>
       </svg>
@@ -106,6 +111,8 @@ function Logo({ size = 32 }: { size?: number }) {
 
 function SpacePageComponent() {
   const navigate = useNavigate();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createKey, setCreateKey] = useState(0);
 
   const { data: spaces = [] } = useAsyncSelector({
     selector: listSpaces,
@@ -119,16 +126,23 @@ function SpacePageComponent() {
     );
   }, [spaces]);
 
+  const openCreate = () => {
+    setCreateKey((key) => key + 1);
+    setCreateOpen(true);
+  };
+
   const handleSignOut = () => {
     authUtils.signOut();
     void navigate({ to: "/login" });
   };
 
-  const handleCreateSpace = async () => {
-    const name = await promptDialog("Enter space name:");
-    if (!name?.trim()) return;
-
-    const space = await dispatch(createSpace({ name: name }));
+  const handleCreateSpace = async (values: CreateSpaceValues) => {
+    const space = await dispatch(createSpace({ name: values.name }));
+    setPendingSpaceWorkday(space.id, {
+      dayStartMinutes: values.dayStartMinutes,
+      dayEndMinutes: values.dayEndMinutes,
+      breaks: values.breaks,
+    });
     authUtils.setSpaceNames([{ spaceId: space.id, name: space.name }]);
   };
 
@@ -165,18 +179,19 @@ function SpacePageComponent() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0f] text-slate-100 antialiased">
+    <div className="relative min-h-screen bg-surface text-content antialiased">
       <div className="absolute inset-x-0 top-0 z-50 h-10 [app-region:drag]" />
 
       {/* Gradient orbs */}
       <BackgroundOrbs
-        topOrbFill="rgb(37 99 235 / 0.08)"
-        bottomOrbFill="rgb(99 102 241 / 0.06)"
+        className="hidden dark:block"
+        topOrbFill="rgb(255 149 63 / 0.1)"
+        bottomOrbFill="rgb(224 106 26 / 0.06)"
       />
 
       {/* Noise texture overlay */}
       <div
-        className="pointer-events-none fixed inset-0 opacity-[0.015]"
+        className="pointer-events-none fixed inset-0 hidden opacity-[0.015] dark:block"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }}
@@ -189,25 +204,25 @@ function SpacePageComponent() {
             <div className="flex items-center gap-3">
               <Logo size={36} />
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white">
+                <h1 className="text-2xl font-bold tracking-tight text-content">
                   Your Spaces
                 </h1>
-                <p className="text-[13px] text-slate-400">
+                <p className="text-[13px] text-content-secondary">
                   Select a space to continue or create a new one
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => void handleCreateSpace()}
-                className="group flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
+                onClick={openCreate}
+                className="group flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-accent/25 transition-all hover:bg-accent-hover hover:shadow-accent/30"
               >
                 <Plus className="h-4 w-4" />
                 New Space
               </button>
               <button
                 onClick={handleSignOut}
-                className="flex cursor-pointer items-center gap-2 rounded-lg bg-white/[0.05] px-4 py-2.5 text-[13px] font-medium text-slate-300 ring-1 ring-white/[0.08] transition-all hover:bg-white/[0.08] hover:text-white"
+                className="flex cursor-pointer items-center gap-2 rounded-lg bg-overlay px-4 py-2.5 text-[13px] font-medium text-content-tinted ring-1 ring-border transition-all hover:bg-overlay-hover hover:text-content"
               >
                 <LogOut className="h-4 w-4" />
                 Sign Out
@@ -226,11 +241,11 @@ function SpacePageComponent() {
                   }}
                   key={space.id}
                   data-space-card
-                  className="group relative overflow-hidden rounded-lg bg-white/[0.03] p-5 ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.05] hover:ring-white/[0.1]"
+                  className="group relative overflow-hidden rounded-lg bg-panel p-5 ring-1 ring-border transition-all hover:bg-overlay hover:ring-border"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-[15px] font-medium text-white">
+                      <span className="text-[15px] font-medium text-content">
                         {space.name}
                       </span>
                     </div>
@@ -239,7 +254,7 @@ function SpacePageComponent() {
                         onClick={(e) =>
                           void handleUpdateSpace(space.id, space.name, e)
                         }
-                        className="cursor-pointer rounded-md p-1 text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-blue-400"
+                        className="cursor-pointer rounded-md p-1 text-content-secondary transition-colors hover:bg-overlay hover:text-accent"
                         aria-label="Edit space"
                       >
                         <Pencil className="h-4 w-4" />
@@ -248,7 +263,7 @@ function SpacePageComponent() {
                         onClick={(e) =>
                           void handleDeleteSpace(space.id, space.name, e)
                         }
-                        className="cursor-pointer rounded-md p-1 mr-1.5 text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-red-400"
+                        className="cursor-pointer rounded-md p-1 mr-1.5 text-content-secondary transition-colors hover:bg-overlay hover:text-red-400"
                         aria-label="Delete space"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -256,7 +271,7 @@ function SpacePageComponent() {
                     </div>
                   </div>
                   {/* Subtle arrow indicator */}
-                  <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 transition-all group-hover:translate-x-2 group-hover:text-slate-400">
+                  <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-content-tinted-2 transition-all group-hover:translate-x-2 group-hover:text-content-secondary">
                     <svg
                       className="h-5 w-5"
                       fill="none"
@@ -275,10 +290,10 @@ function SpacePageComponent() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-lg bg-white/[0.02] py-16 ring-1 ring-white/[0.04]">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-500/10">
+            <div className="flex flex-col items-center justify-center rounded-lg bg-overlay py-16 ring-1 ring-border">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-accent/10">
                 <svg
-                  className="h-7 w-7 text-blue-400"
+                  className="h-7 w-7 text-accent"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -291,15 +306,15 @@ function SpacePageComponent() {
                   />
                 </svg>
               </div>
-              <h3 className="mb-2 text-lg font-medium text-white">
+              <h3 className="mb-2 text-lg font-medium text-content">
                 No spaces yet
               </h3>
-              <p className="mb-6 text-[14px] text-slate-400">
+              <p className="mb-6 text-[14px] text-content-secondary">
                 Create your first space to start organizing your tasks
               </p>
               <button
-                onClick={() => void handleCreateSpace()}
-                className="group flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
+                onClick={openCreate}
+                className="group flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-accent/25 transition-all hover:bg-accent-hover hover:shadow-accent/30"
               >
                 <Plus className="h-4 w-4" />
                 Create your first space
@@ -308,6 +323,12 @@ function SpacePageComponent() {
           )}
         </div>
       </div>
+      <CreateSpaceDialog
+        key={createKey}
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreate={handleCreateSpace}
+      />
     </div>
   );
 }

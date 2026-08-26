@@ -7,15 +7,14 @@ import {
   projectsWithTaskStats,
 } from "@will-be-done/slices/space";
 import { SidebarProjectItem } from "./SidebarProjectItem.tsx";
-import { SpaceBlock } from "./SpaceBlock.tsx";
 import {
   Sidebar,
   SidebarHeader,
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { PanelLeftClose } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { SpaceNavLinks } from "@/components/SpaceNavLinks.tsx";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { format, startOfDay } from "date-fns";
 import { useCurrentDate } from "@/components/DaysBoard/hooks.tsx";
@@ -31,14 +30,14 @@ import {
 } from "@/components/ui/dialog.tsx";
 import { generateTestBackup } from "@/lib/generateTestData.ts";
 
-const CalendarIcon = () => (
+const CalendarIcon = ({ className }: { className?: string }) => (
   <svg
     width="15"
     height="15"
     viewBox="0 0 15 15"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
-    className="flex-shrink-0"
+    className={cn("flex-shrink-0", className)}
   >
     <rect
       x="1"
@@ -64,14 +63,14 @@ const CalendarIcon = () => (
   </svg>
 );
 
-const InboxIcon = () => (
+const InboxIcon = ({ className }: { className?: string }) => (
   <svg
     width="15"
     height="15"
     viewBox="0 0 15 15"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
-    className="flex-shrink-0"
+    className={cn("flex-shrink-0", className)}
   >
     <rect
       x="1.5"
@@ -90,6 +89,22 @@ const InboxIcon = () => (
     />
   </svg>
 );
+
+const HideSidebarButton = () => {
+  const { toggleSidebar } = useSidebar();
+
+  return (
+    <button
+      type="button"
+      aria-label="Hide sidebar"
+      title="Hide sidebar"
+      onClick={toggleSidebar}
+      className="flex size-7 shrink-0 items-center justify-center rounded-md text-content-tinted/70 hover:bg-overlay hover:text-content cursor-pointer"
+    >
+      <PanelLeftClose className="size-4" strokeWidth={1.6} />
+    </button>
+  );
+};
 
 const useCloseMobileOnNav = () => {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -115,13 +130,13 @@ const TodayNavItem = () => {
       params={{ spaceId, date: dateStr }}
       onClick={closeMobile}
       className={cn(
-        "flex items-center gap-2 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
+        "flex items-center gap-3 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
         isActive
-          ? "bg-accent/10 ring-accent/30 text-accent"
-          : "ring-ring/40 text-content-tinted hover:text-content hover:bg-surface hover:ring-ring",
+          ? "bg-panel ring-transparent text-content"
+          : "ring-transparent text-content-tinted hover:text-content hover:bg-overlay",
       )}
     >
-      <CalendarIcon />
+      <CalendarIcon className={isActive ? "text-accent" : undefined} />
       <div className="flex flex-col min-w-0">
         <span className="text-[13px] font-medium leading-tight">Today</span>
         <span className="text-[10px] leading-tight opacity-50 tabular-nums">
@@ -157,13 +172,13 @@ const InboxNavItem = ({
       params={{ spaceId, projectId: inboxId }}
       onClick={closeMobile}
       className={cn(
-        "flex items-center gap-2 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
+        "flex items-center gap-3 px-2.5 py-2 rounded-lg ring-1 transition-colors min-h-[40px]",
         isActive
-          ? "bg-accent/10 ring-accent/30 text-accent"
-          : "ring-ring/40 text-content-tinted hover:text-content hover:bg-surface hover:ring-ring",
+          ? "bg-panel ring-transparent text-content"
+          : "ring-transparent text-content-tinted hover:text-content hover:bg-overlay",
       )}
     >
-      <InboxIcon />
+      <InboxIcon className={isActive ? "text-accent" : undefined} />
       <div className="flex flex-col min-w-0 flex-1">
         <span className="text-[13px] font-medium leading-tight">Inbox</span>
         {notDoneCount > 0 && (
@@ -173,16 +188,6 @@ const InboxNavItem = ({
         )}
       </div>
     </Link>
-  );
-};
-
-const NavStrip = () => {
-  const spaceId = Route.useParams().spaceId;
-
-  return (
-    <div className="hidden sm:flex desktop-macos:flex -ml-2 mb-3">
-      <SpaceNavLinks spaceId={spaceId} />
-    </div>
   );
 };
 
@@ -207,20 +212,21 @@ export const AppSidebar = () => {
     <Sidebar
       side="left"
       collapsible="offcanvas"
-      className="[&_[data-slot=sidebar-container]]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-surface-elevated [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-ring"
+      className="left-12 [&_[data-slot=sidebar-container]]:border-r-0 [&_[data-slot=sidebar-inner]]:bg-white [&_[data-slot=sidebar-inner]]:ring-0 dark:[&_[data-slot=sidebar-inner]]:bg-surface-elevated dark:[&_[data-slot=sidebar-inner]]:ring-1 dark:[&_[data-slot=sidebar-inner]]:ring-ring"
     >
       <SidebarRail />
-      <SidebarHeader className="px-2 pt-3 md:pt-0 desktop-macos:pt-0 pb-0 gap-0">
-        <NavStrip />
-        {/* Today + Inbox */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <TodayNavItem />
-          {inbox && (
-            <InboxNavItem
-              inboxId={inbox.project.id}
-              notDoneCount={inbox.notDoneCount}
-            />
-          )}
+      <SidebarHeader className="px-2 pt-3 pb-0 gap-0">
+        <div className="flex items-start gap-1">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5">
+            <TodayNavItem />
+            {inbox && (
+              <InboxNavItem
+                inboxId={inbox.project.id}
+                notDoneCount={inbox.notDoneCount}
+              />
+            )}
+          </div>
+          <HideSidebarButton />
         </div>
 
         {/* Divider + Projects label */}
@@ -256,8 +262,6 @@ export const AppSidebar = () => {
       </div>
 
       {import.meta.env.DEV && <GenerateTestDataButton />}
-
-      <SpaceBlock />
     </Sidebar>
   );
 };
@@ -365,7 +369,7 @@ const GenerateTestDataButton = () => {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="cursor-pointer rounded-md px-3.5 py-1.5 text-[13px] font-medium text-content-tinted transition-colors hover:text-content hover:bg-white/[0.05]"
+                className="cursor-pointer rounded-md px-3.5 py-1.5 text-[13px] font-medium text-content-tinted transition-colors hover:text-content hover:bg-overlay"
               >
                 Cancel
               </button>
