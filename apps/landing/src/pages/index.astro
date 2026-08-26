@@ -19,62 +19,77 @@ import quickAddFullImg from '../assets/quick-add-full.png';
 
 const faqs = [
   {
+    id: 'open_source',
     q: 'Is Will Be Done open source?',
     a: 'Yes. The whole thing is licensed under AGPL-3.0 and developed in the open on GitHub: web app, desktop app, sync server and API.',
   },
   {
+    id: 'offline',
     q: 'Does Will Be Done work completely offline?',
     a: 'Yes. Every device keeps a full local database, so you can read tasks, create them, complete them and move them around your week with no network at all. Changes sync once you are back online.',
   },
   {
+    id: 'self_hosting',
     q: 'Can I self-host it?',
     a: 'Yes, with one Docker container. It stores data in SQLite on a volume you control, needs no external services, and serves the web app plus the API from the same port.',
   },
   {
+    id: 'data_storage',
     q: 'Where is my data stored?',
     a: 'A copy lives locally on every device you use, and the synced copy lives on whichever server you choose: your own Docker container, which keeps SQLite under /var/lib/will-be-done, or the hosted cloud.',
   },
   {
+    id: 'account_required',
     q: 'Do I need an account?',
     a: 'Not for the live demo. It runs entirely in your browser with no signup. You need an account only to sync across devices, either on the cloud or on your own server.',
   },
   {
+    id: 'cloud_version',
     q: 'Is there a cloud version?',
     a: 'Yes. app.will-be-done.app is free to start. Use it if you want sync across devices without running a server yourself.',
   },
   {
+    id: 'pricing_model',
     q: 'How will Will Be Done make money?',
     a: 'The hosted cloud version will make money through paid plans. Self-hosting will never have a paywall, and no feature in the self-hosted version will require payment to Will Be Done. The self-hosted version will have the same features as the cloud unless a cloud feature cannot reasonably run without hosted infrastructure. In those cases, I will provide a self-hosted alternative when possible. For example, a self-hosted AI assistant will let you use your own OpenRouter API key. I will also keep the self-hosted infrastructure as simple as I can. The standard setup will use SQLite and a directory for uploaded attachments. It will not require Redis, an external database service or S3.',
   },
   {
+    id: 'server_offline',
     q: 'What happens if my self-hosted server goes offline?',
     a: 'The app keeps working. Reads and writes hit your local database, and the app sends pending changes the moment the server comes back.',
   },
   {
+    id: 'offline_conflict_resolution',
     q: 'What happens if I edit the same task on two devices while offline?',
     a: 'Both devices keep working, and they merge their changes field by field once they reconnect, with the last write winning. Say your phone is offline on the train and you rename a task to "Draft Q2 budget", then ten minutes later you rename the same task to "Draft Q2 budget deck" on your desktop: once both sync, the title is the desktop one, because it was edited later. Ordering comes from a hybrid logical clock rather than who reconnects first, so a stale edit uploaded later does not overwrite a newer one.',
   },
   {
+    id: 'field_level_conflicts',
     q: 'Does a conflict ever lose my other changes?',
     a: 'Only the specific field that both devices changed is resolved that way. Because the merge is per field rather than per task, edits to different fields survive together: if your phone renamed a task while your desktop moved it to Thursday, you end up with the new title and the new day. Deletes are the one-way case: a deleted task stays deleted rather than being resurrected by an edit from another device.',
   },
   {
+    id: 'task_import',
     q: 'Can I import my tasks from Todoist or TickTick?',
     a: 'Yes. Todoist imports through an API token you paste into Will Be Done, and TickTick imports from its CSV export. Both bring your projects and tasks into the space you choose.',
   },
   {
+    id: 'mobile_app',
     q: 'Is there a mobile app?',
     a: 'Mobile today is a mobile-ready PWA you install to your home screen. It is a real mobile UI, not a shrunken desktop layout. App store builds are on the roadmap, and they will package this same web app for iOS and Android rather than being a separate native rewrite.',
   },
   {
+    id: 'team_sharing',
     q: 'Can I share projects or use it with a team?',
     a: 'No. Will Be Done is a single-user planner. Multi-user spaces and shared tasks or projects are not planned for now, so treat it as a personal tool rather than a team tracker.',
   },
   {
+    id: 'time_of_day_scheduling',
     q: 'Can I schedule a task for a specific time of day?',
     a: 'No. You schedule tasks to days, not to times, because the app plans a week rather than fills a calendar. Time-of-day scheduling is not planned for now.',
   },
   {
+    id: 'end_to_end_encryption',
     q: 'Is my data end-to-end encrypted?',
     a: 'Not today. The data sits locally on your devices and on the server you sync with, which can be your own machine. End-to-end encryption is on the roadmap but is not implemented yet.',
   },
@@ -201,6 +216,7 @@ const everythingElse = [
               class="group inline-flex items-center gap-1.5 text-slate-400 transition-colors hover:text-white"
               data-ph-event="download_clicked"
               data-ph-section="hero"
+              data-ph-destination="github_releases"
             >
               <svg class="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -969,7 +985,7 @@ const everythingElse = [
       </section>
 
       <!-- API -->
-      <section aria-label="HTTP API" class="relative px-6 py-16">
+      <section aria-label="HTTP API" class="relative px-6 py-16" data-ph-section-view="api">
         <div class="mx-auto max-w-5xl">
           <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
             <div>
@@ -1023,7 +1039,7 @@ const everythingElse = [
       </section>
 
       <!-- Self-host section -->
-      <section id="self-host" aria-label="Self-hosting" class="relative scroll-mt-24 border-t border-white/[0.04] px-6 py-20">
+      <section id="self-host" aria-label="Self-hosting" class="relative scroll-mt-24 border-t border-white/[0.04] px-6 py-20" data-ph-section-view="self_host">
         <div class="mx-auto max-w-5xl">
           <DockerInstall gridClass="gap-12 lg:grid-cols-2 lg:gap-16 items-center" />
 
@@ -1159,7 +1175,7 @@ const everythingElse = [
           <h2 class="mb-8 text-2xl font-bold tracking-tight text-white md:text-3xl">Frequently asked questions</h2>
           <div class="space-y-3">
             {faqs.map((faq) => (
-              <details class="faq-item group rounded-xl bg-white/[0.02] px-5 py-4 ring-1 ring-white/[0.06] transition-colors hover:ring-white/[0.12]">
+              <details class="faq-item group rounded-xl bg-white/[0.02] px-5 py-4 ring-1 ring-white/[0.06] transition-colors hover:ring-white/[0.12]" data-ph-faq-id={faq.id}>
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-medium text-slate-200">
                   {faq.q}
                   <svg
@@ -1180,7 +1196,7 @@ const everythingElse = [
       </section>
 
       <!-- CTA -->
-      <section aria-label="Call to action" class="relative border-t border-white/[0.04] px-6 py-20">
+      <section aria-label="Call to action" class="relative border-t border-white/[0.04] px-6 py-20" data-ph-section-view="final_cta">
         <div class="mx-auto max-w-5xl">
           <div class="rounded-2xl bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10 p-8 ring-1 ring-white/[0.06] md:p-12">
             <div class="mx-auto max-w-xl text-center">
@@ -1208,6 +1224,7 @@ const everythingElse = [
                   href="https://app.will-be-done.app/signup"
                   class="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-6 py-3.5 text-[15px] font-medium text-slate-200 ring-1 ring-white/[0.10] transition-all hover:bg-white/[0.08] hover:text-white hover:ring-white/[0.18]"
                   data-ph-event="signup_clicked"
+                  data-ph-additional-event="signup_cta_clicked"
                   data-ph-section="cta"
                 >
                   Start free
@@ -1272,39 +1289,75 @@ const everythingElse = [
   // Video modal
   const modal = document.getElementById('video-modal') as HTMLDialogElement;
   const modalVideo = document.getElementById('modal-video') as HTMLVideoElement;
+  let videoSessionOpen = false;
+  let videoCompleted = false;
+  let videoCloseReason = 'unknown';
+
+  const playbackProperties = () => {
+    const watchedSeconds = Math.round(modalVideo.currentTime * 10) / 10;
+    const durationSeconds = Number.isFinite(modalVideo.duration)
+      ? Math.round(modalVideo.duration * 10) / 10
+      : 0;
+    const watchedPercentage = durationSeconds > 0
+      ? Math.min(100, Math.round((watchedSeconds / durationSeconds) * 100))
+      : 0;
+
+    return {
+      watched_seconds: watchedSeconds,
+      watched_percentage: watchedPercentage,
+      video_duration_seconds: durationSeconds,
+    };
+  };
+
+  const closeVideo = (reason: string) => {
+    if (!modal.open) return;
+    videoCloseReason = reason;
+    modal.close();
+  };
 
   document.querySelectorAll('[data-open-modal]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      videoSessionOpen = true;
+      videoCompleted = false;
+      videoCloseReason = 'unknown';
       modal.showModal();
-      modalVideo.play();
+      void modalVideo.play();
       window.posthog?.capture('demo_video_opened');
     });
   });
 
   document.getElementById('close-modal')?.addEventListener('click', () => {
-    modal.close();
-    modalVideo.pause();
-    modalVideo.currentTime = 0;
-    window.posthog?.capture('demo_video_closed');
+    closeVideo('button');
   });
 
   modal.addEventListener('click', (e) => {
     if (e.target === modal) {
-      modal.close();
-      modalVideo.pause();
-      modalVideo.currentTime = 0;
-      window.posthog?.capture('demo_video_closed');
+      closeVideo('backdrop');
     }
   });
 
-  // PostHog: CTA and link click tracking
-  document.querySelectorAll<HTMLAnchorElement>('[data-ph-event]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const event = el.dataset.phEvent!;
-      const props: Record<string, string> = {};
-      if (el.dataset.phSection) props['section'] = el.dataset.phSection;
-      window.posthog?.capture(event, props);
+  modal.addEventListener('cancel', () => {
+    videoCloseReason = 'escape';
+  });
+
+  modal.addEventListener('close', () => {
+    if (!videoSessionOpen) return;
+
+    window.posthog?.capture('demo_video_closed', {
+      ...playbackProperties(),
+      close_reason: videoCloseReason,
+      completed: videoCompleted,
     });
+    modalVideo.pause();
+    modalVideo.currentTime = 0;
+    videoSessionOpen = false;
+  });
+
+  modalVideo.addEventListener('ended', () => {
+    if (!videoSessionOpen || videoCompleted) return;
+
+    videoCompleted = true;
+    window.posthog?.capture('demo_video_completed', playbackProperties());
   });
 
   // Screenshot carousel

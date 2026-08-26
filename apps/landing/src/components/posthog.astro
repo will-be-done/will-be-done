@@ -14,6 +14,51 @@ const uiHost = import.meta.env.PUBLIC_POSTHOG_UI_HOST;
         ui_host: uiHost || 'https://eu.posthog.com',
         defaults: '2026-01-30'
       })
+      posthog.register({ app_surface: 'landing' })
+
+      document.addEventListener('click', function (clickEvent) {
+        var target = clickEvent.target instanceof Element
+          ? clickEvent.target.closest('[data-ph-event]')
+          : null
+        if (!target) return
+
+        var properties = {}
+        if (target.dataset.phSection) properties.section = target.dataset.phSection
+        if (target.dataset.phReleaseTag) properties.release_tag = target.dataset.phReleaseTag
+        if (target.dataset.phDestination) properties.destination = target.dataset.phDestination
+
+        posthog.capture(target.dataset.phEvent, properties)
+        if (target.dataset.phAdditionalEvent) {
+          posthog.capture(target.dataset.phAdditionalEvent, properties)
+        }
+      })
+
+      document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('details[data-ph-faq-id]').forEach(function (details) {
+          details.addEventListener('toggle', function () {
+            if (details.open) {
+              posthog.capture('faq_opened', { faq_id: details.dataset.phFaqId })
+            }
+          })
+        })
+
+        if (!('IntersectionObserver' in window)) return
+
+        var sectionObserver = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return
+
+            posthog.capture('key_section_viewed', {
+              section: entry.target.dataset.phSectionView
+            })
+            sectionObserver.unobserve(entry.target)
+          })
+        }, { threshold: 0.3 })
+
+        document.querySelectorAll('[data-ph-section-view]').forEach(function (section) {
+          sectionObserver.observe(section)
+        })
+      })
     </script>
   )
 }
