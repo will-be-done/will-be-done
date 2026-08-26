@@ -54,6 +54,7 @@
     "fastify-type-provider-zod": "^7.0.0",
     "fractional-indexing-jittered": "^1.0.0",
     "ioredis": "^6.0.0",
+    "posthog-node": "^5.51.2",
     "uuidv7": "^1.1.0",
     "ws": "^8.19.0",
     "zod": "^4.1.13"

@@ -1,5 +1,6 @@
 import { resetWsClient } from "./trpc";
 import { queryClient } from "./query";
+import { resetWebAnalytics } from "./analytics";
 
 const AUTH_TOKEN_KEY = "auth_token";
 const USER_ID_KEY = "user_id";
@@ -50,6 +51,7 @@ export const authUtils = {
   },
 
   signOut: (): void => {
+    resetWebAnalytics();
     authUtils.removeToken();
     authUtils.removeUserId();
     authUtils.removeLastUsedSpaceId();

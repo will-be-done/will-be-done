@@ -26,6 +26,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
 import invariant from "tiny-invariant";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -134,6 +135,10 @@ const SectionSection = ({
       const task = await dispatch(
         createTaskInSection({ projectSectionId, position: "prepend" }),
       );
+      captureWebAnalytics({
+        name: "task_created",
+        properties: { creation_method: "add_button", location: "project" },
+      });
       const focusKey = buildFocusKey(task.id, "task");
       useFocusStore.getState().editByKey(focusKey);
 

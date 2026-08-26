@@ -664,6 +664,7 @@ describe("section and task services", () => {
     expect(scheduled).toMatchObject({
       task: { id: "task-a", scheduledDate: "2026-07-22" },
       date: "2026-07-22",
+      previousDate: null,
     });
     expect(
       (
@@ -720,12 +721,13 @@ describe("section and task services", () => {
       }),
     ).toEqual([]);
 
-    await scheduleTask({
+    const rescheduled = await scheduleTask({
       spaceId: "space-1",
       taskId: "task-a",
       userId: "user-1",
       date: "2026-07-23",
     });
+    expect(rescheduled.previousDate).toBe("2026-07-22");
     expect(
       selectSync(spaceDB, {
         selector: dailyEntriesByDailyListId,
@@ -733,16 +735,18 @@ describe("section and task services", () => {
       }).map((entry) => entry.taskId),
     ).toEqual(["task-c", "done-new"]);
 
-    await clearTaskSchedule({
+    const clearedDate = await clearTaskSchedule({
       spaceId: "space-1",
       taskId: "task-a",
       userId: "user-1",
     });
-    await clearTaskSchedule({
+    const alreadyClearDate = await clearTaskSchedule({
       spaceId: "space-1",
       taskId: "task-a",
       userId: "user-1",
     });
+    expect(clearedDate).toBe("2026-07-23");
+    expect(alreadyClearDate).toBeNull();
     expect(
       (
         await getTask({

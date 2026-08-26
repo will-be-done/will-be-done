@@ -38,6 +38,7 @@ import {
   EditableDescription,
 } from "./shared.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export function TaskBody({
   task,
@@ -134,6 +135,21 @@ export function TaskBody({
     }
   }, [task.templateId, dispatch]);
 
+  const handleToggleState = useCallback(() => {
+    void (async () => {
+      await dispatch(toggleTaskState({ taskId }));
+      captureWebAnalytics({
+        name: task.state === "todo" ? "task_completed" : "task_reopened",
+        properties: {
+          age_hours: Math.max(
+            0,
+            Math.round(((Date.now() - task.createdAt) / 3_600_000) * 10) / 10,
+          ),
+        },
+      });
+    })();
+  }, [dispatch, task.createdAt, task.state, taskId]);
+
   const handleRepeatConfirm = useCallback(
     (ruleString: string) => {
       setIsRepeatModalOpen(false);
@@ -157,6 +173,13 @@ export function TaskBody({
               },
             }),
           );
+          captureWebAnalytics({
+            name: "task_template_created",
+            properties: {
+              creation_method: "web",
+              source: "task_conversion",
+            },
+          });
 
           useFocusStore
             .getState()
@@ -176,7 +199,7 @@ export function TaskBody({
         icon={
           <CheckboxComp
             checked={task.state === "done"}
-            onChange={() => void dispatch(toggleTaskState({ taskId: taskId }))}
+            onChange={handleToggleState}
           />
         }
         isEditing={isEditingTitle}

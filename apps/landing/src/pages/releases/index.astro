@@ -103,6 +103,7 @@ const schema = [
             class="group block rounded-2xl bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10 p-6 ring-1 ring-white/[0.08] transition-all hover:ring-white/[0.16] md:p-8"
             data-ph-event="release_opened"
             data-ph-section="releases_index_latest"
+            data-ph-release-tag={latest.data.tag}
           >
             <div class="mb-3 flex flex-wrap items-center gap-3">
               <span class="inline-flex items-center rounded-full bg-blue-500/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-blue-300 ring-1 ring-blue-400/25">
@@ -161,6 +162,7 @@ const schema = [
                   class="group block rounded-xl bg-white/[0.02] p-5 ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.035] hover:ring-white/[0.12]"
                   data-ph-event="release_opened"
                   data-ph-section="releases_index_list"
+                  data-ph-release-tag={release.data.tag}
                 >
                   <div class="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                     <span class="font-mono text-[14px] font-semibold text-slate-200">{release.data.tag}</span>

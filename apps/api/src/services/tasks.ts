@@ -274,7 +274,7 @@ export async function deleteTask({
   spaceId: string;
   taskId: string;
   userId: string;
-}): Promise<void> {
+}): Promise<Task> {
   const db = await getSpaceDatabase(spaceId, userId);
   const task = await selectAsync(db, {
     selector: taskById,
@@ -282,4 +282,5 @@ export async function deleteTask({
   });
   if (!task) throw new ResourceNotFoundError("Task");
   await asyncDispatch(db, deleteTaskById({ id: taskId }));
+  return task;
 }

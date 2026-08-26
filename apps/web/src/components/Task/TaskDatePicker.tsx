@@ -15,6 +15,8 @@ import {
   getDMY,
   removeFromDailyList,
 } from "@will-be-done/slices/space";
+import { differenceInCalendarDays } from "date-fns";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 interface TaskDatePickerProps {
   taskId: string;
@@ -57,14 +59,50 @@ export function TaskDatePicker({
           position: "append",
         }),
       );
+      const daysAhead = differenceInCalendarDays(date, new Date());
+      if (currentDate) {
+        captureWebAnalytics({
+          name: "task_rescheduled",
+          properties: {
+            days_ahead: daysAhead,
+            previous_days_ahead: differenceInCalendarDays(
+              currentDate,
+              new Date(),
+            ),
+            scheduling_method: "date_picker",
+          },
+        });
+      } else {
+        captureWebAnalytics({
+          name: "task_scheduled",
+          properties: {
+            days_ahead: daysAhead,
+            scheduling_method: "date_picker",
+          },
+        });
+      }
 
       setIsOpen(false);
     })();
   };
 
   const handleClearDate = () => {
-    void dispatch(removeFromDailyList({ taskId: taskId }));
-    setIsOpen(false);
+    if (!currentDate) return;
+
+    void (async () => {
+      await dispatch(removeFromDailyList({ taskId: taskId }));
+      captureWebAnalytics({
+        name: "task_unscheduled",
+        properties: {
+          previous_days_ahead: differenceInCalendarDays(
+            currentDate,
+            new Date(),
+          ),
+          unscheduling_method: "date_picker",
+        },
+      });
+      setIsOpen(false);
+    })();
   };
 
   return (

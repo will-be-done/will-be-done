@@ -37,6 +37,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const ChevronLeft = () => (
   <svg
@@ -308,6 +309,13 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
             sectionPosition: "prepend",
           }),
         );
+        captureWebAnalytics({
+          name: "task_created",
+          properties: {
+            creation_method: "add_button",
+            location: "daily_list",
+          },
+        });
 
         const entry = await select({
           selector: dailyEntryByTaskId,

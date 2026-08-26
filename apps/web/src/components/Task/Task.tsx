@@ -87,7 +87,7 @@ import {
 } from "@/store/focusSlice.ts";
 
 import { useCurrentDate } from "../DaysBoard/hooks";
-import { format, startOfDay } from "date-fns";
+import { differenceInCalendarDays, format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal";
 import {
@@ -95,6 +95,7 @@ import {
   useItemDetailsOpen,
 } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export const DropTaskIndicator = ({
   direction,
@@ -111,6 +112,20 @@ export const DropTaskIndicator = ({
     ></div>
   );
 };
+
+function captureTaskDeleted(task: Task) {
+  captureWebAnalytics({
+    name: "task_deleted",
+    properties: {
+      age_hours: Math.max(
+        0,
+        Math.round(((Date.now() - task.createdAt) / 3_600_000) * 10) / 10,
+      ),
+      deletion_method: "web",
+      previous_state: task.state,
+    },
+  });
+}
 
 const getFocusKeyForColumnMoveTarget = (
   targetModelId: string,
@@ -261,6 +276,15 @@ export const PreloadedTaskComp = ({
 
       const taskState = item.state;
       await dispatch(toggleTaskState({ taskId: taskId }));
+      captureWebAnalytics({
+        name: taskState === "todo" ? "task_completed" : "task_reopened",
+        properties: {
+          age_hours: Math.max(
+            0,
+            Math.round(((Date.now() - item.createdAt) / 3_600_000) * 10) / 10,
+          ),
+        },
+      });
 
       if (!isFocused) return;
 
@@ -304,9 +328,29 @@ export const PreloadedTaskComp = ({
     const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
     flushEditedTitle();
-    void dispatch(
-      appDeleteModel({ id: listItem.id, modelType: listItem.type }),
-    );
+    void (async () => {
+      await dispatch(
+        appDeleteModel({ id: listItem.id, modelType: listItem.type }),
+      );
+      if (isTask(item) && listItem.type === taskType) {
+        captureTaskDeleted(item);
+      } else if (
+        isTask(item) &&
+        listItem.type === dailyEntryType &&
+        lastScheduleTime
+      ) {
+        captureWebAnalytics({
+          name: "task_unscheduled",
+          properties: {
+            previous_days_ahead: differenceInCalendarDays(
+              lastScheduleTime,
+              new Date(),
+            ),
+            unscheduling_method: "delete_daily_entry",
+          },
+        });
+      }
+    })();
 
     if (downKey) {
       useFocusStore.getState().focusByKey(downKey);
@@ -321,6 +365,8 @@ export const PreloadedTaskComp = ({
     dispatch,
     flushEditedTitle,
     focusableItemKey,
+    item,
+    lastScheduleTime,
   ]);
 
   const handleMoveColumn = useCallback(
@@ -502,6 +548,10 @@ export const PreloadedTaskComp = ({
           },
         }),
       );
+      captureWebAnalytics({
+        name: "checklist_item_created",
+        properties: { creation_method: "web" },
+      });
 
       focusChecklistItem(checklistItem.id, { root: ref.current });
     })();
@@ -519,6 +569,16 @@ export const PreloadedTaskComp = ({
             taskParams: newTaskParams,
           }),
         );
+        const location =
+          listItem.type === dailyEntryType
+            ? "daily_list"
+            : listItem.type === stashEntryType
+              ? "stash"
+              : "project";
+        captureWebAnalytics({
+          name: "task_created",
+          properties: { creation_method: "sibling", location },
+        });
         unstable_batchedUpdates(() => {
           useFocusStore
             .getState()
@@ -568,14 +628,44 @@ export const PreloadedTaskComp = ({
           position: "append",
         }),
       );
+      if (lastScheduleTime) {
+        captureWebAnalytics({
+          name: "task_rescheduled",
+          properties: {
+            days_ahead: 0,
+            previous_days_ahead: differenceInCalendarDays(
+              lastScheduleTime,
+              new Date(),
+            ),
+            scheduling_method: "today_shortcut",
+          },
+        });
+      } else {
+        captureWebAnalytics({
+          name: "task_scheduled",
+          properties: { days_ahead: 0, scheduling_method: "today_shortcut" },
+        });
+      }
     })();
-  }, [item, date, dispatch, taskId]);
+  }, [item, date, dispatch, lastScheduleTime, taskId]);
 
   const handleResetSchedule = useCallback(() => {
-    if (!isTask(item)) return;
+    if (!isTask(item) || !lastScheduleTime) return;
 
-    void dispatch(removeFromDailyList({ taskId: taskId }));
-  }, [item, dispatch, taskId]);
+    void (async () => {
+      await dispatch(removeFromDailyList({ taskId: taskId }));
+      captureWebAnalytics({
+        name: "task_unscheduled",
+        properties: {
+          previous_days_ahead: differenceInCalendarDays(
+            lastScheduleTime,
+            new Date(),
+          ),
+          unscheduling_method: "reset_action",
+        },
+      });
+    })();
+  }, [item, dispatch, lastScheduleTime, taskId]);
 
   const handleStashTask = useCallback(() => {
     if (
@@ -633,6 +723,13 @@ export const PreloadedTaskComp = ({
             },
           }),
         );
+        captureWebAnalytics({
+          name: "task_template_created",
+          properties: {
+            creation_method: "web",
+            source: "task_conversion",
+          },
+        });
 
         useFocusStore
           .getState()
@@ -785,7 +882,10 @@ export const PreloadedTaskComp = ({
         return runShortcutAction(() => {
           const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
-          void dispatch(deleteTasks({ ids: [taskId] }));
+          void (async () => {
+            await dispatch(deleteTasks({ ids: [taskId] }));
+            if (isTask(item)) captureTaskDeleted(item);
+          })();
 
           if (downKey) {
             useFocusStore.getState().focusByKey(downKey);

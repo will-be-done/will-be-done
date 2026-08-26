@@ -46,6 +46,7 @@ import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { startOfDay } from "date-fns";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const MIN_PROJECTS_LIST_WIDTH = 240;
 const MAX_PROJECTS_LIST_WIDTH = 520;
@@ -531,6 +532,10 @@ export const ProjectView = ({
 
     if (title) {
       await dispatch(createProject({ project: { title }, position: "append" }));
+      captureWebAnalytics({
+        name: "project_created",
+        properties: { creation_method: "web" },
+      });
     }
   };
 

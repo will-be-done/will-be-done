@@ -19,3 +19,6 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - "@will-be-done/hyperdb-devtool"
   - "@will-be-done/hyperdb"
+  - "@posthog/browser-common@0.6.0"
+  - "@posthog/types@1.406.2"
+  - posthog-js@1.420.0
