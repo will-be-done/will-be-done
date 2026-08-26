@@ -28,9 +28,14 @@ export type BackendAnalyticsEvent =
       };
     }
   | {
-      name: "project_created" | "checklist_item_created";
+      name: "space_created" | "project_created" | "checklist_item_created";
       distinctId: string;
       properties: { creation_method: "api" };
+    }
+  | {
+      name: "space_deleted";
+      distinctId: string;
+      properties: { deletion_method: "api" };
     };
 
 export interface BackendAnalytics {
@@ -134,7 +139,19 @@ export function capturePublicApiProductEvent(
 ) {
   if (input.statusCode < 200 || input.statusCode >= 300) return;
 
-  if (input.operation === "createSectionTask") {
+  if (input.operation === "createSpace") {
+    analytics.capture({
+      name: "space_created",
+      distinctId: input.distinctId,
+      properties: { creation_method: "api" },
+    });
+  } else if (input.operation === "deleteSpace") {
+    analytics.capture({
+      name: "space_deleted",
+      distinctId: input.distinctId,
+      properties: { deletion_method: "api" },
+    });
+  } else if (input.operation === "createSectionTask") {
     analytics.capture({
       name: "task_created",
       distinctId: input.distinctId,

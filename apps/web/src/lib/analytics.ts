@@ -12,8 +12,7 @@ export type WebAnalyticsEvent =
         | "signup_page_viewed"
         | "login_page_viewed"
         | "login_submitted"
-        | "authenticated_app_opened"
-        | "space_created";
+        | "authenticated_app_opened";
     }
   | {
       name: "signup_submitted";
@@ -44,6 +43,14 @@ export type WebAnalyticsEvent =
         days_ahead: number;
         scheduling_method: "date_picker" | "today_shortcut";
       };
+    }
+  | {
+      name: "space_created";
+      properties: { creation_method: "web" };
+    }
+  | {
+      name: "space_deleted";
+      properties: { deletion_method: "web" };
     }
   | {
       name: "project_created" | "checklist_item_created";

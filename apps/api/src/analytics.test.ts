@@ -72,6 +72,16 @@ describe("backend analytics", () => {
 
     capturePublicApiProductEvent(analytics, {
       distinctId: "user-1",
+      operation: "createSpace",
+      statusCode: 201,
+    });
+    capturePublicApiProductEvent(analytics, {
+      distinctId: "user-1",
+      operation: "deleteSpace",
+      statusCode: 204,
+    });
+    capturePublicApiProductEvent(analytics, {
+      distinctId: "user-1",
       operation: "createSectionTask",
       statusCode: 201,
     });
@@ -82,6 +92,16 @@ describe("backend analytics", () => {
     });
 
     expect(captured).toEqual([
+      {
+        name: "space_created",
+        distinctId: "user-1",
+        properties: { creation_method: "api" },
+      },
+      {
+        name: "space_deleted",
+        distinctId: "user-1",
+        properties: { deletion_method: "api" },
+      },
       {
         name: "task_created",
         distinctId: "user-1",

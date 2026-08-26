@@ -130,7 +130,10 @@ function SpacePageComponent() {
     if (!name?.trim()) return;
 
     const space = await dispatch(createSpace({ name: name }));
-    captureWebAnalytics({ name: "space_created" });
+    captureWebAnalytics({
+      name: "space_created",
+      properties: { creation_method: "web" },
+    });
     authUtils.setSpaceNames([{ spaceId: space.id, name: space.name }]);
   };
 
@@ -164,6 +167,10 @@ function SpacePageComponent() {
     if (!ok) return;
 
     await dispatch(deleteSpace({ id: spaceId }));
+    captureWebAnalytics({
+      name: "space_deleted",
+      properties: { deletion_method: "web" },
+    });
   };
 
   return (
