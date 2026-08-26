@@ -9,6 +9,7 @@ export type TaskCreationLocation = "daily_list" | "project" | "stash";
 export type WebAnalyticsEvent =
   | {
       name:
+        | "app_opened"
         | "signup_page_viewed"
         | "login_page_viewed"
         | "login_submitted"
@@ -38,10 +39,36 @@ export type WebAnalyticsEvent =
       properties: { age_hours: number };
     }
   | {
+      name: "task_deleted";
+      properties: {
+        age_hours: number;
+        deletion_method: "web";
+        previous_state: "todo" | "done";
+      };
+    }
+  | {
       name: "task_scheduled";
       properties: {
         days_ahead: number;
         scheduling_method: "date_picker" | "today_shortcut";
+      };
+    }
+  | {
+      name: "task_rescheduled";
+      properties: {
+        days_ahead: number;
+        previous_days_ahead: number;
+        scheduling_method: "date_picker" | "today_shortcut";
+      };
+    }
+  | {
+      name: "task_unscheduled";
+      properties: {
+        previous_days_ahead: number;
+        unscheduling_method:
+          | "date_picker"
+          | "delete_daily_entry"
+          | "reset_action";
       };
     }
   | {
@@ -53,8 +80,27 @@ export type WebAnalyticsEvent =
       properties: { deletion_method: "web" };
     }
   | {
+      name: "space_opened";
+      properties: { space_id: string };
+    }
+  | {
       name: "project_created" | "checklist_item_created";
       properties: { creation_method: "web" };
+    }
+  | {
+      name: "checklist_item_completed";
+      properties: { parent_type: "task" | "template" };
+    }
+  | {
+      name: "task_template_created";
+      properties: {
+        creation_method: "web";
+        source: "task_conversion";
+      };
+    }
+  | {
+      name: "import_started" | "import_failed";
+      properties: { provider: "ticktick" | "todoist" };
     }
   | {
       name: "import_completed";
@@ -139,6 +185,7 @@ export function initializeWebAnalytics() {
     });
     visibilityListenerAttached = true;
   }
+  captureWebAnalytics({ name: "app_opened" });
   return true;
 }
 

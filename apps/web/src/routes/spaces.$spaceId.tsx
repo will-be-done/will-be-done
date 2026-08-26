@@ -14,6 +14,7 @@ import { authUtils, isDemoMode } from "@/lib/auth";
 import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export const Route = createFileRoute("/spaces/$spaceId")({
   component: RouteComponent,
@@ -45,6 +46,15 @@ async function loadSpaceDb(spaceId: string) {
 
 function RouteComponent() {
   const newStore = Route.useLoaderData();
+  const { spaceId } = Route.useParams();
+
+  useEffect(() => {
+    if (isDemoMode()) return;
+    captureWebAnalytics({
+      name: "space_opened",
+      properties: { space_id: spaceId },
+    });
+  }, [spaceId]);
 
   return (
     <DBProvider value={newStore as SubscribableDB}>

@@ -28,6 +28,40 @@ export type BackendAnalyticsEvent =
       };
     }
   | {
+      name: "task_deleted";
+      distinctId: string;
+      properties: {
+        age_hours: number;
+        deletion_method: "api";
+        previous_state: "todo" | "done";
+      };
+    }
+  | {
+      name: "task_scheduled";
+      distinctId: string;
+      properties: {
+        days_ahead: number;
+        scheduling_method: "api";
+      };
+    }
+  | {
+      name: "task_rescheduled";
+      distinctId: string;
+      properties: {
+        days_ahead: number;
+        previous_days_ahead: number;
+        scheduling_method: "api";
+      };
+    }
+  | {
+      name: "task_unscheduled";
+      distinctId: string;
+      properties: {
+        previous_days_ahead: number;
+        unscheduling_method: "api";
+      };
+    }
+  | {
       name: "space_created" | "project_created" | "checklist_item_created";
       distinctId: string;
       properties: { creation_method: "api" };
@@ -36,6 +70,22 @@ export type BackendAnalyticsEvent =
       name: "space_deleted";
       distinctId: string;
       properties: { deletion_method: "api" };
+    }
+  | {
+      name: "task_template_created";
+      distinctId: string;
+      properties: {
+        creation_method: "api";
+        source: "direct" | "task_conversion";
+      };
+    }
+  | {
+      name: "checklist_item_completed";
+      distinctId: string;
+      properties: {
+        completion_method: "api";
+        parent_type: "task" | "template";
+      };
     };
 
 export interface BackendAnalytics {
@@ -169,11 +219,26 @@ export function capturePublicApiProductEvent(
       distinctId: input.distinctId,
       properties: { creation_method: "api" },
     });
-  } else if (input.operation === "createTaskChecklistItem") {
+  } else if (
+    input.operation === "createTaskChecklistItem" ||
+    input.operation === "createTaskTemplateChecklistItem"
+  ) {
     analytics.capture({
       name: "checklist_item_created",
       distinctId: input.distinctId,
       properties: { creation_method: "api" },
+    });
+  } else if (input.operation === "createTaskTemplate") {
+    analytics.capture({
+      name: "task_template_created",
+      distinctId: input.distinctId,
+      properties: { creation_method: "api", source: "direct" },
+    });
+  } else if (input.operation === "convertTaskToTemplate") {
+    analytics.capture({
+      name: "task_template_created",
+      distinctId: input.distinctId,
+      properties: { creation_method: "api", source: "task_conversion" },
     });
   }
 }

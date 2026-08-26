@@ -173,6 +173,13 @@ export function TaskBody({
               },
             }),
           );
+          captureWebAnalytics({
+            name: "task_template_created",
+            properties: {
+              creation_method: "web",
+              source: "task_conversion",
+            },
+          });
 
           useFocusStore
             .getState()

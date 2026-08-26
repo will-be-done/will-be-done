@@ -33,6 +33,10 @@ export function ImportSection() {
       setTickTickImporting(true);
       setTickTickError(null);
       setTickTickSuccess(false);
+      captureWebAnalytics({
+        name: "import_started",
+        properties: { provider: "ticktick" },
+      });
 
       try {
         const text = await file.text();
@@ -47,6 +51,10 @@ export function ImportSection() {
         });
         setTickTickSuccess(true);
       } catch {
+        captureWebAnalytics({
+          name: "import_failed",
+          properties: { provider: "ticktick" },
+        });
         setTickTickError(
           "Failed to parse TickTick CSV file. Make sure it's a valid TickTick export.",
         );
@@ -69,6 +77,10 @@ export function ImportSection() {
       setTodoistImporting(true);
       setTodoistError(null);
       setTodoistSuccess(false);
+      captureWebAnalytics({
+        name: "import_started",
+        properties: { provider: "todoist" },
+      });
 
       try {
         const backup = await trpcClient.importTodoist.mutate({
@@ -85,6 +97,10 @@ export function ImportSection() {
         setTodoistSuccess(true);
         setTodoistToken("");
       } catch {
+        captureWebAnalytics({
+          name: "import_failed",
+          properties: { provider: "todoist" },
+        });
         setTodoistError(
           "Failed to import from Todoist. Check your API token and try again.",
         );

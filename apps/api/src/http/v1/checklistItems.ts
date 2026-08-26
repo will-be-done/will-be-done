@@ -21,8 +21,15 @@ import {
   TaskTemplateChecklistParamsSchema,
   UpdateChecklistItemBodySchema,
 } from "../schemas";
+import { noopBackendAnalytics, type BackendAnalytics } from "../../analytics";
 
-export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
+interface ChecklistItemRoutesOptions {
+  analytics?: BackendAnalytics;
+}
+
+export const checklistItemRoutes: FastifyPluginAsyncZod<
+  ChecklistItemRoutesOptions
+> = async (server, { analytics = noopBackendAnalytics }) => {
   server.get(
     "/spaces/:spaceId/tasks/:taskId/checklist-items",
     {
@@ -257,12 +264,27 @@ export const checklistItemRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
       try {
+        const previous = await getChecklistItem({
+          spaceId: request.params.spaceId,
+          userId: user.id,
+          checklistItemId: request.params.checklistItemId,
+        });
         const checklistItem = await updateChecklistItem({
           spaceId: request.params.spaceId,
           userId: user.id,
           checklistItemId: request.params.checklistItemId,
           updates: request.body,
         });
+        if (previous.state === "todo" && checklistItem.state === "done") {
+          analytics.capture({
+            name: "checklist_item_completed",
+            distinctId: user.id,
+            properties: {
+              completion_method: "api",
+              parent_type: checklistItem.parentType,
+            },
+          });
+        }
         return reply.code(200).send({ checklistItem });
       } catch (error) {
         return handleError(

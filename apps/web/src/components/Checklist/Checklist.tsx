@@ -333,9 +333,17 @@ const ChecklistItemComp = ({
         </button>
         <CheckboxComp
           checked={item.state === "done"}
-          onChange={() =>
-            void dispatch(toggleChecklistItemState({ id: item.id }))
-          }
+          onChange={() => {
+            void (async () => {
+              await dispatch(toggleChecklistItemState({ id: item.id }));
+              if (item.state === "todo") {
+                captureWebAnalytics({
+                  name: "checklist_item_completed",
+                  properties: { parent_type: item.parentType },
+                });
+              }
+            })();
+          }}
         />
         {isTextareaVisible ? (
           <TextareaAutosize

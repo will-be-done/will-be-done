@@ -111,9 +111,9 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
   server.register(spaceRoutes);
   server.register(projectRoutes);
   server.register(sectionRoutes);
-  server.register(taskRoutes);
+  server.register(taskRoutes, { analytics });
   server.register(dailyListRoutes);
   server.register(taskTemplateRoutes);
-  server.register(checklistItemRoutes);
+  server.register(checklistItemRoutes, { analytics });
   server.register(stashRoutes);
 };

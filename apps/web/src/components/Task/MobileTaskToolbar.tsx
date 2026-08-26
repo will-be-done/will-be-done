@@ -5,7 +5,9 @@ import { useFocusStore, parseColumnKey } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import {
   appDeleteModel,
+  dailyEntryDateOfTask,
   dailyEntryType,
+  isTask,
   itemByListItemId,
   type ListItemType,
   stashEntryType,
@@ -15,6 +17,8 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile.ts";
 import { cn } from "@/lib/utils";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
+import { captureWebAnalytics } from "@/lib/analytics";
+import { differenceInCalendarDays } from "date-fns";
 
 const isListItemType = (type: string): type is ListItemType =>
   type === taskType ||
@@ -36,9 +40,49 @@ export const MobileTaskToolbar = () => {
 
   const handleDelete = () => {
     if (!focusKey || !parsed) return;
+    if (!isListItemType(parsed.type)) return;
     if (!confirm("Delete this task?")) return;
+    const { id, type: modelType } = parsed;
     const [upKey, downKey] = getDOMSiblings(focusKey as string);
-    void dispatch(appDeleteModel({ id: parsed.id, modelType: parsed.type }));
+    void (async () => {
+      const item = await select({
+        selector: itemByListItemId,
+        args: { id, modelType },
+      });
+      const scheduleDate =
+        modelType === dailyEntryType && item && isTask(item)
+          ? await select({
+              selector: dailyEntryDateOfTask,
+              args: { taskId: item.id },
+            })
+          : undefined;
+
+      await dispatch(appDeleteModel({ id, modelType }));
+      if (modelType === taskType && item && isTask(item)) {
+        captureWebAnalytics({
+          name: "task_deleted",
+          properties: {
+            age_hours: Math.max(
+              0,
+              Math.round(((Date.now() - item.createdAt) / 3_600_000) * 10) / 10,
+            ),
+            deletion_method: "web",
+            previous_state: item.state,
+          },
+        });
+      } else if (modelType === dailyEntryType && scheduleDate) {
+        captureWebAnalytics({
+          name: "task_unscheduled",
+          properties: {
+            previous_days_ahead: differenceInCalendarDays(
+              scheduleDate,
+              new Date(),
+            ),
+            unscheduling_method: "delete_daily_entry",
+          },
+        });
+      }
+    })();
     if (downKey) {
       useFocusStore.getState().focusByKey(downKey);
     } else if (upKey) {

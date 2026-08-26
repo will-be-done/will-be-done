@@ -90,6 +90,21 @@ describe("backend analytics", () => {
       operation: "createStashTask",
       statusCode: 500,
     });
+    capturePublicApiProductEvent(analytics, {
+      distinctId: "user-1",
+      operation: "createTaskTemplate",
+      statusCode: 201,
+    });
+    capturePublicApiProductEvent(analytics, {
+      distinctId: "user-1",
+      operation: "convertTaskToTemplate",
+      statusCode: 200,
+    });
+    capturePublicApiProductEvent(analytics, {
+      distinctId: "user-1",
+      operation: "createTaskTemplateChecklistItem",
+      statusCode: 201,
+    });
 
     expect(captured).toEqual([
       {
@@ -106,6 +121,24 @@ describe("backend analytics", () => {
         name: "task_created",
         distinctId: "user-1",
         properties: { creation_method: "api", location: "project" },
+      },
+      {
+        name: "task_template_created",
+        distinctId: "user-1",
+        properties: { creation_method: "api", source: "direct" },
+      },
+      {
+        name: "task_template_created",
+        distinctId: "user-1",
+        properties: {
+          creation_method: "api",
+          source: "task_conversion",
+        },
+      },
+      {
+        name: "checklist_item_created",
+        distinctId: "user-1",
+        properties: { creation_method: "api" },
       },
     ]);
   });
