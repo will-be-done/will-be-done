@@ -564,8 +564,8 @@ impl DbsState {
     }
   }
 
-  pub(crate) async fn clean_conns(&self) -> CleanupStats {
-    let (database_slots, db_slots) = {
+  pub(crate) async fn clean_stale_state(&self) -> CleanupStats {
+    let (mut database_slots, db_slots) = {
       let mut dbs = self.opened_dbs.write().await;
       let previous_len = dbs.len();
 
@@ -573,14 +573,38 @@ impl DbsState {
       dbs.retain(|_, slot| slot.get().is_some() || Arc::strong_count(slot) > 1);
       (
         previous_len - dbs.len(),
-        dbs.values().cloned().collect::<Vec<_>>(),
+        dbs
+          .iter()
+          .map(|(name, slot)| (name.clone(), Arc::clone(slot)))
+          .collect::<Vec<_>>(),
       )
     };
 
     let mut connections = 0;
-    for slot in db_slots {
+    let mut empty_databases = Vec::new();
+    for (name, slot) in db_slots {
       if let Some(db) = slot.get() {
         connections += db.drop_stale_conns().await;
+        if db.connections.read().await.is_empty() {
+          empty_databases.push((name, slot));
+        }
+      }
+    }
+
+    if !empty_databases.is_empty() {
+      let mut dbs = self.opened_dbs.write().await;
+
+      for (name, slot) in empty_databases {
+        // The map and this cleanup pass should be the only owners. A third
+        // owner is a request or telemetry snapshot still using this slot.
+        let should_remove = dbs.get(&name).is_some_and(|current| {
+          Arc::ptr_eq(current, &slot) && Arc::strong_count(&slot) == 2
+        });
+
+        if should_remove {
+          dbs.remove(&name);
+          database_slots += 1;
+        }
       }
     }
 
@@ -1411,7 +1435,7 @@ mod tests {
       databases.insert("in-flight".to_owned(), in_flight_slot);
     }
 
-    state.clean_conns().await;
+    state.clean_stale_state().await;
 
     {
       let databases = state.opened_dbs.read().await;
@@ -1420,8 +1444,115 @@ mod tests {
     }
 
     drop(in_flight_owner);
-    state.clean_conns().await;
+    state.clean_stale_state().await;
 
+    assert!(state.opened_dbs.read().await.is_empty());
+  }
+
+  #[tokio::test(start_paused = true)]
+  async fn cleanup_evicts_database_after_its_last_connection_becomes_idle() {
+    let directory = tempfile::tempdir().expect("create temporary directory");
+    let state = DbsState::new(directory.path().into());
+    let connection_id = Uuid::new_v4();
+
+    state
+      .open_conn("idle-database", &connection_id)
+      .await
+      .expect("open connection");
+
+    advance(CONNECTION_IDLE_TIMEOUT).await;
+    let stats = state.clean_stale_state().await;
+
+    assert_eq!(
+      stats,
+      CleanupStats {
+        database_slots: 1,
+        connections: 1,
+      }
+    );
+    assert!(state.opened_dbs.read().await.is_empty());
+  }
+
+  #[tokio::test(start_paused = true)]
+  async fn cleanup_retains_database_while_a_connection_is_active() {
+    let directory = tempfile::tempdir().expect("create temporary directory");
+    let state = DbsState::new(directory.path().into());
+    let connection_id = Uuid::new_v4();
+
+    state
+      .open_conn("active-database", &connection_id)
+      .await
+      .expect("open connection");
+    let lease = state
+      .get_conn("active-database", &connection_id)
+      .await
+      .expect("acquire connection");
+
+    advance(CONNECTION_IDLE_TIMEOUT).await;
+    assert_eq!(state.clean_stale_state().await, CleanupStats::default());
+    assert!(
+      state
+        .opened_dbs
+        .read()
+        .await
+        .contains_key("active-database")
+    );
+
+    drop(lease);
+    advance(CONNECTION_IDLE_TIMEOUT).await;
+    assert_eq!(
+      state.clean_stale_state().await,
+      CleanupStats {
+        database_slots: 1,
+        connections: 1,
+      }
+    );
+    assert!(state.opened_dbs.read().await.is_empty());
+  }
+
+  #[tokio::test(start_paused = true)]
+  async fn cleanup_retains_database_slot_owned_by_an_in_flight_request() {
+    let directory = tempfile::tempdir().expect("create temporary directory");
+    let state = DbsState::new(directory.path().into());
+    let connection_id = Uuid::new_v4();
+
+    state
+      .open_conn("in-flight-database", &connection_id)
+      .await
+      .expect("open connection");
+    let in_flight_owner = Arc::clone(
+      state
+        .opened_dbs
+        .read()
+        .await
+        .get("in-flight-database")
+        .expect("database slot exists"),
+    );
+
+    advance(CONNECTION_IDLE_TIMEOUT).await;
+    assert_eq!(
+      state.clean_stale_state().await,
+      CleanupStats {
+        database_slots: 0,
+        connections: 1,
+      }
+    );
+    assert!(
+      state
+        .opened_dbs
+        .read()
+        .await
+        .contains_key("in-flight-database")
+    );
+
+    drop(in_flight_owner);
+    assert_eq!(
+      state.clean_stale_state().await,
+      CleanupStats {
+        database_slots: 1,
+        connections: 0,
+      }
+    );
     assert!(state.opened_dbs.read().await.is_empty());
   }
 
@@ -1588,7 +1719,7 @@ mod tests {
       assert!(slot.get().is_none());
     }
 
-    state.clean_conns().await;
+    state.clean_stale_state().await;
     assert!(state.opened_dbs.read().await.is_empty());
 
     std::fs::remove_file(&base_path).expect("remove blocking file");
@@ -1628,10 +1759,10 @@ mod tests {
       .expect("write data");
 
     advance(CONNECTION_IDLE_TIMEOUT).await;
-    state.clean_conns().await;
+    state.clean_stale_state().await;
     assert!(matches!(
         state.get_conn("test", &connection_id).await,
-        Err(TursodError::ConnectionNotFound { conn_id }) if conn_id == connection_id
+        Err(TursodError::DatabaseNotOpened { db_name }) if db_name == "test"
     ));
 
     state

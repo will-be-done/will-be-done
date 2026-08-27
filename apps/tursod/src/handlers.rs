@@ -767,7 +767,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         advance(Duration::from_secs(60)).await;
-        state.clean_conns().await;
+        state.clean_stale_state().await;
         let response = app
             .oneshot(request(
                 &format!("{base_path}/exec"),
