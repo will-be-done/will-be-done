@@ -2,15 +2,13 @@
 // The TopBar.astro links, rebuilt for the Starlight header. Tailwind is not
 // loaded on docs routes, so these use plain scoped CSS.
 interface Props {
-  /** `header` sits in the top bar; `mobile` stacks inside the mobile menu. */
-  variant?: 'header' | 'mobile';
   section: string;
 }
 
-const { variant = 'header', section } = Astro.props;
+const { section } = Astro.props;
 ---
 
-<nav class:list={['docs-nav', variant]} aria-label="Site navigation">
+<nav class="docs-nav" aria-label="Site navigation">
   <a
     href="https://demo.will-be-done.app"
     target="_blank"
@@ -51,15 +49,13 @@ const { variant = 'header', section } = Astro.props;
 </nav>
 
 <style>
+  /* Starlight renders this both in the header and in the mobile menu footer,
+     where the row has to wrap rather than push "Start free" out of view. */
   .docs-nav {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.25rem;
-  }
-
-  .docs-nav.mobile {
-    flex-wrap: wrap;
-    gap: 0.5rem;
   }
 
   .docs-nav a {
