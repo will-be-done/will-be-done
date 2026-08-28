@@ -1,0 +1,8 @@
+---
+// Keeps the docs on the same analytics as the rest of the site.
+import Default from '@astrojs/starlight/components/Head.astro';
+import PostHog from '../posthog.astro';
+---
+
+<Default><slot /></Default>
+<PostHog />

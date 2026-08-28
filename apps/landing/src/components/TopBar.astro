@@ -3,7 +3,7 @@ import Logo from './Logo.astro';
 
 interface Props {
   /** Which nav entry to mark as the current page. */
-  active?: 'releases';
+  active?: 'releases' | 'docs';
 }
 
 const { active } = Astro.props;
@@ -43,6 +43,18 @@ const { active } = Astro.props;
         data-ph-section="topbar"
       >
         Releases
+      </a>
+      <a
+        href="/docs/"
+        class:list={[
+          'hidden items-center px-3 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex',
+          active === 'docs' ? 'text-white' : 'text-slate-400',
+        ]}
+        aria-current={active === 'docs' ? 'page' : undefined}
+        data-ph-event="docs_link_clicked"
+        data-ph-section="topbar"
+      >
+        Docs
       </a>
       <a
         href="https://github.com/will-be-done/will-be-done"
