@@ -3,7 +3,7 @@ import Logo from './Logo.astro';
 
 interface Props {
   /** Which nav entry to mark as the current page. */
-  active?: 'releases' | 'docs';
+  active?: 'features' | 'releases' | 'docs';
 }
 
 const { active } = Astro.props;
@@ -18,15 +18,27 @@ const { active } = Astro.props;
       aria-label="Will Be Done home"
     >
       <Logo id="nav" size={22} />
-      <span class="hidden text-[13px] font-medium text-slate-300 sm:inline">Will Be Done</span>
+      <span class="hidden whitespace-nowrap text-[13px] font-medium text-slate-300 sm:inline">Will Be Done</span>
     </a>
 
     <nav aria-label="Main navigation" class="pointer-events-auto inline-flex items-center gap-1 rounded-full bg-[#0a0a0f]/80 px-1.5 py-1 backdrop-blur-xl">
       <a
+        href="/features/"
+        class:list={[
+          'hidden items-center px-2 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex md:px-3',
+          active === 'features' ? 'text-white' : 'text-slate-400',
+        ]}
+        aria-current={active === 'features' ? 'page' : undefined}
+        data-ph-event="features_link_clicked"
+        data-ph-section="topbar"
+      >
+        Features
+      </a>
+      <a
         href="https://demo.will-be-done.app"
         target="_blank"
         rel="noopener noreferrer"
-        class="hidden items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex"
+        class="hidden items-center px-2 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex md:px-3"
         data-ph-event="demo_clicked"
         data-ph-section="topbar"
       >
@@ -35,7 +47,7 @@ const { active } = Astro.props;
       <a
         href="/releases/"
         class:list={[
-          'hidden items-center px-3 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex',
+          'hidden items-center px-2 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex md:px-3',
           active === 'releases' ? 'text-white' : 'text-slate-400',
         ]}
         aria-current={active === 'releases' ? 'page' : undefined}
@@ -47,7 +59,7 @@ const { active } = Astro.props;
       <a
         href="/docs/"
         class:list={[
-          'hidden items-center px-3 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex',
+          'hidden items-center px-2 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex md:px-3',
           active === 'docs' ? 'text-white' : 'text-slate-400',
         ]}
         aria-current={active === 'docs' ? 'page' : undefined}
@@ -68,7 +80,7 @@ const { active } = Astro.props;
         href="https://github.com/will-be-done/will-be-done"
         target="_blank"
         rel="noopener noreferrer"
-        class="hidden items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex"
+        class="hidden items-center px-2 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white md:inline-flex md:px-3"
         data-ph-event="github_link_clicked"
         data-ph-section="topbar"
       >
@@ -76,7 +88,7 @@ const { active } = Astro.props;
       </a>
       <a
         href="https://app.will-be-done.app/login"
-        class="inline-flex items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white"
+        class="inline-flex items-center whitespace-nowrap px-2 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white md:px-3"
         data-ph-event="login_clicked"
         data-ph-section="topbar"
       >
@@ -84,7 +96,7 @@ const { active } = Astro.props;
       </a>
       <a
         href="https://app.will-be-done.app/signup"
-        class="inline-flex items-center rounded-full bg-blue-500 px-4 py-2 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all duration-200 hover:bg-blue-400 hover:shadow-[0_2px_8px_rgba(59,130,246,0.35),inset_0_1px_0_rgba(255,255,255,0.15)]"
+        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-500 px-3 py-2 md:px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all duration-200 hover:bg-blue-400 hover:shadow-[0_2px_8px_rgba(59,130,246,0.35),inset_0_1px_0_rgba(255,255,255,0.15)]"
         data-ph-event="signup_clicked"
         data-ph-additional-event="signup_cta_clicked"
         data-ph-section="topbar"

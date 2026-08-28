@@ -9,6 +9,9 @@ const { section } = Astro.props;
 ---
 
 <nav class="docs-nav" aria-label="Site navigation">
+  <a href="/features/" data-ph-event="features_link_clicked" data-ph-section={section}>
+    Features
+  </a>
   <a
     href="https://demo.will-be-done.app"
     target="_blank"
