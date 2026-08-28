@@ -1,0 +1,98 @@
+---
+// The TopBar.astro links, rebuilt for the Starlight header. Tailwind is not
+// loaded on docs routes, so these use plain scoped CSS.
+interface Props {
+  /** `header` sits in the top bar; `mobile` stacks inside the mobile menu. */
+  variant?: 'header' | 'mobile';
+  section: string;
+}
+
+const { variant = 'header', section } = Astro.props;
+---
+
+<nav class:list={['docs-nav', variant]} aria-label="Site navigation">
+  <a
+    href="https://demo.will-be-done.app"
+    target="_blank"
+    rel="noopener noreferrer"
+    data-ph-event="demo_clicked"
+    data-ph-section={section}
+  >
+    Demo
+  </a>
+  <a href="/releases/" data-ph-event="releases_link_clicked" data-ph-section={section}>
+    Releases
+  </a>
+  <a
+    href="https://github.com/will-be-done/will-be-done"
+    target="_blank"
+    rel="noopener noreferrer"
+    data-ph-event="github_link_clicked"
+    data-ph-section={section}
+  >
+    GitHub
+  </a>
+  <a
+    href="https://app.will-be-done.app/login"
+    data-ph-event="login_clicked"
+    data-ph-section={section}
+  >
+    Log in
+  </a>
+  <a
+    class="cta"
+    href="https://app.will-be-done.app/signup"
+    data-ph-event="signup_clicked"
+    data-ph-additional-event="signup_cta_clicked"
+    data-ph-section={section}
+  >
+    Start free
+  </a>
+</nav>
+
+<style>
+  .docs-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .docs-nav.mobile {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .docs-nav a {
+    padding: 0.5rem 0.75rem;
+    font-size: 13px;
+    font-weight: 500;
+    color: #94a3b8; /* slate-400 */
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .docs-nav a:hover {
+    color: #fff;
+  }
+
+  .docs-nav .cta {
+    border-radius: 9999px;
+    padding: 0.5rem 1rem;
+    background-color: #3b82f6;
+    color: #fff;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transition:
+      background-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .docs-nav .cta:hover {
+    background-color: #60a5fa;
+    color: #fff;
+    box-shadow:
+      0 2px 8px rgba(59, 130, 246, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+</style>
