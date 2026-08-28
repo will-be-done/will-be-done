@@ -57,6 +57,14 @@ const { active } = Astro.props;
         Docs
       </a>
       <a
+        href="/#pricing"
+        class="hidden items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex"
+        data-ph-event="pricing_anchor_clicked"
+        data-ph-section="topbar"
+      >
+        Pricing
+      </a>
+      <a
         href="https://github.com/will-be-done/will-be-done"
         target="_blank"
         rel="noopener noreferrer"
@@ -82,6 +90,7 @@ const { active } = Astro.props;
         data-ph-section="topbar"
       >
         Start free
+        <span class="ml-1.5 text-[11px] font-normal text-blue-100/75">while in alpha</span>
       </a>
     </nav>
   </div>

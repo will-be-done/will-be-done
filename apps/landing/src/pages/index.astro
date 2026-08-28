@@ -46,12 +46,17 @@ const faqs = [
   {
     id: 'cloud_version',
     q: 'Is there a cloud version?',
-    a: 'Yes. app.will-be-done.app is free to start. Use it if you want sync across devices without running a server yourself.',
+    a: 'Yes. app.will-be-done.app is free while the app is in alpha. Use it if you want sync across devices without running a server yourself.',
+  },
+  {
+    id: 'cloud_pricing',
+    q: 'How much does the cloud cost?',
+    a: 'Nothing while Will Be Done is in alpha. After the alpha it costs $3 per month. Everyone who registered during the alpha gets 3 months free once it ends. Self-hosting stays free, with no paywall and no paid tier.',
   },
   {
     id: 'pricing_model',
     q: 'How will Will Be Done make money?',
-    a: 'The hosted cloud version will make money through paid plans. Self-hosting will never have a paywall, and no feature in the self-hosted version will require payment to Will Be Done. The self-hosted version will have the same features as the cloud unless a cloud feature cannot reasonably run without hosted infrastructure. In those cases, I will provide a self-hosted alternative when possible. For example, a self-hosted AI assistant will let you use your own OpenRouter API key. I will also keep the self-hosted infrastructure as simple as I can. The standard setup will use SQLite and a directory for uploaded attachments. It will not require Redis, an external database service or S3.',
+    a: 'Through cloud subscriptions, and nothing else. Those subscriptions pay for the time I spend building it. There are no investors, no ads, and I do not sell your data. That is also why the cloud costs $3 per month instead of nothing. Self-hosting will never have a paywall, and no feature in the self-hosted version will require payment to Will Be Done. The self-hosted version will have the same features as the cloud unless a cloud feature cannot reasonably run without hosted infrastructure. In those cases, I will provide a self-hosted alternative when possible. For example, a self-hosted AI assistant will let you use your own OpenRouter API key. I will also keep the self-hosted infrastructure as simple as I can. The standard setup will use SQLite and a directory for uploaded attachments. It will not require Redis, an external database service or S3.',
   },
   {
     id: 'server_offline',
@@ -227,6 +232,13 @@ const everythingElse = [
 
           <!-- Reassurance + platforms -->
           <p class="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-[11px] text-slate-600">
+            <a
+              href="#pricing"
+              class="text-slate-400 underline decoration-slate-700 underline-offset-4 transition-colors hover:text-slate-200 hover:decoration-slate-500"
+              data-ph-event="pricing_anchor_clicked"
+              data-ph-section="hero"
+            >Free while in alpha, then $3/mo</a>
+            <span class="text-slate-700">·</span>
             <span>No signup required for the demo</span>
             <span class="text-slate-700">·</span>
             <!-- Apple -->
@@ -1169,6 +1181,145 @@ const everythingElse = [
         </div>
       </section>
 
+      <!-- Pricing -->
+      <section id="pricing" aria-label="Pricing" class="relative scroll-mt-24 border-t border-white/[0.04] px-6 py-20" data-ph-section-view="pricing">
+        <div class="mx-auto max-w-5xl">
+          <div class="mx-auto mb-10 max-w-2xl text-center">
+            <p class="mb-4 text-[12px] font-medium uppercase tracking-[0.16em] text-blue-300/70">Pricing</p>
+            <h2 class="mb-4 text-3xl font-bold tracking-tight text-white md:text-4xl leading-[1.15]">
+              Free while in alpha, then $3 a month
+            </h2>
+            <p class="text-[15px] leading-relaxed text-slate-400">
+              Will Be Done is in alpha, so the cloud costs nothing today. When the alpha ends it becomes $3/month.
+              Self-hosting stays free either way.
+            </p>
+          </div>
+
+          <!-- Alpha-user perk: the reason to register today rather than after release. -->
+          <div class="mb-4 rounded-2xl bg-amber-500/[0.06] p-5 ring-1 ring-amber-400/[0.22] md:p-6">
+            <div class="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:gap-5 sm:text-left">
+              <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-300 ring-1 ring-amber-400/20">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                </svg>
+              </div>
+              <div>
+                <p class="mb-1 text-[10px] font-medium uppercase tracking-[0.14em] text-amber-300/90">
+                  Alpha users keep it free for longer
+                </p>
+                <p class="text-[15px] leading-relaxed text-slate-300">
+                  <span class="font-semibold text-white">Everyone registered during the alpha gets 3 more months free
+                  after release.</span> Sign up today and you pay nothing during the alpha, then nothing for three
+                  months after it ends.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <!-- Cloud -->
+            <div class="flex flex-col rounded-2xl bg-gradient-to-br from-blue-500/[0.08] via-transparent to-indigo-500/[0.08] p-6 ring-1 ring-blue-400/[0.18] md:p-8">
+              <div class="mb-4 flex items-center gap-2.5">
+                <h3 class="text-[17px] font-semibold text-white">Cloud</h3>
+                <span class="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-blue-300 ring-1 ring-blue-400/20">
+                  Alpha
+                </span>
+              </div>
+
+              <div class="flex flex-wrap items-baseline gap-x-2.5">
+                <span class="text-4xl font-bold tracking-tight text-white">$0</span>
+                <span class="text-[14px] text-slate-400">while in alpha</span>
+              </div>
+              <p class="mt-2 text-[14px] text-slate-400">
+                Then <span class="font-semibold text-slate-200">$3/month</span> after the alpha release.
+              </p>
+
+              <ul class="mt-6 space-y-3 text-[14px] text-slate-400">
+                <li class="flex items-start gap-2.5">
+                  <svg class="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Sync across all your devices, nothing to run yourself
+                </li>
+                <li class="flex items-start gap-2.5">
+                  <svg class="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Every feature, no usage limits and no upsells
+                </li>
+                <li class="flex items-start gap-2.5">
+                  <svg class="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span class="text-slate-200">Plus 3 months free after release for alpha users</span>
+                </li>
+              </ul>
+
+              <a
+                href="https://app.will-be-done.app/signup"
+                class="mt-7 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-500 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_12px_rgba(59,130,246,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all hover:bg-blue-400 hover:shadow-[0_4px_20px_rgba(59,130,246,0.45),inset_0_1px_0_rgba(255,255,255,0.15)]"
+                data-ph-event="signup_clicked"
+                data-ph-additional-event="signup_cta_clicked"
+                data-ph-section="pricing"
+              >
+                Start free while in alpha
+              </a>
+              <p class="mt-3 text-center text-[12px] text-slate-500">No card required. Nothing to cancel.</p>
+            </div>
+
+            <!-- Self-hosted -->
+            <div class="flex flex-col rounded-2xl bg-white/[0.02] p-6 ring-1 ring-white/[0.06] md:p-8">
+              <div class="mb-4 flex items-center gap-2.5">
+                <h3 class="text-[17px] font-semibold text-white">Self-hosted</h3>
+              </div>
+
+              <div class="flex flex-wrap items-baseline gap-x-2.5">
+                <span class="text-4xl font-bold tracking-tight text-white">$0</span>
+                <span class="text-[14px] text-slate-400">forever</span>
+              </div>
+              <p class="mt-2 text-[14px] text-slate-400">
+                No paid tier, now or later. You pay for your own server.
+              </p>
+
+              <ul class="mt-6 space-y-3 text-[14px] text-slate-400">
+                <li class="flex items-start gap-2.5">
+                  <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  One Docker container and SQLite, no external services
+                </li>
+                <li class="flex items-start gap-2.5">
+                  <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  The same features as the cloud, never behind a paywall
+                </li>
+                <li class="flex items-start gap-2.5">
+                  <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  AGPL-3.0, so you can fork it and run your own build
+                </li>
+              </ul>
+
+              <a
+                href="#self-host"
+                class="mt-7 inline-flex items-center justify-center gap-2 rounded-xl bg-white/[0.05] px-6 py-3.5 text-[15px] font-medium text-slate-200 ring-1 ring-white/[0.10] transition-all hover:bg-white/[0.08] hover:text-white hover:ring-white/[0.18]"
+                data-ph-event="selfhost_anchor_clicked"
+                data-ph-section="pricing"
+              >
+                Self-host with Docker
+              </a>
+              <p class="mt-3 text-center text-[12px] text-slate-500">Runs on any machine with Docker.</p>
+            </div>
+          </div>
+
+          <p class="mt-6 text-center text-[13px] leading-relaxed text-slate-500">
+            Cloud subscriptions pay for development. No investors, no ads, and I never sell your data.
+          </p>
+        </div>
+      </section>
+
       <!-- FAQ -->
       <section aria-label="Frequently asked questions" class="relative border-t border-white/[0.04] px-6 py-20">
         <div class="mx-auto max-w-3xl">
@@ -1204,7 +1355,7 @@ const everythingElse = [
                 Your tasks. Your week. Your server if you want it.
               </h2>
               <p class="mb-8 text-[15px] text-slate-400">
-                Try the demo without an account, or start free in the cloud.
+                Try the demo without an account, or start free in the cloud while it is in alpha.
               </p>
               <div class="flex flex-wrap justify-center gap-3">
                 <a
@@ -1227,10 +1378,13 @@ const everythingElse = [
                   data-ph-additional-event="signup_cta_clicked"
                   data-ph-section="cta"
                 >
-                  Start free
+                  Start free while in alpha
                 </a>
               </div>
-              <p class="mt-5 text-[13px] text-slate-500">
+              <p class="mt-5 text-[13px] text-slate-400">
+                Free while in alpha, then $3/mo. Sign up today and you get 3 more months free after release.
+              </p>
+              <p class="mt-2 text-[13px] text-slate-500">
                 Prefer your own server?
                 <a
                   href="#self-host"

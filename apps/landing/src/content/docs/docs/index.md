@@ -26,6 +26,10 @@ with no account. When you are ready to keep your data,
 [start free in the cloud](https://app.will-be-done.app/signup) or self-host from
 the [GitHub repository](https://github.com/will-be-done/will-be-done).
 
+The cloud is free while Will Be Done is in alpha, then $3/month after release.
+Everyone who registers during the alpha gets 3 months free once it ends.
+Self-hosting is free either way. See [pricing](/#pricing).
+
 ## About these docs
 
 These docs are just getting started. For now, the
