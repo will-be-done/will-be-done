@@ -10,22 +10,16 @@ const { section } = Astro.props;
 
 <nav class="docs-nav" aria-label="Site navigation">
   <a href="/features/" data-ph-event="features_link_clicked" data-ph-section={section}>
-    Features
-  </a>
-  <a
-    href="https://demo.will-be-done.app"
-    target="_blank"
-    rel="noopener noreferrer"
-    data-ph-event="demo_clicked"
-    data-ph-section={section}
-  >
-    Demo
-  </a>
-  <a href="/releases/" data-ph-event="releases_link_clicked" data-ph-section={section}>
-    Releases
+    Feature
   </a>
   <a href="/#pricing" data-ph-event="pricing_anchor_clicked" data-ph-section={section}>
     Pricing
+  </a>
+  <a href="/docs/" data-ph-event="docs_link_clicked" data-ph-section={section}>
+    Docs
+  </a>
+  <a href="/releases/" data-ph-event="releases_link_clicked" data-ph-section={section}>
+    Releases
   </a>
   <a
     href="https://github.com/will-be-done/will-be-done"
@@ -41,7 +35,7 @@ const { section } = Astro.props;
     data-ph-event="login_clicked"
     data-ph-section={section}
   >
-    Log in
+    Login
   </a>
   <a
     class="cta"
@@ -50,14 +44,13 @@ const { section } = Astro.props;
     data-ph-additional-event="signup_cta_clicked"
     data-ph-section={section}
   >
-    Start free
-    <span class="cta-note">while in alpha</span>
+    Sign Up
   </a>
 </nav>
 
 <style>
   /* Starlight renders this both in the header and in the mobile menu footer,
-     where the row has to wrap rather than push "Start free" out of view. */
+     where the row has to wrap rather than push "Sign Up" out of view. */
   .docs-nav {
     display: flex;
     flex-wrap: wrap;
@@ -78,6 +71,12 @@ const { section } = Astro.props;
     color: #fff;
   }
 
+  .docs-nav a:focus-visible {
+    border-radius: 9999px;
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
+  }
+
   .docs-nav .cta {
     border-radius: 9999px;
     padding: 0.5rem 1rem;
@@ -89,13 +88,6 @@ const { section } = Astro.props;
     transition:
       background-color 0.2s,
       box-shadow 0.2s;
-  }
-
-  .docs-nav .cta-note {
-    margin-left: 0.375rem;
-    font-size: 11px;
-    font-weight: 400;
-    color: rgba(219, 234, 254, 0.75); /* blue-100/75 */
   }
 
   .docs-nav .cta:hover {

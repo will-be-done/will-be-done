@@ -10,7 +10,7 @@ const { active } = Astro.props;
 ---
 
 <!-- Top bar -->
-<div class="pointer-events-none fixed inset-x-0 top-4 z-50 px-6 md:top-6">
+<div class="pointer-events-none fixed inset-x-0 top-4 z-50 px-4 sm:px-6 md:top-6">
   <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
     <a
       href="/"
@@ -21,45 +21,31 @@ const { active } = Astro.props;
       <span class="hidden whitespace-nowrap text-[13px] font-medium text-slate-300 sm:inline">Will Be Done</span>
     </a>
 
-    <nav aria-label="Main navigation" class="pointer-events-auto inline-flex items-center gap-1 rounded-full bg-[#0a0a0f]/80 px-1.5 py-1 backdrop-blur-xl">
+    <nav aria-label="Main navigation" class="pointer-events-auto hidden items-center gap-1 rounded-full bg-[#0a0a0f]/80 px-1.5 py-1 backdrop-blur-xl md:inline-flex">
       <a
         href="/features/"
         class:list={[
-          'hidden items-center px-2 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex md:px-3',
+          'inline-flex items-center px-3 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
           active === 'features' ? 'text-white' : 'text-slate-400',
         ]}
         aria-current={active === 'features' ? 'page' : undefined}
         data-ph-event="features_link_clicked"
         data-ph-section="topbar"
       >
-        Features
+        Feature
       </a>
       <a
-        href="https://demo.will-be-done.app"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="hidden items-center px-2 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex md:px-3"
-        data-ph-event="demo_clicked"
+        href="/#pricing"
+        class="inline-flex items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+        data-ph-event="pricing_anchor_clicked"
         data-ph-section="topbar"
       >
-        Demo
-      </a>
-      <a
-        href="/releases/"
-        class:list={[
-          'hidden items-center px-2 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex md:px-3',
-          active === 'releases' ? 'text-white' : 'text-slate-400',
-        ]}
-        aria-current={active === 'releases' ? 'page' : undefined}
-        data-ph-event="releases_link_clicked"
-        data-ph-section="topbar"
-      >
-        Releases
+        Pricing
       </a>
       <a
         href="/docs/"
         class:list={[
-          'hidden items-center px-2 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white sm:inline-flex md:px-3',
+          'inline-flex items-center px-3 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
           active === 'docs' ? 'text-white' : 'text-slate-400',
         ]}
         aria-current={active === 'docs' ? 'page' : undefined}
@@ -69,18 +55,22 @@ const { active } = Astro.props;
         Docs
       </a>
       <a
-        href="/#pricing"
-        class="hidden items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white sm:inline-flex"
-        data-ph-event="pricing_anchor_clicked"
+        href="/releases/"
+        class:list={[
+          'inline-flex items-center px-3 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
+          active === 'releases' ? 'text-white' : 'text-slate-400',
+        ]}
+        aria-current={active === 'releases' ? 'page' : undefined}
+        data-ph-event="releases_link_clicked"
         data-ph-section="topbar"
       >
-        Pricing
+        Releases
       </a>
       <a
         href="https://github.com/will-be-done/will-be-done"
         target="_blank"
         rel="noopener noreferrer"
-        class="hidden items-center px-2 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white md:inline-flex md:px-3"
+        class="inline-flex items-center px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
         data-ph-event="github_link_clicked"
         data-ph-section="topbar"
       >
@@ -88,22 +78,82 @@ const { active } = Astro.props;
       </a>
       <a
         href="https://app.will-be-done.app/login"
-        class="inline-flex items-center whitespace-nowrap px-2 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white md:px-3"
+        class="inline-flex items-center whitespace-nowrap px-3 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
         data-ph-event="login_clicked"
         data-ph-section="topbar"
       >
-        Log in
+        Login
       </a>
       <a
         href="https://app.will-be-done.app/signup"
-        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-500 px-3 py-2 md:px-4 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all duration-200 hover:bg-blue-400 hover:shadow-[0_2px_8px_rgba(59,130,246,0.35),inset_0_1px_0_rgba(255,255,255,0.15)]"
+        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-500 px-4 py-2 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all duration-200 hover:bg-blue-400 hover:shadow-[0_2px_8px_rgba(59,130,246,0.35),inset_0_1px_0_rgba(255,255,255,0.15)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
         data-ph-event="signup_clicked"
         data-ph-additional-event="signup_cta_clicked"
         data-ph-section="topbar"
       >
-        Start free
-        <span class="ml-1.5 text-[11px] font-normal text-blue-100/75">while in alpha</span>
+        Sign Up
+      </a>
+    </nav>
+
+    <nav aria-label="Main navigation" class="pointer-events-auto inline-flex items-center gap-1 rounded-full bg-[#0a0a0f]/80 p-1 backdrop-blur-xl md:hidden">
+      <details class="group relative" data-mobile-nav>
+        <summary
+          class="flex size-9 cursor-pointer list-none items-center justify-center rounded-full text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 [&::-webkit-details-marker]:hidden"
+        >
+          <span class="sr-only">Navigation menu</span>
+          <svg class="size-4 group-open:hidden" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+          <svg class="hidden size-4 group-open:block" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="m4 4 8 8m0-8-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+        </summary>
+        <div class="absolute right-0 top-[calc(100%+0.5rem)] w-44 overflow-hidden rounded-2xl bg-[#0a0a0f]/95 p-1.5 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl">
+          <a href="/features/" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="features_link_clicked" data-ph-section="topbar">Feature</a>
+          <a href="/#pricing" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="pricing_anchor_clicked" data-ph-section="topbar">Pricing</a>
+          <a href="/docs/" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="docs_link_clicked" data-ph-section="topbar">Docs</a>
+          <a href="/releases/" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="releases_link_clicked" data-ph-section="topbar">Releases</a>
+          <a href="https://github.com/will-be-done/will-be-done" target="_blank" rel="noopener noreferrer" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="github_link_clicked" data-ph-section="topbar">GitHub</a>
+        </div>
+      </details>
+      <a
+        href="https://app.will-be-done.app/login"
+        class="inline-flex items-center whitespace-nowrap px-2 py-2 text-[13px] font-medium text-slate-400 transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+        data-ph-event="login_clicked"
+        data-ph-section="topbar"
+      >
+        Login
+      </a>
+      <a
+        href="https://app.will-be-done.app/signup"
+        class="inline-flex items-center whitespace-nowrap rounded-full bg-blue-500 px-3 py-2 text-[13px] font-medium text-white shadow-[0_1px_2px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all duration-200 hover:bg-blue-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+        data-ph-event="signup_clicked"
+        data-ph-additional-event="signup_cta_clicked"
+        data-ph-section="topbar"
+      >
+        Sign Up
       </a>
     </nav>
   </div>
 </div>
+
+<script>
+  document.querySelectorAll<HTMLDetailsElement>('[data-mobile-nav]').forEach((menu) => {
+    menu.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => menu.removeAttribute('open'));
+    });
+
+    document.addEventListener('click', (event) => {
+      if (event.target instanceof Node && !menu.contains(event.target)) {
+        menu.removeAttribute('open');
+      }
+    });
+
+    menu.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        menu.removeAttribute('open');
+        menu.querySelector('summary')?.focus();
+      }
+    });
+  });
+</script>
