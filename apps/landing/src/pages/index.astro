@@ -13,7 +13,6 @@ import phoneImg from '../assets/phone.png';
 import timelineImg from '../assets/timeline.png';
 import projectImg from '../assets/project2.png';
 import quickAddImg from '../assets/quick-add.png';
-import meImg from '../assets/me.png';
 import desktopImg from '../assets/desktop.png';
 import quickAddFullImg from '../assets/quick-add-full.png';
 
@@ -586,49 +585,13 @@ const everythingElse = [
 
       <!-- Founder story -->
       <section aria-label="Why I built Will Be Done" class="relative px-6 py-20">
-        <div class="mx-auto max-w-5xl">
-          <div class="grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
-            <!-- Portrait on a gradient plate -->
-            <div class="relative mx-auto w-full max-w-[300px] lg:max-w-none">
-              <div class="pointer-events-none absolute -inset-6 rounded-[2rem] bg-blue-500/10 blur-3xl"></div>
-              <div class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500/30 via-indigo-500/12 to-transparent ring-1 ring-white/[0.08]">
-                <div class="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-blue-400/25 blur-3xl"></div>
-                <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(147,197,253,0.18),transparent_60%)]"></div>
-                <Image
-                  src={meImg}
-                  alt="Sergey Popov, the developer of Will Be Done"
-                  class="relative block w-full"
-                  loading="lazy"
-                />
-                <div class="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/70 to-transparent"></div>
-                <div class="absolute inset-x-4 bottom-4 flex items-center justify-between gap-3 rounded-2xl bg-[#0a0a0f]/70 px-4 py-3 ring-1 ring-white/[0.08] backdrop-blur-md">
-                  <div>
-                    <p class="text-[14px] font-semibold text-white">Sergey Popov</p>
-                    <p class="mt-0.5 text-[11px] text-slate-400">Building Will Be Done, solo</p>
-                  </div>
-                  <a
-                    href="https://github.com/quolpr"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="shrink-0 text-slate-400 transition-colors hover:text-white"
-                    aria-label="Sergey Popov on GitHub"
-                    data-ph-event="founder_github_clicked"
-                    data-ph-section="founder"
-                  >
-                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
-                    </svg>
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <p class="mb-4 text-[12px] font-medium uppercase tracking-[0.16em] text-blue-300/70">Why I built this</p>
-              <h2 class="mb-6 text-3xl font-bold tracking-tight text-white md:text-4xl leading-[1.15]">
-                The task manager I want to use for the rest of my life
-              </h2>
-              <div class="space-y-4 text-[15px] leading-relaxed text-slate-400">
+        <div class="mx-auto max-w-4xl">
+          <div>
+            <p class="mb-4 text-[12px] font-medium uppercase tracking-[0.16em] text-blue-300/70">Why I built this</p>
+            <h2 class="mb-6 text-3xl font-bold tracking-tight text-white md:text-4xl leading-[1.15]">
+              The task manager I want to use for the rest of my life
+            </h2>
+            <div class="space-y-4 text-[15px] leading-relaxed text-slate-400">
                 <p>
                   That sets the bar. It has to stay fast with years of task history, open without waiting on a full
                   database load, keep working when the internet disappears, and keep my task data on hardware I
@@ -664,9 +627,24 @@ const everythingElse = [
                   <p class="mt-0.5 text-[12px] leading-snug text-slate-500">on offline-first apps</p>
                 </div>
               </div>
-            </div>
 
-          </div>
+              <div class="mt-8 flex items-center gap-2 text-[13px] text-slate-500">
+                <span>Sergey Popov, building Will Be Done solo</span>
+                <a
+                  href="https://github.com/quolpr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-slate-400 transition-colors hover:text-white"
+                  aria-label="Sergey Popov on GitHub"
+                  data-ph-event="founder_github_clicked"
+                  data-ph-section="founder"
+                >
+                  <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd" />
+                  </svg>
+                </a>
+              </div>
+            </div>
 
           <!-- HyperDB credibility -->
           <div class="mt-12 rounded-2xl bg-white/[0.02] p-6 ring-1 ring-white/[0.06] md:p-8">
