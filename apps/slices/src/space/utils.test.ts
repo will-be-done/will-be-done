@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { getDMY, parseDMY } from "./utils";
 
 function withTZ(tz: string, fn: () => void) {
@@ -16,10 +16,6 @@ function withTZ(tz: string, fn: () => void) {
 }
 
 describe("getDMY / parseDMY", () => {
-  afterEach(() => {
-    delete process.env.TZ;
-  });
-
   it("round-trips a local date through getDMY and parseDMY across timezones", () => {
     for (const tz of [
       "UTC",

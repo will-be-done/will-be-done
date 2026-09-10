@@ -832,8 +832,14 @@ describe("project stash-aware timeline counts", () => {
 });
 
 describe("overdueTasksCountExceptDailiesCount timezone correctness", () => {
+  const originalTZ = process.env.TZ;
+
   afterEach(() => {
-    delete process.env.TZ;
+    if (originalTZ === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTZ;
+    }
   });
 
   it("does not count a task scheduled for today as overdue in a timezone behind UTC", () => {
