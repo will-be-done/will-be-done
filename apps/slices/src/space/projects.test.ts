@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   DB,
   SubscribableDB,
@@ -828,5 +828,48 @@ describe("project stash-aware timeline counts", () => {
 
     expect(existingCount).toBe(2);
     expect(stashAwareCount).toBe(1);
+  });
+});
+
+describe("overdueTasksCountExceptDailiesCount timezone correctness", () => {
+  afterEach(() => {
+    delete process.env.TZ;
+  });
+
+  it("does not count a task scheduled for today as overdue in a timezone behind UTC", () => {
+    process.env.TZ = "America/Los_Angeles";
+
+    const db = createDB();
+    const { project, section } = createProject(db);
+    const todayTask = createTask(db, section.id, "today-task");
+
+    const todayList = syncDispatch(
+      db,
+      createDailyList({ dailyList: { date: "2026-09-10" } }),
+    ) as DailyList;
+    syncDispatch(
+      db,
+      addToDailyList({
+        taskId: todayTask.id,
+        dailyListId: todayList.id,
+        position: "append",
+      }),
+    );
+
+    // "now" is local Sep 10 2026, 09:00 - the same calendar day as the list.
+    const currentDate = new Date(2026, 8, 10, 9, 0);
+    const overdueCount = runSelector<number>(
+      db,
+      function* () {
+        return yield* overdueTasksCountExceptDailiesCount({
+          projectId: project.id,
+          exceptDailyListIds: [],
+          currentDate: currentDate.getTime(),
+        });
+      },
+      [],
+    );
+
+    expect(overdueCount).toBe(0);
   });
 });
