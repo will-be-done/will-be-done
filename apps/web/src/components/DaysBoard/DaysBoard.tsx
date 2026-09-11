@@ -13,6 +13,7 @@ import {
   doneDailyEntryChildrenForDisplay,
   dailyEntryType,
   inboxProjectId,
+  parseDMY,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
@@ -84,14 +85,14 @@ const ColumnView = ({
       header={
         <>
           <div className="inline-block text-xs text-subheader mr-4">
-            {format(dailyList.date, "dd MMM")}
+            {format(parseDMY(dailyList.date), "dd MMM")}
           </div>
           <div
             className={cn("uppercase text-content text-3xl font-bold ", {
               "text-accent": isToday,
             })}
           >
-            {format(dailyList.date, "EEEE")}
+            {format(parseDMY(dailyList.date), "EEEE")}
           </div>
           <span
             className="flex items-center justify-center w-5 h-5 rounded-full bg-content-tinted/10 text-[11px] font-semibold tabular-nums text-content-tinted/60 leading-none self-center"

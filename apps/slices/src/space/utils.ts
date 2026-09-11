@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { v } from "@will-be-done/hyperdb";
 
@@ -52,6 +52,10 @@ export const dailyDateFormat = "yyyy-MM-dd";
 
 export function getDMY(date: Date): string {
   return format(date, dailyDateFormat);
+}
+
+export function parseDMY(dateStr: string): Date {
+  return parse(dateStr, dailyDateFormat, new Date());
 }
 
 export function generateKeyPositionedBetween(
