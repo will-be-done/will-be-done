@@ -8,7 +8,7 @@ import {
 import { action, selector } from "../builders";
 import { uuidv7 } from "uuidv7";
 import { RRule } from "rrule";
-import { appById } from "./app";
+import { appById, appCanDrop } from "./app";
 import {
   copyItems,
   deleteForParents,
@@ -395,36 +395,15 @@ export const taskTemplateCanDrop = selector({
     dropId,
     dropModelType,
   }) {
-    const template = yield* taskTemplateById({ id: taskTemplateId });
-    if (!template) return false;
+    // App drops unwrap stash entries before calling the item handler.
+    if (dropModelType === "stashEntry") return false;
 
-    const model = yield* appById({
-      id: dropId,
-      modelType: dropModelType,
+    return yield* appCanDrop({
+      id: taskTemplateId,
+      modelType: taskTemplateType,
+      dropId,
+      dropModelType,
     });
-    if (!model) return false;
-
-    if (isTask(model)) {
-      return model.state === "todo";
-    }
-
-    if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.taskId });
-      return droppedTask !== undefined && droppedTask.state === "todo";
-    }
-
-    if (
-      yield* checklistItemCanDropOnParent({
-        parentId: taskTemplateId,
-        parentType: taskTemplateType,
-        dropId,
-        dropModelType,
-      })
-    ) {
-      return true;
-    }
-
-    return isTaskTemplate(model);
   },
 });
 

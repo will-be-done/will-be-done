@@ -11,10 +11,9 @@ import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/externa
 import {
   attachClosestEdge,
   type Edge,
-  extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { unstable_batchedUpdates } from "react-dom";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
+import { canDropModelData, getDropIndicatorEdge } from "@/lib/dnd/models";
 import { createElementDragPreview } from "@/lib/dnd/dragPreview";
 import TextareaAutosize from "react-textarea-autosize";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
@@ -39,6 +38,7 @@ import {
   appById,
   appDeleteModel,
   appHandleDrop,
+  getDropModelData,
   Item,
   ListItem,
   listItemByIdOrDefault,
@@ -104,6 +104,7 @@ export const DropTaskIndicator = ({
 }) => {
   return (
     <div
+      data-drop-indicator={direction}
       className={clsx(
         "absolute left-0 right-0 bottom-0 w-full bg-accent h-[2px] rounded-full",
         direction == "top" && "top-[-9px]",
@@ -1073,14 +1074,13 @@ export const PreloadedTaskComp = ({
   useEffect(() => {
     const element = ref.current;
     invariant(element);
+    const dndData = getDropModelData(listItem, isTask(item) ? item : undefined);
+    invariant(dndData);
 
     return combine(
       draggable({
         element: element,
-        getInitialData: (): DndModelData => ({
-          modelId: listItem.id,
-          modelType: listItem.type,
-        }),
+        getInitialData: () => dndData,
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           const rect = source.element.getBoundingClientRect();
 
@@ -1109,40 +1109,17 @@ export const PreloadedTaskComp = ({
       }),
       dropTargetForElements({
         element: element,
-        canDrop: (inp) => {
-          const { source } = inp;
-
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return true;
-        },
-        getIsSticky: () => true,
-        getData: ({ input, element }) => {
-          const data: DndModelData = {
-            modelId: listItem.id,
-            modelType: listItem.type,
-          };
-
-          return attachClosestEdge(data, {
+        canDrop: ({ source }) => canDropModelData(source.data, dndData),
+        getData: ({ input, element }) =>
+          attachClosestEdge(dndData, {
             input,
             element,
             allowedEdges: ["top", "bottom"],
-          });
-        },
-        onDragEnter: (args) => {
-          const data = args.source.data;
-          if (isModelDNDData(data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
-        onDrag: (args) => {
-          const data = args.source.data;
-
-          if (isModelDNDData(data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
+          }),
+        onDragEnter: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+        onDrag: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+        onDropTargetChange: (args) =>
+          setClosestEdge(getDropIndicatorEdge(args)),
         onDragLeave: () => {
           setClosestEdge(null);
         },
@@ -1151,7 +1128,7 @@ export const PreloadedTaskComp = ({
         },
       }),
     );
-  }, [dispatch, select, listItem.id, listItem.type]);
+  }, [item, listItem]);
 
   const focusTitleTextarea = useCallback(() => {
     const textarea = titleTextareaRef.current;
@@ -1436,8 +1413,7 @@ export const PreloadedTaskComp = ({
             {(isTask(item) || isTaskTemplate(item)) && (
               <ChecklistItems
                 hasChecklistItems={hasCheclistItems}
-                parentId={item.id}
-                parentType={item.type}
+                parent={item}
                 visible={isFocused || isEditing}
                 focusableItemKey={focusableItemKey}
                 editTrigger="doubleClick"

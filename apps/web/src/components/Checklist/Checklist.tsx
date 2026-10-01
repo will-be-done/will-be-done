@@ -18,7 +18,6 @@ import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/elemen
 import {
   attachClosestEdge,
   type Edge,
-  extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import TextareaAutosize from "react-textarea-autosize";
 import clsx from "clsx";
@@ -27,18 +26,23 @@ import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   type ChecklistItem,
+  type Item,
+  getDropModelData,
   checklistItemById,
   checklistItemChildren,
   checklistItemSiblings,
   checklistItemType,
-  type ChecklistParentType,
   createItem as createChecklistItem,
   createItemAfter,
   deleteItems,
   toggleChecklistItemState,
   updateChecklistItemContent,
 } from "@will-be-done/slices/space";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
+import {
+  type DndModelData,
+  canDropModelData,
+  getDropIndicatorEdge,
+} from "@/lib/dnd/models";
 import { createElementDragPreview } from "@/lib/dnd/dragPreview";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
@@ -89,6 +93,7 @@ const DropChecklistIndicator = ({
 }) => {
   return (
     <div
+      data-drop-indicator={direction}
       className={clsx(
         "pointer-events-none absolute left-0 right-0 z-10 h-[2px] bg-accent",
         direction === "top"
@@ -211,13 +216,11 @@ const ChecklistItemComp = ({
       }),
       dropTargetForElements({
         element: rowElement,
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return true;
-        },
-        getIsSticky: () => true,
+        canDrop: ({ source }) =>
+          canDropModelData(source.data, {
+            modelId: item.id,
+            modelType: checklistItemType,
+          }),
         getData: ({ input, element }) => {
           const data: DndModelData = {
             modelId: item.id,
@@ -230,16 +233,10 @@ const ChecklistItemComp = ({
             allowedEdges: ["top", "bottom"],
           });
         },
-        onDragEnter: (args) => {
-          if (isModelDNDData(args.source.data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
-        onDrag: (args) => {
-          if (isModelDNDData(args.source.data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
+        onDragEnter: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+        onDrag: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+        onDropTargetChange: (args) =>
+          setClosestEdge(getDropIndicatorEdge(args)),
         onDragLeave: () => setClosestEdge(null),
         onDrop: () => setClosestEdge(null),
       }),
@@ -440,8 +437,7 @@ const ChecklistItemComp = ({
 };
 
 type ChecklistItemsProps = {
-  parentId: string;
-  parentType: ChecklistParentType;
+  parent: Item;
   hasChecklistItems: boolean | undefined;
   visible?: boolean;
   focusableItemKey?: ChecklistFocusKey;
@@ -461,8 +457,7 @@ type ChecklistItemsViewProps = ChecklistItemsBaseProps & {
 };
 
 const ChecklistItemsView = ({
-  parentId,
-  parentType,
+  parent,
   focusableItemKey,
   onItemsRemoved = () => {},
   editTrigger = "doubleClick",
@@ -470,6 +465,8 @@ const ChecklistItemsView = ({
   className,
   items,
 }: ChecklistItemsViewProps) => {
+  const parentId = parent.id;
+  const parentType = parent.type;
   const dispatch = useAsyncDispatch();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
@@ -501,41 +498,26 @@ const ChecklistItemsView = ({
     const containerElement = containerRef.current;
     if (!containerElement) return;
 
+    const parentData = getDropModelData(parent);
+    invariant(parentData);
+    const dndData: DndModelData = { ...parentData, role: "checklist" };
+
     return dropTargetForElements({
       element: containerElement,
-      canDrop: ({ source }) => {
-        const data = source.data;
-        if (!isModelDNDData(data)) return false;
-
-        return true;
-      },
-      getIsSticky: () => true,
-      getData: ({ input, element }) => {
-        const data: DndModelData = {
-          modelId: parentId,
-          modelType: parentType,
-        };
-
-        return attachClosestEdge(data, {
+      canDrop: ({ source }) => canDropModelData(source.data, dndData),
+      getData: ({ input, element }) =>
+        attachClosestEdge(dndData, {
           input,
           element,
           allowedEdges: ["top", "bottom"],
-        });
-      },
-      onDragEnter: (args) => {
-        if (isModelDNDData(args.source.data)) {
-          setClosestEdge(extractClosestEdge(args.self.data));
-        }
-      },
-      onDrag: (args) => {
-        if (isModelDNDData(args.source.data)) {
-          setClosestEdge(extractClosestEdge(args.self.data));
-        }
-      },
+        }),
+      onDragEnter: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+      onDrag: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+      onDropTargetChange: (args) => setClosestEdge(getDropIndicatorEdge(args)),
       onDragLeave: () => setClosestEdge(null),
       onDrop: () => setClosestEdge(null),
     });
-  }, [isParentDropTargetEnabled, parentId, parentType]);
+  }, [isParentDropTargetEnabled, parent]);
 
   if (items.length === 0 && !showAddItem) return null;
 
@@ -579,10 +561,10 @@ const ChecklistItemsView = ({
 };
 
 const ChecklistItemsWithSelector = (props: ChecklistItemsBaseProps) => {
-  const { parentId, parentType } = props;
+  const { parent } = props;
   const { data: items = [] } = useAsyncSelector({
     selector: checklistItemChildren,
-    args: { parentId: parentId, parentType: parentType },
+    args: { parentId: parent.id, parentType: parent.type },
   });
 
   return <ChecklistItemsView {...props} items={items} />;

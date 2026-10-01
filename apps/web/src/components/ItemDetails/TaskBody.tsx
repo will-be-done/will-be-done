@@ -300,8 +300,7 @@ export function TaskBody({
 
         <ChecklistItems
           hasChecklistItems={undefined}
-          parentId={taskId}
-          parentType={task.type}
+          parent={task}
           editTrigger="always"
           showAddItem
           className="border-task-panel-divider"

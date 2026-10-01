@@ -1,10 +1,18 @@
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
+  dropTargetForElements,
+  type ElementDropTargetEventBasePayload,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
+import {
+  type DndModelData,
+  isModelDNDData,
+  canDropModelData,
+  isActiveDropTarget,
+} from "@/lib/dnd/models";
 import { AnyModelType } from "@will-be-done/slices/space";
 import { PlusIcon } from "@/components/ui/icons.tsx";
 import { buildFocusKey } from "@/store/focusSlice.ts";
@@ -67,7 +75,10 @@ export const TasksColumn = ({
   onHideClick: () => void;
   header?: React.ReactNode;
   columnModelId: string;
-  columnModelType: AnyModelType;
+  columnModelType: Extract<
+    AnyModelType,
+    "projectSection" | "dailyList" | "stash"
+  >;
   children: React.ReactNode;
   panelWidth?: number;
   onAddClick?: () => void;
@@ -82,6 +93,9 @@ export const TasksColumn = ({
   useEffect(() => {
     invariant(columnRef.current);
     invariant(scrollableRef.current);
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) =>
+      setDndState(isActiveDropTarget(args) ? isTaskOver : idle);
+
     return combine(
       dropTargetForElements({
         element: columnRef.current,
@@ -89,16 +103,17 @@ export const TasksColumn = ({
           modelId: columnModelId,
           modelType: columnModelType,
         }),
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return true;
-        },
+        canDrop: ({ source }) =>
+          canDropModelData(source.data, {
+            modelId: columnModelId,
+            modelType: columnModelType,
+          }),
         getIsSticky: () => true,
-        onDragEnter: () => setDndState(isTaskOver),
+        onDragEnter: updateDropIndicator,
+        onDrag: updateDropIndicator,
+        onDropTargetChange: updateDropIndicator,
         onDragLeave: () => setDndState(idle),
-        onDragStart: () => setDndState(isTaskOver),
+        onDragStart: updateDropIndicator,
         onDrop: () => setDndState(idle),
       }),
       autoScrollForElements({
@@ -111,11 +126,13 @@ export const TasksColumn = ({
   return (
     <div
       data-focus-column
+      data-drop-active={isOver || undefined}
       data-column-model-id={columnModelId}
       data-column-model-type={columnModelType}
       ref={columnRef}
       className={cn(
         "relative flex h-full px-1 pt-1 flex-shrink-0 min-h-0 group",
+        isOver && !isHidden && "rounded-lg ring-2 ring-inset ring-accent",
       )}
       style={!isHidden ? { minWidth: `${panelWidth ?? 400}px` } : {}}
     >

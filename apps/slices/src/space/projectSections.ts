@@ -13,7 +13,7 @@ import {
 } from "./utils";
 import { registerModelSlice } from "./maps";
 import { uuidv7 } from "uuidv7";
-import { appById } from "./app";
+import { appById, appCanDrop } from "./app";
 import { deleteItemsByIds } from "./items";
 import {
   firstProjectSectionItem,
@@ -25,7 +25,6 @@ import { projectById, projectByIdOrDefault } from "./projects";
 import { createTask, taskById, updateTask } from "./tasks";
 import { updateTemplate } from "./taskTemplates";
 import { defaultProject } from "./projects";
-import { noop } from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { genUUIDV5 } from "../traits";
 import {
@@ -466,24 +465,15 @@ export const projectSectionCanDrop = selector({
     dropId,
     dropModelType,
   }): Generator<unknown, boolean, unknown> {
-    yield* noop();
+    // App drops unwrap stash entries before calling the item handler.
+    if (dropModelType === "stashEntry") return false;
 
-    const dropItem = yield* appById({
-      id: dropId,
-      modelType: dropModelType,
+    return yield* appCanDrop({
+      id: _projectSectionId,
+      modelType: projectSectionType,
+      dropId,
+      dropModelType,
     });
-    if (!dropItem) return false;
-
-    if (isTask(dropItem) || isTaskTemplate(dropItem)) {
-      return true;
-    }
-
-    if (isDailyEntry(dropItem)) {
-      const task = yield* taskById({ id: dropItem.taskId });
-      return task !== undefined && task.state === "todo";
-    }
-
-    return false;
   },
 });
 
