@@ -47,6 +47,7 @@ and views that should re-run only when the exact index ranges they read change.
 import {
   DB,
   HybridDB,
+  PreloadedHybridDB,
   SubscribableDB,
   asyncDispatch,
   createAction,
@@ -298,6 +299,23 @@ read, write, or transaction (including cache-only reads) throws
 `HybridDBCrashedError` with the persistence error as its `cause`. Recover by
 creating a new `HybridDB` and reloading tables.
 
+When every index key fits in memory but retaining every row does not, use
+`PreloadedHybridDB`. It preloads ID-only entries for every declared index and
+hydrates rows through `byId` on demand:
+
+```ts
+const db = new SubscribableDB(
+  new PreloadedHybridDB(primary, { preloadConcurrency: "whole" }),
+);
+await execAsync(db.loadTables([tasksTable, projectsTable]));
+```
+
+`"whole"` starts every table supplied to `loadTables` concurrently and is the
+default. A positive number bounds active table reads; use `1` for sequential
+startup. The driver may serialize internally, and higher concurrency can retain
+multiple decoded tables temporarily before only their index keys, IDs, and
+hydrated rows remain.
+
 ## React Pattern
 
 ```tsx
@@ -470,8 +488,8 @@ an unbounded scan indirectly.
 - Batch related reads and join them in memory instead of running selectors per
   result row.
 - Use `byId` for id lookups.
-- Prefer HybridDB for durable browser state: persistent primary, in-memory
-  cache, async selectors, and async dispatch.
+- Prefer `PreloadedHybridDB` when index keys fit in memory but complete rows do
+  not; use `HybridDB` when only queried ranges should be cached.
 - Use B-tree indexes for ordering, ranges, composite keys, and full-table
   preloading.
 - Use `uniqhash` when an exact single-column value must be unique.

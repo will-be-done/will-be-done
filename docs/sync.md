@@ -103,6 +103,14 @@ The WebSocket notification is only a wake-up hint. It carries no authoritative
 cursor and may be duplicated or lost. The persisted server revision is the
 authority.
 
+Cross-tab change broadcasts are also wake-up/data-transfer hints sent only
+after the originating tab has persisted its changes. A receiving tab merges
+them with both `skip-sync` and HyperDB's `externalStorageMergeTrait`: the first
+prevents a duplicate local change-log entry, while the second lets the
+preloaded snapshot emit normal insert/upsert/delete invalidations and treats
+the already-persisted insert as an idempotent primary upsert. The broadcast is
+not authoritative and does not replace persisted sync state.
+
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
 remains pending and starts another session instead of being lost between the

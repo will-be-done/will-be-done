@@ -269,6 +269,34 @@ const getChangeSelector = selector({
   },
 });
 
+describe("immutable change rows", () => {
+  it("copies field clocks before recording an update", () => {
+    const db = new DB(new BptreeInmemDriver(), { freezeRows: true });
+    execSync(db.loadTables([testTable, changesTable]));
+    const row = {
+      type: "task",
+      id: "immutable-1",
+      title: "Before",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    localCreate(db, row, "0000000001-0001-local");
+
+    expect(() =>
+      syncDispatch(
+        db,
+        insertChangeFromUpdate({
+          tableDef: testTable,
+          oldRow: row,
+          newRow: { ...row, title: "After" },
+          clientId: "local",
+          nextClock: "0000000002-0001-local",
+        }),
+      ),
+    ).not.toThrow();
+  });
+});
+
 function getRow(db: DB | SubscribableDB, id: string) {
   return runSelector<Row | undefined>(
     db,

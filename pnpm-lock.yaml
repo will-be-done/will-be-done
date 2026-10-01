@@ -5,7 +5,6 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@will-be-done/hyperdb': 0.6.0
   '@types/react': 19.2.17
   '@types/react-dom': 19.2.3
   react: 19.2.7
@@ -74,8 +73,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       '@will-be-done/hyperdb':
-        specifier: 0.6.0
-        version: 0.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.7.0
+        version: 0.7.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -121,7 +120,7 @@ importers:
         version: 9.39.4
       '@types/bun':
         specifier: latest
-        version: 1.4.0
+        version: 1.4.2
       '@typescript/native-preview':
         specifier: ^7.0.0-dev.20260304.1
         version: 7.0.0-dev.20260624.1
@@ -260,8 +259,8 @@ importers:
   apps/slices:
     dependencies:
       '@will-be-done/hyperdb':
-        specifier: 0.6.0
-        version: 0.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.7.0
+        version: 0.7.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       date-fns:
         specifier: ^4.1.0
         version: 4.4.0
@@ -393,11 +392,11 @@ importers:
         specifier: workspace:*
         version: link:../api
       '@will-be-done/hyperdb':
-        specifier: 0.6.0
-        version: 0.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.7.0
+        version: 0.7.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/hyperdb-devtool':
-        specifier: 0.4.5
-        version: 0.4.5(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: 0.4.8
+        version: 0.4.8(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -521,7 +520,7 @@ importers:
         version: 9.39.4
       '@types/bun':
         specifier: latest
-        version: 1.4.0
+        version: 1.4.2
       '@types/node':
         specifier: ^24.10.1
         version: 24.13.2
@@ -4073,8 +4072,8 @@ packages:
   '@types/blessed@0.1.27':
     resolution: {integrity: sha512-ZOQGjLvWDclAXp0rW5iuUBXeD6Gr1PkitN7tj7/G8FCoSzTsij6OhXusOzMKhwrZ9YlL2Pmu0d6xJ9zVvk+Hsg==}
 
-  '@types/bun@1.4.0':
-    resolution: {integrity: sha512-K+lZULY23vRgK/CfTjFIV+tyifaNdSMlPh9j+6mQ/cLfpOznLyAuzgV/JQysyECpkBQLVMSyvjlr2fBUSA9wFQ==}
+  '@types/bun@1.4.2':
+    resolution: {integrity: sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ==}
 
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
@@ -4317,14 +4316,14 @@ packages:
   '@vitest/utils@4.1.9':
     resolution: {integrity: sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA==}
 
-  '@will-be-done/hyperdb-devtool@0.4.5':
-    resolution: {integrity: sha512-OFqqkSrpvkgESa8WgmuecA7yo1mZNJx1iRSm95H90w/p2biJ9sCjjQ0ZJF7WUZ+D3u0+OUl+GNtlS1852bML8g==}
+  '@will-be-done/hyperdb-devtool@0.4.8':
+    resolution: {integrity: sha512-dXQTISpi00+BbERt+AX4jlyY/DKMdtDg6XcStbHRX5UJpe3bawKcEFv82mhGXBVYnCk8jf5SGRVm5eBhOGgCMQ==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
 
-  '@will-be-done/hyperdb@0.6.0':
-    resolution: {integrity: sha512-lvl8wGKm7h1mV5vXYfWnADSi8ay07Wq0/TuVyn9oBJuBH+t0ucI8DpgbXpKQrnpS6ZWydBypF+Q6q19ZxFaHIQ==}
+  '@will-be-done/hyperdb@0.7.0':
+    resolution: {integrity: sha512-ShrbQ1FhyXqD31kZFw3HF/gsNGpI6IioA5c7uRG3qD3ll4DnvjPqBaOgH7H564Ip4HebHeZZdA+tcFI1xMRRcw==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
@@ -4636,8 +4635,8 @@ packages:
     resolution: {integrity: sha512-q2hn7Mbo2nFNkVekPiHFx6Nfo3hURmES3tfBn+k5Pqxl2RkmP3QGqZUhH/q9Pch/4G05NRhPjDlVj1O8q4Txvw==}
     engines: {node: '>=14.0.0'}
 
-  bun-types@1.4.0:
-    resolution: {integrity: sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q==}
+  bun-types@1.4.2:
+    resolution: {integrity: sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w==}
 
   bytestreamjs@2.0.1:
     resolution: {integrity: sha512-U1Z/ob71V/bXfVABvNr/Kumf5VyeQRBEm6Txb0PQ6S7V5GpBM3w4Cbqz/xPDicR5tN0uvDifng8C+5qECeGwyQ==}
@@ -12534,9 +12533,9 @@ snapshots:
     dependencies:
       '@types/node': 24.13.2
 
-  '@types/bun@1.4.0':
+  '@types/bun@1.4.2':
     dependencies:
-      bun-types: 1.4.0
+      bun-types: 1.4.2
 
   '@types/cacheable-request@6.0.3':
     dependencies:
@@ -12843,16 +12842,16 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@will-be-done/hyperdb-devtool@0.4.5(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@will-be-done/hyperdb-devtool@0.4.8(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@will-be-done/hyperdb': 0.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@will-be-done/hyperdb': 0.7.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       goober: 2.1.19(csstype@3.2.3)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
     transitivePeerDependencies:
       - csstype
 
-  '@will-be-done/hyperdb@0.6.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@will-be-done/hyperdb@0.7.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
@@ -13330,7 +13329,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  bun-types@1.4.0:
+  bun-types@1.4.2:
     dependencies:
       '@types/node': 24.13.2
 

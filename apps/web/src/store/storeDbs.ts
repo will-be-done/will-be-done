@@ -87,7 +87,9 @@ export const createStoreDbs = async (
     return db;
   });
 
-  const preloadedDB = new PreloadedHybridDB(persistentDB);
+  const preloadedDB = new PreloadedHybridDB(persistentDB, {
+    preloadConcurrency: "whole",
+  });
   const syncSubDb = new SubscribableDB(preloadedDB);
   await execAsync(syncSubDb.loadTables(syncConfig.persistDBTables));
 
