@@ -22,8 +22,15 @@ import {
   useFocusStore,
 } from "@/store/focusSlice.ts";
 import { cn } from "@/lib/utils.ts";
-import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
+import {
+  dropTargetForElements,
+  type ElementDropTargetEventBasePayload,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
+  type DndModelData,
+  canDropModelData,
+  isActiveDropTarget,
+} from "@/lib/dnd/models";
 import invariant from "tiny-invariant";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { captureWebAnalytics } from "@/lib/analytics";
@@ -95,21 +102,26 @@ const SectionSection = ({
   useEffect(() => {
     if (!section) return;
     invariant(columnRef.current);
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) =>
+      setIsDndOver(isActiveDropTarget(args));
+
     return dropTargetForElements({
       element: columnRef.current,
       getData: (): DndModelData => ({
         modelId: projectSectionId,
         modelType: section.type,
       }),
-      canDrop: ({ source }) => {
-        const data = source.data;
-        if (!isModelDNDData(data)) return false;
-        return true;
-      },
+      canDrop: ({ source }) =>
+        canDropModelData(source.data, {
+          modelId: projectSectionId,
+          modelType: section.type,
+        }),
       getIsSticky: () => true,
-      onDragEnter: () => setIsDndOver(true),
+      onDragEnter: updateDropIndicator,
+      onDrag: updateDropIndicator,
+      onDropTargetChange: updateDropIndicator,
       onDragLeave: () => setIsDndOver(false),
-      onDragStart: () => setIsDndOver(true),
+      onDragStart: updateDropIndicator,
       onDrop: () => setIsDndOver(false),
     });
   }, [section, projectSectionId]);

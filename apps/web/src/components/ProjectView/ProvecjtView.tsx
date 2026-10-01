@@ -6,6 +6,7 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
   dropTargetForElements,
+  type ElementDropTargetEventBasePayload,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
@@ -16,7 +17,11 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import invariant from "tiny-invariant";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
+import {
+  type DndModelData,
+  canDropModelData,
+  isActiveDropTarget,
+} from "@/lib/dnd/models";
 import { cn } from "@/lib/utils.ts";
 import ReactDOM from "react-dom";
 import { isInputElement } from "@/utils/isInputElement.ts";
@@ -224,6 +229,16 @@ const ProjectItem = function ProjectItemComp({
     const element = ref.current;
     invariant(element);
 
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) => {
+      setClosestEdge(
+        !isActiveDropTarget(args)
+          ? null
+          : args.source.data.modelType === project.type
+            ? extractClosestEdge(args.self.data)
+            : "whole",
+      );
+    };
+
     return combine(
       draggable({
         element: element,
@@ -258,12 +273,11 @@ const ProjectItem = function ProjectItemComp({
       }),
       dropTargetForElements({
         element: element,
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return true;
-        },
+        canDrop: ({ source }) =>
+          canDropModelData(source.data, {
+            modelId: project.id,
+            modelType: project.type,
+          }),
         getIsSticky: () => true,
         getData: ({ input, element }) => {
           const data: DndModelData = {
@@ -277,28 +291,9 @@ const ProjectItem = function ProjectItemComp({
             allowedEdges: ["top", "bottom"],
           });
         },
-        onDragEnter: (args) => {
-          const data = args.source.data;
-
-          if (isModelDNDData(data) && data.modelId !== project.id) {
-            if (data.modelType === project.type) {
-              setClosestEdge(extractClosestEdge(args.self.data));
-            } else {
-              setClosestEdge("whole");
-            }
-          }
-        },
-        onDrag: (args) => {
-          const data = args.source.data;
-
-          if (isModelDNDData(data) && data.modelId !== project.id) {
-            if (data.modelType === project.type) {
-              setClosestEdge(extractClosestEdge(args.self.data));
-            } else {
-              setClosestEdge("whole");
-            }
-          }
-        },
+        onDragEnter: updateDropIndicator,
+        onDrag: updateDropIndicator,
+        onDropTargetChange: updateDropIndicator,
         onDragLeave: () => {
           setClosestEdge(null);
         },

@@ -3,6 +3,7 @@ export * from "./utils";
 export * from "./maps";
 export * from "./syncMap";
 export * from "./tables";
+export * from "./dropRules";
 export * from "./projectSectionStorageMigration";
 export * from "./entryStorageMigration";
 export * from "./entryMerge";

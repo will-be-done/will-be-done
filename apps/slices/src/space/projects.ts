@@ -15,7 +15,7 @@ import {
   orderPositionArg,
   parseDMY,
 } from "./utils";
-import { appById } from "./app";
+import { appById, appCanDrop } from "./app";
 import {
   createProjectSection,
   deleteProjectSections,
@@ -129,26 +129,15 @@ export const projectCanDrop = selector({
     dropItemId,
     dropModelType,
   }): Generator<unknown, boolean, unknown> {
-    const project = yield* projectById({ id: projectId });
-    if (!project) return false;
+    // App drops unwrap stash entries before calling the item handler.
+    if (dropModelType === "stashEntry") return false;
 
-    const dropItem = yield* appById({
-      id: dropItemId,
-      modelType: dropModelType,
+    return yield* appCanDrop({
+      id: projectId,
+      modelType: projectType,
+      dropId: dropItemId,
+      dropModelType,
     });
-    if (!dropItem) return false;
-
-    // Projects can accept tasks, templates, entries, and other projects
-    if (isProject(dropItem) || isTask(dropItem) || isTaskTemplate(dropItem)) {
-      return true;
-    }
-
-    if (isDailyEntry(dropItem)) {
-      const task = yield* taskById({ id: dropItem.taskId });
-      return task !== undefined && task.state === "todo";
-    }
-
-    return false;
   },
 });
 

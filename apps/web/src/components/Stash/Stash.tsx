@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
+  dropTargetForElements,
+  type ElementDropTargetEventBasePayload,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
@@ -17,7 +20,11 @@ import {
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
 import { TasksColumn } from "@/components/TasksGrid/TasksGrid.tsx";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
+import {
+  type DndModelData,
+  canDropModelData,
+  isActiveDropTarget,
+} from "@/lib/dnd/models";
 import { cn } from "@/lib/utils.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import {
@@ -154,6 +161,9 @@ export const Stash = () => {
     const element = buttonRef.current;
     if (!element) return;
 
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) =>
+      setIsTaskOverButton(isActiveDropTarget(args));
+
     return combine(
       dropTargetForElements({
         element,
@@ -161,16 +171,17 @@ export const Stash = () => {
           modelId: STASH_ID,
           modelType: stashType,
         }),
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return true;
-        },
+        canDrop: ({ source }) =>
+          canDropModelData(source.data, {
+            modelId: STASH_ID,
+            modelType: stashType,
+          }),
         getIsSticky: () => true,
-        onDragEnter: () => setIsTaskOverButton(true),
+        onDragEnter: updateDropIndicator,
+        onDrag: updateDropIndicator,
+        onDropTargetChange: updateDropIndicator,
         onDragLeave: () => setIsTaskOverButton(false),
-        onDragStart: () => setIsTaskOverButton(true),
+        onDragStart: updateDropIndicator,
         onDrop: () => setIsTaskOverButton(false),
       }),
     );
