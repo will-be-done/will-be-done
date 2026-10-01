@@ -31,7 +31,7 @@ const { gridClass = 'gap-8 lg:grid-cols-2 lg:gap-12 items-center' } = Astro.prop
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
           </svg>
         </div>
-        SQLite database you can back up by copying one file
+        SQLite storage with manual backups of your storage volume
       </li>
       <li class="flex items-center gap-3">
         <div class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500/10 shrink-0">
@@ -76,8 +76,9 @@ const { gridClass = 'gap-8 lg:grid-cols-2 lg:gap-12 items-center' } = Astro.prop
       </button>
     </div>
     <pre class="overflow-x-auto p-5 font-mono text-[13px] leading-relaxed"><code><span class="text-slate-500">$</span> <span class="text-slate-200">docker run -d \</span>
+  <span class="text-slate-400">--name will-be-done \</span>
   <span class="text-slate-400">-p 3000:3000 \</span>
-  <span class="text-slate-400">-v will_be_done:/var/lib/will-be-done \</span>
+  <span class="text-slate-400">-v will_be_done_storage:/var/lib/will-be-done \</span>
   <span class="text-slate-400">--restart unless-stopped \</span>
   <span class="text-blue-400">ghcr.io/will-be-done/will-be-done:latest</span>
 
@@ -91,7 +92,7 @@ const { gridClass = 'gap-8 lg:grid-cols-2 lg:gap-12 items-center' } = Astro.prop
     const checkIcon = btn.querySelector<HTMLElement>('[data-check-icon]')!;
     const label = btn.querySelector<HTMLElement>('[data-copy-label]')!;
 
-    const cmd = `docker run -d \\\n  -p 3000:3000 \\\n  -v will_be_done:/var/lib/will-be-done \\\n  --restart unless-stopped \\\n  ghcr.io/will-be-done/will-be-done:latest`;
+    const cmd = `docker run -d \\\n  --name will-be-done \\\n  -p 3000:3000 \\\n  -v will_be_done_storage:/var/lib/will-be-done \\\n  --restart unless-stopped \\\n  ghcr.io/will-be-done/will-be-done:latest`;
 
     let resetTimer: ReturnType<typeof setTimeout> | null = null;
 

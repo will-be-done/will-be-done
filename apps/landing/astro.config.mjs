@@ -43,7 +43,14 @@ export default defineConfig({
       // not a docs site, so it should not own the site-wide 404.
       disable404Route: true,
       sidebar: [
-        { label: "Documentation", autogenerate: { directory: "docs" } },
+        "docs",
+        "docs/features",
+        "docs/keyboard-shortcuts",
+        "docs/self-hosting",
+        "docs/offline-and-sync",
+        "docs/install",
+        "docs/api",
+        "docs/forks",
       ],
     }),
   ],
