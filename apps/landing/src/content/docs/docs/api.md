@@ -95,7 +95,6 @@ curl --fail-with-body \
 The server creates the task in the inbox and adds it to Stash. Connected
 clients receive the change through sync.
 
-
 ## Revoke a token
 
 1. Open **Space Settings → Tokens**.
