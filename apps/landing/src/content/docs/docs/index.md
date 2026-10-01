@@ -1,36 +1,30 @@
 ---
 title: Introduction
 description: What Will Be Done is, who it is for, and where to go next.
+sidebar:
+  order: 0
 ---
 
-Will Be Done is an open source, local-first task manager built around a visual
-weekly timeline. Instead of a flat list of everything you could do, you place
-tasks on the days you intend to do them, and the week tells you whether that
-plan is realistic.
+Will Be Done is an open source task planner built around a weekly timeline.
+Tasks belong to projects, and you schedule them on the days you intend to work
+on them. Stash keeps tasks handy when you expect to need them soon but have not
+decided when.
 
-## What makes it different
+The app stores your data on your device and syncs with your server in the
+background. You can use the cloud or host the server yourself.
 
-- **Plan the week, not just the tasks.** A column per day, with drag and drop
-  between days, projects and sections.
-- **Local-first.** The full database lives on your device, so the app works
-  offline and stays fast. Sync happens in the background across devices.
-- **Yours to host.** Self-host with a single Docker container and SQLite
-  storage, or use the cloud. The source is AGPL-3.0.
-- **Keyboard-first.** Vim navigation, a global quick-add shortcut on desktop,
-  and shortcuts for everything you do often.
+## Start here
 
-## Try it
+Explore the app, set it up, or see what others have built with it:
 
-The [live demo](https://demo.will-be-done.app) runs entirely in your browser
-with no account. When you are ready to keep your data,
-[start free in the cloud](https://app.will-be-done.app/signup) or self-host from
-the [GitHub repository](https://github.com/will-be-done/will-be-done).
+- [Features](/docs/features/): tasks, projects, Stash, scheduling, and recurring tasks.
+- [Keyboard shortcuts](/docs/keyboard-shortcuts/): navigation, task actions, and desktop quick add.
+- [Self-hosting](/docs/self-hosting/): Docker setup, persistent storage, and updates.
+- [Offline and sync](/docs/offline-and-sync/): local storage, reconnection, and conflicting edits.
+- [Install the app](/docs/install/): desktop downloads and PWA installation.
+- [API](/docs/api/): tokens, requests, the endpoint reference, and SDK generation.
+- [Forks](/docs/forks/): community projects that take Will Be Done in their own direction.
 
-The cloud is free while Will Be Done is in alpha, then $3/month after release.
-Everyone who registers during the alpha gets 3 months free once it ends.
-Self-hosting is free either way. See [pricing](/#pricing).
-
-## About these docs
-
-These docs are just getting started. For now, the
-[release notes](/releases/) are the most detailed record of what the app can do.
+To try the app, open the [live demo](https://demo.will-be-done.app) without an
+account or [create a cloud account](https://app.will-be-done.app/signup).
+For changes between versions, read the [release notes](/releases/).
