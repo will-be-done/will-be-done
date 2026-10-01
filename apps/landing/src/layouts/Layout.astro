@@ -114,13 +114,37 @@ const structuredData = {
       softwareRequirements: 'Modern web browser, or Docker for self-hosting',
       installUrl: `${repoUrl}/releases`,
       downloadUrl: `${repoUrl}/releases`,
+      // Self-hosting is free, so the app stays accessible for free even once
+      // the hosted cloud starts charging after the alpha.
       isAccessibleForFree: true,
-      offers: {
-        '@type': 'Offer',
-        price: '0',
-        priceCurrency: 'USD',
-        availability: 'https://schema.org/InStock',
-      },
+      offers: [
+        {
+          '@type': 'Offer',
+          name: 'Self-hosted',
+          description:
+            'Run Will Be Done yourself with one Docker container. Free forever, with no paid tier.',
+          price: '0',
+          priceCurrency: 'USD',
+          availability: 'https://schema.org/InStock',
+        },
+        {
+          '@type': 'Offer',
+          name: 'Cloud',
+          description:
+            'Hosted sync at app.will-be-done.app. Free while Will Be Done is in alpha, then $3 per month after release.',
+          priceCurrency: 'USD',
+          availability: 'https://schema.org/InStock',
+          priceSpecification: {
+            '@type': 'UnitPriceSpecification',
+            price: '3',
+            priceCurrency: 'USD',
+            billingDuration: 1,
+            billingIncrement: 1,
+            unitCode: 'MON',
+            unitText: 'month',
+          },
+        },
+      ],
       featureList: [
         'Visual weekly timeline with a column per day',
         'Drag and drop tasks between days, projects and sections',

@@ -3,6 +3,7 @@ import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { loadSpaceBackup, parseTickTickCSV } from "@will-be-done/slices/space";
 import { Upload, Download, AlertTriangle, CheckCircle } from "lucide-react";
 import { trpcClient } from "@/lib/trpc";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 export function ImportSection() {
   const dispatch = useAsyncDispatch();
@@ -32,13 +33,28 @@ export function ImportSection() {
       setTickTickImporting(true);
       setTickTickError(null);
       setTickTickSuccess(false);
+      captureWebAnalytics({
+        name: "import_started",
+        properties: { provider: "ticktick" },
+      });
 
       try {
         const text = await file.text();
         const backup = parseTickTickCSV(text);
         await dispatch(loadSpaceBackup({ backup: backup }));
+        captureWebAnalytics({
+          name: "import_completed",
+          properties: {
+            provider: "ticktick",
+            task_count: backup.tasks.length,
+          },
+        });
         setTickTickSuccess(true);
       } catch {
+        captureWebAnalytics({
+          name: "import_failed",
+          properties: { provider: "ticktick" },
+        });
         setTickTickError(
           "Failed to parse TickTick CSV file. Make sure it's a valid TickTick export.",
         );
@@ -61,15 +77,30 @@ export function ImportSection() {
       setTodoistImporting(true);
       setTodoistError(null);
       setTodoistSuccess(false);
+      captureWebAnalytics({
+        name: "import_started",
+        properties: { provider: "todoist" },
+      });
 
       try {
         const backup = await trpcClient.importTodoist.mutate({
           apiToken: todoistToken.trim(),
         });
         await dispatch(loadSpaceBackup({ backup: backup }));
+        captureWebAnalytics({
+          name: "import_completed",
+          properties: {
+            provider: "todoist",
+            task_count: backup.tasks.length,
+          },
+        });
         setTodoistSuccess(true);
         setTodoistToken("");
       } catch {
+        captureWebAnalytics({
+          name: "import_failed",
+          properties: { provider: "todoist" },
+        });
         setTodoistError(
           "Failed to import from Todoist. Check your API token and try again.",
         );

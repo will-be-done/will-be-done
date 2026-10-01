@@ -1,0 +1,171 @@
+/* Re-skins Starlight with the tokens the landing pages use, so /docs reads as
+   the same site. Starlight loads this only on its own routes, so Tailwind is
+   deliberately not imported here; the overrides in src/components/starlight/
+   use plain scoped CSS for the same reason.
+
+   Starlight's own properties live in `@layer starlight.base`, so unlayered
+   rules here win regardless of order. */
+
+@import "./fonts.css";
+
+:root,
+:root[data-theme="light"],
+::backdrop {
+  color-scheme: dark;
+
+  /* The site is dark only. Declaring the light theme with the same values
+     keeps a stale `starlight-theme: light` in localStorage from producing a
+     half-light page, since the theme picker is not rendered. */
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e2e8f0; /* slate-200 */
+  --sl-color-gray-2: #cbd5e1; /* slate-300 */
+  --sl-color-gray-3: #94a3b8; /* slate-400 */
+  --sl-color-gray-4: #64748b; /* slate-500 */
+  --sl-color-gray-5: #334155; /* slate-700 */
+  --sl-color-gray-6: #1e293b; /* slate-800 */
+  --sl-color-gray-7: #0f172a; /* slate-900 */
+  --sl-color-black: #0a0a0f;
+
+  --sl-color-accent-low: #1e3a8a; /* blue-900 */
+  --sl-color-accent: #3b82f6; /* blue-500 */
+  --sl-color-accent-high: #93c5fd; /* blue-300 */
+
+  --sl-color-text: #94a3b8; /* slate-400, same as the release notes body */
+  --sl-color-text-accent: #93c5fd;
+  --sl-color-text-invert: #0a0a0f;
+
+  --sl-color-bg: #0a0a0f;
+  --sl-color-bg-nav: rgba(10, 10, 15, 0.8);
+  /* Transparent so the gradient orbs below run behind the sidebar. */
+  --sl-color-bg-sidebar: transparent;
+  --sl-color-bg-inline-code: rgba(255, 255, 255, 0.06);
+  --sl-color-bg-accent: #93c5fd;
+
+  --sl-color-hairline-light: rgba(255, 255, 255, 0.1);
+  --sl-color-hairline: rgba(255, 255, 255, 0.06);
+  --sl-color-hairline-shade: rgba(255, 255, 255, 0.04);
+
+  --sl-color-backdrop-overlay: rgba(10, 10, 15, 0.7);
+
+  --sl-font: "InterVariable";
+  --sl-line-height-headings: 1.25;
+}
+
+:root {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+}
+
+/* The backdrop from PageBackdrop.astro: the colour sits on <html> so the
+   fixed, negatively-stacked orbs on <body> paint above it but behind content. */
+html {
+  background-color: #0a0a0f;
+}
+
+body {
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Gradient orbs */
+body::before {
+  background-image:
+    radial-gradient(
+      800px 800px at 50% -400px,
+      rgba(37, 99, 235, 0.08),
+      transparent 70%
+    ),
+    radial-gradient(
+      600px 600px at calc(100% + 200px) calc(100% + 200px),
+      rgba(99, 102, 241, 0.06),
+      transparent 70%
+    );
+}
+
+/* Noise texture */
+body::after {
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* Frosted top bar, matching TopBar.astro. */
+header.header {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Starlight draws a divider after the social icons slot to separate it from the
+   theme and language pickers, neither of which this site renders. */
+header .social-icons::after {
+  display: none;
+}
+
+/* Headings and links, matching the release notes prose. */
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) {
+  letter-spacing: -0.02em;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration: underline;
+  text-decoration-color: rgba(147, 197, 253, 0.35);
+  text-underline-offset: 3px;
+  transition:
+    color 0.2s,
+    text-decoration-color 0.2s;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)):hover {
+  color: #bfdbfe;
+  text-decoration-color: rgba(191, 219, 254, 0.7);
+}
+
+.sl-markdown-content strong:not(:where(.not-content *)) {
+  color: #e2e8f0;
+}
+
+.sl-markdown-content :is(ul, ol):not(:where(.not-content *)) li::marker {
+  color: #475569; /* slate-600 */
+}
+
+.sl-markdown-content img:not(:where(.not-content *)) {
+  border-radius: 0.75rem;
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start-color: rgba(59, 130, 246, 0.4);
+  color: #cbd5e1;
+}
+
+/* Sidebar: quieter than the default, with the blue accent for the open page. */
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #bfdbfe;
+}
+
+.sidebar-content summary {
+  color: #64748b;
+}
+
+/* Search button, matching the site's glass surfaces. */
+site-search button[data-open-modal] {
+  border-color: rgba(255, 255, 255, 0.08);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+site-search button[data-open-modal]:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background-color: rgba(255, 255, 255, 0.05);
+}

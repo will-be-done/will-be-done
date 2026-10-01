@@ -14,6 +14,17 @@ export interface TokenUsage {
   userAgent?: string;
 }
 
+const authenticatedRequestUsers = new WeakMap<
+  FastifyRequest,
+  AuthenticatedUser | null
+>();
+
+export function getAuthenticatedRequestUser(
+  request: FastifyRequest,
+): AuthenticatedUser | null | undefined {
+  return authenticatedRequestUsers.get(request);
+}
+
 export async function authenticateBearerToken(
   authHeader?: string,
   mainDB?: DB,
@@ -48,14 +59,16 @@ export async function authenticateBearerToken(
 }
 
 export async function authenticateRequest(
-  request: Pick<FastifyRequest, "headers" | "ip">,
+  request: FastifyRequest,
   authHeader: string | undefined = request.headers.authorization,
   mainDB?: DB,
 ): Promise<AuthenticatedUser | null> {
   const userAgent = request.headers["user-agent"];
 
-  return await authenticateBearerToken(authHeader, mainDB, {
+  const user = await authenticateBearerToken(authHeader, mainDB, {
     ip: request.ip,
     ...(userAgent !== undefined ? { userAgent } : {}),
   });
+  authenticatedRequestUsers.set(request, user);
+  return user;
 }

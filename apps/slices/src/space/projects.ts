@@ -13,6 +13,7 @@ import {
   generateOrderTokenPositioned,
   normalizeOrderPosition,
   orderPositionArg,
+  parseDMY,
 } from "./utils";
 import { appById } from "./app";
 import {
@@ -207,7 +208,7 @@ export const overdueTasksCountExceptDailiesCount = selector({
       const dailyList = dailyListMap.get(entry.dailyListId);
       if (!dailyList) continue;
 
-      const listDate = new Date(dailyList.date);
+      const listDate = parseDMY(dailyList.date);
       if (listDate < currentDay) {
         overdueCount++;
       }
@@ -286,7 +287,7 @@ export const overdueTasksCountExceptDailiesAndStashCount = selector({
       const dailyList = dailyListMap.get(entry.dailyListId);
       if (!dailyList) continue;
 
-      const listDate = new Date(dailyList.date);
+      const listDate = parseDMY(dailyList.date);
       if (listDate < currentDay) {
         overdueCount++;
       }

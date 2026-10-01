@@ -32,6 +32,7 @@ import {
   useStashOpen,
   useStashSize,
 } from "../DaysBoard/StashStore.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const StashColumnView = ({
   onTaskAdd,
@@ -186,6 +187,10 @@ export const Stash = () => {
           sectionPosition: "prepend",
         }),
       );
+      captureWebAnalytics({
+        name: "task_created",
+        properties: { creation_method: "add_button", location: "stash" },
+      });
 
       const entry = await select({
         selector: stashEntryByTaskId,

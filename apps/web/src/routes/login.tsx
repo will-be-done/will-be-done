@@ -14,6 +14,11 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { BackgroundOrbs } from "@/components/Layout/BackgroundOrbs.tsx";
+import {
+  captureWebAnalytics,
+  captureWebAnalyticsOnce,
+  identifyWebAnalyticsUser,
+} from "@/lib/analytics";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -225,19 +230,33 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  useEffect(() => {
+    captureWebAnalyticsOnce("login_page_viewed", {
+      name: "login_page_viewed",
+    });
+  }, []);
+
   const loginMutation = useMutation(
     trpc.login.mutationOptions({
       onSuccess: (result) => {
         authUtils.setToken(result.token);
         authUtils.setUserId(result.userId);
+        identifyWebAnalyticsUser(result.userId);
 
         void navigate({ to: "/spaces" });
+      },
+      onError: () => {
+        captureWebAnalytics({
+          name: "login_failed",
+          properties: { reason: "request_failed" },
+        });
       },
     }),
   );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    captureWebAnalytics({ name: "login_submitted" });
     loginMutation.mutate({ email, password });
   };
 

@@ -19,6 +19,11 @@ import reportWebVitals from "./reportWebVitals.ts";
 import { initSentry } from "./instrument.ts";
 import { getRouter } from "./router.tsx";
 import { TawkIdentity } from "./components/Tawk/TawkIdentity.tsx";
+import {
+  identifyWebAnalyticsUser,
+  initializeWebAnalytics,
+} from "./lib/analytics.ts";
+import { authUtils } from "./lib/auth.ts";
 
 // scan({
 //   enabled: true,
@@ -27,6 +32,9 @@ import { TawkIdentity } from "./components/Tawk/TawkIdentity.tsx";
 // Create the router before Sentry so navigation tracing can use its route tree.
 const router = getRouter();
 const sentryEnabled = initSentry(router);
+initializeWebAnalytics();
+const analyticsUserId = authUtils.getUserId();
+if (analyticsUserId) identifyWebAnalyticsUser(analyticsUserId);
 
 const traceStartOn =
   getDevtoolsEnabled() || process.env.NODE_ENV === "development"

@@ -1,0 +1,122 @@
+---
+// Starlight's page footer (pagination, edit link) plus the site footer, so the
+// bottom of a docs page matches SiteFooter.astro.
+import Default from '@astrojs/starlight/components/Footer.astro';
+import Logo from '../Logo.astro';
+---
+
+<Default><slot /></Default>
+
+<div class="site-footer">
+  <div class="brand">
+    <div class="logo">
+      <div class="glow"></div>
+      <Logo id="docs-footer" size={24} class="mark" />
+    </div>
+    <span>Will Be Done</span>
+  </div>
+
+  <div class="links">
+    <a
+      href="https://demo.will-be-done.app"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-ph-event="demo_clicked"
+      data-ph-section="docs_footer"
+    >
+      Live demo
+    </a>
+    <span class="sep">·</span>
+    <a href="/releases/" data-ph-event="releases_link_clicked" data-ph-section="docs_footer">
+      Releases
+    </a>
+    <span class="sep">·</span>
+    <span class="muted">Open Source</span>
+    <span class="sep">·</span>
+    <span class="muted">AGPL license</span>
+    <span class="sep">·</span>
+    <a
+      href="https://github.com/will-be-done/will-be-done"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-ph-event="github_link_clicked"
+      data-ph-section="docs_footer"
+    >
+      GitHub
+    </a>
+  </div>
+</div>
+
+<style>
+  .site-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  @media (min-width: 50rem) {
+    .site-footer {
+      flex-direction: row;
+    }
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 13px;
+    font-weight: 500;
+    color: #94a3b8; /* slate-400 */
+  }
+
+  .logo {
+    position: relative;
+    width: 24px;
+    height: 24px;
+  }
+
+  .glow {
+    position: absolute;
+    inset: 0;
+    border-radius: 13%;
+    background-color: rgba(59, 130, 246, 0.3);
+    filter: blur(12px);
+    transform: scale(1.15);
+  }
+
+  .mark {
+    position: relative;
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    font-size: 12px;
+  }
+
+  .links a {
+    color: #94a3b8;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .links a:hover {
+    color: #fff;
+  }
+
+  .muted {
+    color: #64748b; /* slate-500 */
+  }
+
+  .sep {
+    color: #334155; /* slate-700 */
+  }
+</style>

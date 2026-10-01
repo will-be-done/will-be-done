@@ -10,11 +10,12 @@ import {
 import { getSpaceDatabase } from "./databaseAccess";
 import { ResourceNotFoundError } from "./errors";
 import { resolveCreatePosition, type Placement } from "./placement";
-import { toPublicTask, type PublicTask } from "./tasks";
+import { getTaskScheduledDate, toPublicTask, type PublicTask } from "./tasks";
 
 export interface ScheduledTaskResponse {
   task: PublicTask;
   date: string;
+  previousDate: string | null;
 }
 
 export async function scheduleTask({
@@ -36,6 +37,7 @@ export async function scheduleTask({
     args: { id: taskId },
   });
   if (!task) throw new ResourceNotFoundError("Task");
+  const previousDate = await getTaskScheduledDate(db, taskId);
 
   const dailyList = await selectAsync(db, {
     selector: dailyListByDate,
@@ -72,7 +74,7 @@ export async function scheduleTask({
     }),
   );
 
-  return { task: toPublicTask(task, date), date };
+  return { task: toPublicTask(task, date), date, previousDate };
 }
 
 export async function clearTaskSchedule({
@@ -83,13 +85,15 @@ export async function clearTaskSchedule({
   spaceId: string;
   taskId: string;
   userId: string;
-}): Promise<void> {
+}): Promise<string | null> {
   const db = await getSpaceDatabase(spaceId, userId);
   const task = await selectAsync(db, {
     selector: taskById,
     args: { id: taskId },
   });
   if (!task) throw new ResourceNotFoundError("Task");
+  const previousDate = await getTaskScheduledDate(db, taskId);
 
   await asyncDispatch(db, removeFromDailyList({ taskId }));
+  return previousDate;
 }

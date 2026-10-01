@@ -38,6 +38,9 @@ jobs:
           flyctl deploy --remote-only --config fly.app.prod.toml --app wbd-app-prod \
             --build-arg VITE_SENTRY_DSN="${{ secrets.WBD_WEB_SENTRY_DSN }}" \
             --build-arg VITE_SENTRY_RELEASE="${{ steps.sentry.outputs.release }}" \
+            --build-arg VITE_POSTHOG_KEY="${{ secrets.WBD_POSTHOG_KEY }}" \
+            --build-arg VITE_POSTHOG_HOST="https://eu.i.posthog.com" \
+            --build-arg VITE_POSTHOG_UI_HOST="https://eu.posthog.com" \
             --env WBD_SENTRY_RELEASE="${{ steps.sentry.outputs.release }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_APP_PROD }}

@@ -8,7 +8,13 @@ import { captureException, closeSentry } from "./instrument";
 import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
 import { subscriptionManager } from "./subscriptionManager";
+import {
+  createBackendAnalytics,
+  noopBackendAnalytics,
+  type BackendAnalytics,
+} from "./analytics";
 
+let analytics: BackendAnalytics = noopBackendAnalytics;
 const start = async () => {
   try {
     const env = getEnvConfig();
@@ -24,9 +30,11 @@ const start = async () => {
     }
 
     const mainDB = await getMainHyperDB();
+    analytics = createBackendAnalytics(env);
     const appRouter = createAppRouter({
       mainDB,
       captchaConfig: getCaptchaConfig(),
+      analytics,
       tawkApiKey: env.WBD_TAWK_API_KEY,
     });
     const server = createServer({
@@ -37,7 +45,9 @@ const start = async () => {
         backend: env.WBD_RATE_LIMIT_BACKEND,
         redisUrl: env.WBD_REDIS_URL,
         namespace: env.WBD_RATE_LIMIT_NAMESPACE,
+        globalOverride: { max: env.WBD_RATE_LIMIT_GLOBAL_MAX },
       },
+      analytics,
     });
 
     console.log("Starting server...");
@@ -164,6 +174,7 @@ const start = async () => {
       console.error("Failed to close databases", cleanupError);
     }
     await closeSentry();
+    await analytics.shutdown();
     process.exit(1);
   }
 };

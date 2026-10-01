@@ -1,0 +1,499 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TopBar from '../components/TopBar.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import PageBackdrop from '../components/PageBackdrop.astro';
+import { Image } from 'astro:assets';
+import timelineImg from '../assets/timeline.png';
+import quickAddImg from '../assets/quick-add.png';
+import projectImg from '../assets/project2.png';
+import phoneImg from '../assets/phone.png';
+
+const siteUrl = 'https://will-be-done.app';
+const pagePath = '/features/';
+const canonical = `${siteUrl}${pagePath}`;
+
+const title = 'Will Be Done features: weekly timeline, local-first sync, Vim keys and an HTTP API';
+const description =
+  'Every feature of Will Be Done: a weekly timeline you plan by dragging, a full local database on each device, Vim keybindings, a global quick add shortcut, project kanban boards, recurring tasks, Todoist and TickTick import, and a documented HTTP API.';
+
+const schema = [
+  {
+    '@type': 'BreadcrumbList',
+    '@id': `${canonical}#breadcrumbs`,
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteUrl}/` },
+      { '@type': 'ListItem', position: 2, name: 'Features', item: canonical },
+    ],
+  },
+];
+
+const everythingElse = [
+  'Recurring tasks by day of week, month or year',
+  'Project kanban boards with your own columns',
+  'Separate spaces for work and personal',
+  'Today view and weekly timeline',
+  'Stash for what you are focused on right now',
+  'Desktop apps for Linux, macOS and Windows',
+  'Global quick add shortcut',
+  'Mobile-ready PWA',
+  'Drag and drop for tasks, days and projects',
+  'HTTP API with OpenAPI docs',
+  'Task descriptions and checklists',
+  'Real-time sync across tabs and devices',
+];
+---
+
+<Layout
+  title={title}
+  description={description}
+  path={pagePath}
+  ogTitle="Will Be Done features"
+  ogDescription={description}
+  schema={schema}
+>
+  <PageBackdrop>
+    <main>
+      <TopBar active="features" />
+
+      <!-- Header -->
+      <section aria-label="Features" class="relative px-6 pb-6 pt-28 md:pt-32">
+        <div class="mx-auto max-w-3xl">
+          <p class="mb-6 inline-flex items-center gap-2 rounded-full bg-white/[0.03] px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-blue-300/90 ring-1 ring-blue-400/[0.18] sm:px-4 sm:text-[11px] sm:tracking-[0.14em]">
+            <span>Features</span>
+          </p>
+
+          <h1 class="mb-5 text-4xl font-bold tracking-tight text-white md:text-5xl leading-[1.1]">
+            Everything Will Be Done does
+          </h1>
+
+          <p class="text-[17px] leading-relaxed text-slate-400">
+            Will Be Done plans a week at a time, one column per day. Every device keeps the whole database, so nothing
+            waits for the network. Vim keys cover the app, and an HTTP API lets a script do the same work.
+          </p>
+
+          <div class="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+            <a
+              href="https://demo.will-be-done.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="group inline-flex items-center gap-2 font-medium text-blue-300 transition-colors hover:text-blue-200"
+              data-ph-event="demo_clicked"
+              data-ph-section="features_header"
+            >
+              Try it in the demo
+              <span class="transition-transform duration-200 group-hover:translate-x-0.5">&rarr;</span>
+            </a>
+            <a
+              href="/docs/"
+              class="text-slate-400 transition-colors hover:text-white"
+              data-ph-event="docs_link_clicked"
+              data-ph-section="features_header"
+            >
+              Read the docs
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feature rows: write copy first, media second; desktop alternation comes from row position. -->
+      <div
+        class="lg:[&>.why-feature:nth-child(odd)_.why-feature-copy]:order-1 lg:[&>.why-feature:nth-child(odd)_.why-feature-media]:order-2 lg:[&>.why-feature:nth-child(even)_.why-feature-copy]:order-2 lg:[&>.why-feature:nth-child(even)_.why-feature-media]:order-1"
+      >
+        <!-- Weekly timeline -->
+        <section id="timeline" class="why-feature relative scroll-mt-24 px-6 py-8 md:py-12">
+          <div class="mx-auto max-w-5xl">
+            <div class="grid items-center gap-10 lg:grid-cols-2">
+              <div class="why-feature-copy order-1">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
+                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M8.25 12.75h.008v.008H8.25v-.008Zm0 3h.008v.008H8.25v-.008Zm3.75-3h.008v.008H12v-.008Zm0 3h.008v.008H12v-.008Z" />
+                  </svg>
+                </div>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">A column per day, the whole week at once</h2>
+                <p class="mb-4 max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Monday through Sunday sit side by side. Drag a task from Wednesday to Friday and it lands on Friday.
+                  A day is an ordered list, not a grid of hours, so you pick the day and never the time.
+                </p>
+                <p class="mb-5 max-w-md text-[15px] leading-relaxed text-slate-400">
+                  A task you didn't finish keeps its day and gets a yellow marker. It doesn't pile into today, and it
+                  never turns red. When one day is enough, the Today view shows only that day, and the stash holds the
+                  work you haven't scheduled at all.
+                </p>
+                <a
+                  href="/#why-weekly"
+                  class="group inline-flex items-center gap-2 text-[14px] font-medium text-blue-300 transition-colors hover:text-blue-200"
+                  data-ph-event="why_weekly_link_clicked"
+                  data-ph-section="features_timeline"
+                >
+                  Why the week is the unit of planning
+                  <span class="transition-transform duration-200 group-hover:translate-x-0.5">&rarr;</span>
+                </a>
+              </div>
+              <div class="why-feature-media order-2">
+                <Image
+                  src={timelineImg}
+                  alt="Weekly timeline showing day columns with tasks dragged between days across the full week"
+                  class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                  loading="eager"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Keyboard -->
+        <section id="keyboard" class="why-feature relative scroll-mt-24 px-6 py-8 md:py-12">
+          <div class="mx-auto max-w-5xl">
+            <div class="grid items-center gap-10 lg:grid-cols-2">
+              <div class="why-feature-copy order-1">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-400/15">
+                  <span
+                    aria-hidden="true"
+                    class="h-7 w-7 bg-current"
+                    style="mask: url('/vim-svgrepo-com.svg') center / contain no-repeat; -webkit-mask: url('/vim-svgrepo-com.svg') center / contain no-repeat;"
+                  ></span>
+                </div>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Your hands never leave the keyboard</h2>
+                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Vim keybinds cover the whole app. Move with h/j/k/l, create tasks with o/O, complete with space,
+                  and push work to another day without reaching for the mouse.
+                </p>
+              </div>
+              <div class="why-feature-media order-2">
+                <div class="relative mx-auto max-w-[420px] overflow-hidden rounded-2xl bg-[#071018] ring-1 ring-cyan-400/[0.14] shadow-2xl shadow-black/40">
+                  <img
+                    src="/vim.png"
+                    alt="Will Be Done task action menu showing Vim keyboard shortcuts for completing, moving, creating, and deleting tasks"
+                    class="block w-full"
+                    loading="lazy"
+                    width="852"
+                    height="1084"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Quick add -->
+        <section id="quick-add" class="why-feature relative scroll-mt-24 px-6 py-8 md:py-12">
+          <div class="mx-auto max-w-5xl">
+            <div class="grid items-center gap-10 lg:grid-cols-2">
+              <div class="why-feature-copy order-1">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                  </svg>
+                </div>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Don't break focus to capture a task</h2>
+                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                  A thought surfaces mid-work. Switching apps kills your flow. One global shortcut works anywhere on
+                  your Mac, Windows or Linux machine. Type the task, hit enter, and you're back. The popup disappears.
+                  Your focus doesn't.
+                </p>
+              </div>
+              <div class="why-feature-media order-2">
+                <Image
+                  src={quickAddImg}
+                  alt="Quick-add popup overlay appearing on top of another application, ready to capture a task"
+                  class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Projects -->
+        <section id="projects" class="why-feature relative scroll-mt-24 px-6 py-8 md:py-12">
+          <div class="mx-auto max-w-5xl">
+            <div class="grid items-center gap-10 lg:grid-cols-2">
+              <div class="why-feature-copy order-1">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                  </svg>
+                </div>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">Projects for the work that outlives a week</h2>
+                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Each project gets its own kanban board with columns you define, such as Week, Month, Ideas and
+                  Someday. Separate spaces keep work and personal apart, so an idea you are not ready for waits in
+                  Someday instead of crowding this week.
+                </p>
+              </div>
+              <div class="why-feature-media order-2">
+                <Image
+                  src={projectImg}
+                  alt="Screenshot showing project kanban board with Week, Month, Ideas, and Someday columns"
+                  class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Local-first explained -->
+      <section id="local-first" aria-label="How local-first works" class="relative scroll-mt-24 px-6 py-20">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+            <div>
+              <p class="mb-4 text-[12px] font-medium uppercase tracking-[0.16em] text-blue-300/70">Local-first</p>
+              <h2 class="mb-5 text-3xl font-bold tracking-tight text-white md:text-4xl leading-[1.15]">
+                Local-first, not offline-ish
+              </h2>
+              <p class="mb-6 text-[16px] leading-relaxed text-slate-400">
+                Every device runs a complete local database. Opening a task, moving it across the week or creating a new
+                one never waits for the network. The server only passes changes between your devices when there is a
+                connection.
+              </p>
+
+              <ul class="space-y-3 text-[14px] text-slate-400">
+                <li class="flex items-start gap-3">
+                  <div class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10">
+                    <svg class="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <span><span class="text-slate-200">No spinners.</span> Reads and writes happen locally, so every drag and keystroke lands immediately.</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <div class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10">
+                    <svg class="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <span><span class="text-slate-200">Plane mode is normal mode.</span> The full app works with no connection, including planning and completing tasks.</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <div class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10">
+                    <svg class="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <span><span class="text-slate-200">Server downtime is survivable.</span> If your homelab is rebooting, your tasks are still there and sync catches up later.</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <div class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/10">
+                    <svg class="h-3 w-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <span><span class="text-slate-200">Built for a lifetime of tasks.</span> Rows are read from local storage on demand instead of loading the whole database at startup, so the app opens straight into your week after years of history.</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Sync diagram -->
+            <div class="mx-auto w-full max-w-sm">
+              <div class="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.08]">
+                <div class="flex items-start gap-3">
+                  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-300">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-[14px] font-semibold text-white">Your device</p>
+                    <p class="mt-0.5 text-[12px] leading-relaxed text-slate-500">Full local database · instant reads and writes</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex h-14 justify-center">
+                <div class="relative flex w-px items-center justify-center bg-gradient-to-b from-blue-500/5 via-blue-400/40 to-blue-500/5">
+                  <span class="absolute whitespace-nowrap rounded-full bg-[#0a0a0f] px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-blue-300/80 ring-1 ring-blue-400/20">sync</span>
+                </div>
+              </div>
+
+              <div class="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.08]">
+                <div class="flex items-start gap-3">
+                  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-300">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2M5 12a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2m-2-4h.01M17 16h.01" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-[14px] font-semibold text-white">Your server</p>
+                    <p class="mt-0.5 text-[12px] leading-relaxed text-slate-500">SQLite in one Docker container · or the cloud</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex h-14 justify-center">
+                <div class="relative flex w-px items-center justify-center bg-gradient-to-b from-blue-500/5 via-blue-400/40 to-blue-500/5">
+                  <span class="absolute whitespace-nowrap rounded-full bg-[#0a0a0f] px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-blue-300/80 ring-1 ring-blue-400/20">sync</span>
+                </div>
+              </div>
+
+              <div class="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.08]">
+                <div class="flex items-start gap-3">
+                  <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-300">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 20.25h3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-[14px] font-semibold text-white">Your other devices</p>
+                    <p class="mt-0.5 text-[12px] leading-relaxed text-slate-500">Each with its own local database</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Everything else -->
+      <section aria-label="More features" class="relative px-6 py-16">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-12 lg:grid-cols-[1.4fr_1fr]">
+            <div>
+              <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">
+                And everything else you'd expect
+              </h2>
+              <p class="mb-7 text-[15px] leading-relaxed text-slate-400">
+                The interesting parts are above. The table stakes are here, and they all work.
+              </p>
+              <ul class="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+                {everythingElse.map((item) => (
+                  <li class="flex items-start gap-2.5 text-[14px] leading-relaxed text-slate-300">
+                    <svg class="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+
+              <!-- Migration -->
+              <div class="mt-8 rounded-2xl bg-blue-500/[0.05] p-5 ring-1 ring-blue-400/[0.18]">
+                <div class="flex items-start gap-3">
+                  <div class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10 text-blue-300">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 7.5h-.75A2.25 2.25 0 0 0 4.5 9.75v7.5a2.25 2.25 0 0 0 2.25 2.25h7.5a2.25 2.25 0 0 0 2.25-2.25v-7.5a2.25 2.25 0 0 0-2.25-2.25h-.75m-6 3.75 3 3m0 0 3-3m-3 3V1.5m6 9h.75a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25h-7.5a2.25 2.25 0 0 1-2.25-2.25v-.75" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="mb-1.5 text-[15px] font-semibold text-white">Coming from Todoist or TickTick?</h3>
+                    <p class="text-[14px] leading-relaxed text-slate-400">
+                      Bring your tasks with you. Import from <span class="text-slate-200">Todoist</span> with an API
+                      token, or from a <span class="text-slate-200">TickTick</span> CSV export. Projects and tasks
+                      land straight in your spaces.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-center">
+              <Image
+                src={phoneImg}
+                alt="Screenshot of Will Be Done mobile app showing full task management on phone"
+                class="w-1/2 lg:w-4/5"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- API -->
+      <section id="api" aria-label="HTTP API" class="relative scroll-mt-24 px-6 py-16" data-ph-section-view="api">
+        <div class="mx-auto max-w-5xl">
+          <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+            <div>
+              <p class="mb-4 text-[12px] font-medium uppercase tracking-[0.16em] text-blue-300/70">HTTP API</p>
+              <h2 class="mb-5 text-2xl font-bold tracking-tight text-white md:text-3xl">
+                Wire your tasks into everything else
+              </h2>
+              <p class="mb-6 text-[15px] leading-relaxed text-slate-400">
+                Spaces, projects, sections, tasks, checklists and schedules are all reachable over a documented HTTP
+                API. A Telegram bot, a cron job or your own script can drop work straight into your week. Create a
+                token in <span class="text-slate-200">Space settings → Tokens</span> and send it as a bearer token.
+              </p>
+              <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+                <a
+                  href="https://app.will-be-done.app/api/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group inline-flex items-center gap-2 font-medium text-blue-300 transition-colors hover:text-blue-200"
+                  data-ph-event="api_docs_clicked"
+                  data-ph-section="api"
+                >
+                  API reference
+                  <span class="transition-transform duration-200 group-hover:translate-x-0.5">&rarr;</span>
+                </a>
+                <span class="text-slate-600">Self-hosting? The same docs live at <span class="font-mono">/api/docs</span> on your server.</span>
+              </div>
+            </div>
+
+            <div class="overflow-hidden rounded-2xl bg-[#0d0d14] ring-1 ring-white/[0.08]">
+              <div class="flex items-center gap-2 bg-[#1a1a1f] px-3 py-2.5">
+                <div class="flex gap-1.5">
+                  <div class="h-2.5 w-2.5 rounded-full bg-[#ff5f57]"></div>
+                  <div class="h-2.5 w-2.5 rounded-full bg-[#febc2e]"></div>
+                  <div class="h-2.5 w-2.5 rounded-full bg-[#28c840]"></div>
+                </div>
+                <span class="mx-auto text-[11px] text-slate-500">capture-task.sh</span>
+              </div>
+              <pre class="overflow-x-auto p-5 font-mono text-[11px] leading-relaxed sm:text-[12.5px]"><code><span class="text-slate-600"># List your spaces</span>
+<span class="text-blue-400">$</span> <span class="text-slate-200">curl https://app.will-be-done.app/api/v1/spaces \</span>
+    <span class="text-slate-400">-H "Authorization: Bearer $WBD_TOKEN"</span>
+
+<span class="text-slate-600"># Drop a task straight into your stash</span>
+<span class="text-blue-400">$</span> <span class="text-slate-200">curl -X POST \</span>
+    <span class="text-slate-400">".../api/v1/spaces/$SPACE_ID/stash/tasks" \</span>
+    <span class="text-slate-400">-H "Authorization: Bearer $WBD_TOKEN" \</span>
+    <span class="text-slate-400">-H "Content-Type: application/json" \</span>
+    <span class="text-slate-400">-d </span><span class="text-blue-300">'&lbrace;"title": "Reply to the Q2 thread"&rbrace;'</span></code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section aria-label="Call to action" class="relative border-t border-white/[0.04] px-6 py-16">
+        <div class="mx-auto max-w-3xl text-center">
+          <h2 class="mb-4 text-2xl font-bold tracking-tight text-white">Nothing beats dragging a task yourself</h2>
+          <p class="mb-8 text-[15px] text-slate-400">
+            The demo runs entirely in your browser with no account, or start free in the cloud.
+          </p>
+          <div class="flex flex-wrap justify-center gap-3">
+            <a
+              href="https://demo.will-be-done.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-6 py-3.5 text-[15px] font-semibold text-white shadow-[0_2px_12px_rgba(59,130,246,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] transition-all hover:bg-blue-400 hover:shadow-[0_4px_20px_rgba(59,130,246,0.45),inset_0_1px_0_rgba(255,255,255,0.15)]"
+              data-ph-event="demo_clicked"
+              data-ph-section="features_cta"
+            >
+              Try live demo
+            </a>
+            <a
+              href="https://app.will-be-done.app/signup"
+              class="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-6 py-3.5 text-[15px] font-medium text-slate-200 ring-1 ring-white/[0.10] transition-all hover:bg-white/[0.08] hover:text-white hover:ring-white/[0.18]"
+              data-ph-event="signup_clicked"
+              data-ph-additional-event="signup_cta_clicked"
+              data-ph-section="features_cta"
+            >
+              Start free
+            </a>
+          </div>
+          <p class="mt-5 text-[13px] text-slate-500">
+            Prefer your own server?
+            <a
+              href="/#self-host"
+              class="text-slate-300 underline decoration-slate-600 underline-offset-4 transition-colors hover:text-white hover:decoration-slate-400"
+              data-ph-event="selfhost_anchor_clicked"
+              data-ph-section="features_cta"
+            >Self-host with Docker &rarr;</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <SiteFooter />
+  </PageBackdrop>
+</Layout>

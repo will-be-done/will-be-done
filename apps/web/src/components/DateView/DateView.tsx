@@ -11,6 +11,7 @@ import {
   doneDailyEntryChildrenForDisplay,
   dailyEntryType,
   inboxProjectId,
+  parseDMY,
 } from "@will-be-done/slices/space";
 
 import { cn } from "@/lib/utils.ts";
@@ -37,6 +38,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const ChevronLeft = () => (
   <svg
@@ -161,21 +163,21 @@ const SingleDayColumn = ({
           <PopoverTrigger asChild>
             <div className="flex items-baseline gap-2.5 cursor-pointer transition-opacity select-none">
               <span className="text-xs text-subheader">
-                {format(dailyList.date, "dd MMM")}
+                {format(parseDMY(dailyList.date), "dd MMM")}
               </span>
               <span
                 className={cn("uppercase text-content text-3xl font-bold", {
                   "text-accent": isToday,
                 })}
               >
-                {format(dailyList.date, "EEEE")}
+                {format(parseDMY(dailyList.date), "EEEE")}
               </span>
             </div>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="center">
             <Calendar
               mode="single"
-              selected={new Date(dailyList.date)}
+              selected={parseDMY(dailyList.date)}
               onSelect={(date) => {
                 if (date) {
                   void navigate({
@@ -308,6 +310,13 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
             sectionPosition: "prepend",
           }),
         );
+        captureWebAnalytics({
+          name: "task_created",
+          properties: {
+            creation_method: "add_button",
+            location: "daily_list",
+          },
+        });
 
         const entry = await select({
           selector: dailyEntryByTaskId,

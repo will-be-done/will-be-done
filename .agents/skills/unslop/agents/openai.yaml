@@ -1,3 +1,5 @@
 interface:
   display_name: "Unslop"
-  short_description: "Cut AI tells from any writing. Must always apply."
+  short_description: "Cut AI tells from writing on request."
+policy:
+  allow_implicit_invocation: false

@@ -31,8 +31,25 @@ import {
   ScheduledTasksQuerySchema,
   SpaceParamsSchema,
 } from "../schemas";
+import { noopBackendAnalytics, type BackendAnalytics } from "../../analytics";
 
-export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
+interface TaskRoutesOptions {
+  analytics?: BackendAnalytics;
+}
+
+function daysAhead(date: string, now = new Date()) {
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  return Math.round((Date.parse(`${date}T00:00:00Z`) - today) / 86_400_000);
+}
+
+export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
+  server,
+  { analytics = noopBackendAnalytics },
+) => {
   server.get(
     "/spaces/:spaceId/tasks",
     {
@@ -300,10 +317,22 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       if (!user) return unauthorized(reply);
 
       try {
-        await deleteTask({
+        const task = await deleteTask({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
+        });
+        analytics.capture({
+          name: "task_deleted",
+          distinctId: user.id,
+          properties: {
+            age_hours: Math.max(
+              0,
+              Math.round(((Date.now() - task.createdAt) / 3_600_000) * 10) / 10,
+            ),
+            deletion_method: "api",
+            previous_state: task.state,
+          },
         });
         return reply.code(204).send(null);
       } catch (error) {
@@ -336,11 +365,21 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       if (!user) return unauthorized(reply);
 
       try {
-        await clearTaskSchedule({
+        const previousDate = await clearTaskSchedule({
           spaceId: request.params.spaceId,
           taskId: request.params.taskId,
           userId: user.id,
         });
+        if (previousDate) {
+          analytics.capture({
+            name: "task_unscheduled",
+            distinctId: user.id,
+            properties: {
+              previous_days_ahead: daysAhead(previousDate),
+              unscheduling_method: "api",
+            },
+          });
+        }
         return reply.code(204).send(null);
       } catch (error) {
         return handleTaskError(
@@ -381,14 +420,34 @@ export const taskRoutes: FastifyPluginAsyncZod = async (server) => {
       if (!user) return unauthorized(reply);
 
       try {
-        return reply.code(200).send(
-          await scheduleTask({
-            spaceId: request.params.spaceId,
-            taskId: request.params.taskId,
-            userId: user.id,
-            ...request.body,
-          }),
-        );
+        const { previousDate, ...response } = await scheduleTask({
+          spaceId: request.params.spaceId,
+          taskId: request.params.taskId,
+          userId: user.id,
+          ...request.body,
+        });
+        const nextDaysAhead = daysAhead(response.date);
+        if (previousDate) {
+          analytics.capture({
+            name: "task_rescheduled",
+            distinctId: user.id,
+            properties: {
+              days_ahead: nextDaysAhead,
+              previous_days_ahead: daysAhead(previousDate),
+              scheduling_method: "api",
+            },
+          });
+        } else {
+          analytics.capture({
+            name: "task_scheduled",
+            distinctId: user.id,
+            properties: {
+              days_ahead: nextDaysAhead,
+              scheduling_method: "api",
+            },
+          });
+        }
+        return reply.code(200).send(response);
       } catch (error) {
         return handleTaskError(
           request,

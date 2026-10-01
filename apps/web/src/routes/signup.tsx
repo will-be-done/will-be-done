@@ -4,12 +4,17 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { authUtils } from "@/lib/auth";
 import { useTRPC } from "@/lib/trpc";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { BackgroundOrbs } from "@/components/Layout/BackgroundOrbs.tsx";
+import {
+  captureWebAnalytics,
+  captureWebAnalyticsOnce,
+  identifyWebAnalyticsUser,
+} from "@/lib/analytics";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
@@ -89,13 +94,26 @@ function SignupPage() {
   const captchaEnabled = captchaConfigQuery.data?.enabled ?? false;
   const captchaSiteKey = captchaConfigQuery.data?.siteKey;
 
+  useEffect(() => {
+    captureWebAnalyticsOnce("signup_page_viewed", {
+      name: "signup_page_viewed",
+    });
+  }, []);
+
   const registerMutation = useMutation(
     trpc.register.mutationOptions({
       onSuccess: (result) => {
         authUtils.setToken(result.token);
         authUtils.setUserId(result.userId);
+        identifyWebAnalyticsUser(result.userId);
 
         void navigate({ to: "/spaces" });
+      },
+      onError: () => {
+        captureWebAnalytics({
+          name: "signup_failed",
+          properties: { reason: "request_failed" },
+        });
       },
     }),
   );
@@ -106,8 +124,17 @@ function SignupPage() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
+      captureWebAnalytics({
+        name: "signup_failed",
+        properties: { reason: "password_mismatch" },
+      });
       return;
     }
+
+    captureWebAnalytics({
+      name: "signup_submitted",
+      properties: { captcha_enabled: captchaEnabled },
+    });
 
     registerMutation.mutate({
       email,

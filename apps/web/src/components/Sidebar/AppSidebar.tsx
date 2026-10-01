@@ -30,6 +30,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog.tsx";
 import { generateTestBackup } from "@/lib/generateTestData.ts";
+import { captureWebAnalytics } from "@/lib/analytics";
 
 const CalendarIcon = () => (
   <svg
@@ -200,6 +201,10 @@ export const AppSidebar = () => {
     const title = await promptDialog("Enter project title");
     if (title) {
       await dispatch(createProject({ project: { title }, position: "append" }));
+      captureWebAnalytics({
+        name: "project_created",
+        properties: { creation_method: "web" },
+      });
     }
   };
 

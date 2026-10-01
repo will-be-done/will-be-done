@@ -98,7 +98,7 @@ async fn run_server(sentry_enabled: bool, sentry_tracing_enabled: bool) -> anyho
         let mut cleanup_runs = 0_u8;
         loop {
             sleep(Duration::from_millis(10_000)).await;
-            let stats = dbs_state.clean_conns().await;
+            let stats = dbs_state.clean_stale_state().await;
             if stats.database_slots > 0 || stats.connections > 0 {
                 tracing::info!(
                     evicted_database_slots = stats.database_slots,
