@@ -42,12 +42,9 @@ test("captures the whole focused task border and preserves the cursor position",
   await createSpace(page, spaceName);
   await openSpace(page, spaceName);
   const source = await createTodayTask(page, "Task with a full drag border");
-  await source.click();
-  await page.keyboard.press("KeyC");
-  const checklist = source.getByRole("textbox", { name: "Checklist item" });
-  await checklist.fill("Checklist content stays in the preview");
-  await checklist.blur();
-  await source.click();
+  await source.focus();
+  await expect(source).toBeFocused();
+  await expect(source).toHaveClass(/ring-2 ring-accent/);
   const box = await source.boundingBox();
   if (!box) throw new Error("Drag source has no bounding box");
 
