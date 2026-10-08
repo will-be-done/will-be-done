@@ -53,6 +53,7 @@ test("captures the whole focused task border and preserves the cursor position",
   await page.evaluate(() => {
     const original = DataTransfer.prototype.setDragImage;
     DataTransfer.prototype.setDragImage = function (image, x, y) {
+      DataTransfer.prototype.setDragImage = original;
       const copy = image.cloneNode(true) as HTMLElement;
       copy.dataset.testid = "captured-drag-preview";
       copy.dataset.offsetX = String(x);
