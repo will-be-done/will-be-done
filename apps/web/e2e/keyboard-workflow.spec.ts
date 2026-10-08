@@ -89,7 +89,7 @@ test("supports a keyboard-only planning loop", async ({ page }) => {
     "false",
   );
 
-  await page.keyboard.press("KeyZ");
+  await stashTaskItem(page, belowTitle).press("KeyZ");
   await expect(stashPanel(page)).toHaveAttribute("aria-hidden", "true");
   await expect(page.getByTestId("item-details-panel")).toHaveAttribute(
     "aria-hidden",

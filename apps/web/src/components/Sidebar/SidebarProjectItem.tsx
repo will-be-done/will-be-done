@@ -7,6 +7,7 @@ import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
   draggable,
   dropTargetForElements,
+  type ElementDropTargetEventBasePayload,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
@@ -16,7 +17,11 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import invariant from "tiny-invariant";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models.ts";
+import {
+  type DndModelData,
+  canDropModelData,
+  isActiveDropTarget,
+} from "@/lib/dnd/models";
 import ReactDOM from "react-dom";
 import { useSidebar } from "@/components/ui/sidebar.tsx";
 
@@ -88,6 +93,15 @@ export const SidebarProjectItem = ({
     const element = ref.current;
     invariant(element);
 
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) => {
+      const active = isActiveDropTarget(args);
+      const reordering = args.source.data.modelType === project.type;
+      setClosestEdge(
+        active && reordering ? extractClosestEdge(args.self.data) : null,
+      );
+      setIsOver(active && !reordering);
+    };
+
     return combine(
       draggable({
         element,
@@ -114,11 +128,11 @@ export const SidebarProjectItem = ({
       }),
       dropTargetForElements({
         element,
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-          return true;
-        },
+        canDrop: ({ source }) =>
+          canDropModelData(source.data, {
+            modelId: project.id,
+            modelType: project.type,
+          }),
         getIsSticky: () => true,
         getData: ({ input, element: el }) => {
           const data: DndModelData = {
@@ -131,22 +145,9 @@ export const SidebarProjectItem = ({
             allowedEdges: ["top", "bottom"],
           });
         },
-        onDragEnter: (args) => {
-          const data = args.source.data;
-          if (!isModelDNDData(data)) return;
-          if (data.modelId !== project.id && data.modelType === project.type) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          } else if (data.modelType !== project.type) {
-            setIsOver(true);
-          }
-        },
-        onDrag: (args) => {
-          const data = args.source.data;
-          if (!isModelDNDData(data)) return;
-          if (data.modelId !== project.id && data.modelType === project.type) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
+        onDragEnter: updateDropIndicator,
+        onDrag: updateDropIndicator,
+        onDropTargetChange: updateDropIndicator,
         onDragLeave: () => {
           setClosestEdge(null);
           setIsOver(false);

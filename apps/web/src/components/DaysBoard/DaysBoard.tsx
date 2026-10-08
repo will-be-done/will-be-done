@@ -120,6 +120,7 @@ const ColumnView = ({
               listItem={displayData.listItem}
               project={displayData.project}
               lastScheduleTime={displayData.lastScheduleTime}
+              dailyListId={displayData.dailyList?.id}
               hasCheclistItems={displayData.hasChecklist}
               alwaysShowProject
             />
@@ -135,6 +136,7 @@ const ColumnView = ({
               listItem={displayData.listItem}
               project={displayData.project}
               lastScheduleTime={displayData.lastScheduleTime}
+              dailyListId={displayData.dailyList?.id}
               hasCheclistItems={displayData.hasChecklist}
               alwaysShowProject
             />

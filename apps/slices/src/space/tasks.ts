@@ -11,7 +11,7 @@ import { action, selector } from "../builders";
 import { changeId, changesTable } from "../common";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
-import { appById, appDeleteModel } from "./app";
+import { appById, appCanDrop, appDeleteModel } from "./app";
 import {
   checklistItemCanDropOnParent,
   checklistItemHandleDropOnParent,
@@ -250,40 +250,15 @@ export const taskCanDrop = selector({
     dropModelType: possibleModelType,
   },
   handler: function* taskCanDrop({ taskId, dropId, dropModelType }) {
-    const model = yield* appById({
-      id: dropId,
-      modelType: dropModelType,
+    // App drops unwrap stash entries before calling the item handler.
+    if (dropModelType === "stashEntry") return false;
+
+    return yield* appCanDrop({
+      id: taskId,
+      modelType: taskType,
+      dropId,
+      dropModelType,
     });
-    if (!model) return false;
-
-    const task = yield* taskById({ id: taskId });
-    if (!task) return false;
-
-    if (task.state === "done") {
-      return false;
-    }
-
-    if (isTask(model) && model.state === "done") {
-      return false;
-    }
-
-    if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.taskId });
-      return droppedTask !== undefined && droppedTask.state === "todo";
-    }
-
-    if (
-      yield* checklistItemCanDropOnParent({
-        parentId: taskId,
-        parentType: taskType,
-        dropId,
-        dropModelType,
-      })
-    ) {
-      return true;
-    }
-
-    return isTask(model) || isTaskTemplate(model);
   },
 });
 

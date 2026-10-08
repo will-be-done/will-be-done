@@ -16,7 +16,7 @@ import {
   orderPositionArg,
 } from "./utils";
 import { registerModelSlice } from "./maps";
-import { appById } from "./app";
+import { appById, appCanDrop } from "./app";
 import { dailyListById, createDailyListIfNotPresent } from "./dailyLists";
 import {
   createTaskNextToSectionItem,
@@ -363,32 +363,12 @@ export const dailyEntryCanDrop = selector({
     dropId,
     dropModelType,
   }): Generator<unknown, boolean, unknown> {
-    const model = yield* appById({ id: dropId, modelType: dropModelType });
-    if (!model) return false;
-
-    const entry = yield* dailyEntryById({ id: entryId });
-    if (!entry) return false;
-
-    const task = yield* taskById({ id: entry.taskId });
-    if (!task) return false;
-
-    if (task.state === "done") return false;
-
-    if (isTask(model)) {
-      return model.state === "todo";
-    }
-
-    if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.taskId });
-      return droppedTask !== undefined && droppedTask.state === "todo";
-    }
-
-    if (isStashEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.taskId });
-      return droppedTask !== undefined && droppedTask.state === "todo";
-    }
-
-    return false;
+    return yield* appCanDrop({
+      id: entryId,
+      modelType: dailyEntryType,
+      dropId,
+      dropModelType,
+    });
   },
 });
 

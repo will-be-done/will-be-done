@@ -5,17 +5,14 @@ import {
   draggable,
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
-import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
 import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
 import {
   attachClosestEdge,
   type Edge,
-  extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { unstable_batchedUpdates } from "react-dom";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
-import { createElementDragPreview } from "@/lib/dnd/dragPreview";
+import { canDropModelData, getDropIndicatorEdge } from "@/lib/dnd/models";
+import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import TextareaAutosize from "react-textarea-autosize";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { focusChecklistItem } from "@/components/Checklist/focus";
@@ -39,6 +36,7 @@ import {
   appById,
   appDeleteModel,
   appHandleDrop,
+  getDropModelData,
   Item,
   ListItem,
   listItemByIdOrDefault,
@@ -104,6 +102,7 @@ export const DropTaskIndicator = ({
 }) => {
   return (
     <div
+      data-drop-indicator={direction}
       className={clsx(
         "absolute left-0 right-0 bottom-0 w-full bg-accent h-[2px] rounded-full",
         direction == "top" && "top-[-9px]",
@@ -157,6 +156,7 @@ export const PreloadedTaskComp = ({
   listItem,
   project,
   lastScheduleTime,
+  dailyListId,
   hasCheclistItems,
 
   displayedUnderProjectId,
@@ -171,6 +171,7 @@ export const PreloadedTaskComp = ({
   listItem: ListItem;
   project: Project;
   lastScheduleTime: Date | undefined;
+  dailyListId: string | undefined;
   hasCheclistItems: boolean | undefined;
 
   displayedUnderProjectId?: string;
@@ -1073,34 +1074,22 @@ export const PreloadedTaskComp = ({
   useEffect(() => {
     const element = ref.current;
     invariant(element);
+    const dndData = getDropModelData(
+      listItem,
+      isTask(item) ? item : undefined,
+      dailyListId,
+    );
+    invariant(dndData);
 
     return combine(
       draggable({
         element: element,
-        getInitialData: (): DndModelData => ({
-          modelId: listItem.id,
-          modelType: listItem.type,
-        }),
+        getInitialData: () => dndData,
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
-          const rect = source.element.getBoundingClientRect();
-
-          setCustomNativeDragPreview({
+          setElementDragPreview({
+            source: source.element,
+            input: location.current.input,
             nativeSetDragImage,
-            getOffset: preserveOffsetOnSource({
-              element,
-              input: location.current.input,
-            }),
-            render({ container }) {
-              const preview = createElementDragPreview({
-                source: source.element,
-                rect,
-              });
-              container.appendChild(preview);
-
-              return () => {
-                preview.remove();
-              };
-            },
           });
         },
       }),
@@ -1109,40 +1098,17 @@ export const PreloadedTaskComp = ({
       }),
       dropTargetForElements({
         element: element,
-        canDrop: (inp) => {
-          const { source } = inp;
-
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return true;
-        },
-        getIsSticky: () => true,
-        getData: ({ input, element }) => {
-          const data: DndModelData = {
-            modelId: listItem.id,
-            modelType: listItem.type,
-          };
-
-          return attachClosestEdge(data, {
+        canDrop: ({ source }) => canDropModelData(source.data, dndData),
+        getData: ({ input, element }) =>
+          attachClosestEdge(dndData, {
             input,
             element,
             allowedEdges: ["top", "bottom"],
-          });
-        },
-        onDragEnter: (args) => {
-          const data = args.source.data;
-          if (isModelDNDData(data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
-        onDrag: (args) => {
-          const data = args.source.data;
-
-          if (isModelDNDData(data)) {
-            setClosestEdge(extractClosestEdge(args.self.data));
-          }
-        },
+          }),
+        onDragEnter: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+        onDrag: (args) => setClosestEdge(getDropIndicatorEdge(args)),
+        onDropTargetChange: (args) =>
+          setClosestEdge(getDropIndicatorEdge(args)),
         onDragLeave: () => {
           setClosestEdge(null);
         },
@@ -1151,7 +1117,7 @@ export const PreloadedTaskComp = ({
         },
       }),
     );
-  }, [dispatch, select, listItem.id, listItem.type]);
+  }, [item, listItem, dailyListId]);
 
   const focusTitleTextarea = useCallback(() => {
     const textarea = titleTextareaRef.current;
@@ -1436,8 +1402,7 @@ export const PreloadedTaskComp = ({
             {(isTask(item) || isTaskTemplate(item)) && (
               <ChecklistItems
                 hasChecklistItems={hasCheclistItems}
-                parentId={item.id}
-                parentType={item.type}
+                parent={item}
                 visible={isFocused || isEditing}
                 focusableItemKey={focusableItemKey}
                 editTrigger="doubleClick"
@@ -1605,8 +1570,19 @@ export const TaskComp = ({
     selector: dailyEntryDateOfTask,
     args: { taskId: taskId },
   });
+  const { data: dailyEntry, status: scheduleStatus } = useAsyncSelector({
+    selector: dailyEntryByTaskId,
+    args: { taskId },
+  });
 
-  if (!item || !section || !listItem || !project) return null;
+  if (
+    !item ||
+    !section ||
+    !listItem ||
+    !project ||
+    scheduleStatus !== "success"
+  )
+    return null;
 
   return (
     <PreloadedTaskComp
@@ -1615,6 +1591,7 @@ export const TaskComp = ({
       listItem={listItem}
       project={project}
       lastScheduleTime={lastScheduleTime}
+      dailyListId={dailyEntry?.dailyListId}
       displayedUnderProjectId={displayedUnderProjectId}
       alwaysShowProject={alwaysShowProject}
       newTaskParams={newTaskParams}

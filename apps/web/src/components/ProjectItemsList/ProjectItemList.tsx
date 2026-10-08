@@ -236,6 +236,7 @@ const ProjectTasksColumn = ({
               listItem={displayData.listItem}
               project={displayData.project}
               lastScheduleTime={displayData.lastScheduleTime}
+              dailyListId={displayData.dailyList?.id}
               displayedUnderProjectId={project.id}
               hasCheclistItems={displayData.hasChecklist}
               displayLastScheduleTime
@@ -252,6 +253,7 @@ const ProjectTasksColumn = ({
               listItem={displayData.listItem}
               project={displayData.project}
               lastScheduleTime={displayData.lastScheduleTime}
+              dailyListId={displayData.dailyList?.id}
               displayedUnderProjectId={project.id}
               hasCheclistItems={displayData.hasChecklist}
               displayLastScheduleTime

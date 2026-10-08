@@ -1,7 +1,7 @@
 import { insert, selectFrom, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { getDMY, orderPositionArg } from "./utils";
-import { appById } from "./app";
+import { appById, appCanDrop } from "./app";
 import {
   addToDailyList,
   dailyEntryChildrenIds,
@@ -11,7 +11,7 @@ import {
 } from "./dailyEntries";
 import { createProjectTask } from "./projects";
 import { deleteStashEntries } from "./stashEntries";
-import { taskById, taskByIdOrDefault } from "./tasks";
+import { taskByIdOrDefault } from "./tasks";
 import { registerModelSlice } from "./maps";
 import { genUUIDV5, genUUIDV5Many } from "../traits";
 import {
@@ -253,27 +253,12 @@ export const dailyListCanDrop = selector({
     dropId,
     dropModelType,
   }): Generator<unknown, boolean, unknown> {
-    const model = yield* appById({
-      id: dropId,
-      modelType: dropModelType,
+    return yield* appCanDrop({
+      id: _dailyListId,
+      modelType: dailyListType,
+      dropId,
+      dropModelType,
     });
-    if (!model) return false;
-
-    if (isTask(model)) {
-      return model.state === "todo";
-    }
-
-    if (isDailyEntry(model)) {
-      const task = yield* taskById({ id: model.taskId });
-      return task !== undefined && task.state === "todo";
-    }
-
-    if (isStashEntry(model)) {
-      const task = yield* taskById({ id: model.taskId });
-      return task !== undefined && task.state === "todo";
-    }
-
-    return false;
   },
 });
 

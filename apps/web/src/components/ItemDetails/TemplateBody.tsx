@@ -194,8 +194,7 @@ export function TemplateBody({
 
         <ChecklistItems
           hasChecklistItems={undefined}
-          parentId={templateId}
-          parentType={template.type}
+          parent={template}
           editTrigger="always"
           showAddItem
           className="border-task-panel-divider"

@@ -10,7 +10,7 @@ import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { generateKeyPositionedBetween } from "./utils";
 import { registerModelSlice } from "./maps";
-import { appById } from "./app";
+import { appById, appCanDrop } from "./app";
 import { createProjectTask } from "./projects";
 import {
   createTaskNextToSectionItem,
@@ -365,36 +365,12 @@ export const stashEntryCanDrop = selector({
     dropId,
     dropModelType,
   }): Generator<unknown, boolean, unknown> {
-    const model = yield* appById({ id: dropId, modelType: dropModelType });
-    if (!model) return false;
-
-    const entry = yield* stashEntryById({ id: entryId });
-    if (!entry) return false;
-
-    const task = yield* taskById({ id: entry.taskId });
-    if (!task) return false;
-
-    // Only allow dropping todo tasks
-    if (task.state === "done") return false;
-
-    // Check if dropping a task directly
-    if (isTask(model)) {
-      return model.state === "todo";
-    }
-
-    // Check if dropping a entry (task in daily list)
-    if (isDailyEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.taskId });
-      return droppedTask !== undefined && droppedTask.state === "todo";
-    }
-
-    // Check if dropping a stash entry
-    if (isStashEntry(model)) {
-      const droppedTask = yield* taskById({ id: model.taskId });
-      return droppedTask !== undefined && droppedTask.state === "todo";
-    }
-
-    return false;
+    return yield* appCanDrop({
+      id: entryId,
+      modelType: stashEntryType,
+      dropId,
+      dropModelType,
+    });
   },
 });
 
@@ -689,24 +665,12 @@ const stashColumnCanDrop = selector({
     dropId,
     dropModelType,
   }): Generator<unknown, boolean, unknown> {
-    const model = yield* appById({ id: dropId, modelType: dropModelType });
-    if (!model) return false;
-
-    if (isTask(model)) {
-      return model.state === "todo";
-    }
-
-    if (isDailyEntry(model)) {
-      const task = yield* taskById({ id: model.taskId });
-      return task !== undefined && task.state === "todo";
-    }
-
-    if (isStashEntry(model)) {
-      const task = yield* taskById({ id: model.taskId });
-      return task !== undefined && task.state === "todo";
-    }
-
-    return false;
+    return yield* appCanDrop({
+      id: _stashId,
+      modelType: stashType,
+      dropId,
+      dropModelType,
+    });
   },
 });
 

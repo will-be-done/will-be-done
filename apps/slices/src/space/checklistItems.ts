@@ -9,7 +9,7 @@ import {
 import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
-import { appById } from "./app";
+import { appById, appCanDrop } from "./app";
 import { registerModelSlice } from "./maps";
 import {
   ChecklistItem,
@@ -138,17 +138,12 @@ export const checklistItemCanDrop = selector({
     dropModelType: possibleModelType,
   },
   handler: function* checklistItemCanDrop({ itemId, dropId, dropModelType }) {
-    if (dropModelType !== checklistItemType) return false;
-    if (itemId === dropId) return false;
-
-    const target = yield* checklistItemById({ id: itemId });
-    if (!target) return false;
-
-    const dropped = yield* appById({
-      id: dropId,
-      modelType: dropModelType,
+    return yield* appCanDrop({
+      id: itemId,
+      modelType: checklistItemType,
+      dropId,
+      dropModelType,
     });
-    return !!dropped && isChecklistItem(dropped);
   },
 });
 

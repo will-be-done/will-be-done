@@ -1,20 +1,20 @@
 import { deleteRows, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
-import { defaultTask } from "./tasks";
+import { defaultTask, taskById } from "./tasks";
+import { dailyEntryByTaskId } from "./dailyEntries";
+import {
+  canDropModel,
+  getDropModelData,
+  shouldMoveOutOfStash,
+} from "./dropRules";
 import { appTypeSlicesMap } from "./maps";
 import {
   AnyModel,
   possibleModelType,
   stashEntriesTable,
-  stashEntryType,
   taskType,
   isStashEntry,
 } from "./tables";
-
-const shouldMoveOutOfStash = (targetModelType: string, dropModelType: string) =>
-  dropModelType === stashEntryType &&
-  targetModelType !== stashEntryType &&
-  targetModelType !== "stash";
 
 export const appById = selector({
   name: "appById",
@@ -48,6 +48,28 @@ export const appByIdOrDefault = selector({
   },
 });
 
+const appDropModelData = selector({
+  name: "appDropModelData",
+  args: { id: v.string(), modelType: possibleModelType },
+  handler: function* ({ id, modelType }) {
+    if (modelType === "stash") {
+      return { modelId: id, modelType };
+    }
+    const model = yield* appById({ id, modelType });
+    if (!model) return undefined;
+    const task =
+      model.type === "dailyEntry" || model.type === "stashEntry"
+        ? yield* taskById({ id: model.taskId })
+        : undefined;
+    const taskId = model.type === "task" ? model.id : task?.id;
+    const dailyEntry =
+      taskId && model.type !== "dailyEntry"
+        ? yield* dailyEntryByTaskId({ taskId })
+        : undefined;
+    return getDropModelData(model, task, dailyEntry?.dailyListId);
+  },
+});
+
 export const appCanDrop = selector({
   name: "appCanDrop",
   skipTrace: true,
@@ -58,41 +80,12 @@ export const appCanDrop = selector({
     dropModelType: possibleModelType,
   },
   handler: function* appCanDrop({ id, modelType, dropId, dropModelType }) {
-    const slice = appTypeSlicesMap[modelType];
-    if (!slice) throw new Error(`Unknown model type: ${modelType}`);
-
-    const model = yield* appById({
-      id,
-      modelType,
+    const target = yield* appDropModelData({ id, modelType });
+    const source = yield* appDropModelData({
+      id: dropId,
+      modelType: dropModelType,
     });
-    const targetModelType = model?.type ?? modelType;
-    const effectiveDropModelType = shouldMoveOutOfStash(
-      targetModelType,
-      dropModelType,
-    )
-      ? taskType
-      : dropModelType;
-    const droppedModel =
-      effectiveDropModelType === taskType && dropModelType === stashEntryType
-        ? yield* appById({ id: dropId, modelType: dropModelType })
-        : undefined;
-    const effectiveDropId = isStashEntry(droppedModel)
-      ? droppedModel.taskId
-      : dropId;
-
-    if (!model) {
-      // For virtual models (e.g. stash) that have no DB row, use modelType directly
-      return yield* slice.canDrop(id, effectiveDropId, effectiveDropModelType);
-    }
-
-    const modelSlice = appTypeSlicesMap[model.type];
-    if (!modelSlice) throw new Error(`Unknown model type: ${model.type}`);
-
-    return yield* modelSlice.canDrop(
-      id,
-      effectiveDropId,
-      effectiveDropModelType,
-    );
+    return !!source && !!target && canDropModel(source, target);
   },
 });
 
@@ -112,6 +105,9 @@ export const appHandleDrop = action({
     dropModelType,
     edge,
   }): Generator<unknown, void, unknown> {
+    // Validate current rows before moving anything or removing a stash entry.
+    if (!(yield* appCanDrop({ id, modelType, dropId, dropModelType }))) return;
+
     const slice = appTypeSlicesMap[modelType];
     if (!slice) throw new Error(`Unknown model type: ${modelType}`);
 

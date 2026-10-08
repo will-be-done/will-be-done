@@ -31,10 +31,18 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover.tsx";
 import { Calendar } from "@/components/ui/calendar.tsx";
-import { DndModelData, isModelDNDData } from "@/lib/dnd/models";
+import {
+  type DndModelData,
+  isModelDNDData,
+  canDropModelData,
+  isActiveDropTarget,
+} from "@/lib/dnd/models";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
-import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
+  dropTargetForElements,
+  type ElementDropTargetEventBasePayload,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
@@ -105,12 +113,15 @@ const SingleDayColumn = ({
 
   const columnRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
-  const [_isOver, setIsOver] = useState(false);
+  const [isOver, setIsOver] = useState(false);
 
   useEffect(() => {
     if (!dailyList) return;
     invariant(columnRef.current);
     invariant(scrollableRef.current);
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) =>
+      setIsOver(isActiveDropTarget(args));
+
     return combine(
       dropTargetForElements({
         element: columnRef.current,
@@ -118,16 +129,17 @@ const SingleDayColumn = ({
           modelId: dailyList.id,
           modelType: dailyList.type,
         }),
-        canDrop: ({ source }) => {
-          const data = source.data;
-          if (!isModelDNDData(data)) return false;
-
-          return true;
-        },
+        canDrop: ({ source }) =>
+          canDropModelData(source.data, {
+            modelId: dailyList.id,
+            modelType: dailyList.type,
+          }),
         getIsSticky: () => true,
-        onDragEnter: () => setIsOver(true),
+        onDragEnter: updateDropIndicator,
+        onDrag: updateDropIndicator,
+        onDropTargetChange: updateDropIndicator,
         onDragLeave: () => setIsOver(false),
-        onDragStart: () => setIsOver(true),
+        onDragStart: updateDropIndicator,
         onDrop: () => setIsOver(false),
       }),
       autoScrollForElements({
@@ -141,12 +153,18 @@ const SingleDayColumn = ({
     <div
       ref={columnRef}
       data-focus-column
+      data-drop-active={isOver || undefined}
       data-column-model-id={dailyList.id}
       data-column-model-type={dailyList.type}
       className="flex flex-col w-full mt-6"
     >
       {/* Date header with navigation arrows */}
-      <div className="flex items-center justify-between mb-5">
+      <div
+        className={cn(
+          "flex items-center justify-between mb-5 rounded-md",
+          isOver && "ring-2 ring-accent",
+        )}
+      >
         <Link
           to="/spaces/$spaceId/dates/$date"
           params={{
@@ -244,6 +262,7 @@ const SingleDayColumn = ({
             listItem={displayData.listItem}
             project={displayData.project}
             lastScheduleTime={displayData.lastScheduleTime}
+            dailyListId={displayData.dailyList?.id}
             hasCheclistItems={displayData.hasChecklist}
             alwaysShowProject
             displayLastScheduleTime
@@ -259,6 +278,7 @@ const SingleDayColumn = ({
             listItem={displayData.listItem}
             project={displayData.project}
             lastScheduleTime={displayData.lastScheduleTime}
+            dailyListId={displayData.dailyList?.id}
             hasCheclistItems={displayData.hasChecklist}
             alwaysShowProject
             displayLastScheduleTime
