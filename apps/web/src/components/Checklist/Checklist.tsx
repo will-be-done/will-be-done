@@ -13,8 +13,6 @@ import {
   draggable,
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
-import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
 import {
   attachClosestEdge,
   type Edge,
@@ -43,7 +41,7 @@ import {
   canDropModelData,
   getDropIndicatorEdge,
 } from "@/lib/dnd/models";
-import { createElementDragPreview } from "@/lib/dnd/dragPreview";
+import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
 import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
@@ -192,25 +190,10 @@ const ChecklistItemComp = ({
           modelType: checklistItemType,
         }),
         onGenerateDragPreview: ({ location, nativeSetDragImage }) => {
-          const rect = rowElement.getBoundingClientRect();
-
-          setCustomNativeDragPreview({
+          setElementDragPreview({
+            source: rowElement,
+            input: location.current.input,
             nativeSetDragImage,
-            getOffset: preserveOffsetOnSource({
-              element: rowElement,
-              input: location.current.input,
-            }),
-            render({ container }) {
-              const preview = createElementDragPreview({
-                source: rowElement,
-                rect,
-              });
-              container.appendChild(preview);
-
-              return () => {
-                preview.remove();
-              };
-            },
           });
         },
       }),

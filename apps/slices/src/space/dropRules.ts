@@ -1,33 +1,145 @@
-import type { AnyModel, AnyModelType, Task } from "./tables";
+import type { AnyModel, AnyModelType, Item, Task } from "./tables";
 
-type TaskDropType = "task" | "dailyEntry" | "stashEntry";
+type DropTask = Pick<Task, "id" | "state" | "projectSectionId">;
+
+export type TaskDropModelData = {
+  modelId: string;
+  modelType: "task";
+  task: DropTask;
+  dailyListId?: string;
+};
+
+export type DailyEntryDropModelData = {
+  modelId: string;
+  modelType: "dailyEntry";
+  task: DropTask;
+  dailyListId: string;
+};
+
+export type StashEntryDropModelData = {
+  modelId: string;
+  modelType: "stashEntry";
+  task: DropTask;
+  dailyListId?: string;
+};
+
+export type TaskTemplateDropModelData = {
+  modelId: string;
+  modelType: "template";
+  projectSectionId: string;
+};
+
+export type ProjectDropModelData = {
+  modelId: string;
+  modelType: "project";
+};
+
+export type ProjectSectionDropModelData = {
+  modelId: string;
+  modelType: "projectSection";
+};
+
+export type DailyListDropModelData = {
+  modelId: string;
+  modelType: "dailyList";
+};
+
+export type StashDropModelData = {
+  modelId: string;
+  modelType: "stash";
+};
+
+export type ChecklistItemDropModelData = {
+  modelId: string;
+  modelType: "checklistItem";
+};
+
+export type TaskChecklistDropModelData = {
+  modelId: string;
+  modelType: "task";
+  role: "checklist";
+  task: DropTask;
+};
+
+export type TaskTemplateChecklistDropModelData = {
+  modelId: string;
+  modelType: "template";
+  role: "checklist";
+  projectSectionId: string;
+};
 
 /** The facts needed to decide a drop, available from the rendered models. */
-export type DropModelData = {
-  modelId: string;
-  role?: "checklist";
-} & (
-  | { modelType: TaskDropType; task: Pick<Task, "id" | "state"> }
-  | { modelType: Exclude<AnyModelType, TaskDropType> }
-);
+export type DropModelData =
+  | TaskDropModelData
+  | DailyEntryDropModelData
+  | StashEntryDropModelData
+  | TaskTemplateDropModelData
+  | ProjectDropModelData
+  | ProjectSectionDropModelData
+  | DailyListDropModelData
+  | StashDropModelData
+  | ChecklistItemDropModelData
+  | TaskChecklistDropModelData
+  | TaskTemplateChecklistDropModelData;
 
 export function getDropModelData(
+  model: Item,
+  task?: DropTask,
+  dailyListId?: string,
+): TaskDropModelData | TaskTemplateDropModelData;
+export function getDropModelData(
   model: AnyModel,
-  task?: Pick<Task, "id" | "state">,
+  task?: DropTask,
+  dailyListId?: string,
+): DropModelData | undefined;
+export function getDropModelData(
+  model: AnyModel,
+  task?: DropTask,
+  dailyListId?: string,
 ): DropModelData | undefined {
   if (model.type === "task") {
     return {
       modelId: model.id,
       modelType: model.type,
-      task: { id: model.id, state: model.state },
+      task: {
+        id: model.id,
+        state: model.state,
+        projectSectionId: model.projectSectionId,
+      },
+      dailyListId,
     };
   }
-  if (model.type === "dailyEntry" || model.type === "stashEntry") {
+  if (model.type === "dailyEntry") {
     if (!task || task.id !== model.taskId) return undefined;
     return {
       modelId: model.id,
       modelType: model.type,
-      task: { id: task.id, state: task.state },
+      task: {
+        id: task.id,
+        state: task.state,
+        projectSectionId: task.projectSectionId,
+      },
+      dailyListId: model.dailyListId,
+    };
+  }
+  if (model.type === "stashEntry") {
+    if (!task || task.id !== model.taskId) return undefined;
+    return {
+      modelId: model.id,
+      modelType: model.type,
+      task: {
+        id: task.id,
+        state: task.state,
+        projectSectionId: task.projectSectionId,
+      },
+      dailyListId,
+    };
+  }
+  if (model.type === "template") {
+    return {
+      modelId: model.id,
+      modelType: model.type,
+      projectSectionId: model.projectSectionId,
     };
   }
   return { modelId: model.id, modelType: model.type };
@@ -62,8 +174,29 @@ export function canDropModel(
   ) {
     return false;
   }
-  if (target.role === "checklist" && source.modelType !== "checklistItem") {
+  if (
+    "role" in target &&
+    target.role === "checklist" &&
+    source.modelType !== "checklistItem"
+  ) {
     return false;
+  }
+  if (
+    target.modelType === "dailyList" &&
+    "task" in source &&
+    "dailyListId" in source &&
+    source.dailyListId === target.modelId
+  ) {
+    return false;
+  }
+  if (target.modelType === "projectSection") {
+    const sectionId =
+      "task" in source
+        ? source.task.projectSectionId
+        : source.modelType === "template"
+          ? source.projectSectionId
+          : undefined;
+    if (sectionId === target.modelId) return false;
   }
 
   // Leaving the stash moves the underlying task, then removes its stash entry.

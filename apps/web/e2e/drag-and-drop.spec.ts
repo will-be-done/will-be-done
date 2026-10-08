@@ -6,9 +6,12 @@ import {
   type Page,
 } from "playwright/test";
 import {
+  createProject,
+  createProjectTask,
   createSpace,
   createTodayTask,
   openSpace,
+  projectSidebarLink,
   signupUser,
   taskItem,
   uniqueE2EName,
@@ -30,6 +33,82 @@ async function startDrag(page: Page, source: Locator) {
   await source.dispatchEvent("dragstart", { dataTransfer });
   return dataTransfer;
 }
+
+test("captures the whole focused task border and preserves the cursor position", async ({
+  page,
+}, testInfo) => {
+  await signupUser(page);
+  const spaceName = uniqueE2EName("Drag Preview Space");
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  const source = await createTodayTask(page, "Task with a full drag border");
+  await source.click();
+  await page.keyboard.press("KeyC");
+  const checklist = source.getByRole("textbox", { name: "Checklist item" });
+  await checklist.fill("Checklist content stays in the preview");
+  await checklist.blur();
+  await source.click();
+  const box = await source.boundingBox();
+  if (!box) throw new Error("Drag source has no bounding box");
+
+  // Inspect the exact element passed to the browser before the temporary
+  // preview is removed. Keep a copy for the visual check.
+  await page.evaluate(() => {
+    const original = DataTransfer.prototype.setDragImage;
+    DataTransfer.prototype.setDragImage = function (image, x, y) {
+      const copy = image.cloneNode(true) as HTMLElement;
+      copy.dataset.testid = "captured-drag-preview";
+      copy.dataset.offsetX = String(x);
+      copy.dataset.offsetY = String(y);
+      copy.style.left = "20px";
+      copy.style.top = "20px";
+      document.body.append(copy);
+      original.call(this, image, x, y);
+    };
+  });
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent("dragstart", {
+    dataTransfer,
+    clientX: box.x + box.width / 2,
+    clientY: box.y + 20,
+  });
+
+  const capture = page.getByTestId("captured-drag-preview");
+  await expect(capture).toBeVisible();
+  const geometry = await capture.evaluate((container) => {
+    const card = container.firstElementChild as HTMLElement;
+    const outer = container.getBoundingClientRect();
+    const inner = card.getBoundingClientRect();
+    return {
+      margins: [
+        inner.left - outer.left,
+        inner.top - outer.top,
+        outer.right - inner.right,
+        outer.bottom - inner.bottom,
+      ],
+      width: inner.width,
+      height: inner.height,
+      shadow: getComputedStyle(card).boxShadow,
+      pointerX:
+        Number((container as HTMLElement).dataset.offsetX) -
+        (inner.left - outer.left),
+      pointerY:
+        Number((container as HTMLElement).dataset.offsetY) -
+        (inner.top - outer.top),
+    };
+  });
+  expect(geometry.shadow).not.toBe("none");
+  for (const margin of geometry.margins)
+    expect(margin).toBeGreaterThanOrEqual(2);
+  expect(geometry.width).toBeCloseTo(box.width);
+  expect(geometry.height).toBeCloseTo(box.height);
+  expect(geometry.pointerX).toBeCloseTo(box.width / 2);
+  expect(geometry.pointerY).toBeCloseTo(20);
+  await capture.screenshot({ path: testInfo.outputPath("drag-preview.png") });
+  await capture.evaluate((container) => container.remove());
+  await source.dispatchEvent("dragend", { dataTransfer });
+  await dataTransfer.dispose();
+});
 
 test("shows a row indicator only for an eligible drop, then reorders the task", async ({
   page,
@@ -65,6 +144,9 @@ test("shows a row indicator only for an eligible drop, then reorders the task", 
   ).toBeVisible();
   await expect(column).not.toHaveAttribute("data-drop-active", "true");
 
+  await dragOver(column, dataTransfer);
+  await expect(column).not.toHaveAttribute("data-drop-active", "true");
+
   await dragOver(done, dataTransfer);
   await expect(
     target.locator("..").locator("[data-drop-indicator]"),
@@ -72,7 +154,7 @@ test("shows a row indicator only for an eligible drop, then reorders the task", 
   await expect(done.locator("..").locator("[data-drop-indicator]")).toHaveCount(
     0,
   );
-  await expect(column).toHaveAttribute("data-drop-active", "true");
+  await expect(column).not.toHaveAttribute("data-drop-active", "true");
 
   await dragOver(target, dataTransfer);
   await expect(
@@ -85,6 +167,40 @@ test("shows a row indicator only for an eligible drop, then reorders the task", 
   await expect(column).not.toHaveAttribute("data-drop-active", "true");
   await expect(done).toHaveAttribute("data-ignore-drop", "true");
 
+  await expect(rows.nth(0)).toContainText(sourceTitle);
+  await expect(rows.nth(1)).toContainText(targetTitle);
+  await dataTransfer.dispose();
+});
+
+test("rejects the task's existing project section while allowing row reordering", async ({
+  page,
+}) => {
+  await signupUser(page);
+  const spaceName = uniqueE2EName("Section DnD Space");
+  const projectTitle = uniqueE2EName("DnD Project");
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await createProject(page, projectTitle);
+  await projectSidebarLink(page, projectTitle).click();
+  const sourceTitle = uniqueE2EName("Section source");
+  const targetTitle = uniqueE2EName("Section target");
+  const source = await createProjectTask(page, sourceTitle);
+  const target = await createProjectTask(page, targetTitle);
+  const column = page
+    .locator('[data-focus-column][data-column-model-type="projectSection"]')
+    .first();
+  const rows = column.locator('[data-focusable-key^="task^^"]');
+  await expect(rows.nth(0)).toContainText(targetTitle);
+  await expect(rows.nth(1)).toContainText(sourceTitle);
+  const dataTransfer = await startDrag(page, source);
+  await dragOver(column, dataTransfer);
+  await expect(column).not.toHaveAttribute("data-drop-active", "true");
+  await dragOver(target, dataTransfer);
+  await expect(
+    target.locator("..").locator('[data-drop-indicator="top"]'),
+  ).toBeVisible();
+  await expect(column).not.toHaveAttribute("data-drop-active", "true");
+  await target.dispatchEvent("drop", { dataTransfer });
   await expect(rows.nth(0)).toContainText(sourceTitle);
   await expect(rows.nth(1)).toContainText(targetTitle);
   await dataTransfer.dispose();

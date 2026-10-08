@@ -257,6 +257,7 @@ const SectionSection = ({
               listItem={displayData.listItem}
               project={displayData.project}
               lastScheduleTime={displayData.lastScheduleTime}
+              dailyListId={displayData.dailyList?.id}
               displayedUnderProjectId={projectId}
               hasCheclistItems={displayData.hasChecklist}
               displayLastScheduleTime
@@ -270,6 +271,7 @@ const SectionSection = ({
               listItem={displayData.listItem}
               project={displayData.project}
               lastScheduleTime={displayData.lastScheduleTime}
+              dailyListId={displayData.dailyList?.id}
               displayedUnderProjectId={projectId}
               hasCheclistItems={displayData.hasChecklist}
               displayLastScheduleTime

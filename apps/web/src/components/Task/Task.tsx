@@ -5,8 +5,6 @@ import {
   draggable,
   dropTargetForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
-import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
 import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
 import {
   attachClosestEdge,
@@ -14,7 +12,7 @@ import {
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { unstable_batchedUpdates } from "react-dom";
 import { canDropModelData, getDropIndicatorEdge } from "@/lib/dnd/models";
-import { createElementDragPreview } from "@/lib/dnd/dragPreview";
+import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import TextareaAutosize from "react-textarea-autosize";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { focusChecklistItem } from "@/components/Checklist/focus";
@@ -158,6 +156,7 @@ export const PreloadedTaskComp = ({
   listItem,
   project,
   lastScheduleTime,
+  dailyListId,
   hasCheclistItems,
 
   displayedUnderProjectId,
@@ -172,6 +171,7 @@ export const PreloadedTaskComp = ({
   listItem: ListItem;
   project: Project;
   lastScheduleTime: Date | undefined;
+  dailyListId: string | undefined;
   hasCheclistItems: boolean | undefined;
 
   displayedUnderProjectId?: string;
@@ -1074,7 +1074,11 @@ export const PreloadedTaskComp = ({
   useEffect(() => {
     const element = ref.current;
     invariant(element);
-    const dndData = getDropModelData(listItem, isTask(item) ? item : undefined);
+    const dndData = getDropModelData(
+      listItem,
+      isTask(item) ? item : undefined,
+      dailyListId,
+    );
     invariant(dndData);
 
     return combine(
@@ -1082,25 +1086,10 @@ export const PreloadedTaskComp = ({
         element: element,
         getInitialData: () => dndData,
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
-          const rect = source.element.getBoundingClientRect();
-
-          setCustomNativeDragPreview({
+          setElementDragPreview({
+            source: source.element,
+            input: location.current.input,
             nativeSetDragImage,
-            getOffset: preserveOffsetOnSource({
-              element,
-              input: location.current.input,
-            }),
-            render({ container }) {
-              const preview = createElementDragPreview({
-                source: source.element,
-                rect,
-              });
-              container.appendChild(preview);
-
-              return () => {
-                preview.remove();
-              };
-            },
           });
         },
       }),
@@ -1128,7 +1117,7 @@ export const PreloadedTaskComp = ({
         },
       }),
     );
-  }, [item, listItem]);
+  }, [item, listItem, dailyListId]);
 
   const focusTitleTextarea = useCallback(() => {
     const textarea = titleTextareaRef.current;
@@ -1581,8 +1570,19 @@ export const TaskComp = ({
     selector: dailyEntryDateOfTask,
     args: { taskId: taskId },
   });
+  const { data: dailyEntry, status: scheduleStatus } = useAsyncSelector({
+    selector: dailyEntryByTaskId,
+    args: { taskId },
+  });
 
-  if (!item || !section || !listItem || !project) return null;
+  if (
+    !item ||
+    !section ||
+    !listItem ||
+    !project ||
+    scheduleStatus !== "success"
+  )
+    return null;
 
   return (
     <PreloadedTaskComp
@@ -1591,6 +1591,7 @@ export const TaskComp = ({
       listItem={listItem}
       project={project}
       lastScheduleTime={lastScheduleTime}
+      dailyListId={dailyEntry?.dailyListId}
       displayedUnderProjectId={displayedUnderProjectId}
       alwaysShowProject={alwaysShowProject}
       newTaskParams={newTaskParams}

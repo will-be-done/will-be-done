@@ -28,7 +28,12 @@ const input: Input = {
 const source: DndModelData = {
   modelId: "source",
   modelType: "dailyEntry",
-  task: { id: "source-task", state: "todo" },
+  dailyListId: "source-day",
+  task: {
+    id: "source-task",
+    state: "todo",
+    projectSectionId: "source-section",
+  },
 };
 
 function target(data: DndModelData): DropTargetRecord {
@@ -64,11 +69,56 @@ function event(
 }
 
 describe("drop target feedback", () => {
+  it.each(["dailyList", "projectSection"] as const)(
+    "keeps row reordering available but suppresses its existing %s container",
+    (modelType) => {
+      const dragSource = { ...source, dailyListId: "day" };
+      const column = target({
+        modelId: modelType === "dailyList" ? "day" : "source-section",
+        modelType,
+      });
+      const row = target({
+        modelId: "row",
+        modelType: "dailyEntry",
+        dailyListId: "source-day",
+        task: {
+          id: "other-task",
+          state: "todo",
+          projectSectionId: "source-section",
+        },
+      });
+      expect(getModelDropTarget(dragSource, [row, column])).toBe(row);
+      expect(getDropIndicatorEdge(event(dragSource, [row, column], row))).toBe(
+        "top",
+      );
+      expect(getModelDropTarget(dragSource, [column])).toBeUndefined();
+      expect(isActiveDropTarget(event(dragSource, [column], column))).toBe(
+        false,
+      );
+      const doneRow = target({
+        modelId: "done",
+        modelType: "dailyEntry",
+        dailyListId: "source-day",
+        task: {
+          id: "done-task",
+          state: "done",
+          projectSectionId: "source-section",
+        },
+      });
+      expect(getModelDropTarget(dragSource, [doneRow, column])).toBeUndefined();
+    },
+  );
+
   it("uses the eligible row for both its indicator and drop execution", () => {
     const row = target({
       modelId: "row",
       modelType: "dailyEntry",
-      task: { id: "target-task", state: "todo" },
+      dailyListId: "source-day",
+      task: {
+        id: "target-task",
+        state: "todo",
+        projectSectionId: "source-section",
+      },
     });
     const column = target({ modelId: "day", modelType: "dailyList" });
     const targets = [row, column];
@@ -82,7 +132,12 @@ describe("drop target feedback", () => {
     const row = target({
       modelId: "done",
       modelType: "dailyEntry",
-      task: { id: "done-task", state: "done" },
+      dailyListId: "source-day",
+      task: {
+        id: "done-task",
+        state: "done",
+        projectSectionId: "source-section",
+      },
     });
     const column = target({ modelId: "day", modelType: "dailyList" });
     const targets = [row, column];
@@ -99,7 +154,7 @@ describe("drop target feedback", () => {
     const row = target({
       modelId: "task",
       modelType: "task",
-      task: { id: "task", state: "todo" },
+      task: { id: "task", state: "todo", projectSectionId: "source-section" },
     });
     const column = target({ modelId: "section", modelType: "projectSection" });
     const targets = [checklist, row, column];
@@ -124,12 +179,18 @@ describe("drop target feedback", () => {
     const row = target({
       modelId: "done",
       modelType: "dailyEntry",
-      task: { id: "done-task", state: "done" },
+      dailyListId: "source-day",
+      task: {
+        id: "done-task",
+        state: "done",
+        projectSectionId: "source-section",
+      },
     });
     const column = target({ modelId: "day", modelType: "dailyList" });
     const template: DndModelData = {
       modelId: "template",
       modelType: "template",
+      projectSectionId: "source-section",
     };
     expect(getModelDropTarget(template, [row, column])).toBeUndefined();
     expect(
@@ -150,10 +211,17 @@ describe("drop target feedback", () => {
     {
       modelId: "id",
       modelType: "dailyEntry",
+      dailyListId: "source-day",
       task: { id: "task", state: "unknown" },
     },
-    { modelId: "id", modelType: "task", task: { id: "other", state: "todo" } },
+    {
+      modelId: "id",
+      modelType: "task",
+      task: { id: "other", state: "todo", projectSectionId: "source-section" },
+    },
     { modelId: "id", modelType: "project", role: "unknown" },
+    { modelId: "id", modelType: "project", role: "checklist" },
+    { modelId: "id", modelType: "dailyEntry", task: source.task },
   ])("rejects malformed drag data: %j", (data) => {
     expect(isModelDNDData(data)).toBe(false);
     expect(

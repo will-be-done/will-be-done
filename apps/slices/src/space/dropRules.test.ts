@@ -27,6 +27,8 @@ import {
   defaultChecklistItem,
   taskById,
   updateTask,
+  updateDailyEntry,
+  dailyEntryByTaskId,
   stashEntryByTaskId,
   tasksTable,
   taskTemplatesTable,
@@ -46,7 +48,7 @@ function task(id: string, state: Task["state"] = "todo"): Task {
     ...defaultTask,
     id,
     state,
-    projectSectionId: "section",
+    projectSectionId: `${id.startsWith("source-") ? "source" : "target"}-section`,
     orderToken: id,
   };
 }
@@ -58,19 +60,19 @@ function models(prefix: string): AnyModel[] {
     {
       ...defaultTaskTemplate,
       id: `${prefix}template`,
-      projectSectionId: "section",
+      projectSectionId: `${prefix}section`,
     },
     {
       ...defaultDailyEntry,
       id: `${prefix}daily-todo`,
       taskId: `${prefix}todo`,
-      dailyListId: "list",
+      dailyListId: `${prefix}dailyList`,
     },
     {
       ...defaultDailyEntry,
       id: `${prefix}daily-done`,
       taskId: `${prefix}done`,
-      dailyListId: "list",
+      dailyListId: `${prefix}dailyList`,
     },
     {
       ...defaultStashEntry,
@@ -107,7 +109,15 @@ function dropData(model: AnyModel): DropModelData {
     model.type === "dailyEntry" || model.type === "stashEntry"
       ? tasks.find((task) => task.id === model.taskId)
       : undefined;
-  return getDropModelData(model, underlyingTask)!;
+  const taskId = model.type === "task" ? model.id : underlyingTask?.id;
+  const dailyEntry = rows.find(
+    (row) => row.type === "dailyEntry" && row.taskId === taskId,
+  );
+  return getDropModelData(
+    model,
+    underlyingTask,
+    dailyEntry?.type === "dailyEntry" ? dailyEntry.dailyListId : undefined,
+  )!;
 }
 
 function createDB() {
@@ -187,6 +197,102 @@ const cases: [string, string[]][] = [
 ];
 
 describe("drop eligibility", () => {
+  it.each([
+    ["dailyList", todoSources],
+    [
+      "projectSection",
+      [...projectSources.filter((name) => name !== "project")],
+    ],
+  ] as const)(
+    "rejects each appearance in its existing %s container",
+    (modelType, names) => {
+      const db = createDB();
+      const target = sources.find((model) => model.type === modelType)!;
+      for (const name of names) {
+        const source = sources.find((model) => model.id === `source-${name}`)!;
+        expect(canDropModel(dropData(source), dropData(target)), name).toBe(
+          false,
+        );
+        expect(
+          selectSync(db, {
+            selector: appCanDrop,
+            args: {
+              id: target.id,
+              modelType,
+              dropId: source.id,
+              dropModelType: source.type,
+            },
+          }),
+          name,
+        ).toBe(false);
+      }
+    },
+  );
+
+  it.each(["dailyList", "projectSection"] as const)(
+    "revalidates membership in %s before removing a stash entry",
+    (modelType) => {
+      const db = createDB();
+      const source = sources[5];
+      const target = targets.find((model) => model.type === modelType)!;
+      expect(canDropModel(dropData(source), dropData(target))).toBe(true);
+      if (modelType === "projectSection") {
+        syncDispatch(
+          db,
+          updateTask({
+            id: "source-todo",
+            task: { projectSectionId: target.id },
+          }),
+        );
+      } else {
+        syncDispatch(
+          db,
+          updateDailyEntry({
+            id: "source-daily-todo",
+            entry: { dailyListId: target.id },
+          }),
+        );
+      }
+      const beforeTask = selectSync(db, {
+        selector: taskById,
+        args: { id: "source-todo" },
+      });
+      const beforeDailyEntry = selectSync(db, {
+        selector: dailyEntryByTaskId,
+        args: { taskId: "source-todo" },
+      });
+      const beforeStashEntry = selectSync(db, {
+        selector: stashEntryByTaskId,
+        args: { taskId: "source-todo" },
+      });
+      syncDispatch(
+        db,
+        appHandleDrop({
+          id: target.id,
+          modelType,
+          dropId: source.id,
+          dropModelType: source.type,
+          edge: "top",
+        }),
+      );
+      expect(
+        selectSync(db, { selector: taskById, args: { id: "source-todo" } }),
+      ).toEqual(beforeTask);
+      expect(
+        selectSync(db, {
+          selector: dailyEntryByTaskId,
+          args: { taskId: "source-todo" },
+        }),
+      ).toEqual(beforeDailyEntry);
+      expect(
+        selectSync(db, {
+          selector: stashEntryByTaskId,
+          args: { taskId: "source-todo" },
+        }),
+      ).toEqual(beforeStashEntry);
+    },
+  );
+
   it.each(cases)(
     "accepts the supported sources for %s in both UI metadata and DB selectors",
     (name, allowed) => {
@@ -286,14 +392,14 @@ describe("drop eligibility", () => {
 
   it("restricts a checklist container to checklist items", () => {
     const target: DropModelData = {
-      ...dropData(targets[0]),
+      ...getDropModelData(task("target-todo")),
       role: "checklist",
     };
     expect(canDropModel(dropData(sources[0]), target)).toBe(false);
     expect(canDropModel(dropData(sources[10]), target)).toBe(true);
     expect(
       canDropModel(dropData(sources[10]), {
-        ...dropData(targets[1]),
+        ...getDropModelData(task("target-done", "done")),
         role: "checklist",
       }),
     ).toBe(false);

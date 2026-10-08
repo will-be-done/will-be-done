@@ -1,6 +1,7 @@
 import { deleteRows, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { defaultTask, taskById } from "./tasks";
+import { dailyEntryByTaskId } from "./dailyEntries";
 import {
   canDropModel,
   getDropModelData,
@@ -60,7 +61,12 @@ const appDropModelData = selector({
       model.type === "dailyEntry" || model.type === "stashEntry"
         ? yield* taskById({ id: model.taskId })
         : undefined;
-    return getDropModelData(model, task);
+    const taskId = model.type === "task" ? model.id : task?.id;
+    const dailyEntry =
+      taskId && model.type !== "dailyEntry"
+        ? yield* dailyEntryByTaskId({ taskId })
+        : undefined;
+    return getDropModelData(model, task, dailyEntry?.dailyListId);
   },
 });
 

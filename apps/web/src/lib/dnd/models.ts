@@ -12,7 +12,9 @@ export function isModelDNDData(data: unknown): data is DndModelData {
     !("modelId" in data) ||
     typeof data.modelId !== "string" ||
     !("modelType" in data) ||
-    ("role" in data && data.role !== undefined && data.role !== "checklist")
+    ("role" in data &&
+      (data.role !== "checklist" ||
+        (data.modelType !== "task" && data.modelType !== "template")))
   ) {
     return false;
   }
@@ -21,6 +23,17 @@ export function isModelDNDData(data: unknown): data is DndModelData {
     case "dailyEntry":
     case "stashEntry": {
       if (!("task" in data)) return false;
+      if (
+        data.modelType === "dailyEntry" &&
+        (!("dailyListId" in data) || typeof data.dailyListId !== "string")
+      )
+        return false;
+      if (
+        "dailyListId" in data &&
+        data.dailyListId !== undefined &&
+        typeof data.dailyListId !== "string"
+      )
+        return false;
       const task = data.task;
       return (
         typeof task === "object" &&
@@ -29,10 +42,15 @@ export function isModelDNDData(data: unknown): data is DndModelData {
         typeof task.id === "string" &&
         "state" in task &&
         (task.state === "todo" || task.state === "done") &&
+        "projectSectionId" in task &&
+        typeof task.projectSectionId === "string" &&
         (data.modelType !== "task" || data.modelId === task.id)
       );
     }
     case "template":
+      return (
+        "projectSectionId" in data && typeof data.projectSectionId === "string"
+      );
     case "project":
     case "projectSection":
     case "dailyList":

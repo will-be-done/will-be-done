@@ -1,3 +1,12 @@
+import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
+import { preserveOffsetOnSource } from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
+import type { ElementEventPayloadMap } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import type { Input } from "@atlaskit/pragmatic-drag-and-drop/types";
+
+// Native drag images only capture the container's bounds. Leave room for rings
+// and outlines painted outside the cloned card.
+const previewPadding = 4;
+
 const syncClonedFormControls = (source: HTMLElement, clone: HTMLElement) => {
   const sourceControls = source.querySelectorAll<
     HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -41,7 +50,7 @@ const syncClonedFormControls = (source: HTMLElement, clone: HTMLElement) => {
   });
 };
 
-export const createElementDragPreview = ({
+const createElementDragPreview = ({
   source,
   rect,
 }: {
@@ -63,4 +72,31 @@ export const createElementDragPreview = ({
   });
 
   return preview;
+};
+
+export const setElementDragPreview = ({
+  source,
+  input,
+  nativeSetDragImage,
+}: {
+  source: HTMLElement;
+  input: Input;
+  nativeSetDragImage: ElementEventPayloadMap["onGenerateDragPreview"]["nativeSetDragImage"];
+}) => {
+  const rect = source.getBoundingClientRect();
+  const getSourceOffset = preserveOffsetOnSource({ element: source, input });
+
+  setCustomNativeDragPreview({
+    nativeSetDragImage,
+    getOffset: ({ container }) => {
+      const offset = getSourceOffset({ container });
+      return { x: offset.x + previewPadding, y: offset.y + previewPadding };
+    },
+    render: ({ container }) => {
+      container.style.padding = `${previewPadding}px`;
+      const preview = createElementDragPreview({ source, rect });
+      container.appendChild(preview);
+      return () => preview.remove();
+    },
+  });
 };
