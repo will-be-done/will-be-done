@@ -106,6 +106,77 @@ for (const view of ["project", "today", "timeline"] as const) {
     await page.keyboard.press("KeyH");
     await expect(stashedTask).toBeFocused();
   });
+
+  test(`moves a task into an empty stash with Ctrl+h in ${view}`, async ({
+    page,
+  }) => {
+    const spaceName = uniqueE2EName("E2E Empty Stash Space");
+    const taskTitle = uniqueE2EName("E2E empty stash task");
+
+    await signupUser(page);
+    await createSpace(page, spaceName);
+    await openSpace(page, spaceName);
+
+    if (view === "project") {
+      await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
+      await createProjectTask(page, taskTitle);
+    } else {
+      await createTodayTask(page, taskTitle);
+      if (view === "timeline") {
+        await page.goto(
+          new URL(page.url()).pathname.replace("/dates/", "/timeline/"),
+        );
+        await expect(
+          page.locator(
+            '[data-focus-region-direction="row"] [data-column-model-type="dailyList"]',
+          ),
+        ).toHaveCount(7);
+      }
+    }
+
+    const mainTask =
+      view === "project"
+        ? projectTaskItem(page, taskTitle)
+        : dailyTaskItem(page, taskTitle);
+    const stashedTask = stashTaskItem(page, taskTitle);
+    const emptyStash = stashPanel(page).locator("[data-focus-placeholder]");
+
+    await expect(page.getByTestId("stash-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await mainTask.click();
+    await page.keyboard.press("Control+KeyH");
+    await expect(stashedTask).toHaveCount(0);
+    await expect(mainTask).toBeFocused();
+
+    await page.keyboard.press("Backslash");
+    await expect(stashPanel(page)).toHaveAttribute("aria-hidden", "false");
+    await page.keyboard.press("KeyH");
+    await expect(emptyStash).toBeFocused();
+    await page.keyboard.press("KeyL");
+    await expect(mainTask).toBeFocused();
+    await page.keyboard.press("Control+KeyH");
+    await expect(stashedTask).toBeFocused();
+    await expect(page.getByTestId("stash-count")).toHaveText("1");
+    if (view !== "project") await expect(mainTask).toHaveCount(0);
+
+    if (view === "timeline") {
+      await page.keyboard.press("Control+KeyL");
+      await expect(stashedTask).toHaveCount(0);
+      await expect(mainTask).toBeFocused();
+      await expect(page.getByTestId("stash-count")).toHaveCount(0);
+
+      // The emptied stash remains a focus target and accepts another move.
+      await page.keyboard.press("KeyH");
+      await expect(emptyStash).toBeFocused();
+      await page.keyboard.press("KeyL");
+      await expect(mainTask).toBeFocused();
+      await page.keyboard.press("Control+KeyH");
+      await expect(stashedTask).toBeFocused();
+      await expect(page.getByTestId("stash-count")).toHaveText("1");
+    }
+  });
 }
 
 test("shows details for a selected stashed task", async ({ page }) => {

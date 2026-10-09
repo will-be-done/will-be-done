@@ -4,6 +4,7 @@ import {
   dailyEntryType,
   projectSectionType,
   stashEntryType,
+  stashType,
 } from "@will-be-done/slices/space";
 
 export type FocusKey = string & { __brand: never };
@@ -36,7 +37,8 @@ export const parseColumnKey = (
     | "task"
     | typeof projectSectionType
     | typeof dailyEntryType
-    | typeof stashEntryType;
+    | typeof stashEntryType
+    | typeof stashType;
   id: string;
   component?: string;
 } => {
@@ -52,7 +54,8 @@ export const parseColumnKey = (
       | "task"
       | typeof projectSectionType
       | typeof dailyEntryType
-      | typeof stashEntryType,
+      | typeof stashEntryType
+      | typeof stashType,
     id,
     component,
   };

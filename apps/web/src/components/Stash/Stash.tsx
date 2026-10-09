@@ -61,6 +61,7 @@ const StashColumnView = ({
       columnModelId={STASH_ID}
       columnModelType={stashType}
       panelWidth={200}
+      onAddClick={onTaskAdd}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4 min-h-full")}>
         <button

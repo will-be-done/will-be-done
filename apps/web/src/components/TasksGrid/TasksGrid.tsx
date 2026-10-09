@@ -147,7 +147,7 @@ export const TasksColumn = ({
         }}
       >
         <div className="mb-4 flex">
-          {onAddClick && (
+          {header != null && onAddClick && (
             <button
               className="hidden group-hover:block cursor-pointer text-white mb-2"
               onClick={onAddClick}

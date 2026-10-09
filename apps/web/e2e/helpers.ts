@@ -107,7 +107,12 @@ export async function createTodayTask(page: Page, title: string) {
 }
 
 export async function createProjectTask(page: Page, title: string) {
-  await page.locator("[data-focus-placeholder]").first().focus();
+  await page
+    .locator(
+      '[data-column-model-type="projectSection"] [data-focus-placeholder]',
+    )
+    .first()
+    .focus();
   await page.keyboard.press("KeyO");
   await page.getByLabel("Edit task title").fill(title);
   await page.keyboard.press("Enter");
