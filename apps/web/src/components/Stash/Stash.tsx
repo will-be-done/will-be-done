@@ -137,6 +137,21 @@ export const Stash = () => {
   const [isTaskOverButton, setIsTaskOverButton] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) return;
+
+    const focusState = useFocusStore.getState();
+    const focusedItem = focusState.focusItemKey
+      ? rootRef.current?.querySelector(
+          `[data-focusable-key="${focusState.focusItemKey}"]`,
+        )
+      : null;
+    if (!focusedItem) return;
+
+    focusState.resetFocus();
+    buttonRef.current?.focus({ preventScroll: true });
+  }, [isOpen]);
+
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const focusState = useFocusStore.getState();
     const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
@@ -295,6 +310,7 @@ export const Stash = () => {
       >
         <div
           aria-hidden={!isOpen}
+          inert={!isOpen}
           data-testid="stash-panel"
           className={cn(
             "h-full overflow-y-auto transition-transform duration-300 ease-out",

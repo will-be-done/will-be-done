@@ -278,9 +278,11 @@ const ProjectTasksColumn = ({
 export const ProjectItemsList = ({
   project,
   selectedDate,
+  isFocusRegion = true,
 }: {
   project: Project;
   selectedDate?: Date;
+  isFocusRegion?: boolean;
 }) => {
   const { data: sections = [] } = useAsyncSelector({
     selector: projectSectionsByProjectId,
@@ -297,7 +299,10 @@ export const ProjectItemsList = ({
 
   return (
     <>
-      <TasksColumnGrid columnsCount={sections.length}>
+      <TasksColumnGrid
+        columnsCount={sections.length}
+        isFocusRegion={isFocusRegion}
+      >
         {sections.map((group) => (
           <ProjectTasksColumn
             key={group.id}

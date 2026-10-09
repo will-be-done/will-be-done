@@ -43,7 +43,9 @@ const REGION_SELECTOR = "[data-focus-region-direction]";
 
 const getRegionColumns = (region: ParentNode, regionEl?: Element | null) =>
   Array.from(region.querySelectorAll("[data-focus-column]")).filter(
-    (col) => col.closest(REGION_SELECTOR) === (regionEl ?? null),
+    (col) =>
+      col.closest(REGION_SELECTOR) === (regionEl ?? null) &&
+      !col.closest('[inert], [aria-hidden="true"]'),
   );
 
 // When direction="column", j/k overflows into the adjacent column at boundaries.

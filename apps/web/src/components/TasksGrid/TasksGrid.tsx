@@ -22,15 +22,17 @@ export const TasksColumnGrid = ({
   children,
   floatingColumn,
   paddingLeft,
+  isFocusRegion = true,
 }: {
   columnsCount: number;
   children: React.ReactNode;
   floatingColumn?: React.ReactNode;
   paddingLeft?: number;
+  isFocusRegion?: boolean;
 }) => {
   return (
     <div
-      data-focus-region-direction="row"
+      data-focus-region-direction={isFocusRegion ? "row" : undefined}
       className="relative max-h-full h-full overflow-x-clip"
     >
       {floatingColumn}

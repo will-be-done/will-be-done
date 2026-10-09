@@ -1,6 +1,8 @@
 import { expect, test } from "playwright/test";
 
 import {
+  createProject,
+  createProjectTask,
   createSpace,
   createTodayTask,
   dailyTaskItem,
@@ -8,11 +10,103 @@ import {
   openTaskActions,
   openTaskDetails,
   projectTaskItem,
+  projectSidebarLink,
   signupUser,
   stashPanel,
   stashTaskItem,
   uniqueE2EName,
 } from "./helpers";
+
+for (const view of ["project", "today", "timeline"] as const) {
+  test(`focuses stash only while open in ${view}`, async ({ page }) => {
+    const spaceName = uniqueE2EName("E2E Stash Focus Space");
+    const stashedTitle = uniqueE2EName("E2E stash focus task");
+    const mainTitle = uniqueE2EName("E2E main focus task");
+
+    await signupUser(page);
+    await createSpace(page, spaceName);
+    await openSpace(page, spaceName);
+
+    await createTodayTask(page, stashedTitle);
+    await openTaskActions(page, stashedTitle);
+    await page.getByRole("menuitem", { name: /stash task/i }).click();
+    await expect(page.getByTestId("stash-count")).toHaveText("1");
+
+    if (view === "project") {
+      const projectTitle = uniqueE2EName("E2E Focus Project");
+      await createProject(page, projectTitle);
+      await projectSidebarLink(page, projectTitle).click();
+      await createProjectTask(page, mainTitle);
+    } else {
+      await createTodayTask(page, mainTitle);
+      if (view === "timeline") {
+        // Start the timeline at Today so this task is adjacent to the stash.
+        await page.goto(
+          new URL(page.url()).pathname.replace("/dates/", "/timeline/"),
+        );
+        await expect(page).toHaveURL(
+          /\/spaces\/[^/]+\/timeline\/\d{4}-\d{2}-\d{2}/,
+        );
+        await expect(
+          page.locator(
+            '[data-focus-region-direction="row"] [data-column-model-type="dailyList"]',
+          ),
+        ).toHaveCount(7);
+      }
+    }
+
+    const mainTask =
+      view === "project"
+        ? projectTaskItem(page, mainTitle)
+        : dailyTaskItem(page, mainTitle);
+    const stashedTask = stashTaskItem(page, stashedTitle);
+    const toggle = page.getByTestId("stash-toggle");
+
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await mainTask.click();
+    await expect(mainTask).toBeFocused();
+    await page.keyboard.press("KeyH");
+    await expect(mainTask).toBeFocused();
+    await expect(stashedTask).not.toHaveClass(/ring-2 ring-accent/);
+
+    await page.keyboard.press("Backslash");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("KeyH");
+    await expect(stashedTask).toBeFocused();
+    await expect(stashedTask).toHaveClass(/ring-2 ring-accent/);
+    await page.keyboard.press("KeyL");
+    await expect(mainTask).toBeFocused();
+
+    await page.keyboard.press("KeyH");
+    await expect(stashedTask).toBeFocused();
+    await page.keyboard.press("Backslash");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(stashedTask).not.toBeFocused();
+    await expect(stashedTask).not.toHaveClass(/ring-2 ring-accent/);
+
+    // A closed panel must also reject direct DOM focus and Tab navigation.
+    await stashedTask.evaluate((element: HTMLElement) => element.focus());
+    await expect(stashedTask).not.toBeFocused();
+    await toggle.focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() =>
+        stashPanel(page).evaluate((panel) =>
+          panel.contains(document.activeElement),
+        ),
+      )
+      .toBe(false);
+
+    await mainTask.click();
+    await page.keyboard.press("KeyH");
+    await expect(mainTask).toBeFocused();
+
+    await page.keyboard.press("Backslash");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("KeyH");
+    await expect(stashedTask).toBeFocused();
+  });
+}
 
 test("shows details for a selected stashed task", async ({ page }) => {
   const spaceName = uniqueE2EName("E2E Stash Details Space");
