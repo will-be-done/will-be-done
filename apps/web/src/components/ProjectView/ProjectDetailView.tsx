@@ -165,7 +165,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
       ) : (
         <div className="flex flex-1 min-h-0 overflow-x-auto pb-4">
           <div className="min-w-max h-full px-4">
-            <ProjectItemsList project={project} />
+            <ProjectItemsList project={project} isFocusRegion={false} />
           </div>
         </div>
       )}
@@ -184,7 +184,10 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   }, [projectId, inboxProjectId]);
 
   return (
-    <div className="relative h-full min-w-0 overflow-hidden">
+    <div
+      data-focus-region-direction="row"
+      className="relative h-full min-w-0 overflow-hidden"
+    >
       <Stash />
       <div
         className="h-full min-w-0"
