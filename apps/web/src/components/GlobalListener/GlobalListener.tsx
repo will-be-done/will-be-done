@@ -11,6 +11,7 @@ import {
   getDOMSiblings,
   getDOMColumnSiblingFirstItems,
 } from "@/components/Focus/domNavigation.ts";
+import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcuts/KeyboardShortcutsDialog";
 
 export function GlobalListener() {
   const dispatch = useAsyncDispatch();
@@ -176,5 +177,5 @@ export function GlobalListener() {
     });
   }, [dispatch]);
 
-  return <></>;
+  return <KeyboardShortcutsDialog />;
 }
