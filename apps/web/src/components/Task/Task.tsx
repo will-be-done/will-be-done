@@ -1395,7 +1395,7 @@ export const PreloadedTaskComp = ({
                     "line-through": isTask(item) && item.state === "done",
                   })}
                 >
-                  {item.title}
+                  {editingTitle}
                 </div>
               )}
             </div>

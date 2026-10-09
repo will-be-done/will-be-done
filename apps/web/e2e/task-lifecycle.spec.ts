@@ -25,11 +25,18 @@ test("creates, edits, toggles, and deletes a task across Today and Inbox", async
   const createdItem = await createTodayTask(page, initialTitle);
   await expect(createdItem).toBeVisible();
   await expect(inboxWithOneTask).toBeVisible();
+  const createdItemKey = await createdItem.getAttribute("data-focusable-key");
+  expect(createdItemKey).not.toBeNull();
+  const editedItem = page.locator(
+    `[data-focusable-key="${createdItemKey as string}"]`,
+  );
 
   await createdItem.dblclick();
   await createdItem.getByLabel("Edit task title").fill(editedTitle);
   await page.keyboard.press("Enter");
 
+  expect(await editedItem.textContent()).toContain(editedTitle);
+  expect(await editedItem.textContent()).not.toContain(initialTitle);
   await expect(taskItem(page, editedTitle)).toBeVisible();
   await expect(taskItem(page, initialTitle)).toHaveCount(0);
   await page.waitForTimeout(500);
