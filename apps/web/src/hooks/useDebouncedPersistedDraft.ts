@@ -13,18 +13,26 @@ const defaultIsEqual = <T>(left: T, right: T) => Object.is(left, right);
 
 export function useDebouncedPersistedDraft<T>({
   value,
+  sourceKey,
   persist,
   delay = 200,
   isEqual = defaultIsEqual<T>,
 }: {
   value: T;
-  persist: (value: T) => void;
+  sourceKey?: string;
+  persist: (value: T) => void | Promise<void>;
   delay?: number;
   isEqual?: (left: T, right: T) => boolean;
 }) {
   const [draft, setDraftState] = useState<T>(value);
+  const [draftSource, setDraftSource] = useState<{
+    key: string | undefined;
+    value: T;
+    isValid: boolean;
+  }>({ key: sourceKey, value, isValid: true });
   const draftRef = useRef(value);
   const sourceRef = useRef(value);
+  const sourceKeyRef = useRef(sourceKey);
   const lastSubmittedRef = useRef(value);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -40,6 +48,7 @@ export function useDebouncedPersistedDraft<T>({
       clearSaveTimeout();
 
       if (
+        draftSource.key !== sourceKey ||
         isEqual(valueToPersist, sourceRef.current) ||
         isEqual(valueToPersist, lastSubmittedRef.current)
       ) {
@@ -47,26 +56,58 @@ export function useDebouncedPersistedDraft<T>({
       }
 
       lastSubmittedRef.current = valueToPersist;
-      persist(valueToPersist);
+      const handleSaveError = (error: unknown) => {
+        setDraftSource((current) =>
+          current === draftSource ? { ...current, isValid: false } : current,
+        );
+        console.error("Failed to persist draft", error);
+      };
+
+      try {
+        const result = persist(valueToPersist);
+        if (result) void result.catch(handleSaveError);
+      } catch (error) {
+        handleSaveError(error);
+      }
     },
-    [clearSaveTimeout, isEqual, persist],
+    [clearSaveTimeout, draftSource, isEqual, persist, sourceKey],
   );
 
-  const setDraft = useCallback((nextValue: SetStateAction<T>) => {
-    const resolvedValue =
-      typeof nextValue === "function"
-        ? (nextValue as (previousValue: T) => T)(draftRef.current)
-        : nextValue;
+  const setDraft = useCallback(
+    (nextValue: SetStateAction<T>) => {
+      const resolvedValue =
+        typeof nextValue === "function"
+          ? (nextValue as (previousValue: T) => T)(draftRef.current)
+          : nextValue;
 
-    draftRef.current = resolvedValue;
-    setDraftState(resolvedValue);
-  }, []);
+      draftRef.current = resolvedValue;
+      setDraftState(resolvedValue);
+      setDraftSource({ key: sourceKey, value, isValid: true });
+    },
+    [sourceKey, value],
+  );
 
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
 
   useLayoutEffect(() => {
+    if (sourceKeyRef.current !== sourceKey) {
+      const hasLocalDraft = !isEqual(draftRef.current, sourceRef.current);
+      sourceKeyRef.current = sourceKey;
+      sourceRef.current = value;
+      lastSubmittedRef.current = value;
+      clearSaveTimeout();
+      if (hasLocalDraft) {
+        setDraftSource((current) => ({ ...current, isValid: false }));
+      } else {
+        draftRef.current = value;
+        setDraftState(value);
+        setDraftSource({ key: sourceKey, value, isValid: true });
+      }
+      return;
+    }
+
     const previousSource = sourceRef.current;
     if (isEqual(previousSource, value)) return;
 
@@ -79,8 +120,12 @@ export function useDebouncedPersistedDraft<T>({
 
     sourceRef.current = value;
 
-    if (!draftMatchesPreviousSource && !draftMatchesSubmittedValue) return;
+    if (!draftMatchesPreviousSource && !draftMatchesSubmittedValue) {
+      setDraftSource((current) => ({ ...current, isValid: false }));
+      return;
+    }
 
+    setDraftSource({ key: sourceKey, value, isValid: true });
     lastSubmittedRef.current = value;
     clearSaveTimeout();
 
@@ -88,7 +133,7 @@ export function useDebouncedPersistedDraft<T>({
 
     draftRef.current = value;
     setDraftState(value);
-  }, [clearSaveTimeout, isEqual, value]);
+  }, [clearSaveTimeout, isEqual, sourceKey, value]);
 
   useEffect(() => {
     if (
@@ -114,6 +159,10 @@ export function useDebouncedPersistedDraft<T>({
 
   return {
     draft,
+    isDraftCurrent:
+      draftSource.isValid &&
+      draftSource.key === sourceKey &&
+      isEqual(draftSource.value, value),
     setDraft,
     flush,
   };
