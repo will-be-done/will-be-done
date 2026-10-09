@@ -10,9 +10,13 @@ import {
   createProjectTask,
   createSpace,
   createTodayTask,
+  dailyTaskItem,
   openSpace,
+  openTaskActions,
   projectSidebarLink,
+  projectTaskItem,
   signupUser,
+  stashTaskItem,
   taskItem,
   uniqueE2EName,
 } from "./helpers";
@@ -32,6 +36,98 @@ async function startDrag(page: Page, source: Locator) {
   const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
   await source.dispatchEvent("dragstart", { dataTransfer });
   return dataTransfer;
+}
+
+test("does not move a task to Inbox when released outside the link", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("Inbox Leave Space");
+  const projectTitle = uniqueE2EName("Inbox Leave Project");
+  const taskTitle = uniqueE2EName("Task to keep in project");
+  const inbox = page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ });
+  const outside = page.getByRole("link", { name: /today/i });
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await createProject(page, projectTitle);
+  await projectSidebarLink(page, projectTitle).click();
+  const source = await createProjectTask(page, taskTitle);
+  const dataTransfer = await startDrag(page, source);
+
+  await dragOver(inbox, dataTransfer);
+  await expect(inbox).toHaveClass(/ring-2 ring-accent/);
+  await dragOver(outside, dataTransfer);
+  await expect(inbox).not.toHaveClass(/ring-2 ring-accent/);
+  await outside.dispatchEvent("drop", { dataTransfer });
+  await dataTransfer.dispose();
+
+  await expect(source).toBeVisible();
+  await inbox.click();
+  await expect(projectTaskItem(page, taskTitle)).toHaveCount(0);
+  await projectSidebarLink(page, projectTitle).click();
+  await page.reload();
+  await expect(projectTaskItem(page, taskTitle)).toBeVisible();
+});
+
+for (const sourceView of ["project", "Today", "stash"] as const) {
+  test(`moves a task from ${sourceView} to the sidebar Inbox and persists it`, async ({
+    page,
+  }) => {
+    const spaceName = uniqueE2EName("Inbox Drop Space");
+    const projectTitle = uniqueE2EName("Inbox Drop Project");
+    const taskTitle = uniqueE2EName("Task to move to Inbox");
+    const inbox = page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ });
+
+    await signupUser(page);
+    await createSpace(page, spaceName);
+    await openSpace(page, spaceName);
+    await createProject(page, projectTitle);
+    await projectSidebarLink(page, projectTitle).click();
+    let source = await createProjectTask(page, taskTitle);
+
+    if (sourceView === "Today") {
+      await openTaskActions(page, taskTitle);
+      await page.getByRole("menuitem", { name: /schedule today/i }).click();
+      await page.getByRole("link", { name: /today/i }).click();
+      source = dailyTaskItem(page, taskTitle);
+    } else if (sourceView === "stash") {
+      await openTaskActions(page, taskTitle);
+      await page.getByRole("menuitem", { name: /stash task/i }).click();
+      await page.getByTestId("stash-toggle").click();
+      source = stashTaskItem(page, taskTitle);
+    }
+
+    const sourceUrl = page.url();
+    const dataTransfer = await startDrag(page, source);
+    await dragOver(inbox, dataTransfer);
+    await expect(inbox).toHaveClass(/ring-2 ring-accent/);
+    await inbox.dispatchEvent("drop", { dataTransfer });
+    await dataTransfer.dispose();
+
+    await expect(inbox).not.toHaveClass(/ring-2 ring-accent/);
+    await expect(page).toHaveURL(sourceUrl);
+    if (sourceView === "Today") {
+      await expect(source).toBeVisible();
+    } else {
+      await expect(source).toHaveCount(0);
+    }
+    if (sourceView === "stash") {
+      await expect(page.getByTestId("stash-count")).toHaveCount(0);
+    }
+
+    await inbox.click();
+    await expect(projectTaskItem(page, taskTitle)).toBeVisible();
+    await page.reload();
+    await expect(projectTaskItem(page, taskTitle)).toBeVisible();
+
+    await projectSidebarLink(page, projectTitle).click();
+    await expect(projectTaskItem(page, taskTitle)).toHaveCount(0);
+    if (sourceView === "Today") {
+      await page.getByRole("link", { name: /today/i }).click();
+      await expect(dailyTaskItem(page, taskTitle)).toBeVisible();
+    }
+  });
 }
 
 test("captures the whole focused task border and preserves the cursor position", async ({
