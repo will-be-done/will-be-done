@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  dropTargetForElements,
+  type ElementDropTargetEventBasePayload,
+} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import {
@@ -31,6 +35,11 @@ import {
 } from "@/components/ui/dialog.tsx";
 import { generateTestBackup } from "@/lib/generateTestData.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
+import {
+  canDropModelData,
+  isActiveDropTarget,
+  type DndModelData,
+} from "@/lib/dnd/models";
 
 const CalendarIcon = () => (
   <svg
@@ -142,6 +151,32 @@ const InboxNavItem = ({
 }) => {
   const spaceId = Route.useParams().spaceId;
   const closeMobile = useCloseMobileOnNav();
+  const ref = useRef<HTMLAnchorElement>(null);
+  const [isOver, setIsOver] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const data: DndModelData = { modelId: inboxId, modelType: "project" };
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) => {
+      setIsOver(isActiveDropTarget(args));
+    };
+
+    return dropTargetForElements({
+      element,
+      canDrop: ({ source }) =>
+        source.data.modelType !== "project" &&
+        canDropModelData(source.data, data),
+      getData: () => data,
+      getIsSticky: () => true,
+      onDragEnter: updateDropIndicator,
+      onDrag: updateDropIndicator,
+      onDropTargetChange: updateDropIndicator,
+      onDragLeave: () => setIsOver(false),
+      onDrop: () => setIsOver(false),
+    });
+  }, [inboxId]);
 
   const isActive = useRouterState({
     select: (s) =>
@@ -154,6 +189,7 @@ const InboxNavItem = ({
 
   return (
     <Link
+      ref={ref}
       to="/spaces/$spaceId/projects/$projectId"
       params={{ spaceId, projectId: inboxId }}
       onClick={closeMobile}
@@ -162,6 +198,7 @@ const InboxNavItem = ({
         isActive
           ? "bg-accent/10 ring-accent/30 text-accent"
           : "ring-ring/40 text-content-tinted hover:text-content hover:bg-surface hover:ring-ring",
+        isOver && "ring-2 ring-accent bg-accent/10",
       )}
     >
       <InboxIcon />
