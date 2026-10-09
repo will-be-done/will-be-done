@@ -79,8 +79,13 @@ test("keeps the date picker open while rapidly changing months", async ({
   });
 
   await expect(calendar).toBeVisible();
+  const originalCalendarText = await calendar.innerText();
+
   await nextMonth.dblclick();
   await expect(datePicker).toHaveAttribute("data-state", "open");
+  await expect.poll(() => calendar.innerText()).not.toBe(originalCalendarText);
+
   await previousMonth.dblclick();
   await expect(datePicker).toHaveAttribute("data-state", "open");
+  await expect.poll(() => calendar.innerText()).toBe(originalCalendarText);
 });
