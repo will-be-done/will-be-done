@@ -237,6 +237,7 @@ you can reopen the app, show Quick Add, or quit it completely.
 
 Global:
 
+1. `?` - show keyboard shortcuts
 1. `\` - toggle stash
 1. `v` - toggle task details panel
 1. `p` - toggle project view

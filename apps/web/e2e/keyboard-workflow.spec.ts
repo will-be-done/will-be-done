@@ -97,6 +97,61 @@ test("supports a keyboard-only planning loop", async ({ page }) => {
   );
 });
 
+test("shows the keyboard shortcut guide with ?", async ({ page }) => {
+  const spaceName = uniqueE2EName("E2E Shortcut Guide Space");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+
+  await expect(page.getByRole("button", { name: "Add task" })).toBeVisible();
+  const shortcutsButton = page.getByRole("button", {
+    name: "Show keyboard shortcuts",
+  });
+  await expect(shortcutsButton).toBeVisible();
+  await expect(shortcutsButton).toHaveText("?");
+  await shortcutsButton.click();
+
+  const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Toggle stash", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Focused task", { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByText("Focused project", { exact: true }),
+  ).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+
+  await page.keyboard.press("Shift+Slash");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+
+  await page.getByRole("button", { name: "Add task" }).click();
+  await expect(page.getByLabel("Edit task title")).toBeFocused();
+  await page.keyboard.press("Shift+Slash");
+  await expect(dialog).toBeHidden();
+});
+
+test("hides the shortcut button on tablets and phones", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "platform", { get: () => "MacIntel" });
+    Object.defineProperty(navigator, "maxTouchPoints", { get: () => 5 });
+  });
+
+  const spaceName = uniqueE2EName("E2E Touch Shortcut Space");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+
+  await expect(page.getByRole("button", { name: "Add task" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Show keyboard shortcuts" }),
+  ).toHaveCount(0);
+});
+
 async function expectFocused(item: Locator) {
   await expect(item).toHaveClass(/ring-2 ring-accent/);
 }
