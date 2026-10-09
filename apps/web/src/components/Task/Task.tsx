@@ -213,59 +213,59 @@ export const PreloadedTaskComp = ({
   const openProject = useOpenProject();
 
   const persistTaskTitle = useCallback(
-    (title: string) => {
-      void (async () => {
-        if (isTask(item)) {
-          if (
-            !(await select({
-              selector: taskById,
-              args: { id: taskId },
-            }))
-          ) {
-            return;
-          }
-
-          await dispatch(
-            updateTask({
-              id: taskId,
-              task: {
-                title,
-              },
-            }),
-          );
-          return;
+    async (title: string) => {
+      if (isTask(item)) {
+        if (
+          !(await select({
+            selector: taskById,
+            args: { id: taskId },
+          }))
+        ) {
+          throw new Error("Task no longer exists");
         }
 
-        if (isTaskTemplate(item)) {
-          if (
-            !(await select({
-              selector: taskTemplateById,
-              args: { id: taskId },
-            }))
-          ) {
-            return;
-          }
+        await dispatch(
+          updateTask({
+            id: taskId,
+            task: {
+              title,
+            },
+          }),
+        );
+        return;
+      }
 
-          await dispatch(
-            updateTemplate({
-              id: taskId,
-              template: {
-                title,
-              },
-            }),
-          );
+      if (isTaskTemplate(item)) {
+        if (
+          !(await select({
+            selector: taskTemplateById,
+            args: { id: taskId },
+          }))
+        ) {
+          throw new Error("Task template no longer exists");
         }
-      })();
+
+        await dispatch(
+          updateTemplate({
+            id: taskId,
+            template: {
+              title,
+            },
+          }),
+        );
+      }
     },
     [item, dispatch, select, taskId],
   );
 
   const {
     draft: editingTitle,
+    isDraftCurrent,
     setDraft: setEditingTitle,
     flush: flushEditedTitle,
   } = useDebouncedPersistedDraft({
     value: taskTitle,
+    sourceKey: buildFocusKey(item.id, item.type),
     persist: persistTaskTitle,
   });
 
@@ -1395,7 +1395,7 @@ export const PreloadedTaskComp = ({
                     "line-through": isTask(item) && item.state === "done",
                   })}
                 >
-                  {editingTitle}
+                  {isDraftCurrent ? editingTitle : item.title}
                 </div>
               )}
             </div>
