@@ -35,7 +35,6 @@ const start = async () => {
       mainDB,
       captchaConfig: getCaptchaConfig(),
       analytics,
-      tawkApiKey: env.WBD_TAWK_API_KEY,
     });
     const server = createServer({
       appRouter,

@@ -1,4 +1,3 @@
-import { createHmac } from "node:crypto";
 import { z } from "zod";
 import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
@@ -36,14 +35,12 @@ export interface AppRouterDependencies {
   mainDB: DB;
   captchaConfig: CaptchaConfig | null;
   analytics?: BackendAnalytics;
-  tawkApiKey?: string;
 }
 
 export function createAppRouter({
   mainDB,
   captchaConfig,
   analytics = noopBackendAnalytics,
-  tawkApiKey,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
     dbId: string,
@@ -61,17 +58,6 @@ export function createAppRouter({
   };
 
   return router({
-    getTawkIdentity: protectedProcedure.query((opts) => {
-      if (!tawkApiKey) return null;
-
-      const { id: userId, email } = opts.ctx.user;
-      return {
-        userId,
-        email,
-        hash: createHmac("sha256", tawkApiKey).update(userId).digest("hex"),
-      };
-    }),
-
     onChangesAvailable: protectedProcedure
       .input(
         z.object({
