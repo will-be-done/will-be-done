@@ -112,6 +112,7 @@ export function TaskDatePicker({
       <PopoverContent
         className="z-[1100] w-auto p-0"
         align="end"
+        onDoubleClick={(event) => event.stopPropagation()}
         onCloseAutoFocus={onCloseAutoFocus}
       >
         <div className="flex flex-col">

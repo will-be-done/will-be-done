@@ -53,3 +53,34 @@ test("schedules an Inbox task for Today and clears the schedule", async ({
   await page.getByRole("link", { name: /today/i }).click();
   await expect(dailyTaskItem(page, taskTitle)).toHaveCount(0);
 });
+
+test("keeps the date picker open while rapidly changing months", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("E2E Calendar Navigation Space");
+  const taskTitle = uniqueE2EName("E2E calendar navigation task");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+
+  await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
+  await createProjectTask(page, taskTitle);
+  await openTaskActions(page, taskTitle);
+  await page.getByRole("menuitem", { name: /schedule date/i }).click();
+
+  const calendar = page.locator('[data-slot="calendar"]');
+  const datePicker = page.locator('[data-slot="popover-content"]', {
+    has: calendar,
+  });
+  const nextMonth = calendar.getByRole("button", { name: /next month/i });
+  const previousMonth = calendar.getByRole("button", {
+    name: /previous month/i,
+  });
+
+  await expect(calendar).toBeVisible();
+  await nextMonth.dblclick();
+  await expect(datePicker).toHaveAttribute("data-state", "open");
+  await previousMonth.dblclick();
+  await expect(datePicker).toHaveAttribute("data-state", "open");
+});
