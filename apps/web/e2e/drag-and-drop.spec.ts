@@ -38,6 +38,38 @@ async function startDrag(page: Page, source: Locator) {
   return dataTransfer;
 }
 
+test("does not move a task to Inbox when released outside the link", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("Inbox Leave Space");
+  const projectTitle = uniqueE2EName("Inbox Leave Project");
+  const taskTitle = uniqueE2EName("Task to keep in project");
+  const inbox = page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ });
+  const outside = page.getByRole("link", { name: /today/i });
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await createProject(page, projectTitle);
+  await projectSidebarLink(page, projectTitle).click();
+  const source = await createProjectTask(page, taskTitle);
+  const dataTransfer = await startDrag(page, source);
+
+  await dragOver(inbox, dataTransfer);
+  await expect(inbox).toHaveClass(/ring-2 ring-accent/);
+  await dragOver(outside, dataTransfer);
+  await expect(inbox).not.toHaveClass(/ring-2 ring-accent/);
+  await outside.dispatchEvent("drop", { dataTransfer });
+  await dataTransfer.dispose();
+
+  await expect(source).toBeVisible();
+  await inbox.click();
+  await expect(projectTaskItem(page, taskTitle)).toHaveCount(0);
+  await projectSidebarLink(page, projectTitle).click();
+  await page.reload();
+  await expect(projectTaskItem(page, taskTitle)).toBeVisible();
+});
+
 for (const sourceView of ["project", "Today", "stash"] as const) {
   test(`moves a task from ${sourceView} to the sidebar Inbox and persists it`, async ({
     page,

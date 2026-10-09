@@ -169,7 +169,6 @@ const InboxNavItem = ({
         source.data.modelType !== "project" &&
         canDropModelData(source.data, data),
       getData: () => data,
-      getIsSticky: () => true,
       onDragEnter: updateDropIndicator,
       onDrag: updateDropIndicator,
       onDropTargetChange: updateDropIndicator,
