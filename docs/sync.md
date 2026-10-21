@@ -104,9 +104,9 @@ new local `changes` record from a domain-table hook. It does not suppress feed
 publication when a merge explicitly writes a canonical `changes` record.
 
 WebSocket authentication is revalidated before protected operations and before
-each notification is yielded. Revoking an account token, including during password
-recovery, prevents an existing connection from authorizing further operations or
-receiving further notifications. This check does not change sync clocks or cursors.
+each notification is yielded. Revoking an account token prevents an existing
+connection from authorizing further operations or receiving further notifications.
+This check does not change sync clocks or cursors.
 
 The WebSocket notification is only a wake-up hint. It carries no authoritative
 cursor and may be duplicated or lost. The persisted server revision is the
