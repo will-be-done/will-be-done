@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
+import { parseEmailConfig, type EmailConfig } from "./email/config";
 
 const EnvConfigSchema = z.object({
   WBD_STORAGE_PATH: z.string().default("/var/lib/will-be-done"),
@@ -46,6 +47,7 @@ const EnvConfigSchema = z.object({
 
 let envConfig:
   | {
+      email: EmailConfig | null;
       WBD_STORAGE_PATH: string;
       WBD_DB_PATH: string;
       WBD_DB_ENGINE: "sqlite" | "turso-cloud" | "tursod";
@@ -141,6 +143,7 @@ export function getEnvConfig() {
   }
 
   envConfig = {
+    email: parseEmailConfig(process.env),
     WBD_STORAGE_PATH: parsed.WBD_STORAGE_PATH,
     WBD_DB_PATH: parsed.WBD_DB_PATH ?? `${parsed.WBD_STORAGE_PATH}/db`,
     WBD_DB_ENGINE: parsed.WBD_DB_ENGINE,

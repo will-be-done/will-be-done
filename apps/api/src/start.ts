@@ -1,3 +1,8 @@
+import {
+  createAccountEmailService,
+  createEmailWorker,
+  createResendSender,
+} from "./email/service";
 import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
@@ -14,6 +19,7 @@ import {
   type BackendAnalytics,
 } from "./analytics";
 
+let emailWorker: ReturnType<typeof createEmailWorker> | undefined;
 let analytics: BackendAnalytics = noopBackendAnalytics;
 const start = async () => {
   try {
@@ -31,9 +37,18 @@ const start = async () => {
 
     const mainDB = await getMainHyperDB();
     analytics = createBackendAnalytics(env);
+    const accountEmail = env.email
+      ? createAccountEmailService(mainDB, env.email)
+      : undefined;
+    if (env.email)
+      emailWorker = createEmailWorker(
+        mainDB,
+        createResendSender(env.email.apiKey),
+      );
     const appRouter = createAppRouter({
       mainDB,
       captchaConfig: getCaptchaConfig(),
+      accountEmail,
       analytics,
     });
     const server = createServer({
@@ -49,6 +64,12 @@ const start = async () => {
       analytics,
     });
 
+    server.addHook("onReady", async () => {
+      emailWorker?.start();
+    });
+    server.addHook("onClose", async () => {
+      await emailWorker?.stop();
+    });
     console.log("Starting server...");
     const port = parseInt(process.env.PORT || "3000", 10);
     await server.listen({ port, host: "0.0.0.0" });
@@ -167,6 +188,7 @@ const start = async () => {
     } catch (cleanupError) {
       console.error("Failed to close subscription manager", cleanupError);
     }
+    await emailWorker?.stop();
     try {
       await closeDatabases();
     } catch (cleanupError) {

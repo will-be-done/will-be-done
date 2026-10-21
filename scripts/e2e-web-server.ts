@@ -101,17 +101,30 @@ async function main() {
   console.log(`Starting API on http://127.0.0.1:${apiPort}`);
   console.log(`Using E2E DB path: ${e2eDbPath}`);
 
-  spawnService("api", "bun", ["run", "src/start.ts"], {
-    cwd: path.join(repoRoot, "apps", "api"),
-    env: {
-      PORT: apiPort,
-      WBD_DB_ENGINE: "sqlite",
-      WBD_DB_PATH: e2eDbPath,
-      WBD_CF_CAPTCHA_ENABLED: "false",
-      WBD_BACKUP_S3_ENABLED: "false",
-      WBD_RATE_LIMIT_ENABLED: "false",
+  spawnService(
+    "api",
+    "bun",
+    [
+      "run",
+      process.env.WBD_E2E_EMAIL_ENABLED === "true"
+        ? path.join(repoRoot, "scripts/e2e-email-api.ts")
+        : "src/start.ts",
+    ],
+    {
+      cwd: path.join(repoRoot, "apps", "api"),
+      env: {
+        PORT: apiPort,
+        WBD_DB_ENGINE: "sqlite",
+        WBD_DB_PATH: e2eDbPath,
+        WBD_CF_CAPTCHA_ENABLED: "false",
+        WBD_BACKUP_S3_ENABLED: "false",
+        WBD_RATE_LIMIT_ENABLED: "false",
+        WBD_RESEND_API_KEY: "",
+        WBD_EMAIL_FROM: "",
+        WBD_PUBLIC_APP_URL: "",
+      },
     },
-  });
+  );
 
   try {
     await waitForReady(

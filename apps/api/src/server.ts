@@ -139,7 +139,7 @@ export function createServer({
       trpcOptions: {
         router: appRouter,
         createContext: (options) =>
-          createContext({ ...options, rateLimiter: appRateLimiter }),
+          createContext({ ...options, rateLimiter: appRateLimiter, mainDB }),
       } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
     });
   });

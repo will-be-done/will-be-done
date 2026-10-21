@@ -376,3 +376,7 @@ This table captures the feature set I was optimizing for while building Will Be 
 I have been developing this project for more than a year, and this is my third attempt in three years. The first two attempts failed because the technology for fast offline-first apps was not ready for the experience I wanted.
 
 This version uses my own local-first development approach and a database that works across the frontend and backend, so the same domain logic can run in both places. I have more than 10 years of development experience, including 4 years specializing in offline-first apps. I use Claude Code to help with development, but I review the code manually.
+
+## Account email
+
+See [Enable account email with Resend](docs/email.md) to configure email confirmation, welcome messages, and password recovery. Email is optional for self-hosted installations.

@@ -2,7 +2,11 @@ import fastifyRateLimit, { normalizeIP } from "@fastify/rate-limit";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import Redis from "ioredis";
 
-export type RateLimitPolicy = "login" | "register" | "todoistImport";
+export type RateLimitPolicy =
+  | "login"
+  | "register"
+  | "todoistImport"
+  | "accountEmail";
 
 interface WindowLimitConfig {
   max: number;
@@ -14,6 +18,7 @@ interface PolicyConfig extends WindowLimitConfig {
 }
 
 const defaultPolicies: Record<RateLimitPolicy, PolicyConfig> = {
+  accountEmail: { max: 5, timeWindow: "15 minutes", identity: "ip" },
   login: {
     max: 10,
     timeWindow: "10 minutes",

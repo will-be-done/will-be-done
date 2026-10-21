@@ -1,5 +1,8 @@
 import { Database } from "bun:sqlite";
-import { SqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
+import {
+  SqlDriver,
+  AsyncSqlDriver,
+} from "@will-be-done/hyperdb/drivers/sqlite";
 import {
   asyncDispatch,
   DB,
@@ -9,6 +12,7 @@ import {
 } from "@will-be-done/hyperdb";
 import path from "path";
 import { getEnvConfig } from "../env";
+import { accountEmailTables } from "../email/tables";
 import {
   insertChangeFromInsert,
   insertChangeFromUpdate,
@@ -77,7 +81,7 @@ const createLocalDB = (dbType: string, dbId: string) => {
   sqliteDB.run("PRAGMA busy_timeout=5000;");
 
   type SqlValue = number | string | Uint8Array | null;
-  const sqliteDriver = new SqlDriver({
+  const adapter = {
     exec(sql: string, params?: SqlValue[]): void {
       if (!params) {
         sqliteDB.run(sql);
@@ -97,7 +101,26 @@ const createLocalDB = (dbType: string, dbId: string) => {
         },
       };
     },
-  });
+  };
+  // The main database is shared by HTTP requests and the email worker. Its
+  // async driver queues transactions instead of rejecting overlapping work.
+  const sqliteDriver =
+    dbType === "main"
+      ? new AsyncSqlDriver({
+          async exec(sql, params) {
+            adapter.exec(sql, params ?? undefined);
+          },
+          prepare(sql) {
+            const stmt = adapter.prepare(sql);
+            return {
+              async values(params) {
+                return stmt.values(params);
+              },
+              finalize: () => stmt.finalize(),
+            };
+          },
+        })
+      : new SqlDriver(adapter);
 
   return new DB(sqliteDriver, { traits: [dbIdTrait(dbType, dbId)] });
 };
@@ -148,6 +171,7 @@ export const getMainHyperDB = async () => {
     const db = await getDB("main", "main");
     await execAsync(
       db.loadTables([
+        ...accountEmailTables,
         usersTable,
         tokensTable,
         dbsTable,
