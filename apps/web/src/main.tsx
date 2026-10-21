@@ -1,3 +1,4 @@
+import "./lib/accountEmailToken";
 import "./fixGlobal";
 // import { scan } from "react-scan";
 import { StrictMode } from "react";

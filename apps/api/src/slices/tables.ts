@@ -6,6 +6,7 @@ export const usersTable = defineTable("users", {
   password: v.string(),
   createdAt: v.string(),
   updatedAt: v.string(),
+  emailVerifiedAt: v.optional(v.string()),
 })
   .index("byIds", ["id"])
   .index("byEmail", ["email"]);

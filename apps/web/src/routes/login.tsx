@@ -5,7 +5,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { authUtils } from "@/lib/auth";
 import { useTRPC } from "@/lib/trpc";
 import {
@@ -227,6 +227,7 @@ function ServerIndicator() {
 function LoginPage() {
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const authConfig = useQuery(trpc.getAuthConfig.queryOptions());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -399,6 +400,17 @@ function LoginPage() {
               </button>
             </form>
           </div>
+
+          {authConfig.data?.emailEnabled && (
+            <p className="mt-5 text-center text-sm">
+              <Link
+                to="/forgot-password"
+                className="text-blue-400 hover:text-blue-300"
+              >
+                Forgot password?
+              </Link>
+            </p>
+          )}
 
           {/* Sign up link */}
           <p className="mt-6 text-center text-[14px] text-slate-400">

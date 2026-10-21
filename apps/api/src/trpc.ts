@@ -1,3 +1,4 @@
+import type { DB } from "@will-be-done/hyperdb";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { UnsupportedSyncVersionError } from "@will-be-done/slices/common";
 import type { FastifyRequest, FastifyReply } from "fastify";
@@ -12,6 +13,8 @@ import type { AppRateLimiter, RateLimitPolicy } from "./rateLimit";
  */
 export interface Context {
   user: AuthenticatedUser | null;
+  tokenId?: string;
+  revalidateUser?: () => Promise<AuthenticatedUser | null>;
   requestId?: string;
   enforceRateLimit?: (policy: RateLimitPolicy) => Promise<void>;
 }
@@ -24,13 +27,24 @@ export interface Context {
 export async function createContext({
   req,
   rateLimiter,
+  mainDB,
 }: {
   req: FastifyRequest;
   res: FastifyReply;
   rateLimiter?: AppRateLimiter;
+  mainDB?: DB;
 }): Promise<Context> {
-  const buildContext = (user: AuthenticatedUser | null): Context => ({
+  const buildContext = (
+    user: AuthenticatedUser | null,
+    authHeader?: string,
+  ): Context => ({
+    ...(authHeader && req.headers.upgrade?.toLowerCase() === "websocket"
+      ? { revalidateUser: () => authenticateRequest(req, authHeader, mainDB) }
+      : {}),
     user,
+    ...(user && authHeader
+      ? { tokenId: authHeader.slice("Bearer ".length) }
+      : {}),
     requestId: req.id,
     ...(rateLimiter
       ? {
@@ -53,14 +67,20 @@ export async function createContext({
 
   // First try Authorization header (HTTP requests)
   if (req.headers.authorization) {
-    return buildContext(await authenticateRequest(req));
+    return buildContext(
+      await authenticateRequest(req, req.headers.authorization, mainDB),
+      req.headers.authorization,
+    );
   }
 
   // Then try URL query parameter (WebSocket connections)
   const url = new URL(req.url || "", "http://localhost");
   const token = url.searchParams.get("token");
   if (token) {
-    return buildContext(await authenticateRequest(req, `Bearer ${token}`));
+    return buildContext(
+      await authenticateRequest(req, `Bearer ${token}`, mainDB),
+      `Bearer ${token}`,
+    );
   }
 
   return buildContext(null);
@@ -111,13 +131,16 @@ export const enforceRateLimit = (policy: RateLimitPolicy) =>
  * Protected procedure that requires authentication
  */
 export const protectedProcedure = t.procedure.use(async (opts) => {
-  if (!opts.ctx.user) {
+  const user = opts.ctx.revalidateUser
+    ? await opts.ctx.revalidateUser()
+    : opts.ctx.user;
+  if (!user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
   return opts.next({
     ctx: {
-      user: opts.ctx.user,
+      user,
     },
   });
 });

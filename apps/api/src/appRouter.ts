@@ -11,6 +11,7 @@ import {
   generateToken,
   getTokensByUserId,
   getUserByEmail,
+  getUserById,
   register,
   revokeToken,
 } from "./slices/authSlice";
@@ -29,18 +30,22 @@ import {
 import { assertSupportedSyncVersion } from "./syncVersion";
 import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
 
+import { requireAccountEmail, type AccountEmailService } from "./email/service";
+
 const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
 
 export interface AppRouterDependencies {
   mainDB: DB;
   captchaConfig: CaptchaConfig | null;
   analytics?: BackendAnalytics;
+  accountEmail?: AccountEmailService;
 }
 
 export function createAppRouter({
   mainDB,
   captchaConfig,
   analytics = noopBackendAnalytics,
+  accountEmail,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
     dbId: string,
@@ -58,6 +63,49 @@ export function createAppRouter({
   };
 
   return router({
+    getAuthConfig: publicProcedure.query(() => ({
+      emailEnabled: accountEmail?.enabled ?? false,
+    })),
+    getAccount: protectedProcedure.query(async ({ ctx }) => {
+      const user = await asyncDispatch(
+        mainDB,
+        getUserById({ id: ctx.user.id }),
+      );
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+      return {
+        id: user.id,
+        email: user.email,
+        emailVerifiedAt: user.emailVerifiedAt ?? null,
+      };
+    }),
+    requestEmailVerification: protectedProcedure
+      .use(enforceRateLimit("accountEmailSend"))
+      .mutation(({ ctx }) =>
+        requireAccountEmail(accountEmail).requestVerification(ctx.user.id),
+      ),
+    verifyEmail: publicProcedure
+      .input(z.object({ token: z.string().min(1).max(128) }))
+      .use(enforceRateLimit("accountEmailConsume"))
+      .mutation(({ input }) =>
+        requireAccountEmail(accountEmail).verify(input.token),
+      ),
+    requestPasswordReset: publicProcedure
+      .input(z.object({ email: z.email() }))
+      .use(enforceRateLimit("accountEmailSend"))
+      .mutation(({ input }) =>
+        requireAccountEmail(accountEmail).requestReset(input.email),
+      ),
+    resetPassword: publicProcedure
+      .input(
+        z.object({
+          token: z.string().min(1).max(128),
+          password: z.string().min(8).max(1024),
+        }),
+      )
+      .use(enforceRateLimit("accountEmailConsume"))
+      .mutation(({ input }) =>
+        requireAccountEmail(accountEmail).reset(input.token, input.password),
+      ),
     onChangesAvailable: protectedProcedure
       .input(
         z.object({
@@ -101,6 +149,12 @@ export function createAppRouter({
             state.set([]);
 
             for (const notification of notifications) {
+              if (
+                opts.ctx.revalidateUser &&
+                !(await opts.ctx.revalidateUser())
+              ) {
+                throw new TRPCError({ code: "UNAUTHORIZED" });
+              }
               yield notification;
             }
           }
@@ -137,7 +191,10 @@ export function createAppRouter({
 
       const created = await asyncDispatch(
         mainDB,
-        generateToken({ userId: opts.ctx.user.id }),
+        generateToken({
+          userId: opts.ctx.user.id,
+          authorizedByToken: opts.ctx.tokenId,
+        }),
       );
       analytics.capture({
         name: "api_token_created",
@@ -250,7 +307,9 @@ export function createAppRouter({
           Bun.password.hash(password),
         );
         const result = await runStage("database transaction", () =>
-          asyncDispatch(mainDB, register({ email, hashedPassword })),
+          accountEmail?.enabled
+            ? accountEmail.register(email, hashedPassword)
+            : asyncDispatch(mainDB, register({ email, hashedPassword })),
         );
         console.log(
           `[Register ${requestId}] request completed in ${Math.round(performance.now() - requestStartedAt)}ms`,
@@ -290,7 +349,7 @@ export function createAppRouter({
 
         const result = await asyncDispatch(
           mainDB,
-          generateToken({ userId: user.id }),
+          generateToken({ userId: user.id, expectedPassword: user.password }),
         );
         analytics.capture({ name: "login_succeeded", distinctId: user.id });
         return result;

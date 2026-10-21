@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { SqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
+import { AsyncSqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
 import {
   asyncDispatch,
   DB,
@@ -9,6 +9,7 @@ import {
 } from "@will-be-done/hyperdb";
 import path from "path";
 import { getEnvConfig } from "../env";
+import { accountEmailTables } from "../email/tables";
 import {
   insertChangeFromInsert,
   insertChangeFromUpdate,
@@ -77,8 +78,9 @@ const createLocalDB = (dbType: string, dbId: string) => {
   sqliteDB.run("PRAGMA busy_timeout=5000;");
 
   type SqlValue = number | string | Uint8Array | null;
-  const sqliteDriver = new SqlDriver({
-    exec(sql: string, params?: SqlValue[]): void {
+  // Queue transactions for every request-serving database connection.
+  const sqliteDriver = new AsyncSqlDriver({
+    async exec(sql, params) {
       if (!params) {
         sqliteDB.run(sql);
       } else {
@@ -89,7 +91,7 @@ const createLocalDB = (dbType: string, dbId: string) => {
       const stmt = sqliteDB.prepare(sql);
 
       return {
-        values(values: SqlValue[]): SqlValue[][] {
+        async values(values: SqlValue[]): Promise<SqlValue[][]> {
           return stmt.values(...values) as SqlValue[][];
         },
         finalize(): void {
@@ -148,6 +150,7 @@ export const getMainHyperDB = async () => {
     const db = await getDB("main", "main");
     await execAsync(
       db.loadTables([
+        ...accountEmailTables,
         usersTable,
         tokensTable,
         dbsTable,

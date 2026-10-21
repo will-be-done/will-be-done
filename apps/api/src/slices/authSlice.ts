@@ -6,6 +6,7 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
+import { TRPCError } from "@trpc/server";
 import { uuidv7 } from "uuidv7";
 import { tokensTable, usersTable, type Token, type User } from "./tables";
 
@@ -95,8 +96,26 @@ export const register = action({
 
 export const generateToken = action({
   name: "generateToken",
-  args: { userId: v.string() },
-  handler: function* generateToken({ userId }) {
+  args: {
+    userId: v.string(),
+    expectedPassword: v.optional(v.string()),
+    authorizedByToken: v.optional(v.string()),
+  },
+  handler: function* generateToken({
+    userId,
+    expectedPassword,
+    authorizedByToken,
+  }) {
+    if (authorizedByToken !== undefined) {
+      const authorizingToken = yield* getTokenById({ id: authorizedByToken });
+      if (!authorizingToken || authorizingToken.userId !== userId)
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+    if (expectedPassword !== undefined) {
+      const user = yield* getUserById({ id: userId });
+      if (!user || user.password !== expectedPassword)
+        throw new Error("Invalid credentials");
+    }
     const tokenId = uuidv7();
     const token: Token = {
       id: tokenId,

@@ -1,9 +1,15 @@
+import {
+  createAccountEmailService,
+  createEmailWorker,
+  createResendSender,
+} from "./email/service";
 import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
 import { closeDatabases, getMainHyperDB } from "./db/db";
 import { getEnvConfig } from "./env";
+import { parseEmailConfig } from "./email/config";
 import { captureException, closeSentry } from "./instrument";
 import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
@@ -14,10 +20,12 @@ import {
   type BackendAnalytics,
 } from "./analytics";
 
+let emailWorker: ReturnType<typeof createEmailWorker> | undefined;
 let analytics: BackendAnalytics = noopBackendAnalytics;
 const start = async () => {
   try {
     const env = getEnvConfig();
+    const emailConfig = parseEmailConfig(env);
     await subscriptionManager.initialize();
     console.log(
       `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
@@ -31,9 +39,18 @@ const start = async () => {
 
     const mainDB = await getMainHyperDB();
     analytics = createBackendAnalytics(env);
+    const accountEmail = emailConfig
+      ? createAccountEmailService(mainDB, emailConfig)
+      : undefined;
+    if (emailConfig)
+      emailWorker = createEmailWorker(
+        mainDB,
+        createResendSender(emailConfig.apiKey),
+      );
     const appRouter = createAppRouter({
       mainDB,
       captchaConfig: getCaptchaConfig(),
+      accountEmail,
       analytics,
     });
     const server = createServer({
@@ -49,6 +66,12 @@ const start = async () => {
       analytics,
     });
 
+    server.addHook("onReady", async () => {
+      emailWorker?.start();
+    });
+    server.addHook("onClose", async () => {
+      await emailWorker?.stop();
+    });
     console.log("Starting server...");
     const port = parseInt(process.env.PORT || "3000", 10);
     await server.listen({ port, host: "0.0.0.0" });
@@ -167,6 +190,7 @@ const start = async () => {
     } catch (cleanupError) {
       console.error("Failed to close subscription manager", cleanupError);
     }
+    await emailWorker?.stop();
     try {
       await closeDatabases();
     } catch (cleanupError) {

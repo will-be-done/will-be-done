@@ -11,6 +11,7 @@ import { PromptDialogHost } from "@/components/ui/prompt-dialog";
 import { HyperDBDevtools } from "@will-be-done/hyperdb-devtool/react";
 import { useDevtoolsEnabled } from "@/lib/devtools";
 import { Toaster } from "@/components/ui/sonner";
+import { EmailVerificationReminder } from "@/components/Auth/EmailVerificationReminder";
 import { PwaUpdateController } from "@/components/PwaUpdateController";
 
 export const Route = createRootRoute({
@@ -42,6 +43,7 @@ function ApplicationRoot() {
   return (
     <>
       <Outlet />
+      <EmailVerificationReminder />
       <PwaUpdateController />
       <Toaster />
       <PromptDialogHost />
