@@ -9,6 +9,8 @@ import {
 } from "@will-be-done/hyperdb";
 import path from "path";
 import { getEnvConfig } from "../env";
+import { googleFlowsTable } from "../google/tables";
+import { backfillUserEmails } from "../slices/authSlice";
 import { accountEmailTables } from "../email/tables";
 import {
   insertChangeFromInsert,
@@ -151,6 +153,7 @@ export const getMainHyperDB = async () => {
     await execAsync(
       db.loadTables([
         ...accountEmailTables,
+        googleFlowsTable,
         usersTable,
         tokensTable,
         dbsTable,
@@ -159,6 +162,10 @@ export const getMainHyperDB = async () => {
         backupFileTable,
       ]),
     );
+    let after = await asyncDispatch(db, backfillUserEmails({}));
+    while (after !== null) {
+      after = await asyncDispatch(db, backfillUserEmails({ after }));
+    }
     mainDB = db;
     return db;
   })();

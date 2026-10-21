@@ -1,3 +1,8 @@
+import {
+  redactGoogleAuthUrl,
+  redactGoogleAuthRequest,
+  redactGoogleAuthSpanData,
+} from "./google/privacy";
 import * as Sentry from "@sentry/bun";
 import type { FastifyInstance } from "fastify";
 
@@ -56,6 +61,23 @@ if (config) {
     },
     ...(tracesSampleRate > 0 ? { tracesSampleRate } : {}),
     enableLogs: true,
+    beforeSend(event) {
+      redactGoogleAuthRequest(event.request);
+      return event;
+    },
+    beforeSendTransaction(event) {
+      redactGoogleAuthRequest(event.request);
+      redactGoogleAuthSpanData(event.contexts?.trace?.data, event.request?.url);
+      for (const span of event.spans ?? []) redactGoogleAuthSpanData(span.data);
+      return event;
+    },
+    beforeBreadcrumb(breadcrumb) {
+      for (const key of ["url", "from", "to"]) {
+        if (typeof breadcrumb.data?.[key] === "string")
+          breadcrumb.data[key] = redactGoogleAuthUrl(breadcrumb.data[key]);
+      }
+      return breadcrumb;
+    },
     integrations: [
       Sentry.consoleLoggingIntegration({ levels: ["warn", "error"] }),
     ],

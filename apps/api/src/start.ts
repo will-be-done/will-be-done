@@ -9,6 +9,8 @@ import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
 import { closeDatabases, getMainHyperDB } from "./db/db";
 import { getEnvConfig } from "./env";
+import { parseGoogleConfig } from "./google/config";
+import { createGoogleService } from "./google/service";
 import { parseEmailConfig } from "./email/config";
 import { captureException, closeSentry } from "./instrument";
 import { createServer } from "./server";
@@ -26,6 +28,7 @@ const start = async () => {
   try {
     const env = getEnvConfig();
     const emailConfig = parseEmailConfig(env);
+    const googleConfig = parseGoogleConfig(env);
     await subscriptionManager.initialize();
     console.log(
       `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
@@ -47,13 +50,21 @@ const start = async () => {
         mainDB,
         createResendSender(emailConfig.apiKey),
       );
+    const google = googleConfig
+      ? createGoogleService(mainDB, googleConfig, {
+          analytics,
+          emailConfig: emailConfig ?? undefined,
+        })
+      : undefined;
     const appRouter = createAppRouter({
+      google,
       mainDB,
       captchaConfig: getCaptchaConfig(),
       accountEmail,
       analytics,
     });
     const server = createServer({
+      google,
       appRouter,
       mainDB,
       rateLimit: {

@@ -286,8 +286,8 @@ for (const engine of ["memory", "sqlite"])
       expect(user.emailVerifiedAt).toBeString();
       expect(user.password).not.toBe("old-hash");
       expect(
-        (await Bun.password.verify("new-password-123", user.password)) ||
-          (await Bun.password.verify("another-password-456", user.password)),
+        (await Bun.password.verify("new-password-123", user.password!)) ||
+          (await Bun.password.verify("another-password-456", user.password!)),
       ).toBe(true);
       expect((await readJobs(db)).map((j) => j.kind).sort()).toEqual([
         "passwordChanged",
@@ -375,7 +375,7 @@ for (const engine of ["memory", "sqlite"])
           getUserById({ id: account.userId }),
         ))!;
         expect(
-          await Bun.password.verify("replacement-password", user.password),
+          await Bun.password.verify("replacement-password", user.password!),
         ).toBe(true);
       } finally {
         hash.mockRestore();
@@ -933,7 +933,10 @@ describe("real Fastify account endpoints", () => {
       mainDB: db,
       captchaConfig: null,
     }).createCaller({ user: null });
-    expect(await disabled.getAuthConfig()).toEqual({ emailEnabled: false });
+    expect(await disabled.getAuthConfig()).toEqual({
+      emailEnabled: false,
+      googleEnabled: false,
+    });
     await expectRejection(
       disabled.requestPasswordReset({ email: "test@example.com" }),
       "not configured",

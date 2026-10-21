@@ -4,10 +4,14 @@ export type BackendAnalyticsEvent =
   | {
       name: "user_signed_up";
       distinctId: string;
-      properties: { captcha_enabled: boolean };
+      properties: { captcha_enabled: boolean; auth_method?: "google" };
     }
   | {
-      name: "login_succeeded" | "api_token_created";
+      name:
+        | "login_succeeded"
+        | "api_token_created"
+        | "google_connected"
+        | "google_disconnected";
       distinctId: string;
     }
   | {

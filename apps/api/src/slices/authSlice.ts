@@ -23,6 +23,41 @@ export const getUserByEmail = selector({
   },
 });
 
+export const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+export const getUserByNormalizedEmail = selector({
+  name: "getUserByNormalizedEmail",
+  args: { email: v.string() },
+  handler: function* ({ email }) {
+    return yield* selectFrom(usersTable, "byNormalizedEmail")
+      .where((q) => q.eq("normalizedEmail", normalizeEmail(email)))
+      .first();
+  },
+});
+
+// Preserve legacy email spellings and accounts, including case-only duplicates.
+export const backfillUserEmails = action({
+  name: "backfillUserEmails",
+  args: { after: v.optional(v.string()) },
+  handler: function* ({ after }) {
+    const rows = yield* selectFrom(usersTable, "byIds")
+      .where((q) => (after === undefined ? q.gte("id", "") : q.gt("id", after)))
+      .limit(500);
+    const changed = rows.filter(
+      (row) => row.normalizedEmail !== normalizeEmail(row.email),
+    );
+    if (changed.length)
+      yield* upsert(
+        usersTable,
+        changed.map((row) => ({
+          ...row,
+          normalizedEmail: normalizeEmail(row.email),
+        })),
+      );
+    return rows.length === 500 ? rows[rows.length - 1]!.id : null;
+  },
+});
+
 export const getUserById = selector({
   name: "getUserById",
   args: { id: v.string() },
@@ -64,7 +99,7 @@ export const register = action({
   name: "register",
   args: { email: v.string(), hashedPassword: v.string() },
   handler: function* register({ email, hashedPassword }) {
-    const existing = yield* getUserByEmail({ email });
+    const existing = yield* getUserByNormalizedEmail({ email });
     if (existing) {
       throw new Error("User already exists");
     }
@@ -74,6 +109,7 @@ export const register = action({
     const user: User = {
       id: userId,
       email,
+      normalizedEmail: normalizeEmail(email),
       password: hashedPassword,
       createdAt: now,
       updatedAt: now,

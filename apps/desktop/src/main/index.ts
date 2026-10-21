@@ -9,6 +9,7 @@ import {
   nativeImage,
   Tray
 } from 'electron'
+import { validateGoogleAuthLaunch } from './googleAuth'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -664,6 +665,19 @@ if (gotTheLock) {
         logPopup('global shortcut registered', quickAddShortcut)
       }
     }
+
+    ipcMain.handle('open-google-auth', async (event, url: string) => {
+      if (
+        !mainWindow ||
+        event.sender !== mainWindow.webContents ||
+        event.senderFrame !== mainWindow.webContents.mainFrame ||
+        typeof url !== 'string'
+      ) {
+        throw new Error('Google authentication must start from the main app window')
+      }
+      const launchUrl = validateGoogleAuthLaunch(getServerUrl(), event.senderFrame.url, url)
+      await shell.openExternal(launchUrl)
+    })
 
     // IPC: get/set server URL, reload window to new server
     ipcMain.handle('get-server-url', () => {

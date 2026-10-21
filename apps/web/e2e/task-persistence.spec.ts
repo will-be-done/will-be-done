@@ -8,6 +8,7 @@ import {
   signupUser,
   taskItem,
   uniqueE2EName,
+  signOutUser,
 } from "./helpers";
 
 test("signs up, signs in, creates a space, and keeps today's task after reload", async ({
@@ -17,7 +18,7 @@ test("signs up, signs in, creates a space, and keeps today's task after reload",
   const taskTitle = uniqueE2EName("E2E task");
   const user = await signupUser(page);
 
-  await page.getByRole("button", { name: "Sign Out" }).click();
+  await signOutUser(page);
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(

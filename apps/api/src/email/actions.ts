@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { action, selector } from "../builders";
 import {
   getUserByEmail,
+  getUserByNormalizedEmail,
   getUserById,
   register,
   revokeAllUserTokens,
@@ -119,6 +120,15 @@ function* issueChallenge(
   return { queued: true, retryAfterSeconds: 60 };
 }
 
+export function* enqueueGoogleAccountEmail(
+  config: EmailTemplateConfig,
+  user: User,
+  now: number,
+) {
+  if (user.emailVerifiedAt) yield* enqueue(config, user, "welcome", now);
+  else yield* issueChallenge(config, user, "verification", now);
+}
+
 export const registerWithEmail = action({
   name: "registerWithEmail",
   args: {
@@ -157,7 +167,9 @@ export const requestReset = action({
     now: v.number(),
   },
   handler: function* ({ email, config, now }) {
-    const user = yield* getUserByEmail({ email });
+    const user =
+      (yield* getUserByEmail({ email })) ??
+      (yield* getUserByNormalizedEmail({ email }));
     if (user) yield* issueChallenge(config, user, "passwordReset", now);
     return { success: true as const };
   },

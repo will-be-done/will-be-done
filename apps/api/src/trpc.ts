@@ -16,6 +16,7 @@ export interface Context {
   tokenId?: string;
   revalidateUser?: () => Promise<AuthenticatedUser | null>;
   requestId?: string;
+  setCookie?: (value: string) => void;
   enforceRateLimit?: (policy: RateLimitPolicy) => Promise<void>;
 }
 
@@ -26,6 +27,7 @@ export interface Context {
  */
 export async function createContext({
   req,
+  res,
   rateLimiter,
   mainDB,
 }: {
@@ -46,6 +48,13 @@ export async function createContext({
       ? { tokenId: authHeader.slice("Bearer ".length) }
       : {}),
     requestId: req.id,
+    ...(req.headers.upgrade?.toLowerCase() !== "websocket"
+      ? {
+          setCookie: (value: string) => {
+            res.header("set-cookie", value);
+          },
+        }
+      : {}),
     ...(rateLimiter
       ? {
           enforceRateLimit: async (policy: RateLimitPolicy) => {

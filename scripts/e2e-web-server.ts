@@ -106,7 +106,8 @@ async function main() {
     "bun",
     [
       "run",
-      process.env.WBD_E2E_EMAIL_ENABLED === "true"
+      process.env.WBD_E2E_EMAIL_ENABLED === "true" ||
+      process.env.WBD_E2E_GOOGLE_ENABLED === "true"
         ? path.join(repoRoot, "scripts/e2e-email-api.ts")
         : "src/start.ts",
     ],
@@ -119,6 +120,9 @@ async function main() {
         WBD_CF_CAPTCHA_ENABLED: "false",
         WBD_BACKUP_S3_ENABLED: "false",
         WBD_RATE_LIMIT_ENABLED: "false",
+        WBD_GOOGLE_CLIENT_ID: "",
+        WBD_GOOGLE_CLIENT_SECRET: "",
+        WBD_GOOGLE_PUBLIC_APP_URL: "",
         WBD_EMAIL_RESEND_API_KEY: "",
         WBD_EMAIL_FROM: "",
         WBD_EMAIL_PUBLIC_APP_URL: "",
