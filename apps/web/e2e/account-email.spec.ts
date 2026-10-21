@@ -36,23 +36,12 @@ test("signup stays usable; confirmation and recovery complete through email link
   const verificationLink = link(confirmation);
   await page.goto(verificationLink);
   await expect(page).toHaveURL(/\/verify-email$/);
-  await expect(
-    page.getByRole("button", { name: "Confirm email", exact: true }),
-  ).toBeVisible();
-  // Loading a link does not consume it. An explicit click confirms the address.
-  await expect
-    .poll(async () =>
-      (await readMail(request, user.email)).some(
-        (mail) => mail.subject === "Welcome to Will Be Done",
-      ),
-    )
-    .toBe(false);
-  await page
-    .getByRole("button", { name: "Confirm email", exact: true })
-    .click();
   await expect(page.getByRole("status")).toContainText(
     "Your email is confirmed",
   );
+  await expect(
+    page.getByRole("button", { name: "Confirm email", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("link", { name: "Continue to the app" }).click();
   await expect(reminder).toHaveCount(0);
   await expect
@@ -119,9 +108,6 @@ test("invalid and missing links have a recovery path", async ({ page }) => {
     page.getByRole("link", { name: "Request a new reset link" }),
   ).toBeVisible();
   await page.goto("/verify-email#token=invalid-token");
-  await page
-    .getByRole("button", { name: "Confirm email", exact: true })
-    .click();
   await expect(page.getByRole("alert")).toContainText(
     "invalid, expired, or already used",
   );
@@ -148,9 +134,6 @@ test("verification works in a different browser without changing its signed-in a
       localStorage.getItem("user_id"),
     );
     await other.goto(link(mail));
-    await other
-      .getByRole("button", { name: "Confirm email", exact: true })
-      .click();
     await expect(other.getByRole("status")).toContainText(
       "Your email is confirmed",
     );

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTRPC } from "@/lib/trpc";
@@ -42,6 +42,19 @@ export function AccountEmailPage({
     }),
   );
   const forgot = useMutation(trpc.requestPasswordReset.mutationOptions());
+  const verificationStarted = useRef(false);
+  const verifyEmail = verify.mutate;
+  useEffect(() => {
+    if (
+      mode !== "verify" ||
+      !token ||
+      !config.data?.emailEnabled ||
+      verificationStarted.current
+    )
+      return;
+    verificationStarted.current = true;
+    verifyEmail({ token });
+  }, [mode, token, config.data?.emailEnabled, verifyEmail]);
   const reset = useMutation(
     trpc.resetPassword.mutationOptions({
       onSuccess: (result) => {
@@ -54,7 +67,11 @@ export function AccountEmailPage({
     mode === "verify" ? verify : mode === "forgot" ? forgot : reset;
   const title =
     mode === "verify"
-      ? "Confirm your email"
+      ? verify.isSuccess
+        ? "Email confirmed"
+        : verify.isError
+          ? "Email confirmation failed"
+          : "Confirming your email"
       : mode === "forgot"
         ? "Forgot your password?"
         : "Reset your password";
@@ -62,8 +79,7 @@ export function AccountEmailPage({
   function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
-    if (mode === "verify") verify.mutate({ token });
-    else if (mode === "forgot") forgot.mutate({ email });
+    if (mode === "forgot") forgot.mutate({ email });
     else if (password !== confirmation) setError("Passwords do not match.");
     else reset.mutate({ token, password });
   }
@@ -126,14 +142,19 @@ export function AccountEmailPage({
                 </Link>
               )}
             </div>
+          ) : mode === "verify" ? (
+            verify.isError ? (
+              <div className="space-y-4 text-sm text-slate-300">
+                <p role="alert">{verify.error.message}</p>
+                <Link className="text-blue-400" to="/spaces">
+                  Open the app to request a new confirmation email
+                </Link>
+              </div>
+            ) : (
+              <p role="status">Confirming your email…</p>
+            )
           ) : (
             <form onSubmit={submit} className="space-y-5">
-              {mode === "verify" && (
-                <p className="text-sm leading-6 text-slate-300">
-                  Confirm this email address for your Will Be Done account. This
-                  will not change which account is signed in on this device.
-                </p>
-              )}
               {mode === "forgot" && (
                 <label className="block text-sm">
                   Email address
@@ -190,13 +211,8 @@ export function AccountEmailPage({
               )}
               {mutation.error && mode !== "forgot" && (
                 <p className="text-sm">
-                  <Link
-                    className="text-blue-400"
-                    to={mode === "reset" ? "/forgot-password" : "/spaces"}
-                  >
-                    {mode === "reset"
-                      ? "Request a new reset link"
-                      : "Open the app to request a new confirmation email"}
+                  <Link className="text-blue-400" to="/forgot-password">
+                    Request a new reset link
                   </Link>
                 </p>
               )}
@@ -207,11 +223,9 @@ export function AccountEmailPage({
               >
                 {mutation.isPending
                   ? "Please wait…"
-                  : mode === "verify"
-                    ? "Confirm email"
-                    : mode === "forgot"
-                      ? "Send reset link"
-                      : "Set new password"}
+                  : mode === "forgot"
+                    ? "Send reset link"
+                    : "Set new password"}
               </button>
             </form>
           )}
