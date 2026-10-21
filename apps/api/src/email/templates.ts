@@ -57,7 +57,9 @@ export function renderAccountEmail(
   }[kind];
   const [subject, message, label, path] = content;
   const link = `${config.appUrl}${path}${token ? `#token=${encodeURIComponent(token)}` : ""}`;
-  const paragraphStyle = "margin:0;padding:7px 0";
+  const textStyle =
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Fira Sans','Droid Sans','Helvetica Neue',sans-serif;font-size:14px;line-height:24px;color:#222222";
+  const paragraphStyle = `${textStyle};margin:0;padding:7px 0`;
   return {
     from: config.from,
     to,
@@ -70,7 +72,7 @@ export function renderAccountEmail(
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(subject)}</title>
   </head>
-  <body style="margin:0;padding:24px;background:#ffffff;color:#222222;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:24px">
+  <body style="margin:0;padding:24px;background:#ffffff;${textStyle}">
     <table role="presentation" align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:600px">
       <tr>
         <td>
