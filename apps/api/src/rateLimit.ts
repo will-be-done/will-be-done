@@ -6,7 +6,8 @@ export type RateLimitPolicy =
   | "login"
   | "register"
   | "todoistImport"
-  | "accountEmail";
+  | "accountEmailSend"
+  | "accountEmailConsume";
 
 interface WindowLimitConfig {
   max: number;
@@ -18,7 +19,8 @@ interface PolicyConfig extends WindowLimitConfig {
 }
 
 const defaultPolicies: Record<RateLimitPolicy, PolicyConfig> = {
-  accountEmail: { max: 5, timeWindow: "15 minutes", identity: "ip" },
+  accountEmailSend: { max: 10, timeWindow: "5 minutes", identity: "ip" },
+  accountEmailConsume: { max: 10, timeWindow: "5 minutes", identity: "ip" },
   login: {
     max: 10,
     timeWindow: "10 minutes",

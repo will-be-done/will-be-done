@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
 import { Resend } from "resend";
 import {
@@ -12,6 +12,7 @@ import {
   registerWithEmail,
   requestReset,
   requestVerification,
+  requireEmailChallenge,
 } from "./actions";
 import type { EmailConfig } from "./config";
 import type { EmailPayload } from "./templates";
@@ -114,12 +115,17 @@ export function createAccountEmailService(
         }),
       ),
     async reset(token, password) {
-      // Consume the challenge and update credentials in one transaction after hashing.
+      const tokenHash = hashEmailToken(token);
+      await selectAsync(db, {
+        selector: requireEmailChallenge,
+        args: { tokenHash, purpose: "passwordReset", now: Date.now() },
+      });
       const hashedPassword = await Bun.password.hash(password);
+      // Recheck and consume atomically: the link may change while hashing.
       return asyncDispatch(
         db,
         consumeEmailChallenge({
-          tokenHash: hashEmailToken(token),
+          tokenHash,
           purpose: "passwordReset",
           hashedPassword,
           config,

@@ -79,19 +79,19 @@ export function createAppRouter({
       };
     }),
     requestEmailVerification: protectedProcedure
-      .use(enforceRateLimit("accountEmail"))
+      .use(enforceRateLimit("accountEmailSend"))
       .mutation(({ ctx }) =>
         requireAccountEmail(accountEmail).requestVerification(ctx.user.id),
       ),
     verifyEmail: publicProcedure
       .input(z.object({ token: z.string().min(1).max(128) }))
-      .use(enforceRateLimit("accountEmail"))
+      .use(enforceRateLimit("accountEmailConsume"))
       .mutation(({ input }) =>
         requireAccountEmail(accountEmail).verify(input.token),
       ),
     requestPasswordReset: publicProcedure
       .input(z.object({ email: z.email() }))
-      .use(enforceRateLimit("accountEmail"))
+      .use(enforceRateLimit("accountEmailSend"))
       .mutation(({ input }) =>
         requireAccountEmail(accountEmail).requestReset(input.email),
       ),
@@ -102,7 +102,7 @@ export function createAppRouter({
           password: z.string().min(8).max(1024),
         }),
       )
-      .use(enforceRateLimit("accountEmail"))
+      .use(enforceRateLimit("accountEmailConsume"))
       .mutation(({ input }) =>
         requireAccountEmail(accountEmail).reset(input.token, input.password),
       ),

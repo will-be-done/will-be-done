@@ -7,7 +7,7 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
-import { action } from "../builders";
+import { action, selector } from "../builders";
 import {
   getUserByEmail,
   getUserById,
@@ -163,16 +163,14 @@ export const requestReset = action({
   },
 });
 
-export const consumeEmailChallenge = action({
-  name: "consumeEmailChallenge",
+export const requireEmailChallenge = selector({
+  name: "requireEmailChallenge",
   args: {
     tokenHash: v.string(),
     purpose: challengePurpose,
-    hashedPassword: v.optional(v.string()),
-    config: v.pass<EmailTemplateConfig>(),
     now: v.number(),
   },
-  handler: function* ({ tokenHash, purpose, hashedPassword, config, now }) {
+  handler: function* ({ tokenHash, purpose, now }) {
     const challenge = yield* selectFrom(emailChallengesTable, "byTokenHash")
       .where((q) => q.eq("tokenHash", tokenHash))
       .first();
@@ -188,6 +186,21 @@ export const consumeEmailChallenge = action({
           "This link is invalid, expired, or already used. Please request a new one.",
       });
     }
+    return challenge;
+  },
+});
+
+export const consumeEmailChallenge = action({
+  name: "consumeEmailChallenge",
+  args: {
+    tokenHash: v.string(),
+    purpose: challengePurpose,
+    hashedPassword: v.optional(v.string()),
+    config: v.pass<EmailTemplateConfig>(),
+    now: v.number(),
+  },
+  handler: function* ({ tokenHash, purpose, hashedPassword, config, now }) {
+    const challenge = yield* requireEmailChallenge({ tokenHash, purpose, now });
     const user = yield* getUserById({ id: challenge.userId });
     if (!user)
       throw new TRPCError({

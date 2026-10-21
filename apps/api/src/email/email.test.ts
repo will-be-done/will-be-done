@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,6 +27,7 @@ import {
   finishEmailJob,
   hashEmailToken,
   HOUR,
+  requestReset,
   requestVerification,
 } from "./actions";
 import { parseEmailConfig, type EmailConfig } from "./config";
@@ -304,6 +305,129 @@ for (const engine of ["memory", "sqlite"])
       );
     });
 
+    test("invalid reset links skip hashing through the service and HTTP endpoint", async () => {
+      const { db, service } = await fixture(engine);
+      const account = await service.register(
+        "precheck@example.com",
+        "original-hash",
+      );
+      const verificationToken = linkToken(
+        JSON.parse((await readJobs(db))[0].payload!),
+      );
+      await asyncDispatch(
+        db,
+        requestReset({
+          email: "precheck@example.com",
+          config,
+          now: Date.now() - 2 * HOUR,
+        }),
+      );
+      const expiredToken = linkToken(
+        JSON.parse(
+          (await readJobs(db)).find((j) => j.kind === "passwordReset")!
+            .payload!,
+        ),
+      );
+      const server = createServer({
+        mainDB: db,
+        appRouter: createAppRouter({
+          mainDB: db,
+          captchaConfig: null,
+          accountEmail: service,
+        }),
+        logger: false,
+        serveFrontend: false,
+        rateLimit: { enabled: false, backend: "memory" },
+      });
+      cleanups.push(() => server.close());
+      const hash = spyOn(Bun.password, "hash");
+      async function rejectToken(token: string) {
+        await expectRejection(
+          service.reset(token, "replacement-password"),
+          "invalid, expired, or already used",
+        );
+        expect(
+          (
+            await server.inject({
+              method: "POST",
+              url: "/api/trpc/resetPassword",
+              payload: { token, password: "replacement-password" },
+            })
+          ).statusCode,
+        ).toBe(400);
+      }
+      try {
+        for (const token of ["missing-token", verificationToken, expiredToken])
+          await rejectToken(token);
+        expect(hash).not.toHaveBeenCalled();
+        await service.requestReset("precheck@example.com");
+        const token = linkToken(
+          JSON.parse(
+            (await readJobs(db)).find((j) => j.kind === "passwordReset")!
+              .payload!,
+          ),
+        );
+        await service.reset(token, "replacement-password");
+        await rejectToken(token);
+        expect(hash).toHaveBeenCalledTimes(1);
+        const user = (await asyncDispatch(
+          db,
+          getUserById({ id: account.userId }),
+        ))!;
+        expect(
+          await Bun.password.verify("replacement-password", user.password),
+        ).toBe(true);
+      } finally {
+        hash.mockRestore();
+      }
+    });
+
+    test("reset rechecks the challenge if it is consumed while hashing", async () => {
+      const { db, service } = await fixture(engine);
+      const account = await service.register(
+        "race@example.com",
+        "original-hash",
+      );
+      await service.requestReset("race@example.com");
+      const token = linkToken(
+        JSON.parse(
+          (await readJobs(db)).find((j) => j.kind === "passwordReset")!
+            .payload!,
+        ),
+      );
+      const started = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const hash = spyOn(Bun.password, "hash").mockImplementation(async () => {
+        started.resolve();
+        await release.promise;
+        return "loser-hash";
+      });
+      const pending = service.reset(token, "replacement-password");
+      try {
+        await started.promise;
+        await asyncDispatch(
+          db,
+          consumeEmailChallenge({
+            tokenHash: hashEmailToken(token),
+            purpose: "passwordReset",
+            hashedPassword: "winner-hash",
+            config,
+            now: Date.now(),
+          }),
+        );
+        release.resolve();
+        await expectRejection(pending, "invalid, expired, or already used");
+        expect(
+          (await asyncDispatch(db, getUserById({ id: account.userId })))
+            ?.password,
+        ).toBe("winner-hash");
+      } finally {
+        release.resolve();
+        await pending.catch(() => {});
+        hash.mockRestore();
+      }
+    });
+
     test("expired and wrong-purpose links cannot mutate credentials", async () => {
       const { db, service } = await fixture(engine);
       const account = await service.register(
@@ -522,13 +646,13 @@ describe("durable delivery", () => {
 describe("configuration and templates", () => {
   test("email is optional, partial or unsafe configuration fails", () => {
     expect(parseEmailConfig({})).toBeNull();
-    expect(() => parseEmailConfig({ WBD_RESEND_API_KEY: "key" })).toThrow(
+    expect(() => parseEmailConfig({ WBD_EMAIL_RESEND_API_KEY: "key" })).toThrow(
       "together",
     );
     const env = {
-      WBD_RESEND_API_KEY: "key",
+      WBD_EMAIL_RESEND_API_KEY: "key",
       WBD_EMAIL_FROM: config.from,
-      WBD_PUBLIC_APP_URL: config.appUrl,
+      WBD_EMAIL_PUBLIC_APP_URL: config.appUrl,
     };
     expect(parseEmailConfig(env)).toEqual({ ...config, apiKey: "key" });
     for (const url of [
@@ -538,11 +662,13 @@ describe("configuration and templates", () => {
       "https://app.example.com?redirect=evil",
     ])
       expect(() =>
-        parseEmailConfig({ ...env, WBD_PUBLIC_APP_URL: url }),
+        parseEmailConfig({ ...env, WBD_EMAIL_PUBLIC_APP_URL: url }),
       ).toThrow();
     expect(
-      parseEmailConfig({ ...env, WBD_PUBLIC_APP_URL: "http://localhost:5174" })
-        ?.appUrl,
+      parseEmailConfig({
+        ...env,
+        WBD_EMAIL_PUBLIC_APP_URL: "http://localhost:5174",
+      })?.appUrl,
     ).toBe("http://localhost:5174");
   });
 
@@ -570,6 +696,112 @@ describe("configuration and templates", () => {
 });
 
 describe("real Fastify account endpoints", () => {
+  test("default limits allow shared-IP recovery flows and separate sending from consumption", async () => {
+    const { db, service } = await fixture("sqlite");
+    const server = createServer({
+      mainDB: db,
+      appRouter: createAppRouter({
+        mainDB: db,
+        captchaConfig: null,
+        accountEmail: service,
+      }),
+      logger: false,
+      serveFrontend: false,
+    });
+    cleanups.push(() => server.close());
+    async function call(name: string, payload: unknown, token?: string) {
+      return server.inject({
+        method: "POST",
+        url: `/api/trpc/${name}`,
+        remoteAddress: "203.0.113.10",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        payload: JSON.stringify(payload),
+      });
+    }
+    for (let i = 0; i < 3; i++) {
+      const email = `office-${i}@example.com`;
+      await service.register(email, "original-hash");
+      expect((await call("requestPasswordReset", { email })).statusCode).toBe(
+        200,
+      );
+      const job = (await readJobs(db)).find((j) => j.kind === "passwordReset")!;
+      expect(
+        (
+          await call("resetPassword", {
+            token: linkToken(JSON.parse(job.payload!)),
+            password: "replacement-password",
+          })
+        ).statusCode,
+      ).toBe(200);
+    }
+    const verifier = await service.register(
+      "verifier@example.com",
+      "original-hash",
+    );
+    const verification = (await readJobs(db)).find(
+      (j) => j.kind === "verification",
+    )!;
+    expect(
+      (await call("requestEmailVerification", null, verifier.token)).statusCode,
+    ).toBe(200);
+    for (let i = 0; i < 6; i++)
+      expect(
+        (await call("requestPasswordReset", { email: "missing@example.com" }))
+          .statusCode,
+      ).toBe(200);
+    const limitedSend = await call("requestPasswordReset", {
+      email: "missing@example.com",
+    });
+    expect(limitedSend.statusCode).toBe(429);
+    expect(limitedSend.json().error.message).toMatch(
+      /Try again in (29\d|300) seconds/,
+    );
+    expect(
+      (await call("requestEmailVerification", null, verifier.token)).statusCode,
+    ).toBe(429);
+    // Even an exhausted sending budget must allow an already issued link.
+    expect(
+      (
+        await call("verifyEmail", {
+          token: linkToken(JSON.parse(verification.payload!)),
+        })
+      ).statusCode,
+    ).toBe(200);
+    for (let i = 0; i < 6; i++) {
+      expect(
+        (
+          await call(i % 2 ? "verifyEmail" : "resetPassword", {
+            token: "invalid-token",
+            password: "replacement-password",
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    for (const name of ["verifyEmail", "resetPassword"]) {
+      const limitedConsume = await call(name, {
+        token: "invalid-token",
+        password: "replacement-password",
+      });
+      expect(limitedConsume.statusCode).toBe(429);
+      expect(limitedConsume.json().error.message).toMatch(
+        /Try again in (29\d|300) seconds/,
+      );
+    }
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: "/api/trpc/requestPasswordReset",
+          remoteAddress: "203.0.113.11",
+          payload: { email: "missing@example.com" },
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+
   test("signup, verification, reset and login work against a real database and HTTP server", async () => {
     const { db, service, worker, messages } = await fixture("sqlite");
     const server = createServer({
@@ -728,7 +960,7 @@ describe("real Fastify account endpoints", () => {
       serveFrontend: false,
       rateLimit: {
         backend: "memory",
-        policyOverrides: { accountEmail: { max: 1 } },
+        policyOverrides: { accountEmailSend: { max: 1 } },
       },
     });
     cleanups.push(() => server.close());

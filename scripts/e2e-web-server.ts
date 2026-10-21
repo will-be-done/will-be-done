@@ -119,9 +119,9 @@ async function main() {
         WBD_CF_CAPTCHA_ENABLED: "false",
         WBD_BACKUP_S3_ENABLED: "false",
         WBD_RATE_LIMIT_ENABLED: "false",
-        WBD_RESEND_API_KEY: "",
+        WBD_EMAIL_RESEND_API_KEY: "",
         WBD_EMAIL_FROM: "",
-        WBD_PUBLIC_APP_URL: "",
+        WBD_EMAIL_PUBLIC_APP_URL: "",
       },
     },
   );
