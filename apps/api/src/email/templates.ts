@@ -57,11 +57,31 @@ export function renderAccountEmail(
   }[kind];
   const [subject, message, label, path] = content;
   const link = `${config.appUrl}${path}${token ? `#token=${encodeURIComponent(token)}` : ""}`;
+  const paragraphStyle = "margin:0;padding:7px 0";
   return {
     from: config.from,
     to,
     subject,
-    text: `Will Be Done\n\n${subject}\n\n${message}\n\n${label}: ${link}`,
-    html: `<html><body style="margin:0;background:#f5f7fb;font-family:Arial,sans-serif;color:#172033"><main style="max-width:520px;margin:32px auto;padding:32px;background:white;border-radius:12px"><p style="color:#2563eb;font-weight:bold">Will Be Done</p><h1 style="font-size:24px">${escapeHtml(subject)}</h1><p style="line-height:1.6">${escapeHtml(message)}</p><p style="margin:28px 0"><a href="${escapeHtml(link)}" style="background:#2563eb;color:white;padding:12px 20px;border-radius:6px;text-decoration:none">${escapeHtml(label)}</a></p><p style="font-size:12px;line-height:1.6">Or open this link:<br><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p></main></body></html>`,
+    text: `Hey,\n\n${message}\n\n${label}: ${link}\n\nCheers,\nWill Be Done`,
+    html: `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(subject)}</title>
+  </head>
+  <body style="margin:0;padding:24px;background:#ffffff;color:#222222;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:24px">
+    <table role="presentation" align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width:600px">
+      <tr>
+        <td>
+          <p style="${paragraphStyle}">Hey,</p>
+          <p style="${paragraphStyle}">${escapeHtml(message)}</p>
+          <p style="${paragraphStyle}"><a href="${escapeHtml(link)}" style="color:#0670db;text-decoration:underline">${escapeHtml(label)} →</a></p>
+          <p style="${paragraphStyle}">Cheers,<br>Will Be Done</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`,
   };
 }
