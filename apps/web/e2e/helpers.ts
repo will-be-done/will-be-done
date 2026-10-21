@@ -263,3 +263,13 @@ async function isVisibleInViewportSoon(page: Page, locator: Locator) {
     box.y < viewport.height
   );
 }
+
+export async function signOutUser(page: Page) {
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name: "Log out" }).click();
+}
+
+export async function openAccountSettings(page: Page) {
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitem", { name: "Account settings" }).click();
+}

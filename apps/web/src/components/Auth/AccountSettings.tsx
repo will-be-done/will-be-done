@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Check, KeyRound, Mail } from "lucide-react";
+import { GoogleMark } from "./GoogleSignIn";
 import { useTRPC } from "@/lib/trpc";
 import { useGoogleFlow } from "@/hooks/useGoogleFlow";
 
@@ -35,7 +36,9 @@ export function AccountSettings() {
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: trpc.getAccount.queryKey() });
   const button =
-    "cursor-pointer rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg bg-white/[0.05] px-4 py-2.5 text-[13px] font-medium text-slate-200 ring-1 ring-white/10 transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:opacity-50";
+  const card =
+    "space-y-4 rounded-lg bg-white/[0.03] p-5 ring-1 ring-white/[0.06] sm:p-6";
   if (account.isPending)
     return (
       <p role="status" className="p-6">
@@ -52,38 +55,53 @@ export function AccountSettings() {
   return (
     <section
       aria-label="Account settings"
-      className="space-y-5 p-6 text-sm text-content"
+      className="space-y-4 text-sm text-slate-300"
     >
-      <div>
-        <h2 className="text-lg font-semibold">Account</h2>
-        <p className="mt-1 break-all">{user.email}</p>
-        <p className="mt-1 text-content-tinted">
-          {user.emailVerifiedAt ? "Email confirmed" : "Email not confirmed"}
-        </p>
+      <div className={card}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Mail className="h-5 w-5 text-slate-400" aria-hidden="true" />
+            <h2 className="font-semibold text-white">Email address</h2>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${user.emailVerifiedAt ? "bg-emerald-400/10 text-emerald-300" : "bg-amber-400/10 text-amber-200"}`}
+          >
+            {user.emailVerifiedAt && (
+              <Check className="h-3 w-3" aria-hidden="true" />
+            )}
+            {user.emailVerifiedAt ? "Email confirmed" : "Email not confirmed"}
+          </span>
+        </div>
+        <p className="break-all text-[15px] text-white">{user.email}</p>
+        {!user.emailVerifiedAt && config.data?.emailEnabled && (
+          <button
+            className={button}
+            disabled={verify.isPending || verifyCooldown > 0}
+            onClick={() =>
+              verify.mutate(undefined, {
+                onSuccess: (result) => {
+                  setVerifyCooldown(
+                    Date.now() + result.retryAfterSeconds * 1000,
+                  );
+                  setMessage(
+                    result.queued
+                      ? "Check your inbox for an email confirmation link."
+                      : "An email confirmation was recently requested. Please wait before trying again.",
+                  );
+                },
+              })
+            }
+          >
+            Send email confirmation
+          </button>
+        )}
       </div>
-      {!user.emailVerifiedAt && config.data?.emailEnabled && (
-        <button
-          className={button}
-          disabled={verify.isPending || verifyCooldown > 0}
-          onClick={() =>
-            verify.mutate(undefined, {
-              onSuccess: (result) => {
-                setVerifyCooldown(Date.now() + result.retryAfterSeconds * 1000);
-                setMessage(
-                  result.queued
-                    ? "Check your inbox for an email confirmation link."
-                    : "An email confirmation was recently requested. Please wait before trying again.",
-                );
-              },
-            })
-          }
-        >
-          Send email confirmation
-        </button>
-      )}
-      <div className="space-y-3">
-        <h3 className="font-semibold">Google</h3>
-        <p className="break-all text-content-tinted">
+      <div className={card}>
+        <div className="flex items-center gap-3">
+          <GoogleMark />
+          <h2 className="font-semibold text-white">Google</h2>
+        </div>
+        <p className="break-all text-slate-400">
           {user.googleEmail
             ? `Connected as ${user.googleEmail}`
             : "Connect Google to sign in to this account."}
@@ -102,7 +120,7 @@ export function AccountSettings() {
           </button>
         )}
         {!user.googleEmail && !config.data?.googleEnabled && (
-          <p className="text-content-tinted">
+          <p className="text-slate-400">
             Google sign-in is not configured on this server.
           </p>
         )}
@@ -164,7 +182,7 @@ export function AccountSettings() {
                 maxLength={1024}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="mt-2 block w-full rounded-lg border border-white/15 bg-transparent px-3 py-2"
+                className="mt-2 block min-h-11 w-full rounded-lg bg-white/[0.05] px-3 py-2 text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-blue-400"
               />
             </label>
             <button
@@ -194,14 +212,18 @@ export function AccountSettings() {
           </button>
         )}
         {user.googleEmail && !user.emailVerifiedAt && (
-          <p className="text-content-tinted">
+          <p className="text-slate-400">
             Confirm your app email before disconnecting Google.
           </p>
         )}
       </div>
       {!user.hasPassword && (
-        <div className="space-y-3">
-          <p>
+        <div className={card}>
+          <div className="flex items-center gap-3">
+            <KeyRound className="h-5 w-5 text-slate-400" aria-hidden="true" />
+            <h2 className="font-semibold text-white">Password</h2>
+          </div>
+          <p className="text-slate-400">
             Set a password through email recovery before disconnecting Google.
           </p>
           {config.data?.emailEnabled ? (
@@ -225,14 +247,21 @@ export function AccountSettings() {
               Email me a password setup link
             </button>
           ) : (
-            <p className="text-content-tinted">
+            <p className="text-slate-400">
               Email recovery is not configured on this server. Keep Google
               connected to sign in.
             </p>
           )}
         </div>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p
+          role="status"
+          className="rounded-lg bg-blue-400/10 px-4 py-3 text-blue-200"
+        >
+          {message}
+        </p>
+      )}
       {[
         google.error,
         disconnect.error?.message,
@@ -245,9 +274,6 @@ export function AccountSettings() {
             {error}
           </p>
         ))}
-      <Link to="/spaces" className="inline-block text-content-tinted underline">
-        Back to spaces
-      </Link>
     </section>
   );
 }

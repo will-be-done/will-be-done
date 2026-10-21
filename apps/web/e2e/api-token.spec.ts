@@ -10,6 +10,7 @@ import {
   signupUser,
   taskItem,
   uniqueE2EName,
+  signOutUser,
 } from "./helpers";
 
 type Project = {
@@ -416,7 +417,7 @@ test("does not show the prior user's cached tokens after account switching", asy
   await settings.getByRole("button", { name: "Close settings" }).click();
 
   await page.goto("/spaces");
-  await page.getByRole("button", { name: "Sign Out" }).click();
+  await signOutUser(page);
   const secondSpaceName = uniqueE2EName("Second user's token space");
   await signupUser(page);
   await createSpace(page, secondSpaceName);

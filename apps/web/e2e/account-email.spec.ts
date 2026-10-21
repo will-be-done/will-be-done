@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from "playwright/test";
-import { signupUser, signInUser } from "./helpers";
+import { signupUser, signInUser, signOutUser } from "./helpers";
 
 test.skip(
   process.env.WBD_E2E_EMAIL_ENABLED !== "true",
@@ -53,7 +53,7 @@ test("signup stays usable; confirmation and recovery complete through email link
     )
     .toBe(1);
 
-  await page.getByRole("button", { name: "Sign Out" }).click();
+  await signOutUser(page);
   await page.getByRole("link", { name: "Forgot password?" }).click();
   await expect(
     page.getByRole("heading", { name: "Forgot your password?" }),

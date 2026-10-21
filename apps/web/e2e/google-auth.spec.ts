@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "playwright/test";
-import { E2E_PASSWORD, signInUser, signupUser } from "./helpers";
+import {
+  E2E_PASSWORD,
+  signInUser,
+  signupUser,
+  signOutUser,
+  openAccountSettings,
+} from "./helpers";
 
 test.skip(
   process.env.WBD_E2E_GOOGLE_ENABLED !== "true",
@@ -27,7 +33,7 @@ test("Google signup, password setup, disconnect, explicit relinking, and returni
   await googleSignIn(page, email, subject);
   await expect(page).toHaveURL(/\/spaces\/?$/);
   const userId = await page.evaluate(() => localStorage.getItem("user_id"));
-  await page.getByRole("link", { name: "Account settings" }).click();
+  await openAccountSettings(page);
   await expect(page.getByText(`Connected as ${email}`)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Disconnect Google" }),
@@ -72,7 +78,7 @@ test("Google signup, password setup, disconnect, explicit relinking, and returni
   await page.getByRole("button", { name: "Confirm connection" }).click();
   await expect(page.getByRole("status")).toContainText("Google is connected");
   await page.getByRole("link", { name: "Back to spaces" }).click();
-  await page.getByRole("button", { name: "Sign Out" }).click();
+  await signOutUser(page);
   await googleSignIn(page, email, subject);
   await expect(page).toHaveURL(/\/spaces\/?$/);
   expect(await page.evaluate(() => localStorage.getItem("user_id"))).toBe(
@@ -88,7 +94,7 @@ test("same-email collision instructs linking; different-email linking keeps the 
     email: `existing-${subject}@example.com`,
   });
   const userId = await page.evaluate(() => localStorage.getItem("user_id"));
-  await page.getByRole("button", { name: "Sign Out" }).click();
+  await signOutUser(page);
   await googleSignIn(page, user.email.toUpperCase(), subject);
   await expect(page.getByRole("alert")).toContainText(
     "Sign in with your existing method",
@@ -112,7 +118,7 @@ test("same-email collision instructs linking; different-email linking keeps the 
   await expect(page.getByText(`Connected as ${googleEmail}`)).toBeVisible();
   await expect(page.getByText(user.email, { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Back to spaces" }).click();
-  await page.getByRole("button", { name: "Sign Out" }).click();
+  await signOutUser(page);
   await googleSignIn(page, googleEmail, subject);
   await expect(page).toHaveURL(/\/spaces\/?$/);
   expect(await page.evaluate(() => localStorage.getItem("user_id"))).toBe(

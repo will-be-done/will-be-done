@@ -119,7 +119,11 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
 
           {/* Content — fills remaining height, scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            {visibleSection === "account" && <AccountSettings />}
+            {visibleSection === "account" && (
+              <div className="p-4 sm:p-6">
+                <AccountSettings />
+              </div>
+            )}
             {visibleSection === "general" && <GeneralSection />}
             {visibleSection === "tokens" && <TokenSection />}
             {visibleSection === "data" && <BackupSection />}

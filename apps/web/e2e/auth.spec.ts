@@ -1,11 +1,11 @@
 import { expect, test } from "playwright/test";
 
-import { signInUser, signupUser } from "./helpers";
+import { signInUser, signupUser, signOutUser } from "./helpers";
 
 test("signs up, signs out, and signs in", async ({ page }) => {
   const user = await signupUser(page);
 
-  await page.getByRole("button", { name: "Sign Out" }).click();
+  await signOutUser(page);
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(
