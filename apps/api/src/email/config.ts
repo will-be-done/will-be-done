@@ -8,9 +8,11 @@ export interface EmailConfig {
 
 export type EmailTemplateConfig = Pick<EmailConfig, "from" | "appUrl">;
 
-export function parseEmailConfig(
-  env: Record<string, string | undefined>,
-): EmailConfig | null {
+export function parseEmailConfig(env: {
+  WBD_RESEND_API_KEY?: string;
+  WBD_EMAIL_FROM?: string;
+  WBD_PUBLIC_APP_URL?: string;
+}): EmailConfig | null {
   const apiKey = env.WBD_RESEND_API_KEY?.trim();
   const from = env.WBD_EMAIL_FROM?.trim();
   const appUrl = env.WBD_PUBLIC_APP_URL?.trim();

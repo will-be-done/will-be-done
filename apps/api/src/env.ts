@@ -1,8 +1,10 @@
 import "dotenv/config";
 import { z } from "zod";
-import { parseEmailConfig, type EmailConfig } from "./email/config";
 
 const EnvConfigSchema = z.object({
+  WBD_RESEND_API_KEY: z.string().optional(),
+  WBD_EMAIL_FROM: z.string().optional(),
+  WBD_PUBLIC_APP_URL: z.string().optional(),
   WBD_STORAGE_PATH: z.string().default("/var/lib/will-be-done"),
   WBD_DB_PATH: z.string().optional(),
   WBD_DB_ENGINE: z.enum(["sqlite", "turso-cloud", "tursod"]).default("sqlite"),
@@ -47,7 +49,9 @@ const EnvConfigSchema = z.object({
 
 let envConfig:
   | {
-      email: EmailConfig | null;
+      WBD_RESEND_API_KEY?: string;
+      WBD_EMAIL_FROM?: string;
+      WBD_PUBLIC_APP_URL?: string;
       WBD_STORAGE_PATH: string;
       WBD_DB_PATH: string;
       WBD_DB_ENGINE: "sqlite" | "turso-cloud" | "tursod";
@@ -76,6 +80,9 @@ export function getEnvConfig() {
   if (envConfig) return envConfig;
 
   const parsed = EnvConfigSchema.parse({
+    WBD_RESEND_API_KEY: process.env.WBD_RESEND_API_KEY,
+    WBD_EMAIL_FROM: process.env.WBD_EMAIL_FROM,
+    WBD_PUBLIC_APP_URL: process.env.WBD_PUBLIC_APP_URL,
     WBD_STORAGE_PATH: process.env.WBD_STORAGE_PATH,
     WBD_DB_PATH: process.env.WBD_DB_PATH,
     WBD_DB_ENGINE: process.env.WBD_DB_ENGINE,
@@ -143,7 +150,9 @@ export function getEnvConfig() {
   }
 
   envConfig = {
-    email: parseEmailConfig(process.env),
+    WBD_RESEND_API_KEY: parsed.WBD_RESEND_API_KEY,
+    WBD_EMAIL_FROM: parsed.WBD_EMAIL_FROM,
+    WBD_PUBLIC_APP_URL: parsed.WBD_PUBLIC_APP_URL,
     WBD_STORAGE_PATH: parsed.WBD_STORAGE_PATH,
     WBD_DB_PATH: parsed.WBD_DB_PATH ?? `${parsed.WBD_STORAGE_PATH}/db`,
     WBD_DB_ENGINE: parsed.WBD_DB_ENGINE,
