@@ -61,9 +61,12 @@ for the result from the configured server.
    the app account email stays the same.
 9. To disconnect Google, confirm the app email, enter the current app password,
    and select **Disconnect Google**. Existing app sessions remain active.
-10. Test the desktop app against the same server. Select **Continue with Google**,
-    finish in the system browser, and return to the desktop window. Sign-in flows
-    expire after ten minutes. If a flow expires or the browser closes, start again.
+10. Test the desktop app against the same server. Select **Continue with Google**.
+    Enter the code displayed in the desktop app into the system browser's
+    confirmation page, then select **Continue to Google**. For account linking,
+    check the target app email on that page. Finish with Google and return to the
+    desktop window. Sign-in flows expire after ten minutes. If a flow expires or
+    the browser closes, start again.
 
 If Google sign-in reports an existing email, sign in with the account's existing
 method and connect Google from Account settings. Use email password recovery if

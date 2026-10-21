@@ -154,12 +154,13 @@ async function fixture(
     session?: { userId: string; tokenId: string },
     service: GoogleService = google,
   ) {
-    const flow = await service.begin(session);
+    const flow = await service.begin(session, { desktop: true });
     const url = new URL(flow.launchUrl);
     await service.launch(
       flow.id,
       url.searchParams.get("launch")!,
       "browser-cookie",
+      { confirmationCode: flow.confirmationCode! },
     );
     await service.callback(flow.id, "browser-cookie", "valid");
     return flow;
@@ -336,9 +337,11 @@ describe("Google accounts", () => {
     const expired = await f.ready();
     f.advance(600_001);
     await rejects(f.google.completeSignIn(expired));
-    const denied = await f.google.begin();
+    const denied = await f.google.begin(undefined, { desktop: true });
     const launch = new URL(denied.launchUrl).searchParams.get("launch")!;
-    await f.google.launch(denied.id, launch, "cookie");
+    await f.google.launch(denied.id, launch, "cookie", {
+      confirmationCode: denied.confirmationCode!,
+    });
     await f.google.callback(denied.id, "cookie", undefined, true);
     expect((await f.google.poll(denied)).status).toBe("error");
     await rejects(f.google.completeSignIn(denied));
@@ -470,6 +473,156 @@ describe("Google accounts", () => {
     await rejects(f.google.completeSignIn(await f.ready()), "already exists");
   });
 
+  test("password login and recovery prefer exact legacy emails before normalized lookup", async () => {
+    const f = await fixture();
+    const account = await f.passwordAccount("Original@Example.com");
+    expect(
+      (await f.publicCaller.login({ email: "ORIGINAL@EXAMPLE.COM", password }))
+        .userId,
+    ).toBe(account.userId);
+    await f.publicCaller.requestPasswordReset({
+      email: "ORIGINAL@EXAMPLE.COM",
+    });
+    const secondHash = await Bun.password.hash("second-password");
+    const addDuplicate = action({
+      name: "addCaseDuplicateForLoginTest",
+      args: {},
+      handler: function* () {
+        const user = (yield* getUserById({ id: account.userId }))!;
+        yield* insert(usersTable, [
+          {
+            ...user,
+            id: "duplicate",
+            email: "original@example.com",
+            password: secondHash,
+          },
+        ]);
+      },
+    });
+    await asyncDispatch(f.db, addDuplicate({}));
+    expect(
+      (await f.publicCaller.login({ email: "Original@Example.com", password }))
+        .userId,
+    ).toBe(account.userId);
+    expect(
+      (
+        await f.publicCaller.login({
+          email: "original@example.com",
+          password: "second-password",
+        })
+      ).userId,
+    ).toBe("duplicate");
+    await rejects(
+      f.publicCaller.login({ email: "original@example.com", password }),
+      "Invalid credentials",
+    );
+    await f.publicCaller.requestPasswordReset({
+      email: "original@example.com",
+    });
+    const challenges = action({
+      name: "readDuplicateResetChallenges",
+      args: {},
+      handler: function* () {
+        return yield* selectFrom(emailChallengesTable, "byId").where((q) => [
+          q.eq("id", `${account.userId}:passwordReset`),
+          q.eq("id", "duplicate:passwordReset"),
+        ]);
+      },
+    });
+    expect(
+      (await asyncDispatch(f.db, challenges({})))
+        .map((row) => row.userId)
+        .sort(),
+    ).toEqual([account.userId, "duplicate"].sort());
+  });
+
+  test("desktop launch requires app code and shows the link target account", async () => {
+    const f = await fixture();
+    const account = await f.passwordAccount("target@example.com");
+    const server = createServer({
+      appRouter: f.router,
+      mainDB: f.db,
+      google: f.google,
+      serveFrontend: false,
+      logger: false,
+      rateLimit: { enabled: false, backend: "memory" },
+    });
+    cleanup.push(() => server.close());
+    const flow = await f.google.begin(
+      { userId: account.userId, tokenId: account.token },
+      { desktop: true },
+    );
+    const url = new URL(flow.launchUrl);
+    const page = await server.inject({ url: url.pathname + url.search });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain("target@example.com");
+    expect(page.body).toContain("Confirmation code");
+    expect(page.body).not.toContain(flow.confirmationCode!);
+    expect(page.headers.location).toBeUndefined();
+    const payload = {
+      id: flow.id,
+      launch: url.searchParams.get("launch")!,
+      confirmationCode: "x".repeat(12),
+    };
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: url.pathname,
+          payload,
+          headers: { origin: config.appUrl },
+        })
+      ).statusCode,
+    ).toBe(400);
+    payload.confirmationCode = flow.confirmationCode!;
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: url.pathname,
+          payload,
+          headers: { origin: "https://attacker.example.com" },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const launch = await server.inject({
+      method: "POST",
+      url: url.pathname,
+      payload: new URLSearchParams(payload).toString(),
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        origin: config.appUrl,
+      },
+    });
+    expect(launch.statusCode).toBe(303);
+    expect(launch.headers.location).toContain(
+      "https://accounts.google.test/authorize",
+    );
+    expect(
+      (
+        await server.inject({
+          method: "POST",
+          url: url.pathname,
+          payload,
+          headers: { origin: config.appUrl },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const cookie = String(launch.headers["set-cookie"]).split(";")[0];
+    expect(
+      (
+        await server.inject({
+          url: `/api/auth/google/callback?state=${flow.id}&code=valid`,
+          headers: { cookie },
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(await f.google.poll(flow)).toMatchObject({
+      status: "ready",
+      email: "person@gmail.com",
+    });
+  });
+
   test("HTTP launch binds the browser; tRPC completes through the real server", async () => {
     const f = await fixture();
     const server = createServer({
@@ -486,11 +639,30 @@ describe("Google accounts", () => {
     const client = createTRPCClient<AppRouter>({
       links: [httpBatchLink({ url: `${base}/api/trpc` })],
     });
-    const flow = await client.google.beginSignIn.mutate();
-    const launch = await fetch(
-      `${base}${new URL(flow.launchUrl).pathname}${new URL(flow.launchUrl).search}`,
-      { redirect: "manual" },
-    );
+    const begin = await server.inject({
+      method: "POST",
+      url: "/api/trpc/google.beginSignIn",
+      payload: {},
+    });
+    expect(begin.statusCode).toBe(200);
+    const flow = begin.json<{
+      result: { data: Awaited<ReturnType<GoogleService["begin"]>> };
+    }>().result.data;
+    const initiatorCookie = String(begin.headers["set-cookie"]).split(";")[0];
+    const launchUrl = `${base}${new URL(flow.launchUrl).pathname}${new URL(flow.launchUrl).search}`;
+    expect((await fetch(launchUrl, { redirect: "manual" })).status).toBe(400);
+    expect(
+      (
+        await fetch(launchUrl, {
+          redirect: "manual",
+          headers: { cookie: `wbd_google_${flow.id}=${"x".repeat(43)}` },
+        })
+      ).status,
+    ).toBe(400);
+    const launch = await fetch(launchUrl, {
+      redirect: "manual",
+      headers: { cookie: initiatorCookie },
+    });
     expect(launch.status).toBe(302);
     const replay = await fetch(
       `${base}${new URL(flow.launchUrl).pathname}${new URL(flow.launchUrl).search}`,
@@ -509,7 +681,10 @@ describe("Google accounts", () => {
     ).toBe(400);
     expect((await fetch(callback, { headers: { cookie } })).status).toBe(200);
     expect((await fetch(callback, { headers: { cookie } })).status).toBe(400);
-    expect((await client.google.poll.mutate(flow)).status).toBe("ready");
+    expect(await client.google.poll.mutate(flow)).toMatchObject({
+      status: "ready",
+      email: null,
+    });
     const result = await client.google.completeSignIn.mutate(flow);
     expect(
       await authenticateBearerToken(`Bearer ${result.token}`, f.db),
@@ -521,7 +696,7 @@ describe("Google accounts", () => {
     cleanup.push(() => rmSync(directory, { recursive: true, force: true }));
     const path = join(directory, "main.sqlite");
     const first = await fixture(path);
-    const pending = await first.google.begin();
+    const pending = await first.google.begin(undefined, { desktop: true });
     const flow = await first.ready();
     const second = await fixture(path);
     expect((await second.google.poll(pending)).status).toBe("pending");
@@ -529,6 +704,7 @@ describe("Google accounts", () => {
       pending.id,
       new URL(pending.launchUrl).searchParams.get("launch")!,
       "reopened-browser",
+      { confirmationCode: pending.confirmationCode! },
     );
     await second.google.callback(pending.id, "reopened-browser", "valid");
     expect((await second.google.poll(pending)).status).toBe("ready");

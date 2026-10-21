@@ -4,6 +4,8 @@ export const googleFlowsTable = defineTable("google_auth_flows", {
   id: v.string(),
   secretHash: v.string(),
   launchHash: v.optional(v.string()),
+  initiatorHash: v.optional(v.string()),
+  confirmationHash: v.optional(v.string()),
   cookieHash: v.optional(v.string()),
   nonce: v.optional(v.string()),
   pkceVerifier: v.optional(v.string()),

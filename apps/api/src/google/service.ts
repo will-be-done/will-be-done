@@ -15,6 +15,7 @@ import {
   insertFlow,
   launchFlow,
   readFlowStatus,
+  readLaunch,
 } from "./actions";
 import { getUserById } from "../slices/authSlice";
 import type { BackendAnalytics } from "../analytics";
@@ -83,7 +84,12 @@ export function createGoogleService(
     emailConfig?: EmailTemplateConfig;
   } = {},
 ) {
-  async function begin(session?: GoogleSession) {
+  async function begin(
+    session: GoogleSession | undefined,
+    binding: { initiator: string } | { desktop: true },
+  ) {
+    const confirmationCode =
+      "desktop" in binding ? randomBytes(9).toString("base64url") : null;
     const id = randomSecret(),
       secret = randomSecret(),
       launch = randomSecret();
@@ -91,6 +97,9 @@ export function createGoogleService(
       id,
       secretHash: hashSecret(secret),
       launchHash: hashSecret(launch),
+      ...("initiator" in binding
+        ? { initiatorHash: hashSecret(binding.initiator) }
+        : { confirmationHash: hashSecret(confirmationCode!) }),
       nonce: randomSecret(),
       pkceVerifier: randomSecret(),
       status: "pending",
@@ -102,6 +111,7 @@ export function createGoogleService(
     return {
       id,
       secret,
+      confirmationCode,
       launchUrl: `${config.appUrl}/api/auth/google/launch?id=${id}&launch=${launch}`,
       expiresAt: flow.expiresAt,
     };
@@ -110,10 +120,31 @@ export function createGoogleService(
   return {
     appUrl: config.appUrl,
     begin,
-    async launch(id: string, launch: string, cookie: string) {
+    async desktopLaunch(id: string, launch: string) {
+      const flow = await selectAsync(db, {
+        selector: readLaunch,
+        args: { id, launch, now: now() },
+      });
+      if (!flow.confirmationHash) throw new Error("Not a desktop flow");
+      const user = flow.userId
+        ? await selectAsync(db, {
+            selector: getUserById,
+            args: { id: flow.userId },
+          })
+        : null;
+      if (flow.intent === "link" && !user)
+        throw new Error("Account no longer exists");
+      return { intent: flow.intent, email: user?.email };
+    },
+    async launch(
+      id: string,
+      launch: string,
+      cookie: string,
+      binding: { initiator?: string; confirmationCode?: string },
+    ) {
       const flow = await asyncDispatch(
         db,
-        launchFlow({ id, launch, cookie, now: now() }),
+        launchFlow({ id, launch, cookie, ...binding, now: now() }),
       );
       return provider.authorizationUrl(flow);
     },

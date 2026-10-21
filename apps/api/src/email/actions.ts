@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { action, selector } from "../builders";
 import {
   getUserByEmail,
+  getUserByNormalizedEmail,
   getUserById,
   register,
   revokeAllUserTokens,
@@ -166,7 +167,9 @@ export const requestReset = action({
     now: v.number(),
   },
   handler: function* ({ email, config, now }) {
-    const user = yield* getUserByEmail({ email });
+    const user =
+      (yield* getUserByEmail({ email })) ??
+      (yield* getUserByNormalizedEmail({ email }));
     if (user) yield* issueChallenge(config, user, "passwordReset", now);
     return { success: true as const };
   },

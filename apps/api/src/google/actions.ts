@@ -70,19 +70,50 @@ export const insertFlow = action({
   },
 });
 
+export const readLaunch = selector({
+  name: "readGoogleLaunch",
+  args: { id: v.string(), launch: v.string(), now: v.number() },
+  handler: function* ({ id, launch, now }) {
+    const flow = yield* requireFlow(id, now);
+    if (flow.status !== "pending" || flow.launchHash !== hashSecret(launch))
+      throw flowError();
+    return flow;
+  },
+});
+
 export const launchFlow = action({
   name: "launchGoogleFlow",
   args: {
     id: v.string(),
     launch: v.string(),
     cookie: v.string(),
+    initiator: v.optional(v.string()),
+    confirmationCode: v.optional(v.string()),
     now: v.number(),
   },
-  handler: function* ({ id, launch, cookie, now }) {
-    const flow = yield* requireFlow(id, now);
-    if (flow.status !== "pending" || flow.launchHash !== hashSecret(launch))
+  handler: function* ({
+    id,
+    launch,
+    cookie,
+    initiator,
+    confirmationCode,
+    now,
+  }) {
+    const flow = yield* readLaunch({ id, launch, now });
+    if (
+      flow.initiatorHash
+        ? !initiator || flow.initiatorHash !== hashSecret(initiator)
+        : !flow.confirmationHash ||
+          !confirmationCode ||
+          flow.confirmationHash !== hashSecret(confirmationCode)
+    )
       throw flowError();
-    const { launchHash: _launch, ...rest } = flow;
+    const {
+      launchHash: _launch,
+      initiatorHash: _initiator,
+      confirmationHash: _confirmation,
+      ...rest
+    } = flow;
     yield* upsert(googleFlowsTable, [
       { ...rest, cookieHash: hashSecret(cookie), status: "launched" },
     ]);
@@ -147,7 +178,7 @@ export const readFlowStatus = selector({
           : flow.status === "error"
             ? ("error" as const)
             : ("pending" as const),
-      email: flow.googleEmail ?? null,
+      email: flow.intent === "link" ? (flow.googleEmail ?? null) : null,
       error: flow.error ?? null,
     };
   },

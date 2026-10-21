@@ -11,6 +11,7 @@ import {
   generateToken,
   getTokensByUserId,
   getUserByEmail,
+  getUserByNormalizedEmail,
   getUserById,
   register,
   revokeToken,
@@ -346,7 +347,9 @@ export function createAppRouter({
       .use(enforceRateLimit("login"))
       .mutation(async (opts) => {
         const { email, password } = opts.input;
-        const user = await asyncDispatch(mainDB, getUserByEmail({ email }));
+        const user =
+          (await asyncDispatch(mainDB, getUserByEmail({ email }))) ??
+          (await asyncDispatch(mainDB, getUserByNormalizedEmail({ email })));
         if (!user?.password) {
           throw new Error("Invalid credentials");
         }

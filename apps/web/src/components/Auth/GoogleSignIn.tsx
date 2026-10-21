@@ -56,6 +56,14 @@ export function GoogleSignIn() {
           </button>
         </div>
       )}
+      {google.confirmationCode && (
+        <p role="status">
+          Enter this confirmation code in your browser:{" "}
+          <strong data-testid="google-confirmation-code">
+            {google.confirmationCode}
+          </strong>
+        </p>
+      )}
       {google.error && (
         <p role="alert" className="text-sm text-red-300">
           {google.error}

@@ -146,6 +146,13 @@ test("desktop bridge opens the system-browser flow and the app receives its resu
   const externalContext = await playwrightBrowser.newContext();
   const browser = await externalContext.newPage();
   await browser.goto(url);
+  await expect(
+    browser.getByRole("heading", { name: "Confirm in Will Be Done" }),
+  ).toBeVisible();
+  await browser
+    .getByLabel("Confirmation code")
+    .fill((await page.getByTestId("google-confirmation-code").textContent())!);
+  await browser.getByRole("button", { name: "Continue to Google" }).click();
   const subject = randomUUID();
   await approve(browser, `desktop-${subject}@gmail.com`, subject);
   await expect(
@@ -155,4 +162,72 @@ test("desktop bridge opens the system-browser flow and the app receives its resu
   ).toBeVisible();
   await expect(page).toHaveURL(/\/spaces\/?$/);
   await externalContext.close();
+});
+
+test("polling tolerates two failures and resets the failure count after a successful poll", async ({
+  page,
+}) => {
+  let polls = 0;
+  await page.route("**/api/trpc/google.poll?*", async (route) => {
+    polls++;
+    if ([1, 2, 4, 5].includes(polls)) return route.abort("failed");
+    if (polls === 3)
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify([
+          { result: { data: { status: "pending", email: null, error: null } } },
+        ]),
+      });
+    return route.continue();
+  });
+  await page.goto("/login");
+  const subject = randomUUID();
+  await googleSignIn(page, `retry-${subject}@gmail.com`, subject);
+  await expect(page).toHaveURL(/\/spaces\/?$/, { timeout: 20_000 });
+  expect(polls).toBeGreaterThanOrEqual(6);
+});
+
+test("three consecutive polling failures end the flow", async ({ page }) => {
+  let polls = 0;
+  await page.route("**/api/trpc/google.poll?*", (route) => {
+    polls++;
+    return route.abort("failed");
+  });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page.getByRole("alert")).toBeVisible({ timeout: 10_000 });
+  expect(polls).toBe(3);
+  expect(
+    await page.evaluate(() => localStorage.getItem("auth_token")),
+  ).toBeNull();
+  await expect(
+    page.getByRole("button", { name: "Continue with Google" }),
+  ).toBeEnabled();
+});
+
+test("account email controls re-enable after their cooldown, including a skipped verification send", async ({
+  page,
+}) => {
+  await page.goto("/signup");
+  const subject = randomUUID();
+  await googleSignIn(page, `unverified-${subject}@example.com`, subject);
+  await expect(page).toHaveURL(/\/spaces\/?$/);
+  await page.goto("/account");
+  await page.clock.install();
+  const verify = page.getByRole("button", { name: "Send email confirmation" });
+  const reset = page.getByRole("button", {
+    name: "Email me a password setup link",
+  });
+  await verify.click();
+  await expect(page.getByRole("status")).toContainText("recently requested");
+  await reset.click();
+  await expect(verify).toBeDisabled();
+  await expect(reset).toBeDisabled();
+  await page.clock.fastForward(61_000);
+  await expect(verify).toBeEnabled();
+  await expect(reset).toBeEnabled();
+  await verify.click();
+  await expect(verify).toBeDisabled();
+  await reset.click();
+  await expect(reset).toBeDisabled();
 });

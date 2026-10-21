@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTRPC } from "@/lib/trpc";
@@ -12,6 +12,22 @@ export function AccountSettings() {
   const google = useGoogleFlow("link");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [verifyCooldown, setVerifyCooldown] = useState(0);
+  const [resetCooldown, setResetCooldown] = useState(0);
+  useEffect(() => {
+    const verifyTimer = setTimeout(
+      () => setVerifyCooldown(0),
+      Math.max(0, verifyCooldown - Date.now()),
+    );
+    const resetTimer = setTimeout(
+      () => setResetCooldown(0),
+      Math.max(0, resetCooldown - Date.now()),
+    );
+    return () => {
+      clearTimeout(verifyTimer);
+      clearTimeout(resetTimer);
+    };
+  }, [verifyCooldown, resetCooldown]);
   const [submitting, setSubmitting] = useState(false);
   const disconnect = useMutation(trpc.google.disconnect.mutationOptions());
   const verify = useMutation(trpc.requestEmailVerification.mutationOptions());
@@ -48,11 +64,17 @@ export function AccountSettings() {
       {!user.emailVerifiedAt && config.data?.emailEnabled && (
         <button
           className={button}
-          disabled={verify.isPending || verify.isSuccess}
+          disabled={verify.isPending || verifyCooldown > 0}
           onClick={() =>
             verify.mutate(undefined, {
-              onSuccess: () =>
-                setMessage("Check your inbox for an email confirmation link."),
+              onSuccess: (result) => {
+                setVerifyCooldown(Date.now() + result.retryAfterSeconds * 1000);
+                setMessage(
+                  result.queued
+                    ? "Check your inbox for an email confirmation link."
+                    : "An email confirmation was recently requested. Please wait before trying again.",
+                );
+              },
             })
           }
         >
@@ -86,6 +108,14 @@ export function AccountSettings() {
         )}
         {google.busy && !google.readyEmail && (
           <p role="status">Choose your Google account in your browser.</p>
+        )}
+        {google.confirmationCode && (
+          <p role="status">
+            Enter this confirmation code in your browser:{" "}
+            <strong data-testid="google-confirmation-code">
+              {google.confirmationCode}
+            </strong>
+          </p>
         )}
         {google.readyEmail && (
           <p>
@@ -177,15 +207,17 @@ export function AccountSettings() {
           {config.data?.emailEnabled ? (
             <button
               className={button}
-              disabled={reset.isPending || reset.isSuccess}
+              disabled={reset.isPending || resetCooldown > 0}
               onClick={() =>
                 reset.mutate(
                   { email: user.email },
                   {
-                    onSuccess: () =>
+                    onSuccess: () => {
+                      setResetCooldown(Date.now() + 60_000);
                       setMessage(
                         "Check your inbox for a link to set your password. This signs out your current sessions.",
-                      ),
+                      );
+                    },
                   },
                 )
               }

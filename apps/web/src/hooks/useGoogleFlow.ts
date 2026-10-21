@@ -13,6 +13,7 @@ export function useGoogleFlow(intent: "signin" | "link") {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [readyEmail, setReadyEmail] = useState<string | null>(null);
+  const [confirmationCode, setConfirmationCode] = useState<string | null>(null);
   const [error, setError] = useState("");
   const active = useRef<{
     flow?: Flow;
@@ -30,6 +31,7 @@ export function useGoogleFlow(intent: "signin" | "link") {
       void trpcClient.google.cancel.mutate(current.flow).catch(() => {});
     setBusy(false);
     setReadyEmail(null);
+    setConfirmationCode(null);
   }, []);
 
   useEffect(() => {
@@ -71,23 +73,38 @@ export function useGoogleFlow(intent: "signin" | "link") {
     try {
       const flow =
         intent === "link"
-          ? await trpcClient.google.beginLink.mutate()
-          : await trpcClient.google.beginSignIn.mutate();
+          ? await trpcClient.google.beginLink.mutate({
+              desktop: Boolean(desktop),
+            })
+          : await trpcClient.google.beginSignIn.mutate({
+              desktop: Boolean(desktop),
+            });
       current.flow = flow;
       if (active.current !== current) {
         void trpcClient.google.cancel.mutate(flow).catch(() => {});
         return;
       }
       if (desktop) {
+        setConfirmationCode(flow.confirmationCode);
         if (!desktop.openGoogleAuth)
           throw new Error("Update the desktop app to continue with Google.");
         await desktop.openGoogleAuth(flow.launchUrl);
       } else if (popup) popup.location.href = flow.launchUrl;
+      let consecutiveFailures = 0;
       while (active.current === current && Date.now() < flow.expiresAt) {
-        const result = await trpcClient.google.poll.mutate({
-          id: flow.id,
-          secret: flow.secret,
-        });
+        const result = await trpcClient.google.poll
+          .mutate({
+            id: flow.id,
+            secret: flow.secret,
+          })
+          .then((result) => {
+            consecutiveFailures = 0;
+            return result;
+          })
+          .catch((cause: unknown) => {
+            if (++consecutiveFailures >= 3) throw cause;
+            return { status: "pending" as const, email: null, error: null };
+          });
         if (active.current !== current || session() !== current.session) return;
         if (result.status === "error")
           throw new Error(
@@ -95,6 +112,7 @@ export function useGoogleFlow(intent: "signin" | "link") {
           );
         if (result.status === "ready") {
           current.popup?.close();
+          setConfirmationCode(null);
           if (intent === "link") {
             setReadyEmail(result.email);
             return;
@@ -155,6 +173,7 @@ export function useGoogleFlow(intent: "signin" | "link") {
       active.current = null;
       setBusy(false);
       setReadyEmail(null);
+      setConfirmationCode(null);
       return true;
     } catch (cause) {
       if (active.current === current)
@@ -164,5 +183,13 @@ export function useGoogleFlow(intent: "signin" | "link") {
       return false;
     }
   }
-  return { busy, readyEmail, error, start, cancel, completeLink };
+  return {
+    busy,
+    readyEmail,
+    confirmationCode,
+    error,
+    start,
+    cancel,
+    completeLink,
+  };
 }
