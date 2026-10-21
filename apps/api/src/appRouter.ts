@@ -32,6 +32,9 @@ import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
 
 import { requireAccountEmail, type AccountEmailService } from "./email/service";
 
+import { googleRouter } from "./google/router";
+import type { GoogleService } from "./google/service";
+
 const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
 
 export interface AppRouterDependencies {
@@ -39,6 +42,7 @@ export interface AppRouterDependencies {
   captchaConfig: CaptchaConfig | null;
   analytics?: BackendAnalytics;
   accountEmail?: AccountEmailService;
+  google?: GoogleService;
 }
 
 export function createAppRouter({
@@ -46,6 +50,7 @@ export function createAppRouter({
   captchaConfig,
   analytics = noopBackendAnalytics,
   accountEmail,
+  google,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
     dbId: string,
@@ -63,8 +68,10 @@ export function createAppRouter({
   };
 
   return router({
+    google: googleRouter(mainDB, google, analytics),
     getAuthConfig: publicProcedure.query(() => ({
       emailEnabled: accountEmail?.enabled ?? false,
+      googleEnabled: Boolean(google),
     })),
     getAccount: protectedProcedure.query(async ({ ctx }) => {
       const user = await asyncDispatch(
@@ -76,6 +83,8 @@ export function createAppRouter({
         id: user.id,
         email: user.email,
         emailVerifiedAt: user.emailVerifiedAt ?? null,
+        hasPassword: Boolean(user.password),
+        googleEmail: user.googleEmail ?? null,
       };
     }),
     requestEmailVerification: protectedProcedure
@@ -338,7 +347,7 @@ export function createAppRouter({
       .mutation(async (opts) => {
         const { email, password } = opts.input;
         const user = await asyncDispatch(mainDB, getUserByEmail({ email }));
-        if (!user) {
+        if (!user?.password) {
           throw new Error("Invalid credentials");
         }
 

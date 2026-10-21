@@ -3,13 +3,18 @@ import { defineTable, type ExtractSchema, v } from "@will-be-done/hyperdb";
 export const usersTable = defineTable("users", {
   id: v.string(),
   email: v.string(),
-  password: v.string(),
+  password: v.optional(v.string()),
+  normalizedEmail: v.optional(v.string()),
+  googleSubject: v.optional(v.string()),
+  googleEmail: v.optional(v.string()),
   createdAt: v.string(),
   updatedAt: v.string(),
   emailVerifiedAt: v.optional(v.string()),
 })
   .index("byIds", ["id"])
-  .index("byEmail", ["email"]);
+  .index("byEmail", ["email"])
+  .index("byNormalizedEmail", ["normalizedEmail"])
+  .index("byGoogleSubject", ["googleSubject"]);
 export type User = ExtractSchema<typeof usersTable>;
 
 export const tokensTable = defineTable("tokens", {

@@ -207,6 +207,9 @@ function SpacePageComponent() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <Link to="/account" className="text-sm text-slate-300 underline">
+                Account settings
+              </Link>
               <button
                 onClick={() => void handleCreateSpace()}
                 className="group flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"

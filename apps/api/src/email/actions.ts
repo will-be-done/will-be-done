@@ -119,6 +119,15 @@ function* issueChallenge(
   return { queued: true, retryAfterSeconds: 60 };
 }
 
+export function* enqueueGoogleAccountEmail(
+  config: EmailTemplateConfig,
+  user: User,
+  now: number,
+) {
+  if (user.emailVerifiedAt) yield* enqueue(config, user, "welcome", now);
+  else yield* issueChallenge(config, user, "verification", now);
+}
+
 export const registerWithEmail = action({
   name: "registerWithEmail",
   args: {

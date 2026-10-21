@@ -32,3 +32,10 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+
+## Google sign-in
+
+Google authentication opens in your system browser. After Google confirms your
+identity, return to the desktop window to finish. The app uses the server selected
+in its connection settings; that server must have
+[Google sign-in configured](../../docs/google-auth.md).

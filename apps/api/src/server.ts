@@ -5,6 +5,8 @@ import multipart from "@fastify/multipart";
 import staticPlugin from "@fastify/static";
 import swagger from "@fastify/swagger";
 import websocket from "@fastify/websocket";
+import { googleRoutes } from "./google/routes";
+import type { GoogleService } from "./google/service";
 import type { RateLimitConfig } from "./rateLimit";
 import { createAppRateLimiter, registerAppRateLimiting } from "./rateLimit";
 import scalarApiReference from "@scalar/fastify-api-reference";
@@ -33,6 +35,7 @@ export interface CreateServerOptions {
   rateLimit?: RateLimitConfig;
   mainDB?: DB;
   analytics?: BackendAnalytics;
+  google?: GoogleService;
 }
 
 export function createServer({
@@ -42,6 +45,7 @@ export function createServer({
   rateLimit = { backend: "memory" },
   mainDB,
   analytics = noopBackendAnalytics,
+  google,
 }: CreateServerOptions) {
   const rateLimitEnabled = rateLimit.enabled ?? true;
   const server = fastify({
@@ -62,6 +66,8 @@ export function createServer({
   if (rateLimitEnabled) {
     registerAppRateLimiting(server, rateLimit);
   }
+
+  if (google) googleRoutes(server, google);
 
   server.register(websocket);
   server.register(multipart);

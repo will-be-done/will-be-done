@@ -2,6 +2,9 @@ import "dotenv/config";
 import { z } from "zod";
 
 const EnvConfigSchema = z.object({
+  WBD_GOOGLE_CLIENT_ID: z.string().optional(),
+  WBD_GOOGLE_CLIENT_SECRET: z.string().optional(),
+  WBD_GOOGLE_PUBLIC_APP_URL: z.string().optional(),
   WBD_EMAIL_RESEND_API_KEY: z.string().optional(),
   WBD_EMAIL_FROM: z.string().optional(),
   WBD_EMAIL_PUBLIC_APP_URL: z.string().optional(),
@@ -49,6 +52,9 @@ const EnvConfigSchema = z.object({
 
 let envConfig:
   | {
+      WBD_GOOGLE_CLIENT_ID?: string;
+      WBD_GOOGLE_CLIENT_SECRET?: string;
+      WBD_GOOGLE_PUBLIC_APP_URL?: string;
       WBD_EMAIL_RESEND_API_KEY?: string;
       WBD_EMAIL_FROM?: string;
       WBD_EMAIL_PUBLIC_APP_URL?: string;
@@ -80,6 +86,9 @@ export function getEnvConfig() {
   if (envConfig) return envConfig;
 
   const parsed = EnvConfigSchema.parse({
+    WBD_GOOGLE_CLIENT_ID: process.env.WBD_GOOGLE_CLIENT_ID,
+    WBD_GOOGLE_CLIENT_SECRET: process.env.WBD_GOOGLE_CLIENT_SECRET,
+    WBD_GOOGLE_PUBLIC_APP_URL: process.env.WBD_GOOGLE_PUBLIC_APP_URL,
     WBD_EMAIL_RESEND_API_KEY: process.env.WBD_EMAIL_RESEND_API_KEY,
     WBD_EMAIL_FROM: process.env.WBD_EMAIL_FROM,
     WBD_EMAIL_PUBLIC_APP_URL: process.env.WBD_EMAIL_PUBLIC_APP_URL,
@@ -150,6 +159,9 @@ export function getEnvConfig() {
   }
 
   envConfig = {
+    WBD_GOOGLE_CLIENT_ID: parsed.WBD_GOOGLE_CLIENT_ID,
+    WBD_GOOGLE_CLIENT_SECRET: parsed.WBD_GOOGLE_CLIENT_SECRET,
+    WBD_GOOGLE_PUBLIC_APP_URL: parsed.WBD_GOOGLE_PUBLIC_APP_URL,
     WBD_EMAIL_RESEND_API_KEY: parsed.WBD_EMAIL_RESEND_API_KEY,
     WBD_EMAIL_FROM: parsed.WBD_EMAIL_FROM,
     WBD_EMAIL_PUBLIC_APP_URL: parsed.WBD_EMAIL_PUBLIC_APP_URL,

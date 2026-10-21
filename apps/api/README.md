@@ -160,3 +160,9 @@ pnpm openapi:check
 `client:generate` rebuilds the internal typed Fetch client in `src/generated`.
 CI regenerates it from `openapi.json` and fails when the committed client is
 stale.
+
+## Google sign-in
+
+Follow [Enable Google sign-in](../../docs/google-auth.md) to configure Google
+signup, login, and account linking for web and desktop. Google sign-in is disabled
+until all three `WBD_GOOGLE_*` variables are set.

@@ -1,3 +1,5 @@
+import { isDemoMode } from "@/lib/auth";
+import { AccountSettings } from "@/components/Auth/AccountSettings";
 import { useState } from "react";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import {
@@ -13,9 +15,10 @@ import { GeneralSection } from "./GeneralSection";
 import { ImportSection } from "./ImportSection";
 import { TokenSection } from "./TokenSection";
 
-type Section = "general" | "tokens" | "data" | "import";
+type Section = "account" | "general" | "tokens" | "data" | "import";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
+  { id: "account", label: "Account", icon: <KeyRound className="h-5 w-5" /> },
   {
     id: "general",
     label: "General",
@@ -79,7 +82,9 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
 
           {/* Top tab nav */}
           <div className="flex gap-1 overflow-x-auto px-4 pt-4 pb-1 scrollbar-none flex-shrink-0">
-            {SECTIONS.map((s) => (
+            {SECTIONS.filter(
+              (section) => section.id !== "account" || !isDemoMode(),
+            ).map((s) => (
               <button
                 key={s.id}
                 onClick={() => setActiveSection(s.id)}
@@ -103,6 +108,7 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
 
           {/* Content — fills remaining height, scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
+            {activeSection === "account" && <AccountSettings />}
             {activeSection === "general" && <GeneralSection />}
             {activeSection === "tokens" && <TokenSection />}
             {activeSection === "data" && <BackupSection />}
