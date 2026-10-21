@@ -70,6 +70,22 @@ Pending message payloads contain account links. Restrict access to the main
 database and its backups. The worker removes each payload after delivery, expiry,
 cancellation, or permanent failure. It retains sanitized job metadata for seven days.
 
+## Run multiple API instances
+
+Point every API instance at the same main database, such as the same Turso or
+tursod database. On one host, instances can share the same SQLite file. Separate
+SQLite files on different hosts do not share accounts or pending emails.
+
+Run the email worker in each API instance. Workers claim jobs in database
+transactions with a 60-second lease. If a worker stops, another worker can reclaim
+its job after the lease expires. A stale worker cannot update a replacement
+worker's claim.
+
+Every attempt uses the same Resend idempotency key for the job. This also covers
+a sender that loses its response after Resend accepts the message. Resend keeps
+keys for 24 hours, and the outbox stops retries after 23 hours or link expiry.
+SQLite contention can defer a worker until its next five-second poll.
+
 ## Run local email checks
 
 Run backend email tests without a Resend account:

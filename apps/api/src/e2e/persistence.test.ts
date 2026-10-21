@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { selectSync } from "@will-be-done/hyperdb";
+import { selectAsync } from "@will-be-done/hyperdb";
 import { taskById } from "@will-be-done/slices/space";
 import { spaceDBConfig } from "../db/configs";
 import { getHyperDB } from "../db/db";
@@ -32,7 +32,7 @@ test("persists generated-client mutations in the real database across restart", 
     201,
   ).data.task;
 
-  const storedTask = selectSync(
+  const storedTask = await selectAsync(
     (await getHyperDB(spaceDBConfig(space.id))).db,
     {
       selector: taskById,

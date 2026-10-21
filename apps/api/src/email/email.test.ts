@@ -57,6 +57,8 @@ afterEach(async () => {
 
 async function sqlite(path = ":memory:") {
   const sql = new Database(path);
+  sql.run("PRAGMA journal_mode=WAL");
+  sql.run("PRAGMA busy_timeout=50");
   const db = new DB(
     new AsyncSqlDriver({
       async exec(query, params) {
@@ -820,4 +822,108 @@ test("token creation authenticated before a reset cannot issue a new token after
   );
   await service.reset(token, "replacement-password");
   await expectRejection(caller.createToken(), "UNAUTHORIZED");
+});
+
+describe("email workers on separate database connections", () => {
+  async function sharedDatabase() {
+    const directory = mkdtempSync(join(tmpdir(), "wbd-email-shared-"));
+    cleanups.push(() => rmSync(directory, { recursive: true, force: true }));
+    const path = join(directory, "main.sqlite");
+    const first = await sqlite(path);
+    const second = await sqlite(path);
+    cleanups.push(first.close, second.close);
+    await createAccountEmailService(first.db, config).register(
+      "shared@example.com",
+      "hash",
+    );
+    return { first: first.db, second: second.db };
+  }
+
+  test("competing workers deliver one job once and recover from SQLite contention", async () => {
+    const { first, second } = await sharedDatabase();
+    const calls: string[] = [];
+    const sender: EmailSender = {
+      async send(_payload, key) {
+        calls.push(key);
+        return "shared-provider-id";
+      },
+    };
+    const options = { paceMs: 0, log: () => {} };
+    const workerA = createEmailWorker(first, sender, options);
+    const workerB = createEmailWorker(second, sender, options);
+    cleanups.push(
+      () => workerA.stop(),
+      () => workerB.stop(),
+    );
+    // A deferred SQLite transaction may lose its write upgrade to the other
+    // connection. The worker's next poll retries after the winner commits.
+    await Promise.allSettled([workerA.runOnce(), workerB.runOnce()]);
+    await workerA.runOnce();
+    await workerB.runOnce();
+    expect(calls).toHaveLength(1);
+    expect(await readJobs(first)).toHaveLength(0);
+    expect((await readJobs(second, "sent"))[0]).toMatchObject({
+      providerId: "shared-provider-id",
+    });
+  });
+
+  test("a replacement worker reclaims a stalled sender with the same provider idempotency key", async () => {
+    const { first, second } = await sharedDatabase();
+    let now = Date.now();
+    const calls: { payload: EmailPayload; key: string }[] = [];
+    const accepted = new Map<string, string>();
+    function accept(payload: EmailPayload, key: string) {
+      calls.push({ payload, key });
+      if (!accepted.has(key))
+        accepted.set(key, `provider-${accepted.size + 1}`);
+      return accepted.get(key)!;
+    }
+    let releaseFirst!: (id: string) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const workerA = createEmailWorker(
+      first,
+      {
+        async send(payload, key) {
+          const id = accept(payload, key);
+          markStarted();
+          await new Promise<string>((resolve) => {
+            releaseFirst = resolve;
+          });
+          return id;
+        },
+      },
+      { now: () => now, paceMs: 0, log: () => {} },
+    );
+    const workerB = createEmailWorker(
+      second,
+      {
+        async send(payload, key) {
+          return accept(payload, key);
+        },
+      },
+      { now: () => now, paceMs: 0, log: () => {} },
+    );
+    const pending = workerA.runOnce();
+    await started;
+    now += 61_000;
+    try {
+      await workerB.runOnce();
+    } finally {
+      releaseFirst("provider-1");
+      await pending;
+      await workerA.stop();
+      await workerB.stop();
+    }
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual(calls[1]);
+    expect(accepted.size).toBe(1);
+    expect((await readJobs(first, "sent"))[0]).toMatchObject({
+      providerId: "provider-1",
+      attempts: 2,
+    });
+    expect(await readJobs(second)).toHaveLength(0);
+  });
 });

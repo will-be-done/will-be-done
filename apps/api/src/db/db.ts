@@ -1,8 +1,5 @@
 import { Database } from "bun:sqlite";
-import {
-  SqlDriver,
-  AsyncSqlDriver,
-} from "@will-be-done/hyperdb/drivers/sqlite";
+import { AsyncSqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
 import {
   asyncDispatch,
   DB,
@@ -81,8 +78,9 @@ const createLocalDB = (dbType: string, dbId: string) => {
   sqliteDB.run("PRAGMA busy_timeout=5000;");
 
   type SqlValue = number | string | Uint8Array | null;
-  const adapter = {
-    exec(sql: string, params?: SqlValue[]): void {
+  // Queue transactions for every request-serving database connection.
+  const sqliteDriver = new AsyncSqlDriver({
+    async exec(sql, params) {
       if (!params) {
         sqliteDB.run(sql);
       } else {
@@ -93,7 +91,7 @@ const createLocalDB = (dbType: string, dbId: string) => {
       const stmt = sqliteDB.prepare(sql);
 
       return {
-        values(values: SqlValue[]): SqlValue[][] {
+        async values(values: SqlValue[]): Promise<SqlValue[][]> {
           return stmt.values(...values) as SqlValue[][];
         },
         finalize(): void {
@@ -101,26 +99,7 @@ const createLocalDB = (dbType: string, dbId: string) => {
         },
       };
     },
-  };
-  // The main database is shared by HTTP requests and the email worker. Its
-  // async driver queues transactions instead of rejecting overlapping work.
-  const sqliteDriver =
-    dbType === "main"
-      ? new AsyncSqlDriver({
-          async exec(sql, params) {
-            adapter.exec(sql, params ?? undefined);
-          },
-          prepare(sql) {
-            const stmt = adapter.prepare(sql);
-            return {
-              async values(params) {
-                return stmt.values(params);
-              },
-              finalize: () => stmt.finalize(),
-            };
-          },
-        })
-      : new SqlDriver(adapter);
+  });
 
   return new DB(sqliteDriver, { traits: [dbIdTrait(dbType, dbId)] });
 };

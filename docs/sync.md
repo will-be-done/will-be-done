@@ -31,6 +31,10 @@ complete materialized change set.
 
 ## Goals
 
+Request-serving database connections serialize transactions. Concurrent requests
+wait for the active transaction instead of overlapping writes or failing because
+another transaction is open.
+
 The engine provides:
 
 - deterministic convergence between clients and the server;
