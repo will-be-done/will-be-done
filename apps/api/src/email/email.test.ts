@@ -409,6 +409,51 @@ describe("durable delivery", () => {
     expect((await readJobs(opened.db, "sent"))[0].payload).toBeUndefined();
   });
 
+  test("stop waits for the active drain and resolves even if it fails", async () => {
+    const { db, service } = await fixture();
+    await service.register("shutdown@example.com", "hash");
+    const failure = new Error("drain logging failed");
+    let markStarted!: () => void;
+    let releaseSend!: (id: string) => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const delivery = new Promise<string>((resolve) => {
+      releaseSend = resolve;
+    });
+    const worker = createEmailWorker(
+      db,
+      {
+        send() {
+          markStarted();
+          return delivery;
+        },
+      },
+      {
+        paceMs: 0,
+        log() {
+          throw failure;
+        },
+      },
+    );
+    cleanups.push(() => worker.stop());
+    const drainResult = worker.runOnce().catch((error: unknown) => error);
+    await started;
+    let stopped = false;
+    const stopping = worker.stop().then(() => {
+      stopped = true;
+    });
+    try {
+      await Promise.resolve();
+      expect(stopped).toBe(false);
+    } finally {
+      releaseSend("provider-id");
+      await stopping;
+    }
+    expect(await drainResult).toBe(failure);
+    expect(stopped).toBe(true);
+  });
+
   test("retry keeps identical payload and idempotency key when the provider accepted before disconnect", async () => {
     const { db, service } = await fixture();
     await service.register("retry@example.com", "hash");

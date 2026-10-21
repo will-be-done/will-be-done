@@ -261,7 +261,7 @@ export function createEmailWorker(
     async stop() {
       stopped = true;
       clearInterval(timer);
-      await running;
+      await running?.catch(() => {});
     },
   };
 }
