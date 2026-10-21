@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { useTRPC } from "@/lib/trpc";
 import { isDemoMode } from "@/lib/auth";
 import { AccountSettings } from "@/components/Auth/AccountSettings";
 import { useState } from "react";
@@ -49,6 +51,15 @@ interface Props {
 
 export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
   const [activeSection, setActiveSection] = useState<Section>("general");
+  const trpc = useTRPC();
+  const authConfig = useQuery(
+    trpc.getAuthConfig.queryOptions(undefined, { enabled: !isDemoMode() }),
+  );
+  const showAccount =
+    !isDemoMode() &&
+    (authConfig.data?.emailEnabled || authConfig.data?.googleEnabled);
+  const visibleSection =
+    activeSection === "account" && !showAccount ? "general" : activeSection;
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
@@ -83,14 +94,14 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
           {/* Top tab nav */}
           <div className="flex gap-1 overflow-x-auto px-4 pt-4 pb-1 scrollbar-none flex-shrink-0">
             {SECTIONS.filter(
-              (section) => section.id !== "account" || !isDemoMode(),
+              (section) => section.id !== "account" || showAccount,
             ).map((s) => (
               <button
                 key={s.id}
                 onClick={() => setActiveSection(s.id)}
                 className={cn(
                   "flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl cursor-pointer transition-colors min-w-[72px] flex-shrink-0",
-                  activeSection === s.id
+                  visibleSection === s.id
                     ? "bg-dialog-item-active text-content"
                     : "text-content-tinted/60 hover:text-content-tinted hover:bg-white/5",
                 )}
@@ -108,11 +119,11 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
 
           {/* Content — fills remaining height, scrollable */}
           <div className="flex-1 overflow-y-auto min-h-0">
-            {activeSection === "account" && <AccountSettings />}
-            {activeSection === "general" && <GeneralSection />}
-            {activeSection === "tokens" && <TokenSection />}
-            {activeSection === "data" && <BackupSection />}
-            {activeSection === "import" && <ImportSection />}
+            {visibleSection === "account" && <AccountSettings />}
+            {visibleSection === "general" && <GeneralSection />}
+            {visibleSection === "tokens" && <TokenSection />}
+            {visibleSection === "data" && <BackupSection />}
+            {visibleSection === "import" && <ImportSection />}
           </div>
         </DialogPanel>
       </div>

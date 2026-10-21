@@ -5,6 +5,8 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useTRPC } from "@/lib/trpc";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { BackgroundOrbs } from "@/components/Layout/BackgroundOrbs.tsx";
@@ -107,6 +109,10 @@ function Logo({ size = 32 }: { size?: number }) {
 
 function SpacePageComponent() {
   const navigate = useNavigate();
+  const trpc = useTRPC();
+  const authConfig = useQuery(trpc.getAuthConfig.queryOptions());
+  const showAccount =
+    authConfig.data?.emailEnabled || authConfig.data?.googleEnabled;
 
   const { data: spaces = [] } = useAsyncSelector({
     selector: listSpaces,
@@ -207,9 +213,14 @@ function SpacePageComponent() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Link to="/account" className="text-sm text-slate-300 underline">
-                Account settings
-              </Link>
+              {showAccount && (
+                <Link
+                  to="/account"
+                  className="text-sm text-slate-300 underline"
+                >
+                  Account settings
+                </Link>
+              )}
               <button
                 onClick={() => void handleCreateSpace()}
                 className="group flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-400 hover:shadow-blue-500/30"
