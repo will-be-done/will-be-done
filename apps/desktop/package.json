@@ -1,6 +1,6 @@
 {
   "name": "will-be-done",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Task management app",
   "desktopName": "app.willbedone.WillBeDone",
   "main": "./out/main/index.js",
