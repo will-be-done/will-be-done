@@ -4,6 +4,7 @@ import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { authUtils, isDemoMode } from "@/lib/auth";
 import { useSpaceSettingsStore } from "@/components/SpaceSettings/spaceSettingsStore.ts";
 import { useSidebar } from "@/components/ui/sidebar.tsx";
+import { SyncIndicator } from "./SyncIndicator";
 
 export function SpaceBlock() {
   const { spaceId } = Route.useParams();
@@ -32,6 +33,8 @@ export function SpaceBlock() {
       <span className="flex-1 truncate text-left text-[12px] font-medium text-content-tinted">
         {spaceName}
       </span>
+
+      <SyncIndicator />
 
       {/* Switch space */}
       <Link

@@ -99,11 +99,16 @@ describe("cross-tab changes", () => {
       tableNameMap: { [crossTabItemsTable.tableName]: crossTabItemsTable },
       afterInit: () => {},
     } satisfies SyncConfig;
+    const publications: Op[][] = [];
+    const onApplied = vi.fn(() => {
+      expect(publications).not.toHaveLength(0);
+    });
     const crossTabChanges = createCrossTabChanges({
       clientId: "receiver",
       syncSubDb: receiverDB,
       syncConfig,
       nextClock,
+      onApplied,
     });
     const postChanges = vi.spyOn(crossTabChanges, "postChanges");
     createLocalPersistQueue({
@@ -112,7 +117,6 @@ describe("cross-tab changes", () => {
       onPersisted: vi.fn(),
     }).start();
 
-    const publications: Op[][] = [];
     receiverDB.subscribe((ops) => publications.push(ops));
 
     const incomingClock = formatHlc({
@@ -174,5 +178,6 @@ describe("cross-tab changes", () => {
         ),
     ).toBe(true);
     expect(postChanges).not.toHaveBeenCalled();
+    expect(onApplied).toHaveBeenCalledOnce();
   });
 });

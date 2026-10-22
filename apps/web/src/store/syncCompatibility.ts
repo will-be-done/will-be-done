@@ -7,7 +7,7 @@ let updateRequired = false;
 const listeners = new Set<() => void>();
 
 export const syncChannelName = (
-  channel: "changes" | "election",
+  channel: "changes" | "election" | "status",
   clientId: string,
 ) => `${channel}-v${CURRENT_SYNC_VERSION}-${clientId}`;
 

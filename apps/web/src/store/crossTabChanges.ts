@@ -18,6 +18,7 @@ type CreateCrossTabChangesArgs = {
   syncSubDb: SubscribableDB;
   syncConfig: SyncConfig;
   nextClock: HlcClock;
+  onApplied: () => void;
 };
 
 export const createCrossTabChanges = ({
@@ -25,6 +26,7 @@ export const createCrossTabChanges = ({
   syncSubDb,
   syncConfig,
   nextClock,
+  onApplied,
 }: CreateCrossTabChangesArgs) => {
   const bc = new BroadcastChannel(syncChannelName("changes", clientId));
 
@@ -46,6 +48,9 @@ export const createCrossTabChanges = ({
       syncSubDb.withTraits({ type: "skip-sync" }, externalStorageMergeTrait),
       merge(mergeArgs),
     );
+    // A status-channel wake-up can finish before this asynchronous merge.
+    // Wake again only once the incoming changes are visible to sync reads.
+    onApplied();
   };
 
   bc.onmessage = (data) => {

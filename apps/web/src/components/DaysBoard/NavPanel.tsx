@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/popover.tsx";
 import { Calendar } from "@/components/ui/calendar.tsx";
 import { NavBar } from "../NavBar/NavBar";
+import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const NavPanel = ({
   previousDate,
@@ -31,7 +33,7 @@ export const NavPanel = ({
         <NavBar spaceId={spaceId} />
       </div>
 
-      <div className="top-0 fixed right-0 min-[650px]:left-0 min-[650px]:m-auto min-[650px]:max-w-60 z-40 [app-region:no-drag]">
+      <div className="top-0 fixed right-10 min-[650px]:right-0 min-[650px]:left-0 min-[650px]:m-auto min-[650px]:max-w-60 z-40 [app-region:no-drag]">
         <div className="bg-surface-elevated rounded-bl-lg min-[650px]:rounded-b-lg text-[13px] text-content flex items-center justify-center h-10 stroke-content ring-1 ring-ring px-3">
           <div className="flex items-center gap-2 h-full shrink-0">
             <Link
@@ -111,6 +113,12 @@ export const NavPanel = ({
             </Link>
           </div>
         </div>
+      </div>
+
+      <div className="fixed right-2 top-2 z-40 [app-region:no-drag]">
+        <TooltipProvider>
+          <SyncIndicator />
+        </TooltipProvider>
       </div>
     </>
   );

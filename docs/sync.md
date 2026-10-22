@@ -125,6 +125,21 @@ session. A notification that arrives while that session is running therefore
 remains pending and starts another session instead of being lost between the
 session and the next wait.
 
+The sidebar sync indicator reports the current stage, completed transport
+batches, and the last successful sync time. A session succeeds only after
+download apply and acknowledgement finish. A deferred or discarded transfer
+does not count as a successful sync. Pending wake-ups keep the indicator busy
+until a subsequent session finishes. Browser offline state overrides the
+indicator immediately. Request failures and required app updates also show
+interrupted sync.
+
+The elected sync leader broadcasts this UI status on a versioned, client-scoped
+status channel. New tabs request the current status. Follower wake-ups ask
+the leader to run the ordinary sync loop. These messages carry no authoritative
+cursor and do not acknowledge data. They never bypass persistence, staging,
+or atomic apply. Status and last successful sync times live in memory and reset
+when the app starts a new session.
+
 ## Persisted State
 
 ### Materialized change log
@@ -187,6 +202,13 @@ idempotent persistence for an insert the sender may already have stored, and
 publishes the merge's normal transaction operations to reactive subscribers.
 The accompanying `skip-sync` trait still prevents those cache-coherence writes
 from producing a second local change record or upload echo.
+
+After a cross-tab merge completes, the receiving tab wakes the ordinary sync
+loop so the leader uploads the changes from its updated view. The changes and
+status channels have independent delivery order. A follower's `request-sync`
+can finish an empty session before its changes arrive, so that request cannot
+replace the wake-up after the merge. The merge keeps `skip-sync` to suppress
+echo writes. A failed merge does not emit a completion wake-up.
 
 ## Session Handshake and Recovery
 

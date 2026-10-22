@@ -11,6 +11,7 @@ import {
 } from "./syncClock";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 import { Syncer } from "./syncer";
+import { syncStatusByDB } from "./syncStatus";
 import {
   getPersistentDriverKind,
   resolvePersistentDriverKind,
@@ -77,14 +78,15 @@ export const initDbStore = async (
     });
     await syncConfig.beforeInit?.(syncSubDb);
 
+    const syncer = new Syncer(syncSubDb, clientId, syncConfig, nextClock);
+
     const crossTabChanges = createCrossTabChanges({
       clientId,
       syncSubDb,
       syncConfig,
       nextClock,
+      onApplied: () => syncer.forceSync(),
     });
-
-    const syncer = new Syncer(syncSubDb, clientId, syncConfig, nextClock);
 
     const localPersistQueue = createLocalPersistQueue({
       syncSubDb,
@@ -94,6 +96,7 @@ export const initDbStore = async (
     localPersistQueue.start();
 
     if (!syncConfig.disableSync) {
+      syncStatusByDB.set(syncSubDb, syncer.status);
       syncer.startLoop();
 
       const autoBackuper = new AutoBackuper(dbName, syncSubDb);
