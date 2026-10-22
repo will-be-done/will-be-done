@@ -227,6 +227,7 @@ const NavStrip = () => {
 export const AppSidebar = () => {
   const dispatch = useAsyncDispatch();
   const openProject = useOpenProject();
+  const closeMobile = useCloseMobileOnNav();
   const today = useCurrentDate();
   const currentDate = startOfDay(today).getTime();
   const { data: projects = [] } = useAsyncSelector({
@@ -242,6 +243,7 @@ export const AppSidebar = () => {
         createProject({ project: { title }, position: "append" }),
       );
       openProject(project.id);
+      closeMobile?.();
       captureWebAnalytics({
         name: "project_created",
         properties: { creation_method: "web" },
