@@ -9,6 +9,7 @@ import {
   asyncDispatch,
   execAsync,
   selectFrom,
+  upsert,
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
@@ -28,6 +29,7 @@ import {
   hashEmailToken,
   HOUR,
   requestReset,
+  requestEmailChange,
   requestVerification,
 } from "./actions";
 import { parseEmailConfig, type EmailConfig } from "./config";
@@ -38,6 +40,7 @@ import {
 } from "./tables";
 import {
   createAccountEmailService,
+  changeAccountEmail,
   createEmailWorker,
   createResendSender,
   EmailDeliveryError,
@@ -138,6 +141,282 @@ const linkToken = (payload: EmailPayload) => {
 
 for (const engine of ["memory", "sqlite"])
   describe(`account email (${engine})`, () => {
+    test("email change links expire, are replaced on resend, and are cancelled by password recovery", async () => {
+      const { db, service, worker, messages } = await fixture(engine);
+      const account = await service.register("user@example.com", "unused-hash");
+      await worker.runOnce();
+      await service.verify(linkToken(messages[0]));
+      const now = Date.now();
+      const args = {
+        userId: account.userId,
+        tokenId: account.token,
+        config,
+        now,
+      };
+      await asyncDispatch(
+        db,
+        requestEmailChange({ ...args, email: "first@example.com" }),
+      );
+      const first = (await readJobs(db)).find(
+        (job) => job.kind === "emailChange",
+      )!;
+      const firstToken = linkToken(JSON.parse(first.payload!));
+      await expectRejection(
+        asyncDispatch(
+          db,
+          consumeEmailChallenge({
+            config,
+            tokenHash: hashEmailToken(firstToken),
+            purpose: "emailChange",
+            now: now + HOUR,
+          }),
+        ),
+        "expired",
+      );
+      await asyncDispatch(
+        db,
+        requestEmailChange({
+          ...args,
+          email: "second@example.com",
+          now: now + 60_000,
+        }),
+      );
+      await expectRejection(service.confirmEmailChange(firstToken), "invalid");
+      expect(
+        (await readJobs(db, "cancelled")).find((job) => job.id === first.id)
+          ?.payload,
+      ).toBeUndefined();
+      const second = (await readJobs(db)).find(
+        (job) => job.kind === "emailChange",
+      )!;
+      const secondToken = linkToken(JSON.parse(second.payload!));
+      await service.requestReset("user@example.com");
+      const reset = (await readJobs(db)).find(
+        (job) => job.kind === "passwordReset",
+      )!;
+      await service.reset(
+        linkToken(JSON.parse(reset.payload!)),
+        "replacement-password",
+      );
+      await expectRejection(
+        service.confirmEmailChange(secondToken),
+        "already used",
+      );
+      expect(
+        (await asyncDispatch(db, getUserById({ id: account.userId })))!.email,
+      ).toBe("user@example.com");
+    });
+
+    test("unconfirmed email changes require the password and invalidate old mailbox links", async () => {
+      const { db, service, worker, messages } = await fixture(engine);
+      const account = await service.register(
+        "old@example.com",
+        await Bun.password.hash("password-123"),
+      );
+      const actor = { userId: account.userId, tokenId: account.token };
+      await service.requestReset("old@example.com");
+      await worker.runOnce();
+      const oldLinks = messages.map(linkToken);
+      await expectRejection(
+        service.changeEmail(actor, "new@example.com"),
+        "Invalid password",
+      );
+      await expectRejection(
+        service.changeEmail(actor, "new@example.com", "wrong-password"),
+        "Invalid password",
+      );
+      expect(
+        (await asyncDispatch(db, getUserById({ id: account.userId })))!.email,
+      ).toBe("old@example.com");
+      expect(
+        await service.changeEmail(actor, " New@Example.com ", "password-123"),
+      ).toMatchObject({ changed: true });
+      const user = (await asyncDispatch(
+        db,
+        getUserById({ id: account.userId }),
+      ))!;
+      expect(user.email).toBe("new@example.com");
+      expect(user.normalizedEmail).toBe("new@example.com");
+      expect(user.emailVerifiedAt).toBeUndefined();
+      await expectRejection(service.verify(oldLinks[0]), "already used");
+      await expectRejection(
+        service.reset(oldLinks[1], "replacement-password"),
+        "already used",
+      );
+      await worker.runOnce();
+      const verification = messages.find(
+        (message) => message.to === "new@example.com",
+      )!;
+      expect(verification.subject).toBe("Confirm your email");
+      await service.verify(linkToken(verification));
+      expect(
+        (await asyncDispatch(db, getUserById({ id: account.userId })))!
+          .emailVerifiedAt,
+      ).toBeString();
+      expect(
+        await authenticateBearerToken(`Bearer ${account.token}`, db),
+      ).toMatchObject({ id: account.userId });
+    });
+
+    test("confirmed changes require a single-use approval from the current mailbox, then verify the new one", async () => {
+      const { db, service, worker, messages } = await fixture(engine);
+      const account = await service.register(
+        "confirmed@example.com",
+        "unused-hash",
+      );
+      await worker.runOnce();
+      await service.verify(linkToken(messages[0]));
+      const actor = { userId: account.userId, tokenId: account.token };
+      expect(
+        await service.changeEmail(actor, "replacement@example.com"),
+      ).toMatchObject({ changed: false, queued: true });
+      expect(
+        await service.changeEmail(actor, "ignored@example.com"),
+      ).toMatchObject({ changed: false, queued: false, retryAfterSeconds: 60 });
+      expect(
+        (await asyncDispatch(db, getUserById({ id: account.userId })))!.email,
+      ).toBe("confirmed@example.com");
+      await worker.runOnce();
+      const approval = messages.find(
+        (message) => message.subject === "Confirm your email change",
+      )!;
+      expect(approval.to).toBe("confirmed@example.com");
+      expect(approval.text).toContain("replacement@example.com");
+      expect(
+        messages.some((message) => message.to === "replacement@example.com"),
+      ).toBe(false);
+      const token = linkToken(approval);
+      await expectRejection(service.verify(token), "invalid");
+      await expectRejection(
+        service.reset(token, "replacement-password"),
+        "invalid",
+      );
+      const results = await Promise.allSettled([
+        service.confirmEmailChange(token),
+        service.confirmEmailChange(token),
+      ]);
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      const user = (await asyncDispatch(
+        db,
+        getUserById({ id: account.userId }),
+      ))!;
+      expect(user.email).toBe("replacement@example.com");
+      expect(user.emailVerifiedAt).toBeUndefined();
+      await worker.runOnce();
+      const verification = messages.find(
+        (message) => message.to === "replacement@example.com",
+      )!;
+      await service.verify(linkToken(verification));
+      expect(
+        (await asyncDispatch(db, getUserById({ id: account.userId })))!
+          .emailVerifiedAt,
+      ).toBeString();
+    });
+
+    test("email changes reject occupied addresses and recheck availability on confirmation", async () => {
+      const { db, service, worker, messages } = await fixture(engine);
+      const account = await service.register(
+        "first@example.com",
+        await Bun.password.hash("password-123"),
+      );
+      await service.register("taken@example.com", "unused-hash");
+      const actor = { userId: account.userId, tokenId: account.token };
+      await expectRejection(
+        service.changeEmail(actor, "TAKEN@example.com", "password-123"),
+        "already in use",
+      );
+      await expectRejection(
+        service.changeEmail(actor, "FIRST@example.com", "password-123"),
+        "different email",
+      );
+      await worker.runOnce();
+      await service.verify(
+        linkToken(
+          messages.find((message) => message.to === "first@example.com")!,
+        ),
+      );
+      await service.changeEmail(actor, "available@example.com");
+      await worker.runOnce();
+      const token = linkToken(
+        messages.find(
+          (message) => message.subject === "Confirm your email change",
+        )!,
+      );
+      await service.register("available@example.com", "unused-hash");
+      await expectRejection(
+        service.confirmEmailChange(token),
+        "already in use",
+      );
+      expect(
+        (await asyncDispatch(db, getUserById({ id: account.userId })))!.email,
+      ).toBe("first@example.com");
+    });
+
+    test("email changes work without email delivery only for unconfirmed accounts", async () => {
+      const { db, service } = await fixture(engine);
+      const account = await service.register(
+        "unconfirmed@example.com",
+        await Bun.password.hash("password-123"),
+      );
+      const actor = { userId: account.userId, tokenId: account.token };
+      expect(
+        await changeAccountEmail(db, actor, "new@example.com", "password-123"),
+      ).toMatchObject({ changed: true });
+      expect(await readJobs(db)).toHaveLength(0);
+      await asyncDispatch(
+        db,
+        action({
+          name: "confirmForEmailChangeTest",
+          args: {},
+          handler: function* () {
+            const user = (yield* getUserById({ id: account.userId }))!;
+            yield* upsert(usersTable, [
+              { ...user, emailVerifiedAt: new Date().toISOString() },
+            ]);
+          },
+        })({}),
+      );
+      await expectRejection(
+        changeAccountEmail(db, actor, "another@example.com"),
+        "not configured",
+      );
+    });
+
+    test("email change rechecks passwords and session revocation inside the transaction", async () => {
+      const { db, service } = await fixture(engine);
+      const account = await service.register(
+        "user@example.com",
+        "current-hash",
+      );
+      const args = {
+        userId: account.userId,
+        tokenId: account.token,
+        email: "new@example.com",
+        config,
+        now: Date.now(),
+      };
+      await expectRejection(
+        asyncDispatch(
+          db,
+          requestEmailChange({ ...args, expectedPassword: "stale-hash" }),
+        ),
+        "Invalid password",
+      );
+      await expectRejection(
+        asyncDispatch(
+          db,
+          requestEmailChange({
+            ...args,
+            tokenId: "revoked-token",
+            expectedPassword: "current-hash",
+          }),
+        ),
+        "UNAUTHORIZED",
+      );
+    });
+
     test("signup grants access, verification is single-use, and welcome is sent once", async () => {
       const { db, service, worker, messages } = await fixture(engine);
       const account = await service.register("new@example.com", "old-hash");
@@ -678,24 +957,86 @@ describe("configuration and templates", () => {
       "welcome",
       "passwordReset",
       "passwordChanged",
+      "emailChange",
     ] as const) {
       const payload = renderAccountEmail(
         config,
         "user@example.com",
         kind,
-        kind === "verification" || kind === "passwordReset"
+        kind === "verification" ||
+          kind === "passwordReset" ||
+          kind === "emailChange"
           ? "safe-token"
           : undefined,
+        kind === "emailChange" ? "new@example.com" : undefined,
       );
       expect(payload.text).toContain(config.appUrl);
       expect(payload.html).toContain("Will Be Done");
-      if (kind === "verification" || kind === "passwordReset")
+      if (
+        kind === "verification" ||
+        kind === "passwordReset" ||
+        kind === "emailChange"
+      )
         expect(payload.text).toContain("#token=safe-token");
     }
   });
 });
 
 describe("real Fastify account endpoints", () => {
+  test("email changes authenticate the account, validate input and require a password before confirmation", async () => {
+    const { db, service } = await fixture("sqlite");
+    const account = await service.register(
+      "user@example.com",
+      await Bun.password.hash("password-123"),
+    );
+    const server = createServer({
+      mainDB: db,
+      appRouter: createAppRouter({
+        mainDB: db,
+        captchaConfig: null,
+        accountEmail: service,
+      }),
+      logger: false,
+      serveFrontend: false,
+      rateLimit: { enabled: false, backend: "memory" },
+    });
+    cleanups.push(() => server.close());
+    const call = (payload: unknown, token?: string) =>
+      server.inject({
+        method: "POST",
+        url: "/api/trpc/changeEmail",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        payload: JSON.stringify(payload),
+      });
+    expect(
+      (await call({ email: "new@example.com", password: "password-123" }))
+        .statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await call(
+          { email: "invalid-email", password: "password-123" },
+          account.token,
+        )
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (await call({ email: "new@example.com" }, account.token)).statusCode,
+    ).toBe(400);
+    const response = await call(
+      { email: " New@Example.com ", password: "password-123" },
+      account.token,
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().result.data.changed).toBe(true);
+    expect(
+      (await asyncDispatch(db, getUserById({ id: account.userId })))!.email,
+    ).toBe("new@example.com");
+  });
+
   test("default limits allow shared-IP recovery flows and separate sending from consumption", async () => {
     const { db, service } = await fixture("sqlite");
     const server = createServer({

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, KeyRound, Mail } from "lucide-react";
 import { GoogleMark } from "./GoogleSignIn";
+import { ChangeEmailForm } from "./ChangeEmailForm";
 import { useTRPC } from "@/lib/trpc";
 import { useGoogleFlow } from "@/hooks/useGoogleFlow";
 
@@ -81,6 +82,12 @@ export function AccountSettings() {
           </span>
         </div>
         <p className="break-all text-[15px] text-white">{user.email}</p>
+        <ChangeEmailForm
+          confirmed={Boolean(user.emailVerifiedAt)}
+          emailEnabled={Boolean(config.data?.emailEnabled)}
+          hasPassword={user.hasPassword}
+          buttonClass={button}
+        />
         {!user.emailVerifiedAt && config.data?.emailEnabled && (
           <button
             className={button}

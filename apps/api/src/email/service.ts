@@ -3,6 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
 import { Resend } from "resend";
+import { getUserById, normalizeEmail } from "../slices/authSlice";
 import {
   claimEmailJob,
   cleanEmailJobs,
@@ -12,9 +13,10 @@ import {
   registerWithEmail,
   requestReset,
   requestVerification,
+  requestEmailChange,
   requireEmailChallenge,
 } from "./actions";
-import type { EmailConfig } from "./config";
+import type { EmailConfig, EmailTemplateConfig } from "./config";
 import type { EmailPayload } from "./templates";
 
 export interface EmailSender {
@@ -79,10 +81,48 @@ export interface AccountEmailService {
   ): Promise<{ queued: boolean; retryAfterSeconds: number }>;
   requestReset(email: string): Promise<{ success: true }>;
   verify(token: string): Promise<{ success: true; userId: string }>;
+  changeEmail(
+    actor: { userId: string; tokenId: string },
+    email: string,
+    password?: string,
+  ): Promise<{ changed: boolean; queued: boolean; retryAfterSeconds: number }>;
+  confirmEmailChange(token: string): Promise<{ success: true; userId: string }>;
   reset(
     token: string,
     password: string,
   ): Promise<{ success: true; userId: string }>;
+}
+
+export async function changeAccountEmail(
+  db: DB,
+  actor: { userId: string; tokenId: string },
+  email: string,
+  password?: string,
+  config?: EmailTemplateConfig,
+) {
+  const user = await selectAsync(db, {
+    selector: getUserById,
+    args: { id: actor.userId },
+  });
+  if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
+  if (
+    !user.emailVerifiedAt &&
+    (!user.password ||
+      !password ||
+      !(await Bun.password.verify(password, user.password)))
+  )
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid password." });
+  // Recheck the session and password atomically after asynchronous verification.
+  return asyncDispatch(
+    db,
+    requestEmailChange({
+      ...actor,
+      email: normalizeEmail(email),
+      expectedPassword: user.emailVerifiedAt ? undefined : user.password,
+      config,
+      now: Date.now(),
+    }),
+  );
 }
 
 export function createAccountEmailService(
@@ -92,6 +132,18 @@ export function createAccountEmailService(
   const config = { from: settings.from, appUrl: settings.appUrl };
   return {
     enabled: true,
+    changeEmail: (actor, email, password) =>
+      changeAccountEmail(db, actor, email, password, config),
+    confirmEmailChange: (token) =>
+      asyncDispatch(
+        db,
+        consumeEmailChallenge({
+          tokenHash: hashEmailToken(token),
+          purpose: "emailChange",
+          config,
+          now: Date.now(),
+        }),
+      ),
     register: (email, hashedPassword) =>
       asyncDispatch(
         db,
