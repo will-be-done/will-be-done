@@ -202,9 +202,7 @@ test("shows details for a selected stashed task", async ({ page }) => {
   await page.keyboard.press("Backslash");
   await stashTaskItem(page, taskTitle).click();
 
-  await expect(page.getByLabel("Edit task description")).toHaveValue(
-    description,
-  );
+  await expect(page.getByTestId("task-description")).toHaveText(description);
 });
 
 test("stashes a task and keeps it available across Today and Inbox", async ({

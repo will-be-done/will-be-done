@@ -1,6 +1,7 @@
 import { Folder, Hash, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import TextareaAutosize from "react-textarea-autosize";
+import { LinkifiedText } from "@/components/LinkifiedText";
 
 // Editable title
 
@@ -28,25 +29,53 @@ export function EditableTitle({
   return (
     <div className="flex items-start gap-2 whitespace-break-spaces [overflow-wrap:anywhere] ">
       <div className="shrink-0">{icon}</div>
-      <TextareaAutosize
-        ref={isEditing ? textareaRef : undefined}
-        value={editingTitle}
-        onChange={(e) => setTitleDraft(e.target.value)}
-        onKeyDown={handleTitleKeyDown}
-        onFocus={() => setIsEditingTitle(true)}
-        onBlur={saveTitle}
-        placeholder="Untitled"
-        spellCheck={false}
-        autoCorrect="off"
-        autoCapitalize="off"
-        data-gramm="false"
-        data-gramm_editor="false"
-        data-enable-grammarly="false"
-        className={cn(
-          "flex-1 resize-none bg-transparent text-sm font-medium leading-snug focus:outline-none placeholder:italic placeholder:text-content-tinted",
-          titleClassName ?? "text-content",
-        )}
-      />
+      {isEditing ? (
+        <TextareaAutosize
+          ref={textareaRef}
+          value={editingTitle}
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onKeyDown={handleTitleKeyDown}
+          onBlur={saveTitle}
+          placeholder="Untitled"
+          spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+          data-gramm="false"
+          data-gramm_editor="false"
+          data-enable-grammarly="false"
+          aria-label="Edit task title"
+          className={cn(
+            "flex-1 resize-none bg-transparent text-sm font-medium leading-snug focus:outline-none placeholder:italic placeholder:text-content-tinted",
+            titleClassName ?? "text-content",
+          )}
+        />
+      ) : (
+        <div
+          data-testid="task-title"
+          data-disable-task-shortcuts
+          className={cn(
+            "min-h-5 flex-1 cursor-text rounded-sm text-sm font-medium leading-snug focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent",
+            titleClassName ?? "text-content",
+          )}
+          tabIndex={0}
+          onClick={() => setIsEditingTitle(true)}
+          onKeyDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              (event.key === "Enter" || event.key === " ")
+            ) {
+              event.preventDefault();
+              setIsEditingTitle(true);
+            }
+          }}
+        >
+          {editingTitle ? (
+            <LinkifiedText text={editingTitle} />
+          ) : (
+            <span className="italic text-content-tinted">Untitled</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -74,6 +103,7 @@ export function DetailRow({
 }
 
 export function EditableDescription({
+  isEditing,
   editingDescription,
   setDescriptionDraft,
   handleDescriptionKeyDown,
@@ -81,6 +111,7 @@ export function EditableDescription({
   saveDescription,
   setIsEditingDescription,
 }: {
+  isEditing: boolean;
   editingDescription: string;
   setDescriptionDraft: (v: string) => void;
   handleDescriptionKeyDown: (
@@ -90,7 +121,7 @@ export function EditableDescription({
   saveDescription: () => void;
   setIsEditingDescription: (v: boolean) => void;
 }) {
-  return (
+  return isEditing ? (
     <TextareaAutosize
       ref={textareaRef}
       value={editingDescription}
@@ -103,6 +134,29 @@ export function EditableDescription({
       placeholder="Add a description"
       aria-label="Edit task description"
     />
+  ) : (
+    <div
+      data-testid="task-description"
+      data-disable-task-shortcuts
+      className="min-h-[94px] w-full cursor-text whitespace-break-spaces [overflow-wrap:anywhere] rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+      tabIndex={0}
+      onClick={() => setIsEditingDescription(true)}
+      onKeyDown={(event) => {
+        if (
+          event.target === event.currentTarget &&
+          (event.key === "Enter" || event.key === " ")
+        ) {
+          event.preventDefault();
+          setIsEditingDescription(true);
+        }
+      }}
+    >
+      {editingDescription ? (
+        <LinkifiedText text={editingDescription} />
+      ) : (
+        <span className="italic text-content-tinted">Add a description</span>
+      )}
+    </div>
   );
 }
 

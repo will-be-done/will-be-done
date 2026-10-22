@@ -47,6 +47,7 @@ import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
 import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
 import { focusChecklistItem } from "./focus";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { LinkifiedText } from "@/components/LinkifiedText";
 
 export function CheckboxComp({
   checked,
@@ -103,7 +104,7 @@ const DropChecklistIndicator = ({
 };
 
 type ChecklistFocusKey = ReturnType<typeof buildFocusKey>;
-type ChecklistEditTrigger = "click" | "doubleClick" | "always";
+type ChecklistEditTrigger = "click" | "doubleClick";
 
 const focusParentFromChecklist = (focusableItemKey?: ChecklistFocusKey) => {
   if (!focusableItemKey) return;
@@ -174,7 +175,7 @@ const ChecklistItemComp = ({
     value: item.content,
     persist: persistContent,
   });
-  const isTextareaVisible = editTrigger === "always" || isEditing;
+  const isTextareaVisible = isEditing;
 
   useEffect(() => {
     const rowElement = rowRef.current;
@@ -366,9 +367,7 @@ const ChecklistItemComp = ({
             onFocus={() => focusParentFromChecklist(focusableItemKey)}
             onBlur={() => {
               flushContent();
-              if (editTrigger !== "always") {
-                setIsEditing(false);
-              }
+              setIsEditing(false);
             }}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -388,14 +387,27 @@ const ChecklistItemComp = ({
           />
         ) : (
           <div
+            data-disable-task-shortcuts
             className={cn(
-              "min-h-4 flex-1 cursor-default whitespace-break-spaces pt-0.5 leading-4 [overflow-wrap:anywhere]",
+              "min-h-4 flex-1 cursor-default whitespace-break-spaces rounded-sm pt-0.5 leading-4 [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent",
               item.state === "done" && "text-content-tinted line-through",
             )}
+            tabIndex={editTrigger === "click" ? 0 : undefined}
             onClick={handleReadonlyItemClick}
             onDoubleClick={handleReadonlyItemDoubleClick}
+            onKeyDown={(event) => {
+              if (
+                editTrigger === "click" &&
+                event.target === event.currentTarget &&
+                (event.key === "Enter" || event.key === " ")
+              ) {
+                event.preventDefault();
+                event.stopPropagation();
+                setIsEditing(true);
+              }
+            }}
           >
-            {content}
+            <LinkifiedText text={content} />
           </div>
         )}
         <button

@@ -94,6 +94,7 @@ import {
 } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { LinkifiedText } from "@/components/LinkifiedText";
 
 export const DropTaskIndicator = ({
   direction,
@@ -1395,7 +1396,9 @@ export const PreloadedTaskComp = ({
                     "line-through": isTask(item) && item.state === "done",
                   })}
                 >
-                  {isDraftCurrent ? editingTitle : item.title}
+                  <LinkifiedText
+                    text={isDraftCurrent ? editingTitle : item.title}
+                  />
                 </div>
               )}
             </div>

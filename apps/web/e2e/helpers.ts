@@ -152,6 +152,8 @@ export async function openTaskDetails(page: Page, title: string) {
 
   const detailsButton = page.getByRole("button", { name: "Task details" });
   const description = page.getByLabel("Edit task description");
+  const descriptionView = page.getByTestId("task-description");
+  const descriptionField = descriptionView.or(description);
   const hasDetailsRouteButton = await isVisibleInViewportSoon(
     page,
     detailsButton,
@@ -160,21 +162,25 @@ export async function openTaskDetails(page: Page, title: string) {
   if (hasDetailsRouteButton) {
     await detailsButton.click();
     await expect(page).toHaveURL(/\/spaces\/[^/]+\/item-details\/[^/]+$/);
+    await expect(descriptionField).toBeVisible();
+    if (await descriptionView.isVisible()) await descriptionView.click();
     await expect(description).toBeVisible();
 
     return { item, description };
   }
 
-  const isAlreadyOpen = await description
-    .waitFor({ state: "visible", timeout: 500 })
-    .then(() => true)
-    .catch(() => false);
+  const itemDetailsPanel = page.getByTestId("item-details-panel");
+  const isAlreadyOpen =
+    (await itemDetailsPanel.getAttribute("aria-hidden")) === "false";
 
   if (!isAlreadyOpen) {
     await page.keyboard.press("KeyV");
   }
 
+  await expect(itemDetailsPanel).toHaveAttribute("aria-hidden", "false");
   await expect(page.getByText("Item Details")).toBeVisible();
+  await expect(descriptionField).toBeVisible();
+  if (await descriptionView.isVisible()) await descriptionView.click();
   await expect(description).toBeVisible();
 
   return { item, description };
@@ -234,9 +240,7 @@ export function stashTaskItem(page: Page, title: string): Locator {
 }
 
 export function checklistItemRow(page: Page): Locator {
-  return page
-    .locator("[data-checklist-item-id]")
-    .filter({ has: page.getByRole("textbox", { name: "Checklist item" }) });
+  return page.locator("[data-checklist-item-id]");
 }
 
 function escapeRegExp(value: string) {
