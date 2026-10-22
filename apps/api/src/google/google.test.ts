@@ -33,7 +33,11 @@ import { createAccountEmailService } from "../email/service";
 import { googleFlowsTable, type GoogleProfile } from "./tables";
 import { createGoogleService, type GoogleService } from "./service";
 import { hashSecret } from "./actions";
-import { parseGoogleConfig } from "./config";
+import {
+  parseGoogleConfig,
+  resolveGoogleAppUrl,
+  type GoogleConfig,
+} from "./config";
 
 const cleanup: (() => void | Promise<void>)[] = [];
 afterEach(async () => {
@@ -77,6 +81,7 @@ const changeUser = action({
 async function fixture(
   path = ":memory:",
   userTable: TableDefinition = usersTable,
+  googleConfig: GoogleConfig = config,
 ) {
   const sql = new Database(path);
   const db = new DB(
@@ -126,7 +131,7 @@ async function fixture(
       },
     },
   };
-  const google = createGoogleService(db, config, options);
+  const google = createGoogleService(db, googleConfig, options);
   const router = createAppRouter({
     mainDB: db,
     captchaConfig: null,
@@ -608,15 +613,15 @@ describe("Google accounts", () => {
         })
       ).statusCode,
     ).toBe(400);
-    const cookie = String(launch.headers["set-cookie"]).split(";")[0];
-    expect(
-      (
-        await server.inject({
-          url: `/api/auth/google/callback?state=${flow.id}&code=valid`,
-          headers: { cookie },
-        })
-      ).statusCode,
-    ).toBe(200);
+    const cookie = (launch.headers["set-cookie"] as string[])
+      .map((value) => value.split(";")[0])
+      .join("; ");
+    const callback = await server.inject({
+      url: `/api/auth/google/callback?state=${flow.id}&code=valid`,
+      headers: { cookie },
+    });
+    expect(callback.statusCode).toBe(200);
+    expect(callback.body).toContain('href="will-be-done://auth/google"');
     expect(await f.google.poll(flow)).toMatchObject({
       status: "ready",
       email: "person@gmail.com",
@@ -679,7 +684,9 @@ describe("Google accounts", () => {
         })
       ).status,
     ).toBe(400);
-    expect((await fetch(callback, { headers: { cookie } })).status).toBe(200);
+    const completed = await fetch(callback, { headers: { cookie } });
+    expect(completed.status).toBe(200);
+    expect(await completed.text()).toContain("window.close()");
     expect((await fetch(callback, { headers: { cookie } })).status).toBe(400);
     expect(await client.google.poll.mutate(flow)).toMatchObject({
       status: "ready",
@@ -691,14 +698,105 @@ describe("Google accounts", () => {
     ).toMatchObject({ id: result.userId });
   });
 
+  for (const desktop of [false, true]) {
+    for (const intent of ["signin", "link"] as const) {
+      for (const outcome of ["success", "denied", "failed"] as const) {
+        test(`${desktop ? "desktop" : "browser"} ${intent} returns to the app after ${outcome}`, async () => {
+          const f = await fixture();
+          const account = intent === "link" ? await f.passwordAccount() : null;
+          const flow = await f.google.begin(
+            account
+              ? { userId: account.userId, tokenId: account.token }
+              : undefined,
+            desktop ? { desktop: true } : { initiator: "browser" },
+          );
+          const server = createServer({
+            appRouter: f.router,
+            mainDB: f.db,
+            google: f.google,
+            serveFrontend: false,
+            logger: false,
+            rateLimit: { enabled: false, backend: "memory" },
+          });
+          cleanup.push(() => server.close());
+          const url = new URL(flow.launchUrl);
+          const launch = await server.inject(
+            desktop
+              ? {
+                  method: "POST",
+                  url: url.pathname,
+                  headers: { origin: config.appUrl },
+                  payload: {
+                    id: flow.id,
+                    launch: url.searchParams.get("launch"),
+                    confirmationCode: flow.confirmationCode,
+                  },
+                }
+              : {
+                  url: url.pathname + url.search,
+                  headers: { cookie: `wbd_google_${flow.id}=browser` },
+                },
+          );
+          const cookies = [launch.headers["set-cookie"]].flat() as string[];
+          const cookie = cookies.map((value) => value.split(";")[0]).join("; ");
+          const query =
+            outcome === "denied"
+              ? "error=access_denied"
+              : `code=${outcome === "success" ? "valid" : "invalid"}`;
+          const callback = await server.inject({
+            url: `/api/auth/google/callback?state=${flow.id}&${query}`,
+            headers: { cookie },
+          });
+          expect(callback.headers["cache-control"]).toBe("no-store");
+          expect(callback.headers["referrer-policy"]).toBe("no-referrer");
+          expect(callback.body).not.toContain("Return to the app");
+          expect(callback.body).not.toContain(flow.secret);
+          expect(callback.body).not.toContain("<h1>");
+          expect(callback.statusCode).toBe(200);
+          expect(callback.body).toContain("Return to Will Be Done</a>");
+          const nonce = callback.body.match(/nonce="([\w-]+)"/)![1];
+          expect(callback.headers["content-security-policy"]).toContain(
+            `script-src 'nonce-${nonce}'`,
+          );
+          expect(callback.headers["content-security-policy"]).toContain(
+            `style-src 'nonce-${nonce}'`,
+          );
+          if (desktop) {
+            expect(callback.body).toContain(
+              'href="will-be-done://auth/google"',
+            );
+            expect(callback.body).toContain(
+              'window.location.replace("will-be-done://auth/google")',
+            );
+          } else {
+            expect(callback.body).toContain(`href="${config.appUrl}"`);
+            expect(callback.body).toContain(`wbd-google-${flow.id}`);
+            expect(callback.body).toContain("window.close()");
+          }
+          expect((await f.google.poll(flow)).status).toBe(
+            outcome === "success" ? "ready" : "error",
+          );
+        });
+      }
+    }
+  }
+
   test("pending and ready flows survive a database reopen", async () => {
     const directory = mkdtempSync(join(tmpdir(), "google-flow-"));
     cleanup.push(() => rmSync(directory, { recursive: true, force: true }));
     const path = join(directory, "main.sqlite");
-    const first = await fixture(path);
-    const pending = await first.google.begin(undefined, { desktop: true });
+    const hostedConfig = { ...config, appUrl: "https://app.will-be-done.app" };
+    const first = await fixture(path, usersTable, hostedConfig);
+    const pending = await first.google.begin(
+      undefined,
+      { desktop: true },
+      "https://app2.will-be-done.app",
+    );
     const flow = await first.ready();
-    const second = await fixture(path);
+    const second = await fixture(path, usersTable, hostedConfig);
+    expect(await second.google.appUrlForFlow(pending.id)).toBe(
+      "https://app2.will-be-done.app",
+    );
     expect((await second.google.poll(pending)).status).toBe("pending");
     await second.google.launch(
       pending.id,
@@ -714,6 +812,216 @@ describe("Google accounts", () => {
       "google-user-1",
     );
   });
+
+  test("flows created before origin tracking retain the configured origin", async () => {
+    const f = await fixture();
+    const pending = await f.google.begin(undefined, { desktop: true });
+    const removeAppUrl = action({
+      name: "removeGoogleAppUrlForLegacyTest",
+      args: { id: v.string() },
+      handler: function* ({ id }) {
+        const flow = (yield* selectFrom(googleFlowsTable, "byId")
+          .where((q) => q.eq("id", id))
+          .first())!;
+        const { appUrl: _appUrl, ...legacy } = flow;
+        yield* upsert(googleFlowsTable, [legacy]);
+      },
+    });
+    await asyncDispatch(f.db, removeAppUrl(pending));
+    expect(await f.google.appUrlForFlow(pending.id)).toBe(config.appUrl);
+    await f.google.launch(
+      pending.id,
+      new URL(pending.launchUrl).searchParams.get("launch")!,
+      "legacy-cookie",
+      { confirmationCode: pending.confirmationCode! },
+    );
+    await f.google.callback(pending.id, "legacy-cookie", "valid");
+    expect((await f.google.poll(pending)).status).toBe("ready");
+  });
+
+  for (const origin of [
+    "https://app.will-be-done.app",
+    "https://app2.will-be-done.app",
+  ]) {
+    for (const desktop of [false, true]) {
+      for (const link of [false, true]) {
+        test(`${origin} keeps ${desktop ? "desktop" : "browser"} ${link ? "linking" : "signin"} on its starting origin`, async () => {
+          const f = await fixture(":memory:", usersTable, {
+            ...config,
+            appUrl: "https://app.will-be-done.app",
+          });
+          const account = link ? await f.passwordAccount() : null;
+          const server = createServer({
+            appRouter: f.router,
+            mainDB: f.db,
+            google: f.google,
+            serveFrontend: false,
+            logger: false,
+            rateLimit: { enabled: false, backend: "memory" },
+          });
+          cleanup.push(() => server.close());
+          const begin = await server.inject({
+            method: "POST",
+            url: `/api/trpc/google.${link ? "beginLink" : "beginSignIn"}`,
+            headers: {
+              origin,
+              ...(account ? { authorization: `Bearer ${account.token}` } : {}),
+            },
+            payload: { desktop },
+          });
+          expect(begin.statusCode).toBe(200);
+          const flow = begin.json<{
+            result: { data: Awaited<ReturnType<GoogleService["begin"]>> };
+          }>().result.data;
+          const launchUrl = new URL(flow.launchUrl);
+          expect(launchUrl.origin).toBe(origin);
+          expect(await f.google.appUrlForFlow(flow.id)).toBe(origin);
+          const confirmation = {
+            id: flow.id,
+            launch: launchUrl.searchParams.get("launch"),
+            confirmationCode: flow.confirmationCode,
+          };
+          if (desktop) {
+            const wrongOrigin = origin.includes("app2.")
+              ? "https://app.will-be-done.app"
+              : "https://app2.will-be-done.app";
+            expect(
+              (
+                await server.inject({
+                  method: "POST",
+                  url: launchUrl.pathname,
+                  headers: { origin: wrongOrigin },
+                  payload: confirmation,
+                })
+              ).statusCode,
+            ).toBe(400);
+          }
+          const launched = await server.inject(
+            desktop
+              ? {
+                  method: "POST",
+                  url: launchUrl.pathname,
+                  headers: { origin },
+                  payload: confirmation,
+                }
+              : {
+                  url: launchUrl.pathname + launchUrl.search,
+                  headers: {
+                    cookie: String(begin.headers["set-cookie"]).split(";")[0],
+                  },
+                },
+          );
+          expect(launched.statusCode).toBe(desktop ? 303 : 302);
+          const cookies = [launched.headers["set-cookie"]].flat() as string[];
+          expect(
+            cookies.every(
+              (cookie) =>
+                cookie.includes("; Secure") && !cookie.includes("Domain="),
+            ),
+          ).toBe(true);
+          const callback = await server.inject({
+            url: `/api/auth/google/callback?state=${flow.id}&code=valid`,
+            headers: {
+              cookie: cookies.map((cookie) => cookie.split(";")[0]).join("; "),
+            },
+          });
+          expect(callback.statusCode).toBe(200);
+          expect(callback.body).toContain(
+            `href="${desktop ? "will-be-done://auth/google" : origin}"`,
+          );
+          expect((await f.google.poll(flow)).status).toBe("ready");
+          if (account) {
+            await f.google.completeLink(
+              flow,
+              { userId: account.userId, tokenId: account.token },
+              password,
+            );
+            expect((await f.user(account.userId))!.googleSubject).toBe(
+              "google-user-1",
+            );
+          } else {
+            const result = await f.google.completeSignIn(flow);
+            expect(
+              await authenticateBearerToken(`Bearer ${result.token}`, f.db),
+            ).toMatchObject({ id: result.userId });
+          }
+        });
+      }
+    }
+  }
+
+  test("unrecognized origins cannot start flows or override the configured origin through proxy headers", async () => {
+    const f = await fixture(":memory:", usersTable, {
+      ...config,
+      appUrl: "https://app.will-be-done.app",
+    });
+    const server = createServer({
+      appRouter: f.router,
+      mainDB: f.db,
+      google: f.google,
+      serveFrontend: false,
+      logger: false,
+      rateLimit: { enabled: false, backend: "memory" },
+    });
+    cleanup.push(() => server.close());
+    for (const origin of [
+      "https://evil.example.com",
+      "null",
+      "https://app2.will-be-done.app.evil.example.com",
+    ]) {
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/trpc/google.beginSignIn",
+        headers: { origin },
+        payload: {},
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.headers["set-cookie"]).toBeUndefined();
+    }
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/trpc/google.beginSignIn",
+      headers: {
+        host: "evil.example.com",
+        "x-forwarded-host": "evil.example.com",
+        "x-forwarded-proto": "https",
+      },
+      payload: {},
+    });
+    expect(response.statusCode).toBe(200);
+    expect(
+      new URL(
+        response.json<{ result: { data: { launchUrl: string } } }>().result.data
+          .launchUrl,
+      ).origin,
+    ).toBe("https://app.will-be-done.app");
+  });
+});
+
+test("origin selection allows only the configured deployment or the two hosted domains", () => {
+  const primary = "https://app.will-be-done.app";
+  const secondary = "https://app2.will-be-done.app";
+  for (const appUrl of [primary, secondary]) {
+    expect(resolveGoogleAppUrl({ ...config, appUrl })).toBe(appUrl);
+    expect(resolveGoogleAppUrl({ ...config, appUrl }, primary)).toBe(primary);
+    expect(resolveGoogleAppUrl({ ...config, appUrl }, secondary)).toBe(
+      secondary,
+    );
+    for (const origin of [
+      "https://evil.example.com",
+      "http://app2.will-be-done.app",
+      `${secondary}/path`,
+      `https://evil@${new URL(secondary).host}`,
+      `${secondary}.evil.example.com`,
+      "null",
+    ]) {
+      expect(() =>
+        resolveGoogleAppUrl({ ...config, appUrl }, origin),
+      ).toThrow();
+    }
+  }
+  expect(resolveGoogleAppUrl(config, config.appUrl)).toBe(config.appUrl);
+  expect(() => resolveGoogleAppUrl(config, secondary)).toThrow();
 });
 
 test("Google configuration is optional, complete, and restricts public URLs", () => {

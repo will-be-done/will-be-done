@@ -38,9 +38,12 @@ async function begin(
   const flow = await service.begin(
     link ? { userId: ctx.user!.id, tokenId: ctx.tokenId! } : undefined,
     desktop ? { desktop: true } : { initiator },
+    ctx.origin,
   );
   if (!desktop)
-    ctx.setCookie!(googleCookie(service.appUrl, flow.id, initiator, 600));
+    ctx.setCookie!(
+      googleCookie(new URL(flow.launchUrl).origin, flow.id, initiator, 600),
+    );
   return flow;
 }
 const password = z.string().min(8).max(1024);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, KeyRound, Mail } from "lucide-react";
 import { GoogleMark } from "./GoogleSignIn";
@@ -12,6 +12,11 @@ export function AccountSettings() {
   const config = useQuery(trpc.getAuthConfig.queryOptions());
   const google = useGoogleFlow("link");
   const [password, setPassword] = useState("");
+  const [passwordRequested, setPasswordRequested] = useState(false);
+  const passwordInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (passwordRequested) passwordInput.current?.focus();
+  }, [passwordRequested]);
   const [message, setMessage] = useState("");
   const [verifyCooldown, setVerifyCooldown] = useState(0);
   const [resetCooldown, setResetCooldown] = useState(0);
@@ -52,6 +57,9 @@ export function AccountSettings() {
       </p>
     );
   const user = account.data;
+  const showGoogleAction = user.googleEmail
+    ? user.hasPassword
+    : config.data?.googleEnabled;
   return (
     <section
       aria-label="Account settings"
@@ -106,19 +114,6 @@ export function AccountSettings() {
             ? `Connected as ${user.googleEmail}`
             : "Connect Google to sign in to this account."}
         </p>
-        {!user.googleEmail && config.data?.googleEnabled && (
-          <button
-            className={button}
-            disabled={google.busy || !user.hasPassword}
-            onClick={() => {
-              setMessage("");
-              setPassword("");
-              void google.start();
-            }}
-          >
-            Connect Google
-          </button>
-        )}
         {!user.googleEmail && !config.data?.googleEnabled && (
           <p className="text-slate-400">
             Google sign-in is not configured on this server.
@@ -142,10 +137,20 @@ export function AccountSettings() {
             email stays the same.
           </p>
         )}
-        {(google.readyEmail || user.googleEmail) && user.hasPassword && (
+        {showGoogleAction && (
           <form
             onSubmit={(event) => {
               event.preventDefault();
+              if (!passwordRequested) {
+                setMessage("");
+                setPasswordRequested(true);
+                return;
+              }
+              if (!user.googleEmail && !google.readyEmail) {
+                setMessage("");
+                void google.start();
+                return;
+              }
               void (async () => {
                 setSubmitting(true);
                 setMessage("");
@@ -162,6 +167,7 @@ export function AccountSettings() {
                     );
                   }
                   setPassword("");
+                  setPasswordRequested(false);
                   await refresh();
                 } catch {
                   /* The mutation displays its error below. */
@@ -172,30 +178,38 @@ export function AccountSettings() {
             }}
             className="space-y-3"
           >
-            <label className="block">
-              Current password
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                minLength={8}
-                maxLength={1024}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="mt-2 block min-h-11 w-full rounded-lg bg-white/[0.05] px-3 py-2 text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </label>
+            {passwordRequested && (
+              <label className="block">
+                Password is required to proceed
+                <input
+                  ref={passwordInput}
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  minLength={8}
+                  maxLength={1024}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="mt-2 block min-h-11 w-full rounded-lg bg-white/[0.05] px-3 py-2 text-white ring-1 ring-white/10 outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </label>
+            )}
             <button
               className={button}
               disabled={
-                submitting || (!google.readyEmail && !user.emailVerifiedAt)
+                submitting ||
+                !user.hasPassword ||
+                (google.busy && !google.readyEmail) ||
+                Boolean(user.googleEmail && !user.emailVerifiedAt)
               }
             >
               {submitting
                 ? "Saving…"
                 : google.readyEmail
                   ? "Confirm connection"
-                  : "Disconnect Google"}
+                  : user.googleEmail
+                    ? "Disconnect Google"
+                    : "Connect Google"}
             </button>
           </form>
         )}
@@ -206,6 +220,7 @@ export function AccountSettings() {
             onClick={() => {
               google.cancel();
               setPassword("");
+              setPasswordRequested(false);
             }}
           >
             Cancel connection

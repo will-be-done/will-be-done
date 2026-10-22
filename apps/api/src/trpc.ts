@@ -16,6 +16,7 @@ export interface Context {
   tokenId?: string;
   revalidateUser?: () => Promise<AuthenticatedUser | null>;
   requestId?: string;
+  origin?: string;
   setCookie?: (value: string) => void;
   enforceRateLimit?: (policy: RateLimitPolicy) => Promise<void>;
 }
@@ -48,6 +49,7 @@ export async function createContext({
       ? { tokenId: authHeader.slice("Bearer ".length) }
       : {}),
     requestId: req.id,
+    origin: req.headers.origin,
     ...(req.headers.upgrade?.toLowerCase() !== "websocket"
       ? {
           setCookie: (value: string) => {

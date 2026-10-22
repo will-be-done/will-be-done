@@ -2,11 +2,14 @@ import { randomBytes } from "node:crypto";
 import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
 import type { GoogleConfig } from "./config";
+import { resolveGoogleAppUrl } from "./config";
 import type { GoogleFlow } from "./tables";
 import type { GoogleProvider } from "./provider";
 import { createGoogleProvider } from "./provider";
 import {
   cancelFlow,
+  findFlow,
+  flowError,
   claimCallback,
   completeGoogleFlow,
   disconnectGoogle,
@@ -87,7 +90,17 @@ export function createGoogleService(
   async function begin(
     session: GoogleSession | undefined,
     binding: { initiator: string } | { desktop: true },
+    origin?: string,
   ) {
+    let appUrl: string;
+    try {
+      appUrl = resolveGoogleAppUrl(config, origin);
+    } catch {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Unsupported Google sign-in origin",
+      });
+    }
     const confirmationCode =
       "desktop" in binding ? randomBytes(9).toString("base64url") : null;
     const id = randomSecret(),
@@ -95,6 +108,7 @@ export function createGoogleService(
       launch = randomSecret();
     const flow: GoogleFlow = {
       id,
+      appUrl,
       secretHash: hashSecret(secret),
       launchHash: hashSecret(launch),
       ...("initiator" in binding
@@ -112,7 +126,7 @@ export function createGoogleService(
       id,
       secret,
       confirmationCode,
-      launchUrl: `${config.appUrl}/api/auth/google/launch?id=${id}&launch=${launch}`,
+      launchUrl: `${appUrl}/api/auth/google/launch?id=${id}&launch=${launch}`,
       expiresAt: flow.expiresAt,
     };
   }
@@ -120,6 +134,11 @@ export function createGoogleService(
   return {
     appUrl: config.appUrl,
     begin,
+    async appUrlForFlow(id: string) {
+      const flow = await selectAsync(db, { selector: findFlow, args: { id } });
+      if (!flow) throw flowError();
+      return resolveGoogleAppUrl(config, flow.appUrl);
+    },
     async desktopLaunch(id: string, launch: string) {
       const flow = await selectAsync(db, {
         selector: readLaunch,

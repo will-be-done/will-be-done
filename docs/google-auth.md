@@ -21,8 +21,9 @@ for the result from the configured server.
    ```
 
    Use the exact hostname and port you open in the browser. Vite forwards the
-   callback to the API. You do not need a separate desktop client, custom URL
-   scheme, or access to Google APIs beyond the `openid` and `email` scopes.
+   callback to the API. You do not need a separate desktop OAuth client or access
+   to Google APIs beyond the `openid` and `email` scopes. The desktop installer
+   registers `will-be-done://` to return to the app after Google responds.
 
 3. Set these variables on the API process:
 
@@ -35,6 +36,19 @@ for the result from the configured server.
    Use your secret manager for the client secret. Do not put the secret in a
    `VITE_` variable. `WBD_GOOGLE_PUBLIC_APP_URL` must be an origin without a path,
    query, or fragment. HTTPS is required except on localhost.
+
+   For the hosted app, set `WBD_GOOGLE_PUBLIC_APP_URL` to either
+   `https://app.will-be-done.app` or `https://app2.will-be-done.app`. Sign-in
+   automatically uses the domain where it starts. Register both callback URLs
+   in the Google OAuth client:
+
+   ```text
+   https://app.will-be-done.app/api/auth/google/callback
+   https://app2.will-be-done.app/api/auth/google/callback
+   ```
+
+   Self-hosted deployments accept only their configured origin. Requests without
+   an `Origin` header use `WBD_GOOGLE_PUBLIC_APP_URL`.
 
    To disable Google sign-in, leave all three variables unset. Partial
    configuration prevents API startup. For self-hosted desktop use, configure
@@ -64,9 +78,13 @@ for the result from the configured server.
 10. Test the desktop app against the same server. Select **Continue with Google**.
     Enter the code displayed in the desktop app into the system browser's
     confirmation page, then select **Continue to Google**. For account linking,
-    check the target app email on that page. Finish with Google and return to the
-    desktop window. Sign-in flows expire after ten minutes. If a flow expires or
-    the browser closes, start again.
+    check the target app email on that page. After Google responds, the browser
+    opens the desktop app automatically. If your browser asks to open Will Be
+    Done, allow it. Browser sign-in closes its Google tab and resumes in the
+    original app tab. Cancellation and errors also return to the app.
+    If automatic return is blocked, select **Return to Will Be Done** in the browser.
+    Sign-in flows expire after ten minutes. If a flow expires or the browser
+    closes, start again.
 
 If Google sign-in reports an existing email, sign in with the account's existing
 method and connect Google from Account settings. Use email password recovery if
@@ -74,5 +92,5 @@ you have forgotten the password. Google email matches never link accounts
 automatically.
 
 If Google reports a redirect URI mismatch, compare its registered URI with
-`WBD_GOOGLE_PUBLIC_APP_URL` plus `/api/auth/google/callback`. Check the hostname,
+the domain where sign-in started plus `/api/auth/google/callback`. Check the hostname,
 port, protocol, and trailing path exactly.

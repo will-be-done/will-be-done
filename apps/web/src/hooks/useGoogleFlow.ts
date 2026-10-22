@@ -20,12 +20,14 @@ export function useGoogleFlow(intent: "signin" | "link") {
     popup?: Window;
     controller: AbortController;
     session: string;
+    channel?: BroadcastChannel;
   } | null>(null);
 
   const cancel = useCallback(() => {
     const current = active.current;
     active.current = null;
     current?.controller.abort();
+    current?.channel?.close();
     current?.popup?.close();
     if (current?.flow)
       void trpcClient.google.cancel.mutate(current.flow).catch(() => {});
@@ -67,6 +69,7 @@ export function useGoogleFlow(intent: "signin" | "link") {
       controller: new AbortController(),
       session: session(),
       flow: undefined as Flow | undefined,
+      channel: undefined as BroadcastChannel | undefined,
     };
     active.current = current;
     setBusy(true);
@@ -89,7 +92,20 @@ export function useGoogleFlow(intent: "signin" | "link") {
         if (!desktop.openGoogleAuth)
           throw new Error("Update the desktop app to continue with Google.");
         await desktop.openGoogleAuth(flow.launchUrl);
-      } else if (popup) popup.location.href = flow.launchUrl;
+      } else if (popup) {
+        if (typeof BroadcastChannel !== "undefined") {
+          current.channel = new BroadcastChannel(`wbd-google-${flow.id}`);
+          current.channel.onmessage = (event: MessageEvent<unknown>) => {
+            if (event.data !== "complete" || active.current !== current) return;
+            // The notification only wakes polling. The server still verifies
+            // the flow proof before returning a result or issuing credentials.
+            popup.close();
+            window.focus();
+            current.controller.abort();
+          };
+        }
+        popup.location.href = flow.launchUrl;
+      }
       let consecutiveFailures = 0;
       while (active.current === current && Date.now() < flow.expiresAt) {
         const result = await trpcClient.google.poll
@@ -111,6 +127,7 @@ export function useGoogleFlow(intent: "signin" | "link") {
             result.error ?? "Google sign-in failed. Please try again.",
           );
         if (result.status === "ready") {
+          current.channel?.close();
           current.popup?.close();
           setConfirmationCode(null);
           if (intent === "link") {
@@ -134,6 +151,11 @@ export function useGoogleFlow(intent: "signin" | "link") {
           return;
         }
         await new Promise<void>((resolve) => {
+          if (current.controller.signal.aborted) {
+            current.controller = new AbortController();
+            resolve();
+            return;
+          }
           const finish = () => {
             clearTimeout(timer);
             current.controller.signal.removeEventListener("abort", finish);

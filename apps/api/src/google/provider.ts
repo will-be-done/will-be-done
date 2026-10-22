@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { OAuth2Client, CodeChallengeMethod } from "google-auth-library";
 import { z } from "zod";
 import type { GoogleConfig } from "./config";
+import { resolveGoogleAppUrl } from "./config";
 import type { GoogleFlow, GoogleProfile } from "./tables";
 
 export interface GoogleProvider {
@@ -16,9 +17,12 @@ export function createGoogleProvider(config: GoogleConfig): GoogleProvider {
     redirectUri: `${config.appUrl}/api/auth/google/callback`,
     transporterOptions: { timeout: 10_000, retry: false },
   });
+  const redirectUri = (flow: GoogleFlow) =>
+    `${resolveGoogleAppUrl(config, flow.appUrl)}/api/auth/google/callback`;
   return {
     authorizationUrl(flow) {
       return client.generateAuthUrl({
+        redirect_uri: redirectUri(flow),
         scope: ["openid", "email"],
         state: flow.id,
         nonce: flow.nonce,
@@ -32,6 +36,7 @@ export function createGoogleProvider(config: GoogleConfig): GoogleProvider {
     async verify(code, flow) {
       const { tokens } = await client.getToken({
         code,
+        redirect_uri: redirectUri(flow),
         codeVerifier: flow.pkceVerifier,
       });
       if (!tokens.id_token) throw new Error("Missing Google ID token");
