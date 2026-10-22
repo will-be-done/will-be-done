@@ -4,6 +4,23 @@ export interface GoogleConfig {
   appUrl: string;
 }
 
+const hostedAppUrls = [
+  "https://app.will-be-done.app",
+  "https://app2.will-be-done.app",
+];
+
+export function resolveGoogleAppUrl(
+  config: GoogleConfig,
+  origin = config.appUrl,
+) {
+  const allowed = hostedAppUrls.includes(config.appUrl)
+    ? hostedAppUrls
+    : [config.appUrl];
+  if (!allowed.includes(origin))
+    throw new Error("Unsupported Google sign-in origin");
+  return origin;
+}
+
 export function parseGoogleConfig(env: {
   WBD_GOOGLE_CLIENT_ID?: string;
   WBD_GOOGLE_CLIENT_SECRET?: string;

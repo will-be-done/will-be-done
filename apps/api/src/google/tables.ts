@@ -2,6 +2,7 @@ import { defineTable, v, type ExtractSchema } from "@will-be-done/hyperdb";
 
 export const googleFlowsTable = defineTable("google_auth_flows", {
   id: v.string(),
+  appUrl: v.optional(v.string()),
   secretHash: v.string(),
   launchHash: v.optional(v.string()),
   initiatorHash: v.optional(v.string()),

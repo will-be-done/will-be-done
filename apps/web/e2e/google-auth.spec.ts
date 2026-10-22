@@ -20,7 +20,9 @@ async function approve(popup: Page, email: string, subject: string) {
 async function googleSignIn(page: Page, email: string, subject: string) {
   const popup = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await approve(await popup, email, subject);
+  const provider = await popup;
+  await approve(provider, email, subject);
+  await expect.poll(() => provider.isClosed()).toBe(true);
 }
 
 test("Google signup, password setup, disconnect, explicit relinking, and returning login", async ({
@@ -126,49 +128,165 @@ test("same-email collision instructs linking; different-email linking keeps the 
   );
 });
 
-test("desktop bridge opens the system-browser flow and the app receives its result", async ({
-  page,
-  browser: playwrightBrowser,
-}) => {
-  await page.addInitScript(() => {
-    Object.assign(window, {
-      desktopApi: {
-        getServerUrl: async () => window.location.origin,
-        openGoogleAuth: async (url: string) => {
-          Object.assign(window, { googleLaunch: url });
+for (const javaScriptEnabled of [true, false]) {
+  test(`desktop return works with JavaScript ${javaScriptEnabled ? "enabled" : "disabled"}`, async ({
+    page,
+    browser: playwrightBrowser,
+  }) => {
+    await page.addInitScript(() => {
+      Object.assign(window, {
+        desktopApi: {
+          getServerUrl: async () => window.location.origin,
+          openGoogleAuth: async (url: string) => {
+            Object.assign(window, { googleLaunch: url });
+          },
         },
-      },
+      });
     });
+    await page.goto("/login");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await page.waitForFunction(() =>
+      Boolean((window as unknown as { googleLaunch?: string }).googleLaunch),
+    );
+    const url = await page.evaluate(
+      () => (window as unknown as { googleLaunch: string }).googleLaunch,
+    );
+    expect(new URL(url).pathname).toBe("/api/auth/google/launch");
+    const externalContext = await playwrightBrowser.newContext({
+      javaScriptEnabled,
+    });
+    const browser = await externalContext.newPage();
+    await browser.goto(url);
+    await expect(
+      browser.getByRole("heading", { name: "Confirm in Will Be Done" }),
+    ).toBeVisible();
+    await browser
+      .getByLabel("Confirmation code")
+      .fill(
+        (await page.getByTestId("google-confirmation-code").textContent())!,
+      );
+    await browser.getByRole("button", { name: "Continue to Google" }).click();
+    const subject = randomUUID();
+    const callback = browser.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/auth/google/callback",
+    );
+    await approve(browser, `desktop-${subject}@gmail.com`, subject);
+    expect((await callback).status()).toBe(200);
+    await expect(
+      browser.getByRole("link", { name: "Return to Will Be Done" }),
+    ).toHaveAttribute("href", "will-be-done://auth/google");
+    await expect(
+      browser.getByRole("link", { name: "Return to Will Be Done" }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/spaces\/?$/);
+    await externalContext.close();
+  });
+}
+
+test("a return link remains when closing the popup and notifying the app are blocked", async ({
+  page,
+  context,
+}) => {
+  await context.addInitScript(() => {
+    if (window.location.pathname !== "/api/auth/google/callback") return;
+    window.close = () => {};
+    Object.defineProperty(window, "BroadcastChannel", { value: undefined });
   });
   await page.goto("/login");
+  const opened = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await page.waitForFunction(() =>
-    Boolean((window as unknown as { googleLaunch?: string }).googleLaunch),
-  );
-  const url = await page.evaluate(
-    () => (window as unknown as { googleLaunch: string }).googleLaunch,
-  );
-  expect(new URL(url).pathname).toBe("/api/auth/google/launch");
-  const externalContext = await playwrightBrowser.newContext();
-  const browser = await externalContext.newPage();
-  await browser.goto(url);
-  await expect(
-    browser.getByRole("heading", { name: "Confirm in Will Be Done" }),
-  ).toBeVisible();
-  await browser
-    .getByLabel("Confirmation code")
-    .fill((await page.getByTestId("google-confirmation-code").textContent())!);
-  await browser.getByRole("button", { name: "Continue to Google" }).click();
+  const popup = await opened;
   const subject = randomUUID();
-  await approve(browser, `desktop-${subject}@gmail.com`, subject);
-  await expect(
-    browser.getByText(
-      "Google confirmed your identity. Return to the app to finish.",
-    ),
-  ).toBeVisible();
+  await approve(popup, `fallback-${subject}@gmail.com`, subject);
+  const link = popup.getByRole("link", { name: "Return to Will Be Done" });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute("href", new URL(page.url()).origin);
   await expect(page).toHaveURL(/\/spaces\/?$/);
-  await externalContext.close();
+  await link.click();
+  await expect(popup).toHaveURL(/\/spaces\/?$/);
 });
+
+test("the callback closes the browser tab before a delayed app poll finishes", async ({
+  page,
+}) => {
+  let release!: () => void;
+  const polling = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/trpc/google.poll?*", async (route) => {
+    await polling;
+    await route.continue();
+  });
+  try {
+    await page.goto("/login");
+    const subject = randomUUID();
+    await googleSignIn(page, `instant-${subject}@gmail.com`, subject);
+    await expect(page).toHaveURL(/\/login$/);
+  } finally {
+    release();
+  }
+  await expect(page).toHaveURL(/\/spaces\/?$/);
+});
+
+for (const intent of ["signin", "link"] as const) {
+  for (const outcome of ["denied", "failed"] as const) {
+    test(`${intent} ${outcome} closes the browser tab and shows the error in the app`, async ({
+      page,
+    }) => {
+      if (intent === "link") {
+        await signupUser(page);
+        await page.goto("/account");
+      } else {
+        await page.goto("/login");
+      }
+      if (outcome === "failed") {
+        await page
+          .context()
+          .route("**/api/__test/google/consent?*", (route) => {
+            const state = new URL(route.request().url()).searchParams.get(
+              "state",
+            )!;
+            return route.fulfill({
+              status: 302,
+              headers: {
+                location: `/api/auth/google/callback?${new URLSearchParams({ state, code: "invalid" })}`,
+              },
+            });
+          });
+      }
+      const opened = page.waitForEvent("popup");
+      await page
+        .getByRole("button", {
+          name: intent === "link" ? "Connect Google" : "Continue with Google",
+          exact: true,
+        })
+        .click();
+      const popup = await opened;
+      if (outcome === "denied") {
+        await popup
+          .getByRole("button", { name: "Deny Google sign-in" })
+          .click();
+      } else {
+        const subject = randomUUID();
+        await approve(popup, `failed-${subject}@gmail.com`, subject);
+      }
+      await expect.poll(() => popup.isClosed()).toBe(true);
+      await expect(page.getByRole("alert")).toContainText(
+        outcome === "denied" ? "cancelled" : "failed",
+      );
+      await expect(page).toHaveURL(
+        intent === "link" ? /\/account$/ : /\/login$/,
+      );
+      await expect(
+        page.getByRole("button", {
+          name: intent === "link" ? "Connect Google" : "Continue with Google",
+          exact: true,
+        }),
+      ).toBeEnabled();
+    });
+  }
+}
 
 test("polling tolerates two failures and resets the failure count after a successful poll", async ({
   page,

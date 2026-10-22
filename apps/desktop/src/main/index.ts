@@ -10,7 +10,7 @@ import {
   Tray
 } from 'electron'
 import { validateGoogleAuthLaunch } from './googleAuth'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
@@ -79,6 +79,21 @@ function hasQuickAddArgument(commandLine: string[]): boolean {
 if (!gotTheLock) {
   app.quit()
 } else {
+  if (process.defaultApp && process.argv[1]) {
+    app.setAsDefaultProtocolClient('will-be-done', process.execPath, [resolve(process.argv[1])])
+  } else {
+    app.setAsDefaultProtocolClient('will-be-done')
+  }
+
+  app.on('open-url', (event, url) => {
+    if (url !== 'will-be-done://auth/google') return
+    event.preventDefault()
+    // The URL only brings the window forward. Authentication stays bound to
+    // the pending flow in the app and completes through server polling.
+    // Startup already opens the main window when the app is not ready yet.
+    if (app.isReady()) showMainWindow()
+  })
+
   app.on('second-instance', (_event, commandLine) => {
     if (hasQuickAddArgument(commandLine)) {
       logPopup('quick add requested by second instance')

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { GoogleService } from "./service";
 
@@ -34,8 +34,7 @@ const readCookie = (header: string | undefined, id: string) =>
     ?.split("=")[1];
 
 export function googleRoutes(server: FastifyInstance, google: GoogleService) {
-  const cookie = (id: string, value: string, age: number) =>
-    googleCookie(google.appUrl, id, value, age);
+  const cookie = googleCookie;
   const headers = {
     "cache-control": "no-store",
     "referrer-policy": "no-referrer",
@@ -45,6 +44,45 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
   };
   const page = (message: string) =>
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Google sign-in · Will Be Done</title></head><body><h1>Will Be Done</h1><p>${message}</p><p>You can close this tab and return to the app.</p></body></html>`;
+  const returnToApp = (
+    reply: FastifyReply,
+    id: string,
+    desktop: boolean,
+    appUrl: string,
+  ) => {
+    const target = desktop ? "will-be-done://auth/google" : appUrl;
+    const nonce = randomBytes(16).toString("base64url");
+    const script = desktop
+      ? `window.location.replace(${JSON.stringify(target)});`
+      : `try { const channel = new BroadcastChannel(${JSON.stringify(`wbd-google-${id}`)}); channel.postMessage("complete"); channel.close(); } catch {} window.close();`;
+    return reply
+      .header(
+        "content-security-policy",
+        `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; frame-ancestors 'none'; base-uri 'none'`,
+      )
+      .type("text/html")
+      .send(
+        `<!doctype html><html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Will Be Done</title>
+  <style nonce="${nonce}">
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    main { visibility: hidden; animation: reveal 0s 1.5s forwards; }
+    @keyframes reveal { to { visibility: visible; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p>If you haven’t returned to the app automatically:</p>
+    <a href="${escapeHtml(target)}">Return to Will Be Done</a>
+  </main>
+  <script nonce="${nonce}">${script}</script>
+</body>
+</html>`,
+      );
+  };
 
   server.get(
     "/api/auth/google/launch",
@@ -59,6 +97,7 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
           .send(page("Invalid sign-in link. Please start again in the app."));
       const { id, launch } = parsed.data;
       try {
+        const appUrl = await google.appUrlForFlow(id);
         const initiator = readCookie(request.headers.cookie, id);
         if (!initiator) {
           const target = await google.desktopLaunch(id, launch);
@@ -74,7 +113,7 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
           initiator,
         });
         return reply
-          .header("set-cookie", cookie(id, browserSecret, 600))
+          .header("set-cookie", cookie(appUrl, id, browserSecret, 600))
           .redirect(url);
       } catch {
         return reply
@@ -105,16 +144,20 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
         .safeParse(request.body);
       try {
         // A cross-site form must not bypass the confirmation page.
-        if (request.headers.origin !== google.appUrl)
-          throw new Error("Invalid confirmation origin");
         if (!parsed.success) throw new Error("Invalid confirmation");
         const { id, launch, confirmationCode } = parsed.data;
+        const appUrl = await google.appUrlForFlow(id);
+        if (request.headers.origin !== appUrl)
+          throw new Error("Invalid confirmation origin");
         const browserSecret = randomBytes(32).toString("base64url");
         const url = await google.launch(id, launch, browserSecret, {
           confirmationCode,
         });
         return reply
-          .header("set-cookie", cookie(id, browserSecret, 600))
+          .header("set-cookie", [
+            cookie(appUrl, id, browserSecret, 600),
+            cookie(appUrl, `return_${id}`, "desktop", 600),
+          ])
           .redirect(url, 303);
       } catch {
         return reply
@@ -134,43 +177,25 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
     async (request, reply) => {
       reply.headers(headers);
       const parsed = callbackQuery.safeParse(request.query);
-      if (!parsed.success)
-        return reply
-          .code(400)
-          .type("text/html")
-          .send(
-            page("Invalid Google response. Please start again in the app."),
-          );
+      if (!parsed.success) return reply.redirect(google.appUrl);
       const { state, code, error } = parsed.data;
       const browserSecret = readCookie(request.headers.cookie, state);
-      reply.header("set-cookie", cookie(state, "", 0));
+      const desktop =
+        readCookie(request.headers.cookie, `return_${state}`) === "desktop";
+      let appUrl = google.appUrl;
+      reply.header("set-cookie", [
+        cookie(appUrl, state, "", 0),
+        cookie(appUrl, `return_${state}`, "", 0),
+      ]);
       try {
+        appUrl = await google.appUrlForFlow(state);
         if (!browserSecret || !idSchema.safeParse(browserSecret).success)
           throw new Error("Missing browser binding");
-        const success = await google.callback(
-          state,
-          browserSecret,
-          code,
-          Boolean(error),
-        );
-        return reply
-          .type("text/html")
-          .send(
-            page(
-              success
-                ? "Google confirmed your identity. Return to the app to finish."
-                : "Google sign-in was not completed. Please try again in the app.",
-            ),
-          );
+        await google.callback(state, browserSecret, code, Boolean(error));
+        return returnToApp(reply, state, desktop, appUrl);
       } catch {
-        return reply
-          .code(400)
-          .type("text/html")
-          .send(
-            page(
-              "This sign-in has expired or is no longer valid. Please start again in the app.",
-            ),
-          );
+        reply.code(400);
+        return returnToApp(reply, state, desktop, appUrl);
       }
     },
   );

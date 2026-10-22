@@ -56,7 +56,7 @@ function signedToken(changes: Record<string, unknown> = {}, corrupt = false) {
   ).toString("base64url");
   return `${header}.${payload}.${corrupt ? "invalid" : signature}`;
 }
-function providerToken(token: string) {
+function providerToken(token: string, providerConfig = config) {
   const prototype = OAuth2Client.prototype as {
     getToken(options: GetTokenOptions): Promise<GetTokenResponse>;
   };
@@ -75,7 +75,7 @@ function providerToken(token: string) {
     exchange.mockRestore();
     certs.mockRestore();
   });
-  return createGoogleProvider(config);
+  return createGoogleProvider(providerConfig);
 }
 
 async function rejects(promise: Promise<unknown>) {
@@ -106,6 +106,35 @@ test("valid signed Google claims produce a stable identity", async () => {
     subject: "subject",
     email: "person@gmail.com",
     emailAuthoritative: true,
+  });
+});
+
+test("authorization and concurrent token exchanges keep each flow's registered origin", async () => {
+  const primary = "https://app.will-be-done.app";
+  const secondary = "https://app2.will-be-done.app";
+  const provider = providerToken(signedToken(), { ...config, appUrl: primary });
+  const first = { ...flow, appUrl: primary };
+  const second = { ...flow, id: "second", appUrl: secondary };
+  for (const current of [first, second, first]) {
+    expect(
+      new URL(provider.authorizationUrl(current)).searchParams.get(
+        "redirect_uri",
+      ),
+    ).toBe(`${current.appUrl}/api/auth/google/callback`);
+  }
+  await Promise.all([
+    provider.verify("first-code", first),
+    provider.verify("second-code", second),
+  ]);
+  expect(OAuth2Client.prototype.getToken).toHaveBeenNthCalledWith(1, {
+    code: "first-code",
+    codeVerifier: flow.pkceVerifier,
+    redirect_uri: `${primary}/api/auth/google/callback`,
+  });
+  expect(OAuth2Client.prototype.getToken).toHaveBeenNthCalledWith(2, {
+    code: "second-code",
+    codeVerifier: flow.pkceVerifier,
+    redirect_uri: `${secondary}/api/auth/google/callback`,
   });
 });
 for (const [label, claims] of [
