@@ -41,6 +41,28 @@ describe("linkifyText", () => {
       { type: "text", value: "). Next.", start: 30 },
     ]);
   });
+
+  it("treats backticks as URL delimiters and preserves them as text", () => {
+    expect(
+      linkifyText("`https://example.com/docs` then `www.example.com`"),
+    ).toEqual([
+      { type: "text", value: "`", start: 0 },
+      {
+        type: "link",
+        value: "https://example.com/docs",
+        href: "https://example.com/docs",
+        start: 1,
+      },
+      { type: "text", value: "` then `", start: 25 },
+      {
+        type: "link",
+        value: "www.example.com",
+        href: "https://www.example.com",
+        start: 33,
+      },
+      { type: "text", value: "`", start: 48 },
+    ]);
+  });
 });
 
 describe("LinkifiedText", () => {

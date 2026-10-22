@@ -98,6 +98,11 @@ test("edits task details and persists checklist items", async ({ page }) => {
 test("makes links in task text and checklist items clickable", async ({
   page,
 }) => {
+  await page
+    .context()
+    .route(/^https:\/\/(www\.)?example\.com\//, (route) =>
+      route.fulfill({ contentType: "text/html", body: "Link destination" }),
+    );
   const spaceName = uniqueE2EName("E2E Linked Text Space");
   const originalTitle = uniqueE2EName("E2E linked text task");
   const linkedTitle = `${originalTitle} https://example.com/title`;
@@ -108,7 +113,7 @@ test("makes links in task text and checklist items clickable", async ({
   await createTodayTask(page, originalTitle);
 
   const details = await openTaskDetails(page, originalTitle);
-  await details.description.fill("Read www.example.com/docs.");
+  await details.description.fill("Read `www.example.com/docs`.");
   await details.description.blur();
 
   const detailsPanel = page.getByTestId("item-details-panel");
@@ -171,7 +176,102 @@ test("makes links in task text and checklist items clickable", async ({
     "https://example.com/checklist",
   );
   await expect(taskChecklistLink).toHaveAttribute("target", "_blank");
+
+  const task = taskItem(page, linkedTitle);
+  const originalUrl = page.url();
+  for (const { link, destination, readView, editor } of [
+    {
+      link: descriptionLink,
+      destination: "https://www.example.com/docs",
+      readView: detailsPanel.getByTestId("task-description"),
+      editor: detailsPanel.getByLabel("Edit task description"),
+    },
+    {
+      link: detailsChecklistLink,
+      destination: "https://example.com/checklist",
+      readView: detailsPanel.getByText("Review", { exact: false }),
+      editor: checklistEditor,
+    },
+    {
+      link: detailsTitleLink,
+      destination: "https://example.com/title",
+      readView: detailsPanel.getByTestId("task-title"),
+      editor: titleEditor,
+    },
+    {
+      link: taskTitleLink,
+      destination: "https://example.com/title",
+      readView: taskTitleLink,
+      editor: task.getByLabel("Edit task title"),
+    },
+    {
+      link: taskChecklistLink,
+      destination: "https://example.com/checklist",
+      readView: taskChecklistLink,
+      editor: task.getByRole("textbox", { name: "Checklist item" }),
+    },
+  ]) {
+    const popupPromise = page.waitForEvent("popup");
+    await link.click();
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL(destination);
+    await expect(popup.locator("body")).toHaveText("Link destination");
+    await popup.close();
+    await expect(page).toHaveURL(originalUrl);
+    await expect(readView).toBeVisible();
+    await expect(editor).toHaveCount(0);
+  }
 });
+
+for (const field of ["title", "description", "checklist"] as const) {
+  test(`suppresses destructive task shortcuts in the focused ${field} read view`, async ({
+    page,
+  }) => {
+    const taskTitle = uniqueE2EName("E2E protected task");
+    const checklistText = "Protected checklist item";
+    await signupUser(page);
+    const spaceName = uniqueE2EName("E2E Protected Fields Space");
+    await createSpace(page, spaceName);
+    await openSpace(page, spaceName);
+    await createTodayTask(page, taskTitle);
+    const details = await openTaskDetails(page, taskTitle);
+    await details.description.fill("Protected task description");
+    await details.description.blur();
+    const detailsPanel = page.getByTestId("item-details-panel");
+    await detailsPanel
+      .getByRole("button", { name: "Add checklist item" })
+      .click();
+    const checklistEditor = detailsPanel.getByRole("textbox", {
+      name: "Checklist item",
+    });
+    await checklistEditor.fill(checklistText);
+    await checklistEditor.blur();
+
+    const readView =
+      field === "checklist"
+        ? detailsPanel.getByText(checklistText, { exact: true })
+        : detailsPanel.getByTestId(`task-${field}`);
+    for (const key of ["d", "x", "Backspace"]) {
+      // Keep the task selected while keyboard focus belongs to a read view.
+      await taskItem(page, taskTitle).focus();
+      await readView.focus();
+      await expect(readView).toBeFocused();
+      await page.keyboard.press(key);
+      await expect(readView).toBeFocused();
+      await expect(taskItem(page, taskTitle)).toBeVisible();
+      await page.reload();
+      await expect(taskItem(page, taskTitle)).toBeVisible();
+      const reloadedDetails = await openTaskDetails(page, taskTitle);
+      await reloadedDetails.description.blur();
+      await expect(detailsPanel.getByTestId("task-description")).toHaveText(
+        "Protected task description",
+      );
+      await expect(
+        detailsPanel.getByText(checklistText, { exact: true }),
+      ).toBeVisible();
+    }
+  });
+}
 
 test("deletes a checklist item with the desktop hover action", async ({
   page,

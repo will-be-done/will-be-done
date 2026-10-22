@@ -387,6 +387,7 @@ const ChecklistItemComp = ({
           />
         ) : (
           <div
+            data-disable-task-shortcuts
             className={cn(
               "min-h-4 flex-1 cursor-default whitespace-break-spaces rounded-sm pt-0.5 leading-4 [overflow-wrap:anywhere] focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent",
               item.state === "done" && "text-content-tinted line-through",

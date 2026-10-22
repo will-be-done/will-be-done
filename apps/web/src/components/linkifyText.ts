@@ -1,4 +1,4 @@
-const URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>]+/giu;
+const URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>`]+/giu;
 const TRAILING_PUNCTUATION = new Set([".", ",", "!", "?", ";", ":", '"', "'"]);
 
 export type LinkifiedTextPart =

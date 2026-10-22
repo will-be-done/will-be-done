@@ -52,6 +52,7 @@ export function EditableTitle({
       ) : (
         <div
           data-testid="task-title"
+          data-disable-task-shortcuts
           className={cn(
             "min-h-5 flex-1 cursor-text rounded-sm text-sm font-medium leading-snug focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent",
             titleClassName ?? "text-content",
@@ -136,6 +137,7 @@ export function EditableDescription({
   ) : (
     <div
       data-testid="task-description"
+      data-disable-task-shortcuts
       className="min-h-[94px] w-full cursor-text whitespace-break-spaces [overflow-wrap:anywhere] rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
       tabIndex={0}
       onClick={() => setIsEditingDescription(true)}
