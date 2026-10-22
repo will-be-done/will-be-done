@@ -125,6 +125,21 @@ session. A notification that arrives while that session is running therefore
 remains pending and starts another session instead of being lost between the
 session and the next wait.
 
+The sidebar sync indicator reports the current stage, completed transport
+batches, and the last successful sync time. A session succeeds only after
+download apply and acknowledgement finish. A deferred or discarded transfer
+does not count as a successful sync. Pending wake-ups keep the indicator busy
+until a subsequent session finishes. Browser offline state overrides the
+indicator immediately. Request failures and required app updates also show
+interrupted sync.
+
+The elected sync leader broadcasts this UI status on a versioned, client-scoped
+status channel. New tabs request the current status. Follower wake-ups ask
+the leader to run the ordinary sync loop. These messages carry no authoritative
+cursor and do not acknowledge data. They never bypass persistence, staging,
+or atomic apply. Status and last successful sync times live in memory and reset
+when the app starts a new session.
+
 ## Persisted State
 
 ### Materialized change log

@@ -35,6 +35,7 @@ import {
   SyncRequestError,
 } from "./syncRequestError";
 import type { SyncConfig } from "./syncTypes";
+import { initialSyncStatus, type SyncStatus } from "./syncStatus";
 import {
   isUnsupportedSyncVersionError,
   markSyncUpdateRequired,
@@ -44,6 +45,11 @@ import {
 const SYNC_POLL_INTERVAL_MS = 60000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
+
+type SyncStatusMessage =
+  | { type: "request-status" }
+  | { type: "request-sync" }
+  | { type: "status"; status: SyncStatus };
 
 const syncerLogsEnabled = () =>
   getDevtoolsEnabled() || process.env.NODE_ENV === "development";
@@ -55,7 +61,9 @@ const syncerLog = (...args: Parameters<typeof console.log>) => {
 };
 
 export class Syncer {
+  readonly status = new State<SyncStatus>({ ...initialSyncStatus });
   private electionChannel: BroadcastChannel;
+  private statusChannel: BroadcastChannel<SyncStatusMessage>;
   private elector: LeaderElector;
   private runId = 0;
   private terminal = false;
@@ -82,6 +90,20 @@ export class Syncer {
       syncChannelName("election", clientId),
     );
     this.elector = createLeaderElection(this.electionChannel);
+    this.statusChannel = new BroadcastChannel(
+      syncChannelName("status", clientId),
+    );
+    this.statusChannel.onmessage = (message) => {
+      if (message.type === "status") {
+        if (!this.elector.isLeader && !this.terminal) {
+          this.status.set(message.status);
+        }
+      } else if (this.elector.isLeader) {
+        if (message.type === "request-sync") this.forceSync();
+        this.broadcastStatus();
+      }
+    };
+    void this.statusChannel.postMessage({ type: "request-status" });
     this.applySyncV4Download = createApplySyncV4Download(nextClock);
 
     document.addEventListener("visibilitychange", () => {
@@ -108,12 +130,32 @@ export class Syncer {
 
   forceSync() {
     if (this.terminal) return;
+    if (this.status.get().phase === "synced") {
+      this.setStatus({ phase: "waiting", progress: null });
+    }
     this.forceSyncNotification.modify((version) => version + 1);
+    if (!this.elector.isLeader) {
+      void this.statusChannel.postMessage({ type: "request-sync" });
+    }
+  }
+
+  private broadcastStatus() {
+    void this.statusChannel.postMessage({
+      type: "status",
+      status: this.status.get(),
+    });
+  }
+
+  private setStatus(update: Partial<SyncStatus>) {
+    if (this.terminal && update.phase !== "update-required") return;
+    this.status.modify((status) => ({ ...status, ...update }));
+    if (this.elector.isLeader) this.broadcastStatus();
   }
 
   private stopForRequiredUpdate() {
     if (this.terminal) return;
     this.terminal = true;
+    this.setStatus({ phase: "update-required", progress: null, error: null });
     this.runId++;
     this.cleanupWebSocket();
     this.forceSyncNotification.modify((version) => version + 1);
@@ -137,6 +179,9 @@ export class Syncer {
       {
         onData: () => {
           syncerLog("WebSocket notification received");
+          if (this.status.get().phase === "synced") {
+            this.setStatus({ phase: "waiting", progress: null });
+          }
           this.wsNotification.modify((version) => version + 1);
         },
         onError: (err) => {
@@ -177,12 +222,33 @@ export class Syncer {
       }
       try {
         syncerLog("running sync v4 session");
-        await this.syncV4();
+        this.setStatus({ phase: "connecting", progress: null, error: null });
+        const completed = await this.syncV4();
+        const hasPendingWake =
+          this.wsNotification.get() > wsVersion ||
+          this.forceSyncNotification.get() > forceSyncVersion;
+        this.setStatus({
+          phase: !completed || hasPendingWake ? "waiting" : "synced",
+          progress: null,
+          ...(completed ? { lastSyncedAt: Date.now() } : {}),
+        });
       } catch (e) {
         if (isUnsupportedSyncVersionError(e)) {
           this.stopForRequiredUpdate();
           return;
         }
+        this.setStatus({
+          phase: "error",
+          progress: null,
+          error:
+            e instanceof SyncRequestError
+              ? e.status === 401 || e.status === 403
+                ? "Sign in again to resume syncing."
+                : `The server could not complete sync (${e.status}).`
+              : e instanceof TypeError
+                ? "Could not reach the server. Sync will retry automatically."
+                : "Sync could not finish. It will retry automatically.",
+        });
         console.error(e);
       }
 
@@ -220,7 +286,7 @@ export class Syncer {
     return `/api/sync/v4/${encodeURIComponent(this.syncConfig.dbType)}/${encodeURIComponent(this.syncConfig.dbId)}`;
   }
 
-  private async syncV4() {
+  private async syncV4(): Promise<boolean> {
     const baseUrl = this.syncV4BaseUrl();
     await asyncDispatch(
       this.syncDB.withTraits({ type: "skip-sync" }),
@@ -282,6 +348,7 @@ export class Syncer {
           acknowledgedServerRevision: session.serverAcknowledgedRevision,
         }),
       );
+      this.setStatus({ phase: "preparing" });
       snapshot = await asyncDispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         freezeSyncV4Upload({
@@ -292,6 +359,10 @@ export class Syncer {
         }),
       );
     }
+    this.setStatus({
+      phase: "uploading",
+      progress: { completed: 0, total: snapshot.chunkCount },
+    });
     const chunkChecksums: string[] = [];
     for (let sequence = 0; sequence < snapshot.chunkCount; sequence += 1) {
       const localChunk = await asyncDispatch(
@@ -322,11 +393,15 @@ export class Syncer {
             discardSyncV4Transfer({ uploadId, downloadId: "" }),
           );
           this.forceSync();
-          return;
+          return false;
         }
         throw error;
       }
+      this.setStatus({
+        progress: { completed: sequence + 1, total: snapshot.chunkCount },
+      });
     }
+    this.setStatus({ phase: "committing", progress: null });
     const manifestChecksum = await this.sha256(chunkChecksums.join("\n"));
     let commit: SyncCommitResponse;
     try {
@@ -355,12 +430,13 @@ export class Syncer {
           discardSyncV4Transfer({ uploadId, downloadId: "" }),
         );
         this.forceSync();
-        return;
+        return false;
       }
       throw error;
     }
 
     let localDownloadId: string;
+    this.setStatus({ phase: "downloading", progress: null });
     if (commit.download.type === "inline") {
       localDownloadId = `${uploadId}:inline`;
       const payload = JSON.stringify(commit.download.changesets);
@@ -383,6 +459,9 @@ export class Syncer {
       const stagedDownload = commit.download;
       localDownloadId = stagedDownload.downloadId;
       const downloadChunkChecksums: string[] = [];
+      this.setStatus({
+        progress: { completed: 0, total: stagedDownload.chunkCount },
+      });
       await asyncDispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         beginSyncV4Download({
@@ -429,6 +508,12 @@ export class Syncer {
             payload,
           }),
         );
+        this.setStatus({
+          progress: {
+            completed: sequence + 1,
+            total: stagedDownload.chunkCount,
+          },
+        });
       }
       if (
         (await this.sha256(downloadChunkChecksums.join("\n"))) !==
@@ -437,6 +522,7 @@ export class Syncer {
         throw new Error("Sync download manifest checksum mismatch");
       }
     }
+    this.setStatus({ phase: "applying", progress: null });
     const applied = await asyncDispatch(
       this.syncDB.withTraits({ type: "skip-sync" }),
       this.applySyncV4Download({
@@ -454,7 +540,7 @@ export class Syncer {
           downloadId: localDownloadId,
         }),
       );
-      return;
+      return false;
     }
     if (commit.download.type === "staged") {
       const downloadId = commit.download.downloadId;
@@ -465,6 +551,7 @@ export class Syncer {
         ),
       );
     }
+    return true;
   }
 
   private async waitForNextSyncTrigger(
