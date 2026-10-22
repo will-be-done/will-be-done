@@ -203,6 +203,13 @@ publishes the merge's normal transaction operations to reactive subscribers.
 The accompanying `skip-sync` trait still prevents those cache-coherence writes
 from producing a second local change record or upload echo.
 
+After a cross-tab merge completes, the receiving tab wakes the ordinary sync
+loop so the leader uploads the changes from its updated view. The changes and
+status channels have independent delivery order. A follower's `request-sync`
+can finish an empty session before its changes arrive, so that request cannot
+replace the wake-up after the merge. The merge keeps `skip-sync` to suppress
+echo writes. A failed merge does not emit a completion wake-up.
+
 ## Session Handshake and Recovery
 
 At session start the client sends both what it believes the server confirmed

@@ -111,7 +111,10 @@ test("shows sync stages, last success, offline recovery, and shared tab status",
   await expect(page).toHaveURL(/\/timeline\/\d{4}-\d{2}-\d{2}/);
   await expect(page.getByRole("link", { name: "Next day" })).toBeVisible();
   await expect(indicator).toHaveAttribute("data-sync-state", "synced");
-  await indicator.focus();
-  await expect(tooltip).toContainText("All changes synced");
+  // Timeline initialization can still update the layout and dismiss the tooltip.
+  await expect(async () => {
+    await indicator.click();
+    await expect(tooltip).toContainText("All changes synced", { timeout: 500 });
+  }).toPass({ timeout: 5_000 });
   await expect(tooltip).toContainText("Last successful sync");
 });
