@@ -17,9 +17,126 @@ async function readMail(
   expect(response.ok()).toBe(true);
   return response.json();
 }
+async function waitForMail(
+  request: APIRequestContext,
+  email: string,
+  subject: string,
+): Promise<Mail> {
+  let mail: Mail | undefined;
+  await expect
+    .poll(async () => {
+      mail = (await readMail(request, email)).find(
+        (message) => message.subject === subject,
+      );
+      return mail !== undefined;
+    })
+    .toBe(true);
+  if (!mail) throw new Error(`Expected email with subject: ${subject}`);
+  return mail;
+}
 function link(mail: Mail): string {
   return mail.text.match(/http:\/\/[^\s]+#token=[^\s]+/)![0];
 }
+
+test("unconfirmed accounts can change email with their password", async ({
+  page,
+  request,
+}) => {
+  const user = await signupUser(page);
+  const newEmail = `changed-${user.email}`;
+  await page.goto("/account");
+  await page.getByRole("button", { name: "Change email", exact: true }).click();
+  await page.getByLabel("New email address").fill(newEmail);
+  await page.getByLabel("Current password").fill("wrong-password");
+  await page.getByRole("button", { name: "Save email", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Invalid password");
+  await page.getByLabel("New email address").fill(`another-${user.email}`);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByLabel("New email address").fill(newEmail);
+  await page.getByRole("button", { name: "Save email", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Invalid password");
+  await page.getByLabel("Current password").fill(user.password);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByRole("button", { name: "Save email", exact: true }).click();
+  const settings = page.getByRole("region", { name: "Account settings" });
+  await expect(settings.getByRole("status")).toContainText(
+    "email address has been changed",
+  );
+  await expect(settings).toContainText(newEmail);
+  await expect(settings).toContainText("Email not confirmed");
+  await expect
+    .poll(async () =>
+      (await readMail(request, newEmail)).some(
+        (mail) => mail.subject === "Confirm your email",
+      ),
+    )
+    .toBe(true);
+  await page.getByRole("link", { name: "Back to spaces" }).click();
+  await signOutUser(page);
+  await signInUser(page, { ...user, email: newEmail });
+});
+
+test("confirmed accounts approve email changes in their current inbox and verify the new address", async ({
+  page,
+  request,
+}) => {
+  const user = await signupUser(page);
+  const confirmation = await waitForMail(
+    request,
+    user.email,
+    "Confirm your email",
+  );
+  await page.goto(link(confirmation));
+  await expect(page.getByRole("status")).toContainText(
+    "Your email is confirmed",
+  );
+  await page.goto("/account");
+  await page.getByRole("button", { name: "Change email", exact: true }).click();
+  const newEmail = `changed-${user.email}`;
+  await page.getByLabel("New email address").fill(newEmail);
+  await expect(page.getByLabel("Current password")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Send confirmation link", exact: true })
+    .click();
+  const settings = page.getByRole("region", { name: "Account settings" });
+  await expect(settings.getByRole("status")).toContainText(
+    "Check your current email address",
+  );
+  await expect(settings).toContainText(user.email);
+  await expect(settings).toContainText("Email confirmed");
+  const approval = await waitForMail(
+    request,
+    user.email,
+    "Confirm your email change",
+  );
+  expect(approval.text).toContain(newEmail);
+  expect(await readMail(request, newEmail)).toHaveLength(0);
+  await page.goto(link(approval));
+  await expect(page).toHaveURL(/\/change-email$/);
+  await page
+    .getByRole("button", { name: "Confirm email change", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "email address has been changed",
+  );
+  const verification = await waitForMail(
+    request,
+    newEmail,
+    "Confirm your email",
+  );
+  await page.goto(link(verification));
+  await expect(page.getByRole("status")).toContainText(
+    "Your email is confirmed",
+  );
+  await page.goto("/account");
+  await expect(settings).toContainText(newEmail);
+  await expect(settings).toContainText("Email confirmed");
+  await page.goto(link(approval));
+  await page
+    .getByRole("button", { name: "Confirm email change", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("already used");
+});
 
 test("signup stays usable; confirmation and recovery complete through email links", async ({
   page,

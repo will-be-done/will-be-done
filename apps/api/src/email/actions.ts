@@ -12,6 +12,8 @@ import {
   getUserByEmail,
   getUserByNormalizedEmail,
   getUserById,
+  getTokenById,
+  normalizeEmail,
   register,
   revokeAllUserTokens,
 } from "../slices/authSlice";
@@ -21,6 +23,7 @@ import {
   emailChallengesTable,
   emailOutboxTable,
   type EmailJob,
+  type EmailChallenge,
 } from "./tables";
 import { renderAccountEmail, type EmailKind } from "./templates";
 import type { EmailTemplateConfig } from "./config";
@@ -36,6 +39,7 @@ function* enqueue(
   now: number,
   token?: string,
   expiresAt?: number,
+  newEmail?: string,
 ) {
   yield* insert(emailOutboxTable, [
     {
@@ -43,7 +47,7 @@ function* enqueue(
       status: "pending",
       kind,
       payload: JSON.stringify(
-        renderAccountEmail(config, user.email, kind, token),
+        renderAccountEmail(config, user.email, kind, token, newEmail),
       ),
       ...(token ? { challengeHash: hashEmailToken(token) } : {}),
       createdAt: now,
@@ -77,8 +81,9 @@ function* cancelChallengeJobs(tokenHash: string, now: number) {
 function* issueChallenge(
   config: EmailTemplateConfig,
   user: User,
-  purpose: "verification" | "passwordReset",
+  purpose: EmailChallenge["purpose"],
   now: number,
+  newEmail?: string,
 ) {
   if (purpose === "verification" && user.emailVerifiedAt)
     return { queued: false, retryAfterSeconds: 0 };
@@ -86,8 +91,10 @@ function* issueChallenge(
   const previous = yield* selectFrom(emailChallengesTable, "byId")
     .where((q) => q.eq("id", id))
     .first();
-  const sameWindow = previous && now - previous.windowStartedAt < HOUR;
-  const retryAt = previous
+  const sameMailbox =
+    previous && (!previous.email || previous.email === user.email);
+  const sameWindow = sameMailbox && now - previous.windowStartedAt < HOUR;
+  const retryAt = sameMailbox
     ? Math.max(
         previous.lastRequestedAt + 60_000,
         sameWindow && previous.requestCount >= 3
@@ -107,6 +114,8 @@ function* issueChallenge(
     {
       id,
       userId: user.id,
+      email: user.email,
+      ...(newEmail ? { newEmail } : {}),
       purpose,
       tokenHash: hashEmailToken(token),
       expiresAt,
@@ -116,7 +125,7 @@ function* issueChallenge(
       lastRequestedAt: now,
     },
   ]);
-  yield* enqueue(config, user, purpose, now, token, expiresAt);
+  yield* enqueue(config, user, purpose, now, token, expiresAt, newEmail);
   return { queued: true, retryAfterSeconds: 60 };
 }
 
@@ -175,6 +184,100 @@ export const requestReset = action({
   },
 });
 
+function* requireAvailableEmail(email: string, user: User) {
+  if (normalizeEmail(email) === normalizeEmail(user.email))
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Enter a different email address.",
+    });
+  const existing = yield* getUserByNormalizedEmail({ email });
+  if (existing)
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "This email address is already in use.",
+    });
+}
+
+function* changeUserEmail(
+  user: User,
+  email: string,
+  config: EmailTemplateConfig | undefined,
+  now: number,
+) {
+  yield* requireAvailableEmail(email, user);
+  // Links sent to the old mailbox must never verify or recover the new address.
+  const challenges = yield* selectFrom(emailChallengesTable, "byUserId").where(
+    (q) => q.eq("userId", user.id),
+  );
+  for (const challenge of challenges) {
+    yield* upsert(emailChallengesTable, [
+      {
+        ...challenge,
+        email: challenge.email ?? user.email,
+        consumed: true,
+      },
+    ]);
+    yield* cancelChallengeJobs(challenge.tokenHash, now);
+  }
+  const { emailVerifiedAt: _verified, ...previous } = user;
+  const next = {
+    ...previous,
+    email,
+    normalizedEmail: normalizeEmail(email),
+    updatedAt: new Date(now).toISOString(),
+  };
+  yield* upsert(usersTable, [next]);
+  if (config) return yield* issueChallenge(config, next, "verification", now);
+}
+
+export const requestEmailChange = action({
+  name: "requestEmailChange",
+  args: {
+    userId: v.string(),
+    tokenId: v.string(),
+    email: v.string(),
+    expectedPassword: v.optional(v.string()),
+    config: v.pass<EmailTemplateConfig | undefined>(),
+    now: v.number(),
+  },
+  handler: function* ({
+    userId,
+    tokenId,
+    email,
+    expectedPassword,
+    config,
+    now,
+  }) {
+    const token = yield* getTokenById({ id: tokenId });
+    const user = yield* getUserById({ id: userId });
+    if (!user || !token || token.userId !== userId)
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    if (user.emailVerifiedAt) {
+      yield* requireAvailableEmail(email, user);
+      if (!config)
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Email is not configured on this server.",
+        });
+      return {
+        changed: false,
+        ...(yield* issueChallenge(config, user, "emailChange", now, email)),
+      };
+    }
+    if (!expectedPassword || user.password !== expectedPassword)
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Invalid password.",
+      });
+    const verification = yield* changeUserEmail(user, email, config, now);
+    return {
+      changed: true,
+      queued: verification?.queued ?? false,
+      retryAfterSeconds: verification?.retryAfterSeconds ?? 0,
+    };
+  },
+});
+
 export const requireEmailChallenge = selector({
   name: "requireEmailChallenge",
   args: {
@@ -221,6 +324,19 @@ export const consumeEmailChallenge = action({
       });
     if (purpose === "passwordReset" && !hashedPassword)
       throw new Error("Missing reset password hash");
+    if (purpose === "emailChange") {
+      if (
+        !challenge.newEmail ||
+        challenge.email !== user.email ||
+        !user.emailVerifiedAt
+      )
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This link is no longer valid.",
+        });
+      yield* changeUserEmail(user, challenge.newEmail, config, now);
+      return { success: true as const, userId: user.id };
+    }
     const timestamp = new Date(now).toISOString();
     yield* upsert(usersTable, [
       {

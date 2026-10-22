@@ -31,7 +31,11 @@ import {
 import { assertSupportedSyncVersion } from "./syncVersion";
 import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
 
-import { requireAccountEmail, type AccountEmailService } from "./email/service";
+import {
+  changeAccountEmail,
+  requireAccountEmail,
+  type AccountEmailService,
+} from "./email/service";
 
 import { googleRouter } from "./google/router";
 import type { GoogleService } from "./google/service";
@@ -92,6 +96,27 @@ export function createAppRouter({
       .use(enforceRateLimit("accountEmailSend"))
       .mutation(({ ctx }) =>
         requireAccountEmail(accountEmail).requestVerification(ctx.user.id),
+      ),
+    changeEmail: protectedProcedure
+      .input(
+        z.object({
+          email: z.string().trim().pipe(z.email()),
+          password: z.string().min(1).max(1024).optional(),
+        }),
+      )
+      .use(enforceRateLimit("accountEmailSend"))
+      .mutation(({ ctx, input }) => {
+        if (!ctx.tokenId) throw new TRPCError({ code: "UNAUTHORIZED" });
+        const actor = { userId: ctx.user.id, tokenId: ctx.tokenId };
+        return accountEmail?.enabled
+          ? accountEmail.changeEmail(actor, input.email, input.password)
+          : changeAccountEmail(mainDB, actor, input.email, input.password);
+      }),
+    confirmEmailChange: publicProcedure
+      .input(z.object({ token: z.string().min(1).max(128) }))
+      .use(enforceRateLimit("accountEmailConsume"))
+      .mutation(({ input }) =>
+        requireAccountEmail(accountEmail).confirmEmailChange(input.token),
       ),
     verifyEmail: publicProcedure
       .input(z.object({ token: z.string().min(1).max(128) }))

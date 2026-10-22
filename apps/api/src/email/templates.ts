@@ -4,6 +4,7 @@ export type EmailKind =
   | "verification"
   | "welcome"
   | "passwordReset"
+  | "emailChange"
   | "passwordChanged";
 export interface EmailPayload {
   from: string;
@@ -28,6 +29,7 @@ export function renderAccountEmail(
   to: string,
   kind: EmailKind,
   token?: string,
+  newEmail?: string,
 ): EmailPayload {
   const content = {
     verification: [
@@ -35,6 +37,12 @@ export function renderAccountEmail(
       "Confirm your email address for Will Be Done. This link expires in 24 hours. If you didn't create an account, you can ignore this email.",
       "Confirm email",
       "/verify-email",
+    ],
+    emailChange: [
+      "Confirm your email change",
+      `Confirm changing your Will Be Done email address to ${newEmail}. This link expires in 1 hour. If you didn't request this change, ignore this email; your email address has not changed.`,
+      "Confirm email change",
+      "/change-email",
     ],
     welcome: [
       "Welcome to Will Be Done",

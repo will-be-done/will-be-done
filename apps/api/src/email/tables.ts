@@ -3,10 +3,13 @@ import { defineTable, v, type ExtractSchema } from "@will-be-done/hyperdb";
 export const challengePurpose = v.union(
   v.literal("verification"),
   v.literal("passwordReset"),
+  v.literal("emailChange"),
 );
 export const emailChallengesTable = defineTable("account_email_challenges", {
   id: v.string(), // One slot per user and purpose; retain counters after consumption.
   userId: v.string(),
+  email: v.optional(v.string()),
+  newEmail: v.optional(v.string()),
   purpose: challengePurpose,
   tokenHash: v.string(),
   expiresAt: v.number(),
