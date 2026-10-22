@@ -52,18 +52,21 @@ test("shows sync stages, last success, offline recovery, and shared tab status",
   await expect(secondIndicator).toHaveAccessibleName(
     "Sync status: Sending changes",
   );
+  await expect(indicator.locator("span")).toHaveClass(/bg-emerald-500/);
+  await expect(secondIndicator.locator("span")).toHaveClass(/bg-emerald-500/);
   await indicator.hover();
   await expect(tooltip).toContainText("Transfer progress");
   await expect(tooltip.getByRole("progressbar").first()).toHaveAttribute(
     "aria-valuenow",
     "0",
   );
-  await expect(indicator.locator("span")).toHaveCSS("animation-name", "pulse");
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(indicator.locator("span")).toHaveClass(/bg-yellow-400/);
+  await expect(secondIndicator.locator("span")).toHaveClass(/bg-yellow-400/);
   await expect(indicator.locator("span")).toHaveCSS("animation-name", "none");
   releaseUpload();
   await expect(indicator).toHaveAttribute("data-sync-state", "synced");
   await expect(secondIndicator).toHaveAttribute("data-sync-state", "synced");
+  await expect(indicator.locator("span")).toHaveClass(/bg-emerald-500/);
   await page.unroute(chunkUrl);
 
   const sessionUrl = "**/api/sync/v4/space/**/sessions";
@@ -102,4 +105,13 @@ test("shows sync stages, last success, offline recovery, and shared tab status",
   await expect(tooltip).toBeHidden();
   await indicator.click();
   await expect(tooltip).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: "timeline", exact: true }).click();
+  await expect(page).toHaveURL(/\/timeline\/\d{4}-\d{2}-\d{2}/);
+  await expect(page.getByRole("link", { name: "Next day" })).toBeVisible();
+  await expect(indicator).toHaveAttribute("data-sync-state", "synced");
+  await indicator.focus();
+  await expect(tooltip).toContainText("All changes synced");
+  await expect(tooltip).toContainText("Last successful sync");
 });

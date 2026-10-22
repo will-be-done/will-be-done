@@ -30,6 +30,25 @@ const phaseLabels: Record<SyncPhase, string> = {
   "update-required": "Update required",
 };
 
+function SyncingDot() {
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), 3_000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "size-2 rounded-full",
+        slow ? "bg-yellow-400" : "bg-emerald-500",
+      )}
+    />
+  );
+}
+
 export function SyncIndicator() {
   const db = useDB();
   const store = syncStatusByDB.get(db);
@@ -89,25 +108,27 @@ export function SyncIndicator() {
             event.preventDefault();
             changeOpen(true);
           }}
-          className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-content/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          <span
-            aria-hidden="true"
-            className={cn(
-              "size-2 rounded-full",
-              disconnected
-                ? "bg-red-500"
-                : syncing
-                  ? "bg-yellow-400 motion-safe:animate-pulse"
-                  : "bg-emerald-500",
-            )}
-          />
+          {syncing ? (
+            <SyncingDot />
+          ) : (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-2 rounded-full",
+                disconnected ? "bg-red-500" : "bg-emerald-500",
+              )}
+            />
+          )}
         </button>
       </TooltipTrigger>
       <TooltipContent
         side="top"
         sideOffset={8}
-        className="w-64 rounded-lg bg-task-dropdown p-3 text-left text-content shadow-lg ring-1 ring-white/10 [&>svg]:hidden"
+        collisionPadding={12}
+        hideArrow
+        className="w-64 rounded-lg bg-task-dropdown p-3 text-left text-content shadow-lg ring-1 ring-white/10"
       >
         <p className="text-[12px] font-medium">{label}</p>
         <p className="mt-1 text-[11px] leading-relaxed text-content-tinted">
