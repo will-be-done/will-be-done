@@ -52,6 +52,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { startOfDay } from "date-fns";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { useOpenProject } from "@/hooks/useOpenProject.ts";
 
 const MIN_PROJECTS_LIST_WIDTH = 240;
 const MAX_PROJECTS_LIST_WIDTH = 520;
@@ -505,6 +506,7 @@ export const ProjectView = ({
 
   const dispatch = useAsyncDispatch();
   const projectsListWidth = useProjectsListSize((s) => s.width);
+  const openProject = useOpenProject();
   const setProjectsListWidth = useProjectsListSize((s) => s.setWidth);
   const { data: project } = useAsyncSelector({
     selector: selectedProject,
@@ -526,7 +528,10 @@ export const ProjectView = ({
     const title = await promptDialog("Enter project title");
 
     if (title) {
-      await dispatch(createProject({ project: { title }, position: "append" }));
+      const project = await dispatch(
+        createProject({ project: { title }, position: "append" }),
+      );
+      openProject(project.id);
       captureWebAnalytics({
         name: "project_created",
         properties: { creation_method: "web" },

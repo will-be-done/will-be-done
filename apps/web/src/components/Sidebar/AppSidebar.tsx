@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog.tsx";
 import { generateTestBackup } from "@/lib/generateTestData.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import {
   canDropModelData,
   isActiveDropTarget,
@@ -225,6 +226,7 @@ const NavStrip = () => {
 
 export const AppSidebar = () => {
   const dispatch = useAsyncDispatch();
+  const openProject = useOpenProject();
   const today = useCurrentDate();
   const currentDate = startOfDay(today).getTime();
   const { data: projects = [] } = useAsyncSelector({
@@ -236,7 +238,10 @@ export const AppSidebar = () => {
   const handleAddProjectClick = async () => {
     const title = await promptDialog("Enter project title");
     if (title) {
-      await dispatch(createProject({ project: { title }, position: "append" }));
+      const project = await dispatch(
+        createProject({ project: { title }, position: "append" }),
+      );
+      openProject(project.id);
       captureWebAnalytics({
         name: "project_created",
         properties: { creation_method: "web" },
