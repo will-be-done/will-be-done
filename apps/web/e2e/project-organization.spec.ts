@@ -11,6 +11,105 @@ import {
   uniqueE2EName,
 } from "./helpers";
 
+for (const source of ["Inbox", "project"] as const) {
+  for (const moveFrom of ["shortcut", "details"] as const) {
+    test(`keeps task focus after moving from ${source} through ${moveFrom}`, async ({
+      page,
+    }) => {
+      const spaceName = uniqueE2EName("E2E Move Focus Space");
+      const sourceProject = uniqueE2EName("E2E Source Project");
+      const destinationProject = uniqueE2EName("E2E Destination Project");
+      const previousTitle = uniqueE2EName("E2E previous task");
+      const movingTitle = uniqueE2EName("E2E moving task");
+      const nextTitle = uniqueE2EName("E2E next task");
+
+      await signupUser(page);
+      await createSpace(page, spaceName);
+      await openSpace(page, spaceName);
+      await createProject(page, destinationProject);
+
+      if (source === "Inbox") {
+        await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
+      } else {
+        await createProject(page, sourceProject);
+        await projectSidebarLink(page, sourceProject).click();
+      }
+
+      await createProjectTask(page, previousTitle);
+      for (const [siblingTitle, title] of [
+        [previousTitle, movingTitle],
+        [movingTitle, nextTitle],
+      ]) {
+        await projectTaskItem(page, siblingTitle).click();
+        await page.keyboard.press("KeyO");
+        await page.getByLabel("Edit task title").fill(title);
+        await page.keyboard.press("Enter");
+        await expect(projectTaskItem(page, title)).toBeVisible();
+      }
+
+      const previousItem = projectTaskItem(page, previousTitle);
+      const nextItem = projectTaskItem(page, nextTitle);
+      const sourceUrl = page.url();
+
+      if (moveFrom === "details") {
+        await page.keyboard.press("KeyV");
+      }
+
+      const moveTask = async (title: string) => {
+        await projectTaskItem(page, title).click();
+        if (moveFrom === "shortcut") {
+          await page.keyboard.press("KeyM");
+        } else {
+          await page
+            .getByTestId("item-details-panel")
+            .getByRole("button", { name: "Move to project" })
+            .click();
+        }
+
+        const dialog = page.getByRole("dialog", { name: "Choose project" });
+        await dialog
+          .getByPlaceholder("Search projects...")
+          .fill(destinationProject);
+        await expect(
+          dialog.getByRole("button", { name: destinationProject }),
+        ).toBeVisible();
+        if (moveFrom === "shortcut") {
+          await page.keyboard.press("Enter");
+        } else {
+          await dialog
+            .getByRole("button", { name: destinationProject })
+            .click();
+        }
+        await expect(dialog).toBeHidden();
+        await expect(projectTaskItem(page, title)).toHaveCount(0);
+        await expect(page).toHaveURL(sourceUrl);
+      };
+
+      await moveTask(movingTitle);
+      await expect(nextItem).toHaveClass(/ring-2 ring-accent/);
+      await expect(nextItem).toBeFocused();
+
+      await page.keyboard.press("KeyK");
+      await expect(previousItem).toBeFocused();
+      await page.keyboard.press("KeyJ");
+      await expect(nextItem).toBeFocused();
+
+      await moveTask(nextTitle);
+      await expect(previousItem).toHaveClass(/ring-2 ring-accent/);
+      await expect(previousItem).toBeFocused();
+
+      await moveTask(previousTitle);
+      await expect(page.locator('[data-focusable-key^="task^^"]')).toHaveCount(
+        0,
+      );
+      await projectSidebarLink(page, destinationProject, 3).click();
+      for (const title of [previousTitle, movingTitle, nextTitle]) {
+        await expect(projectTaskItem(page, title)).toBeVisible();
+      }
+    });
+  }
+}
+
 test("creates projects and moves a task between them", async ({ page }) => {
   const spaceName = uniqueE2EName("E2E Project Space");
   const sourceProject = uniqueE2EName("E2E Source Project");
