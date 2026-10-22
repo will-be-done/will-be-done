@@ -106,7 +106,8 @@ export function createAppRouter({
       )
       .use(enforceRateLimit("accountEmailSend"))
       .mutation(({ ctx, input }) => {
-        const actor = { userId: ctx.user.id, tokenId: ctx.tokenId! };
+        if (!ctx.tokenId) throw new TRPCError({ code: "UNAUTHORIZED" });
+        const actor = { userId: ctx.user.id, tokenId: ctx.tokenId };
         return accountEmail?.enabled
           ? accountEmail.changeEmail(actor, input.email, input.password)
           : changeAccountEmail(mainDB, actor, input.email, input.password);

@@ -227,7 +227,7 @@ function* changeUserEmail(
     updatedAt: new Date(now).toISOString(),
   };
   yield* upsert(usersTable, [next]);
-  if (config) yield* issueChallenge(config, next, "verification", now);
+  if (config) return yield* issueChallenge(config, next, "verification", now);
 }
 
 export const requestEmailChange = action({
@@ -269,8 +269,12 @@ export const requestEmailChange = action({
         code: "BAD_REQUEST",
         message: "Invalid password.",
       });
-    yield* changeUserEmail(user, email, config, now);
-    return { changed: true, queued: false, retryAfterSeconds: 0 };
+    const verification = yield* changeUserEmail(user, email, config, now);
+    return {
+      changed: true,
+      queued: verification?.queued ?? false,
+      retryAfterSeconds: verification?.retryAfterSeconds ?? 0,
+    };
   },
 });
 

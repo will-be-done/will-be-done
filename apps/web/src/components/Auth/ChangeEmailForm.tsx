@@ -75,7 +75,10 @@ export function ChangeEmailForm({
               required
               maxLength={254}
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                change.reset();
+              }}
             />
           </label>
           {!confirmed && (
@@ -88,7 +91,10 @@ export function ChangeEmailForm({
                 required
                 maxLength={1024}
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  change.reset();
+                }}
               />
             </label>
           )}

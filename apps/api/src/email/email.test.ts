@@ -230,7 +230,7 @@ for (const engine of ["memory", "sqlite"])
       ).toBe("old@example.com");
       expect(
         await service.changeEmail(actor, " New@Example.com ", "password-123"),
-      ).toMatchObject({ changed: true });
+      ).toEqual({ changed: true, queued: true, retryAfterSeconds: 60 });
       const user = (await asyncDispatch(
         db,
         getUserById({ id: account.userId }),
@@ -363,7 +363,7 @@ for (const engine of ["memory", "sqlite"])
       const actor = { userId: account.userId, tokenId: account.token };
       expect(
         await changeAccountEmail(db, actor, "new@example.com", "password-123"),
-      ).toMatchObject({ changed: true });
+      ).toEqual({ changed: true, queued: false, retryAfterSeconds: 0 });
       expect(await readJobs(db)).toHaveLength(0);
       await asyncDispatch(
         db,
@@ -983,6 +983,24 @@ describe("configuration and templates", () => {
 });
 
 describe("real Fastify account endpoints", () => {
+  test("email changes reject an authenticated context without a token", async () => {
+    const { db, service } = await fixture("sqlite");
+    const account = await service.register("old@example.com", "unused-hash");
+    const changeEmail = spyOn(service, "changeEmail");
+    const caller = createAppRouter({
+      mainDB: db,
+      captchaConfig: null,
+      accountEmail: service,
+    }).createCaller({
+      user: { id: account.userId, email: "old@example.com" },
+    });
+    const error = await caller
+      .changeEmail({ email: "new@example.com" })
+      .catch((error) => error);
+    expect(error).toMatchObject({ code: "UNAUTHORIZED" });
+    expect(changeEmail).not.toHaveBeenCalled();
+  });
+
   test("email changes authenticate the account, validate input and require a password before confirmation", async () => {
     const { db, service } = await fixture("sqlite");
     const account = await service.register(
@@ -1031,7 +1049,11 @@ describe("real Fastify account endpoints", () => {
       account.token,
     );
     expect(response.statusCode).toBe(200);
-    expect(response.json().result.data.changed).toBe(true);
+    expect(response.json().result.data).toEqual({
+      changed: true,
+      queued: true,
+      retryAfterSeconds: 60,
+    });
     expect(
       (await asyncDispatch(db, getUserById({ id: account.userId })))!.email,
     ).toBe("new@example.com");
