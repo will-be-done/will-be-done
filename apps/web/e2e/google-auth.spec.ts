@@ -6,6 +6,9 @@ import {
   signupUser,
   signOutUser,
   openAccountSettings,
+  createSpace,
+  openSpace,
+  openSpaceSettings,
 } from "./helpers";
 
 test.skip(
@@ -17,6 +20,33 @@ async function approve(popup: Page, email: string, subject: string) {
   await popup.getByLabel("Google account ID").fill(subject);
   await popup.getByRole("button", { name: "Approve Google sign-in" }).click();
 }
+async function openGoogleSettings(
+  page: Page,
+  settings: "account page" | "space settings",
+) {
+  if (settings === "space settings") {
+    const spaceName = `Google settings ${randomUUID()}`;
+    await createSpace(page, spaceName);
+    await openSpace(page, spaceName);
+    const dialog = await openSpaceSettings(page);
+    await dialog.getByRole("button", { name: "Account", exact: true }).click();
+  } else {
+    await page.goto("/account");
+  }
+}
+async function requestGooglePassword(
+  page: Page,
+  action: "Connect Google" | "Disconnect Google",
+  password: string,
+) {
+  const input = page.getByLabel("Password is required to proceed");
+  await expect(input).toHaveCount(0);
+  await page.getByRole("button", { name: action, exact: true }).click();
+  await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
+  await expect(input).toBeEmpty();
+  await input.fill(password);
+}
 async function googleSignIn(page: Page, email: string, subject: string) {
   const popup = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Continue with Google" }).click();
@@ -25,108 +55,136 @@ async function googleSignIn(page: Page, email: string, subject: string) {
   await expect.poll(() => provider.isClosed()).toBe(true);
 }
 
-test("Google signup, password setup, disconnect, explicit relinking, and returning login", async ({
-  page,
-  request,
-}) => {
-  const subject = randomUUID();
-  const email = `google-${subject}@gmail.com`;
-  await page.goto("/signup");
-  await googleSignIn(page, email, subject);
-  await expect(page).toHaveURL(/\/spaces\/?$/);
-  const userId = await page.evaluate(() => localStorage.getItem("user_id"));
-  await openAccountSettings(page);
-  await expect(page.getByText(`Connected as ${email}`)).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Disconnect Google" }),
-  ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Email me a password setup link" })
-    .click();
-  await expect(page.getByRole("status")).toContainText("Check your inbox");
-  const mails = await request.get(
-    `http://127.0.0.1:${process.env.PLAYWRIGHT_API_PORT ?? "3200"}/__test/emails`,
-    { params: { to: email } },
-  );
-  const mail = (
-    (await mails.json()) as { subject: string; text: string }[]
-  ).find((item) => item.subject === "Reset your password")!;
-  await page.goto(mail.text.match(/http:\/\/[^\s]+#token=[^\s]+/)![0]);
-  await page.getByLabel("New password", { exact: true }).fill(E2E_PASSWORD);
-  await page.getByLabel("Confirm new password").fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: "Set new password" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "Your password has been changed",
-  );
-  await signInUser(page, { email, password: E2E_PASSWORD });
-  await page.goto("/account");
-  await page.getByLabel("Current password").fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: "Disconnect Google" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "Google is disconnected",
-  );
-  const popup = page.waitForEvent("popup");
-  await page
-    .getByRole("button", { name: "Connect Google", exact: true })
-    .click();
-  await approve(await popup, email, subject);
-  await expect(
-    page.getByRole("button", { name: "Confirm connection" }),
-  ).toBeVisible();
-  await page.getByLabel("Current password").fill("wrong-password");
-  await page.getByRole("button", { name: "Confirm connection" }).click();
-  await expect(page.getByRole("alert")).toContainText("Incorrect password");
-  await page.getByLabel("Current password").fill(E2E_PASSWORD);
-  await page.getByRole("button", { name: "Confirm connection" }).click();
-  await expect(page.getByRole("status")).toContainText("Google is connected");
-  await page.getByRole("link", { name: "Back to spaces" }).click();
-  await signOutUser(page);
-  await googleSignIn(page, email, subject);
-  await expect(page).toHaveURL(/\/spaces\/?$/);
-  expect(await page.evaluate(() => localStorage.getItem("user_id"))).toBe(
-    userId,
-  );
-});
-
-test("same-email collision instructs linking; different-email linking keeps the original account", async ({
-  page,
-}) => {
-  const subject = randomUUID();
-  const user = await signupUser(page, {
-    email: `existing-${subject}@example.com`,
+for (const settings of ["account page", "space settings"] as const) {
+  test(`Google signup, password setup, disconnect, explicit relinking, and returning login in ${settings}`, async ({
+    page,
+    request,
+  }) => {
+    const subject = randomUUID();
+    const email = `google-${subject}@gmail.com`;
+    await page.goto("/signup");
+    await googleSignIn(page, email, subject);
+    await expect(page).toHaveURL(/\/spaces\/?$/);
+    const userId = await page.evaluate(() => localStorage.getItem("user_id"));
+    await openAccountSettings(page);
+    await expect(page.getByText(`Connected as ${email}`)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Disconnect Google" }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Email me a password setup link" })
+      .click();
+    await expect(page.getByRole("status")).toContainText("Check your inbox");
+    const mails = await request.get(
+      `http://127.0.0.1:${process.env.PLAYWRIGHT_API_PORT ?? "3200"}/__test/emails`,
+      { params: { to: email } },
+    );
+    const mail = (
+      (await mails.json()) as { subject: string; text: string }[]
+    ).find((item) => item.subject === "Reset your password")!;
+    await page.goto(mail.text.match(/http:\/\/[^\s]+#token=[^\s]+/)![0]);
+    await page.getByLabel("New password", { exact: true }).fill(E2E_PASSWORD);
+    await page.getByLabel("Confirm new password").fill(E2E_PASSWORD);
+    await page.getByRole("button", { name: "Set new password" }).click();
+    await expect(page.getByRole("status")).toContainText(
+      "Your password has been changed",
+    );
+    await signInUser(page, { email, password: E2E_PASSWORD });
+    await openGoogleSettings(page, settings);
+    await requestGooglePassword(page, "Disconnect Google", E2E_PASSWORD);
+    await expect(page.getByText(`Connected as ${email}`)).toBeVisible();
+    await page.getByRole("button", { name: "Disconnect Google" }).click();
+    await expect(page.getByRole("status")).toContainText(
+      "Google is disconnected",
+    );
+    await requestGooglePassword(page, "Connect Google", E2E_PASSWORD);
+    const popup = page.waitForEvent("popup");
+    await page
+      .getByRole("button", { name: "Connect Google", exact: true })
+      .click();
+    await approve(await popup, email, subject);
+    await expect(
+      page.getByRole("button", { name: "Confirm connection" }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Password is required to proceed")
+      .fill("wrong-password");
+    await page.getByRole("button", { name: "Confirm connection" }).click();
+    await expect(page.getByRole("alert")).toContainText("Incorrect password");
+    await page.getByLabel("Password is required to proceed").fill(E2E_PASSWORD);
+    await page.getByRole("button", { name: "Confirm connection" }).click();
+    await expect(page.getByRole("status")).toContainText("Google is connected");
+    await expect(
+      page.getByLabel("Password is required to proceed"),
+    ).toHaveCount(0);
+    if (settings === "space settings") {
+      await page.getByRole("button", { name: "Close settings" }).click();
+      await page.goto("/spaces");
+    } else {
+      await page.getByRole("link", { name: "Back to spaces" }).click();
+    }
+    await signOutUser(page);
+    await googleSignIn(page, email, subject);
+    await expect(page).toHaveURL(/\/spaces\/?$/);
+    expect(await page.evaluate(() => localStorage.getItem("user_id"))).toBe(
+      userId,
+    );
   });
-  const userId = await page.evaluate(() => localStorage.getItem("user_id"));
-  await signOutUser(page);
-  await googleSignIn(page, user.email.toUpperCase(), subject);
-  await expect(page.getByRole("alert")).toContainText(
-    "Sign in with your existing method",
-  );
-  expect(
-    await page.evaluate(() => localStorage.getItem("auth_token")),
-  ).toBeNull();
-  await signInUser(page, user);
-  await page.goto("/account");
-  const googleEmail = `different-${subject}@gmail.com`;
-  const popup = page.waitForEvent("popup");
-  await page
-    .getByRole("button", { name: "Connect Google", exact: true })
-    .click();
-  await approve(await popup, googleEmail, subject);
-  await expect(
-    page.getByRole("button", { name: "Confirm connection" }),
-  ).toBeVisible();
-  await page.getByLabel("Current password").fill(user.password);
-  await page.getByRole("button", { name: "Confirm connection" }).click();
-  await expect(page.getByText(`Connected as ${googleEmail}`)).toBeVisible();
-  await expect(page.getByText(user.email, { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Back to spaces" }).click();
-  await signOutUser(page);
-  await googleSignIn(page, googleEmail, subject);
-  await expect(page).toHaveURL(/\/spaces\/?$/);
-  expect(await page.evaluate(() => localStorage.getItem("user_id"))).toBe(
-    userId,
-  );
-});
+}
+
+for (const settings of ["account page", "space settings"] as const) {
+  test(`same-email collision instructs linking; different-email linking keeps the original account in ${settings}`, async ({
+    page,
+  }) => {
+    const subject = randomUUID();
+    const user = await signupUser(page, {
+      email: `existing-${subject}@example.com`,
+    });
+    const userId = await page.evaluate(() => localStorage.getItem("user_id"));
+    await signOutUser(page);
+    await googleSignIn(page, user.email.toUpperCase(), subject);
+    await expect(page.getByRole("alert")).toContainText(
+      "Sign in with your existing method",
+    );
+    expect(
+      await page.evaluate(() => localStorage.getItem("auth_token")),
+    ).toBeNull();
+    await signInUser(page, user);
+    await openGoogleSettings(page, settings);
+    const googleEmail = `different-${subject}@gmail.com`;
+    await requestGooglePassword(page, "Connect Google", E2E_PASSWORD);
+    const popup = page.waitForEvent("popup");
+    await page
+      .getByRole("button", { name: "Connect Google", exact: true })
+      .click();
+    await approve(await popup, googleEmail, subject);
+    await expect(
+      page.getByRole("button", { name: "Confirm connection" }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Password is required to proceed")
+      .fill(user.password);
+    await page.getByRole("button", { name: "Confirm connection" }).click();
+    await expect(page.getByText(`Connected as ${googleEmail}`)).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Account settings" })
+        .getByText(user.email, { exact: true }),
+    ).toBeVisible();
+    if (settings === "space settings") {
+      await page.getByRole("button", { name: "Close settings" }).click();
+      await page.goto("/spaces");
+    } else {
+      await page.getByRole("link", { name: "Back to spaces" }).click();
+    }
+    await signOutUser(page);
+    await googleSignIn(page, googleEmail, subject);
+    await expect(page).toHaveURL(/\/spaces\/?$/);
+    expect(await page.evaluate(() => localStorage.getItem("user_id"))).toBe(
+      userId,
+    );
+  });
+}
 
 for (const javaScriptEnabled of [true, false]) {
   test(`desktop return works with JavaScript ${javaScriptEnabled ? "enabled" : "disabled"}`, async ({
@@ -254,6 +312,9 @@ for (const intent of ["signin", "link"] as const) {
               },
             });
           });
+      }
+      if (intent === "link") {
+        await requestGooglePassword(page, "Connect Google", E2E_PASSWORD);
       }
       const opened = page.waitForEvent("popup");
       await page
