@@ -7,9 +7,14 @@ import {
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
-import { useFocusStore } from "@/store/focusSlice.ts";
+import { parseColumnKey, useFocusStore } from "@/store/focusSlice.ts";
+import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
-import { allProjectsSorted } from "@will-be-done/slices/space";
+import {
+  allProjectsSorted,
+  taskTemplateType,
+  taskType,
+} from "@will-be-done/slices/space";
 
 export const MoveModal = ({
   setIsOpen,
@@ -41,6 +46,30 @@ export const MoveModal = ({
     setSearchQuery(data);
   }, []);
 
+  const moveToProject = (projectId: string) => {
+    const { focusItemKey } = useFocusStore.getState();
+    const focusedType = focusItemKey ? parseColumnKey(focusItemKey).type : null;
+    // Project items disappear when moved; daily and stash entries stay in place.
+    const isProjectItem =
+      focusedType === taskType || focusedType === taskTemplateType;
+    const [previousKey, nextKey] =
+      isProjectItem && focusItemKey
+        ? getDOMSiblings(focusItemKey)
+        : [null, null];
+
+    setIsOpen(false);
+    handleMove(projectId);
+
+    if (isProjectItem) {
+      const nextFocusKey = nextKey ?? previousKey;
+      if (nextFocusKey) {
+        useFocusStore.getState().focusByKey(nextFocusKey);
+      } else {
+        useFocusStore.getState().resetFocus();
+      }
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown" || (e.ctrlKey && e.code === "KeyJ")) {
       e.preventDefault();
@@ -52,8 +81,7 @@ export const MoveModal = ({
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
     } else if (e.key === "Enter" && projects[selectedIndex]) {
       e.preventDefault();
-      setIsOpen(false);
-      handleMove(projects[selectedIndex].id);
+      moveToProject(projects[selectedIndex].id);
     }
   };
 
@@ -106,7 +134,7 @@ export const MoveModal = ({
                       ? "bg-accent/20 text-primary border border-accent"
                       : "border border-transparent hover:bg-panel-hover"
                   }`}
-                  onClick={() => handleMove(pr.id)}
+                  onClick={() => moveToProject(pr.id)}
                 >
                   {pr.title}
                 </button>
