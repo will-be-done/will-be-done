@@ -32,7 +32,7 @@ async function createChecklistItemInTaskDetails(page: Page) {
   });
   await checklistInput.fill(checklistItem);
   await checklistInput.blur();
-  await expect(checklistInput).toHaveValue(checklistItem);
+  await expect(checklistItemRow(page)).toContainText(checklistItem);
 
   return { checklistItem, row: checklistItemRow(page) };
 }
@@ -66,10 +66,9 @@ test("edits task details and persists checklist items", async ({ page }) => {
   await checklistInput.fill(checklistItem);
   await checklistInput.blur();
 
-  await expect(checklistInput).toHaveValue(checklistItem);
-
   const row = checklistItemRow(page);
   await expect(row).toBeVisible();
+  await expect(row).toContainText(checklistItem);
   await row.getByRole("checkbox").click();
   await expect(row.getByRole("checkbox")).toBeChecked();
 
@@ -78,23 +77,100 @@ test("edits task details and persists checklist items", async ({ page }) => {
   await page.reload();
 
   await expect(page).toHaveURL(/\/spaces\/[^/]+\/item-details\/[^/]+$/);
-  await expect(page.getByLabel("Edit task description")).toHaveValue(
-    description,
-  );
-
-  await expect(
-    page.getByRole("textbox", { name: "Checklist item" }),
-  ).toHaveValue(checklistItem);
+  await expect(page.getByTestId("task-description")).toHaveText(description);
 
   const reloadedRow = checklistItemRow(page);
   await expect(reloadedRow).toBeVisible();
+  await expect(reloadedRow).toContainText(checklistItem);
   await expect(reloadedRow.getByRole("checkbox")).toBeChecked();
+  await reloadedRow.getByText(checklistItem, { exact: true }).click();
+  await expect(
+    reloadedRow.getByRole("textbox", { name: "Checklist item" }),
+  ).toHaveValue(checklistItem);
 
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL(/\/spaces\/[^/]+\/dates\/\d{4}-\d{2}-\d{2}$/);
   await expect(
     taskItem(page, taskTitle).getByText(checklistItem),
   ).toBeVisible();
+});
+
+test("makes links in task text and checklist items clickable", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("E2E Linked Text Space");
+  const originalTitle = uniqueE2EName("E2E linked text task");
+  const linkedTitle = `${originalTitle} https://example.com/title`;
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await createTodayTask(page, originalTitle);
+
+  const details = await openTaskDetails(page, originalTitle);
+  await details.description.fill("Read www.example.com/docs.");
+  await details.description.blur();
+
+  const detailsPanel = page.getByTestId("item-details-panel");
+  const descriptionLink = detailsPanel
+    .getByTestId("task-description")
+    .getByRole("link", { name: "www.example.com/docs" });
+  await expect(descriptionLink).toHaveAttribute(
+    "href",
+    "https://www.example.com/docs",
+  );
+  await expect(descriptionLink).toHaveAttribute("target", "_blank");
+
+  await detailsPanel
+    .locator("[data-checklist-container]")
+    .getByText("Add checklist item", { exact: true })
+    .click();
+  const checklistEditor = detailsPanel.getByRole("textbox", {
+    name: "Checklist item",
+  });
+  await checklistEditor.fill("Review https://example.com/checklist.");
+  await checklistEditor.blur();
+
+  const detailsChecklistLink = detailsPanel
+    .locator("[data-checklist-item-id]")
+    .getByRole("link", { name: "https://example.com/checklist" });
+  await expect(detailsChecklistLink).toHaveAttribute(
+    "href",
+    "https://example.com/checklist",
+  );
+  await expect(detailsChecklistLink).toHaveAttribute("target", "_blank");
+
+  await detailsPanel.getByTestId("task-title").click();
+  const titleEditor = detailsPanel.getByLabel("Edit task title");
+  await titleEditor.fill(linkedTitle);
+  await titleEditor.press("Enter");
+
+  const detailsTitleLink = detailsPanel
+    .getByTestId("task-title")
+    .getByRole("link", { name: "https://example.com/title" });
+  await expect(detailsTitleLink).toHaveAttribute(
+    "href",
+    "https://example.com/title",
+  );
+  await expect(detailsTitleLink).toHaveAttribute("target", "_blank");
+
+  const taskTitleLink = taskItem(page, linkedTitle).getByRole("link", {
+    name: "https://example.com/title",
+  });
+  await expect(taskTitleLink).toHaveAttribute(
+    "href",
+    "https://example.com/title",
+  );
+  await expect(taskTitleLink).toHaveAttribute("target", "_blank");
+
+  const taskChecklistLink = taskItem(page, linkedTitle).getByRole("link", {
+    name: "https://example.com/checklist",
+  });
+  await expect(taskChecklistLink).toHaveAttribute(
+    "href",
+    "https://example.com/checklist",
+  );
+  await expect(taskChecklistLink).toHaveAttribute("target", "_blank");
 });
 
 test("deletes a checklist item with the desktop hover action", async ({

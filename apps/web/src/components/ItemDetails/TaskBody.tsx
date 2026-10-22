@@ -301,13 +301,14 @@ export function TaskBody({
         <ChecklistItems
           hasChecklistItems={undefined}
           parent={task}
-          editTrigger="always"
+          editTrigger="click"
           showAddItem
           className="border-task-panel-divider"
         />
 
         <div className="pt-1">
           <EditableDescription
+            isEditing={isEditingDescription}
             editingDescription={editingDescription}
             setDescriptionDraft={setDescriptionDraft}
             handleDescriptionKeyDown={handleDescriptionKeyDown}

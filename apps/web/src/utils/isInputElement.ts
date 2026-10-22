@@ -16,6 +16,7 @@ export const isInputElement = (activeElement: Element) => {
     activeElement.closest("[role='slider']") ||
     activeElement.closest("[role='checkbox']") ||
     activeElement.closest("[role='radio']") ||
-    activeElement.closest("[role='switch']")
+    activeElement.closest("[role='switch']") ||
+    activeElement.closest("a[href]")
   );
 };
