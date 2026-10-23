@@ -352,7 +352,10 @@ export function createAppRouter({
         analytics.capture({
           name: "user_signed_up",
           distinctId: result.userId,
-          properties: { captcha_enabled: captchaConfig !== null },
+          properties: {
+            captcha_enabled: captchaConfig !== null,
+            auth_method: "password",
+          },
         });
         return result;
       }),
@@ -388,7 +391,11 @@ export function createAppRouter({
           mainDB,
           generateToken({ userId: user.id, expectedPassword: user.password }),
         );
-        analytics.capture({ name: "login_succeeded", distinctId: user.id });
+        analytics.capture({
+          name: "login_succeeded",
+          distinctId: user.id,
+          properties: { auth_method: "password" },
+        });
         return result;
       }),
   });

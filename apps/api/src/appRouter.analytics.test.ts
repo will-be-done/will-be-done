@@ -38,9 +38,13 @@ describe("app router analytics", () => {
       {
         name: "user_signed_up",
         distinctId: registered.userId,
-        properties: { captcha_enabled: false },
+        properties: { captcha_enabled: false, auth_method: "password" },
       },
-      { name: "login_succeeded", distinctId: registered.userId },
+      {
+        name: "login_succeeded",
+        distinctId: registered.userId,
+        properties: { auth_method: "password" },
+      },
       { name: "api_token_created", distinctId: registered.userId },
     ]);
   });

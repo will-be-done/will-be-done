@@ -42,9 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit and deploy
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit
         run: |
           set -euo pipefail
 
@@ -66,6 +64,11 @@ jobs:
           git pull --rebase origin main
           git push origin HEAD:main
 
-          # A push made with GITHUB_TOKEN does not trigger other workflows, so
-          # deploy-landing.yaml would not see this commit on its own.
-          gh workflow run deploy-landing.yaml --ref main
+      # A push made with GITHUB_TOKEN does not trigger other workflows, so
+      # deploy-landing.yaml would not see the commit on its own. This runs even
+      # when nothing changed: if a previous run pushed but failed to start the
+      # deploy, its rerun finds the file up to date and still has to deploy.
+      - name: Deploy landing
+        run: gh workflow run deploy-landing.yaml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

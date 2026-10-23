@@ -11,7 +11,7 @@ export function AccountSettings() {
   const queryClient = useQueryClient();
   const account = useQuery(trpc.getAccount.queryOptions());
   const config = useQuery(trpc.getAuthConfig.queryOptions());
-  const google = useGoogleFlow("link");
+  const google = useGoogleFlow("link", "account_settings");
   const [password, setPassword] = useState("");
   const [passwordRequested, setPasswordRequested] = useState(false);
   const passwordInput = useRef<HTMLInputElement>(null);

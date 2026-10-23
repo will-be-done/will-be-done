@@ -246,4 +246,10 @@ const schema = [
     document.querySelector(`[data-hero-platform="${detected}"]`)?.removeAttribute('hidden');
     document.querySelector(`[data-platform-card="${detected}"]`)?.setAttribute('data-detected', '');
   }
+
+  // The snippet in posthog.astro defines window.posthog only when a key is configured.
+  type PostHog = { capture(event: string, properties: Record<string, unknown>): void };
+  (window as Window & { posthog?: PostHog }).posthog?.capture('download_page_viewed', {
+    detected_platform: detected ?? 'unknown',
+  });
 </script>

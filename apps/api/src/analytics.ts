@@ -1,17 +1,20 @@
 import { PostHog } from "posthog-node";
 
+export type AuthMethod = "password" | "google";
+
 export type BackendAnalyticsEvent =
   | {
       name: "user_signed_up";
       distinctId: string;
-      properties: { captcha_enabled: boolean; auth_method?: "google" };
+      properties: { captcha_enabled: boolean; auth_method: AuthMethod };
     }
   | {
-      name:
-        | "login_succeeded"
-        | "api_token_created"
-        | "google_connected"
-        | "google_disconnected";
+      name: "login_succeeded";
+      distinctId: string;
+      properties: { auth_method: AuthMethod };
+    }
+  | {
+      name: "api_token_created" | "google_connected" | "google_disconnected";
       distinctId: string;
     }
   | {

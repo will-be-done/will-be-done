@@ -215,7 +215,11 @@ export function createGoogleService(
               distinctId: result.userId,
               properties: { captcha_enabled: false, auth_method: "google" },
             }
-          : { name: "login_succeeded", distinctId: result.userId },
+          : {
+              name: "login_succeeded",
+              distinctId: result.userId,
+              properties: { auth_method: "google" },
+            },
       );
       return { userId: result.userId, token: result.token };
     },

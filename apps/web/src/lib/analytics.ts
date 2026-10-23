@@ -6,6 +6,9 @@ type PostHogClient = (typeof import("posthog-js"))["default"];
 
 export type TaskCreationLocation = "daily_list" | "project" | "stash";
 
+/** Where a Google sign-in or account link was started. */
+export type GoogleAuthSource = "login" | "signup" | "account_settings";
+
 export type WebAnalyticsEvent =
   | {
       name:
@@ -26,6 +29,17 @@ export type WebAnalyticsEvent =
   | {
       name: "login_failed";
       properties: { reason: "request_failed" };
+    }
+  | {
+      name: "google_auth_started";
+      properties: { source: GoogleAuthSource };
+    }
+  | {
+      name: "google_auth_failed";
+      properties: {
+        source: GoogleAuthSource;
+        reason: "popup_blocked" | "google_error" | "expired" | "request_failed";
+      };
     }
   | {
       name: "task_created";

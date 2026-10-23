@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc";
 import { isDemoMode } from "@/lib/auth";
 import { useGoogleFlow } from "@/hooks/useGoogleFlow";
+import type { GoogleAuthSource } from "@/lib/analytics";
 
 export function GoogleMark() {
   return (
@@ -26,12 +27,16 @@ export function GoogleMark() {
   );
 }
 
-export function GoogleSignIn() {
+export function GoogleSignIn({
+  source,
+}: {
+  source: Extract<GoogleAuthSource, "login" | "signup">;
+}) {
   const trpc = useTRPC();
   const config = useQuery(
     trpc.getAuthConfig.queryOptions(undefined, { enabled: !isDemoMode() }),
   );
-  const google = useGoogleFlow("signin");
+  const google = useGoogleFlow("signin", source);
   if (isDemoMode() || !config.data?.googleEnabled) return null;
   return (
     <div className="mb-6 space-y-3">
