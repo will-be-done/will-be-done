@@ -34,7 +34,11 @@ export function validateGoogleAuthLaunch(
 const RETURN_PAGE =
   '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Will Be Done</title></head><body><h1>Will Be Done</h1><p>Return to Will Be Done to continue. You can close this tab.</p></body></html>'
 
-let stopActive: (() => void) | null = null
+let active: { flowId: string; stop: () => void } | null = null
+
+export function stopGoogleAuth(flowId: string): void {
+  if (active?.flowId === flowId) active.stop()
+}
 
 // Google returns to this loopback listener (RFC 8252), so only the machine
 // that completed sign-in receives the code that finishes the flow. A sign-in
@@ -42,14 +46,14 @@ let stopActive: (() => void) | null = null
 export async function listenForGoogleAuth(
   flowId: string,
   onReturn: () => void
-): Promise<{ port: number; completion: Promise<string | null> }> {
-  stopActive?.()
+): Promise<{ port: number; completion: Promise<string | null>; stop: () => void }> {
+  active?.stop()
   let resolve!: (code: string | null) => void
   const completion = new Promise<string | null>((r) => (resolve = r))
   const finish = (code: string | null): void => {
     clearTimeout(timer)
     server.close()
-    if (stopActive === stop) stopActive = null
+    if (active?.stop === stop) active = null
     resolve(code)
   }
   const stop = (): void => finish(null)
@@ -72,7 +76,7 @@ export async function listenForGoogleAuth(
     onReturn()
   })
   const timer = setTimeout(stop, 600_000)
-  stopActive = stop
+  active = { flowId, stop }
   await new Promise<void>((ready, fail) => {
     server.once('error', fail)
     server.listen(0, '127.0.0.1', ready)
@@ -80,5 +84,5 @@ export async function listenForGoogleAuth(
     stop()
     throw error
   })
-  return { port: (server.address() as AddressInfo).port, completion }
+  return { port: (server.address() as AddressInfo).port, completion, stop }
 }

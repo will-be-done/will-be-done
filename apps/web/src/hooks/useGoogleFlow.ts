@@ -40,8 +40,12 @@ export function useGoogleFlow(
     current?.controller.abort();
     current?.channel?.close();
     current?.popup?.close();
-    if (current?.flow)
+    if (current?.flow) {
       void trpcClient.google.cancel.mutate(current.flow).catch(() => {});
+      void (window.desktopApi ?? window.api)
+        ?.cancelGoogleAuth?.(current.flow.id)
+        .catch(() => {});
+    }
     setBusy(false);
     setReadyEmail(null);
   }, []);
@@ -112,8 +116,20 @@ export function useGoogleFlow(
           throw new Error("Update the desktop app to continue with Google.");
         // Resolves once the browser returns to the app's loopback listener.
         const completion = await desktop.runGoogleAuth(flow.launchUrl);
-        if (completion) flow.completion = completion;
         if (active.current !== current) return;
+        if (!completion) {
+          // Without the returned code this flow can never become ready.
+          const result = await trpcClient.google.poll.mutate({
+            id: flow.id,
+            secret: flow.secret,
+          });
+          if (active.current !== current) return;
+          failure = "google_error";
+          throw new Error(
+            result.error ?? "Google sign-in failed. Please try again.",
+          );
+        }
+        flow.completion = completion;
       } else if (popup) {
         if (typeof BroadcastChannel !== "undefined") {
           current.channel = new BroadcastChannel(`wbd-google-${flow.id}`);

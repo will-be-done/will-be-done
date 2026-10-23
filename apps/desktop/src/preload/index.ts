@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 const api = {
   runGoogleAuth: (url: string): Promise<string | null> =>
     ipcRenderer.invoke('run-google-auth', url),
+  cancelGoogleAuth: (flowId: string): Promise<void> =>
+    ipcRenderer.invoke('cancel-google-auth', flowId),
   getServerUrl: (): Promise<string> => ipcRenderer.invoke('get-server-url'),
   checkServerUrl: (url?: string): Promise<unknown> => ipcRenderer.invoke('check-server-url', url),
   setServerUrl: (url: string): Promise<void> => ipcRenderer.invoke('set-server-url', url),

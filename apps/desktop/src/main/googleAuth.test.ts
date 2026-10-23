@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { listenForGoogleAuth, validateGoogleAuthLaunch } from './googleAuth'
+import { listenForGoogleAuth, stopGoogleAuth, validateGoogleAuthLaunch } from './googleAuth'
 
 const proof = 'a'.repeat(43)
 const launch = `https://app.example.com/api/auth/google/launch?id=${proof}&launch=${proof}`
@@ -53,6 +53,20 @@ test('loopback listener resolves without a code after a failed sign-in', async (
 
 test('a new sign-in replaces the previous listener', async () => {
   const first = await listenForGoogleAuth(proof, () => {})
-  await listenForGoogleAuth(proof, () => {})
+  const second = await listenForGoogleAuth(proof, () => {})
   assert.equal(await first.completion, null)
+  await fetch(`http://127.0.0.1:${second.port}/google-auth?state=${proof}`)
+  assert.equal(await second.completion, null)
+})
+
+test('cancelling stops only the matching sign-in listener', async () => {
+  let returned = 0
+  const { port, completion } = await listenForGoogleAuth(proof, () => returned++)
+  const base = `http://127.0.0.1:${port}/google-auth`
+  stopGoogleAuth('b'.repeat(43))
+  assert.equal((await fetch(`${base}?state=other`)).status, 404)
+  stopGoogleAuth(proof)
+  assert.equal(await completion, null)
+  await assert.rejects(fetch(`${base}?state=${proof}`))
+  assert.equal(returned, 0)
 })

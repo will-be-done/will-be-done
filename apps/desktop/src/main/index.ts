@@ -9,7 +9,7 @@ import {
   nativeImage,
   Tray
 } from 'electron'
-import { listenForGoogleAuth, validateGoogleAuthLaunch } from './googleAuth'
+import { listenForGoogleAuth, stopGoogleAuth, validateGoogleAuthLaunch } from './googleAuth'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -678,13 +678,23 @@ if (gotTheLock) {
       const launchUrl = new URL(
         validateGoogleAuthLaunch(getServerUrl(), event.senderFrame.url, url)
       )
-      const { port, completion } = await listenForGoogleAuth(
+      const { port, completion, stop } = await listenForGoogleAuth(
         launchUrl.searchParams.get('id')!,
         showMainWindow
       )
       launchUrl.searchParams.set('port', String(port))
-      await shell.openExternal(launchUrl.href)
+      try {
+        await shell.openExternal(launchUrl.href)
+      } catch (error) {
+        stop()
+        throw error
+      }
       return completion
+    })
+
+    ipcMain.handle('cancel-google-auth', (event, flowId: string) => {
+      if (event.sender === mainWindow?.webContents && typeof flowId === 'string')
+        stopGoogleAuth(flowId)
     })
 
     // IPC: get/set server URL, reload window to new server
