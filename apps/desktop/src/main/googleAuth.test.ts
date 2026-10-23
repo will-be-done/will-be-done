@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { validateGoogleAuthLaunch } from './googleAuth'
+import { listenForGoogleAuth, validateGoogleAuthLaunch } from './googleAuth'
 
 const proof = 'a'.repeat(43)
 const launch = `https://app.example.com/api/auth/google/launch?id=${proof}&launch=${proof}`
@@ -31,4 +31,28 @@ test('opens only the configured server launch URL from its renderer', () => {
       launch.replace('https://app.example.com', 'http://example.com')
     )
   )
+})
+
+test('loopback listener returns only its own flow code', async () => {
+  let returned = 0
+  const { port, completion } = await listenForGoogleAuth(proof, () => returned++)
+  const base = `http://127.0.0.1:${port}/google-auth`
+  assert.equal((await fetch(`${base}?state=other&code=${proof}`)).status, 404)
+  assert.equal(returned, 0)
+  assert.equal((await fetch(`${base}?state=${proof}&code=${proof}`)).status, 200)
+  assert.equal(await completion, proof)
+  assert.equal(returned, 1)
+  await assert.rejects(fetch(`${base}?state=${proof}&code=${proof}`))
+})
+
+test('loopback listener resolves without a code after a failed sign-in', async () => {
+  const { port, completion } = await listenForGoogleAuth(proof, () => {})
+  await fetch(`http://127.0.0.1:${port}/google-auth?state=${proof}`)
+  assert.equal(await completion, null)
+})
+
+test('a new sign-in replaces the previous listener', async () => {
+  const first = await listenForGoogleAuth(proof, () => {})
+  await listenForGoogleAuth(proof, () => {})
+  assert.equal(await first.completion, null)
 })

@@ -171,10 +171,14 @@ async function fixture(
       flow.id,
       url.searchParams.get("launch")!,
       "browser-cookie",
-      { confirmationCode: flow.confirmationCode! },
+      { loopbackPort: 49152 },
     );
-    await service.callback(flow.id, "browser-cookie", "valid");
-    return flow;
+    const completion = await service.callback(
+      flow.id,
+      "browser-cookie",
+      "valid",
+    );
+    return { ...flow, completion };
   }
   return {
     db,
@@ -364,9 +368,11 @@ describe("Google accounts", () => {
     const denied = await f.google.begin(undefined, { desktop: true });
     const launch = new URL(denied.launchUrl).searchParams.get("launch")!;
     await f.google.launch(denied.id, launch, "cookie", {
-      confirmationCode: denied.confirmationCode!,
+      loopbackPort: 49152,
     });
-    await f.google.callback(denied.id, "cookie", undefined, true);
+    expect(
+      await f.google.callback(denied.id, "cookie", undefined, true),
+    ).toBeUndefined();
     expect((await f.google.poll(denied)).status).toBe("error");
     await rejects(f.google.completeSignIn(denied));
   });
@@ -560,9 +566,10 @@ describe("Google accounts", () => {
     ).toEqual([account.userId, "duplicate"].sort());
   });
 
-  test("desktop launch requires app code and shows the link target account", async () => {
+  test("desktop flows finish only with the code returned to the loopback listener", async () => {
     const f = await fixture();
     const account = await f.passwordAccount("target@example.com");
+    const session = { userId: account.userId, tokenId: account.token };
     const server = createServer({
       appRouter: f.router,
       mainDB: f.db,
@@ -572,79 +579,46 @@ describe("Google accounts", () => {
       rateLimit: { enabled: false, backend: "memory" },
     });
     cleanup.push(() => server.close());
-    const flow = await f.google.begin(
-      { userId: account.userId, tokenId: account.token },
-      { desktop: true },
-    );
+    const flow = await f.google.begin(session, { desktop: true });
     const url = new URL(flow.launchUrl);
-    const page = await server.inject({ url: url.pathname + url.search });
-    expect(page.statusCode).toBe(200);
-    expect(page.body).toContain("target@example.com");
-    expect(page.body).toContain("Confirmation code");
-    expect(page.body).not.toContain(flow.confirmationCode!);
-    expect(page.headers.location).toBeUndefined();
-    const payload = {
-      id: flow.id,
-      launch: url.searchParams.get("launch")!,
-      confirmationCode: "x".repeat(12),
-    };
-    expect(
-      (
-        await server.inject({
-          method: "POST",
-          url: url.pathname,
-          payload,
-          headers: { origin: config.appUrl },
-        })
-      ).statusCode,
-    ).toBe(400);
-    payload.confirmationCode = flow.confirmationCode!;
-    expect(
-      (
-        await server.inject({
-          method: "POST",
-          url: url.pathname,
-          payload,
-          headers: { origin: "https://attacker.example.com" },
-        })
-      ).statusCode,
-    ).toBe(400);
-    const launch = await server.inject({
-      method: "POST",
-      url: url.pathname,
-      payload: new URLSearchParams(payload).toString(),
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        origin: config.appUrl,
-      },
-    });
-    expect(launch.statusCode).toBe(303);
+    const path = url.pathname + url.search;
+    for (const query of ["", "&port=80", "&port=abc"])
+      expect((await server.inject({ url: path + query })).statusCode).toBe(400);
+    const launch = await server.inject({ url: `${path}&port=49152` });
+    expect(launch.statusCode).toBe(302);
     expect(launch.headers.location).toContain(
       "https://accounts.google.test/authorize",
     );
     expect(
-      (
-        await server.inject({
-          method: "POST",
-          url: url.pathname,
-          payload,
-          headers: { origin: config.appUrl },
-        })
-      ).statusCode,
+      (await server.inject({ url: `${path}&port=49152` })).statusCode,
     ).toBe(400);
-    const cookie = (launch.headers["set-cookie"] as string[])
-      .map((value) => value.split(";")[0])
-      .join("; ");
+    const cookie = String(launch.headers["set-cookie"]).split(";")[0];
     const callback = await server.inject({
       url: `/api/auth/google/callback?state=${flow.id}&code=valid`,
       headers: { cookie },
     });
-    expect(callback.statusCode).toBe(200);
-    expect(callback.body).toContain('href="will-be-done://auth/google"');
-    expect(await f.google.poll(flow)).toMatchObject({
+    expect(callback.statusCode).toBe(302);
+    const target = new URL(callback.headers.location!);
+    expect(target.origin).toBe("http://127.0.0.1:49152");
+    expect(target.pathname).toBe("/google-auth");
+    expect(target.searchParams.get("state")).toBe(flow.id);
+    const completion = target.searchParams.get("code")!;
+    expect(completion).toMatch(/^[\w-]{43}$/);
+    // Whoever started the flow learns nothing without the returned code.
+    for (const proof of [flow, { ...flow, completion: "x".repeat(43) }]) {
+      expect(await f.google.poll(proof)).toMatchObject({
+        status: "pending",
+        email: null,
+      });
+      await rejects(f.google.completeLink(proof, session, password));
+      await rejects(f.google.completeSignIn(proof));
+    }
+    expect(await f.google.poll({ ...flow, completion })).toMatchObject({
       status: "ready",
       email: "person@gmail.com",
     });
+    await f.google.completeLink({ ...flow, completion }, session, password);
+    expect((await f.user(account.userId))!.googleSubject).toBe("google-user-1");
   });
 
   test("HTTP launch binds the browser; tRPC completes through the real server", async () => {
@@ -741,16 +715,7 @@ describe("Google accounts", () => {
           const url = new URL(flow.launchUrl);
           const launch = await server.inject(
             desktop
-              ? {
-                  method: "POST",
-                  url: url.pathname,
-                  headers: { origin: config.appUrl },
-                  payload: {
-                    id: flow.id,
-                    launch: url.searchParams.get("launch"),
-                    confirmationCode: flow.confirmationCode,
-                  },
-                }
+              ? { url: `${url.pathname}${url.search}&port=49152` }
               : {
                   url: url.pathname + url.search,
                   headers: { cookie: `wbd_google_${flow.id}=browser` },
@@ -768,31 +733,34 @@ describe("Google accounts", () => {
           });
           expect(callback.headers["cache-control"]).toBe("no-store");
           expect(callback.headers["referrer-policy"]).toBe("no-referrer");
-          expect(callback.body).not.toContain("Return to the app");
-          expect(callback.body).not.toContain(flow.secret);
-          expect(callback.body).not.toContain("<h1>");
-          expect(callback.statusCode).toBe(200);
-          expect(callback.body).toContain("Return to Will Be Done</a>");
-          const nonce = callback.body.match(/nonce="([\w-]+)"/)![1];
-          expect(callback.headers["content-security-policy"]).toContain(
-            `script-src 'nonce-${nonce}'`,
-          );
-          expect(callback.headers["content-security-policy"]).toContain(
-            `style-src 'nonce-${nonce}'`,
-          );
+          let completion: string | undefined;
           if (desktop) {
-            expect(callback.body).toContain(
-              'href="will-be-done://auth/google"',
+            expect(callback.statusCode).toBe(302);
+            const target = new URL(callback.headers.location!);
+            expect(target.origin + target.pathname).toBe(
+              "http://127.0.0.1:49152/google-auth",
             );
-            expect(callback.body).toContain(
-              'window.location.replace("will-be-done://auth/google")',
-            );
+            expect(target.searchParams.get("state")).toBe(flow.id);
+            completion = target.searchParams.get("code") ?? undefined;
+            expect(Boolean(completion)).toBe(outcome === "success");
           } else {
+            expect(callback.body).not.toContain("Return to the app");
+            expect(callback.body).not.toContain(flow.secret);
+            expect(callback.body).not.toContain("<h1>");
+            expect(callback.statusCode).toBe(200);
+            expect(callback.body).toContain("Return to Will Be Done</a>");
+            const nonce = callback.body.match(/nonce="([\w-]+)"/)![1];
+            expect(callback.headers["content-security-policy"]).toContain(
+              `script-src 'nonce-${nonce}'`,
+            );
+            expect(callback.headers["content-security-policy"]).toContain(
+              `style-src 'nonce-${nonce}'`,
+            );
             expect(callback.body).toContain(`href="${config.appUrl}"`);
             expect(callback.body).toContain(`wbd-google-${flow.id}`);
             expect(callback.body).toContain("window.close()");
           }
-          expect((await f.google.poll(flow)).status).toBe(
+          expect((await f.google.poll({ ...flow, completion })).status).toBe(
             outcome === "success" ? "ready" : "error",
           );
         });
@@ -813,7 +781,7 @@ describe("Google accounts", () => {
     );
     const flow = await first.ready();
     const second = await fixture(path, usersTable, hostedConfig);
-    expect(await second.google.appUrlForFlow(pending.id)).toBe(
+    expect((await second.google.returnTarget(pending.id)).appUrl).toBe(
       "https://app2.will-be-done.app",
     );
     expect((await second.google.poll(pending)).status).toBe("pending");
@@ -821,10 +789,16 @@ describe("Google accounts", () => {
       pending.id,
       new URL(pending.launchUrl).searchParams.get("launch")!,
       "reopened-browser",
-      { confirmationCode: pending.confirmationCode! },
+      { loopbackPort: 49152 },
     );
-    await second.google.callback(pending.id, "reopened-browser", "valid");
-    expect((await second.google.poll(pending)).status).toBe("ready");
+    const completion = await second.google.callback(
+      pending.id,
+      "reopened-browser",
+      "valid",
+    );
+    expect((await second.google.poll({ ...pending, completion })).status).toBe(
+      "ready",
+    );
     expect((await second.google.poll(flow)).status).toBe("ready");
     const result = await second.google.completeSignIn(flow);
     expect((await first.user(result.userId))!.googleSubject).toBe(
@@ -847,15 +821,23 @@ describe("Google accounts", () => {
       },
     });
     await asyncDispatch(f.db, removeAppUrl(pending));
-    expect(await f.google.appUrlForFlow(pending.id)).toBe(config.appUrl);
+    expect((await f.google.returnTarget(pending.id)).appUrl).toBe(
+      config.appUrl,
+    );
     await f.google.launch(
       pending.id,
       new URL(pending.launchUrl).searchParams.get("launch")!,
       "legacy-cookie",
-      { confirmationCode: pending.confirmationCode! },
+      { loopbackPort: 49152 },
     );
-    await f.google.callback(pending.id, "legacy-cookie", "valid");
-    expect((await f.google.poll(pending)).status).toBe("ready");
+    const completion = await f.google.callback(
+      pending.id,
+      "legacy-cookie",
+      "valid",
+    );
+    expect((await f.google.poll({ ...pending, completion })).status).toBe(
+      "ready",
+    );
   });
 
   for (const origin of [
@@ -894,35 +876,10 @@ describe("Google accounts", () => {
           }>().result.data;
           const launchUrl = new URL(flow.launchUrl);
           expect(launchUrl.origin).toBe(origin);
-          expect(await f.google.appUrlForFlow(flow.id)).toBe(origin);
-          const confirmation = {
-            id: flow.id,
-            launch: launchUrl.searchParams.get("launch"),
-            confirmationCode: flow.confirmationCode,
-          };
-          if (desktop) {
-            const wrongOrigin = origin.includes("app2.")
-              ? "https://app.will-be-done.app"
-              : "https://app2.will-be-done.app";
-            expect(
-              (
-                await server.inject({
-                  method: "POST",
-                  url: launchUrl.pathname,
-                  headers: { origin: wrongOrigin },
-                  payload: confirmation,
-                })
-              ).statusCode,
-            ).toBe(400);
-          }
+          expect((await f.google.returnTarget(flow.id)).appUrl).toBe(origin);
           const launched = await server.inject(
             desktop
-              ? {
-                  method: "POST",
-                  url: launchUrl.pathname,
-                  headers: { origin },
-                  payload: confirmation,
-                }
+              ? { url: `${launchUrl.pathname}${launchUrl.search}&port=49152` }
               : {
                   url: launchUrl.pathname + launchUrl.search,
                   headers: {
@@ -930,7 +887,7 @@ describe("Google accounts", () => {
                   },
                 },
           );
-          expect(launched.statusCode).toBe(desktop ? 303 : 302);
+          expect(launched.statusCode).toBe(302);
           const cookies = [launched.headers["set-cookie"]].flat() as string[];
           expect(
             cookies.every(
@@ -944,14 +901,20 @@ describe("Google accounts", () => {
               cookie: cookies.map((cookie) => cookie.split(";")[0]).join("; "),
             },
           });
-          expect(callback.statusCode).toBe(200);
-          expect(callback.body).toContain(
-            `href="${desktop ? "will-be-done://auth/google" : origin}"`,
-          );
-          expect((await f.google.poll(flow)).status).toBe("ready");
+          let proof: typeof flow & { completion?: string } = flow;
+          if (desktop) {
+            expect(callback.statusCode).toBe(302);
+            const target = new URL(callback.headers.location!);
+            expect(target.origin).toBe("http://127.0.0.1:49152");
+            proof = { ...flow, completion: target.searchParams.get("code")! };
+          } else {
+            expect(callback.statusCode).toBe(200);
+            expect(callback.body).toContain(`href="${origin}"`);
+          }
+          expect((await f.google.poll(proof)).status).toBe("ready");
           if (account) {
             await f.google.completeLink(
-              flow,
+              proof,
               { userId: account.userId, tokenId: account.token },
               password,
             );
@@ -959,7 +922,7 @@ describe("Google accounts", () => {
               "google-user-1",
             );
           } else {
-            const result = await f.google.completeSignIn(flow);
+            const result = await f.google.completeSignIn(proof);
             expect(
               await authenticateBearerToken(`Bearer ${result.token}`, f.db),
             ).toMatchObject({ id: result.userId });

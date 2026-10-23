@@ -4,7 +4,12 @@ import { z } from "zod";
 import type { GoogleService } from "./service";
 
 const idSchema = z.string().regex(/^[\w-]{43}$/);
-const launchQuery = z.object({ id: idSchema, launch: idSchema });
+const launchQuery = z.object({
+  id: idSchema,
+  launch: idSchema,
+  // The desktop app's loopback listener, added by the app when it opens the link.
+  port: z.coerce.number().int().min(1024).max(65535).optional(),
+});
 const callbackQuery = z.object({
   state: idSchema,
   code: z.string().min(1).max(4096).optional(),
@@ -39,7 +44,7 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
     "cache-control": "no-store",
     "referrer-policy": "no-referrer",
     "content-security-policy":
-      "default-src 'none'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'; base-uri 'none'",
+      "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
     "x-content-type-options": "nosniff",
   };
   const page = (message: string) =>
@@ -47,14 +52,17 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
   const returnToApp = (
     reply: FastifyReply,
     id: string,
-    desktop: boolean,
-    appUrl: string,
+    { appUrl, loopbackPort }: { appUrl: string; loopbackPort?: number },
+    completion?: string,
   ) => {
-    const target = desktop ? "will-be-done://auth/google" : appUrl;
+    if (loopbackPort !== undefined) {
+      const target = new URL(`http://127.0.0.1:${loopbackPort}/google-auth`);
+      target.searchParams.set("state", id);
+      if (completion) target.searchParams.set("code", completion);
+      return reply.redirect(target.href, 302);
+    }
     const nonce = randomBytes(16).toString("base64url");
-    const script = desktop
-      ? `window.location.replace(${JSON.stringify(target)});`
-      : `try { const channel = new BroadcastChannel(${JSON.stringify(`wbd-google-${id}`)}); channel.postMessage("complete"); channel.close(); } catch {} window.close();`;
+    const script = `try { const channel = new BroadcastChannel(${JSON.stringify(`wbd-google-${id}`)}); channel.postMessage("complete"); channel.close(); } catch {} window.close();`;
     return reply
       .header(
         "content-security-policy",
@@ -76,7 +84,7 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
 <body>
   <main>
     <p>If you haven’t returned to the app automatically:</p>
-    <a href="${escapeHtml(target)}">Return to Will Be Done</a>
+    <a href="${escapeHtml(appUrl)}">Return to Will Be Done</a>
   </main>
   <script nonce="${nonce}">${script}</script>
 </body>
@@ -95,22 +103,13 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
           .code(400)
           .type("text/html")
           .send(page("Invalid sign-in link. Please start again in the app."));
-      const { id, launch } = parsed.data;
+      const { id, launch, port } = parsed.data;
       try {
-        const appUrl = await google.appUrlForFlow(id);
-        const initiator = readCookie(request.headers.cookie, id);
-        if (!initiator) {
-          const target = await google.desktopLaunch(id, launch);
-          return reply
-            .header("referrer-policy", "same-origin")
-            .type("text/html")
-            .send(
-              `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Confirm Google sign-in · Will Be Done</title></head><body><h1>Confirm in Will Be Done</h1><p>${target.intent === "link" ? `Connect Google to the Will Be Done account <strong>${escapeHtml(target.email!)}</strong>.` : "Sign in to Will Be Done on your desktop app."}</p><p>Continue only if you started this request in your own app. Enter the code displayed there. Never enter a code sent by someone else.</p><form method="post" action="/api/auth/google/launch"><input type="hidden" name="id" value="${id}"><input type="hidden" name="launch" value="${launch}"><label>Confirmation code <input name="confirmationCode" required autocomplete="off" minlength="12" maxlength="12"></label><button type="submit">Continue to Google</button></form></body></html>`,
-            );
-        }
+        const { appUrl } = await google.returnTarget(id);
         const browserSecret = randomBytes(32).toString("base64url");
         const url = await google.launch(id, launch, browserSecret, {
-          initiator,
+          initiator: readCookie(request.headers.cookie, id),
+          loopbackPort: port,
         });
         return reply
           .header("set-cookie", cookie(appUrl, id, browserSecret, 600))
@@ -127,50 +126,6 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
       }
     },
   );
-  server.addContentTypeParser(
-    "application/x-www-form-urlencoded",
-    { parseAs: "string", bodyLimit: 1024 },
-    (_request, body, done) => {
-      done(null, Object.fromEntries(new URLSearchParams(body as string)));
-    },
-  );
-  server.post(
-    "/api/auth/google/launch",
-    { logLevel: "silent", bodyLimit: 1024 },
-    async (request, reply) => {
-      reply.headers(headers);
-      const parsed = launchQuery
-        .extend({ confirmationCode: z.string().regex(/^[\w-]{12}$/) })
-        .safeParse(request.body);
-      try {
-        // A cross-site form must not bypass the confirmation page.
-        if (!parsed.success) throw new Error("Invalid confirmation");
-        const { id, launch, confirmationCode } = parsed.data;
-        const appUrl = await google.appUrlForFlow(id);
-        if (request.headers.origin !== appUrl)
-          throw new Error("Invalid confirmation origin");
-        const browserSecret = randomBytes(32).toString("base64url");
-        const url = await google.launch(id, launch, browserSecret, {
-          confirmationCode,
-        });
-        return reply
-          .header("set-cookie", [
-            cookie(appUrl, id, browserSecret, 600),
-            cookie(appUrl, `return_${id}`, "desktop", 600),
-          ])
-          .redirect(url, 303);
-      } catch {
-        return reply
-          .code(400)
-          .type("text/html")
-          .send(
-            page(
-              "Invalid or expired confirmation code. Please start again in the app.",
-            ),
-          );
-      }
-    },
-  );
   server.get(
     "/api/auth/google/callback",
     { logLevel: "silent" },
@@ -180,22 +135,24 @@ export function googleRoutes(server: FastifyInstance, google: GoogleService) {
       if (!parsed.success) return reply.redirect(google.appUrl);
       const { state, code, error } = parsed.data;
       const browserSecret = readCookie(request.headers.cookie, state);
-      const desktop =
-        readCookie(request.headers.cookie, `return_${state}`) === "desktop";
-      let appUrl = google.appUrl;
-      reply.header("set-cookie", [
-        cookie(appUrl, state, "", 0),
-        cookie(appUrl, `return_${state}`, "", 0),
-      ]);
+      let target: { appUrl: string; loopbackPort?: number } = {
+        appUrl: google.appUrl,
+      };
+      reply.header("set-cookie", cookie(target.appUrl, state, "", 0));
       try {
-        appUrl = await google.appUrlForFlow(state);
+        target = await google.returnTarget(state);
         if (!browserSecret || !idSchema.safeParse(browserSecret).success)
           throw new Error("Missing browser binding");
-        await google.callback(state, browserSecret, code, Boolean(error));
-        return returnToApp(reply, state, desktop, appUrl);
+        const completion = await google.callback(
+          state,
+          browserSecret,
+          code,
+          Boolean(error),
+        );
+        return returnToApp(reply, state, target, completion);
       } catch {
         reply.code(400);
-        return returnToApp(reply, state, desktop, appUrl);
+        return returnToApp(reply, state, target);
       }
     },
   );

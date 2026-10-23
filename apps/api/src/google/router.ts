@@ -20,6 +20,10 @@ import {
 const proof = z.object({
   id: z.string().regex(/^[\w-]{43}$/),
   secret: z.string().regex(/^[\w-]{43}$/),
+  completion: z
+    .string()
+    .regex(/^[\w-]{43}$/)
+    .optional(),
 });
 const beginInput = z.object({ desktop: z.boolean().optional() }).optional();
 async function begin(

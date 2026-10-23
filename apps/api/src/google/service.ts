@@ -18,7 +18,6 @@ import {
   insertFlow,
   launchFlow,
   readFlowStatus,
-  readLaunch,
 } from "./actions";
 import { getUserById } from "../slices/authSlice";
 import type { BackendAnalytics } from "../analytics";
@@ -29,6 +28,7 @@ const randomSecret = () => randomBytes(32).toString("base64url");
 export interface GoogleProof {
   id: string;
   secret: string;
+  completion?: string;
 }
 export interface GoogleSession {
   userId: string;
@@ -101,8 +101,6 @@ export function createGoogleService(
         message: "Unsupported Google sign-in origin",
       });
     }
-    const confirmationCode =
-      "desktop" in binding ? randomBytes(9).toString("base64url") : null;
     const id = randomSecret(),
       secret = randomSecret(),
       launch = randomSecret();
@@ -113,7 +111,7 @@ export function createGoogleService(
       launchHash: hashSecret(launch),
       ...("initiator" in binding
         ? { initiatorHash: hashSecret(binding.initiator) }
-        : { confirmationHash: hashSecret(confirmationCode!) }),
+        : {}),
       nonce: randomSecret(),
       pkceVerifier: randomSecret(),
       status: "pending",
@@ -125,7 +123,6 @@ export function createGoogleService(
     return {
       id,
       secret,
-      confirmationCode,
       launchUrl: `${appUrl}/api/auth/google/launch?id=${id}&launch=${launch}`,
       expiresAt: flow.expiresAt,
     };
@@ -134,32 +131,19 @@ export function createGoogleService(
   return {
     appUrl: config.appUrl,
     begin,
-    async appUrlForFlow(id: string) {
+    async returnTarget(id: string) {
       const flow = await selectAsync(db, { selector: findFlow, args: { id } });
       if (!flow) throw flowError();
-      return resolveGoogleAppUrl(config, flow.appUrl);
-    },
-    async desktopLaunch(id: string, launch: string) {
-      const flow = await selectAsync(db, {
-        selector: readLaunch,
-        args: { id, launch, now: now() },
-      });
-      if (!flow.confirmationHash) throw new Error("Not a desktop flow");
-      const user = flow.userId
-        ? await selectAsync(db, {
-            selector: getUserById,
-            args: { id: flow.userId },
-          })
-        : null;
-      if (flow.intent === "link" && !user)
-        throw new Error("Account no longer exists");
-      return { intent: flow.intent, email: user?.email };
+      return {
+        appUrl: resolveGoogleAppUrl(config, flow.appUrl),
+        loopbackPort: flow.loopbackPort,
+      };
     },
     async launch(
       id: string,
       launch: string,
       cookie: string,
-      binding: { initiator?: string; confirmationCode?: string },
+      binding: { initiator?: string; loopbackPort?: number },
     ) {
       const flow = await asyncDispatch(
         db,
@@ -175,8 +159,13 @@ export function createGoogleService(
       try {
         if (denied || !code) throw new Error("Denied");
         const profile = await provider.verify(code, flow);
-        await asyncDispatch(db, finishCallback({ id, profile, now: now() }));
-        return true;
+        const completion =
+          flow.loopbackPort === undefined ? undefined : randomSecret();
+        await asyncDispatch(
+          db,
+          finishCallback({ id, profile, completion, now: now() }),
+        );
+        return completion;
       } catch {
         await asyncDispatch(
           db,
@@ -188,7 +177,7 @@ export function createGoogleService(
               : "Google sign-in failed. Please try again.",
           }),
         );
-        return false;
+        return undefined;
       }
     },
     poll: (proof: GoogleProof) =>

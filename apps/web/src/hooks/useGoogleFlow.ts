@@ -9,7 +9,12 @@ import {
 } from "@/lib/analytics";
 import { queryClient } from "@/lib/query";
 
-type Flow = { id: string; secret: string; expiresAt: number };
+type Flow = {
+  id: string;
+  secret: string;
+  expiresAt: number;
+  completion?: string;
+};
 const session = () =>
   `${authUtils.getUserId() ?? ""}:${authUtils.getToken() ?? ""}`;
 
@@ -20,7 +25,6 @@ export function useGoogleFlow(
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [readyEmail, setReadyEmail] = useState<string | null>(null);
-  const [confirmationCode, setConfirmationCode] = useState<string | null>(null);
   const [error, setError] = useState("");
   const active = useRef<{
     flow?: Flow;
@@ -40,7 +44,6 @@ export function useGoogleFlow(
       void trpcClient.google.cancel.mutate(current.flow).catch(() => {});
     setBusy(false);
     setReadyEmail(null);
-    setConfirmationCode(null);
   }, []);
 
   useEffect(() => {
@@ -91,7 +94,7 @@ export function useGoogleFlow(
     let failure: "google_error" | "expired" | "request_failed" =
       "request_failed";
     try {
-      const flow =
+      const flow: Flow & { launchUrl: string } =
         intent === "link"
           ? await trpcClient.google.beginLink.mutate({
               desktop: Boolean(desktop),
@@ -105,10 +108,12 @@ export function useGoogleFlow(
         return;
       }
       if (desktop) {
-        setConfirmationCode(flow.confirmationCode);
-        if (!desktop.openGoogleAuth)
+        if (!desktop.runGoogleAuth)
           throw new Error("Update the desktop app to continue with Google.");
-        await desktop.openGoogleAuth(flow.launchUrl);
+        // Resolves once the browser returns to the app's loopback listener.
+        const completion = await desktop.runGoogleAuth(flow.launchUrl);
+        if (completion) flow.completion = completion;
+        if (active.current !== current) return;
       } else if (popup) {
         if (typeof BroadcastChannel !== "undefined") {
           current.channel = new BroadcastChannel(`wbd-google-${flow.id}`);
@@ -129,6 +134,7 @@ export function useGoogleFlow(
           .mutate({
             id: flow.id,
             secret: flow.secret,
+            completion: flow.completion,
           })
           .then((result) => {
             consecutiveFailures = 0;
@@ -148,7 +154,6 @@ export function useGoogleFlow(
         if (result.status === "ready") {
           current.channel?.close();
           current.popup?.close();
-          setConfirmationCode(null);
           if (intent === "link") {
             setReadyEmail(result.email);
             return;
@@ -156,6 +161,7 @@ export function useGoogleFlow(
           const credentials = await trpcClient.google.completeSignIn.mutate({
             id: flow.id,
             secret: flow.secret,
+            completion: flow.completion,
           });
           if (active.current !== current || session() !== current.session)
             return;
@@ -214,13 +220,13 @@ export function useGoogleFlow(
       await trpcClient.google.completeLink.mutate({
         id: current.flow.id,
         secret: current.flow.secret,
+        completion: current.flow.completion,
         password,
       });
       if (active.current !== current) return false;
       active.current = null;
       setBusy(false);
       setReadyEmail(null);
-      setConfirmationCode(null);
       return true;
     } catch (cause) {
       if (active.current === current)
@@ -233,7 +239,6 @@ export function useGoogleFlow(
   return {
     busy,
     readyEmail,
-    confirmationCode,
     error,
     start,
     cancel,

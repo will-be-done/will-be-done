@@ -1,9 +1,5 @@
 appId: app.willbedone.WillBeDone
 productName: Will Be Done
-protocols:
-  - name: Will Be Done
-    schemes:
-      - will-be-done
 directories:
   buildResources: build
 files:

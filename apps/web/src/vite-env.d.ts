@@ -12,7 +12,7 @@ interface ServerCheckResult {
 }
 
 interface DesktopAPI {
-  openGoogleAuth?(url: string): Promise<void>;
+  runGoogleAuth?(url: string): Promise<string | null>;
   getServerUrl(): Promise<string>;
   checkServerUrl(url?: string): Promise<ServerCheckResult>;
   setServerUrl(url: string): Promise<void>;
