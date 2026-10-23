@@ -5,16 +5,18 @@ built and deployed to Cloudflare Pages by `.github/workflows/deploy-landing.yaml
 
 ## Commands
 
-| Command              | Action                                          |
-| :------------------- | :---------------------------------------------- |
-| `pnpm dev`           | Dev server on http://localhost:4321             |
-| `pnpm build`         | Static build to `./dist/`                       |
-| `pnpm preview`       | Serve the built site locally                    |
-| `pnpm sync:releases` | Pull GitHub releases into release pages (below) |
+| Command               | Action                                          |
+| :-------------------- | :---------------------------------------------- |
+| `pnpm dev`            | Dev server on http://localhost:4321             |
+| `pnpm build`          | Static build to `./dist/`                       |
+| `pnpm preview`        | Serve the built site locally                    |
+| `pnpm sync:releases`  | Pull GitHub releases into release pages (below) |
+| `pnpm sync:downloads` | Point the download page at the latest release   |
 
 ## Pages
 
 - `src/pages/index.astro` — the landing page.
+- `src/pages/download.astro` — desktop downloads, with the visitor's OS suggested.
 - `src/pages/releases/index.astro` — the release overview.
 - `src/pages/releases/[tag].astro` — one page per release.
 - `src/pages/releases/rss.xml.ts` — release feed.
@@ -61,3 +63,14 @@ script never touches a file that already exists unless you pass `--force`.
 a pull request with the result, so the copy gets reviewed before it goes live. It works on one
 long-lived `release-pages/pending` branch: a release published while an earlier pull request is
 still open adds to that pull request rather than opening a second one that repeats it.
+
+## Download links
+
+Every desktop download link comes from `src/data/desktop-downloads.json`. `pnpm sync:downloads`
+regenerates it from the release GitHub marks as latest, matching its assets to the packages listed
+in `src/lib/downloads.ts`. It refuses to write the file if any package is missing from the release.
+When electron-builder starts producing a new package, or renames one, update `src/lib/downloads.ts`.
+
+`.github/workflows/sync-downloads.yaml` runs the script when a release is published, commits the
+result straight to `main` and starts `deploy-landing.yaml`. A push made with `GITHUB_TOKEN` does not
+trigger other workflows, so the deploy has to be started explicitly.

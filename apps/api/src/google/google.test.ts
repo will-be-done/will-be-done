@@ -32,6 +32,7 @@ import { accountEmailTables, emailChallengesTable } from "../email/tables";
 import { createAccountEmailService } from "../email/service";
 import { googleFlowsTable, type GoogleProfile } from "./tables";
 import { createGoogleService, type GoogleService } from "./service";
+import type { BackendAnalyticsEvent } from "../analytics";
 import { hashSecret } from "./actions";
 import {
   parseGoogleConfig,
@@ -119,9 +120,14 @@ async function fixture(
     email: "person@gmail.com",
     emailAuthoritative: true,
   };
+  const events: BackendAnalyticsEvent[] = [];
   const options = {
     now: () => time,
     emailConfig,
+    analytics: {
+      capture: (event: BackendAnalyticsEvent) => events.push(event),
+      shutdown: async () => {},
+    },
     provider: {
       authorizationUrl: (flow: { id: string }) =>
         `https://accounts.google.test/authorize?state=${flow.id}`,
@@ -173,6 +179,7 @@ async function fixture(
   return {
     db,
     google,
+    events,
     router,
     publicCaller,
     user,
@@ -214,6 +221,18 @@ describe("Google accounts", () => {
     expect(again.userId).toBe(user.id);
     expect((await f.user(user.id))!.email).toBe(user.email);
     expect((await f.user(user.id))!.googleEmail).toBe("changed@gmail.com");
+    expect(f.events).toEqual([
+      {
+        name: "user_signed_up",
+        distinctId: user.id,
+        properties: { captcha_enabled: false, auth_method: "google" },
+      },
+      {
+        name: "login_succeeded",
+        distinctId: user.id,
+        properties: { auth_method: "google" },
+      },
+    ]);
   });
 
   test("same email rejects Google signin, including case differences, without issuing a token", async () => {

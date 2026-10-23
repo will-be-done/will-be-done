@@ -1,0 +1,74 @@
+name: Sync download links
+
+# Points the landing /download/ page at the latest published release. Unlike the
+# release pages, the result is mechanical (file names and sizes from the
+# release), so this commits straight to main instead of opening a pull request.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  # To start the landing deploy, see the last step.
+  actions: write
+
+concurrency:
+  group: sync-downloads
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Point downloads at the latest release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+
+      # The script needs only Node and the preinstalled gh CLI, so no install.
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+
+      # Reads the release GitHub marks as latest rather than the one that fired
+      # this event, so publishing a prerelease or an old release changes nothing.
+      - name: Sync download links
+        run: node apps/landing/scripts/sync-downloads.ts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit
+        run: |
+          set -euo pipefail
+
+          FILE=apps/landing/src/data/desktop-downloads.json
+
+          if git diff --quiet -- "$FILE"; then
+            echo "Download links already point at the latest release."
+            exit 0
+          fi
+
+          TAG=$(node -p "require('./$FILE').tag")
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "chore: point downloads at $TAG"
+
+          # main may have moved while the release was being published.
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      # A push made with GITHUB_TOKEN does not trigger other workflows, so
+      # deploy-landing.yaml would not see the commit on its own. This runs even
+      # when nothing changed: if a previous run pushed but failed to start the
+      # deploy, its rerun finds the file up to date and still has to deploy.
+      - name: Deploy landing
+        run: gh workflow run deploy-landing.yaml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

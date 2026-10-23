@@ -46,19 +46,27 @@ describe("backend analytics", () => {
     analytics.capture({
       name: "user_signed_up",
       distinctId: "user-1",
-      properties: { captcha_enabled: true },
+      properties: { captcha_enabled: true, auth_method: "password" },
     });
     expect(captured).toEqual([
       {
         distinctId: "user-1",
         event: "user_signed_up",
-        properties: { app_surface: "backend", captcha_enabled: true },
+        properties: {
+          app_surface: "backend",
+          captcha_enabled: true,
+          auth_method: "password",
+        },
       },
     ]);
 
     await analytics.shutdown();
     await analytics.shutdown();
-    analytics.capture({ name: "login_succeeded", distinctId: "user-1" });
+    analytics.capture({
+      name: "login_succeeded",
+      distinctId: "user-1",
+      properties: { auth_method: "password" },
+    });
     expect(shutdownCount).toBe(1);
     expect(captured).toHaveLength(1);
   });

@@ -2,14 +2,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { trpcClient, resetWsClient } from "@/lib/trpc";
 import { authUtils } from "@/lib/auth";
-import { identifyWebAnalyticsUser } from "@/lib/analytics";
+import {
+  captureWebAnalytics,
+  identifyWebAnalyticsUser,
+  type GoogleAuthSource,
+} from "@/lib/analytics";
 import { queryClient } from "@/lib/query";
 
 type Flow = { id: string; secret: string; expiresAt: number };
 const session = () =>
   `${authUtils.getUserId() ?? ""}:${authUtils.getToken() ?? ""}`;
 
-export function useGoogleFlow(intent: "signin" | "link") {
+export function useGoogleFlow(
+  intent: "signin" | "link",
+  source: GoogleAuthSource,
+) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [readyEmail, setReadyEmail] = useState<string | null>(null);
@@ -55,12 +62,20 @@ export function useGoogleFlow(intent: "signin" | "link") {
   async function start() {
     cancel();
     setError("");
+    captureWebAnalytics({
+      name: "google_auth_started",
+      properties: { source },
+    });
     const desktop = window.desktopApi ?? window.api;
     const popup = desktop
       ? undefined
       : (window.open("about:blank", "_blank") ?? undefined);
     if (!desktop && !popup) {
       setError("Allow popups to continue with Google, then try again.");
+      captureWebAnalytics({
+        name: "google_auth_failed",
+        properties: { source, reason: "popup_blocked" },
+      });
       return;
     }
     if (popup) popup.opener = null;
@@ -73,6 +88,8 @@ export function useGoogleFlow(intent: "signin" | "link") {
     };
     active.current = current;
     setBusy(true);
+    let failure: "google_error" | "expired" | "request_failed" =
+      "request_failed";
     try {
       const flow =
         intent === "link"
@@ -122,10 +139,12 @@ export function useGoogleFlow(intent: "signin" | "link") {
             return { status: "pending" as const, email: null, error: null };
           });
         if (active.current !== current || session() !== current.session) return;
-        if (result.status === "error")
+        if (result.status === "error") {
+          failure = "google_error";
           throw new Error(
             result.error ?? "Google sign-in failed. Please try again.",
           );
+        }
         if (result.status === "ready") {
           current.channel?.close();
           current.popup?.close();
@@ -167,11 +186,17 @@ export function useGoogleFlow(intent: "signin" | "link") {
           });
         });
       }
-      if (active.current === current)
+      if (active.current === current) {
+        failure = "expired";
         throw new Error("Google sign-in expired. Please try again.");
+      }
     } catch (cause) {
       if (active.current === current) {
         cancel();
+        captureWebAnalytics({
+          name: "google_auth_failed",
+          properties: { source, reason: failure },
+        });
         setError(
           cause instanceof Error
             ? cause.message
