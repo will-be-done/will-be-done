@@ -3,7 +3,7 @@ import Logo from './Logo.astro';
 
 interface Props {
   /** Which nav entry to mark as the current page. */
-  active?: 'features' | 'releases' | 'docs';
+  active?: 'features' | 'releases' | 'docs' | 'download';
 }
 
 const { active } = Astro.props;
@@ -53,6 +53,19 @@ const { active } = Astro.props;
         data-ph-section="topbar"
       >
         Docs
+      </a>
+      <a
+        href="/download/"
+        class:list={[
+          'inline-flex items-center px-3 py-2 text-[13px] font-medium transition-colors duration-200 hover:text-white focus-visible:rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400',
+          active === 'download' ? 'text-white' : 'text-slate-400',
+        ]}
+        aria-current={active === 'download' ? 'page' : undefined}
+        data-ph-event="download_clicked"
+        data-ph-section="topbar"
+        data-ph-destination="download_page"
+      >
+        Download
       </a>
       <a
         href="/releases/"
@@ -112,6 +125,7 @@ const { active } = Astro.props;
           <a href="/features/" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="features_link_clicked" data-ph-section="topbar">Feature</a>
           <a href="/#pricing" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="pricing_anchor_clicked" data-ph-section="topbar">Pricing</a>
           <a href="/docs/" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="docs_link_clicked" data-ph-section="topbar">Docs</a>
+          <a href="/download/" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="download_clicked" data-ph-section="topbar" data-ph-destination="download_page">Download</a>
           <a href="/releases/" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="releases_link_clicked" data-ph-section="topbar">Releases</a>
           <a href="https://github.com/will-be-done/will-be-done" target="_blank" rel="noopener noreferrer" class="block rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-300 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400" data-ph-event="github_link_clicked" data-ph-section="topbar">GitHub</a>
         </div>

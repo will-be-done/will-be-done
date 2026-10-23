@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "sync:releases": "node scripts/sync-releases.ts"
+    "sync:releases": "node scripts/sync-releases.ts",
+    "sync:downloads": "node scripts/sync-downloads.ts"
   },
   "dependencies": {
     "@astrojs/rss": "^4.0.19",

@@ -10,8 +10,9 @@ desktop app. All clients connect to the cloud or your self-hosted server.
 
 ## Install the desktop app
 
-1. Open the [desktop releases](https://github.com/will-be-done/will-be-done/releases).
+1. Open the [download page](/download/).
 2. Download the package for your operating system: Windows, macOS, or Linux.
+   The page suggests one for the system you are on.
 3. Install and launch Will Be Done.
 4. Set **Server URL** to `https://app.will-be-done.app` or your self-hosted server's base URL.
 5. Connect and sign in to that server.

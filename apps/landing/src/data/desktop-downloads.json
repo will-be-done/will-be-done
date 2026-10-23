@@ -1,0 +1,43 @@
+{
+  "tag": "v0.12.0",
+  "version": "0.12.0",
+  "publishedAt": "2026-10-23T07:31:48Z",
+  "releaseUrl": "https://github.com/will-be-done/will-be-done/releases/tag/v0.12.0",
+  "files": {
+    "mac-dmg": {
+      "name": "will-be-done-0.12.0.dmg",
+      "url": "https://github.com/will-be-done/will-be-done/releases/download/v0.12.0/will-be-done-0.12.0.dmg",
+      "size": 209724752
+    },
+    "windows-exe": {
+      "name": "will-be-done-0.12.0-setup.exe",
+      "url": "https://github.com/will-be-done/will-be-done/releases/download/v0.12.0/will-be-done-0.12.0-setup.exe",
+      "size": 104026312
+    },
+    "linux-appimage": {
+      "name": "will-be-done-0.12.0.AppImage",
+      "url": "https://github.com/will-be-done/will-be-done/releases/download/v0.12.0/will-be-done-0.12.0.AppImage",
+      "size": 117830795
+    },
+    "linux-deb": {
+      "name": "will-be-done_0.12.0_amd64.deb",
+      "url": "https://github.com/will-be-done/will-be-done/releases/download/v0.12.0/will-be-done_0.12.0_amd64.deb",
+      "size": 93076252
+    },
+    "linux-rpm": {
+      "name": "will-be-done-0.12.0.x86_64.rpm",
+      "url": "https://github.com/will-be-done/will-be-done/releases/download/v0.12.0/will-be-done-0.12.0.x86_64.rpm",
+      "size": 82614917
+    },
+    "linux-flatpak": {
+      "name": "will-be-done-0.12.0.flatpak",
+      "url": "https://github.com/will-be-done/will-be-done/releases/download/v0.12.0/will-be-done-0.12.0.flatpak",
+      "size": 83772304
+    },
+    "linux-snap": {
+      "name": "will-be-done_0.12.0_amd64.snap",
+      "url": "https://github.com/will-be-done/will-be-done/releases/download/v0.12.0/will-be-done_0.12.0_amd64.snap",
+      "size": 99311616
+    }
+  }
+}
