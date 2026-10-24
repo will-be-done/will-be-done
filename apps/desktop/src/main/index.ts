@@ -9,8 +9,8 @@ import {
   nativeImage,
   Tray
 } from 'electron'
-import { validateGoogleAuthLaunch } from './googleAuth'
-import { join, resolve } from 'path'
+import { listenForGoogleAuth, stopGoogleAuth, validateGoogleAuthLaunch } from './googleAuth'
+import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
@@ -79,21 +79,6 @@ function hasQuickAddArgument(commandLine: string[]): boolean {
 if (!gotTheLock) {
   app.quit()
 } else {
-  if (process.defaultApp && process.argv[1]) {
-    app.setAsDefaultProtocolClient('will-be-done', process.execPath, [resolve(process.argv[1])])
-  } else {
-    app.setAsDefaultProtocolClient('will-be-done')
-  }
-
-  app.on('open-url', (event, url) => {
-    if (url !== 'will-be-done://auth/google') return
-    event.preventDefault()
-    // The URL only brings the window forward. Authentication stays bound to
-    // the pending flow in the app and completes through server polling.
-    // Startup already opens the main window when the app is not ready yet.
-    if (app.isReady()) showMainWindow()
-  })
-
   app.on('second-instance', (_event, commandLine) => {
     if (hasQuickAddArgument(commandLine)) {
       logPopup('quick add requested by second instance')
@@ -681,7 +666,7 @@ if (gotTheLock) {
       }
     }
 
-    ipcMain.handle('open-google-auth', async (event, url: string) => {
+    ipcMain.handle('run-google-auth', async (event, url: string) => {
       if (
         !mainWindow ||
         event.sender !== mainWindow.webContents ||
@@ -690,8 +675,26 @@ if (gotTheLock) {
       ) {
         throw new Error('Google authentication must start from the main app window')
       }
-      const launchUrl = validateGoogleAuthLaunch(getServerUrl(), event.senderFrame.url, url)
-      await shell.openExternal(launchUrl)
+      const launchUrl = new URL(
+        validateGoogleAuthLaunch(getServerUrl(), event.senderFrame.url, url)
+      )
+      const { port, completion, stop } = await listenForGoogleAuth(
+        launchUrl.searchParams.get('id')!,
+        showMainWindow
+      )
+      launchUrl.searchParams.set('port', String(port))
+      try {
+        await shell.openExternal(launchUrl.href)
+      } catch (error) {
+        stop()
+        throw error
+      }
+      return completion
+    })
+
+    ipcMain.handle('cancel-google-auth', (event, flowId: string) => {
+      if (event.sender === mainWindow?.webContents && typeof flowId === 'string')
+        stopGoogleAuth(flowId)
     })
 
     // IPC: get/set server URL, reload window to new server

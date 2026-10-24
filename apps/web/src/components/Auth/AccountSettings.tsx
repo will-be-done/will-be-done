@@ -129,14 +129,6 @@ export function AccountSettings() {
         {google.busy && !google.readyEmail && (
           <p role="status">Choose your Google account in your browser.</p>
         )}
-        {google.confirmationCode && (
-          <p role="status">
-            Enter this confirmation code in your browser:{" "}
-            <strong data-testid="google-confirmation-code">
-              {google.confirmationCode}
-            </strong>
-          </p>
-        )}
         {google.readyEmail && (
           <p>
             Connect <strong className="break-all">{google.readyEmail}</strong>{" "}

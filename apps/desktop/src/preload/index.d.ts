@@ -9,7 +9,8 @@ interface ServerCheckResult {
 }
 
 interface DesktopAPI {
-  openGoogleAuth(url: string): Promise<void>
+  runGoogleAuth(url: string): Promise<string | null>
+  cancelGoogleAuth(flowId: string): Promise<void>
   getServerUrl(): Promise<string>
   checkServerUrl(url?: string): Promise<ServerCheckResult>
   setServerUrl(url: string): Promise<void>

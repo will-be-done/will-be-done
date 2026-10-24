@@ -88,34 +88,25 @@ export const launchFlow = action({
     launch: v.string(),
     cookie: v.string(),
     initiator: v.optional(v.string()),
-    confirmationCode: v.optional(v.string()),
+    loopbackPort: v.optional(v.number()),
     now: v.number(),
   },
-  handler: function* ({
-    id,
-    launch,
-    cookie,
-    initiator,
-    confirmationCode,
-    now,
-  }) {
+  handler: function* ({ id, launch, cookie, initiator, loopbackPort, now }) {
     const flow = yield* readLaunch({ id, launch, now });
     if (
       flow.initiatorHash
         ? !initiator || flow.initiatorHash !== hashSecret(initiator)
-        : !flow.confirmationHash ||
-          !confirmationCode ||
-          flow.confirmationHash !== hashSecret(confirmationCode)
+        : loopbackPort === undefined
     )
       throw flowError();
-    const {
-      launchHash: _launch,
-      initiatorHash: _initiator,
-      confirmationHash: _confirmation,
-      ...rest
-    } = flow;
+    const { launchHash: _launch, initiatorHash: _initiator, ...rest } = flow;
     yield* upsert(googleFlowsTable, [
-      { ...rest, cookieHash: hashSecret(cookie), status: "launched" },
+      {
+        ...rest,
+        cookieHash: hashSecret(cookie),
+        status: "launched",
+        ...(flow.initiatorHash ? {} : { loopbackPort }),
+      },
     ]);
     return flow;
   },
@@ -139,9 +130,10 @@ export const finishCallback = action({
     id: v.string(),
     now: v.number(),
     profile: v.optional(v.pass<GoogleProfile>()),
+    completion: v.optional(v.string()),
     error: v.optional(v.string()),
   },
-  handler: function* ({ id, now, profile, error }) {
+  handler: function* ({ id, now, profile, completion, error }) {
     const flow = yield* requireFlow(id, now);
     if (flow.status !== "exchanging") throw flowError();
     const {
@@ -159,6 +151,7 @@ export const finishCallback = action({
               googleSubject: profile.subject,
               googleEmail: profile.email,
               emailAuthoritative: profile.emailAuthoritative,
+              ...(completion ? { completionHash: hashSecret(completion) } : {}),
             }
           : { error: error ?? "Google sign-in failed. Please try again." }),
       },
@@ -166,19 +159,34 @@ export const finishCallback = action({
   },
 });
 
+// Desktop flows finish only with the code the Google callback sent to the
+// loopback address of the machine that completed sign-in. Whoever started the
+// flow cannot see its result without that code.
+const completed = (flow: GoogleFlow, completion?: string) =>
+  flow.loopbackPort === undefined ||
+  (!!completion &&
+    !!flow.completionHash &&
+    flow.completionHash === hashSecret(completion));
+
 export const readFlowStatus = selector({
   name: "readGoogleFlowStatus",
-  args: { id: v.string(), secret: v.string(), now: v.number() },
-  handler: function* ({ id, secret, now }) {
+  args: {
+    id: v.string(),
+    secret: v.string(),
+    completion: v.optional(v.string()),
+    now: v.number(),
+  },
+  handler: function* ({ id, secret, completion, now }) {
     const flow = yield* requireFlow(id, now, secret);
+    const ready = flow.status === "ready" && completed(flow, completion);
     return {
-      status:
-        flow.status === "ready"
-          ? ("ready" as const)
-          : flow.status === "error"
-            ? ("error" as const)
-            : ("pending" as const),
-      email: flow.intent === "link" ? (flow.googleEmail ?? null) : null,
+      status: ready
+        ? ("ready" as const)
+        : flow.status === "error"
+          ? ("error" as const)
+          : ("pending" as const),
+      email:
+        ready && flow.intent === "link" ? (flow.googleEmail ?? null) : null,
       error: flow.error ?? null,
     };
   },
@@ -206,6 +214,7 @@ export const completeGoogleFlow = action({
   args: {
     id: v.string(),
     secret: v.string(),
+    completion: v.optional(v.string()),
     now: v.number(),
     intent: v.union(v.literal("signin"), v.literal("link")),
     userId: v.optional(v.string()),
@@ -216,6 +225,7 @@ export const completeGoogleFlow = action({
   handler: function* ({
     id,
     secret,
+    completion,
     now,
     intent,
     userId,
@@ -226,6 +236,7 @@ export const completeGoogleFlow = action({
     const flow = yield* requireFlow(id, now, secret);
     if (
       flow.status !== "ready" ||
+      !completed(flow, completion) ||
       flow.intent !== intent ||
       !flow.googleSubject ||
       !flow.googleEmail

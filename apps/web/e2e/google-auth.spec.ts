@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { expect, test, type Page } from "playwright/test";
 import {
   E2E_PASSWORD,
@@ -186,61 +188,63 @@ for (const settings of ["account page", "space settings"] as const) {
   });
 }
 
-for (const javaScriptEnabled of [true, false]) {
-  test(`desktop return works with JavaScript ${javaScriptEnabled ? "enabled" : "disabled"}`, async ({
-    page,
-    browser: playwrightBrowser,
-  }) => {
-    await page.addInitScript(() => {
-      Object.assign(window, {
-        desktopApi: {
-          getServerUrl: async () => window.location.origin,
-          openGoogleAuth: async (url: string) => {
-            Object.assign(window, { googleLaunch: url });
-          },
-        },
-      });
-    });
-    await page.goto("/login");
-    await page.getByRole("button", { name: "Continue with Google" }).click();
-    await page.waitForFunction(() =>
-      Boolean((window as unknown as { googleLaunch?: string }).googleLaunch),
-    );
-    const url = await page.evaluate(
-      () => (window as unknown as { googleLaunch: string }).googleLaunch,
-    );
-    expect(new URL(url).pathname).toBe("/api/auth/google/launch");
-    const externalContext = await playwrightBrowser.newContext({
-      javaScriptEnabled,
-    });
-    const browser = await externalContext.newPage();
-    await browser.goto(url);
-    await expect(
-      browser.getByRole("heading", { name: "Confirm in Will Be Done" }),
-    ).toBeVisible();
-    await browser
-      .getByLabel("Confirmation code")
-      .fill(
-        (await page.getByTestId("google-confirmation-code").textContent())!,
-      );
-    await browser.getByRole("button", { name: "Continue to Google" }).click();
-    const subject = randomUUID();
-    const callback = browser.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === "/api/auth/google/callback",
-    );
-    await approve(browser, `desktop-${subject}@gmail.com`, subject);
-    expect((await callback).status()).toBe(200);
-    await expect(
-      browser.getByRole("link", { name: "Return to Will Be Done" }),
-    ).toHaveAttribute("href", "will-be-done://auth/google");
-    await expect(
-      browser.getByRole("link", { name: "Return to Will Be Done" }),
-    ).toBeVisible();
-    await expect(page).toHaveURL(/\/spaces\/?$/);
-    await externalContext.close();
+test("desktop sign-in opens Google directly and finishes through the loopback listener", async ({
+  page,
+  browser: playwrightBrowser,
+}) => {
+  let returned!: (url: URL) => void;
+  const loopback = new Promise<URL>((resolve) => (returned = resolve));
+  const listener = createServer((request, response) => {
+    returned(new URL(request.url!, "http://127.0.0.1"));
+    response.end("Return to Will Be Done");
   });
-}
+  await new Promise<void>((resolve) =>
+    listener.listen(0, "127.0.0.1", resolve),
+  );
+  const { port } = listener.address() as AddressInfo;
+  await page.addInitScript((port) => {
+    Object.assign(window, {
+      desktopApi: {
+        getServerUrl: async () => window.location.origin,
+        runGoogleAuth: (url: string) =>
+          new Promise((resolve) => {
+            Object.assign(window, {
+              googleLaunch: `${url}&port=${port}`,
+              finishGoogle: resolve,
+            });
+          }),
+      },
+    });
+  }, port);
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await page.waitForFunction(() =>
+    Boolean((window as unknown as { googleLaunch?: string }).googleLaunch),
+  );
+  const url = await page.evaluate(
+    () => (window as unknown as { googleLaunch: string }).googleLaunch,
+  );
+  expect(new URL(url).pathname).toBe("/api/auth/google/launch");
+  const externalContext = await playwrightBrowser.newContext();
+  const browser = await externalContext.newPage();
+  await browser.goto(url);
+  const subject = randomUUID();
+  await approve(browser, `desktop-${subject}@gmail.com`, subject);
+  const target = await loopback;
+  expect(target.pathname).toBe("/google-auth");
+  const code = target.searchParams.get("code");
+  expect(code).toMatch(/^[\w-]{43}$/);
+  await page.evaluate(
+    (code) =>
+      (
+        window as unknown as { finishGoogle: (code: string) => void }
+      ).finishGoogle(code),
+    code!,
+  );
+  await expect(page).toHaveURL(/\/spaces\/?$/);
+  await externalContext.close();
+  listener.close();
+});
 
 test("a return link remains when closing the popup and notifying the app are blocked", async ({
   page,
