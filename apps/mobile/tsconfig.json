@@ -1,0 +1,20 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      // Mirror metro.config.js: workspace packages use the app's HyperDB.
+      "@will-be-done/hyperdb": [
+        "./node_modules/@will-be-done/hyperdb/dist/index.d.ts"
+      ],
+      "@will-be-done/hyperdb/react": [
+        "./node_modules/@will-be-done/hyperdb/dist/react.d.ts"
+      ],
+      "@will-be-done/hyperdb/drivers/sqlite": [
+        "./node_modules/@will-be-done/hyperdb/dist/hyperdb/drivers/sqlite/index.d.ts"
+      ]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}

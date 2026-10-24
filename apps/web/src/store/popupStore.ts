@@ -30,14 +30,19 @@ import {
   openPersistentDriver,
   resolvePersistentDriverKind,
 } from "./persistentDriver";
-import { getClientId, initClock, observePersistedClock } from "./syncClock";
-import { syncChannelName } from "./syncCompatibility";
-import { withStoreStartupLock } from "./storeDbs";
+import {
+  getClientId,
+  initClock,
+  observePersistedClock,
+  syncChannelName,
+  withStoreStartupLock,
+} from "@will-be-done/client/sync";
+import { webStorage } from "@/lib/webStorage";
 
 export async function initPopupStore(spaceId: string) {
   const dbName = "space-" + spaceId;
   const persistentDriverKind = await resolvePersistentDriverKind(dbName);
-  const clientId = getClientId(dbName, persistentDriverKind);
+  const clientId = getClientId(webStorage, dbName, persistentDriverKind);
   const nextClock = initClock(clientId);
 
   const persistDBTables = [

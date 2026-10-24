@@ -1,0 +1,85 @@
+/* Design tokens shared by web and mobile. Keep values renderable by both
+   Tailwind (web) and Uniwind (mobile). */
+@theme {
+  /* Base surface - dark blue-black */
+  --color-surface: #0a0a0f;
+  --color-surface-elevated: rgba(255, 255, 255, 0.03);
+
+  /* Ring/border colors */
+  --color-ring: oklch(0 0 0 / 0);
+  --color-ring-hover: oklch(0 0 0 / 0);
+  --color-ring-focus: oklch(62.3% 0.188 260 / 0.5);
+
+  /* Panel colors - slight blue tint for active cards */
+  /* oklch(37.2% 0.045 257 / 0) */
+  --color-panel: oklch(37.2% 0.045 257 / 0.8);
+  --color-panel-tinted: oklch(27.9% 0.041 259 / 0.8);
+  --color-panel-tinted-opaque: oklch(27.9% 0.041 259);
+  --color-panel-hover: oklch(38% 0.045 257 / 0.8);
+
+  /* Done state - neutral gray, clearly different */
+  --color-done-panel: oklch(27.4% 0.005 286 / 0.8);
+  --color-done-panel-tinted: oklch(21% 0.006 286 / 0.8);
+  --color-done-panel-selected: oklch(50% 0.006 286 / 1);
+  --color-done-content: var(--color-slate-400);
+  --color-done-ring: oklch(0 0 0 / 0);
+
+  /* Focused state */
+  --color-focused-panel: oklch(62.3% 0.188 260 / 0.15);
+  --color-focused-panel-selected: var(--color-blue-400);
+  --color-focused-panel-tinted: oklch(62.3% 0.188 260 / 0.1);
+
+  --color-panel-2: oklch(100% 0 none / 0.04);
+
+  /* Input colors */
+  --color-input: oklch(11% 0.006 286);
+  --color-input-checked: var(--color-blue-500);
+  --color-input-bg: oklch(90% 0 none / 1);
+
+  /* Text colors - brighter for better readability */
+  --color-primary: var(--color-white);
+  --color-accent: var(--color-blue-500);
+  --color-accent-hover: var(--color-blue-400);
+  --color-content: var(--color-slate-100);
+  --color-content-tinted: var(--color-slate-300);
+  --color-content-tinted-2: var(--color-slate-600);
+  --color-subheader: var(--color-slate-300);
+  --color-notice: var(--color-amber-400);
+
+  /* Popover/calendar - semi-transparent with blur */
+  --color-popover: oklch(27.9% 0.037 260 / 0.05);
+  --color-popover-calendar: oklch(27.9% 0.037 260 / 0.05);
+  --color-task-dropdown: oklch(19% 0.034 260);
+  --color-calendar-header: var(--color-slate-200);
+  --color-calendar-weekday: var(--color-slate-400);
+  --color-calendar-day: var(--color-slate-300);
+  --color-calendar-border: oklch(100% 0 none / 0.1);
+
+  /* Gradient orb colors (for background effects) */
+  --color-orb-blue: oklch(54.6% 0.215 263 / 0.08);
+  --color-orb-indigo: oklch(58.5% 0.204 277 / 0.06);
+
+  /* Task detail panel - orange */
+  --color-task-panel: oklch(26.6% 0.079 36.3);
+  --color-task-panel-ring: oklch(70.5% 0.213 41.2 / 0.3);
+  --color-task-panel-divider: oklch(70.5% 0.213 41.2 / 0.2);
+  --color-task-panel-hover: oklch(70.5% 0.213 41.2 / 0.15);
+
+  /* Dialog / modal */
+  --color-dialog-bg: oklch(13% 0.025 260);
+  --color-dialog-sidebar: oklch(10.5% 0.02 260);
+  --color-dialog-border: oklch(100% 0 none / 0.07);
+  --color-dialog-item-active: oklch(23% 0.055 250);
+
+  /* General input/border */
+  --color-border: oklch(100% 0 none / 0.18);
+
+  /* Secondary content text — between content-tinted and content-tinted-2 */
+  --color-content-secondary: var(--color-slate-400);
+
+  /* Task nature colors — subtle tinted backgrounds for footer */
+  --color-nature-red: oklch(28% 0.06 15 / 0.8);
+  --color-nature-red-content: oklch(65% 0.06 15);
+  --color-nature-green: oklch(28% 0.05 155 / 0.8);
+  --color-nature-green-content: oklch(65% 0.05 155);
+}

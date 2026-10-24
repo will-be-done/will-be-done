@@ -33,6 +33,7 @@ import type { SyncStatus } from "./syncStatus";
 import { createCrossTabChanges } from "./crossTabChanges";
 import { createLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
+import type { ClientPlatform, SyncChannel } from "./platform";
 
 const subscription = vi.hoisted(() => ({
   handlers: undefined as
@@ -46,61 +47,59 @@ const statusBus = vi.hoisted(() => ({
   delayedChanges: [] as (() => void)[],
   channels: [] as {
     name: string;
-    onmessage?: (message: unknown) => void;
+    onmessage: ((message: unknown) => void) | null;
   }[],
 }));
 
-vi.mock("@/lib/trpc.ts", () => ({
-  trpcClient: {
-    onChangesAvailable: {
-      subscribe: vi.fn(
-        (
-          _input: unknown,
-          handlers: { onData: () => void; onError: (error: unknown) => void },
-        ) => {
-          subscription.handlers = handlers;
-          return { unsubscribe: vi.fn() };
-        },
-      ),
-    },
-  },
-}));
-
-vi.mock("@/lib/auth", () => ({
-  authUtils: { getToken: () => null },
-}));
-
-vi.mock("@/lib/devtools", () => ({
-  getDevtoolsEnabled: () => false,
-}));
-
-vi.mock("broadcast-channel", () => ({
-  BroadcastChannel: class {
-    onmessage?: (message: unknown) => void;
-    constructor(readonly name: string) {
-      statusBus.channels.push(this);
-    }
-    postMessage(message: unknown) {
-      for (const channel of statusBus.channels) {
-        if (channel !== this && channel.name === this.name) {
-          const deliver = () => channel.onmessage?.(message);
-          if (statusBus.delayChanges && this.name.startsWith("changes-")) {
-            statusBus.delayedChanges.push(deliver);
-          } else {
-            deliver();
-          }
+class TestChannel {
+  onmessage: ((message: unknown) => void) | null = null;
+  constructor(readonly name: string) {
+    statusBus.channels.push(this);
+  }
+  postMessage(message: unknown) {
+    for (const channel of statusBus.channels) {
+      if (channel !== this && channel.name === this.name) {
+        const deliver = () => channel.onmessage?.(message);
+        if (statusBus.delayChanges && this.name.startsWith("changes-")) {
+          statusBus.delayedChanges.push(deliver);
+        } else {
+          deliver();
         }
       }
-      return Promise.resolve();
     }
-    close() {}
+    return Promise.resolve();
+  }
+  close() {}
+}
+
+const testPlatform: ClientPlatform = {
+  apiUrl: "",
+  getToken: () => null,
+  storage: {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
   },
-  createLeaderElection: () => ({
-    isLeader: statusBus.nextIsLeader,
-    awaitLeadership: async () => {},
-    onduplicate: undefined,
-  }),
-}));
+  persistentStorage: {
+    resolveKind: () => Promise.resolve("test"),
+    openDriver: () => Promise.resolve(new BptreeInmemDriver()),
+  },
+  subscribeChangesAvailable: (_input, handlers) => {
+    subscription.handlers = handlers;
+    return { unsubscribe: vi.fn() };
+  },
+  coordination: {
+    createChannel: <T>(name: string) =>
+      new TestChannel(name) as unknown as SyncChannel<T>,
+    createLeaderElection: () => ({
+      isLeader: statusBus.nextIsLeader,
+      awaitLeadership: async () => {},
+      onduplicate: null,
+    }),
+  },
+  lifecycle: { onWake: () => {}, onHide: () => {} },
+  isDebugEnabled: () => false,
+};
 
 type SyncerTestAccess = {
   runId: number;
@@ -124,7 +123,7 @@ const createSyncer = () => {
   const nextClock = createHlcClock("client-1");
   return {
     db,
-    syncer: new Syncer(db, "client-1", config, nextClock),
+    syncer: new Syncer(db, "client-1", config, nextClock, testPlatform),
   };
 };
 
@@ -164,15 +163,6 @@ beforeEach(() => {
   statusBus.nextIsLeader = true;
   statusBus.delayChanges = false;
   statusBus.delayedChanges = [];
-  vi.stubGlobal("document", {
-    visibilityState: "visible",
-    addEventListener: vi.fn(),
-  });
-  vi.stubGlobal("window", {
-    addEventListener: vi.fn(),
-    setTimeout: globalThis.setTimeout,
-    clearTimeout: globalThis.clearTimeout,
-  });
 });
 
 describe("sync status", () => {
@@ -399,7 +389,13 @@ describe("sync status", () => {
       tableNameMap: { [items.tableName]: items },
     };
     const leaderClock = createHlcClock("client-1/leader");
-    const leader = new Syncer(leaderDB, "client-1", syncConfig, leaderClock);
+    const leader = new Syncer(
+      leaderDB,
+      "client-1",
+      syncConfig,
+      leaderClock,
+      testPlatform,
+    );
     registerSyncChangeHooks({
       syncSubDb: leaderDB,
       syncableDBTables: [items],
@@ -412,6 +408,7 @@ describe("sync status", () => {
       syncConfig,
       nextClock: leaderClock,
       onApplied: () => leader.forceSync(),
+      coordination: testPlatform.coordination,
     });
 
     let sessions = 0;
@@ -463,6 +460,7 @@ describe("sync status", () => {
         "client-1",
         syncConfig,
         followerClock,
+        testPlatform,
       );
       registerSyncChangeHooks({
         syncSubDb: followerDB,
@@ -476,11 +474,13 @@ describe("sync status", () => {
         syncConfig,
         nextClock: followerClock,
         onApplied: () => follower.forceSync(),
+        coordination: testPlatform.coordination,
       });
       createLocalPersistQueue({
         syncSubDb: followerDB,
         postChanges: followerChanges.postChanges,
         onPersisted: () => follower.forceSync(),
+        lifecycle: testPlatform.lifecycle,
       }).start();
 
       statusBus.delayChanges = true;

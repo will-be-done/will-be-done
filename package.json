@@ -14,8 +14,8 @@
     "dev:server": "pnpm -C apps/api dev",
     "dev:landing": "pnpm -C apps/landing dev",
     "dev:tursod": "TURSOD_DB_PATH=apps/tursod/db cargo run --manifest-path apps/tursod/Cargo.toml",
-    "ts": "pnpm --filter @will-be-done/web ts && pnpm --filter @will-be-done/slices ts && pnpm --filter @will-be-done/api ts",
-    "lint": "pnpm --filter @will-be-done/web lint && pnpm --filter @will-be-done/slices lint && pnpm --filter @will-be-done/api lint",
+    "ts": "pnpm --filter @will-be-done/web ts && pnpm --filter @will-be-done/slices ts && pnpm --filter @will-be-done/client ts && pnpm --filter @will-be-done/api ts && pnpm --filter @will-be-done/mobile ts",
+    "lint": "pnpm --filter @will-be-done/web lint && pnpm --filter @will-be-done/slices lint && pnpm --filter @will-be-done/client lint && pnpm --filter @will-be-done/api lint",
     "test": "pnpm --filter @will-be-done/api test",
     "test:e2e": "pnpm --filter @will-be-done/api test:e2e && pnpm --filter @will-be-done/web test:e2e",
     "format": "prettier --write .",
@@ -23,7 +23,8 @@
     "all": "tsx scripts/dev-all.ts",
     "release:desktop": "bash scripts/release",
     "deploy:staging:tursod": "fly deploy --config fly.tursod.staging.toml --app wbd-tursod-staging",
-    "deploy:staging:app": "fly deploy --config fly.app.staging.toml --app wbd-app-staging"
+    "deploy:staging:app": "fly deploy --config fly.app.staging.toml --app wbd-app-staging",
+    "dev:mobile": "pnpm -C apps/mobile start"
   },
   "devDependencies": {
     "@types/blessed": "^0.1.27",

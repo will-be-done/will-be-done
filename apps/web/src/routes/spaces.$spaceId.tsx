@@ -9,9 +9,10 @@ import {
 } from "@tanstack/react-router";
 import { type SubscribableDB } from "@will-be-done/hyperdb";
 import { DBProvider } from "@will-be-done/hyperdb/react";
-import { initDbStore } from "@/store/load.ts";
+import { initDbStore, spaceDBConfig } from "@will-be-done/client/sync";
+import { webPlatform } from "@/store/platform";
 import { authUtils, isDemoMode } from "@/lib/auth";
-import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
+import { demoSpaceDBConfig } from "@/store/configs";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";
 import { captureWebAnalytics } from "@/lib/analytics";
@@ -41,7 +42,7 @@ async function loadSpaceDb(spaceId: string) {
 
   const config = isDemo ? demoSpaceDBConfig() : spaceDBConfig(spaceId);
 
-  return initDbStore(config);
+  return initDbStore(webPlatform, config);
 }
 
 function RouteComponent() {

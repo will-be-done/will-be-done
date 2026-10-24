@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [web, api, slices]
+        package: [web, api, slices, client]
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -61,15 +61,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint @apps/${{ matrix.package }}
-        run: pnpm -C apps/${{ matrix.package }} lint
+      - name: Lint @will-be-done/${{ matrix.package }}
+        run: pnpm --filter @will-be-done/${{ matrix.package }} lint
 
-      - name: TypeCheck @apps/${{ matrix.package }}
-        run: pnpm -C apps/${{ matrix.package }} ts
+      - name: TypeCheck @will-be-done/${{ matrix.package }}
+        run: pnpm --filter @will-be-done/${{ matrix.package }} ts
 
-      - name: Test @apps/${{ matrix.package }}
-        if: matrix.package == 'api' || matrix.package == 'slices'
-        run: pnpm -C apps/${{ matrix.package }} test
+      - name: Test @will-be-done/${{ matrix.package }}
+        if: matrix.package == 'api' || matrix.package == 'slices' || matrix.package == 'client'
+        run: pnpm --filter @will-be-done/${{ matrix.package }} test
 
       - name: Check OpenAPI snapshot
         if: matrix.package == 'api'

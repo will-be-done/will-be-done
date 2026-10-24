@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { LinkifiedText } from "./LinkifiedText";
-import { linkifyText } from "./linkifyText";
+import { linkifyText } from "@will-be-done/client/utils";
 
 describe("linkifyText", () => {
   it("finds HTTP links and preserves surrounding text", () => {

@@ -6,8 +6,7 @@ import {
   setPersistentDriverKind,
   usePersistentDriverKind,
 } from "@/store/persistentDriver";
-import { getDbName } from "@/store/syncClock";
-import { spaceDbType } from "@/store/configs";
+import { getDbName, spaceDbType } from "@will-be-done/client/sync";
 
 export function GeneralSection() {
   const { spaceId } = Route.useParams();

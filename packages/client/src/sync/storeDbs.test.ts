@@ -14,11 +14,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SyncConfig } from "./syncTypes";
 import { createStoreDbs, withStoreStartupLock } from "./storeDbs";
 
-const { openPersistentDriver } = vi.hoisted(() => ({
-  openPersistentDriver: vi.fn(),
-}));
-
-vi.mock("./persistentDriver", () => ({ openPersistentDriver }));
+const openPersistentDriver = vi.fn();
+const platform = {
+  persistentStorage: {
+    resolveKind: () => Promise.resolve("test"),
+    openDriver: openPersistentDriver,
+  },
+  isDebugEnabled: () => false,
+};
 
 class PersistentInMemoryDriver extends BptreeInmemDriver {
   private readonly loadedTableNames = new Set<string>();
@@ -84,6 +87,7 @@ describe("store database startup", () => {
     } satisfies SyncConfig;
 
     const { persistentDB, syncSubDb } = await createStoreDbs(
+      platform,
       "startup-test",
       syncConfig,
       async (persistentDB) => {

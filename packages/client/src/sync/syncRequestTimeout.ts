@@ -13,7 +13,7 @@ export const withSyncRequestTimeout = async <T>(
   timeoutMs = DEFAULT_SYNC_REQUEST_TIMEOUT_MS,
 ): Promise<T> => {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => {
+  const timeoutId = setTimeout(() => {
     controller.abort(new SyncRequestTimeoutError(label, timeoutMs));
   }, timeoutMs);
 
@@ -28,6 +28,6 @@ export const withSyncRequestTimeout = async <T>(
     }
     throw error;
   } finally {
-    window.clearTimeout(timeoutId);
+    clearTimeout(timeoutId);
   }
 };

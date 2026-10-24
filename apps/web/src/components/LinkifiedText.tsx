@@ -1,4 +1,4 @@
-import { linkifyText } from "./linkifyText";
+import { linkifyText } from "@will-be-done/client/utils";
 
 export function LinkifiedText({ text }: { text: string }) {
   return linkifyText(text).map((part) =>

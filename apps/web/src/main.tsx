@@ -12,6 +12,10 @@ import {
 } from "@will-be-done/slices";
 import { getDevtoolsEnabled } from "@/lib/devtools";
 import { action as webAction, selector as webSelector } from "@/store/builders";
+import {
+  action as clientAction,
+  selector as clientSelector,
+} from "@will-be-done/client/sync";
 // import "temporal-polyfill/global";
 
 // Import the generated route tree
@@ -44,6 +48,8 @@ slicesSelector.configure({ trace: { enabled: true, startOn: traceStartOn } });
 slicesAction.configure({ trace: { enabled: true, startOn: traceStartOn } });
 webSelector.configure({ trace: { enabled: true, startOn: traceStartOn } });
 webAction.configure({ trace: { enabled: true, startOn: traceStartOn } });
+clientSelector.configure({ trace: { enabled: true, startOn: traceStartOn } });
+clientAction.configure({ trace: { enabled: true, startOn: traceStartOn } });
 
 // Register the router instance for type safety
 declare module "@tanstack/react-router" {

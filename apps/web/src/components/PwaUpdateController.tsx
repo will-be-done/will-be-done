@@ -10,7 +10,7 @@ import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   getSyncUpdateRequired,
   subscribeSyncUpdateRequired,
-} from "@/store/syncCompatibility";
+} from "@will-be-done/client/sync";
 
 const UPDATE_TOAST_ID = "pwa-update-available";
 const REQUIRED_UPDATE_TOAST_ID = "pwa-update-required";

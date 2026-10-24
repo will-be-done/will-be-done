@@ -1,10 +1,7 @@
 import { nanoid } from "nanoid";
 import { asyncDispatch, type HyperDB } from "@will-be-done/hyperdb";
-import {
-  getPersistentDriverKind,
-  type PersistentDriverKind,
-} from "./persistentDriver";
 import type { SyncConfig } from "./syncTypes";
+import type { KeyValueStorage } from "./platform";
 import {
   createHlcClock,
   getLatestPersistedClock,
@@ -29,28 +26,31 @@ export const observePersistedClock = async (db: HyperDB, clock: HlcClock) => {
 };
 
 export const getClientId = (
+  storage: KeyValueStorage,
   dbName: string,
-  driverKind: PersistentDriverKind = getPersistentDriverKind(dbName),
+  storageKind: string,
 ) => {
+  // wa-sqlite was the first web storage backend, so its replica keeps the
+  // original unsuffixed key.
   const key =
-    driverKind === "wa-sqlite"
+    storageKind === "wa-sqlite"
       ? "clientId-" + dbName
-      : `clientId-${dbName}-${driverKind}`;
+      : `clientId-${dbName}-${storageKind}`;
 
   let id: string | null = null;
   try {
-    id = localStorage.getItem(key);
+    id = storage.getItem(key);
   } catch (e) {
-    console.warn("Failed to read client id from localStorage", e);
+    console.warn("Failed to read client id from storage", e);
   }
 
   if (id) return id;
 
   const newId = nanoid();
   try {
-    localStorage.setItem(key, newId);
+    storage.setItem(key, newId);
   } catch (e) {
-    console.warn("Failed to save client id to localStorage", e);
+    console.warn("Failed to save client id to storage", e);
   }
 
   return newId;

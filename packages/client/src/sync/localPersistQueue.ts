@@ -5,13 +5,15 @@ import {
   type ChangesetArrayType,
   type PrimitiveRow,
 } from "@will-be-done/slices/common";
-import { flushPendingDrafts } from "./pendingDraftFlushes.ts";
+import { flushPendingDrafts } from "./pendingDraftFlushes";
 import type { ChangePersistedEvent } from "./syncTypes";
+import type { ClientPlatform } from "./platform";
 
 type CreateLocalPersistQueueArgs = {
   syncSubDb: SubscribableDB;
   postChanges: (event: ChangePersistedEvent) => void;
   onPersisted: () => void;
+  lifecycle: Pick<ClientPlatform["lifecycle"], "onHide">;
 };
 
 type RowType = PrimitiveRow;
@@ -82,6 +84,7 @@ export const createLocalPersistQueue = ({
   syncSubDb,
   postChanges,
   onPersisted,
+  lifecycle,
 }: CreateLocalPersistQueueArgs) => {
   const flushDraftsAndPersist = async () => {
     flushPendingDrafts();
@@ -91,25 +94,9 @@ export const createLocalPersistQueue = ({
     void flushDraftsAndPersist();
   };
 
-  const flushDraftsAndPersistWhenHidden = () => {
-    if (document.visibilityState === "hidden") {
-      flushDraftsAndPersistBestEffort();
-    }
-  };
-
   return {
     start: () => {
-      window.addEventListener("beforeunload", flushDraftsAndPersistBestEffort, {
-        capture: true,
-      });
-      window.addEventListener("pagehide", flushDraftsAndPersistBestEffort, {
-        capture: true,
-      });
-      document.addEventListener(
-        "visibilitychange",
-        flushDraftsAndPersistWhenHidden,
-        { capture: true },
-      );
+      lifecycle.onHide(flushDraftsAndPersistBestEffort);
 
       syncSubDb.subscribe((ops, traits) => {
         if (traits.some((t) => t.type === "skip-sync")) {

@@ -8,14 +8,12 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  getSyncUpdateRequired,
   initialSyncStatus,
+  subscribeSyncUpdateRequired,
   syncStatusByDB,
   type SyncPhase,
-} from "@/store/syncStatus";
-import {
-  getSyncUpdateRequired,
-  subscribeSyncUpdateRequired,
-} from "@/store/syncCompatibility";
+} from "@will-be-done/client/sync";
 
 const phaseLabels: Record<SyncPhase, string> = {
   waiting: "Waiting to sync",

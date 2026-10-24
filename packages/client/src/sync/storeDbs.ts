@@ -7,9 +7,8 @@ import {
   SubscribableDB,
 } from "@will-be-done/hyperdb";
 import { dbIdTrait } from "@will-be-done/slices/traits";
-import { getDevtoolsEnabled } from "@/lib/devtools";
-import { openPersistentDriver } from "./persistentDriver";
 import type { SyncConfig } from "./syncTypes";
+import type { ClientPlatform } from "./platform";
 import {
   areSpaceStorageMigrationsApplied,
   migrateLegacySpaceStorage,
@@ -46,17 +45,16 @@ export async function withStoreStartupLock<T>(
 }
 
 export const createStoreDbs = async (
+  platform: Pick<ClientPlatform, "persistentStorage" | "isDebugEnabled">,
   dbName: string,
   syncConfig: SyncConfig,
   preparePersistentDB?: (db: DB) => Promise<void>,
 ) => {
-  const tracer =
-    process.env.NODE_ENV === "development" || getDevtoolsEnabled()
-      ? "default"
-      : "disabled";
+  const tracer = platform.isDebugEnabled() ? "default" : "disabled";
 
   const persistentDB = await withStoreStartupLock(dbName, async () => {
-    const persistentDriver = await openPersistentDriver(dbName);
+    const persistentDriver =
+      await platform.persistentStorage.openDriver(dbName);
     const createPersistentDB = (dbName: string) =>
       new DB(persistentDriver, {
         traits: [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],

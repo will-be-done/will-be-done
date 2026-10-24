@@ -26,16 +26,7 @@ import { createCrossTabChanges } from "./crossTabChanges";
 import { createLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 import type { SyncConfig } from "./syncTypes";
-
-vi.mock("broadcast-channel", () => ({
-  BroadcastChannel: class {
-    onmessage: ((data: unknown) => void) | null = null;
-
-    postMessage() {
-      return Promise.resolve();
-    }
-  },
-}));
+import { singleInstanceCoordination } from "./platform";
 
 const crossTabItemsTable = defineTable("cross_tab_test_items", {
   id: v.string(),
@@ -61,12 +52,6 @@ afterEach(() => {
 
 describe("cross-tab changes", () => {
   it("publishes an externally persisted row without creating a local echo", async () => {
-    vi.stubGlobal("window", { addEventListener: vi.fn() });
-    vi.stubGlobal("document", {
-      addEventListener: vi.fn(),
-      visibilityState: "visible",
-    });
-
     const driver = new BptreeInmemDriver();
     const senderDB = new DB(driver);
     const receiverPersistentDB = new DB(driver);
@@ -109,12 +94,14 @@ describe("cross-tab changes", () => {
       syncConfig,
       nextClock,
       onApplied,
+      coordination: singleInstanceCoordination,
     });
     const postChanges = vi.spyOn(crossTabChanges, "postChanges");
     createLocalPersistQueue({
       syncSubDb: receiverDB,
       postChanges: crossTabChanges.postChanges,
       onPersisted: vi.fn(),
+      lifecycle: { onHide: vi.fn() },
     }).start();
 
     receiverDB.subscribe((ops) => publications.push(ops));

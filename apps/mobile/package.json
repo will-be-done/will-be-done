@@ -1,0 +1,44 @@
+{
+  "name": "@will-be-done/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "ts": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@tanstack/react-query": "^5.101.0",
+    "@trpc/client": "^11.7.2",
+    "@will-be-done/client": "workspace:*",
+    "@will-be-done/hyperdb": "^0.7.0",
+    "@will-be-done/slices": "workspace:*",
+    "date-fns": "^4.1.0",
+    "expo": "~58.0.19",
+    "expo-constants": "~58.0.13",
+    "expo-crypto": "~58.0.7",
+    "expo-font": "~58.0.10",
+    "expo-linking": "~58.0.14",
+    "expo-router": "~58.0.26",
+    "expo-secure-store": "~58.0.2",
+    "expo-sqlite": "~58.0.14",
+    "expo-status-bar": "~58.0.4",
+    "expo-web-browser": "~58.0.6",
+    "lucide-react-native": "^1.61.0",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "react-native-svg": "15.16.0",
+    "tailwindcss": "^4.1.17",
+    "uniwind": "^1.13.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17",
+    "@will-be-done/api": "workspace:*",
+    "typescript": "~5.9.3"
+  }
+}

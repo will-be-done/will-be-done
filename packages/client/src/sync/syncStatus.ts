@@ -1,5 +1,5 @@
 import type { HyperDB } from "@will-be-done/hyperdb";
-import { State } from "@/utils/State";
+import { State } from "../utils/State";
 
 export type SyncPhase =
   | "waiting"

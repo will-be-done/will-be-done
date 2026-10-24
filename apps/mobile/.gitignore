@@ -1,0 +1,6 @@
+.expo/
+dist/
+expo-env.d.ts
+uniwind-types.d.ts
+ios/
+android/

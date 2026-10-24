@@ -8,6 +8,8 @@ overrides:
   "@types/react-dom": "19.2.3"
   react: "19.2.7"
   react-dom: "19.2.7"
+  # React Native requires the exact React version its renderer was built with.
+  "@will-be-done/mobile>react": "19.3.0"
   zod-validation-error: "^4.0.0"
 allowBuilds:
   core-js: true
@@ -22,3 +24,21 @@ minimumReleaseAgeExclude:
   - "@posthog/browser-common@0.6.0"
   - "@posthog/types@1.406.2"
   - posthog-js@1.420.0
+  - "@expo/cli@58.1.15"
+  - "@expo/config@58.0.8"
+  - "@expo/local-build-cache-provider@58.0.8"
+  - "@expo/metro-config@58.0.17"
+  - "@expo/prebuild-config@58.0.16"
+  - "@expo/router-server@58.0.17"
+  - babel-preset-expo@58.0.20
+  - expo-file-system@58.0.11
+  - expo-font@58.0.10
+  - expo-glass-effect@58.0.5
+  - expo-modules-autolinking@58.0.15
+  - expo-modules-cli@0.3.2
+  - expo-modules-core@58.0.26
+  - expo-modules-jsi@58.0.19
+  - expo-router@58.0.26
+  - expo-server@58.0.6
+  - expo-sqlite@58.0.14
+  - expo@58.0.19

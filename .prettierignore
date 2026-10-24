@@ -14,6 +14,9 @@ playwright-report/
 test-results/
 apps/tursod/
 **/routeTree.gen.ts
+.expo/
+expo-env.d.ts
+uniwind-types.d.ts
 
 # Package manager and generated data
 pnpm-lock.yaml

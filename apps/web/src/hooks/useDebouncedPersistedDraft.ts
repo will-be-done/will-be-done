@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { useUnmount } from "@/utils";
-import { registerPendingDraftFlush } from "@/store/pendingDraftFlushes";
+import { registerPendingDraftFlush } from "@will-be-done/client/sync";
 
 const defaultIsEqual = <T>(left: T, right: T) => Object.is(left, right);
 

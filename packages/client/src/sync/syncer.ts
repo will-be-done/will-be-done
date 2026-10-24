@@ -7,15 +7,7 @@ import {
   type SyncCommitResponse,
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
-import {
-  BroadcastChannel,
-  createLeaderElection,
-  type LeaderElector,
-} from "broadcast-channel";
-import { getDevtoolsEnabled } from "@/lib/devtools";
-import { trpcClient } from "@/lib/trpc.ts";
-import { authUtils } from "@/lib/auth";
-import { State } from "@/utils/State.ts";
+import { State } from "../utils/State";
 import {
   beginSyncV4Download,
   cleanupStaleSyncV4Transfers,
@@ -41,6 +33,11 @@ import {
   markSyncUpdateRequired,
   syncChannelName,
 } from "./syncCompatibility";
+import type {
+  ClientPlatform,
+  SyncChannel,
+  SyncLeaderElector,
+} from "./platform";
 
 const SYNC_POLL_INTERVAL_MS = 60000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
@@ -51,20 +48,11 @@ type SyncStatusMessage =
   | { type: "request-sync" }
   | { type: "status"; status: SyncStatus };
 
-const syncerLogsEnabled = () =>
-  getDevtoolsEnabled() || process.env.NODE_ENV === "development";
-
-const syncerLog = (...args: Parameters<typeof console.log>) => {
-  if (syncerLogsEnabled()) {
-    console.log(...args);
-  }
-};
-
 export class Syncer {
   readonly status = new State<SyncStatus>({ ...initialSyncStatus });
-  private electionChannel: BroadcastChannel;
-  private statusChannel: BroadcastChannel<SyncStatusMessage>;
-  private elector: LeaderElector;
+  private electionChannel: SyncChannel;
+  private statusChannel: SyncChannel<SyncStatusMessage>;
+  private elector: SyncLeaderElector;
   private runId = 0;
   private terminal = false;
   private clientId: string;
@@ -83,14 +71,16 @@ export class Syncer {
     clientId: string,
     syncConfig: SyncConfig,
     private nextClock: HlcClock,
+    private platform: ClientPlatform,
   ) {
     this.clientId = clientId;
     this.syncConfig = syncConfig;
-    this.electionChannel = new BroadcastChannel(
+    const { coordination } = platform;
+    this.electionChannel = coordination.createChannel(
       syncChannelName("election", clientId),
     );
-    this.elector = createLeaderElection(this.electionChannel);
-    this.statusChannel = new BroadcastChannel(
+    this.elector = coordination.createLeaderElection(this.electionChannel);
+    this.statusChannel = coordination.createChannel<SyncStatusMessage>(
       syncChannelName("status", clientId),
     );
     this.statusChannel.onmessage = (message) => {
@@ -106,19 +96,19 @@ export class Syncer {
     void this.statusChannel.postMessage({ type: "request-status" });
     this.applySyncV4Download = createApplySyncV4Download(nextClock);
 
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        this.wakeSyncLoop();
-      }
-    });
-    window.addEventListener("online", this.wakeSyncLoop);
-    window.addEventListener("focus", this.wakeSyncLoop);
+    platform.lifecycle.onWake(this.wakeSyncLoop);
+  }
+
+  private log(...args: Parameters<typeof console.log>) {
+    if (this.platform.isDebugEnabled()) {
+      console.log(...args);
+    }
   }
 
   startLoop() {
     this.elector.onduplicate = () => {
       if (this.terminal) return;
-      syncerLog("onduplicate");
+      this.log("onduplicate");
 
       this.runId++;
       this.cleanupWebSocket();
@@ -170,7 +160,7 @@ export class Syncer {
   }
 
   private setupWebSocketSubscription() {
-    const subscription = trpcClient.onChangesAvailable.subscribe(
+    const subscription = this.platform.subscribeChangesAvailable(
       {
         dbId: this.syncConfig.dbId,
         dbType: this.syncConfig.dbType,
@@ -178,7 +168,7 @@ export class Syncer {
       },
       {
         onData: () => {
-          syncerLog("WebSocket notification received");
+          this.log("WebSocket notification received");
           if (this.status.get().phase === "synced") {
             this.setStatus({ phase: "waiting", progress: null });
           }
@@ -216,12 +206,12 @@ export class Syncer {
       const wsVersion = this.wsNotification.get();
       const forceSyncVersion = this.forceSyncNotification.get();
       if (this.runId !== myRunId) {
-        syncerLog("runId !== myRunId, stopping syncer loop");
+        this.log("runId !== myRunId, stopping syncer loop");
         this.cleanupWebSocket();
         return;
       }
       try {
-        syncerLog("running sync v4 session");
+        this.log("running sync v4 session");
         this.setStatus({ phase: "connecting", progress: null, error: null });
         const completed = await this.syncV4();
         const hasPendingWake =
@@ -267,8 +257,8 @@ export class Syncer {
   }
 
   private async syncFetch<T>(path: string, init: RequestInit): Promise<T> {
-    const token = authUtils.getToken();
-    const response = await fetch(path, {
+    const token = this.platform.getToken();
+    const response = await fetch(`${this.platform.apiUrl}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",

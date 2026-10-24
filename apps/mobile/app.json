@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Will Be Done",
+    "slug": "will-be-done",
+    "scheme": "will-be-done",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a0a0f",
+    "ios": {
+      "bundleIdentifier": "app.willbedone.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "app.willbedone.mobile"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -26,7 +26,8 @@ import {
   CircleUserRound,
   Settings2,
 } from "lucide-react";
-import { initDbStore } from "@/store/load";
+import { initDbStore, userDBConfig } from "@will-be-done/client/sync";
+import { webPlatform } from "@/store/platform";
 import { type SubscribableDB } from "@will-be-done/hyperdb";
 import { DBProvider } from "@will-be-done/hyperdb/react";
 import {
@@ -39,7 +40,6 @@ import {
   updateSpace,
   deleteSpace,
 } from "@will-be-done/slices/user";
-import { userDBConfig } from "@/store/configs";
 import { captureWebAnalytics } from "@/lib/analytics";
 
 export const Route = createFileRoute("/spaces/")({
@@ -63,7 +63,7 @@ export const Route = createFileRoute("/spaces/")({
       throw redirect({ to: "/login" });
     }
 
-    return initDbStore(userDBConfig(userId));
+    return initDbStore(webPlatform, userDBConfig(userId));
   },
 });
 

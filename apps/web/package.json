@@ -42,6 +42,7 @@
     "@trpc/client": "^11.7.2",
     "@trpc/tanstack-react-query": "^11.7.2",
     "@will-be-done/api": "workspace:*",
+    "@will-be-done/client": "workspace:*",
     "@will-be-done/hyperdb": "^0.7.0",
     "@will-be-done/hyperdb-devtool": "0.4.8",
     "@will-be-done/slices": "workspace:*",

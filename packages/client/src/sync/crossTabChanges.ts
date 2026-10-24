@@ -9,9 +9,9 @@ import {
   type HlcClock,
 } from "@will-be-done/slices/common";
 import { mergeSpaceChanges } from "@will-be-done/slices/space";
-import { BroadcastChannel } from "broadcast-channel";
 import type { ChangePersistedEvent, SyncConfig } from "./syncTypes";
 import { syncChannelName } from "./syncCompatibility";
+import type { SyncCoordination } from "./platform";
 
 type CreateCrossTabChangesArgs = {
   clientId: string;
@@ -19,6 +19,7 @@ type CreateCrossTabChangesArgs = {
   syncConfig: SyncConfig;
   nextClock: HlcClock;
   onApplied: () => void;
+  coordination: SyncCoordination;
 };
 
 export const createCrossTabChanges = ({
@@ -27,8 +28,11 @@ export const createCrossTabChanges = ({
   syncConfig,
   nextClock,
   onApplied,
+  coordination,
 }: CreateCrossTabChangesArgs) => {
-  const bc = new BroadcastChannel(syncChannelName("changes", clientId));
+  const bc = coordination.createChannel<ChangePersistedEvent>(
+    syncChannelName("changes", clientId),
+  );
 
   const applyChanges = async (data: ChangePersistedEvent) => {
     nextClock.observe(
@@ -54,7 +58,7 @@ export const createCrossTabChanges = ({
   };
 
   bc.onmessage = (data) => {
-    void applyChanges(data as ChangePersistedEvent);
+    void applyChanges(data);
   };
 
   return {

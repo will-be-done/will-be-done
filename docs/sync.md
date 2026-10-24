@@ -210,6 +210,12 @@ can finish an empty session before its changes arrive, so that request cannot
 replace the wake-up after the merge. The merge keeps `skip-sync` to suppress
 echo writes. A failed merge does not emit a completion wake-up.
 
+The client sync engine lives in `packages/client/src/sync` and receives the
+coordination transport from its `ClientPlatform`. The web uses
+BroadcastChannel leader election and fan-out as described above. A platform
+with a single app instance per local database (the mobile app) is always the
+leader and publishes nothing; every other rule in this document still applies.
+
 ## Session Handshake and Recovery
 
 At session start the client sends both what it believes the server confirmed
