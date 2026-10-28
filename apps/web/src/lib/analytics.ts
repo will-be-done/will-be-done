@@ -4,7 +4,11 @@ const DEFAULT_POSTHOG_UI_HOST = "https://eu.posthog.com";
 
 type PostHogClient = (typeof import("posthog-js"))["default"];
 
-export type TaskCreationLocation = "daily_list" | "project" | "stash";
+export type TaskCreationLocation =
+  | "daily_list"
+  | "project"
+  | "stash"
+  | "calendar";
 
 /** Where a Google sign-in or account link was started. */
 export type GoogleAuthSource = "login" | "signup" | "account_settings";

@@ -10,6 +10,7 @@ import {
   CalendarX,
   CircleDashed,
   CircleCheck,
+  Clock,
   FolderOpen,
   ListPlus,
   MoreHorizontal,
@@ -84,6 +85,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   isFocused,
   isOpen,
   isDone,
+  isTemplate,
   canMarkDone,
   canScheduleTask,
   canResetSchedule,
@@ -112,6 +114,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   isFocused: boolean;
   isOpen: boolean;
   isDone: boolean;
+  isTemplate: boolean;
   canMarkDone: boolean;
   canScheduleTask: boolean;
   canResetSchedule: boolean;
@@ -223,14 +226,22 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
               Stash task
               <DropdownMenuShortcut>S</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={onChangeDate}
-              disabled={!canScheduleTask}
-            >
-              <Calendar />
-              Schedule Date
-              <DropdownMenuShortcut>s</DropdownMenuShortcut>
-            </DropdownMenuItem>
+            {isTemplate ? (
+              <DropdownMenuItem onSelect={onChangeDate}>
+                <Clock />
+                Time & duration
+                <DropdownMenuShortcut>s</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                onSelect={onChangeDate}
+                disabled={!canScheduleTask}
+              >
+                <Calendar />
+                Schedule Date
+                <DropdownMenuShortcut>s</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onSelect={onScheduleToday}
               disabled={!canScheduleTask}

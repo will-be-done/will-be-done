@@ -6,7 +6,7 @@ import {
   upsert,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
-import { getDMY } from "./utils";
+import { getDMY, isValidTaskDuration, isValidTaskTime } from "./utils";
 import { allChecklistItems } from "./checklistItems";
 import { allProjectSections } from "./projectSections";
 import { allProjects } from "./projectsAll";
@@ -378,6 +378,20 @@ export function normalizeSpaceBackup(
   };
 }
 
+// Restored values bypass action validation, so drop malformed ones instead of
+// inserting rows the app cannot display.
+function validTime(time: string | undefined, owner: string) {
+  if (time === undefined || isValidTaskTime(time)) return time;
+  console.warn(`Invalid time "${time}" omitted for ${owner}`);
+  return undefined;
+}
+
+function validDuration(minutes: number | undefined, owner: string) {
+  if (minutes === undefined || isValidTaskDuration(minutes)) return minutes;
+  console.warn(`Invalid duration ${minutes} omitted for ${owner}`);
+  return undefined;
+}
+
 const getNewModels = action({
   name: "getNewModels",
   args: { backup: backupSchema },
@@ -452,6 +466,10 @@ const getNewModels = action({
         continue;
       }
 
+      const durationMinutes = validDuration(
+        taskBackup.durationMinutes,
+        `task ${taskBackup.id}`,
+      );
       const task: Task = {
         type: taskType,
         id: taskBackup.id,
@@ -465,9 +483,7 @@ const getNewModels = action({
         nature: taskBackup.nature || "unknown",
         templateId: taskBackup.templateId ?? null,
         templateDate: taskBackup.templateDate ?? null,
-        ...(taskBackup.durationMinutes === undefined
-          ? {}
-          : { durationMinutes: taskBackup.durationMinutes }),
+        ...(durationMinutes === undefined ? {} : { durationMinutes }),
       };
 
       models.push(task);
@@ -504,6 +520,14 @@ const getNewModels = action({
         continue;
       }
 
+      const time = validTime(
+        templateBackup.time,
+        `template ${templateBackup.id}`,
+      );
+      const durationMinutes = validDuration(
+        templateBackup.durationMinutes,
+        `template ${templateBackup.id}`,
+      );
       const template: TaskTemplate = {
         type: taskTemplateType,
         id: templateBackup.id,
@@ -516,12 +540,8 @@ const getNewModels = action({
         createdAt: templateBackup.createdAt,
         lastGeneratedAt: templateBackup.lastGeneratedAt,
         projectSectionId: section.id,
-        ...(templateBackup.time === undefined
-          ? {}
-          : { time: templateBackup.time }),
-        ...(templateBackup.durationMinutes === undefined
-          ? {}
-          : { durationMinutes: templateBackup.durationMinutes }),
+        ...(time === undefined ? {} : { time }),
+        ...(durationMinutes === undefined ? {} : { durationMinutes }),
       };
 
       models.push(template);
@@ -541,6 +561,7 @@ const getNewModels = action({
           continue;
         }
 
+        const time = validTime(entryBackup.time, `entry of task ${taskId}`);
         const entry: DailyEntry = {
           type: dailyEntryType,
           id: uuidv7(),
@@ -548,7 +569,7 @@ const getNewModels = action({
           orderToken: entryBackup.orderToken,
           dailyListId: dailyListIdMap.get(entryBackup.listId)!,
           createdAt: entryBackup.createdAt,
-          ...(entryBackup.time === undefined ? {} : { time: entryBackup.time }),
+          ...(time === undefined ? {} : { time }),
         };
 
         models.push(entry);

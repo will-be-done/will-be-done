@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef, useState } from "react";
+import { useEffect, useCallback } from "react";
 import { useMemo } from "react";
 import { addDays, format, startOfDay, subDays } from "date-fns";
 import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
@@ -18,16 +18,14 @@ import {
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
-import { ResizableDivider } from "./ResizableDivider.tsx";
 import { NavPanel } from "./NavPanel.tsx";
 import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
-import { ProjectView } from "../ProjectView/ProvecjtView.tsx";
+import { ProjectsSplit } from "../ProjectView/ProjectsSplit.tsx";
+import { useProjectsViewSize } from "../ProjectView/ProjectsViewStore.ts";
 import {
   TasksColumn,
   TasksColumnGrid,
 } from "@/components/TasksGrid/TasksGrid.tsx";
-import { createJSONStorage, persist } from "zustand/middleware";
-import { create } from "zustand";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { getStashOpenWidth, useStashOpen, useStashSize } from "./StashStore.ts";
@@ -149,33 +147,6 @@ const ColumnView = ({
   );
 };
 
-type ProjectsViewSize = {
-  projectsViewHeight: number;
-  projectsViewHidden: boolean;
-
-  setProjectsViewHeight: (value: number) => void;
-  setProjectsViewHidden: (value: boolean) => void;
-};
-
-const useProjectsViewSize = create<ProjectsViewSize>()(
-  persist(
-    (set) => ({
-      projectsViewHeight: 20,
-      projectsViewHidden: false,
-      setProjectsViewHeight: (value: number) => {
-        set({ projectsViewHeight: value });
-      },
-      setProjectsViewHidden: (value: boolean) => {
-        set({ projectsViewHidden: value });
-      },
-    }),
-    {
-      name: "projects-view-size",
-      storage: createJSONStorage(() => localStorage),
-    },
-  ),
-);
-
 const BoardView = ({
   previousDate,
   nextDate,
@@ -189,7 +160,6 @@ const BoardView = ({
   dailyLists: DailyList[];
   selectedProjectId: string;
 }) => {
-  const rootRef = useRef<HTMLDivElement>(null);
   const dispatch = useAsyncDispatch();
   const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
@@ -200,7 +170,9 @@ const BoardView = ({
   const setStashOpen = useStashOpen((s) => s.setOpen);
   const stashWidth = useStashSize((s) => s.width);
   const setItemDetailsOpen = useItemDetailsOpen((s) => s.setOpen);
-  const [isProjectsResizing, setIsProjectsResizing] = useState(false);
+  const setProjectsViewHidden = useProjectsViewSize(
+    (s) => s.setProjectsViewHidden,
+  );
 
   const handleAddTask = useCallback(
     (dailyList: DailyList) => {
@@ -235,35 +207,6 @@ const BoardView = ({
     [dispatch, inboxId, select],
   );
 
-  const {
-    projectsViewHeight,
-    projectsViewHidden,
-    setProjectsViewHeight,
-    setProjectsViewHidden,
-  } = useProjectsViewSize();
-  // const [projectsViewHeight, setProjectsViewHeight] = useState(20);
-  // const [projectsViewHidden, setProjectsViewHidden] = useState(false);
-
-  const handleProjectsResize = useCallback(
-    (clientY: number) => {
-      const rootRect = rootRef.current?.getBoundingClientRect();
-      if (!rootRect) {
-        return;
-      }
-
-      const heightPercentage =
-        ((rootRect.bottom - clientY) / rootRect.height) * 100;
-
-      const newHeight = Math.max(10, Math.min(80, heightPercentage));
-      setProjectsViewHeight(newHeight);
-    },
-    [setProjectsViewHeight],
-  );
-
-  const handleHideClick = () => {
-    setProjectsViewHidden(!projectsViewHidden);
-  };
-
   useGlobalListener("keydown", (e: KeyboardEvent) => {
     const focusState = useFocusStore.getState();
     const noModifiers = !(e.shiftKey || e.ctrlKey || e.metaKey || e.altKey);
@@ -281,20 +224,13 @@ const BoardView = ({
       e.target instanceof Element ? e.target : document.activeElement;
     if (target && isInputElement(target)) return;
 
-    if (e.code === "KeyP") {
-      e.preventDefault();
-      setProjectsViewHidden(!projectsViewHidden);
-    } else if (e.code === "KeyZ") {
+    if (e.code === "KeyZ") {
       e.preventDefault();
       setStashOpen(false);
       setItemDetailsOpen(false);
       setProjectsViewHidden(true);
     }
   });
-
-  const heightTransitionClass = isProjectsResizing
-    ? "transition-none"
-    : "transition-[height] duration-300 ease-out";
 
   const spaceId = Route.useParams().spaceId;
 
@@ -340,68 +276,32 @@ const BoardView = ({
 
   return (
     <div className="flex h-full w-full">
-      <div ref={rootRef} className="flex flex-col h-full flex-1 min-w-0">
-        <div
-          className={cn("overflow-y-auto pt-10", heightTransitionClass)}
-          style={{
-            height: projectsViewHidden
-              ? "100%"
-              : `${100 - projectsViewHeight}%`,
-          }}
+      <ProjectsSplit
+        topClassName="overflow-y-auto pt-10"
+        projectLink={ProjectLink}
+        selectedProjectId={selectedProjectId}
+        selectedDate={selectedDate}
+      >
+        <TasksColumnGrid
+          columnsCount={7}
+          floatingColumn={<Stash />}
+          paddingLeft={isStashOpen ? getStashOpenWidth(stashWidth) : 32}
         >
-          <TasksColumnGrid
-            columnsCount={7}
-            floatingColumn={<Stash />}
-            paddingLeft={isStashOpen ? getStashOpenWidth(stashWidth) : 32}
-          >
-            {dailyLists.map((dailyList) => (
-              <ColumnView
-                dailyList={dailyList}
-                onTaskAdd={handleAddTask}
-                key={dailyList.id}
-              />
-            ))}
-          </TasksColumnGrid>
-          <NavPanel
-            previousDate={previousDate}
-            nextDate={nextDate}
-            selectedDate={selectedDate}
-            selectedProjectId={selectedProjectId}
-          />
-        </div>
-        <div
-          className={cn("w-full relative", heightTransitionClass)}
-          style={{
-            height: projectsViewHidden ? "0" : `${projectsViewHeight}%`,
-          }}
-        >
-          <ResizableDivider
-            onResizePosition={handleProjectsResize}
-            onResizeStart={() => setIsProjectsResizing(true)}
-            onResizeEnd={() => setIsProjectsResizing(false)}
-            onHideClick={handleHideClick}
-            isHidden={projectsViewHidden}
-          />
-
-          <div className="absolute inset-0 overflow-hidden">
-            <div
-              aria-hidden={projectsViewHidden}
-              className={cn(
-                "h-full transition-transform duration-300 ease-out",
-                projectsViewHidden
-                  ? "translate-y-6 pointer-events-none"
-                  : "translate-y-0",
-              )}
-            >
-              <ProjectView
-                selectedProjectId={selectedProjectId}
-                projectLink={ProjectLink}
-                selectedDate={selectedDate}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+          {dailyLists.map((dailyList) => (
+            <ColumnView
+              dailyList={dailyList}
+              onTaskAdd={handleAddTask}
+              key={dailyList.id}
+            />
+          ))}
+        </TasksColumnGrid>
+        <NavPanel
+          previousDate={previousDate}
+          nextDate={nextDate}
+          selectedDate={selectedDate}
+          selectedProjectId={selectedProjectId}
+        />
+      </ProjectsSplit>
 
       <ItemDetails />
     </div>

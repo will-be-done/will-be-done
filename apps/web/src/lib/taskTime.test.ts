@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { formatDuration, parseDuration, parseTaskTime } from "./taskTime";
+import { describe, expect, it, vi } from "vitest";
+import {
+  formatDuration,
+  formatTaskTime,
+  parseDuration,
+  parseTaskTime,
+} from "./taskTime";
 
 describe("parseDuration", () => {
   it.each([
@@ -61,4 +66,38 @@ describe("parseTaskTime", () => {
       expect(parseTaskTime(input)).toBeNull();
     },
   );
+});
+
+describe("formatTaskTime", () => {
+  it("keeps the stored hour and minute regardless of local time zone", () => {
+    const expected = (hour: number, minute: number) =>
+      new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "UTC",
+      }).format(Date.UTC(2000, 0, 1, hour, minute));
+
+    expect(formatTaskTime("00:54")).toBe(expected(0, 54));
+    expect(formatTaskTime("02:30")).toBe(expected(2, 30));
+    expect(formatTaskTime("23:59")).toBe(expected(23, 59));
+  });
+
+  it("shows times in a skipped DST hour as stored", () => {
+    const previousTZ = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    // 2026-03-08 is spring-forward day there; 02:00-02:59 does not exist.
+    vi.useFakeTimers({ now: new Date("2026-03-08T12:00:00Z") });
+    try {
+      expect(formatTaskTime("02:30")).toBe(
+        new Intl.DateTimeFormat(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: "UTC",
+        }).format(Date.UTC(2000, 0, 1, 2, 30)),
+      );
+    } finally {
+      vi.useRealTimers();
+      process.env.TZ = previousTZ;
+    }
+  });
 });

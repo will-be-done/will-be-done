@@ -26,8 +26,10 @@ import { Route as SpacesSpaceIdWithSidebarRouteImport } from './routes/spaces.$s
 import { Route as SpacesSpaceIdTimelineIndexRouteImport } from './routes/spaces.$spaceId.timeline.index'
 import { Route as SpacesSpaceIdProjectsIndexRouteImport } from './routes/spaces.$spaceId.projects.index'
 import { Route as SpacesSpaceIdDatesIndexRouteImport } from './routes/spaces.$spaceId.dates.index'
+import { Route as SpacesSpaceIdCalendarIndexRouteImport } from './routes/spaces.$spaceId.calendar.index'
 import { Route as SpacesSpaceIdTimelineDateRouteImport } from './routes/spaces.$spaceId.timeline.$date'
 import { Route as SpacesSpaceIdItemDetailsItemIdRouteImport } from './routes/spaces.$spaceId.item-details.$itemId'
+import { Route as SpacesSpaceIdCalendarDateRouteImport } from './routes/spaces.$spaceId.calendar.$date'
 import { Route as SpacesSpaceIdWithSidebarProjectsProjectIdRouteImport } from './routes/spaces.$spaceId._withSidebar.projects.$projectId'
 import { Route as SpacesSpaceIdWithSidebarDatesDateRouteImport } from './routes/spaces.$spaceId._withSidebar.dates.$date'
 
@@ -118,6 +120,12 @@ const SpacesSpaceIdDatesIndexRoute = SpacesSpaceIdDatesIndexRouteImport.update({
   path: '/dates/',
   getParentRoute: () => SpacesSpaceIdRoute,
 } as any)
+const SpacesSpaceIdCalendarIndexRoute =
+  SpacesSpaceIdCalendarIndexRouteImport.update({
+    id: '/calendar/',
+    path: '/calendar/',
+    getParentRoute: () => SpacesSpaceIdRoute,
+  } as any)
 const SpacesSpaceIdTimelineDateRoute =
   SpacesSpaceIdTimelineDateRouteImport.update({
     id: '/timeline/$date',
@@ -128,6 +136,12 @@ const SpacesSpaceIdItemDetailsItemIdRoute =
   SpacesSpaceIdItemDetailsItemIdRouteImport.update({
     id: '/item-details/$itemId',
     path: '/item-details/$itemId',
+    getParentRoute: () => SpacesSpaceIdRoute,
+  } as any)
+const SpacesSpaceIdCalendarDateRoute =
+  SpacesSpaceIdCalendarDateRouteImport.update({
+    id: '/calendar/$date',
+    path: '/calendar/$date',
     getParentRoute: () => SpacesSpaceIdRoute,
   } as any)
 const SpacesSpaceIdWithSidebarProjectsProjectIdRoute =
@@ -157,8 +171,10 @@ export interface FileRoutesByFullPath {
   '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
   '/spaces/': typeof SpacesIndexRoute
   '/spaces/$spaceId/': typeof SpacesSpaceIdIndexRoute
+  '/spaces/$spaceId/calendar/$date': typeof SpacesSpaceIdCalendarDateRoute
   '/spaces/$spaceId/item-details/$itemId': typeof SpacesSpaceIdItemDetailsItemIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
+  '/spaces/$spaceId/calendar/': typeof SpacesSpaceIdCalendarIndexRoute
   '/spaces/$spaceId/dates/': typeof SpacesSpaceIdDatesIndexRoute
   '/spaces/$spaceId/projects/': typeof SpacesSpaceIdProjectsIndexRoute
   '/spaces/$spaceId/timeline/': typeof SpacesSpaceIdTimelineIndexRoute
@@ -177,8 +193,10 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/spaces': typeof SpacesIndexRoute
   '/spaces/$spaceId': typeof SpacesSpaceIdIndexRoute
+  '/spaces/$spaceId/calendar/$date': typeof SpacesSpaceIdCalendarDateRoute
   '/spaces/$spaceId/item-details/$itemId': typeof SpacesSpaceIdItemDetailsItemIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
+  '/spaces/$spaceId/calendar': typeof SpacesSpaceIdCalendarIndexRoute
   '/spaces/$spaceId/dates': typeof SpacesSpaceIdDatesIndexRoute
   '/spaces/$spaceId/projects': typeof SpacesSpaceIdProjectsIndexRoute
   '/spaces/$spaceId/timeline': typeof SpacesSpaceIdTimelineIndexRoute
@@ -201,8 +219,10 @@ export interface FileRoutesById {
   '/spaces/': typeof SpacesIndexRoute
   '/spaces/$spaceId/_withSidebar': typeof SpacesSpaceIdWithSidebarRouteWithChildren
   '/spaces/$spaceId/': typeof SpacesSpaceIdIndexRoute
+  '/spaces/$spaceId/calendar/$date': typeof SpacesSpaceIdCalendarDateRoute
   '/spaces/$spaceId/item-details/$itemId': typeof SpacesSpaceIdItemDetailsItemIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
+  '/spaces/$spaceId/calendar/': typeof SpacesSpaceIdCalendarIndexRoute
   '/spaces/$spaceId/dates/': typeof SpacesSpaceIdDatesIndexRoute
   '/spaces/$spaceId/projects/': typeof SpacesSpaceIdProjectsIndexRoute
   '/spaces/$spaceId/timeline/': typeof SpacesSpaceIdTimelineIndexRoute
@@ -225,8 +245,10 @@ export interface FileRouteTypes {
     | '/spaces/$spaceId'
     | '/spaces/'
     | '/spaces/$spaceId/'
+    | '/spaces/$spaceId/calendar/$date'
     | '/spaces/$spaceId/item-details/$itemId'
     | '/spaces/$spaceId/timeline/$date'
+    | '/spaces/$spaceId/calendar/'
     | '/spaces/$spaceId/dates/'
     | '/spaces/$spaceId/projects/'
     | '/spaces/$spaceId/timeline/'
@@ -245,8 +267,10 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/spaces'
     | '/spaces/$spaceId'
+    | '/spaces/$spaceId/calendar/$date'
     | '/spaces/$spaceId/item-details/$itemId'
     | '/spaces/$spaceId/timeline/$date'
+    | '/spaces/$spaceId/calendar'
     | '/spaces/$spaceId/dates'
     | '/spaces/$spaceId/projects'
     | '/spaces/$spaceId/timeline'
@@ -268,8 +292,10 @@ export interface FileRouteTypes {
     | '/spaces/'
     | '/spaces/$spaceId/_withSidebar'
     | '/spaces/$spaceId/'
+    | '/spaces/$spaceId/calendar/$date'
     | '/spaces/$spaceId/item-details/$itemId'
     | '/spaces/$spaceId/timeline/$date'
+    | '/spaces/$spaceId/calendar/'
     | '/spaces/$spaceId/dates/'
     | '/spaces/$spaceId/projects/'
     | '/spaces/$spaceId/timeline/'
@@ -411,6 +437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SpacesSpaceIdDatesIndexRouteImport
       parentRoute: typeof SpacesSpaceIdRoute
     }
+    '/spaces/$spaceId/calendar/': {
+      id: '/spaces/$spaceId/calendar/'
+      path: '/calendar'
+      fullPath: '/spaces/$spaceId/calendar/'
+      preLoaderRoute: typeof SpacesSpaceIdCalendarIndexRouteImport
+      parentRoute: typeof SpacesSpaceIdRoute
+    }
     '/spaces/$spaceId/timeline/$date': {
       id: '/spaces/$spaceId/timeline/$date'
       path: '/timeline/$date'
@@ -423,6 +456,13 @@ declare module '@tanstack/react-router' {
       path: '/item-details/$itemId'
       fullPath: '/spaces/$spaceId/item-details/$itemId'
       preLoaderRoute: typeof SpacesSpaceIdItemDetailsItemIdRouteImport
+      parentRoute: typeof SpacesSpaceIdRoute
+    }
+    '/spaces/$spaceId/calendar/$date': {
+      id: '/spaces/$spaceId/calendar/$date'
+      path: '/calendar/$date'
+      fullPath: '/spaces/$spaceId/calendar/$date'
+      preLoaderRoute: typeof SpacesSpaceIdCalendarDateRouteImport
       parentRoute: typeof SpacesSpaceIdRoute
     }
     '/spaces/$spaceId/_withSidebar/projects/$projectId': {
@@ -463,8 +503,10 @@ const SpacesSpaceIdWithSidebarRouteWithChildren =
 interface SpacesSpaceIdRouteChildren {
   SpacesSpaceIdWithSidebarRoute: typeof SpacesSpaceIdWithSidebarRouteWithChildren
   SpacesSpaceIdIndexRoute: typeof SpacesSpaceIdIndexRoute
+  SpacesSpaceIdCalendarDateRoute: typeof SpacesSpaceIdCalendarDateRoute
   SpacesSpaceIdItemDetailsItemIdRoute: typeof SpacesSpaceIdItemDetailsItemIdRoute
   SpacesSpaceIdTimelineDateRoute: typeof SpacesSpaceIdTimelineDateRoute
+  SpacesSpaceIdCalendarIndexRoute: typeof SpacesSpaceIdCalendarIndexRoute
   SpacesSpaceIdDatesIndexRoute: typeof SpacesSpaceIdDatesIndexRoute
   SpacesSpaceIdProjectsIndexRoute: typeof SpacesSpaceIdProjectsIndexRoute
   SpacesSpaceIdTimelineIndexRoute: typeof SpacesSpaceIdTimelineIndexRoute
@@ -473,8 +515,10 @@ interface SpacesSpaceIdRouteChildren {
 const SpacesSpaceIdRouteChildren: SpacesSpaceIdRouteChildren = {
   SpacesSpaceIdWithSidebarRoute: SpacesSpaceIdWithSidebarRouteWithChildren,
   SpacesSpaceIdIndexRoute: SpacesSpaceIdIndexRoute,
+  SpacesSpaceIdCalendarDateRoute: SpacesSpaceIdCalendarDateRoute,
   SpacesSpaceIdItemDetailsItemIdRoute: SpacesSpaceIdItemDetailsItemIdRoute,
   SpacesSpaceIdTimelineDateRoute: SpacesSpaceIdTimelineDateRoute,
+  SpacesSpaceIdCalendarIndexRoute: SpacesSpaceIdCalendarIndexRoute,
   SpacesSpaceIdDatesIndexRoute: SpacesSpaceIdDatesIndexRoute,
   SpacesSpaceIdProjectsIndexRoute: SpacesSpaceIdProjectsIndexRoute,
   SpacesSpaceIdTimelineIndexRoute: SpacesSpaceIdTimelineIndexRoute,

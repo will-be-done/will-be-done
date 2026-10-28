@@ -324,6 +324,62 @@ export const taskTemplateNewTasksInRange = selector({
   },
 });
 
+export type TaskTemplateOccurrence = {
+  // The id the generated Task will get.
+  id: string;
+  template: TaskTemplate;
+  date: string;
+  time: string | null;
+};
+
+// Occurrences in [fromDate, toDate] that generation has not created yet, i.e.
+// Tasks that will appear later. Mirrors generateTasksForTemplateIds: only
+// occurrences from the lastGeneratedAt checkpoint on are candidates.
+export const taskTemplateUpcomingOccurrences = selector({
+  name: "taskTemplateUpcomingOccurrences",
+  args: {
+    fromDate: v.number(),
+    toDate: v.number(),
+  },
+  handler: function* taskTemplateUpcomingOccurrences({ fromDate, toDate }) {
+    const templates = yield* allTaskTemplates({});
+    const candidates: TaskTemplateOccurrence[] = [];
+
+    for (const template of templates) {
+      const policy = buildRecurrencePolicy(template);
+      const r = createRuleWithDtstart(template.repeatRule, policy.dtstart);
+      const range = policy.canonicalizeRange(
+        new Date(fromDate),
+        new Date(toDate),
+      );
+      const checkpoint = policy.canonicalizeGenerationRange(
+        new Date(template.lastGeneratedAt),
+        new Date(toDate),
+      ).from;
+      const from = range.from > checkpoint ? range.from : checkpoint;
+      if (from > range.to) continue;
+
+      const time = isDailyOrCoarser(template.repeatRule) ? template.time : null;
+      for (const date of r.between(from, range.to, policy.inclusiveBetween)) {
+        const epoch = policy.occurrenceEpoch(date);
+        candidates.push({
+          id: yield* genTaskId({ taskTemplateId: template.id, epoch }),
+          template,
+          date: getDMY(fromUTC(new Date(epoch))),
+          time: time ?? null,
+        });
+      }
+    }
+
+    if (candidates.length === 0) return candidates;
+    const existing = yield* selectFrom(tasksTable, "byId").where((q) =>
+      candidates.map((c) => q.eq("id", c.id)),
+    );
+    const existingIds = new Set(existing.map((task) => task.id));
+    return candidates.filter((c) => !existingIds.has(c.id));
+  },
+});
+
 export const newTasksToGenForTaskTemplate = selector({
   name: "newTasksToGenForTaskTemplate",
   args: {

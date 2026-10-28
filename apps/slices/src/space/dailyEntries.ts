@@ -31,6 +31,8 @@ import { uuidv7 } from "uuidv7";
 import {
   dailyEntryType,
   dailyEntriesTable,
+  dailyListsTable,
+  type DailyList,
   tasksTable,
   Task,
   isTask,
@@ -143,6 +145,43 @@ export const dailyEntriesByDailyListIds = selector({
     ).where((q) =>
       dailyListIds.map((dailyListId) => q.eq("dailyListId", dailyListId)),
     )) as DailyEntry[];
+  },
+});
+
+export type DatedEntry = { date: string; entry: DailyEntry; task: Task };
+
+// Every DailyEntry with its Task for the given "yyyy-MM-dd" dates, in list
+// order. Bounded by the requested dates (calendar views ask for <= 42).
+export const datedEntriesByDates = selector({
+  name: "datedEntriesByDates",
+  args: { dates: v.array(v.string()) },
+  handler: function* datedEntriesByDates({
+    dates,
+  }): Generator<unknown, DatedEntry[], unknown> {
+    if (dates.length === 0) return [];
+    const dailyLists = (yield* selectFrom(dailyListsTable, "byDate").where(
+      (q) => dates.map((date) => q.eq("date", date)),
+    )) as DailyList[];
+    const entries = yield* dailyEntriesByDailyListIds({
+      dailyListIds: dailyLists.map((list) => list.id),
+    });
+    if (entries.length === 0) return [];
+
+    const tasks = (yield* selectFrom(tasksTable, "byId").where((q) =>
+      entries.map((entry) => q.eq("id", entry.taskId)),
+    )) as Task[];
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
+    const dateByListId = new Map(
+      dailyLists.map((list) => [list.id, list.date]),
+    );
+
+    const result: DatedEntry[] = [];
+    for (const entry of entries) {
+      const task = taskById.get(entry.taskId);
+      const date = dateByListId.get(entry.dailyListId);
+      if (task && date) result.push({ date, entry, task });
+    }
+    return result;
   },
 });
 

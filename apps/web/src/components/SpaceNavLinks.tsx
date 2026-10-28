@@ -23,6 +23,11 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
       s.matches.some((m) => (m.pathname as string).includes("/timeline")),
   });
 
+  const isCalendarActive = useRouterState({
+    select: (s) =>
+      s.matches.some((m) => (m.pathname as string).includes("/calendar")),
+  });
+
   return (
     <div className="flex gap-0.5 items-center h-8 px-1.5 ring-1 ring-ring rounded-lg desktop-macos:ml-20 desktop-macos:py-2 mt-2 [app-region:no-drag]">
       <Link
@@ -38,6 +43,13 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
         className={linkClass(isTimelineActive)}
       >
         timeline
+      </Link>
+      <Link
+        to="/spaces/$spaceId/calendar"
+        params={{ spaceId }}
+        className={linkClass(isCalendarActive)}
+      >
+        calendar
       </Link>
     </div>
   );

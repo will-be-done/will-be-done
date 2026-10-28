@@ -87,6 +87,7 @@ import {
 import { useCurrentDate } from "../DaysBoard/hooks";
 import { differenceInCalendarDays, format, startOfDay } from "date-fns";
 import { TaskDatePicker } from "./TaskDatePicker";
+import { TemplateTimePicker } from "./TemplateTimePicker";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal";
 import {
   useItemDetailsEditRequest,
@@ -919,7 +920,7 @@ export const PreloadedTaskComp = ({
         return runShortcutAction(handleOpenMoveModal, {
           skipActionsCloseAutoFocus: true,
         });
-      } else if (isScheduleDate && isTask(item)) {
+      } else if (isScheduleDate && (isTask(item) || isTaskTemplate(item))) {
         if (isActionsMenuSource) {
           e.preventDefault();
           e.stopPropagation();
@@ -1384,6 +1385,7 @@ export const PreloadedTaskComp = ({
                   isFocused={isFocused}
                   isOpen={isActionsOpen}
                   isDone={isTask(item) && item.state === "done"}
+                  isTemplate={isTaskTemplate(item)}
                   canMarkDone={isTask(item)}
                   canScheduleTask={isTask(item)}
                   canResetSchedule={isTask(item) && !!lastScheduleTime}
@@ -1417,6 +1419,20 @@ export const PreloadedTaskComp = ({
                   <TaskDatePicker
                     taskId={taskId}
                     currentDate={lastScheduleTime}
+                    open={isDatePickerOpen}
+                    onOpenChange={setIsDatePickerOpen}
+                    onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
+                    anchor={
+                      <span
+                        className="absolute right-0 top-0 h-5 w-5 opacity-0 pointer-events-none"
+                        aria-hidden="true"
+                      />
+                    }
+                  />
+                )}
+                {isTaskTemplate(item) && (
+                  <TemplateTimePicker
+                    template={item}
                     open={isDatePickerOpen}
                     onOpenChange={setIsDatePickerOpen}
                     onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}

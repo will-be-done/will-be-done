@@ -1,12 +1,18 @@
-import { format, parse } from "date-fns";
 import { isValidTaskDuration } from "@will-be-done/slices/space";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+const timeFormat = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "UTC",
+});
+
 // Task times are stored as floating "HH:mm" strings; display them in the
-// user's locale without converting time zones.
+// user's locale. Formatting in UTC keeps local DST gaps from shifting the hour.
 export function formatTaskTime(time: string): string {
-  return format(parse(time, "HH:mm", new Date()), "p");
+  const [hours, minutes] = time.split(":").map(Number);
+  return timeFormat.format(Date.UTC(1970, 0, 1, hours, minutes));
 }
 
 export function formatDuration(minutes: number): string {
