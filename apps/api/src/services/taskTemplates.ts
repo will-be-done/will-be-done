@@ -28,6 +28,8 @@ export interface TaskTemplateUpdates {
   nature?: "red" | "green" | "unknown" | null;
   repeatRule?: string;
   repeatRuleDtStart?: number;
+  time?: string | null;
+  durationMinutes?: number | null;
 }
 
 const action = createAction();
@@ -57,6 +59,10 @@ async function applyUpdates(
     ...(updates.repeatRuleDtStart === undefined
       ? {}
       : { repeatRuleDtStart: updates.repeatRuleDtStart }),
+    ...(updates.time === undefined ? {} : { time: updates.time }),
+    ...(updates.durationMinutes === undefined
+      ? {}
+      : { durationMinutes: updates.durationMinutes }),
   };
   if (updates.content === null) delete next.content;
   if (updates.nature === null) delete next.nature;
@@ -92,6 +98,8 @@ export async function createSectionTaskTemplate({
   nature,
   repeatRule,
   repeatRuleDtStart,
+  time,
+  durationMinutes,
   placement = { kind: "last" },
 }: {
   spaceId: string;
@@ -102,6 +110,8 @@ export async function createSectionTaskTemplate({
   nature?: "red" | "green" | "unknown" | null;
   repeatRule?: string;
   repeatRuleDtStart?: number;
+  time?: string | null;
+  durationMinutes?: number | null;
   placement?: Placement;
 }): Promise<PublicTaskTemplate> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -122,6 +132,8 @@ export async function createSectionTaskTemplate({
         ...(typeof nature === "string" ? { nature } : {}),
         ...(repeatRule === undefined ? {} : { repeatRule }),
         repeatRuleDtStart: repeatRuleDtStart ?? now,
+        ...(time == null ? {} : { time }),
+        ...(durationMinutes == null ? {} : { durationMinutes }),
       },
     }),
   );
@@ -240,6 +252,10 @@ export async function convertTaskToTemplate({
           ? {}
           : { repeatRule: updates.repeatRule }),
         repeatRuleDtStart: updates.repeatRuleDtStart ?? now,
+        ...(updates.time === undefined ? {} : { time: updates.time }),
+        ...(updates.durationMinutes === undefined
+          ? {}
+          : { durationMinutes: updates.durationMinutes }),
       },
     }),
   );

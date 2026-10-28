@@ -7,7 +7,9 @@ import {
   createTaskTemplate,
   deleteTaskTemplate,
   getTaskTemplate,
+  listSectionItems,
   moveTaskTemplate,
+  scheduleTask,
   updateTaskTemplate,
 } from "../generated/v1-client";
 import {
@@ -150,4 +152,91 @@ test("covers every task-template operation and both conversions", async () => {
   expect((await getTaskTemplate(space.id, templateA.id, options)).status).toBe(
     404,
   );
+});
+
+test("passes template time and duration to generated tasks", async () => {
+  const { space, projectSection, options } = await createSectionFixture(
+    await createAuthorization(),
+  );
+
+  const template = expectResponseStatus(
+    await createTaskTemplate(
+      space.id,
+      projectSection.id,
+      {
+        title: "Morning review",
+        repeatRule: "FREQ=DAILY;INTERVAL=1",
+        repeatRuleDtStart: Date.now() - 24 * 60 * 60 * 1000,
+        time: "07:15",
+        durationMinutes: 25,
+      },
+      options,
+    ),
+    201,
+  ).data.template;
+  expect(template).toMatchObject({ time: "07:15", durationMinutes: 25 });
+
+  const items = expectResponseStatus(
+    await listSectionItems(space.id, projectSection.id, {}, options),
+    200,
+  ).data.items;
+  expect(items).toContainEqual(
+    expect.objectContaining({
+      type: "task",
+      title: "Morning review",
+      scheduledTime: "07:15",
+      durationMinutes: 25,
+    }),
+  );
+
+  const cleared = expectResponseStatus(
+    await updateTaskTemplate(
+      space.id,
+      template.id,
+      { time: null, durationMinutes: null },
+      options,
+    ),
+    200,
+  );
+  expect(cleared.data.template).toMatchObject({
+    time: null,
+    durationMinutes: null,
+  });
+
+  const task = expectResponseStatus(
+    await createSectionTask(
+      space.id,
+      projectSection.id,
+      { title: "Timed task", durationMinutes: 10 },
+      options,
+    ),
+    201,
+  ).data.task;
+  expectResponseStatus(
+    await scheduleTask(
+      space.id,
+      task.id,
+      { date: "2035-03-01", time: "06:00" },
+      options,
+    ),
+    200,
+  );
+  const converted = expectResponseStatus(
+    await convertTaskToTemplate(
+      space.id,
+      task.id,
+      { repeatRule: "FREQ=WEEKLY;INTERVAL=1" },
+      options,
+    ),
+    200,
+  );
+  expect(converted.data.template).toMatchObject({
+    time: "06:00",
+    durationMinutes: 10,
+  });
+
+  expect(
+    (await updateTaskTemplate(space.id, template.id, { time: "7am" }, options))
+      .status,
+  ).toBe(400);
 });

@@ -6,6 +6,7 @@ import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   createTaskFromTemplate,
+  isDailyOrCoarser,
   moveTemplateToProject,
   projectSectionsByProjectId,
   projectOfProjectSectionOrDefault,
@@ -22,6 +23,8 @@ import {
   ProjectDetailRow,
   SectionDetailRow,
   EditableDescription,
+  TimeDetailRow,
+  DurationDetailRow,
 } from "./shared.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { ChecklistItems } from "@/components/Checklist/Checklist";
@@ -184,6 +187,27 @@ export function TemplateBody({
             {ruleText || "custom"}
           </button>
         </DetailRow>
+
+        {/* Sub-daily rules carry their own time in each occurrence. */}
+        {isDailyOrCoarser(template.repeatRule) && (
+          <TimeDetailRow
+            time={template.time ?? null}
+            onChange={(time) =>
+              void dispatch(
+                updateTemplate({ id: templateId, template: { time } }),
+              )
+            }
+          />
+        )}
+
+        <DurationDetailRow
+          durationMinutes={template.durationMinutes ?? null}
+          onChange={(durationMinutes) =>
+            void dispatch(
+              updateTemplate({ id: templateId, template: { durationMinutes } }),
+            )
+          }
+        />
 
         <DetailRow
           icon={<CalendarDays className="h-3 w-3 shrink-0" />}

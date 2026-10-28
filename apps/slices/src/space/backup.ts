@@ -59,6 +59,7 @@ interface TaskBackup {
   nature?: "red" | "green" | "unknown";
   templateId: string | null;
   templateDate: number | null;
+  durationMinutes?: number;
   // Legacy fields for backwards compatibility (when loading old backups)
   dailyListId?: string | null;
   dailyListOrderToken?: string | null;
@@ -84,6 +85,7 @@ interface DailyEntryBackup {
   orderToken: string;
   listId: string; // dailyListId
   createdAt: number;
+  time?: string;
 }
 
 interface TaskTemplateBackup {
@@ -96,6 +98,8 @@ interface TaskTemplateBackup {
   createdAt: number;
   lastGeneratedAt: number;
   projectSectionId: string;
+  time?: string;
+  durationMinutes?: number;
 }
 
 interface ChecklistItemBackup {
@@ -161,6 +165,7 @@ const backupSchema = v.object({
       ),
       templateId: v.union(v.string(), v.null()),
       templateDate: v.union(v.number(), v.null()),
+      durationMinutes: v.optional(v.number()),
       dailyListId: v.optional(v.union(v.string(), v.null())),
       dailyListOrderToken: v.optional(v.union(v.string(), v.null())),
     }),
@@ -192,6 +197,8 @@ const backupSchema = v.object({
       createdAt: v.number(),
       lastGeneratedAt: v.number(),
       projectSectionId: v.string(),
+      time: v.optional(v.string()),
+      durationMinutes: v.optional(v.number()),
     }),
   ),
   projectSections: v.array(
@@ -211,6 +218,7 @@ const backupSchema = v.object({
         orderToken: v.string(),
         listId: v.string(),
         createdAt: v.number(),
+        time: v.optional(v.string()),
       }),
     ),
   ),
@@ -457,6 +465,9 @@ const getNewModels = action({
         nature: taskBackup.nature || "unknown",
         templateId: taskBackup.templateId ?? null,
         templateDate: taskBackup.templateDate ?? null,
+        ...(taskBackup.durationMinutes === undefined
+          ? {}
+          : { durationMinutes: taskBackup.durationMinutes }),
       };
 
       models.push(task);
@@ -505,6 +516,12 @@ const getNewModels = action({
         createdAt: templateBackup.createdAt,
         lastGeneratedAt: templateBackup.lastGeneratedAt,
         projectSectionId: section.id,
+        ...(templateBackup.time === undefined
+          ? {}
+          : { time: templateBackup.time }),
+        ...(templateBackup.durationMinutes === undefined
+          ? {}
+          : { durationMinutes: templateBackup.durationMinutes }),
       };
 
       models.push(template);
@@ -531,6 +548,7 @@ const getNewModels = action({
           orderToken: entryBackup.orderToken,
           dailyListId: dailyListIdMap.get(entryBackup.listId)!,
           createdAt: entryBackup.createdAt,
+          ...(entryBackup.time === undefined ? {} : { time: entryBackup.time }),
         };
 
         models.push(entry);
@@ -682,6 +700,9 @@ export const getSpaceBackup = selector({
         templateDate: task.templateDate,
         projectSectionId: task.projectSectionId,
         content: task.content || "",
+        ...(task.durationMinutes == null
+          ? {}
+          : { durationMinutes: task.durationMinutes }),
       })),
       projects: projects.map((project) => ({
         id: project.id,
@@ -701,6 +722,7 @@ export const getSpaceBackup = selector({
         orderToken: entry.orderToken,
         listId: entry.dailyListId,
         createdAt: entry.createdAt,
+        ...(entry.time == null ? {} : { time: entry.time }),
       })),
       taskTemplates: taskTemplates.map((template) => ({
         id: template.id,
@@ -712,6 +734,10 @@ export const getSpaceBackup = selector({
         createdAt: template.createdAt,
         lastGeneratedAt: template.lastGeneratedAt,
         projectSectionId: template.projectSectionId,
+        ...(template.time == null ? {} : { time: template.time }),
+        ...(template.durationMinutes == null
+          ? {}
+          : { durationMinutes: template.durationMinutes }),
       })),
       checklistItems: checklistItems.map((item) => ({
         id: item.id,

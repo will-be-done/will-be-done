@@ -3,6 +3,7 @@ import {
   createAction,
   selectAsync,
   upsert,
+  v,
 } from "@will-be-done/hyperdb";
 import {
   createTaskInSection,
@@ -11,13 +12,18 @@ import {
   dailyListById,
   dailyListsByIds,
   deleteTaskById,
+  setDailyEntryTime,
   taskById,
   tasksTable,
   updateTask as updateTaskAction,
   type Task,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
-import { InvalidPlacementError, ResourceNotFoundError } from "./errors";
+import {
+  ConflictError,
+  InvalidPlacementError,
+  ResourceNotFoundError,
+} from "./errors";
 import {
   resolveCreatePosition,
   resolveOrderToken,
@@ -41,6 +47,13 @@ export interface PublicTask {
   createdAt: number;
   lastToggledAt: number;
   scheduledDate: string | null;
+  scheduledTime: string | null;
+  durationMinutes: number | null;
+}
+
+export interface TaskSchedule {
+  date: string;
+  time: string | null;
 }
 
 type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
@@ -48,19 +61,22 @@ type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
 const action = createAction();
 const replaceTask = action({
   name: "replaceApiTask",
-  args: { task: tasksTable.v() },
-  handler: function* ({ task }) {
+  args: {
+    task: tasksTable.v(),
+    scheduledTime: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: function* ({ task, scheduledTime }) {
     yield* upsert(tasksTable, [task]);
+    if (scheduledTime !== undefined) {
+      yield* setDailyEntryTime({ taskId: task.id, time: scheduledTime });
+    }
   },
 });
 
-export async function getTaskScheduledDate(
+export async function getTaskSchedule(
   db: SpaceDatabase,
   taskId: string,
-  knownScheduledDate?: string | null,
-): Promise<string | null> {
-  if (knownScheduledDate !== undefined) return knownScheduledDate;
-
+): Promise<TaskSchedule | null> {
   const entry = await selectAsync(db, {
     selector: dailyEntryByTaskId,
     args: { taskId },
@@ -71,13 +87,13 @@ export async function getTaskScheduledDate(
     selector: dailyListById,
     args: { id: entry.dailyListId },
   });
-  return dailyList?.date ?? null;
+  return dailyList ? { date: dailyList.date, time: entry.time ?? null } : null;
 }
 
-export async function getTaskScheduledDates(
+export async function getTaskSchedules(
   db: SpaceDatabase,
   taskIds: string[],
-): Promise<Map<string, string | null>> {
+): Promise<Map<string, TaskSchedule | null>> {
   if (taskIds.length === 0) return new Map();
 
   const entries = await selectAsync(db, {
@@ -97,9 +113,10 @@ export async function getTaskScheduledDates(
   return new Map(
     taskIds.map((taskId) => {
       const entry = entryByTaskId.get(taskId);
+      const date = entry ? dateByDailyListId.get(entry.dailyListId) : undefined;
       return [
         taskId,
-        entry ? (dateByDailyListId.get(entry.dailyListId) ?? null) : null,
+        entry && date ? { date, time: entry.time ?? null } : null,
       ];
     }),
   );
@@ -107,7 +124,7 @@ export async function getTaskScheduledDates(
 
 export function toPublicTask(
   task: Task,
-  scheduledDate: string | null,
+  schedule: TaskSchedule | null,
 ): PublicTask {
   return {
     type: "task",
@@ -119,7 +136,9 @@ export function toPublicTask(
     nature: task.nature ?? "unknown",
     createdAt: task.createdAt,
     lastToggledAt: task.lastToggledAt,
-    scheduledDate,
+    scheduledDate: schedule?.date ?? null,
+    scheduledTime: schedule?.time ?? null,
+    durationMinutes: task.durationMinutes ?? null,
   };
 }
 
@@ -138,7 +157,7 @@ export async function getTask({
     args: { id: taskId },
   });
   if (!task) throw new ResourceNotFoundError("Task");
-  return toPublicTask(task, await getTaskScheduledDate(db, task.id));
+  return toPublicTask(task, await getTaskSchedule(db, task.id));
 }
 
 export async function createSectionTask({
@@ -148,6 +167,7 @@ export async function createSectionTask({
   title,
   content,
   nature,
+  durationMinutes,
   placement = { kind: "last" },
 }: {
   spaceId: string;
@@ -156,6 +176,7 @@ export async function createSectionTask({
   title: string;
   content?: string;
   nature?: PublicTaskNature;
+  durationMinutes?: number;
   placement?: Placement;
 }): Promise<PublicTask> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -177,6 +198,7 @@ export async function createSectionTask({
         title,
         ...(content === undefined ? {} : { content }),
         ...(nature === undefined ? {} : { nature }),
+        ...(durationMinutes === undefined ? {} : { durationMinutes }),
       },
     }),
   );
@@ -197,6 +219,8 @@ export async function updateTask({
     content?: string | null;
     state?: PublicTaskState;
     nature?: PublicTaskNature | null;
+    scheduledTime?: string | null;
+    durationMinutes?: number | null;
   };
 }): Promise<PublicTask> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -205,6 +229,12 @@ export async function updateTask({
     args: { id: taskId },
   });
   if (!current) throw new ResourceNotFoundError("Task");
+  if (
+    updates.scheduledTime !== undefined &&
+    !(await getTaskSchedule(db, taskId))
+  ) {
+    throw new ConflictError("Unscheduled tasks cannot have a time");
+  }
 
   const next: Task = {
     ...current,
@@ -214,6 +244,9 @@ export async function updateTask({
       : {}),
     ...(typeof updates.nature === "string" ? { nature: updates.nature } : {}),
     ...(updates.state === undefined ? {} : { state: updates.state }),
+    ...(updates.durationMinutes === undefined
+      ? {}
+      : { durationMinutes: updates.durationMinutes }),
     ...(updates.state !== undefined && updates.state !== current.state
       ? { lastToggledAt: Date.now() }
       : {}),
@@ -221,9 +254,12 @@ export async function updateTask({
   if (updates.content === null) delete next.content;
   if (updates.nature === null) delete next.nature;
 
-  await asyncDispatch(db, replaceTask({ task: next }));
+  await asyncDispatch(
+    db,
+    replaceTask({ task: next, scheduledTime: updates.scheduledTime }),
+  );
 
-  return toPublicTask(next, await getTaskScheduledDate(db, taskId));
+  return toPublicTask(next, await getTaskSchedule(db, taskId));
 }
 
 export async function moveTask({

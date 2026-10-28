@@ -28,7 +28,7 @@ import {
   getDOMSiblings,
 } from "@/components/Focus/domNavigation.ts";
 import clsx from "clsx";
-import { CircleDashed, RotateCw } from "lucide-react";
+import { CircleDashed, Clock, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   addToDailyList,
@@ -95,6 +95,7 @@ import {
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { LinkifiedText } from "@/components/LinkifiedText";
+import { formatTaskTime } from "@/lib/taskTime";
 
 export const DropTaskIndicator = ({
   direction,
@@ -157,6 +158,7 @@ export const PreloadedTaskComp = ({
   listItem,
   project,
   lastScheduleTime,
+  scheduledTime,
   dailyListId,
   hasCheclistItems,
 
@@ -172,6 +174,7 @@ export const PreloadedTaskComp = ({
   listItem: ListItem;
   project: Project;
   lastScheduleTime: Date | undefined;
+  scheduledTime: string | null;
   dailyListId: string | undefined;
   hasCheclistItems: boolean | undefined;
 
@@ -192,6 +195,17 @@ export const PreloadedTaskComp = ({
     isTask(item) &&
     item.state === "todo";
   const taskTitle = item.title;
+  const time = isTaskTemplate(item) ? item.time : scheduledTime;
+  const showScheduleDate = displayLastScheduleTime && isTask(item);
+  // The time sits in the footer's middle column; the single-day view also
+  // centers the schedule date there.
+  const hasCenteredFooter = !!time || (centerScheduleDate && showScheduleDate);
+  const timeLabelNode = time && (
+    <span className="flex shrink-0 items-center gap-0.5 whitespace-nowrap">
+      <Clock className="size-2.5" />
+      {formatTaskTime(time)}
+    </span>
+  );
 
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -1216,6 +1230,75 @@ export const PreloadedTaskComp = ({
   //
   // console.log("isHidden", isHidden);
 
+  const datePickerNode = showScheduleDate && (
+    <TaskDatePicker
+      taskId={taskId}
+      currentDate={lastScheduleTime}
+      open={isDatePickerOpen}
+      onOpenChange={setIsDatePickerOpen}
+      onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
+      trigger={
+        <button
+          type="button"
+          className={cn(
+            "flex shrink-0 items-center gap-1 whitespace-nowrap px-1.5 py-0.5 rounded transition-colors cursor-pointer",
+            "hover:bg-black/5 dark:hover:bg-white/5",
+            shouldHighlightTime ? "text-amber-400" : "hover:text-content",
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="shrink-0"
+          >
+            <rect
+              x="0.5"
+              y="1.5"
+              width="9"
+              height="8"
+              rx="1.5"
+              stroke="currentColor"
+            />
+            <path
+              d="M3 0.5V2.5M7 0.5V2.5"
+              stroke="currentColor"
+              strokeLinecap="round"
+            />
+            <path d="M0.5 4.5H9.5" stroke="currentColor" />
+          </svg>
+          <span>
+            {lastScheduleTime
+              ? format(
+                  lastScheduleTime,
+                  lastScheduleTime.getFullYear() === new Date().getFullYear()
+                    ? "MMM d"
+                    : "MMM d, yyyy",
+                )
+              : "No date"}
+          </span>
+        </button>
+      }
+    />
+  );
+
+  const projectNode = (alwaysShowProject ||
+    displayedUnderProjectId !== project.id) && (
+    <button
+      className="flex min-w-0 cursor-pointer items-center justify-end gap-1"
+      title={project.title}
+      onClick={handleOpenProject}
+    >
+      <span className="shrink-0">{project.icon || "🟡"}</span>
+      <span className="truncate">{project.title}</span>
+    </button>
+  );
+
   return (
     <div className="relative">
       {closestEdge == "top" && <DropTaskIndicator direction="top" />}
@@ -1416,8 +1499,8 @@ export const PreloadedTaskComp = ({
           <div
             className={cn(
               "text-sm px-2 py-1.5 text-xs rounded-b-lg",
-              centerScheduleDate && displayLastScheduleTime
-                ? "grid grid-cols-[1fr_auto_1fr] items-center gap-1"
+              hasCenteredFooter
+                ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1"
                 : "flex items-center justify-between",
               isTask(item) && item.state === "done"
                 ? "bg-done-panel-tinted text-done-content"
@@ -1430,86 +1513,31 @@ export const PreloadedTaskComp = ({
                     : "bg-panel-tinted text-content-tinted",
             )}
           >
-            <div>{section.title}</div>
+            <div className="truncate" title={section.title}>
+              {section.title}
+            </div>
 
-            {displayLastScheduleTime && isTask(item) && (
-              <div
-                className={cn(
-                  centerScheduleDate ? "flex justify-center" : undefined,
-                )}
-              >
-                <TaskDatePicker
-                  taskId={taskId}
-                  currentDate={lastScheduleTime}
-                  open={isDatePickerOpen}
-                  onOpenChange={setIsDatePickerOpen}
-                  onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
-                  trigger={
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer",
-                        "hover:bg-black/5 dark:hover:bg-white/5",
-                        shouldHighlightTime
-                          ? "text-amber-400"
-                          : "hover:text-content",
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 10 10"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="shrink-0"
-                      >
-                        <rect
-                          x="0.5"
-                          y="1.5"
-                          width="9"
-                          height="8"
-                          rx="1.5"
-                          stroke="currentColor"
-                        />
-                        <path
-                          d="M3 0.5V2.5M7 0.5V2.5"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                        />
-                        <path d="M0.5 4.5H9.5" stroke="currentColor" />
-                      </svg>
-                      <span>
-                        {lastScheduleTime
-                          ? format(
-                              lastScheduleTime,
-                              lastScheduleTime.getFullYear() ===
-                                new Date().getFullYear()
-                                ? "MMM d"
-                                : "MMM d, yyyy",
-                            )
-                          : "No date"}
-                      </span>
-                    </button>
-                  }
-                />
-              </div>
-            )}
-
-            {(alwaysShowProject || displayedUnderProjectId !== project.id) && (
-              <button
-                className={cn(
-                  "cursor-pointer",
-                  centerScheduleDate && displayLastScheduleTime
-                    ? "text-right justify-self-end"
-                    : "text-right",
-                )}
-                onClick={handleOpenProject}
-              >
-                {project.icon || "🟡"} {project.title}
-              </button>
+            {hasCenteredFooter ? (
+              <>
+                <div className="flex items-center justify-center gap-1 whitespace-nowrap">
+                  {centerScheduleDate && datePickerNode}
+                  {centerScheduleDate && datePickerNode && timeLabelNode && (
+                    // The date button's hover padding already spaces the
+                    // dot on the left; pull it in and match on the right.
+                    <span className="-ml-1 mr-0.5">·</span>
+                  )}
+                  {timeLabelNode}
+                </div>
+                <div className="flex min-w-0 items-center justify-end gap-1.5">
+                  {!centerScheduleDate && datePickerNode}
+                  {projectNode}
+                </div>
+              </>
+            ) : (
+              <>
+                {datePickerNode}
+                {projectNode}
+              </>
             )}
           </div>
         </>
@@ -1594,6 +1622,7 @@ export const TaskComp = ({
       listItem={listItem}
       project={project}
       lastScheduleTime={lastScheduleTime}
+      scheduledTime={dailyEntry?.time ?? null}
       dailyListId={dailyEntry?.dailyListId}
       displayedUnderProjectId={displayedUnderProjectId}
       alwaysShowProject={alwaysShowProject}

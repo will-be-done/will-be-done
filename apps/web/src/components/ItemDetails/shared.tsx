@@ -1,5 +1,6 @@
-import { Folder, Hash, Pencil } from "lucide-react";
+import { Clock, Folder, Hash, Hourglass, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DurationInput, TimeInput } from "@/components/Task/TaskTimeInputs";
 import TextareaAutosize from "react-textarea-autosize";
 import { LinkifiedText } from "@/components/LinkifiedText";
 
@@ -222,6 +223,41 @@ export function SectionDetailRow({
           </option>
         ))}
       </select>
+    </DetailRow>
+  );
+}
+
+// ─── TimeDetailRow ───────────────────────────────────────────────────────────
+
+export function TimeDetailRow({
+  time,
+  onChange,
+}: {
+  time: string | null;
+  onChange: (time: string | null) => void;
+}) {
+  return (
+    <DetailRow icon={<Clock className="h-3 w-3 shrink-0" />} label="Time">
+      <TimeInput time={time} onChange={onChange} />
+    </DetailRow>
+  );
+}
+
+// ─── DurationDetailRow ───────────────────────────────────────────────────────
+
+export function DurationDetailRow({
+  durationMinutes,
+  onChange,
+}: {
+  durationMinutes: number | null;
+  onChange: (durationMinutes: number | null) => void;
+}) {
+  return (
+    <DetailRow
+      icon={<Hourglass className="h-3 w-3 shrink-0" />}
+      label="Duration"
+    >
+      <DurationInput durationMinutes={durationMinutes} onChange={onChange} />
     </DetailRow>
   );
 }

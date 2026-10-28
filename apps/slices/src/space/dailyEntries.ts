@@ -9,6 +9,7 @@ import {
 import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import {
+  assertValidTaskTime,
   dailyDateFormat,
   generateKeyPositionedBetween,
   normalizeOrderPosition,
@@ -472,6 +473,7 @@ export const createDailyEntry = action({
     ]),
   },
   handler: function* createDailyEntry({ entry }) {
+    assertValidTaskTime(entry.time);
     const newEntry: DailyEntry = {
       type: dailyEntryType,
       id: uuidv7(),
@@ -479,6 +481,7 @@ export const createDailyEntry = action({
       dailyListId: entry.dailyListId,
       orderToken: entry.orderToken,
       createdAt: Date.now(),
+      ...(entry.time == null ? {} : { time: entry.time }),
     };
 
     yield* insert(dailyEntriesTable, [newEntry]);
@@ -498,6 +501,7 @@ export const updateDailyEntry = action({
     if (entry.taskId !== undefined && entry.taskId !== entryInState.taskId) {
       throw new Error("Cannot change a daily entry taskId");
     }
+    assertValidTaskTime(entry.time);
 
     yield* upsertRows(dailyEntriesTable, [
       {
@@ -582,13 +586,25 @@ export const removeFromDailyList = action({
   },
 });
 
+export const setDailyEntryTime = action({
+  name: "setDailyEntryTime",
+  args: { taskId: v.string(), time: v.union(v.string(), v.null()) },
+  handler: function* setDailyEntryTime({ taskId, time }) {
+    const entry = yield* dailyEntryByTaskId({ taskId });
+    if (!entry) throw new Error("Task not in daily list");
+
+    yield* updateDailyEntry({ id: entry.id, entry: { time } });
+  },
+});
+
 export const createEntryInDailyList = action({
   name: "createEntryInDailyList",
   args: {
     taskId: v.string(),
     date: v.string(),
+    time: v.optional(v.union(v.string(), v.null())),
   },
-  handler: function* createEntryInDailyList({ taskId, date }) {
+  handler: function* createEntryInDailyList({ taskId, date, time }) {
     const dailyList = yield* createDailyListIfNotPresent({ date });
 
     const entries = yield* dailyEntriesByDailyListId({
@@ -602,6 +618,7 @@ export const createEntryInDailyList = action({
         taskId,
         dailyListId: dailyList.id,
         orderToken,
+        time,
       },
     });
   },
@@ -666,14 +683,19 @@ export const scheduleTask = action({
     taskId: v.string(),
     date: v.string(),
     position: orderPositionArg,
+    // Omit to keep the task's current time; null clears it.
+    time: v.optional(v.union(v.string(), v.null())),
   },
-  handler: function* scheduleTask({ taskId, date, position }) {
+  handler: function* scheduleTask({ taskId, date, position, time }) {
     const dailyList = yield* createDailyListIfNotPresent({ date });
     yield* addToDailyList({
       taskId,
       dailyListId: dailyList.id,
       position,
     });
+    if (time !== undefined) {
+      yield* setDailyEntryTime({ taskId, time });
+    }
     return yield* dailyEntryByTaskId({ taskId });
   },
 });

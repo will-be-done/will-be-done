@@ -7,7 +7,7 @@ import {
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import { ResourceNotFoundError } from "./errors";
-import { getTaskScheduledDates, toPublicTask, type PublicTask } from "./tasks";
+import { getTaskSchedules, toPublicTask, type PublicTask } from "./tasks";
 
 export interface PublicTaskTemplate {
   type: "template";
@@ -18,6 +18,8 @@ export interface PublicTaskTemplate {
   nature: "red" | "green" | "unknown";
   repeatRule: string;
   repeatRuleDtStart: number;
+  time: string | null;
+  durationMinutes: number | null;
   createdAt: number;
   lastGeneratedAt: number;
 }
@@ -36,6 +38,8 @@ export function toPublicTaskTemplate(
     nature: template.nature ?? "unknown",
     repeatRule: template.repeatRule,
     repeatRuleDtStart: template.repeatRuleDtStart,
+    time: template.time ?? null,
+    durationMinutes: template.durationMinutes ?? null,
     createdAt: template.createdAt,
     lastGeneratedAt: template.lastGeneratedAt,
   };
@@ -65,12 +69,12 @@ export async function listSectionItems({
       selector: projectSectionTasksByState,
       args: { projectSectionId: sectionId, state: "done" },
     });
-    const scheduledDates = await getTaskScheduledDates(
+    const schedules = await getTaskSchedules(
       db,
       tasks.map((task) => task.id),
     );
     return tasks.map((task) =>
-      toPublicTask(task, scheduledDates.get(task.id) ?? null),
+      toPublicTask(task, schedules.get(task.id) ?? null),
     );
   }
 
@@ -78,13 +82,13 @@ export async function listSectionItems({
     selector: projectSectionItems,
     args: { projectSectionId: sectionId },
   });
-  const scheduledDates = await getTaskScheduledDates(
+  const schedules = await getTaskSchedules(
     db,
     items.flatMap((item) => (item.type === "task" ? [item.id] : [])),
   );
   return items.map((item) =>
     item.type === "task"
-      ? toPublicTask(item, scheduledDates.get(item.id) ?? null)
+      ? toPublicTask(item, schedules.get(item.id) ?? null)
       : toPublicTaskTemplate(item),
   );
 }

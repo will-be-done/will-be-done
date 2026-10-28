@@ -15,7 +15,7 @@ import {
   checklistItemCanDropOnParent,
   checklistItemHandleDropOnParent,
 } from "./checklistItems";
-import { createEntryInDailyList } from "./dailyEntries";
+import { createEntryInDailyList, dailyEntryByTaskId } from "./dailyEntries";
 import {
   createTaskAfterSectionItem,
   projectSectionItemSiblings,
@@ -29,7 +29,12 @@ import {
 } from "./tasks";
 import { registerModelSlice } from "./maps";
 import { genUUIDV5 } from "../traits/";
-import { generateKeyPositionedBetween, getDMY } from "./utils";
+import {
+  assertValidTaskDuration,
+  assertValidTaskTime,
+  generateKeyPositionedBetween,
+  getDMY,
+} from "./utils";
 import {
   taskType,
   tasksTable,
@@ -90,6 +95,9 @@ const templateToTask = selector({
       createdAt: epoch,
       templateId: tmpl.id,
       templateDate: epoch,
+      ...(tmpl.durationMinutes == null
+        ? {}
+        : { durationMinutes: tmpl.durationMinutes }),
     } satisfies Task;
   },
 });
@@ -148,7 +156,7 @@ function createRuleWithDtstart(ruleString: string, dtstart: Date): RRule {
 }
 
 /** Returns true for DAILY, WEEKLY, MONTHLY, YEARLY frequencies */
-function isDailyOrCoarser(ruleString: string): boolean {
+export function isDailyOrCoarser(ruleString: string): boolean {
   const options = RRule.parseString(ruleString.trim());
   return options.freq !== undefined && options.freq <= RRule.DAILY;
 }
@@ -419,6 +427,8 @@ export const createTaskTemplate = action({
   },
   handler: function* createTaskTemplate({ now, template }) {
     const id = template.id || uuidv7();
+    assertValidTaskTime(template.time);
+    assertValidTaskDuration(template.durationMinutes);
 
     const newTemplate: TaskTemplate = {
       type: taskTemplateType,
@@ -445,6 +455,8 @@ export const updateTemplate = action({
   handler: function* updateTemplate({ id, template }) {
     const templateInState = yield* taskTemplateById({ id });
     if (!templateInState) throw new Error("Template not found");
+    assertValidTaskTime(template.time);
+    assertValidTaskDuration(template.durationMinutes);
 
     const updatedTemplate = { ...templateInState, ...template };
     yield* upsert(taskTemplatesTable, [updatedTemplate]);
@@ -483,6 +495,8 @@ export const createTaskTemplateFromTask = action({
   },
   handler: function* createTaskTemplateFromTask({ task, data, now }) {
     const newId = uuidv7();
+    // Read before deleteTasks removes the task's DailyEntry.
+    const entryTime = (yield* dailyEntryByTaskId({ taskId: task.id }))?.time;
     yield* copyItems({
       fromParentId: task.id,
       fromParentType: taskType,
@@ -502,8 +516,14 @@ export const createTaskTemplateFromTask = action({
       repeatRuleDtStart: now,
       lastGeneratedAt: now,
       projectSectionId: task.projectSectionId,
+      ...(entryTime == null ? {} : { time: entryTime }),
+      ...(task.durationMinutes == null
+        ? {}
+        : { durationMinutes: task.durationMinutes }),
       ...data,
     };
+    assertValidTaskTime(template.time);
+    assertValidTaskDuration(template.durationMinutes);
 
     yield* insert(taskTemplatesTable, [template]);
     yield* generateTasksForTemplateIds({
@@ -608,10 +628,14 @@ function* generateTasksForTemplateIds({
   let generatedCount = 0;
 
   for (const templateId of templateIds) {
+    const template = yield* taskTemplateById({ id: templateId });
     const newTasks = yield* newTasksToGenForTaskTemplate({
       templateId,
       toDate,
     });
+    // Sub-daily rules carry their own time in each occurrence.
+    const time =
+      template && isDailyOrCoarser(template.repeatRule) ? template.time : null;
 
     for (const task of newTasks) {
       if (task.templateId === null) {
@@ -633,6 +657,7 @@ function* generateTasksForTemplateIds({
       yield* createEntryInDailyList({
         taskId: task.id,
         date: getDMY(localDate),
+        time,
       });
       generatedCount += 1;
     }

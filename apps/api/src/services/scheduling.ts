@@ -10,7 +10,7 @@ import {
 import { getSpaceDatabase } from "./databaseAccess";
 import { ResourceNotFoundError } from "./errors";
 import { resolveCreatePosition, type Placement } from "./placement";
-import { getTaskScheduledDate, toPublicTask, type PublicTask } from "./tasks";
+import { getTaskSchedule, toPublicTask, type PublicTask } from "./tasks";
 
 export interface ScheduledTaskResponse {
   task: PublicTask;
@@ -23,12 +23,14 @@ export async function scheduleTask({
   taskId,
   userId,
   date,
+  time,
   placement = { kind: "last" },
 }: {
   spaceId: string;
   taskId: string;
   userId: string;
   date: string;
+  time?: string | null;
   placement?: Placement;
 }): Promise<ScheduledTaskResponse> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -37,7 +39,7 @@ export async function scheduleTask({
     args: { id: taskId },
   });
   if (!task) throw new ResourceNotFoundError("Task");
-  const previousDate = await getTaskScheduledDate(db, taskId);
+  const previousDate = (await getTaskSchedule(db, taskId))?.date ?? null;
 
   const dailyList = await selectAsync(db, {
     selector: dailyListByDate,
@@ -65,16 +67,21 @@ export async function scheduleTask({
     position = resolveCreatePosition({ entities: [], placement });
   }
 
-  await asyncDispatch(
+  const entry = await asyncDispatch(
     db,
     scheduleTaskAction({
       taskId,
       date,
       position,
+      ...(time === undefined ? {} : { time }),
     }),
   );
 
-  return { task: toPublicTask(task, date), date, previousDate };
+  return {
+    task: toPublicTask(task, { date, time: entry?.time ?? null }),
+    date,
+    previousDate,
+  };
 }
 
 export async function clearTaskSchedule({
@@ -92,7 +99,7 @@ export async function clearTaskSchedule({
     args: { id: taskId },
   });
   if (!task) throw new ResourceNotFoundError("Task");
-  const previousDate = await getTaskScheduledDate(db, taskId);
+  const previousDate = (await getTaskSchedule(db, taskId))?.date ?? null;
 
   await asyncDispatch(db, removeFromDailyList({ taskId }));
   return previousDate;

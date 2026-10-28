@@ -1,13 +1,12 @@
 import { selectAsync } from "@will-be-done/hyperdb";
 import {
   dailyDateFormat,
-  getDMY,
   listScheduledTasks as listScheduledTasksSelector,
 } from "@will-be-done/slices/space";
 import { addDays, parse } from "date-fns";
 import { getSpaceDatabase } from "./databaseAccess";
 import { decodeNumericCursor, encodeNumericCursor } from "./pagination";
-import { toPublicTask, type PublicTask } from "./tasks";
+import { getTaskSchedules, toPublicTask, type PublicTask } from "./tasks";
 
 export interface ScheduledTaskSearchResult {
   tasks: PublicTask[];
@@ -50,9 +49,13 @@ export async function listScheduledTasks({
       limit,
     },
   });
+  const schedules = await getTaskSchedules(
+    db,
+    page.items.map((row) => row.task.id),
+  );
   return {
     tasks: page.items.map((row) =>
-      toPublicTask(row.task, getDMY(new Date(row.scheduledAt))),
+      toPublicTask(row.task, schedules.get(row.task.id) ?? null),
     ),
     nextCursor: page.nextCursor
       ? encodeNumericCursor({

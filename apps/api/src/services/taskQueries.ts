@@ -2,7 +2,7 @@ import { selectAsync } from "@will-be-done/hyperdb";
 import { tasksPageByCreatedAt } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import { decodeNumericCursor, encodeNumericCursor } from "./pagination";
-import { getTaskScheduledDates, toPublicTask, type PublicTask } from "./tasks";
+import { getTaskSchedules, toPublicTask, type PublicTask } from "./tasks";
 
 export interface TaskSearchResult {
   tasks: PublicTask[];
@@ -31,14 +31,14 @@ export async function listSpaceTasks({
     },
   });
   const page = tasks.slice(0, limit);
-  const scheduledDateByTaskId = await getTaskScheduledDates(
+  const scheduleByTaskId = await getTaskSchedules(
     db,
     page.map((task) => task.id),
   );
   const last = page.at(-1);
   return {
     tasks: page.map((task) =>
-      toPublicTask(task, scheduledDateByTaskId.get(task.id) ?? null),
+      toPublicTask(task, scheduleByTaskId.get(task.id) ?? null),
     ),
     nextCursor:
       tasks.length > limit && last

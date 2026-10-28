@@ -29,12 +29,23 @@ export async function listDailyListItems({
   });
   if (!dailyList) return [];
 
-  return (
-    await selectAsync(db, {
-      selector: dailyListTasksByState,
-      args: { dailyListId: dailyList.id, state },
-    })
-  ).map((task) => toPublicTask(task, dailyList.date));
+  const tasks = await selectAsync(db, {
+    selector: dailyListTasksByState,
+    args: { dailyListId: dailyList.id, state },
+  });
+  const entries = await selectAsync(db, {
+    selector: dailyEntriesByDailyListIds,
+    args: { dailyListIds: [dailyList.id] },
+  });
+  const timeByTaskId = new Map(
+    entries.map((entry) => [entry.taskId, entry.time ?? null]),
+  );
+  return tasks.map((task) =>
+    toPublicTask(task, {
+      date: dailyList.date,
+      time: timeByTaskId.get(task.id) ?? null,
+    }),
+  );
 }
 
 export interface PublicDailyList {
@@ -88,6 +99,9 @@ export async function listDailyListsInRange({
     args: { ids: entries.map((entry) => entry.taskId) },
   });
   const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const timeByTaskId = new Map(
+    entries.map((entry) => [entry.taskId, entry.time ?? null]),
+  );
   const entriesByDailyListId = new Map<string, typeof entries>();
   for (const entry of entries) {
     const dailyListEntries = entriesByDailyListId.get(entry.dailyListId) ?? [];
@@ -107,7 +121,12 @@ export async function listDailyListsInRange({
 
     return {
       date: dailyList.date,
-      items: matchingTasks.map((task) => toPublicTask(task, dailyList.date)),
+      items: matchingTasks.map((task) =>
+        toPublicTask(task, {
+          date: dailyList.date,
+          time: timeByTaskId.get(task.id) ?? null,
+        }),
+      ),
     };
   });
   const last = page.at(-1);
