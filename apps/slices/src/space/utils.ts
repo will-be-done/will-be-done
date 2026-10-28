@@ -58,6 +58,36 @@ export function parseDMY(dateStr: string): Date {
   return parse(dateStr, dailyDateFormat, new Date());
 }
 
+// Task times are floating 24-hour "HH:mm" wall-clock values.
+export const taskTimePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+export const maxTaskDurationMinutes = 7 * 24 * 60;
+
+export function isValidTaskTime(time: string): boolean {
+  return taskTimePattern.test(time);
+}
+
+export function isValidTaskDuration(minutes: number): boolean {
+  return (
+    Number.isInteger(minutes) &&
+    minutes >= 1 &&
+    minutes <= maxTaskDurationMinutes
+  );
+}
+
+export function assertValidTaskTime(time: string | null | undefined) {
+  if (time != null && !isValidTaskTime(time)) {
+    throw new Error(`Invalid task time "${time}", expected HH:mm`);
+  }
+}
+
+export function assertValidTaskDuration(minutes: number | null | undefined) {
+  if (minutes != null && !isValidTaskDuration(minutes)) {
+    throw new Error(
+      `Invalid task duration ${minutes}, expected 1-${maxTaskDurationMinutes} minutes`,
+    );
+  }
+}
+
 export function generateKeyPositionedBetween(
   item: OrderableItem,
   siblings: [OrderableItem | undefined, OrderableItem | undefined],

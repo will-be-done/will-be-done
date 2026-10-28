@@ -18,8 +18,8 @@ import {
 } from "./errors";
 import { type Placement } from "./placement";
 import {
-  getTaskScheduledDates,
-  getTaskScheduledDate,
+  getTaskSchedules,
+  getTaskSchedule,
   toPublicTask,
   type PublicTask,
   type PublicTaskNature,
@@ -79,13 +79,13 @@ export async function listStashTasks({
     selector: stashTasksByState,
     args: { state },
   });
-  const scheduledDates = await getTaskScheduledDates(
+  const schedules = await getTaskSchedules(
     db,
     tasks.map((task) => task.id),
   );
 
   return tasks.map((task) =>
-    toPublicTask(task, scheduledDates.get(task.id) ?? null),
+    toPublicTask(task, schedules.get(task.id) ?? null),
   );
 }
 
@@ -115,7 +115,7 @@ export async function putTaskInStash({
     args: { taskId },
   });
   if (existingEntry && placement === undefined) {
-    return toPublicTask(task, await getTaskScheduledDate(db, task.id));
+    return toPublicTask(task, await getTaskSchedule(db, task.id));
   }
 
   const position = await resolveStashPosition({
@@ -125,7 +125,7 @@ export async function putTaskInStash({
   });
 
   await asyncDispatch(db, addToStash({ taskId, position }));
-  return toPublicTask(task, await getTaskScheduledDate(db, task.id));
+  return toPublicTask(task, await getTaskSchedule(db, task.id));
 }
 
 export async function removeTaskFromStash({
@@ -153,6 +153,7 @@ export async function createStashTask({
   title,
   content,
   nature,
+  durationMinutes,
   placement = { kind: "first" },
 }: {
   spaceId: string;
@@ -160,6 +161,7 @@ export async function createStashTask({
   title: string;
   content?: string;
   nature?: PublicTaskNature;
+  durationMinutes?: number;
   placement?: Placement;
 }): Promise<PublicTask> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -179,6 +181,7 @@ export async function createStashTask({
         title,
         ...(content === undefined ? {} : { content }),
         ...(nature === undefined ? {} : { nature }),
+        ...(durationMinutes === undefined ? {} : { durationMinutes }),
       },
     }),
   );

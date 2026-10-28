@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { isValidTaskTemplateRule } from "@will-be-done/slices/space";
+import {
+  isValidTaskTemplateRule,
+  maxTaskDurationMinutes,
+  taskTimePattern,
+} from "@will-be-done/slices/space";
 
 const RepeatRuleSchema = z
   .string()
@@ -7,6 +11,20 @@ const RepeatRuleSchema = z
   .min(1)
   .refine(isValidTaskTemplateRule, "Invalid RFC 5545 recurrence rule")
   .describe("RFC 5545 recurrence rule");
+
+const TaskTimeSchema = z
+  .string()
+  .regex(taskTimePattern, "Expected a 24-hour time in HH:mm format")
+  .describe(
+    "Floating wall-clock time in 24-hour HH:mm format, without a time zone",
+  );
+
+const DurationMinutesSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(maxTaskDurationMinutes)
+  .describe("Estimated duration in whole minutes");
 
 export const ErrorResponseSchema = z
   .object({
@@ -231,6 +249,10 @@ export const TaskSchema = z.object({
     .date()
     .nullable()
     .describe("Current schedule date, or null when the task is unscheduled"),
+  scheduledTime: TaskTimeSchema.nullable().describe(
+    "Time on the schedule date in HH:mm, or null when the task has no time",
+  ),
+  durationMinutes: DurationMinutesSchema.nullable(),
 });
 
 export const TaskTemplateSchema = z.object({
@@ -242,6 +264,10 @@ export const TaskTemplateSchema = z.object({
   nature: TaskNatureSchema,
   repeatRule: z.string(),
   repeatRuleDtStart: z.number().int().nonnegative(),
+  time: TaskTimeSchema.nullable().describe(
+    "Time given to generated tasks for daily or coarser rules",
+  ),
+  durationMinutes: DurationMinutesSchema.nullable(),
   createdAt: z.number().int().nonnegative(),
   lastGeneratedAt: z.number().int().nonnegative(),
 });
@@ -258,6 +284,8 @@ export const CreateTaskTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    time: TaskTimeSchema.nullable().optional(),
+    durationMinutes: DurationMinutesSchema.nullable().optional(),
     placement: PlacementSchema.optional(),
   })
   .strict();
@@ -269,6 +297,8 @@ export const UpdateTaskTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    time: TaskTimeSchema.nullable().optional(),
+    durationMinutes: DurationMinutesSchema.nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
@@ -282,6 +312,8 @@ export const ConvertTaskToTemplateBodySchema = z
     nature: TaskNatureSchema.nullable().optional(),
     repeatRule: RepeatRuleSchema.optional(),
     repeatRuleDtStart: z.number().int().nonnegative().optional(),
+    time: TaskTimeSchema.nullable().optional(),
+    durationMinutes: DurationMinutesSchema.nullable().optional(),
   })
   .strict();
 
@@ -314,6 +346,7 @@ export const CreateTaskBodySchema = z
     title: z.string().trim().min(1),
     content: z.string().optional(),
     nature: TaskNatureSchema.optional(),
+    durationMinutes: DurationMinutesSchema.optional(),
     placement: PlacementSchema.optional(),
   })
   .strict();
@@ -359,6 +392,11 @@ export const PaginatedTasksResponseSchema = z
 export const ScheduleTaskBodySchema = z
   .object({
     date: z.iso.date().describe("Schedule date in YYYY-MM-DD format"),
+    time: TaskTimeSchema.nullable()
+      .optional()
+      .describe(
+        "Time on the date; omit to keep the current time, null to clear",
+      ),
     placement: PlacementSchema.optional(),
   })
   .strict();
@@ -448,6 +486,12 @@ export const UpdateTaskBodySchema = z
     content: z.string().nullable().optional(),
     state: TaskStateSchema.optional(),
     nature: TaskNatureSchema.nullable().optional(),
+    scheduledTime: TaskTimeSchema.nullable()
+      .optional()
+      .describe(
+        "Time on the current schedule date; the task must be scheduled",
+      ),
+    durationMinutes: DurationMinutesSchema.nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {

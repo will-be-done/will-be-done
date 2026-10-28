@@ -3619,6 +3619,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "scheduledTime": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10080,
+                                "description": "Estimated duration in whole minutes"
+                              },
+                              { "type": "null" }
+                            ]
                           }
                         },
                         "required": [
@@ -3630,7 +3652,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "scheduledTime",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -3899,6 +3923,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "scheduledTime": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10080,
+                                "description": "Estimated duration in whole minutes"
+                              },
+                              { "type": "null" }
+                            ]
                           }
                         },
                         "required": [
@@ -3910,7 +3956,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "scheduledTime",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -4153,6 +4201,28 @@
                                   { "type": "null" }
                                 ],
                                 "description": "Current schedule date, or null when the task is unscheduled"
+                              },
+                              "scheduledTime": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                                  },
+                                  { "type": "null" }
+                                ],
+                                "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                              },
+                              "durationMinutes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10080,
+                                    "description": "Estimated duration in whole minutes"
+                                  },
+                                  { "type": "null" }
+                                ]
                               }
                             },
                             "required": [
@@ -4164,7 +4234,9 @@
                               "nature",
                               "createdAt",
                               "lastToggledAt",
-                              "scheduledDate"
+                              "scheduledDate",
+                              "scheduledTime",
+                              "durationMinutes"
                             ],
                             "additionalProperties": false
                           },
@@ -4195,6 +4267,28 @@
                                 "minimum": 0,
                                 "maximum": 9007199254740991
                               },
+                              "time": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                                  },
+                                  { "type": "null" }
+                                ],
+                                "description": "Time given to generated tasks for daily or coarser rules"
+                              },
+                              "durationMinutes": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10080,
+                                    "description": "Estimated duration in whole minutes"
+                                  },
+                                  { "type": "null" }
+                                ]
+                              },
                               "createdAt": {
                                 "type": "integer",
                                 "minimum": 0,
@@ -4214,6 +4308,8 @@
                               "nature",
                               "repeatRule",
                               "repeatRuleDtStart",
+                              "time",
+                              "durationMinutes",
                               "createdAt",
                               "lastGeneratedAt"
                             ],
@@ -4385,6 +4481,12 @@
                     "type": "string",
                     "enum": ["red", "green", "unknown"]
                   },
+                  "durationMinutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10080,
+                    "description": "Estimated duration in whole minutes"
+                  },
                   "placement": {
                     "oneOf": [
                       {
@@ -4505,6 +4607,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -4516,7 +4640,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -4764,6 +4890,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -4775,7 +4923,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -4945,6 +5095,28 @@
                       { "type": "string", "enum": ["red", "green", "unknown"] },
                       { "type": "null" }
                     ]
+                  },
+                  "scheduledTime": {
+                    "description": "Time on the current schedule date; the task must be scheduled",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10080,
+                        "description": "Estimated duration in whole minutes"
+                      },
+                      { "type": "null" }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -5018,6 +5190,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -5029,7 +5223,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -5545,6 +5741,17 @@
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                     "description": "Schedule date in YYYY-MM-DD format"
                   },
+                  "time": {
+                    "description": "Time on the date; omit to keep the current time, null to clear",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
                   "placement": {
                     "oneOf": [
                       {
@@ -5665,6 +5872,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -5676,7 +5905,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     },
@@ -5990,6 +6221,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -6001,7 +6254,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -6305,6 +6560,28 @@
                                     { "type": "null" }
                                   ],
                                   "description": "Current schedule date, or null when the task is unscheduled"
+                                },
+                                "scheduledTime": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                      "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                                    },
+                                    { "type": "null" }
+                                  ],
+                                  "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                                },
+                                "durationMinutes": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 10080,
+                                      "description": "Estimated duration in whole minutes"
+                                    },
+                                    { "type": "null" }
+                                  ]
                                 }
                               },
                               "required": [
@@ -6316,7 +6593,9 @@
                                 "nature",
                                 "createdAt",
                                 "lastToggledAt",
-                                "scheduledDate"
+                                "scheduledDate",
+                                "scheduledTime",
+                                "durationMinutes"
                               ],
                               "additionalProperties": false
                             }
@@ -6566,6 +6845,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "scheduledTime": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10080,
+                                "description": "Estimated duration in whole minutes"
+                              },
+                              { "type": "null" }
+                            ]
                           }
                         },
                         "required": [
@@ -6577,7 +6878,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "scheduledTime",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -6759,6 +7062,27 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
+                  "time": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10080,
+                        "description": "Estimated duration in whole minutes"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
                   "placement": {
                     "oneOf": [
                       {
@@ -6862,6 +7186,28 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "time": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time given to generated tasks for daily or coarser rules"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "createdAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -6881,6 +7227,8 @@
                         "nature",
                         "repeatRule",
                         "repeatRuleDtStart",
+                        "time",
+                        "durationMinutes",
                         "createdAt",
                         "lastGeneratedAt"
                       ],
@@ -7112,6 +7460,28 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "time": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time given to generated tasks for daily or coarser rules"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "createdAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -7131,6 +7501,8 @@
                         "nature",
                         "repeatRule",
                         "repeatRuleDtStart",
+                        "time",
+                        "durationMinutes",
                         "createdAt",
                         "lastGeneratedAt"
                       ],
@@ -7310,6 +7682,27 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "time": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10080,
+                        "description": "Estimated duration in whole minutes"
+                      },
+                      { "type": "null" }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -7366,6 +7759,28 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "time": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time given to generated tasks for daily or coarser rules"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "createdAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -7385,6 +7800,8 @@
                         "nature",
                         "repeatRule",
                         "repeatRuleDtStart",
+                        "time",
+                        "durationMinutes",
                         "createdAt",
                         "lastGeneratedAt"
                       ],
@@ -7811,6 +8228,28 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "time": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time given to generated tasks for daily or coarser rules"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "createdAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -7830,6 +8269,8 @@
                         "nature",
                         "repeatRule",
                         "repeatRuleDtStart",
+                        "time",
+                        "durationMinutes",
                         "createdAt",
                         "lastGeneratedAt"
                       ],
@@ -8038,6 +8479,27 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "time": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "durationMinutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10080,
+                        "description": "Estimated duration in whole minutes"
+                      },
+                      { "type": "null" }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -8094,6 +8556,28 @@
                           "minimum": 0,
                           "maximum": 9007199254740991
                         },
+                        "time": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time given to generated tasks for daily or coarser rules"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
+                        },
                         "createdAt": {
                           "type": "integer",
                           "minimum": 0,
@@ -8113,6 +8597,8 @@
                         "nature",
                         "repeatRule",
                         "repeatRuleDtStart",
+                        "time",
+                        "durationMinutes",
                         "createdAt",
                         "lastGeneratedAt"
                       ],
@@ -8334,6 +8820,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -8345,7 +8853,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -10582,6 +11092,28 @@
                               { "type": "null" }
                             ],
                             "description": "Current schedule date, or null when the task is unscheduled"
+                          },
+                          "scheduledTime": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                          },
+                          "durationMinutes": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10080,
+                                "description": "Estimated duration in whole minutes"
+                              },
+                              { "type": "null" }
+                            ]
                           }
                         },
                         "required": [
@@ -10593,7 +11125,9 @@
                           "nature",
                           "createdAt",
                           "lastToggledAt",
-                          "scheduledDate"
+                          "scheduledDate",
+                          "scheduledTime",
+                          "durationMinutes"
                         ],
                         "additionalProperties": false
                       }
@@ -10761,6 +11295,12 @@
                     "type": "string",
                     "enum": ["red", "green", "unknown"]
                   },
+                  "durationMinutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10080,
+                    "description": "Estimated duration in whole minutes"
+                  },
                   "placement": {
                     "oneOf": [
                       {
@@ -10874,6 +11414,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -10885,7 +11447,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }
@@ -11194,6 +11758,28 @@
                             { "type": "null" }
                           ],
                           "description": "Current schedule date, or null when the task is unscheduled"
+                        },
+                        "scheduledTime": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                              "description": "Floating wall-clock time in 24-hour HH:mm format, without a time zone"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Time on the schedule date in HH:mm, or null when the task has no time"
+                        },
+                        "durationMinutes": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10080,
+                              "description": "Estimated duration in whole minutes"
+                            },
+                            { "type": "null" }
+                          ]
                         }
                       },
                       "required": [
@@ -11205,7 +11791,9 @@
                         "nature",
                         "createdAt",
                         "lastToggledAt",
-                        "scheduledDate"
+                        "scheduledDate",
+                        "scheduledTime",
+                        "durationMinutes"
                       ],
                       "additionalProperties": false
                     }

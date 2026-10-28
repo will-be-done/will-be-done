@@ -6,7 +6,7 @@ import {
   upsert,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
-import { getDMY } from "./utils";
+import { getDMY, isValidTaskDuration, isValidTaskTime } from "./utils";
 import { allChecklistItems } from "./checklistItems";
 import { allProjectSections } from "./projectSections";
 import { allProjects } from "./projectsAll";
@@ -59,6 +59,7 @@ interface TaskBackup {
   nature?: "red" | "green" | "unknown";
   templateId: string | null;
   templateDate: number | null;
+  durationMinutes?: number;
   // Legacy fields for backwards compatibility (when loading old backups)
   dailyListId?: string | null;
   dailyListOrderToken?: string | null;
@@ -84,6 +85,7 @@ interface DailyEntryBackup {
   orderToken: string;
   listId: string; // dailyListId
   createdAt: number;
+  time?: string;
 }
 
 interface TaskTemplateBackup {
@@ -96,6 +98,8 @@ interface TaskTemplateBackup {
   createdAt: number;
   lastGeneratedAt: number;
   projectSectionId: string;
+  time?: string;
+  durationMinutes?: number;
 }
 
 interface ChecklistItemBackup {
@@ -161,6 +165,7 @@ const backupSchema = v.object({
       ),
       templateId: v.union(v.string(), v.null()),
       templateDate: v.union(v.number(), v.null()),
+      durationMinutes: v.optional(v.number()),
       dailyListId: v.optional(v.union(v.string(), v.null())),
       dailyListOrderToken: v.optional(v.union(v.string(), v.null())),
     }),
@@ -192,6 +197,8 @@ const backupSchema = v.object({
       createdAt: v.number(),
       lastGeneratedAt: v.number(),
       projectSectionId: v.string(),
+      time: v.optional(v.string()),
+      durationMinutes: v.optional(v.number()),
     }),
   ),
   projectSections: v.array(
@@ -211,6 +218,7 @@ const backupSchema = v.object({
         orderToken: v.string(),
         listId: v.string(),
         createdAt: v.number(),
+        time: v.optional(v.string()),
       }),
     ),
   ),
@@ -370,6 +378,20 @@ export function normalizeSpaceBackup(
   };
 }
 
+// Restored values bypass action validation, so drop malformed ones instead of
+// inserting rows the app cannot display.
+function validTime(time: string | undefined, owner: string) {
+  if (time === undefined || isValidTaskTime(time)) return time;
+  console.warn(`Invalid time "${time}" omitted for ${owner}`);
+  return undefined;
+}
+
+function validDuration(minutes: number | undefined, owner: string) {
+  if (minutes === undefined || isValidTaskDuration(minutes)) return minutes;
+  console.warn(`Invalid duration ${minutes} omitted for ${owner}`);
+  return undefined;
+}
+
 const getNewModels = action({
   name: "getNewModels",
   args: { backup: backupSchema },
@@ -444,6 +466,10 @@ const getNewModels = action({
         continue;
       }
 
+      const durationMinutes = validDuration(
+        taskBackup.durationMinutes,
+        `task ${taskBackup.id}`,
+      );
       const task: Task = {
         type: taskType,
         id: taskBackup.id,
@@ -457,6 +483,7 @@ const getNewModels = action({
         nature: taskBackup.nature || "unknown",
         templateId: taskBackup.templateId ?? null,
         templateDate: taskBackup.templateDate ?? null,
+        ...(durationMinutes === undefined ? {} : { durationMinutes }),
       };
 
       models.push(task);
@@ -493,6 +520,14 @@ const getNewModels = action({
         continue;
       }
 
+      const time = validTime(
+        templateBackup.time,
+        `template ${templateBackup.id}`,
+      );
+      const durationMinutes = validDuration(
+        templateBackup.durationMinutes,
+        `template ${templateBackup.id}`,
+      );
       const template: TaskTemplate = {
         type: taskTemplateType,
         id: templateBackup.id,
@@ -505,6 +540,8 @@ const getNewModels = action({
         createdAt: templateBackup.createdAt,
         lastGeneratedAt: templateBackup.lastGeneratedAt,
         projectSectionId: section.id,
+        ...(time === undefined ? {} : { time }),
+        ...(durationMinutes === undefined ? {} : { durationMinutes }),
       };
 
       models.push(template);
@@ -524,6 +561,7 @@ const getNewModels = action({
           continue;
         }
 
+        const time = validTime(entryBackup.time, `entry of task ${taskId}`);
         const entry: DailyEntry = {
           type: dailyEntryType,
           id: uuidv7(),
@@ -531,6 +569,7 @@ const getNewModels = action({
           orderToken: entryBackup.orderToken,
           dailyListId: dailyListIdMap.get(entryBackup.listId)!,
           createdAt: entryBackup.createdAt,
+          ...(time === undefined ? {} : { time }),
         };
 
         models.push(entry);
@@ -682,6 +721,9 @@ export const getSpaceBackup = selector({
         templateDate: task.templateDate,
         projectSectionId: task.projectSectionId,
         content: task.content || "",
+        ...(task.durationMinutes == null
+          ? {}
+          : { durationMinutes: task.durationMinutes }),
       })),
       projects: projects.map((project) => ({
         id: project.id,
@@ -701,6 +743,7 @@ export const getSpaceBackup = selector({
         orderToken: entry.orderToken,
         listId: entry.dailyListId,
         createdAt: entry.createdAt,
+        ...(entry.time == null ? {} : { time: entry.time }),
       })),
       taskTemplates: taskTemplates.map((template) => ({
         id: template.id,
@@ -712,6 +755,10 @@ export const getSpaceBackup = selector({
         createdAt: template.createdAt,
         lastGeneratedAt: template.lastGeneratedAt,
         projectSectionId: template.projectSectionId,
+        ...(template.time == null ? {} : { time: template.time }),
+        ...(template.durationMinutes == null
+          ? {}
+          : { durationMinutes: template.durationMinutes }),
       })),
       checklistItems: checklistItems.map((item) => ({
         id: item.id,

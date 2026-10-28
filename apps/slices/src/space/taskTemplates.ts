@@ -15,7 +15,7 @@ import {
   checklistItemCanDropOnParent,
   checklistItemHandleDropOnParent,
 } from "./checklistItems";
-import { createEntryInDailyList } from "./dailyEntries";
+import { createEntryInDailyList, dailyEntryByTaskId } from "./dailyEntries";
 import {
   createTaskAfterSectionItem,
   projectSectionItemSiblings,
@@ -29,7 +29,12 @@ import {
 } from "./tasks";
 import { registerModelSlice } from "./maps";
 import { genUUIDV5 } from "../traits/";
-import { generateKeyPositionedBetween, getDMY } from "./utils";
+import {
+  assertValidTaskDuration,
+  assertValidTaskTime,
+  generateKeyPositionedBetween,
+  getDMY,
+} from "./utils";
 import {
   taskType,
   tasksTable,
@@ -90,6 +95,9 @@ const templateToTask = selector({
       createdAt: epoch,
       templateId: tmpl.id,
       templateDate: epoch,
+      ...(tmpl.durationMinutes == null
+        ? {}
+        : { durationMinutes: tmpl.durationMinutes }),
     } satisfies Task;
   },
 });
@@ -124,6 +132,15 @@ type RecurrencePolicy = {
   occurrenceEpoch: (date: Date) => number;
 };
 
+// Daily-or-coarser epochs are abstract UTC wall-clock days; sub-daily epochs
+// are already real instants (see occurrenceEpoch), so only the former shift.
+function occurrenceDMY(template: TaskTemplate | undefined, epoch: number) {
+  const date = new Date(epoch);
+  return getDMY(
+    template && isDailyOrCoarser(template.repeatRule) ? fromUTC(date) : date,
+  );
+}
+
 /** Get the dtstart epoch for a template, falling back to createdAt for legacy templates */
 function getTemplateDtStart(template: TaskTemplate): number {
   return template.repeatRuleDtStart || template.createdAt;
@@ -148,7 +165,7 @@ function createRuleWithDtstart(ruleString: string, dtstart: Date): RRule {
 }
 
 /** Returns true for DAILY, WEEKLY, MONTHLY, YEARLY frequencies */
-function isDailyOrCoarser(ruleString: string): boolean {
+export function isDailyOrCoarser(ruleString: string): boolean {
   const options = RRule.parseString(ruleString.trim());
   return options.freq !== undefined && options.freq <= RRule.DAILY;
 }
@@ -316,6 +333,62 @@ export const taskTemplateNewTasksInRange = selector({
   },
 });
 
+export type TaskTemplateOccurrence = {
+  // The id the generated Task will get.
+  id: string;
+  template: TaskTemplate;
+  date: string;
+  time: string | null;
+};
+
+// Occurrences in [fromDate, toDate] that generation has not created yet, i.e.
+// Tasks that will appear later. Mirrors generateTasksForTemplateIds: only
+// occurrences from the lastGeneratedAt checkpoint on are candidates.
+export const taskTemplateUpcomingOccurrences = selector({
+  name: "taskTemplateUpcomingOccurrences",
+  args: {
+    fromDate: v.number(),
+    toDate: v.number(),
+  },
+  handler: function* taskTemplateUpcomingOccurrences({ fromDate, toDate }) {
+    const templates = yield* allTaskTemplates({});
+    const candidates: TaskTemplateOccurrence[] = [];
+
+    for (const template of templates) {
+      const policy = buildRecurrencePolicy(template);
+      const r = createRuleWithDtstart(template.repeatRule, policy.dtstart);
+      const range = policy.canonicalizeRange(
+        new Date(fromDate),
+        new Date(toDate),
+      );
+      const checkpoint = policy.canonicalizeGenerationRange(
+        new Date(template.lastGeneratedAt),
+        new Date(toDate),
+      ).from;
+      const from = range.from > checkpoint ? range.from : checkpoint;
+      if (from > range.to) continue;
+
+      const time = isDailyOrCoarser(template.repeatRule) ? template.time : null;
+      for (const date of r.between(from, range.to, policy.inclusiveBetween)) {
+        const epoch = policy.occurrenceEpoch(date);
+        candidates.push({
+          id: yield* genTaskId({ taskTemplateId: template.id, epoch }),
+          template,
+          date: occurrenceDMY(template, epoch),
+          time: time ?? null,
+        });
+      }
+    }
+
+    if (candidates.length === 0) return candidates;
+    const existing = yield* selectFrom(tasksTable, "byId").where((q) =>
+      candidates.map((c) => q.eq("id", c.id)),
+    );
+    const existingIds = new Set(existing.map((task) => task.id));
+    return candidates.filter((c) => !existingIds.has(c.id));
+  },
+});
+
 export const newTasksToGenForTaskTemplate = selector({
   name: "newTasksToGenForTaskTemplate",
   args: {
@@ -419,6 +492,8 @@ export const createTaskTemplate = action({
   },
   handler: function* createTaskTemplate({ now, template }) {
     const id = template.id || uuidv7();
+    assertValidTaskTime(template.time);
+    assertValidTaskDuration(template.durationMinutes);
 
     const newTemplate: TaskTemplate = {
       type: taskTemplateType,
@@ -445,6 +520,8 @@ export const updateTemplate = action({
   handler: function* updateTemplate({ id, template }) {
     const templateInState = yield* taskTemplateById({ id });
     if (!templateInState) throw new Error("Template not found");
+    assertValidTaskTime(template.time);
+    assertValidTaskDuration(template.durationMinutes);
 
     const updatedTemplate = { ...templateInState, ...template };
     yield* upsert(taskTemplatesTable, [updatedTemplate]);
@@ -483,6 +560,8 @@ export const createTaskTemplateFromTask = action({
   },
   handler: function* createTaskTemplateFromTask({ task, data, now }) {
     const newId = uuidv7();
+    // Read before deleteTasks removes the task's DailyEntry.
+    const entryTime = (yield* dailyEntryByTaskId({ taskId: task.id }))?.time;
     yield* copyItems({
       fromParentId: task.id,
       fromParentType: taskType,
@@ -502,8 +581,14 @@ export const createTaskTemplateFromTask = action({
       repeatRuleDtStart: now,
       lastGeneratedAt: now,
       projectSectionId: task.projectSectionId,
+      ...(entryTime == null ? {} : { time: entryTime }),
+      ...(task.durationMinutes == null
+        ? {}
+        : { durationMinutes: task.durationMinutes }),
       ...data,
     };
+    assertValidTaskTime(template.time);
+    assertValidTaskDuration(template.durationMinutes);
 
     yield* insert(taskTemplatesTable, [template]);
     yield* generateTasksForTemplateIds({
@@ -608,10 +693,14 @@ function* generateTasksForTemplateIds({
   let generatedCount = 0;
 
   for (const templateId of templateIds) {
+    const template = yield* taskTemplateById({ id: templateId });
     const newTasks = yield* newTasksToGenForTaskTemplate({
       templateId,
       toDate,
     });
+    // Sub-daily rules carry their own time in each occurrence.
+    const time =
+      template && isDailyOrCoarser(template.repeatRule) ? template.time : null;
 
     for (const task of newTasks) {
       if (task.templateId === null) {
@@ -629,10 +718,10 @@ function* generateTasksForTemplateIds({
         toParentType: taskType,
       });
 
-      const localDate = fromUTC(new Date(task.createdAt));
       yield* createEntryInDailyList({
         taskId: task.id,
-        date: getDMY(localDate),
+        date: occurrenceDMY(template, task.createdAt),
+        time,
       });
       generatedCount += 1;
     }

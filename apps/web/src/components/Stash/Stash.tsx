@@ -95,6 +95,7 @@ const StashColumnView = ({
             listItem={displayData.listItem}
             project={displayData.project}
             lastScheduleTime={displayData.lastScheduleTime}
+            scheduledTime={displayData.scheduledTime}
             dailyListId={displayData.dailyList?.id}
             hasCheclistItems={displayData.hasChecklist}
             alwaysShowProject
@@ -108,6 +109,7 @@ const StashColumnView = ({
             listItem={displayData.listItem}
             project={displayData.project}
             lastScheduleTime={displayData.lastScheduleTime}
+            scheduledTime={displayData.scheduledTime}
             dailyListId={displayData.dailyList?.id}
             hasCheclistItems={displayData.hasChecklist}
             alwaysShowProject

@@ -24,6 +24,7 @@ import { firstProjectSectionChild } from "./projectSections";
 import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
 import { registerModelSlice } from "./maps";
+import { assertValidTaskDuration } from "./utils";
 import {
   taskType,
   dailyEntriesTable,
@@ -207,6 +208,7 @@ export const updateTask = action({
   handler: function* updateTask({ id, task }) {
     const taskInState = yield* taskById({ id });
     if (!taskInState) throw new Error("Task not found");
+    assertValidTaskDuration(task.durationMinutes);
 
     yield* upsert(tasksTable, [{ ...taskInState, ...task }]);
   },
@@ -431,6 +433,9 @@ export const createTaskFromTemplate = action({
       content: taskTemplate.content,
       templateId: null,
       templateDate: null,
+      ...(taskTemplate.durationMinutes == null
+        ? {}
+        : { durationMinutes: taskTemplate.durationMinutes }),
     };
     yield* insert(tasksTable, [newTask]);
 

@@ -2220,6 +2220,9 @@ export type ListTasks200TasksItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -2409,6 +2412,9 @@ export type ListScheduledTasks200TasksItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -2556,6 +2562,9 @@ export type ListSectionItems200ItemsItem =
       lastToggledAt: number;
       /** Current schedule date, or null when the task is unscheduled */
       scheduledDate: string | null;
+      /** Time on the schedule date in HH:mm, or null when the task has no time */
+      scheduledTime: string | null;
+      durationMinutes: number | null;
     }
   | {
       type: "template";
@@ -2572,6 +2581,9 @@ export type ListSectionItems200ItemsItem =
        * @maximum 9007199254740991
        */
       repeatRuleDtStart: number;
+      /** Time given to generated tasks for daily or coarser rules */
+      time: string | null;
+      durationMinutes: number | null;
       /**
        * @minimum 0
        * @maximum 9007199254740991
@@ -2729,6 +2741,12 @@ export type CreateSectionTaskBody = {
   title: string;
   content?: string;
   nature?: CreateSectionTaskBodyNature;
+  /**
+   * Estimated duration in whole minutes
+   * @minimum 1
+   * @maximum 10080
+   */
+  durationMinutes?: number;
   /** Position within an ordered collection */
   placement?: CreateSectionTaskBodyPlacement;
 };
@@ -2781,6 +2799,9 @@ export type CreateSectionTask201Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -2958,6 +2979,9 @@ export type GetTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -3091,6 +3115,9 @@ export type UpdateTaskBody = {
   content?: string | null;
   state?: UpdateTaskBodyState;
   nature?: UpdateTaskBodyNature;
+  /** Time on the current schedule date; the task must be scheduled */
+  scheduledTime?: string | null;
+  durationMinutes?: number | null;
 };
 
 export type UpdateTask200TaskType =
@@ -3141,6 +3168,9 @@ export type UpdateTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -3503,6 +3533,8 @@ export type ScheduleTaskBody = {
    * @pattern ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
    */
   date: string;
+  /** Time on the date; omit to keep the current time, null to clear */
+  time?: string | null;
   /** Position within an ordered collection */
   placement?: ScheduleTaskBodyPlacement;
 };
@@ -3555,6 +3587,9 @@ export type ScheduleTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 export type ScheduleTask200 = {
@@ -3765,6 +3800,9 @@ export type MoveTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -3971,6 +4009,9 @@ export type ListDailyLists200DailyListsItemItemsItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 export type ListDailyLists200DailyListsItem = {
@@ -4147,6 +4188,9 @@ export type ListDailyListItems200ItemsItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 export type ListDailyListItems200 = {
@@ -4305,6 +4349,8 @@ export type CreateTaskTemplateBody = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart?: number;
+  time?: string | null;
+  durationMinutes?: number | null;
   /** Position within an ordered collection */
   placement?: CreateTaskTemplateBodyPlacement;
 };
@@ -4340,6 +4386,9 @@ export type CreateTaskTemplate201Template = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart: number;
+  /** Time given to generated tasks for daily or coarser rules */
+  time: string | null;
+  durationMinutes: number | null;
   /**
    * @minimum 0
    * @maximum 9007199254740991
@@ -4507,6 +4556,9 @@ export type GetTaskTemplate200Template = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart: number;
+  /** Time given to generated tasks for daily or coarser rules */
+  time: string | null;
+  durationMinutes: number | null;
   /**
    * @minimum 0
    * @maximum 9007199254740991
@@ -4648,6 +4700,8 @@ export type UpdateTaskTemplateBody = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart?: number;
+  time?: string | null;
+  durationMinutes?: number | null;
 };
 
 export type UpdateTaskTemplate200TemplateType =
@@ -4681,6 +4735,9 @@ export type UpdateTaskTemplate200Template = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart: number;
+  /** Time given to generated tasks for daily or coarser rules */
+  time: string | null;
+  durationMinutes: number | null;
   /**
    * @minimum 0
    * @maximum 9007199254740991
@@ -4962,6 +5019,9 @@ export type MoveTaskTemplate200Template = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart: number;
+  /** Time given to generated tasks for daily or coarser rules */
+  time: string | null;
+  durationMinutes: number | null;
   /**
    * @minimum 0
    * @maximum 9007199254740991
@@ -5123,6 +5183,8 @@ export type ConvertTaskToTemplateBody = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart?: number;
+  time?: string | null;
+  durationMinutes?: number | null;
 };
 
 export type ConvertTaskToTemplate200TemplateType =
@@ -5156,6 +5218,9 @@ export type ConvertTaskToTemplate200Template = {
    * @maximum 9007199254740991
    */
   repeatRuleDtStart: number;
+  /** Time given to generated tasks for daily or coarser rules */
+  time: string | null;
+  durationMinutes: number | null;
   /**
    * @minimum 0
    * @maximum 9007199254740991
@@ -5320,6 +5385,9 @@ export type ConvertTaskTemplateToTask200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -6800,6 +6868,9 @@ export type ListStashTasks200TasksItem = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -6950,6 +7021,12 @@ export type CreateStashTaskBody = {
   title: string;
   content?: string;
   nature?: CreateStashTaskBodyNature;
+  /**
+   * Estimated duration in whole minutes
+   * @minimum 1
+   * @maximum 10080
+   */
+  durationMinutes?: number;
   /** Position within an ordered collection */
   placement?: CreateStashTaskBodyPlacement;
 };
@@ -7002,6 +7079,9 @@ export type CreateStashTask201Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**
@@ -7211,6 +7291,9 @@ export type PutTaskInStash200Task = {
   lastToggledAt: number;
   /** Current schedule date, or null when the task is unscheduled */
   scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
 };
 
 /**

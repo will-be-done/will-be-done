@@ -1,0 +1,1 @@
+GET /api/v1/spaces/{spaceId}/sections/{sectionId}/items added `subschema #1, subschema #2` to the `items/items/` response property `oneOf` list for the response status `200`

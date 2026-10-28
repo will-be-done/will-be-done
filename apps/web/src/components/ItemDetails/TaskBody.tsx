@@ -13,11 +13,13 @@ import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import {
   createTaskTemplateFromTask,
+  dailyEntryByTaskId,
   dailyEntryDateOfTask,
   deleteTemplates,
   moveTaskToProject,
   projectSectionsByProjectId,
   projectOfProjectSectionOrDefault,
+  setDailyEntryTime,
   type Task,
   taskTemplateById,
   taskTemplateRuleText,
@@ -36,6 +38,8 @@ import {
   ProjectDetailRow,
   SectionDetailRow,
   EditableDescription,
+  TimeDetailRow,
+  DurationDetailRow,
 } from "./shared.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
@@ -72,6 +76,10 @@ export function TaskBody({
   const { data: scheduleDate } = useAsyncSelector({
     selector: dailyEntryDateOfTask,
     args: { taskId: taskId },
+  });
+  const { data: dailyEntry } = useAsyncSelector({
+    selector: dailyEntryByTaskId,
+    args: { taskId },
   });
 
   const taskTemplateId = task.templateId ?? null;
@@ -256,6 +264,22 @@ export function TaskBody({
             }
           />
         </DetailRow>
+
+        {scheduleDate && (
+          <TimeDetailRow
+            time={dailyEntry?.time ?? null}
+            onChange={(time) =>
+              void dispatch(setDailyEntryTime({ taskId, time }))
+            }
+          />
+        )}
+
+        <DurationDetailRow
+          durationMinutes={task.durationMinutes ?? null}
+          onChange={(durationMinutes) =>
+            void dispatch(updateTask({ id: taskId, task: { durationMinutes } }))
+          }
+        />
 
         <DetailRow
           icon={<CalendarDays className="h-3 w-3 shrink-0" />}

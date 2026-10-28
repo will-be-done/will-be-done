@@ -142,6 +142,7 @@ jobs:
           base: origin/${{ github.base_ref }}:apps/api/openapi.json
           revision: HEAD:apps/api/openapi.json
           fail-on: WARN
+          err-ignore: apps/api/oasdiff-err-ignore.txt
           review: false
 
   web-e2e:
