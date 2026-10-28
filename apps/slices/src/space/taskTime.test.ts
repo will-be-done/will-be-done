@@ -17,6 +17,7 @@ import {
   removeFromDailyList,
   scheduleTask,
 } from "./dailyEntries";
+import { dailyListByDate } from "./dailyLists";
 import { taskById, updateTask } from "./tasks";
 import {
   createTaskTemplateFromTask,
@@ -209,6 +210,54 @@ describe("task time and duration", () => {
         },
       }),
     ).toEqual([]);
+  });
+
+  it("puts late-evening sub-daily occurrences on their local day", () => {
+    const previousTZ = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    try {
+      const db = new DB(new BptreeInmemDriver(), {
+        traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+      });
+      execSync(db.loadTables(registeredSpaceSyncableTables));
+      // 20:00 on Mar 2 in New York (UTC-5).
+      const start = Date.parse("2026-03-03T01:00:00Z");
+      expect(new Date(start).getTimezoneOffset()).toBe(300);
+      insertRows(db, {
+        templates: [
+          template({
+            repeatRule: "FREQ=HOURLY;INTERVAL=1",
+            repeatRuleDtStart: start,
+            createdAt: start,
+            lastGeneratedAt: start,
+          }),
+        ],
+      });
+      // 23:30 on Mar 2 in New York.
+      const toDate = Date.parse("2026-03-03T04:30:00Z");
+
+      const upcoming = selectSync(db, {
+        selector: taskTemplateUpcomingOccurrences,
+        args: { fromDate: start, toDate },
+      });
+      expect(upcoming).toHaveLength(3);
+      expect(upcoming.every((o) => o.date === "2026-03-02")).toBe(true);
+
+      syncDispatch(
+        db,
+        generateTasksForTemplate({ templateId: "template-1", toDate }),
+      );
+      const { entries } = allRows(db);
+      const mar2 = selectSync(db, {
+        selector: dailyListByDate,
+        args: { date: "2026-03-02" },
+      });
+      expect(entries).toHaveLength(upcoming.length);
+      expect(entries.every((e) => e.dailyListId === mar2?.id)).toBe(true);
+    } finally {
+      if (previousTZ === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTZ;
+    }
   });
 
   it("ignores the template time for sub-daily rules", () => {

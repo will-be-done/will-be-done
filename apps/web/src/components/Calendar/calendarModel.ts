@@ -88,10 +88,13 @@ export function calendarTitle(
   const dates = visibleDates(view, anchor);
   const first = dates[0]!;
   const last = dates[dates.length - 1]!;
-  const range = isSameYear(first, last)
+  const sameYear = isSameYear(first, last);
+  const range = sameYear
     ? `${format(first, "MMM d")} – ${format(last, "MMM d")}`
     : `${format(first, "MMM d yyyy")} – ${format(last, "MMM d yyyy")}`;
-  if (view === "week") return `${range}, ${format(last, "yyyy")}`;
+  if (view === "week") {
+    return sameYear ? `${range}, ${format(last, "yyyy")}` : range;
+  }
 
   const startsToday = differenceInCalendarDays(first, today) === 0;
   return `${startsToday ? "Next 14 days" : "14 days"} · ${range}`;

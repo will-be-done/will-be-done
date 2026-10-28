@@ -132,6 +132,15 @@ type RecurrencePolicy = {
   occurrenceEpoch: (date: Date) => number;
 };
 
+// Daily-or-coarser epochs are abstract UTC wall-clock days; sub-daily epochs
+// are already real instants (see occurrenceEpoch), so only the former shift.
+function occurrenceDMY(template: TaskTemplate | undefined, epoch: number) {
+  const date = new Date(epoch);
+  return getDMY(
+    template && isDailyOrCoarser(template.repeatRule) ? fromUTC(date) : date,
+  );
+}
+
 /** Get the dtstart epoch for a template, falling back to createdAt for legacy templates */
 function getTemplateDtStart(template: TaskTemplate): number {
   return template.repeatRuleDtStart || template.createdAt;
@@ -365,7 +374,7 @@ export const taskTemplateUpcomingOccurrences = selector({
         candidates.push({
           id: yield* genTaskId({ taskTemplateId: template.id, epoch }),
           template,
-          date: getDMY(fromUTC(new Date(epoch))),
+          date: occurrenceDMY(template, epoch),
           time: time ?? null,
         });
       }
@@ -709,10 +718,9 @@ function* generateTasksForTemplateIds({
         toParentType: taskType,
       });
 
-      const localDate = fromUTC(new Date(task.createdAt));
       yield* createEntryInDailyList({
         taskId: task.id,
-        date: getDMY(localDate),
+        date: occurrenceDMY(template, task.createdAt),
         time,
       });
       generatedCount += 1;

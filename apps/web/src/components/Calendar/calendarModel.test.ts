@@ -71,6 +71,14 @@ describe("calendar model", () => {
     expect(calendarTitle("month", anchor, anchor)).toBe("October 2026");
   });
 
+  it("titles weeks with the year once, or both years across a boundary", () => {
+    expect(calendarTitle("week", anchor, anchor)).toBe("Oct 26 – Nov 1, 2026");
+    const newYearsEve = new Date(2026, 11, 31);
+    expect(calendarTitle("week", newYearsEve, newYearsEve)).toBe(
+      "Dec 28 2026 – Jan 3 2027",
+    );
+  });
+
   it("sorts timed before untimed and done last", () => {
     const sorted = sortDayEvents([
       event("untimed-1", null),

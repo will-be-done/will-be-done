@@ -31,6 +31,108 @@ async function dragBy(page: Page, from: { x: number; y: number }, dy: number) {
   await page.mouse.up();
 }
 
+test("opens calendar cards with Enter and Space only when the card is focused", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("Calendar Keyboard Space");
+  const title = uniqueE2EName("Keyboard task");
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await page.getByRole("link", { name: "calendar", exact: true }).click();
+
+  const column = gridColumn(page, today);
+  await column.evaluate((el) => {
+    el.closest(".overflow-y-auto")!.scrollTop = 9 * 48;
+  });
+  await column.click({ position: { x: 10, y: 10 * hourHeight + 5 } });
+  const dialog = page.getByRole("dialog", { name: "New task at 10:00 AM" });
+  await dialog.getByRole("textbox").fill(title);
+  await dialog.getByRole("button", { name: "Confirm" }).click();
+  await expect(dialog).toBeHidden();
+
+  const panel = page.getByTestId("item-details-panel");
+  const panelToggle = panel.locator("../..").getByRole("button").first();
+  for (const view of ["Week", "Plan"]) {
+    await page.getByRole("link", { name: view, exact: true }).click();
+    const card = page.locator("[data-calendar-date] [data-focusable-key]", {
+      hasText: title,
+    });
+    await expect(card).toBeVisible();
+    await card.focus();
+    // The panel preference persists across views; start each check closed.
+    if ((await panel.getAttribute("aria-hidden")) === "false") {
+      await panelToggle.click();
+    }
+    await expect(panel).toHaveAttribute("aria-hidden", "true");
+
+    for (const key of ["Enter", "Space"]) {
+      const child = card.locator("div").first();
+      await child.evaluate((el) => {
+        el.tabIndex = -1;
+      });
+      await child.focus();
+      await child.press(key);
+      await expect(panel).toHaveAttribute("aria-hidden", "true");
+
+      await card.focus();
+      await card.press(key);
+      await expect(panel).toHaveAttribute("aria-hidden", "false");
+      await expect(panel).toContainText(title);
+      await panelToggle.click();
+      await expect(panel).toHaveAttribute("aria-hidden", "true");
+    }
+    expect(
+      await card.evaluate((el) =>
+        el.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: " ",
+            code: "Space",
+            bubbles: true,
+            cancelable: true,
+          }),
+        ),
+      ),
+    ).toBe(false);
+  }
+});
+
+test("redirects invalid calendar dates to today before rendering", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("Calendar Date Space");
+  const today = format(new Date(), "yyyy-MM-dd");
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  const calendarPath = new URL(page.url()).pathname.replace(
+    /\/dates\/[^/]+$/,
+    "/calendar/",
+  );
+  for (const date of ["not-a-date", "2026-02-29", "2026-13-01"]) {
+    await page.goto(`${calendarPath}${date}?view=day&projectId=inbox`);
+    await expect(page).toHaveURL(
+      `${calendarPath}${today}?view=day&projectId=inbox`,
+    );
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      format(new Date(), "EEEE, MMM d yyyy"),
+    );
+  }
+  await page.goto(`${calendarPath}2028-02-29?view=day&projectId=inbox`);
+  await expect(page).toHaveURL(
+    `${calendarPath}2028-02-29?view=day&projectId=inbox`,
+  );
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Tuesday, Feb 29 2028",
+  );
+  expect(errors).toEqual([]);
+});
+
 test("plans a timed task on the calendar by dragging and resizing", async ({
   page,
 }) => {

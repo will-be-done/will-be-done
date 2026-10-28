@@ -317,6 +317,13 @@ const TimedBlock = ({
       data-focusable-key={event.focusKey}
       title={event.title}
       onClick={() => useItemDetailsOpen.getState().setOpen(true)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          useItemDetailsOpen.getState().setOpen(true);
+        }
+      }}
       onPointerDown={(e) =>
         startCalendarDrag(e, event, "move", actions.onCommit)
       }
