@@ -183,7 +183,7 @@ const UntimedCell = ({
       data-calendar-date={date}
       data-calendar-untimed
       data-focus-column
-      onDoubleClick={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) actions.onCreate(date, null);
       }}
       className={cn(
@@ -226,6 +226,11 @@ const GridColumn = ({
         title: drag.event.title,
         start: timeToMinutes(drag.target.time),
         length: drag.durationMinutes,
+        // Resizing shows the new duration; a move keeps the task's own.
+        durationMinutes:
+          drag.mode === "resize"
+            ? drag.durationMinutes
+            : drag.event.durationMinutes,
       }
     : null;
 
@@ -264,7 +269,10 @@ const GridColumn = ({
 
       {preview && (
         <div
-          className="pointer-events-none absolute inset-x-0.5 z-20 overflow-hidden rounded-md border border-accent bg-accent/25 px-1.5 py-0.5 text-xs text-content"
+          className={cn(
+            "pointer-events-none absolute inset-x-0.5 z-20 overflow-hidden rounded-md border border-accent bg-accent/25 px-1.5 py-0.5 text-xs text-content",
+            isShortBlock(preview.length) && "flex items-baseline gap-1.5",
+          )}
           style={{
             top: percent(preview.start),
             height: percent(
@@ -272,10 +280,12 @@ const GridColumn = ({
             ),
           }}
         >
-          <div className="truncate font-medium">{preview.title}</div>
-          <div className="tabular-nums text-content-tinted">
-            {minutesLabel(preview.start, preview.length)}
-          </div>
+          <BlockContent
+            title={preview.title}
+            start={preview.start}
+            length={preview.length}
+            durationMinutes={preview.durationMinutes}
+          />
         </div>
       )}
 
@@ -298,7 +308,7 @@ const TimedBlock = ({
   const isFocused = useFocusStore((s) => s.focusItemKey === event.focusKey);
   const start = timeToMinutes(event.time!);
   const length = Math.min(blockMinutes(event), minutesInDay - start);
-  const isShort = length < 45;
+  const isShort = isShortBlock(length);
 
   return (
     <div
@@ -323,24 +333,13 @@ const TimedBlock = ({
         width: `calc(${100 / layout.columns}% - 4px)`,
       }}
     >
-      {/* On one line the title keeps priority; the time yields. */}
-      <div
-        className={cn(
-          "max-w-full shrink-0 truncate font-medium",
-          event.isDone && "line-through",
-        )}
-      >
-        {event.title}
-      </div>
-      <div className="min-w-0 truncate tabular-nums text-content-tinted">
-        {isShort
-          ? formatTaskTime(event.time!)
-          : `${minutesLabel(start, length)}${
-              event.durationMinutes
-                ? ` · ${formatDuration(event.durationMinutes)}`
-                : ""
-            }`}
-      </div>
+      <BlockContent
+        title={event.title}
+        start={start}
+        length={length}
+        durationMinutes={event.durationMinutes}
+        isDone={event.isDone}
+      />
       {isDraggable(event) && (
         <div
           aria-hidden
@@ -351,6 +350,53 @@ const TimedBlock = ({
         />
       )}
     </div>
+  );
+};
+
+const isShortBlock = (length: number) => length < 45;
+
+// Shared by blocks and the drag preview. Short blocks fit one line, time
+// first so it stays visible however long the title is.
+const BlockContent = ({
+  title,
+  start,
+  length,
+  durationMinutes,
+  isDone = false,
+}: {
+  title: string;
+  start: number;
+  length: number;
+  durationMinutes: number | null;
+  isDone?: boolean;
+}) => {
+  const titleNode = (
+    <div
+      className={cn("min-w-0 truncate font-medium", isDone && "line-through")}
+    >
+      {title}
+    </div>
+  );
+
+  if (isShortBlock(length)) {
+    return (
+      <>
+        <div className="shrink-0 tabular-nums text-content-tinted">
+          {formatTaskTime(minutesToTime(start))}
+        </div>
+        {titleNode}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {titleNode}
+      <div className="truncate tabular-nums text-content-tinted">
+        {minutesLabel(start, length)}
+        {durationMinutes ? ` · ${formatDuration(durationMinutes)}` : ""}
+      </div>
+    </>
   );
 };
 

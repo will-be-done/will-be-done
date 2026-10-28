@@ -131,7 +131,7 @@ test("retimes a repeating task by dragging its upcoming occurrence", async ({
 
   await page
     .locator(`[data-calendar-untimed][data-calendar-date="${today}"]`)
-    .dblclick({ position: { x: 5, y: 5 } });
+    .click({ position: { x: 5, y: 5 } });
   const dialog = page.getByRole("dialog", { name: "New task" });
   await dialog.getByRole("textbox").fill(title);
   await dialog.getByRole("button", { name: "Confirm" }).click();

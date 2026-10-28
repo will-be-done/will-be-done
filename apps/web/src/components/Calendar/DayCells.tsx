@@ -53,7 +53,7 @@ const DayCell = ({
     <div
       data-calendar-date={date}
       data-focus-column
-      onDoubleClick={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) onCreate(date, null);
       }}
       className={cn(
