@@ -14,10 +14,13 @@ import {
   dailyEntryType,
   inboxProjectId,
   parseDMY,
+  type TaskTemplateOccurrence,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
+import { ProjectedTaskCard } from "@/components/Task/ProjectedTaskCard.tsx";
+import { useUpcomingOccurrences } from "@/components/Task/useUpcomingOccurrences.ts";
 import { NavPanel } from "./NavPanel.tsx";
 import { useCurrentDMY, useHiddenDays } from "./hooks.tsx";
 import { ProjectsSplit } from "../ProjectView/ProjectsSplit.tsx";
@@ -38,9 +41,11 @@ import { captureWebAnalytics } from "@/lib/analytics";
 
 const ColumnView = ({
   dailyList,
+  occurrences,
   onTaskAdd,
 }: {
   dailyList: DailyList;
+  occurrences: TaskTemplateOccurrence[];
   onTaskAdd: (dailyList: DailyList) => void;
 }) => {
   const currentDate = useCurrentDMY();
@@ -65,7 +70,9 @@ const ColumnView = ({
   const toggleIsHidden = useHiddenDays((state) => state.toggleIsHidden);
   const isHidden =
     isManuallyHidden ||
-    (itemsForDisplay.length == 0 && doneItemsForDisplay.length == 0);
+    (itemsForDisplay.length == 0 &&
+      doneItemsForDisplay.length == 0 &&
+      occurrences.length == 0);
   const handleHideClick = () => toggleIsHidden(dailyList.id);
 
   const handleAddClick = () => {
@@ -109,6 +116,14 @@ const ColumnView = ({
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
+        {occurrences.map((occurrence) => (
+          <ProjectedTaskCard
+            key={occurrence.id}
+            occurrence={occurrence}
+            onAddTask={handleAddClick}
+          />
+        ))}
+
         {itemsForDisplay.map((displayData) => {
           return (
             <PreloadedTaskComp
@@ -152,12 +167,14 @@ const BoardView = ({
   nextDate,
   selectedDate,
   dailyLists,
+  occurrencesOf,
   selectedProjectId,
 }: {
   previousDate: Date;
   nextDate: Date;
   selectedDate: Date;
   dailyLists: DailyList[];
+  occurrencesOf: (date: string) => TaskTemplateOccurrence[];
   selectedProjectId: string;
 }) => {
   const dispatch = useAsyncDispatch();
@@ -290,6 +307,7 @@ const BoardView = ({
           {dailyLists.map((dailyList) => (
             <ColumnView
               dailyList={dailyList}
+              occurrences={occurrencesOf(dailyList.date)}
               onTaskAdd={handleAddTask}
               key={dailyList.id}
             />
@@ -331,6 +349,7 @@ export const Board = ({
     selector: dailyListsByDates,
     args: { dates: weekDays.map((date) => date.getTime()) },
   });
+  const occurrencesOf = useUpcomingOccurrences(weekDays);
   const dispatch = useAsyncDispatch();
 
   useEffect(() => {
@@ -347,6 +366,7 @@ export const Board = ({
       nextDate={nextDate}
       selectedDate={selectedDate}
       dailyLists={dailyLists}
+      occurrencesOf={occurrencesOf}
       selectedProjectId={selectedProjectId}
     />
   );

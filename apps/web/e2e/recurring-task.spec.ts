@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "playwright/test";
+import { addDays, format } from "date-fns";
 
 import {
   createProjectTask,
   createSpace,
+  dailyTaskItem,
   openSpace,
   openTaskActions,
   projectTaskItem,
@@ -55,6 +57,57 @@ test("converts a task into a recurring template and persists it", async ({
   await expect(
     reloadedDetailsPanel.getByRole("button", { name: "every day" }),
   ).toBeVisible();
+});
+
+test("previews upcoming occurrences in the timeline and day views", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("E2E Recurring Preview Space");
+  const taskTitle = uniqueE2EName("E2E previewed task");
+  const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
+  const occurrence = page.locator(
+    `[data-focusable-key^="template^^"][data-occurrence-date="${tomorrow}"]`,
+    { hasText: taskTitle },
+  );
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+
+  await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
+  await createProjectTask(page, taskTitle);
+  await openTaskActions(page, taskTitle);
+  await page.getByRole("menuitem", { name: /convert to template/i }).click();
+  await page.getByRole("button", { name: "Ok" }).click();
+  await expect(templateItem(page, taskTitle)).toBeVisible();
+
+  await page.getByRole("link", { name: "timeline", exact: true }).click();
+  await expect(page).toHaveURL(/\/timeline\/\d{4}-\d{2}-\d{2}/);
+  await expect(occurrence).toBeVisible();
+
+  // Focusing the preview shows its template in item details.
+  await occurrence.click();
+  const detailsPanel = page.getByTestId("item-details-panel");
+  if ((await detailsPanel.getAttribute("aria-hidden")) !== "false") {
+    await page.keyboard.press("KeyV");
+  }
+  await expect(
+    detailsPanel.getByRole("button", { name: "every day" }),
+  ).toBeVisible();
+
+  // "o" on a focused preview adds a task to its day.
+  const addedTitle = uniqueE2EName("E2E task added from preview");
+  await occurrence.click();
+  await page.keyboard.press("KeyO");
+  await page.getByLabel("Edit task title").fill(addedTitle);
+  await page.keyboard.press("Enter");
+  await expect(dailyTaskItem(page, addedTitle)).toBeVisible();
+
+  await page.getByRole("link", { name: "projects", exact: true }).click();
+  await page.getByRole("link", { name: "Next day" }).click();
+  await expect(page).toHaveURL(new RegExp(`/dates/${tomorrow}`));
+  await expect(occurrence).toBeVisible();
+  await expect(dailyTaskItem(page, addedTitle)).toBeVisible();
 });
 
 async function openTemplateDetails(page: Page, title: string) {
