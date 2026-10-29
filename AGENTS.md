@@ -78,3 +78,28 @@ the v1 HTTP API in `apps/api/src/http/v1`, and update the API when appropriate.
 Every new v1 HTTP API method must be covered by an API E2E test in `apps/api/src/e2e`. The test
 must call the method through the generated OpenAPI client and run against the real Fastify server
 and database.
+
+# Documentation
+
+Most code changes do not need a documentation change. Agents can read the code.
+
+- `docs/` is internal: architectural decisions and their reasons, constraints that span
+  components (such as the sync invariants), implementation traps that are hard to discover from
+  the source, and maintainer/operator setup. Before adding a paragraph, ask what a maintainer
+  would get wrong without it. If reading the relevant code answers the question, leave it out.
+- Do not document every feature, enumerate fields or methods, narrate control flow, maintain file
+  catalogs, or append PR summaries. Types, tests, and code already record the implementation.
+- A local reason the code can't show goes in a short nearby code comment. Use an internal doc when
+  the reasoning crosses boundaries or needs context the code cannot carry well. Link to the
+  relevant source instead of copying it.
+- When a documented decision or constraint changes, rewrite or remove the affected text. Do not
+  append another account of the new behavior. A new internal doc needs a distinct, durable reason
+  to exist.
+- Public user docs live in `apps/landing/src/content/docs/docs`. Leave them alone unless the
+  change alters how a user accomplishes something: a new feature, a changed workflow, a keyboard
+  shortcut, offline/sync behavior users can observe, self-hosting, or the API. A UI tweak or a
+  new control does not need a docs entry. When an update is needed, edit the existing feature
+  section in the product's voice, without implementation details or contributor tooling.
+- The generated OpenAPI reference documents v1 endpoints. Touch the public API page only when how
+  to use the API changes, such as auth or SDK generation, not for each new endpoint.
+- Do not write release notes in `apps/landing/src/content/releases` unless asked.
