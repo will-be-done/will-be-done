@@ -33,11 +33,22 @@ export type CalendarDrag = {
   isNative?: boolean;
 };
 
-export type DragCommit = (drag: CalendarDrag) => void;
+export type DragCommit = (drag: CalendarDrag) => Promise<unknown> | void;
 
 export const useCalendarDrag = create<{ drag: CalendarDrag | null }>(() => ({
   drag: null,
 }));
+
+// The drag state stays up until the write lands, otherwise the block flashes
+// back in its old slot.
+export function commitCalendarDrag(drag: CalendarDrag, commit: DragCommit) {
+  useCalendarDrag.setState({ drag });
+  void Promise.resolve(commit(drag)).finally(() => {
+    if (useCalendarDrag.getState().drag === drag) {
+      useCalendarDrag.setState({ drag: null });
+    }
+  });
+}
 
 // True while a dragged card hovers this day cell (time undefined) or
 // all-day row (time null).
@@ -108,6 +119,9 @@ export function startCalendarDrag(
       ? gridMinutes(grid, startY) - timeToMinutes(event.time)
       : 0;
   let active = false;
+  // This gesture's own state; the store may still hold an earlier drop's
+  // preview while its write is pending.
+  let drag: CalendarDrag | null = null;
 
   const onMove = (move: PointerEvent) => {
     if (
@@ -120,8 +134,7 @@ export function startCalendarDrag(
     active = true;
     move.preventDefault();
 
-    const prev = useCalendarDrag.getState().drag;
-    const base: CalendarDrag = prev ?? {
+    const base: CalendarDrag = {
       event,
       mode,
       x: move.clientX,
@@ -140,26 +153,18 @@ export function startCalendarDrag(
         minutesInDay,
         snapToGrid(gridMinutes(column, move.clientY)),
       );
-      useCalendarDrag.setState({
-        drag: {
-          ...base,
-          x: move.clientX,
-          y: move.clientY,
-          target: { date: event.date, time: event.time },
-          durationMinutes: Math.max(snapMinutes, end - start),
-        },
-      });
-      return;
-    }
-
-    useCalendarDrag.setState({
-      drag: {
+      drag = {
         ...base,
-        x: move.clientX,
-        y: move.clientY,
+        target: { date: event.date, time: event.time },
+        durationMinutes: Math.max(snapMinutes, end - start),
+      };
+    } else {
+      drag = {
+        ...base,
         target: findTarget(base, move.clientX, move.clientY, grabOffsetMinutes),
-      },
-    });
+      };
+    }
+    useCalendarDrag.setState({ drag });
   };
 
   const finish = (commitDrag: boolean) => {
@@ -167,8 +172,6 @@ export function startCalendarDrag(
     window.removeEventListener("pointerup", onUp);
     window.removeEventListener("pointercancel", onCancel);
     window.removeEventListener("keydown", onKeyDown, { capture: true });
-    const drag = useCalendarDrag.getState().drag;
-    useCalendarDrag.setState({ drag: null });
     if (!active) return;
 
     // The pointerup of a drag must not also click the card underneath. The
@@ -181,7 +184,12 @@ export function startCalendarDrag(
     setTimeout(() => {
       window.removeEventListener("click", swallowClick, { capture: true });
     }, 0);
-    if (commitDrag && drag) commit(drag);
+    if (!drag) return;
+    if (commitDrag) {
+      commitCalendarDrag(drag, commit);
+    } else if (useCalendarDrag.getState().drag === drag) {
+      useCalendarDrag.setState({ drag: null });
+    }
   };
   const onUp = () => finish(true);
   const onCancel = () => finish(false);

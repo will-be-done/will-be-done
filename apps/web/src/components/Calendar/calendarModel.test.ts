@@ -102,6 +102,8 @@ describe("calendar model", () => {
       event("b", "09:30", 60),
       event("c", "10:00", 30),
       event("d", "12:00", 30),
+      event("e", "14:00", 15),
+      event("f", "14:15", 15),
       event("untimed", null),
     ]);
     expect(Object.fromEntries(layout)).toEqual({
@@ -110,6 +112,9 @@ describe("calendar model", () => {
       // a ends at 10:00, so c reuses its column.
       c: { column: 0, columns: 2 },
       d: { column: 0, columns: 1 },
+      // e is drawn taller than 15 minutes, so f sits beside it.
+      e: { column: 0, columns: 2 },
+      f: { column: 1, columns: 2 },
     });
   });
 });

@@ -12,6 +12,7 @@ import {
   getDOMColumnSiblingFirstItems,
 } from "@/components/Focus/domNavigation.ts";
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcuts/KeyboardShortcutsDialog";
+import { QuickAddDialog } from "@/components/QuickAdd/QuickAddDialog";
 
 export function GlobalListener() {
   const dispatch = useAsyncDispatch();
@@ -177,5 +178,10 @@ export function GlobalListener() {
     });
   }, [dispatch]);
 
-  return <KeyboardShortcutsDialog />;
+  return (
+    <>
+      <KeyboardShortcutsDialog />
+      <QuickAddDialog />
+    </>
+  );
 }

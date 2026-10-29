@@ -7,6 +7,7 @@ import { type CalendarEvent, blockMinutes } from "./calendarModel";
 import {
   type CalendarDrag,
   type DragCommit,
+  commitCalendarDrag,
   findTarget,
   useCalendarDrag,
 } from "./calendarDrag";
@@ -89,12 +90,10 @@ export function useExternalTaskDrop(
       },
       onDragLeave: clear,
       onDrop: ({ source, location }) => {
-        const drag = dragAt(
-          draggedTaskId(source.data)!,
-          location.current.input,
+        commitCalendarDrag(
+          dragAt(draggedTaskId(source.data)!, location.current.input),
+          commitRef.current,
         );
-        clear();
-        commitRef.current(drag);
       },
     });
   }, [ref, select]);
