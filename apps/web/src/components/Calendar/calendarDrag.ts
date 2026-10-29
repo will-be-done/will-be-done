@@ -33,11 +33,22 @@ export type CalendarDrag = {
   isNative?: boolean;
 };
 
-export type DragCommit = (drag: CalendarDrag) => void;
+export type DragCommit = (drag: CalendarDrag) => Promise<unknown> | void;
 
 export const useCalendarDrag = create<{ drag: CalendarDrag | null }>(() => ({
   drag: null,
 }));
+
+// The drag state stays up until the write lands, otherwise the block flashes
+// back in its old slot.
+export function commitCalendarDrag(drag: CalendarDrag, commit: DragCommit) {
+  useCalendarDrag.setState({ drag });
+  void Promise.resolve(commit(drag)).finally(() => {
+    if (useCalendarDrag.getState().drag === drag) {
+      useCalendarDrag.setState({ drag: null });
+    }
+  });
+}
 
 // True while a dragged card hovers this day cell (time undefined) or
 // all-day row (time null).
@@ -168,7 +179,9 @@ export function startCalendarDrag(
     window.removeEventListener("pointercancel", onCancel);
     window.removeEventListener("keydown", onKeyDown, { capture: true });
     const drag = useCalendarDrag.getState().drag;
-    useCalendarDrag.setState({ drag: null });
+    if (!active || !commitDrag || !drag) {
+      useCalendarDrag.setState({ drag: null });
+    }
     if (!active) return;
 
     // The pointerup of a drag must not also click the card underneath. The
@@ -181,7 +194,7 @@ export function startCalendarDrag(
     setTimeout(() => {
       window.removeEventListener("click", swallowClick, { capture: true });
     }, 0);
-    if (commitDrag && drag) commit(drag);
+    if (commitDrag && drag) commitCalendarDrag(drag, commit);
   };
   const onUp = () => finish(true);
   const onCancel = () => finish(false);

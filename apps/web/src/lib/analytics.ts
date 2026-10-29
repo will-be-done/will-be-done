@@ -48,7 +48,7 @@ export type WebAnalyticsEvent =
   | {
       name: "task_created";
       properties: {
-        creation_method: "add_button" | "sibling";
+        creation_method: "add_button" | "sibling" | "quick_add";
         location: TaskCreationLocation;
       };
     }

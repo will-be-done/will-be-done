@@ -11,6 +11,7 @@ import {
   type CalendarEvent,
   blockMinutes,
   isDraggable,
+  minBlockMinutes,
   layoutTimedEvents,
   minutesInDay,
   minutesToTime,
@@ -31,6 +32,9 @@ const gutterWidth = "4.5rem";
 const hours = Array.from({ length: 24 }, (_, i) => i);
 
 const percent = (minutes: number) => `${(minutes / minutesInDay) * 100}%`;
+
+const blockHeight = (start: number, length: number) =>
+  percent(Math.min(Math.max(length, minBlockMinutes), minutesInDay - start));
 
 const minutesLabel = (start: number, length: number) =>
   `${formatTaskTime(minutesToTime(start))} – ${formatTaskTime(
@@ -275,9 +279,7 @@ const GridColumn = ({
           )}
           style={{
             top: percent(preview.start),
-            height: percent(
-              Math.min(preview.length, minutesInDay - preview.start),
-            ),
+            height: blockHeight(preview.start, preview.length),
           }}
         >
           <BlockContent
@@ -335,7 +337,7 @@ const TimedBlock = ({
       )}
       style={{
         top: percent(start),
-        height: percent(length),
+        height: blockHeight(start, length),
         left: `calc(${(layout.column / layout.columns) * 100}% + 2px)`,
         width: `calc(${100 / layout.columns}% - 4px)`,
       }}
