@@ -206,55 +206,59 @@ export const CalendarPage = ({
         selectedProjectId={projectId === "inbox" ? inboxId : projectId}
         selectedDate={anchor}
       >
-        <header className="flex h-14 shrink-0 items-center gap-4 px-4 pt-2">
-          <div className="[app-region:no-drag] -mt-2">
+        {/* The nav sits flush in the top-left corner, like on the projects
+            and timeline pages, so it does not jump when switching views. */}
+        <header className="flex h-14 shrink-0 items-start gap-4 pr-4">
+          <div className="[app-region:no-drag]">
             <NavBar spaceId={spaceId} />
           </div>
-          <h1 className="truncate text-lg font-semibold text-content">
-            {calendarTitle(view, anchor, new Date())}
-          </h1>
+          <div className="mt-2 flex h-8 min-w-0 flex-1 items-center gap-4">
+            <h1 className="truncate text-lg font-semibold text-content">
+              {calendarTitle(view, anchor, new Date())}
+            </h1>
 
-          <div className="ml-auto flex items-center gap-3 [app-region:no-drag]">
-            <div className="flex items-center">
-              <Link
-                {...linkTo(shiftAnchor(view, anchor, -1))}
-                className={navButtonClass}
-                aria-label="Previous"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-              <Link {...linkTo(new Date())} className={navButtonClass}>
-                Today
-              </Link>
-              <Link
-                {...linkTo(shiftAnchor(view, anchor, 1))}
-                className={navButtonClass}
-                aria-label="Next"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            <div className="flex rounded-lg p-0.5 ring-1 ring-white/10">
-              {calendarViews.map((v) => (
+            <div className="ml-auto flex items-center gap-3 [app-region:no-drag]">
+              <div className="flex items-center">
                 <Link
-                  key={v}
-                  {...linkTo(anchor, v)}
-                  className={cn(
-                    "rounded-md px-3 py-1 text-sm transition-colors",
-                    v === view
-                      ? "bg-white/10 font-medium text-content"
-                      : "text-content-tinted hover:text-content",
-                  )}
+                  {...linkTo(shiftAnchor(view, anchor, -1))}
+                  className={navButtonClass}
+                  aria-label="Previous"
                 >
-                  {viewLabels[v]}
+                  <ChevronLeft className="h-4 w-4" />
                 </Link>
-              ))}
-            </div>
+                <Link {...linkTo(new Date())} className={navButtonClass}>
+                  Today
+                </Link>
+                <Link
+                  {...linkTo(shiftAnchor(view, anchor, 1))}
+                  className={navButtonClass}
+                  aria-label="Next"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
 
-            <TooltipProvider>
-              <SyncIndicator />
-            </TooltipProvider>
+              <div className="flex rounded-lg p-0.5 ring-1 ring-white/10">
+                {calendarViews.map((v) => (
+                  <Link
+                    key={v}
+                    {...linkTo(anchor, v)}
+                    className={cn(
+                      "rounded-md px-3 py-1 text-sm transition-colors",
+                      v === view
+                        ? "bg-white/10 font-medium text-content"
+                        : "text-content-tinted hover:text-content",
+                    )}
+                  >
+                    {viewLabels[v]}
+                  </Link>
+                ))}
+              </div>
+
+              <TooltipProvider>
+                <SyncIndicator />
+              </TooltipProvider>
+            </div>
           </div>
         </header>
 

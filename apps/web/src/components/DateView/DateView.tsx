@@ -12,6 +12,7 @@ import {
   dailyEntryType,
   inboxProjectId,
   parseDMY,
+  type TaskTemplateOccurrence,
 } from "@will-be-done/slices/space";
 
 import { cn } from "@/lib/utils.ts";
@@ -22,6 +23,8 @@ import {
   useFocusStore,
 } from "@/store/focusSlice.ts";
 import { PreloadedTaskComp } from "@/components/Task/Task.tsx";
+import { ProjectedTaskCard } from "@/components/Task/ProjectedTaskCard.tsx";
+import { useUpcomingOccurrences } from "@/components/Task/useUpcomingOccurrences.ts";
 import { useCurrentDMY } from "@/components/DaysBoard/hooks.tsx";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
@@ -86,11 +89,13 @@ const ChevronRight = () => (
 
 const SingleDayColumn = ({
   dailyList,
+  occurrences,
   onTaskAdd,
   previousDate,
   nextDate,
 }: {
   dailyList: DailyList;
+  occurrences: TaskTemplateOccurrence[];
   onTaskAdd: (dailyList: DailyList) => void;
   previousDate: Date;
   nextDate: Date;
@@ -254,6 +259,14 @@ const SingleDayColumn = ({
         ref={scrollableRef}
         className={cn("flex flex-col gap-4 w-full overflow-y-auto p-1", {})}
       >
+        {occurrences.map((occurrence) => (
+          <ProjectedTaskCard
+            key={occurrence.id}
+            occurrence={occurrence}
+            onAddTask={() => onTaskAdd(dailyList)}
+          />
+        ))}
+
         {itemsForDisplay.map((displayData) => (
           <PreloadedTaskComp
             key={displayData.listItem.id}
@@ -309,6 +322,8 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
     selector: dailyListsByDates,
     args: { dates: [startingDate.getTime()] },
   });
+  const days = useMemo(() => [startingDate], [startingDate]);
+  const occurrencesOf = useUpcomingOccurrences(days);
   const dispatch = useAsyncDispatch();
   const select = useSelectAsync();
   const { data: inboxId = "" } = useAsyncSelector({
@@ -372,6 +387,7 @@ export const DateView = ({ selectedDate }: { selectedDate: Date }) => {
           {dailyLists[0] && (
             <SingleDayColumn
               dailyList={dailyLists[0]}
+              occurrences={occurrencesOf(dailyLists[0].date)}
               onTaskAdd={handleAddTask}
               previousDate={previousDate}
               nextDate={nextDate}
