@@ -30,7 +30,54 @@ I like ambitious ideas, simple systems, and software that feels obvious. Do not 
 
 Channel both "measure twice, cut once" and "yagni". Fight scope creep. Try to honor the dev's intent in both a minimal and realistic fashion.
 
-The rest of this document is meant to help you navigate the codebase and make changes effectively. Think of these instructions less as "hard rules", more as "good defaults".
+The rest of this document is meant to help you navigate the codebase and make changes effectively. Think of these instructions less as "hard rules", more as "good defaults". The developer's preferences override anything here. If a rule fights the task in front of you, say so loudly and get a human sign-off before breaking it.
+
+# How it works
+
+Will Be Done is local-first. The domain model (schemas, selectors, actions) lives in
+`apps/slices` and runs unchanged in the browser and on the server. The web client keeps a full
+HyperDB database in the browser (`PreloadedHybridDB` over wa-sqlite or IndexedDB), applies user
+actions locally, and syncs changes to the API in the background. The API applies the same slices
+to SQLite databases per user and per space (local files, Turso Cloud, or `tursod`) and serves
+sync, auth, and the v1 HTTP API. Sync rules live in `docs/sync.md`.
+
+# Where code lives
+
+- `apps/slices` - shared schemas, selectors, actions, sync protocol, and storage migrations.
+- `apps/web` - React/Vite client. `src/store` owns local persistence and the client syncer.
+- `apps/api` - Bun server: sync, auth, backups, importers, and the v1 HTTP API in `src/http/v1`.
+- `apps/desktop` - Electron shell that loads the web app from a server; its own renderer only
+  covers connection and recovery screens.
+- `apps/tursod` - Rust database server, one of the API's storage engines.
+- `apps/landing` - Astro marketing site, public docs, and release notes.
+
+# Ways to hurt yourself
+
+1. **Killing by pattern.** Never `pkill -f`, `pgrep | kill`, or kill a PID found by matching a
+   name or path. Several worktrees and dev servers run on this machine at once, and your own agent
+   process has the worktree path in its argv. Kill only a PID you captured at spawn.
+2. **Shipping by accident.** Never run `deploy:*`, `release:desktop`, or `fly` commands, or point
+   dev at staging or production databases, unless explicitly asked.
+3. **Breaking local data.** Users' databases live in their browsers and are not migrated in one
+   place. Schema and storage changes need a migration path for existing local data and existing
+   synced clients; never assume a fresh database.
+
+# Hit every surface
+
+The most common defect is a change that works on the path you tested and is missing everywhere
+else. Before calling work done, walk this list and say which entries applied:
+
+- **Entry points.** A behavior reachable from one view is usually also reachable from others
+  (project, daily, stash, calendar), keyboard shortcuts, context menus, and drag-and-drop. Fixing
+  one is not fixing the feature.
+- **Surfaces.** Web, desktop, and the v1 HTTP API (see API Support). Logic that both client and
+  server need belongs in `apps/slices`, not in a component or route handler.
+- **Reverse states.** If you added a way in, add the way out and the way to see it. Schedule needs
+  unschedule, stash needs unstash, done needs undo, a new field needs a way to clear it. A one-way
+  door is a bug.
+- **Offline and sync.** New fields and tables must sync, survive offline edits, and merge
+  correctly across devices and tabs.
+- **Docs.** Check whether the change makes existing guidance inaccurate (see Documentation).
 
 # HyperDB
 
@@ -78,3 +125,56 @@ the v1 HTTP API in `apps/api/src/http/v1`, and update the API when appropriate.
 Every new v1 HTTP API method must be covered by an API E2E test in `apps/api/src/e2e`. The test
 must call the method through the generated OpenAPI client and run against the real Fastify server
 and database.
+
+# Verifying
+
+- Run checks for the packages you touched: `pnpm --filter @will-be-done/<web|slices|api> ts`,
+  `lint`, and `test`. Do not run repo-wide checks or E2E suites unless asked; CI owns the full
+  suite. While iterating, run the single test file you are working on.
+- Test behavior that can break: sync, merge, clocks, actions, storage migrations, drop rules,
+  date and recurrence logic, API handlers, and the logic a bug fix changed. Leave out tests for
+  what types already guarantee, trivial logic, copy text, and static markup.
+- Extend before you add. When an existing test or table covers the behavior, add a row or an
+  assertion there. Test at one layer: the lowest one that fails on `main`. Shared logic is tested
+  once in `apps/slices`, not again in web and api.
+- Logic, data, state, and sync bugs get a failing test first, then the fix. Purely visual bugs
+  get before/after screenshots as proof and no test.
+- No sleeps, polling loops, or wall-clock deltas in tests. Await the promise, event, or state that
+  marks the milestone. A test that needs a timeout to pass is wrong; fix flaky tests, do not retry
+  them.
+
+# Taste
+
+- Inferred types over annotations. `any` is the enemy.
+- Default to no comment. Write one only for a constraint, an external quirk, or an invariant the
+  code can't show, in one line where you can. Don't restate names, narrate steps, or explain the
+  fix you just made; the commit carries that.
+- React effects are for synchronizing with something outside React. Derive in render and act in
+  handlers instead of syncing state.
+- The app should feel instant. No loading spinners where local data can answer, no dropped frames
+  in lists or drag-and-drop, no continuously repainting animations.
+
+# Documentation
+
+Most code changes do not need a documentation change. Agents can read the code.
+
+- `docs/` is internal: architectural decisions and their reasons, constraints that span
+  components (such as the sync invariants), implementation traps that are hard to discover from
+  the source, and maintainer/operator setup. Before adding a paragraph, ask what a maintainer
+  would get wrong without it. If reading the relevant code answers the question, leave it out.
+- Do not document every feature, enumerate fields or methods, narrate control flow, maintain file
+  catalogs, or append PR summaries. Types, tests, and code already record the implementation.
+- A local reason the code can't show goes in a short nearby code comment. Use an internal doc when
+  the reasoning crosses boundaries or needs context the code cannot carry well. Link to the
+  relevant source instead of copying it.
+- When a documented decision or constraint changes, rewrite or remove the affected text. Do not
+  append another account of the new behavior. A new internal doc needs a distinct, durable reason
+  to exist.
+- Public user docs live in `apps/landing/src/content/docs/docs`. Leave them alone unless the
+  change alters how a user accomplishes something: a new feature, a changed workflow, a keyboard
+  shortcut, offline/sync behavior users can observe, self-hosting, or the API. A UI tweak or a
+  new control does not need a docs entry. When an update is needed, edit the existing feature
+  section in the product's voice, without implementation details or contributor tooling.
+- The generated OpenAPI reference documents v1 endpoints. Touch the public API page only when how
+  to use the API changes, such as auth or SDK generation, not for each new endpoint.
+- Do not write release notes in `apps/landing/src/content/releases` unless asked.
