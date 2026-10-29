@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "playwright/test";
+import { format } from "date-fns";
 import {
   createProject,
   createSpace,
@@ -8,6 +9,8 @@ import {
   signupUser,
   uniqueE2EName,
 } from "./helpers";
+
+const today = () => format(new Date(), "yyyy-MM-dd");
 
 async function openQuickAdd(page: Page) {
   await page.locator("body").click({ position: { x: 1, y: 1 } });
@@ -60,4 +63,29 @@ test("quick add defaults to the current page's project and date", async ({
 
   await page.getByRole("link", { name: new RegExp(projectTitle) }).click();
   await expect(projectTaskItem(page, dailyTask)).toBeVisible();
+});
+
+test("quick add opens from a focused calendar card", async ({ page }) => {
+  const spaceName = uniqueE2EName("Quick Add Calendar Space");
+  const title = uniqueE2EName("Calendar card");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  await page.getByRole("link", { name: "calendar", exact: true }).click();
+
+  await page
+    .locator(`[data-calendar-untimed][data-calendar-date="${today()}"]`)
+    .click({ position: { x: 5, y: 5 } });
+  let dialog = page.getByRole("dialog", { name: "Quick add" });
+  await dialog.getByLabel("Task title").fill(title);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+
+  await page
+    .locator("[data-calendar-untimed] [data-focusable-key]", { hasText: title })
+    .focus();
+  await page.keyboard.press("Control+KeyA");
+  dialog = page.getByRole("dialog", { name: "Quick add" });
+  await expect(dialog).toBeVisible();
 });

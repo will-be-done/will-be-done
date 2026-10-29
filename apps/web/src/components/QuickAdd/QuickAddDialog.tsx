@@ -42,13 +42,19 @@ import { closeQuickAdd, openQuickAdd, useQuickAdd } from "./quickAddStore";
 import { cn } from "@/lib/utils";
 import { useFocusStore } from "@/store/focusSlice";
 import { TimeInput } from "@/components/Task/TaskTimeInputs";
-import { isInputElement } from "@/utils/isInputElement";
 
 const chipClass =
   "flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 text-xs text-content-tinted transition-colors hover:bg-white/[0.05] hover:text-content focus:outline-none focus-visible:border-accent/60";
 
 const popoverClass =
   "z-[10001] border border-white/10 bg-task-dropdown p-0 backdrop-blur-none";
+
+// Unlike isInputElement, focused cards and buttons still get the shortcut;
+// only Ctrl+A's select-all while typing must win.
+const isEditingText = (target: EventTarget | null) =>
+  target instanceof HTMLInputElement ||
+  target instanceof HTMLTextAreaElement ||
+  (target instanceof HTMLElement && target.isContentEditable);
 
 // The project and date of the page the dialog opens from.
 function usePageDefaults() {
@@ -88,9 +94,7 @@ export function QuickAddDialog() {
         return;
       }
 
-      const target =
-        event.target instanceof Element ? event.target : document.activeElement;
-      if (target && isInputElement(target)) return;
+      if (isEditingText(event.target)) return;
 
       event.preventDefault();
       openQuickAdd();
