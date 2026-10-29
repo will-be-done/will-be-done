@@ -18,12 +18,9 @@ export const ProjectedTaskCard = ({
   onAddTask: () => void;
 }) => {
   const { template } = occurrence;
-  // A template can occur on several visible days; keys must be unique.
-  const focusKey = buildFocusKey(
-    template.id,
-    taskTemplateType,
-    occurrence.date,
-  );
+  // The template id keeps item details working; the occurrence id keeps keys
+  // unique when a template occurs several times in view (even on one day).
+  const focusKey = buildFocusKey(template.id, taskTemplateType, occurrence.id);
   const isFocused = useFocusStore(
     (s) => !s.isFocusDisabled && s.focusItemKey === focusKey,
   );
@@ -31,6 +28,7 @@ export const ProjectedTaskCard = ({
   return (
     <div
       data-focusable-key={focusKey}
+      data-occurrence-date={occurrence.date}
       // Keyboard moves and drops must skip it: it is not a real list item.
       data-ignore-drop
       tabIndex={0}
@@ -45,7 +43,7 @@ export const ProjectedTaskCard = ({
         }
       }}
       className={cn(
-        "cursor-default select-none rounded-lg border border-dashed px-2 py-2 text-sm text-content-tinted/70 outline-none whitespace-break-spaces [overflow-wrap:anywhere]",
+        "cursor-default select-none rounded-lg border border-dashed px-2 py-2 text-sm text-content-tinted/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent whitespace-break-spaces [overflow-wrap:anywhere]",
         isFocused
           ? "border-accent"
           : "border-content-tinted/25 hover:border-content-tinted/40",

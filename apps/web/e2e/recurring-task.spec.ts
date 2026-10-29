@@ -66,7 +66,7 @@ test("previews upcoming occurrences in the timeline and day views", async ({
   const taskTitle = uniqueE2EName("E2E previewed task");
   const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
   const occurrence = page.locator(
-    `[data-focusable-key^="template^^"][data-focusable-key$="^^${tomorrow}"]`,
+    `[data-focusable-key^="template^^"][data-occurrence-date="${tomorrow}"]`,
     { hasText: taskTitle },
   );
 
