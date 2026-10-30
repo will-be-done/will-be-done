@@ -212,6 +212,25 @@ export function isChecklistParentType(
   return modelType === taskType || modelType === taskTemplateType;
 }
 
+export const trashedTaskType = "trashedTask";
+// A deleted Task's snapshot. Tombstoned IDs cannot be reused, so the snapshot
+// rows already carry the fresh IDs a restore inserts: the task's ID is the
+// trashed task's ID, and its checklist items and entries point at it.
+export const trashedTasksTable = defineTable("trashed_tasks", {
+  type: v.literal(trashedTaskType),
+  id: v.string(),
+  trashedAt: v.number(),
+  task: tasksTable.v(),
+  checklistItems: v.array(checklistItemsTable.v()),
+  dailyEntry: v.union(dailyEntriesTable.v(), v.null()),
+  stashEntry: v.union(stashEntriesTable.v(), v.null()),
+})
+  .index("byIds", ["id"])
+  .index("byTrashedAtId", ["trashedAt", "id"]);
+registerSpaceSyncableTable(trashedTasksTable, trashedTaskType);
+
+export type TrashedTask = ExtractSchema<typeof trashedTasksTable>;
+
 export const item = v.union(tasksTable.v(), taskTemplatesTable.v());
 export type Item = Infer<typeof item>;
 export type ItemType = Item["type"];
@@ -267,7 +286,8 @@ export type AnyTable =
   | typeof dailyEntriesTable
   | typeof projectSectionsTable
   | typeof stashEntriesTable
-  | typeof checklistItemsTable;
+  | typeof checklistItemsTable
+  | typeof trashedTasksTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),

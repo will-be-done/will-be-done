@@ -299,6 +299,8 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       schema: {
         operationId: "deleteTask",
         summary: "Delete a task",
+        description:
+          "Moves the task to the trash, where it can be restored from the app for 30 days.",
         tags: ["Tasks"],
         security: [{ bearerAuth: [] }],
         params: TaskParamsSchema,

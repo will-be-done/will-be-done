@@ -86,12 +86,18 @@ The delete action depends on where you use it:
 
 | View              | Effect                                                            |
 | ----------------- | ----------------------------------------------------------------- |
-| Project section   | Deletes the task and its scheduled and Stash appearances          |
+| Project section   | Moves the task to Trash with its scheduled and Stash appearances  |
 | Timeline or Today | Removes the scheduled appearance; the task remains in its project |
 | Stash             | Removes the Stash appearance; the task remains in its project     |
 
 Resetting a task's schedule also keeps the task. Undo and redo are not available
 yet. See [keyboard shortcuts](/docs/keyboard-shortcuts/) for the corresponding keys.
+
+Open **Trash** at the bottom of the sidebar to restore a deleted task or delete
+it forever. Restoring returns the task to its section, checklist, schedule, and
+Stash; if its project is gone, it returns to the Inbox. Tasks are deleted forever
+30 days after they enter Trash. Deleting a project deletes its tasks without
+moving them to Trash.
 
 ## Imports and space backups
 

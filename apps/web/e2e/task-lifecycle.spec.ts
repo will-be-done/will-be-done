@@ -10,7 +10,7 @@ import {
   uniqueE2EName,
 } from "./helpers";
 
-test("creates, edits, toggles, and deletes a task across Today and Inbox", async ({
+test("creates, edits, toggles, deletes, and restores a task across Today and Inbox", async ({
   page,
 }) => {
   const spaceName = uniqueE2EName("E2E Lifecycle Space");
@@ -86,4 +86,12 @@ test("creates, edits, toggles, and deletes a task across Today and Inbox", async
 
   await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
   await expect(taskItem(page, editedTitle)).toHaveCount(0);
+
+  await page.getByRole("link", { name: /^Trash$/ }).click();
+  await expect(page.getByText(editedTitle)).toBeVisible();
+  await page.getByRole("button", { name: "Restore" }).click();
+  await expect(page.getByText("Trash is empty")).toBeVisible();
+
+  await inboxWithOneTask.click();
+  await expect(taskItem(page, editedTitle)).toBeVisible();
 });

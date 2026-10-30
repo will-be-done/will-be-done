@@ -11,7 +11,7 @@ import {
   dailyEntryByTaskId,
   dailyListById,
   dailyListsByIds,
-  deleteTaskById,
+  trashTasks,
   setDailyEntryTime,
   taskById,
   tasksTable,
@@ -317,6 +317,6 @@ export async function deleteTask({
     args: { id: taskId },
   });
   if (!task) throw new ResourceNotFoundError("Task");
-  await asyncDispatch(db, deleteTaskById({ id: taskId }));
+  await asyncDispatch(db, trashTasks({ ids: [taskId] }));
   return task;
 }
