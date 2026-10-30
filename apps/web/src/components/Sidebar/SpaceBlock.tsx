@@ -1,7 +1,8 @@
 import { Settings, ArrowLeftRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
-import { authUtils, isDemoMode } from "@/lib/auth";
+import { authUtils } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoMode";
 import { useSpaceSettingsStore } from "@/components/SpaceSettings/spaceSettingsStore.ts";
 import { useSidebar } from "@/components/ui/sidebar.tsx";
 import { SyncIndicator } from "./SyncIndicator";
