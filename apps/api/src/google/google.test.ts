@@ -30,6 +30,8 @@ import { authenticateBearerToken } from "../services/authentication";
 import { action } from "../builders";
 import { accountEmailTables, emailChallengesTable } from "../email/tables";
 import { createAccountEmailService } from "../email/service";
+import { oidcFlowsTable } from "../oidc/tables";
+import { createOidcService } from "../oidc/service";
 import { googleFlowsTable, type GoogleProfile } from "./tables";
 import { createGoogleService, type GoogleService } from "./service";
 import type { BackendAnalyticsEvent } from "../analytics";
@@ -110,6 +112,7 @@ async function fixture(
       userTable,
       tokensTable,
       googleFlowsTable,
+      oidcFlowsTable,
       ...accountEmailTables,
     ]),
   );
@@ -468,6 +471,49 @@ describe("Google accounts", () => {
       await upgraded.ready(),
     );
     expect((await upgraded.user(account.userId))!.password).toBeUndefined();
+    const oidcConfig = {
+      ...config,
+      issuer: "https://identity.example.com",
+      name: "SSO",
+    };
+    upgraded.setProfile({
+      subject: "sso-subject",
+      email: "sso@example.com",
+      emailAuthoritative: true,
+    });
+    const oidc = createOidcService(upgraded.db, oidcConfig, upgraded.options);
+    const pending = await oidc.begin(undefined, { initiator: "browser" });
+    const reopened = await fixture(path);
+    const restored = createOidcService(
+      reopened.db,
+      oidcConfig,
+      upgraded.options,
+    );
+    await restored.launch(
+      pending.id,
+      new URL(pending.launchUrl).searchParams.get("launch")!,
+      "cookie",
+      { initiator: "browser" },
+    );
+    await restored.callback(pending.id, "cookie", "valid");
+    const ssoAccount = await restored.completeSignIn(pending);
+    const reopenedAgain = await fixture(path);
+    const returning = createOidcService(
+      reopenedAgain.db,
+      oidcConfig,
+      upgraded.options,
+    );
+    expect(
+      (
+        await returning.completeSignIn(
+          await reopenedAgain.ready(undefined, returning),
+        )
+      ).userId,
+    ).toBe(ssoAccount.userId);
+    expect(await reopenedAgain.user("old-user")).toMatchObject({
+      email: "Original@Example.com",
+      password: "old-hash",
+    });
   });
 
   test("legacy email backfill preserves case-only duplicate accounts", async () => {

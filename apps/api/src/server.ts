@@ -5,7 +5,9 @@ import multipart from "@fastify/multipart";
 import staticPlugin from "@fastify/static";
 import swagger from "@fastify/swagger";
 import websocket from "@fastify/websocket";
+import type { OidcService } from "./oidc/service";
 import { googleRoutes } from "./google/routes";
+import { authFlowRoutes } from "./auth/routes";
 import type { GoogleService } from "./google/service";
 import type { RateLimitConfig } from "./rateLimit";
 import { createAppRateLimiter, registerAppRateLimiting } from "./rateLimit";
@@ -36,6 +38,7 @@ export interface CreateServerOptions {
   mainDB?: DB;
   analytics?: BackendAnalytics;
   google?: GoogleService;
+  oidc?: OidcService;
 }
 
 export function createServer({
@@ -46,6 +49,7 @@ export function createServer({
   mainDB,
   analytics = noopBackendAnalytics,
   google,
+  oidc,
 }: CreateServerOptions) {
   const rateLimitEnabled = rateLimit.enabled ?? true;
   const server = fastify({
@@ -68,6 +72,7 @@ export function createServer({
   }
 
   if (google) googleRoutes(server, google);
+  if (oidc) authFlowRoutes(server, oidc, "oidc");
 
   server.register(websocket);
   server.register(multipart);

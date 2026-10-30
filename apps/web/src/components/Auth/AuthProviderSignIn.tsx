@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc";
 import { isDemoMode } from "@/lib/auth";
-import { useGoogleFlow } from "@/hooks/useGoogleFlow";
+import { useAuthFlow } from "@/hooks/useAuthFlow";
 import type { GoogleAuthSource } from "@/lib/analytics";
 
 export function GoogleMark() {
@@ -27,48 +27,57 @@ export function GoogleMark() {
   );
 }
 
-export function GoogleSignIn({
+export function AuthProviderSignIn({
   source,
+  provider = "google",
 }: {
   source: Extract<GoogleAuthSource, "login" | "signup">;
+  provider?: "google" | "oidc";
 }) {
   const trpc = useTRPC();
   const config = useQuery(
     trpc.getAuthConfig.queryOptions(undefined, { enabled: !isDemoMode() }),
   );
-  const google = useGoogleFlow("signin", source);
-  if (isDemoMode() || !config.data?.googleEnabled) return null;
+  const flow = useAuthFlow("signin", source, provider);
+  const label = provider === "google" ? "Google" : config.data?.oidcName;
+  if (
+    isDemoMode() ||
+    (provider === "google" ? !config.data?.googleEnabled : !label)
+  )
+    return null;
   return (
     <div className="mb-6 space-y-3">
       <button
         type="button"
-        disabled={google.busy}
-        onClick={() => void google.start()}
+        disabled={flow.busy}
+        onClick={() => void flow.start()}
         className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-[#747775] bg-[#131314] px-4 py-3 text-sm font-medium text-[#e3e3e3] hover:bg-[#252628] disabled:opacity-60"
       >
-        <GoogleMark />
-        Continue with Google
+        {provider === "google" && <GoogleMark />}
+        Continue with {label}
       </button>
-      {google.busy && (
+      {flow.busy && (
         <div className="text-center text-sm text-slate-300">
-          <p role="status">Finish signing in with Google in your browser.</p>
+          <p role="status">Finish signing in with {label} in your browser.</p>
           <button
             type="button"
             className="mt-2 cursor-pointer underline"
-            onClick={google.cancel}
+            onClick={flow.cancel}
           >
-            Cancel Google sign-in
+            Cancel sign-in
           </button>
         </div>
       )}
-      {google.error && (
+      {flow.error && (
         <p role="alert" className="text-sm text-red-300">
-          {google.error}
+          {flow.error}
         </p>
       )}
-      <p className="text-center text-xs text-slate-400">
-        or continue with email
-      </p>
+      {(provider === "oidc" || !config.data?.oidcName) && (
+        <p className="text-center text-xs text-slate-400">
+          or continue with email
+        </p>
+      )}
     </div>
   );
 }

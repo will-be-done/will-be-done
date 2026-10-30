@@ -9,6 +9,8 @@ import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
 import { closeDatabases, getMainHyperDB } from "./db/db";
 import { getEnvConfig } from "./env";
+import { parseOidcConfig } from "./oidc/config";
+import { createOidcService } from "./oidc/service";
 import { parseGoogleConfig } from "./google/config";
 import { createGoogleService } from "./google/service";
 import { parseEmailConfig } from "./email/config";
@@ -29,6 +31,7 @@ const start = async () => {
     const env = getEnvConfig();
     const emailConfig = parseEmailConfig(env);
     const googleConfig = parseGoogleConfig(env);
+    const oidcConfig = parseOidcConfig(env);
     await subscriptionManager.initialize();
     console.log(
       `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
@@ -56,7 +59,11 @@ const start = async () => {
           emailConfig: emailConfig ?? undefined,
         })
       : undefined;
+    const oidc = oidcConfig
+      ? createOidcService(mainDB, oidcConfig, { analytics })
+      : undefined;
     const appRouter = createAppRouter({
+      oidc,
       google,
       mainDB,
       captchaConfig: getCaptchaConfig(),
@@ -64,6 +71,7 @@ const start = async () => {
       analytics,
     });
     const server = createServer({
+      oidc,
       google,
       appRouter,
       mainDB,

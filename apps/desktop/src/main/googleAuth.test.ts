@@ -9,7 +9,16 @@ test('opens only the configured server launch URL from its renderer', () => {
     validateGoogleAuthLaunch('https://app.example.com', 'https://app.example.com/account', launch),
     launch
   )
+  assert.equal(
+    validateGoogleAuthLaunch(
+      'https://app.example.com',
+      'https://app.example.com/account',
+      launch.replace('/google/', '/oidc/')
+    ),
+    launch.replace('/google/', '/oidc/')
+  )
   for (const url of [
+    launch.replace('/google/', '/unknown/'),
     launch.replace('app.example.com', 'evil.example.com'),
     'file:///tmp/login',
     'javascript:alert(1)',

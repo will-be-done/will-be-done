@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, KeyRound, Mail } from "lucide-react";
-import { GoogleMark } from "./GoogleSignIn";
+import { SsoAccountSettings } from "./SsoAccountSettings";
+import { GoogleMark } from "./AuthProviderSignIn";
 import { ChangeEmailForm } from "./ChangeEmailForm";
 import { useTRPC } from "@/lib/trpc";
-import { useGoogleFlow } from "@/hooks/useGoogleFlow";
+import { useAuthFlow } from "@/hooks/useAuthFlow";
 
 export function AccountSettings() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const account = useQuery(trpc.getAccount.queryOptions());
   const config = useQuery(trpc.getAuthConfig.queryOptions());
-  const google = useGoogleFlow("link", "account_settings");
+  const google = useAuthFlow("link", "account_settings");
   const [password, setPassword] = useState("");
   const [passwordRequested, setPasswordRequested] = useState(false);
   const passwordInput = useRef<HTMLInputElement>(null);
@@ -231,6 +232,14 @@ export function AccountSettings() {
           </p>
         )}
       </div>
+      {(config.data?.oidcName || user.oidcEmail) && (
+        <SsoAccountSettings
+          name={config.data?.oidcName ?? "SSO"}
+          email={user.oidcEmail}
+          hasPassword={user.hasPassword}
+          buttonClass={button}
+        />
+      )}
       {!user.hasPassword && (
         <div className={card}>
           <div className="flex items-center gap-3">
@@ -238,7 +247,8 @@ export function AccountSettings() {
             <h2 className="font-semibold text-white">Password</h2>
           </div>
           <p className="text-slate-400">
-            Set a password through email recovery before disconnecting Google.
+            Set a password through email recovery before disconnecting a sign-in
+            provider.
           </p>
           {config.data?.emailEnabled ? (
             <button
@@ -262,8 +272,8 @@ export function AccountSettings() {
             </button>
           ) : (
             <p className="text-slate-400">
-              Email recovery is not configured on this server. Keep Google
-              connected to sign in.
+              Email recovery is not configured on this server. Keep your sign-in
+              provider connected.
             </p>
           )}
         </div>

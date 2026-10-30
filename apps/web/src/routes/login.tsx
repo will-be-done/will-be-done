@@ -1,4 +1,4 @@
-import { GoogleSignIn } from "@/components/Auth/GoogleSignIn";
+import { AuthProviderSignIn } from "@/components/Auth/AuthProviderSignIn";
 import {
   createFileRoute,
   Link,
@@ -302,7 +302,8 @@ function LoginPage() {
 
           {/* Form card */}
           <div className="rounded-lg bg-white/[0.03] p-8 ring-1 ring-white/[0.06] backdrop-blur-sm safari:bg-white/[0.08] safari:backdrop-blur-none">
-            <GoogleSignIn source="login" />
+            <AuthProviderSignIn source="login" />
+            <AuthProviderSignIn source="login" provider="oidc" />
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label

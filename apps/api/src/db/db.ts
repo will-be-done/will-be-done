@@ -9,6 +9,7 @@ import {
 } from "@will-be-done/hyperdb";
 import path from "path";
 import { getEnvConfig } from "../env";
+import { oidcFlowsTable } from "../oidc/tables";
 import { googleFlowsTable } from "../google/tables";
 import { backfillUserEmails } from "../slices/authSlice";
 import { accountEmailTables } from "../email/tables";
@@ -154,6 +155,7 @@ export const getMainHyperDB = async () => {
       db.loadTables([
         ...accountEmailTables,
         googleFlowsTable,
+        oidcFlowsTable,
         usersTable,
         tokensTable,
         dbsTable,

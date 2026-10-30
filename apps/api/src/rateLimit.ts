@@ -3,6 +3,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import Redis from "ioredis";
 
 export type RateLimitPolicy =
+  | "oidcAuth"
+  | "oidcPoll"
   | "googleAuth"
   | "googlePoll"
   | "login"
@@ -21,6 +23,8 @@ interface PolicyConfig extends WindowLimitConfig {
 }
 
 const defaultPolicies: Record<RateLimitPolicy, PolicyConfig> = {
+  oidcAuth: { max: 20, timeWindow: "10 minutes", identity: "ip" },
+  oidcPoll: { max: 120, timeWindow: "1 minute", identity: "ip" },
   googleAuth: { max: 20, timeWindow: "10 minutes", identity: "ip" },
   googlePoll: { max: 120, timeWindow: "1 minute", identity: "ip" },
   accountEmailSend: { max: 10, timeWindow: "5 minutes", identity: "ip" },

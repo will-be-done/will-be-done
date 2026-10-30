@@ -1,8 +1,8 @@
 // OAuth authorization codes and launch credentials must not enter telemetry.
 function isGoogleAuthUrl(value: string): boolean {
   try {
-    return new URL(value, "https://redaction.invalid").pathname.startsWith(
-      "/api/auth/google/",
+    return /^\/api\/auth\/(google|oidc)\//.test(
+      new URL(value, "https://redaction.invalid").pathname,
     );
   } catch {
     return false;

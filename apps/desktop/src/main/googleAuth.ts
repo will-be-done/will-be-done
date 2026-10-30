@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
-// Only the selected server may open its fixed Google launch endpoint.
+// Only the selected server may open its fixed authentication launch endpoints.
 export function validateGoogleAuthLaunch(
   serverUrl: string,
   senderUrl: string,
@@ -19,14 +19,14 @@ export function validateGoogleAuthLaunch(
     launch.username ||
     launch.password ||
     launch.hash ||
-    launch.pathname !== '/api/auth/google/launch' ||
+    !['/api/auth/google/launch', '/api/auth/oidc/launch'].includes(launch.pathname) ||
     keys.length !== 2 ||
     !keys.includes('id') ||
     !keys.includes('launch') ||
     !/^[\w-]{43}$/.test(launch.searchParams.get('id') ?? '') ||
     !/^[\w-]{43}$/.test(launch.searchParams.get('launch') ?? '')
   ) {
-    throw new Error('Invalid Google authentication URL')
+    throw new Error('Invalid authentication URL')
   }
   return launch.href
 }
