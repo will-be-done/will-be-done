@@ -72,7 +72,9 @@ function SpacePageComponent() {
   const trpc = useTRPC();
   const authConfig = useQuery(trpc.getAuthConfig.queryOptions());
   const showAccount =
-    authConfig.data?.emailEnabled || authConfig.data?.googleEnabled;
+    authConfig.data?.emailEnabled ||
+    authConfig.data?.googleEnabled ||
+    authConfig.data?.oidcName;
 
   const { data: spaces = [] } = useAsyncSelector({
     selector: listSpaces,

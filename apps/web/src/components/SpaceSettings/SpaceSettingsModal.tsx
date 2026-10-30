@@ -57,7 +57,9 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
   );
   const showAccount =
     !isDemoMode() &&
-    (authConfig.data?.emailEnabled || authConfig.data?.googleEnabled);
+    (authConfig.data?.emailEnabled ||
+      authConfig.data?.googleEnabled ||
+      authConfig.data?.oidcName);
   const visibleSection =
     activeSection === "account" && !showAccount ? "general" : activeSection;
 

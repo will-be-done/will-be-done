@@ -2,6 +2,11 @@ import "dotenv/config";
 import { z } from "zod";
 
 const EnvConfigSchema = z.object({
+  WBD_OIDC_ISSUER: z.string().optional(),
+  WBD_OIDC_CLIENT_ID: z.string().optional(),
+  WBD_OIDC_CLIENT_SECRET: z.string().optional(),
+  WBD_OIDC_PUBLIC_APP_URL: z.string().optional(),
+  WBD_OIDC_NAME: z.string().optional(),
   WBD_GOOGLE_CLIENT_ID: z.string().optional(),
   WBD_GOOGLE_CLIENT_SECRET: z.string().optional(),
   WBD_GOOGLE_PUBLIC_APP_URL: z.string().optional(),
@@ -52,6 +57,11 @@ const EnvConfigSchema = z.object({
 
 let envConfig:
   | {
+      WBD_OIDC_ISSUER?: string;
+      WBD_OIDC_CLIENT_ID?: string;
+      WBD_OIDC_CLIENT_SECRET?: string;
+      WBD_OIDC_PUBLIC_APP_URL?: string;
+      WBD_OIDC_NAME?: string;
       WBD_GOOGLE_CLIENT_ID?: string;
       WBD_GOOGLE_CLIENT_SECRET?: string;
       WBD_GOOGLE_PUBLIC_APP_URL?: string;
@@ -86,6 +96,11 @@ export function getEnvConfig() {
   if (envConfig) return envConfig;
 
   const parsed = EnvConfigSchema.parse({
+    WBD_OIDC_ISSUER: process.env.WBD_OIDC_ISSUER,
+    WBD_OIDC_CLIENT_ID: process.env.WBD_OIDC_CLIENT_ID,
+    WBD_OIDC_CLIENT_SECRET: process.env.WBD_OIDC_CLIENT_SECRET,
+    WBD_OIDC_PUBLIC_APP_URL: process.env.WBD_OIDC_PUBLIC_APP_URL,
+    WBD_OIDC_NAME: process.env.WBD_OIDC_NAME,
     WBD_GOOGLE_CLIENT_ID: process.env.WBD_GOOGLE_CLIENT_ID,
     WBD_GOOGLE_CLIENT_SECRET: process.env.WBD_GOOGLE_CLIENT_SECRET,
     WBD_GOOGLE_PUBLIC_APP_URL: process.env.WBD_GOOGLE_PUBLIC_APP_URL,
@@ -159,6 +174,12 @@ export function getEnvConfig() {
   }
 
   envConfig = {
+    WBD_OIDC_ISSUER: parsed.WBD_OIDC_ISSUER,
+    WBD_OIDC_CLIENT_ID: parsed.WBD_OIDC_CLIENT_ID,
+    WBD_OIDC_CLIENT_SECRET: parsed.WBD_OIDC_CLIENT_SECRET,
+    WBD_OIDC_PUBLIC_APP_URL: parsed.WBD_OIDC_PUBLIC_APP_URL,
+    WBD_OIDC_NAME: parsed.WBD_OIDC_NAME,
+
     WBD_GOOGLE_CLIENT_ID: parsed.WBD_GOOGLE_CLIENT_ID,
     WBD_GOOGLE_CLIENT_SECRET: parsed.WBD_GOOGLE_CLIENT_SECRET,
     WBD_GOOGLE_PUBLIC_APP_URL: parsed.WBD_GOOGLE_PUBLIC_APP_URL,

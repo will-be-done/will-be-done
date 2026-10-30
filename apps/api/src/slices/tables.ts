@@ -5,6 +5,8 @@ export const usersTable = defineTable("users", {
   email: v.string(),
   password: v.optional(v.string()),
   normalizedEmail: v.optional(v.string()),
+  oidcIdentity: v.optional(v.string()),
+  oidcEmail: v.optional(v.string()),
   googleSubject: v.optional(v.string()),
   googleEmail: v.optional(v.string()),
   createdAt: v.string(),
@@ -14,7 +16,8 @@ export const usersTable = defineTable("users", {
   .index("byIds", ["id"])
   .index("byEmail", ["email"])
   .index("byNormalizedEmail", ["normalizedEmail"])
-  .index("byGoogleSubject", ["googleSubject"]);
+  .index("byGoogleSubject", ["googleSubject"])
+  .index("byOidcIdentity", ["oidcIdentity"]);
 export type User = ExtractSchema<typeof usersTable>;
 
 export const tokensTable = defineTable("tokens", {

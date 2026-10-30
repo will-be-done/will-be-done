@@ -37,6 +37,8 @@ import {
   type AccountEmailService,
 } from "./email/service";
 
+import { oidcRouter } from "./oidc/router";
+import type { OidcService } from "./oidc/service";
 import { googleRouter } from "./google/router";
 import type { GoogleService } from "./google/service";
 
@@ -48,6 +50,7 @@ export interface AppRouterDependencies {
   analytics?: BackendAnalytics;
   accountEmail?: AccountEmailService;
   google?: GoogleService;
+  oidc?: OidcService;
 }
 
 export function createAppRouter({
@@ -56,6 +59,7 @@ export function createAppRouter({
   analytics = noopBackendAnalytics,
   accountEmail,
   google,
+  oidc,
 }: AppRouterDependencies) {
   const checkDatabaseAccess = async (
     dbId: string,
@@ -73,10 +77,12 @@ export function createAppRouter({
   };
 
   return router({
+    oidc: oidcRouter(mainDB, oidc, analytics),
     google: googleRouter(mainDB, google, analytics),
     getAuthConfig: publicProcedure.query(() => ({
       emailEnabled: accountEmail?.enabled ?? false,
       googleEnabled: Boolean(google),
+      oidcName: oidc?.name ?? null,
     })),
     getAccount: protectedProcedure.query(async ({ ctx }) => {
       const user = await asyncDispatch(
@@ -90,6 +96,7 @@ export function createAppRouter({
         emailVerifiedAt: user.emailVerifiedAt ?? null,
         hasPassword: Boolean(user.password),
         googleEmail: user.googleEmail ?? null,
+        oidcEmail: user.oidcEmail ?? null,
       };
     }),
     requestEmailVerification: protectedProcedure
@@ -127,9 +134,9 @@ export function createAppRouter({
     requestPasswordReset: publicProcedure
       .input(z.object({ email: z.email() }))
       .use(enforceRateLimit("accountEmailSend"))
-      .mutation(({ input }) =>
-        requireAccountEmail(accountEmail).requestReset(input.email),
-      ),
+      .mutation(({ input }) => {
+        return requireAccountEmail(accountEmail).requestReset(input.email);
+      }),
     resetPassword: publicProcedure
       .input(
         z.object({
@@ -138,9 +145,12 @@ export function createAppRouter({
         }),
       )
       .use(enforceRateLimit("accountEmailConsume"))
-      .mutation(({ input }) =>
-        requireAccountEmail(accountEmail).reset(input.token, input.password),
-      ),
+      .mutation(({ input }) => {
+        return requireAccountEmail(accountEmail).reset(
+          input.token,
+          input.password,
+        );
+      }),
     onChangesAvailable: protectedProcedure
       .input(
         z.object({

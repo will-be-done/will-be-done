@@ -37,6 +37,8 @@ test("auth trace and child span attributes redact absolute and relative requests
     for (const path of [
       "/api/auth/google/launch",
       "/api/auth/google/callback",
+      "/api/auth/oidc/launch",
+      "/api/auth/oidc/callback",
     ]) {
       for (const prefix of ["", "https://app.example.com"]) {
         const data: Record<string, unknown> = {

@@ -1,6 +1,6 @@
 import { PostHog } from "posthog-node";
 
-export type AuthMethod = "password" | "google";
+export type AuthMethod = "password" | "google" | "oidc";
 
 export type BackendAnalyticsEvent =
   | {
@@ -14,7 +14,12 @@ export type BackendAnalyticsEvent =
       properties: { auth_method: AuthMethod };
     }
   | {
-      name: "api_token_created" | "google_connected" | "google_disconnected";
+      name:
+        | "api_token_created"
+        | "google_connected"
+        | "google_disconnected"
+        | "oidc_connected"
+        | "oidc_disconnected";
       distinctId: string;
     }
   | {

@@ -18,11 +18,14 @@ type Flow = {
 const session = () =>
   `${authUtils.getUserId() ?? ""}:${authUtils.getToken() ?? ""}`;
 
-export function useGoogleFlow(
+export function useAuthFlow(
   intent: "signin" | "link",
   source: GoogleAuthSource,
+  provider: "google" | "oidc" = "google",
 ) {
   const navigate = useNavigate();
+  const client = trpcClient[provider];
+  const label = provider === "google" ? "Google" : "SSO";
   const [busy, setBusy] = useState(false);
   const [readyEmail, setReadyEmail] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -41,14 +44,14 @@ export function useGoogleFlow(
     current?.channel?.close();
     current?.popup?.close();
     if (current?.flow) {
-      void trpcClient.google.cancel.mutate(current.flow).catch(() => {});
+      void client.cancel.mutate(current.flow).catch(() => {});
       void (window.desktopApi ?? window.api)
         ?.cancelGoogleAuth?.(current.flow.id)
         .catch(() => {});
     }
     setBusy(false);
     setReadyEmail(null);
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     let previous = session();
@@ -69,20 +72,22 @@ export function useGoogleFlow(
   async function start() {
     cancel();
     setError("");
-    captureWebAnalytics({
-      name: "google_auth_started",
-      properties: { source },
-    });
+    if (provider === "google")
+      captureWebAnalytics({
+        name: "google_auth_started",
+        properties: { source },
+      });
     const desktop = window.desktopApi ?? window.api;
     const popup = desktop
       ? undefined
       : (window.open("about:blank", "_blank") ?? undefined);
     if (!desktop && !popup) {
-      setError("Allow popups to continue with Google, then try again.");
-      captureWebAnalytics({
-        name: "google_auth_failed",
-        properties: { source, reason: "popup_blocked" },
-      });
+      setError(`Allow popups to continue with ${label}, then try again.`);
+      if (provider === "google")
+        captureWebAnalytics({
+          name: "google_auth_failed",
+          properties: { source, reason: "popup_blocked" },
+        });
       return;
     }
     if (popup) popup.opener = null;
@@ -100,39 +105,39 @@ export function useGoogleFlow(
     try {
       const flow: Flow & { launchUrl: string } =
         intent === "link"
-          ? await trpcClient.google.beginLink.mutate({
+          ? await client.beginLink.mutate({
               desktop: Boolean(desktop),
             })
-          : await trpcClient.google.beginSignIn.mutate({
+          : await client.beginSignIn.mutate({
               desktop: Boolean(desktop),
             });
       current.flow = flow;
       if (active.current !== current) {
-        void trpcClient.google.cancel.mutate(flow).catch(() => {});
+        void client.cancel.mutate(flow).catch(() => {});
         return;
       }
       if (desktop) {
         if (!desktop.runGoogleAuth)
-          throw new Error("Update the desktop app to continue with Google.");
+          throw new Error(`Update the desktop app to continue with ${label}.`);
         // Resolves once the browser returns to the app's loopback listener.
         const completion = await desktop.runGoogleAuth(flow.launchUrl);
         if (active.current !== current) return;
         if (!completion) {
           // Without the returned code this flow can never become ready.
-          const result = await trpcClient.google.poll.mutate({
+          const result = await client.poll.mutate({
             id: flow.id,
             secret: flow.secret,
           });
           if (active.current !== current) return;
           failure = "google_error";
           throw new Error(
-            result.error ?? "Google sign-in failed. Please try again.",
+            result.error ?? `${label} sign-in failed. Please try again.`,
           );
         }
         flow.completion = completion;
       } else if (popup) {
         if (typeof BroadcastChannel !== "undefined") {
-          current.channel = new BroadcastChannel(`wbd-google-${flow.id}`);
+          current.channel = new BroadcastChannel(`wbd-${provider}-${flow.id}`);
           current.channel.onmessage = (event: MessageEvent<unknown>) => {
             if (event.data !== "complete" || active.current !== current) return;
             // The notification only wakes polling. The server still verifies
@@ -146,7 +151,7 @@ export function useGoogleFlow(
       }
       let consecutiveFailures = 0;
       while (active.current === current && Date.now() < flow.expiresAt) {
-        const result = await trpcClient.google.poll
+        const result = await client.poll
           .mutate({
             id: flow.id,
             secret: flow.secret,
@@ -164,7 +169,7 @@ export function useGoogleFlow(
         if (result.status === "error") {
           failure = "google_error";
           throw new Error(
-            result.error ?? "Google sign-in failed. Please try again.",
+            result.error ?? `${label} sign-in failed. Please try again.`,
           );
         }
         if (result.status === "ready") {
@@ -174,7 +179,7 @@ export function useGoogleFlow(
             setReadyEmail(result.email);
             return;
           }
-          const credentials = await trpcClient.google.completeSignIn.mutate({
+          const credentials = await client.completeSignIn.mutate({
             id: flow.id,
             secret: flow.secret,
             completion: flow.completion,
@@ -210,19 +215,20 @@ export function useGoogleFlow(
       }
       if (active.current === current) {
         failure = "expired";
-        throw new Error("Google sign-in expired. Please try again.");
+        throw new Error(`${label} sign-in expired. Please try again.`);
       }
     } catch (cause) {
       if (active.current === current) {
         cancel();
-        captureWebAnalytics({
-          name: "google_auth_failed",
-          properties: { source, reason: failure },
-        });
+        if (provider === "google")
+          captureWebAnalytics({
+            name: "google_auth_failed",
+            properties: { source, reason: failure },
+          });
         setError(
           cause instanceof Error
             ? cause.message
-            : "Google sign-in failed. Please try again.",
+            : `${label} sign-in failed. Please try again.`,
         );
       }
     }
@@ -233,7 +239,7 @@ export function useGoogleFlow(
     if (!current?.flow || !readyEmail) return false;
     setError("");
     try {
-      await trpcClient.google.completeLink.mutate({
+      await client.completeLink.mutate({
         id: current.flow.id,
         secret: current.flow.secret,
         completion: current.flow.completion,
@@ -247,7 +253,9 @@ export function useGoogleFlow(
     } catch (cause) {
       if (active.current === current)
         setError(
-          cause instanceof Error ? cause.message : "Could not connect Google.",
+          cause instanceof Error
+            ? cause.message
+            : `Could not connect ${label}.`,
         );
       return false;
     }

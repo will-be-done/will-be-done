@@ -1299,6 +1299,7 @@ describe("real Fastify account endpoints", () => {
     expect(await disabled.getAuthConfig()).toEqual({
       emailEnabled: false,
       googleEnabled: false,
+      oidcName: null,
     });
     await expectRejection(
       disabled.requestPasswordReset({ email: "test@example.com" }),
