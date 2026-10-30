@@ -274,7 +274,7 @@ export function KeyboardShortcutsDialog() {
         <button
           aria-keyshortcuts="?"
           aria-label="Show keyboard shortcuts"
-          className={`fixed bottom-4 z-40 flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-dialog-bg/90 text-[14px] font-semibold text-content-tinted shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[color,background-color,border-color,transform] hover:scale-105 hover:border-blue-400/35 hover:bg-dialog-item-active hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-95 motion-reduce:transition-none ${devtoolsEnabled ? "right-20" : "right-4"}`}
+          className={`fixed bottom-4 z-[1050] flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-dialog-bg/90 text-[14px] font-semibold text-content-tinted shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[color,background-color,border-color,transform] hover:scale-105 hover:border-blue-400/35 hover:bg-dialog-item-active hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-95 motion-reduce:transition-none ${devtoolsEnabled ? "right-20" : "right-4"}`}
           onClick={() => setIsOpen(true)}
           title="Keyboard shortcuts (?)"
           type="button"
