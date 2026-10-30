@@ -37,7 +37,8 @@ import {
   dailyEntriesTable,
   trashedTasksTable,
   trashedTaskType,
-  TrashedTask,
+  TrashedTaskRow,
+  TrashSnapshot,
   tasksTable,
   taskTemplatesTable,
   possibleModelType,
@@ -232,16 +233,18 @@ export const trashTasks = action({
     const trashedAt = Date.now();
 
     const trashed = tasks.map(
-      (task): TrashedTask => ({
+      (task): TrashedTaskRow => ({
         type: trashedTaskType,
         id: task.id,
         trashedAt,
-        task,
-        checklistItems: checklistItems.filter(
-          (item) => item.parentId === task.id,
-        ),
-        dailyEntry: dailyEntries.get(task.id) ?? null,
-        stashEntry: stashEntries.get(task.id) ?? null,
+        snapshot: JSON.stringify({
+          task,
+          checklistItems: checklistItems.filter(
+            (item) => item.parentId === task.id,
+          ),
+          dailyEntry: dailyEntries.get(task.id) ?? null,
+          stashEntry: stashEntries.get(task.id) ?? null,
+        } satisfies TrashSnapshot),
       }),
     );
 

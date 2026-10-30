@@ -121,19 +121,16 @@ export const demoSpaceDBConfig = () => {
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
       await asyncDispatch(db, migrateScheduledTodoTasks({}));
 
+      const runMaintenance = () => {
+        void asyncDispatch(
+          db,
+          generateTasksFromTemplates({ toDate: Date.now() }),
+        );
+        void asyncDispatch(db, purgeExpiredTrash({ now: Date.now() }));
+      };
       // To make load faster
-      setTimeout(() => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-      });
-      setInterval(() => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-      }, 60 * 1000);
+      setTimeout(runMaintenance);
+      setInterval(runMaintenance, 60 * 1000);
     },
   } satisfies SyncConfig;
 };

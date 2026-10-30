@@ -1,4 +1,5 @@
 import { asyncDispatch } from "@will-be-done/hyperdb";
+import { purgeExpiredTrash } from "@will-be-done/slices/space";
 import type { FastifyBaseLogger } from "fastify";
 import { getLoadedHyperDBs } from "../db/db";
 import { cleanupExpiredSyncSessions, getSyncStagingMetrics } from "./actions";
@@ -21,8 +22,12 @@ export const runSyncMaintenance = async (
   logger: Pick<FastifyBaseLogger, "error" | "info">,
   loadedDatabases = getLoadedHyperDBs(),
 ) => {
-  for (const { database, db } of loadedDatabases) {
+  for (const { database, dbType, db } of loadedDatabases) {
     try {
+      // Browsers purge too; this covers spaces no client opens.
+      if (dbType === "space") {
+        await asyncDispatch(db, purgeExpiredTrash({ now: Date.now() }));
+      }
       const cleanup = {
         uploads: 0,
         downloads: 0,

@@ -155,6 +155,11 @@ Each syncable row has one materialized `changes` record identified by
 - per-field HLC values;
 - the client that won the relevant merge state.
 
+Field clocks are per top-level column, and the transport accepts only
+primitive column values (string, number, boolean, null). A syncable table that
+needs structured data stores it as a JSON string column, which merges as one
+field.
+
 The outbound cursor is the stable compound key `[updatedAt, id]`. The `id`
 tie-breaker is mandatory: a timestamp alone can skip rows that share an HLC.
 

@@ -219,16 +219,21 @@ export const trashedTasksTable = defineTable("trashed_tasks", {
   type: v.literal(trashedTaskType),
   id: v.string(),
   trashedAt: v.number(),
-  task: tasksTable.v(),
-  checklistItems: v.array(checklistItemsTable.v()),
-  dailyEntry: v.union(dailyEntriesTable.v(), v.null()),
-  stashEntry: v.union(stashEntriesTable.v(), v.null()),
+  // JSON-encoded TrashSnapshot: synced rows carry only primitive values.
+  snapshot: v.string(),
 })
   .index("byIds", ["id"])
   .index("byTrashedAtId", ["trashedAt", "id"]);
 registerSpaceSyncableTable(trashedTasksTable, trashedTaskType);
 
-export type TrashedTask = ExtractSchema<typeof trashedTasksTable>;
+export type TrashedTaskRow = ExtractSchema<typeof trashedTasksTable>;
+export type TrashSnapshot = {
+  task: Task;
+  checklistItems: ChecklistItem[];
+  dailyEntry: DailyEntry | null;
+  stashEntry: StashEntry | null;
+};
+export type TrashedTask = TrashSnapshot & { id: string; trashedAt: number };
 
 export const item = v.union(tasksTable.v(), taskTemplatesTable.v());
 export type Item = Infer<typeof item>;

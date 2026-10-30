@@ -8,19 +8,28 @@ import {
   stashEntriesTable,
   tasksTable,
   trashedTasksTable,
-  TrashedTask,
+  type TrashedTask,
+  type TrashedTaskRow,
+  type TrashSnapshot,
 } from "./tables";
 
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+export const decodeTrashedTask = (row: TrashedTaskRow): TrashedTask => ({
+  id: row.id,
+  trashedAt: row.trashedAt,
+  ...(JSON.parse(row.snapshot) as TrashSnapshot),
+});
 
 // Bounded by retention: rows older than TRASH_RETENTION_MS are purged.
 export const trashedTasks = selector({
   name: "trashedTasks",
   args: {},
   handler: function* trashedTasks() {
-    return (yield* selectFrom(trashedTasksTable, "byTrashedAtId").order(
+    const rows = yield* selectFrom(trashedTasksTable, "byTrashedAtId").order(
       "desc",
-    )) as TrashedTask[];
+    );
+    return rows.map(decodeTrashedTask);
   },
 });
 
@@ -31,7 +40,7 @@ export const restoreTrashedTasks = action({
     if (ids.length === 0) return;
     const rows = (yield* selectFrom(trashedTasksTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
-    )) as TrashedTask[];
+    )).map(decodeTrashedTask);
 
     for (const { task, checklistItems, dailyEntry, stashEntry } of rows) {
       const section = yield* projectSectionById({ id: task.projectSectionId });

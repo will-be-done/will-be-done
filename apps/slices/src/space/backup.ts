@@ -35,6 +35,10 @@ import {
   TaskTemplate,
   taskTemplateType,
   taskType,
+  trashedTasksTable,
+  trashedTaskType,
+  type TrashedTaskRow,
+  type TrashSnapshot,
 } from "./tables";
 import { uuidv7 } from "uuidv7";
 
@@ -113,6 +117,12 @@ interface ChecklistItemBackup {
   checkedAt: number | null;
 }
 
+interface TrashedTaskBackup {
+  id: string;
+  trashedAt: number;
+  snapshot: string;
+}
+
 export interface Backup {
   tasks: TaskBackup[];
   projects: ProjectBackup[];
@@ -121,6 +131,7 @@ export interface Backup {
   projectSections: ProjectSectionBackup[];
   dailyEntries?: DailyEntryBackup[];
   checklistItems?: ChecklistItemBackup[];
+  trashedTasks?: TrashedTaskBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -244,6 +255,15 @@ const backupSchema = v.object({
         content: v.string(),
         createdAt: v.number(),
         checkedAt: v.union(v.number(), v.null()),
+      }),
+    ),
+  ),
+  trashedTasks: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        trashedAt: v.number(),
+        snapshot: v.string(),
       }),
     ),
   ),
@@ -390,6 +410,17 @@ function validDuration(minutes: number | undefined, owner: string) {
   if (minutes === undefined || isValidTaskDuration(minutes)) return minutes;
   console.warn(`Invalid duration ${minutes} omitted for ${owner}`);
   return undefined;
+}
+
+function validTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
+  try {
+    const parsed = JSON.parse(snapshot) as Partial<TrashSnapshot> | null;
+    if (parsed?.task?.id === id) return true;
+  } catch {
+    // Reported below.
+  }
+  console.warn(`Invalid trash snapshot omitted for task ${id}`);
+  return false;
 }
 
 const getNewModels = action({
@@ -668,6 +699,14 @@ export const loadSpaceBackup = selector({
         yield* insert(table, tableModels);
       }
     }
+
+    const liveTaskIds = new Set(
+      models.filter((model) => model.type === taskType).map(({ id }) => id),
+    );
+    const trashed = (("trashedTasks" in backup && backup.trashedTasks) || [])
+      .filter((row) => !liveTaskIds.has(row.id) && validTrashSnapshot(row))
+      .map((row): TrashedTaskRow => ({ ...row, type: trashedTaskType }));
+    if (trashed.length > 0) yield* insert(trashedTasksTable, trashed);
   },
 });
 
@@ -679,6 +718,7 @@ export const getSpaceBackup = selector({
     const projects: Project[] = yield* allProjects({});
     const taskTemplates: TaskTemplate[] = yield* allTaskTemplates({});
     const checklistItems: ChecklistItem[] = yield* allChecklistItems({});
+    const trashedTasks = yield* selectFrom(trashedTasksTable, "byIds");
     const dailyLists: DailyList[] = [];
 
     // Get all daily lists
@@ -769,6 +809,11 @@ export const getSpaceBackup = selector({
         content: item.content,
         createdAt: item.createdAt,
         checkedAt: item.checkedAt,
+      })),
+      trashedTasks: trashedTasks.map(({ id, trashedAt, snapshot }) => ({
+        id,
+        trashedAt,
+        snapshot,
       })),
     } satisfies Backup;
   },

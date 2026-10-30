@@ -21,10 +21,14 @@ import {
   dailyEntryType,
   projectSectionsTable,
   projectSectionType,
+  stashEntriesTable,
+  stashEntryType,
   tasksTable,
   taskType,
+  trashedTasksTable,
   type Task,
 } from "./tables";
+import { getSpaceBackup, loadSpaceBackup } from "./backup";
 import { trashTasks } from "./tasks";
 import {
   purgeExpiredTrash,
@@ -49,6 +53,12 @@ const task: Task = {
   templateId: "missing-template",
   templateDate: 1,
 };
+const stashedTask: Task = {
+  ...task,
+  id: "stashed",
+  templateId: null,
+  templateDate: null,
+};
 
 const seed = action({
   name: "seedTrashTest",
@@ -64,7 +74,7 @@ const seed = action({
         createdAt: 0,
       },
     ]);
-    yield* insert(tasksTable, [task]);
+    yield* insert(tasksTable, [task, stashedTask]);
     yield* insert(checklistItemsTable, [
       {
         type: checklistItemType,
@@ -89,6 +99,15 @@ const seed = action({
         time: "09:30",
       },
     ]);
+    yield* insert(stashEntriesTable, [
+      {
+        type: stashEntryType,
+        id: "stash",
+        taskId: stashedTask.id,
+        orderToken: "b",
+        createdAt: 0,
+      },
+    ]);
   },
 });
 
@@ -108,6 +127,8 @@ const liveRows = selector({
       tasks: yield* selectFrom(tasksTable, "byIds"),
       checklistItems: yield* selectFrom(checklistItemsTable, "byIds"),
       dailyEntries: yield* selectFrom(dailyEntriesTable, "byIds"),
+      stashEntries: yield* selectFrom(stashEntriesTable, "byIds"),
+      trashRows: yield* selectFrom(trashedTasksTable, "byIds"),
       inboxSectionId: yield* inboxProjectSectionId({}),
     };
   },
@@ -125,21 +146,30 @@ function createDB() {
 describe("trash", () => {
   test("trashing removes the task and restoring brings back its rows", () => {
     const db = createDB();
-    syncDispatch(db, trashTasks({ ids: [task.id] }));
+    syncDispatch(db, trashTasks({ ids: [task.id, stashedTask.id] }));
 
-    const [trashed] = selectSync(db, { selector: trashedTasks, args: {} });
-    expect(trashed).toBeDefined();
-    expect(selectSync(db, { selector: liveRows, args: {} })).toMatchObject({
+    const trashed = selectSync(db, { selector: trashedTasks, args: {} });
+    expect(trashed).toHaveLength(2);
+    const removed = selectSync(db, { selector: liveRows, args: {} });
+    expect(removed).toMatchObject({
       tasks: [],
       checklistItems: [],
       dailyEntries: [],
+      stashEntries: [],
     });
+    // The sync contract only carries primitive row values.
+    for (const row of removed.trashRows) {
+      for (const value of Object.values(row)) {
+        expect(value === null || typeof value !== "object").toBe(true);
+      }
+    }
 
-    syncDispatch(db, restoreTrashedTasks({ ids: [trashed!.id] }));
+    syncDispatch(db, restoreTrashedTasks({ ids: trashed.map(({ id }) => id) }));
 
     const restored = selectSync(db, { selector: liveRows, args: {} });
     expect(selectSync(db, { selector: trashedTasks, args: {} })).toEqual([]);
     expect(restored.tasks).toEqual([
+      stashedTask,
       { ...task, templateId: null, templateDate: null },
     ]);
     expect(restored.checklistItems).toMatchObject([
@@ -148,6 +178,22 @@ describe("trash", () => {
     expect(restored.dailyEntries).toMatchObject([
       { id: "entry", taskId: task.id, dailyListId: "list", time: "09:30" },
     ]);
+    expect(restored.stashEntries).toMatchObject([
+      { id: "stash", taskId: stashedTask.id, orderToken: "b" },
+    ]);
+  });
+
+  test("backups keep trashed tasks restorable", () => {
+    const db = createDB();
+    syncDispatch(db, trashTasks({ ids: [task.id] }));
+    const backup = selectSync(db, { selector: getSpaceBackup, args: {} });
+
+    syncDispatch(db, loadSpaceBackup({ backup }));
+    syncDispatch(db, restoreTrashedTasks({ ids: [task.id] }));
+
+    const restored = selectSync(db, { selector: liveRows, args: {} });
+    expect(restored.tasks.map(({ id }) => id)).toContain(task.id);
+    expect(restored.checklistItems).toMatchObject([{ id: "check" }]);
   });
 
   test("restores into the inbox when the task's section is gone", () => {
@@ -162,7 +208,9 @@ describe("trash", () => {
       selector: liveRows,
       args: {},
     });
-    expect(tasks.map((t) => t.projectSectionId)).toEqual([inboxSectionId]);
+    expect(tasks.find((t) => t.id === task.id)?.projectSectionId).toBe(
+      inboxSectionId,
+    );
   });
 
   test("purges only rows trashed more than 30 days ago", () => {
