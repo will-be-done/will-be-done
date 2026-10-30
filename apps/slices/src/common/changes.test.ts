@@ -21,7 +21,10 @@ import {
   getChangesetAfter,
   changesTable,
   changeId,
+  insertChangeFromDelete,
+  insertChangeFromInsert,
   insertChangeFromUpdate,
+  isDeletedChange,
   type Change,
   type ChangesetArrayType,
 } from "./changes";
@@ -267,6 +270,215 @@ const getChangeSelector = selector({
       .limit(1);
     return changes[0] as Change | undefined;
   },
+});
+
+describe("restoring deleted entities", () => {
+  const entityId = "restorable";
+  const createdAt = "0000000010-0001-client1";
+  const deletedAt = "0000000020-0001-client1";
+  const restoredAt = "0000000030-0001-client1";
+  const fields = ["type", "id", "title", "orderToken", "createdAt"];
+
+  const changeset = ({
+    title,
+    deleted = null,
+    restored,
+    fieldClock,
+    clientId,
+  }: {
+    title?: string;
+    deleted?: string | null;
+    restored?: string;
+    fieldClock: string;
+    clientId: string;
+  }): ChangesetArrayType => [
+    {
+      tableName: "testItems",
+      data: [
+        {
+          ...(title === undefined
+            ? {}
+            : {
+                row: {
+                  type: "task",
+                  id: entityId,
+                  title,
+                  orderToken: "a",
+                  createdAt: 100,
+                },
+              }),
+          change: {
+            id: changeId("testItems", entityId),
+            entityId,
+            tableName: "testItems",
+            createdAt,
+            updatedAt: restored ?? deleted ?? fieldClock,
+            deletedAt: deleted,
+            ...(restored === undefined ? {} : { restoredAt: restored }),
+            clientId,
+            changes: {
+              ...Object.fromEntries(fields.map((key) => [key, createdAt])),
+              title: fieldClock,
+            },
+          },
+        },
+      ],
+    },
+  ];
+
+  const created = changeset({
+    title: "created",
+    fieldClock: createdAt,
+    clientId: "client1",
+  });
+  const deleted = changeset({
+    deleted: deletedAt,
+    fieldClock: createdAt,
+    clientId: "client1",
+  });
+  // An offline client that never saw the delete edits after the restore clock.
+  const staleEdit = changeset({
+    title: "stale",
+    fieldClock: "0000000040-0001-client2",
+    clientId: "client2",
+  });
+  const restored: ChangesetArrayType = [
+    {
+      tableName: "testItems",
+      data: [
+        {
+          row: {
+            type: "task",
+            id: entityId,
+            title: "restored",
+            orderToken: "a",
+            createdAt: 100,
+          },
+          change: {
+            ...changeset({
+              deleted: deletedAt,
+              restored: restoredAt,
+              fieldClock: restoredAt,
+              clientId: "client1",
+            })[0]!.data[0]!.change,
+            changes: Object.fromEntries(fields.map((key) => [key, restoredAt])),
+          },
+        },
+      ],
+    },
+  ];
+
+  const apply = (db: DB, inputs: ChangesetArrayType[]) => {
+    inputs.forEach((input, index) => {
+      syncDispatch(
+        db,
+        mergeChanges({
+          input,
+          nextClock: `0000000090-${String(index).padStart(4, "0")}-server`,
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredTables,
+        }),
+      );
+    });
+  };
+  const semanticState = (db: DB) => {
+    const { updatedAt: _receipt, ...change } = getChange(db, entityId)!;
+    return { row: getRow(db, entityId), change };
+  };
+  const permutations = <T>(items: T[]): T[][] =>
+    items.length <= 1
+      ? [items]
+      : items.flatMap((item, index) =>
+          permutations([
+            ...items.slice(0, index),
+            ...items.slice(index + 1),
+          ]).map((rest) => [item, ...rest]),
+        );
+
+  it("records a local insert of a deleted id as a restore", () => {
+    const db = createDB();
+    const row = {
+      type: "task",
+      id: entityId,
+      title: "x",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    const record = (
+      handler: () => Generator<unknown, unknown, unknown>,
+      name: string,
+    ) => syncDispatch(db, action({ name, args: {}, handler })({}));
+
+    record(function* () {
+      yield* insertChangeFromInsert({
+        tableDef: testTable,
+        row,
+        clientId: "local",
+        nextClock: createdAt,
+      });
+      yield* insertChangeFromDelete({
+        tableDef: testTable,
+        row,
+        clientId: "local",
+        nextClock: deletedAt,
+      });
+      yield* insertChangeFromInsert({
+        tableDef: testTable,
+        row,
+        clientId: "local",
+        nextClock: restoredAt,
+      });
+    }, "recordRestoreTest");
+
+    const change = getChange(db, entityId)!;
+    expect(change).toMatchObject({ createdAt, deletedAt, restoredAt });
+    expect(isDeletedChange(change)).toBe(false);
+    expect(Object.values(change.changes)).toEqual(fields.map(() => restoredAt));
+  });
+
+  it("converges on the restored row in every arrival order", () => {
+    const orders = permutations([created, deleted, staleEdit, restored]);
+    const states = orders.map((order) => {
+      const db = createDB();
+      apply(db, order);
+      return semanticState(db);
+    });
+
+    expect(states[0]!.row).toMatchObject({ title: "restored" });
+    expect(states[0]!.change).toMatchObject({ deletedAt, restoredAt });
+    for (const state of states) expect(state).toEqual(states[0]);
+  });
+
+  it("lets a later delete win over an earlier restore in either order", () => {
+    const laterDelete = changeset({
+      deleted: "0000000050-0001-client2",
+      fieldClock: createdAt,
+      clientId: "client2",
+    });
+
+    for (const order of [
+      [created, restored, laterDelete],
+      [laterDelete, restored, created],
+    ]) {
+      const db = createDB();
+      apply(db, order);
+      expect(getRow(db, entityId)).toBeUndefined();
+      expect(getChange(db, entityId)).toMatchObject({
+        deletedAt: "0000000050-0001-client2",
+        restoredAt,
+      });
+    }
+  });
+
+  it("performs no writes when a restore is replayed", () => {
+    const db = createDB();
+    apply(db, [created, deleted, restored]);
+    const before = getChange(db, entityId);
+
+    apply(db, [restored, deleted, staleEdit]);
+
+    expect(getChange(db, entityId)).toEqual(before);
+  });
 });
 
 describe("immutable change rows", () => {
@@ -1274,7 +1486,7 @@ describe("idempotent merge retries", () => {
     expect(getChange(inReverseOrder, entityId)).toEqual(reverseBeforeRetry);
   });
 
-  it("chooses the same permanent tombstone for concurrent deletes", () => {
+  it("chooses the same tombstone for concurrent deletes", () => {
     const entityId = "concurrent-deletes";
     const createdAt = "0000000010-0001-client";
     const created = makeIncomingCreate(entityId, "delete me", createdAt);

@@ -5,6 +5,7 @@ import {
   createTodayTask,
   openSpace,
   openTaskActions,
+  signInUser,
   signupUser,
   taskItem,
   uniqueE2EName,
@@ -12,13 +13,14 @@ import {
 
 test("creates, edits, toggles, deletes, and restores a task across Today and Inbox", async ({
   page,
+  browser,
 }) => {
   const spaceName = uniqueE2EName("E2E Lifecycle Space");
   const initialTitle = uniqueE2EName("E2E lifecycle task");
   const editedTitle = uniqueE2EName("E2E lifecycle edited");
   const inboxWithOneTask = page.getByRole("link", { name: /^Inbox\s+1$/ });
 
-  await signupUser(page);
+  const credentials = await signupUser(page);
   await createSpace(page, spaceName);
   await openSpace(page, spaceName);
 
@@ -94,4 +96,17 @@ test("creates, edits, toggles, deletes, and restores a task across Today and Inb
 
   await inboxWithOneTask.click();
   await expect(taskItem(page, editedTitle)).toBeVisible();
+
+  const otherDevice = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+  });
+  try {
+    const other = await otherDevice.newPage();
+    await signInUser(other, credentials);
+    await openSpace(other, spaceName);
+    await other.getByRole("link", { name: /^Inbox\s+1$/ }).click();
+    await expect(taskItem(other, editedTitle)).toBeVisible();
+  } finally {
+    await otherDevice.close();
+  }
 });

@@ -639,7 +639,7 @@ export const loadSpaceBackup = selector({
   handler: function* loadSpaceBackup({ backup }) {
     for (const table of registeredSpaceSyncableTables) {
       // DailyLists are deterministic, ensure-only scaffolding. A backup that
-      // omits a date must not turn that absence into a permanent tombstone.
+      // omits a date must not turn that absence into a tombstone.
       if (table === dailyListsTable) continue;
       const allIds = (yield* selectFrom(table, "byIds")).map((r) => r.id);
 

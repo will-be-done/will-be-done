@@ -31,7 +31,6 @@ import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
 import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
-import { genUUIDV5Many } from "../traits";
 import {
   taskType,
   checklistItemsTable,
@@ -218,8 +217,6 @@ export const trashTasks = action({
     if (tasks.length === 0) return;
 
     const taskIds = tasks.map((task) => task.id);
-    // Derived IDs make concurrent trashing of one task converge on one row.
-    const trashedIds = yield* genUUIDV5Many(trashedTaskType, taskIds);
     const checklistItems = yield* selectFrom(
       checklistItemsTable,
       "byParentOrder",
@@ -234,26 +231,19 @@ export const trashTasks = action({
     );
     const trashedAt = Date.now();
 
-    const trashed = tasks.map((task, index): TrashedTask => {
-      const id = trashedIds[index]!;
-      const dailyEntry = dailyEntries.get(task.id);
-      const stashEntry = stashEntries.get(task.id);
-      return {
+    const trashed = tasks.map(
+      (task): TrashedTask => ({
         type: trashedTaskType,
-        id,
+        id: task.id,
         trashedAt,
-        task: { ...task, id },
-        checklistItems: checklistItems
-          .filter((item) => item.parentId === task.id)
-          .map((item) => ({ ...item, id: uuidv7(), parentId: id })),
-        dailyEntry: dailyEntry
-          ? { ...dailyEntry, id: uuidv7(), taskId: id }
-          : null,
-        stashEntry: stashEntry
-          ? { ...stashEntry, id: uuidv7(), taskId: id }
-          : null,
-      };
-    });
+        task,
+        checklistItems: checklistItems.filter(
+          (item) => item.parentId === task.id,
+        ),
+        dailyEntry: dailyEntries.get(task.id) ?? null,
+        stashEntry: stashEntries.get(task.id) ?? null,
+      }),
+    );
 
     yield* deleteTasks({ ids: taskIds });
     yield* insert(trashedTasksTable, trashed);

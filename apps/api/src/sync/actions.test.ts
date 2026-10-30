@@ -263,7 +263,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 4,
+          syncVersion: 5,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -301,7 +301,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 4,
+          syncVersion: 5,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -338,7 +338,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 4,
+          syncVersion: 5,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -356,7 +356,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 4,
+          syncVersion: 5,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -499,7 +499,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 4,
+          syncVersion: 5,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -573,6 +573,104 @@ describe("sync v4 actions", () => {
     });
   });
 
+  test("accepts a restore over a server tombstone and suppresses its echo", () => {
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(db.loadTables([spacesTable, changesTable, ...serverSyncTables]));
+    const row = {
+      id: "space-1",
+      type: "space" as const,
+      name: "Restored",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const tombstone = {
+      id: "spaces:space-1",
+      entityId: "space-1",
+      tableName: "spaces",
+      createdAt: clock(1, "server"),
+      updatedAt: clock(10, "server"),
+      deletedAt: clock(10, "server"),
+      clientId: "server",
+      changes: Object.fromEntries(
+        Object.keys(row).map((key) => [key, clock(1, "server")]),
+      ),
+    };
+    syncDispatch(db, seedChanges({ rows: [], changes: [tombstone] }));
+    expect(syncDispatch(db, initializeServerSyncFeed({}))).toBe(1);
+    installServerChangeFeedHook(db);
+
+    const session = syncDispatch(
+      db,
+      startSyncUpload({
+        userId: "user-1",
+        request: {
+          syncVersion: 5,
+          dbId: "user-1",
+          dbType: "user",
+          clientId: "client-1",
+          expectedAcceptedClientCursor: null,
+          coveredClientCursor: null,
+          expectedAcknowledgedServerRevision: 0,
+          appliedServerRevision: 1,
+        },
+        now: CLOCK_TIME_MS,
+        expiresAt: CLOCK_TIME_MS + 10_000,
+      }),
+    );
+    const restore = {
+      ...tombstone,
+      updatedAt: clock(12),
+      restoredAt: clock(12),
+      clientId: "client-1",
+      changes: Object.fromEntries(
+        Object.keys(row).map((key) => [key, clock(12)]),
+      ),
+    };
+    syncDispatch(
+      db,
+      stageUploadChunk({
+        uploadId: session.uploadId,
+        userId: "user-1",
+        sequence: 0,
+        byteCount: 100,
+        chunk: {
+          checksum: "chunk",
+          changesets: [
+            { tableName: "spaces", data: [{ row, change: restore }] },
+          ],
+        },
+        tableNameMap: { spaces: spacesTable },
+        now: CLOCK_TIME_MS + 1,
+      }),
+    );
+
+    const result = syncDispatch(
+      db.withTraits({ type: "skip-sync" }),
+      commitSyncUpload({
+        uploadId: session.uploadId,
+        userId: "user-1",
+        request: {
+          chunkCount: 1,
+          changeCount: 1,
+          throughCursor: { clock: clock(12), changeId: restore.id },
+          checksum: sha256("chunk"),
+        },
+        registeredSyncableTableNameMap: { spaces: spacesTable },
+        orderedTableNames: ["spaces"],
+        dbType: "user",
+        serverClientId: "server",
+        nextClock: clock(13, "server"),
+        now: CLOCK_TIME_MS + 2,
+        expiresAt: CLOCK_TIME_MS + 10_000,
+      }),
+    );
+
+    expect(result.serverRevision).toBe(2);
+    if (result.download.type !== "inline") throw new Error("Expected inline");
+    expect(result.download.changesets).toEqual([]);
+    expect(selectSync(db, { selector: getTestSpace, args: {} })).toEqual(row);
+  });
+
   test("commits a zero-change upload with a null cursor", () => {
     const db = new DB(new BptreeInmemDriver());
     execSync(db.loadTables([spacesTable, changesTable, ...serverSyncTables]));
@@ -582,7 +680,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 4,
+          syncVersion: 5,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -724,7 +822,7 @@ describe("sync v4 actions", () => {
       startSyncUpload({
         userId: "user-1",
         request: {
-          syncVersion: 4,
+          syncVersion: 5,
           dbId: "user-1",
           dbType: "user",
           clientId: "client-1",
@@ -781,7 +879,7 @@ describe("sync v4 actions", () => {
         startSyncUpload({
           userId: "user-1",
           request: {
-            syncVersion: 4,
+            syncVersion: 5,
             dbId: "user-1",
             dbType: "user",
             clientId: "client-1",

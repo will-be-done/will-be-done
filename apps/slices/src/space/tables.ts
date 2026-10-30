@@ -213,9 +213,8 @@ export function isChecklistParentType(
 }
 
 export const trashedTaskType = "trashedTask";
-// A deleted Task's snapshot. Tombstoned IDs cannot be reused, so the snapshot
-// rows already carry the fresh IDs a restore inserts: the task's ID is the
-// trashed task's ID, and its checklist items and entries point at it.
+// A deleted Task's snapshot, keyed by the task's ID. Restoring re-inserts the
+// snapshot rows, which revives their tombstoned IDs.
 export const trashedTasksTable = defineTable("trashed_tasks", {
   type: v.literal(trashedTaskType),
   id: v.string(),

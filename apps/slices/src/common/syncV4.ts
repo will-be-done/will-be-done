@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { compareHlc, type HlcTimestamp } from "./hlc";
 import { Changeset } from "./changes";
+import { CURRENT_SYNC_VERSION } from "./syncProtocol";
 
 export const SYNC_V4_MAX_CHUNK_CHANGES = 256;
 export const SYNC_V4_MAX_CHUNK_BYTES = 1024 * 1024;
@@ -42,7 +43,7 @@ export const maxClientCursor = (
 };
 
 export const SyncSessionRequestSchema = z.object({
-  syncVersion: z.literal(4),
+  syncVersion: z.literal(CURRENT_SYNC_VERSION),
   dbId: z.string(),
   dbType: z.union([z.literal("user"), z.literal("space")]),
   clientId: z.string(),

@@ -303,7 +303,7 @@ test("resends newer client state after server history loss and retries commit id
     {
       headers: authorization,
       data: {
-        syncVersion: 4,
+        syncVersion: 5,
         dbId: userId,
         dbType: "user",
         clientId,

@@ -140,18 +140,13 @@ describe("trash", () => {
     const restored = selectSync(db, { selector: liveRows, args: {} });
     expect(selectSync(db, { selector: trashedTasks, args: {} })).toEqual([]);
     expect(restored.tasks).toEqual([
-      {
-        ...task,
-        id: trashed!.id,
-        templateId: null,
-        templateDate: null,
-      },
+      { ...task, templateId: null, templateDate: null },
     ]);
     expect(restored.checklistItems).toMatchObject([
-      { parentId: trashed!.id, content: "Outline", state: "done" },
+      { id: "check", parentId: task.id, content: "Outline", state: "done" },
     ]);
     expect(restored.dailyEntries).toMatchObject([
-      { taskId: trashed!.id, dailyListId: "list", time: "09:30" },
+      { id: "entry", taskId: task.id, dailyListId: "list", time: "09:30" },
     ]);
   });
 
