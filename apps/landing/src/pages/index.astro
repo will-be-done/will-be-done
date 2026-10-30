@@ -14,6 +14,7 @@ import phoneImg from '../assets/phone.png';
 import timelineImg from '../assets/timeline.png';
 import projectImg from '../assets/project2.png';
 import quickAddImg from '../assets/quick-add.png';
+import calendarImg from '../assets/calendar.png';
 import desktopImg from '../assets/desktop.png';
 import quickAddFullImg from '../assets/quick-add-full.png';
 
@@ -91,7 +92,7 @@ const faqs = [
   {
     id: 'time_of_day_scheduling',
     q: 'Can I schedule a task for a specific time of day?',
-    a: 'No. You schedule tasks to days, not to times, because the app plans a week rather than fills a calendar. Time-of-day scheduling is not planned for now.',
+    a: 'Yes. A task can have a start time and a duration, and timed tasks appear as blocks in the calendar view. Time is optional, so you can keep planning by the day and add a time only where it matters.',
   },
   {
     id: 'end_to_end_encryption',
@@ -122,7 +123,7 @@ const everythingElse = [
   'Recurring tasks by day of week, month or year',
   'Project kanban boards with your own columns',
   'Separate spaces for work and personal',
-  'Today view and weekly timeline',
+  'Today view, weekly timeline and calendar',
   'Stash for what you are focused on right now',
   'Desktop apps for Linux, macOS and Windows',
   'Global quick add shortcut',
@@ -801,6 +802,39 @@ const everythingElse = [
       <div
         class="lg:[&>.why-feature:nth-child(odd)_.why-feature-copy]:order-1 lg:[&>.why-feature:nth-child(odd)_.why-feature-media]:order-2 lg:[&>.why-feature:nth-child(even)_.why-feature-copy]:order-2 lg:[&>.why-feature:nth-child(even)_.why-feature-media]:order-1"
       >
+        <!-- Calendar -->
+        <section class="why-feature relative px-6 py-8 md:py-12">
+          <div class="mx-auto max-w-5xl">
+            <div class="grid items-center gap-10 lg:grid-cols-2">
+              <div class="why-feature-copy order-1">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/10 text-sky-300">
+                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                </div>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">A calendar for the tasks that need a time</h2>
+                <p class="mb-4 max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Give a task a start time and a duration, and it becomes a block on the calendar. Switch between Day,
+                  Week, Month and a two-week Plan view. Drag a task from a project onto an hour to schedule it, drag the
+                  block to move it, and pull its bottom edge to change how long it takes.
+                </p>
+                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Time stays optional. A task without one sits in the all-day row, so you can still plan by the day
+                  and add hours only where they matter.
+                </p>
+              </div>
+              <div class="why-feature-media order-2">
+                <Image
+                  src={calendarImg}
+                  alt="Week calendar with timed task blocks, an all-day row, project sections below for dragging tasks onto the grid, and the task details panel"
+                  class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Keyboard -->
         <section class="why-feature relative px-6 py-8 md:py-12">
           <div class="mx-auto max-w-5xl">

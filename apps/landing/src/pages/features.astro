@@ -6,6 +6,7 @@ import PageBackdrop from '../components/PageBackdrop.astro';
 import { Image } from 'astro:assets';
 import timelineImg from '../assets/timeline.png';
 import quickAddImg from '../assets/quick-add.png';
+import calendarImg from '../assets/calendar.png';
 import projectImg from '../assets/project2.png';
 import phoneImg from '../assets/phone.png';
 
@@ -13,9 +14,9 @@ const siteUrl = 'https://will-be-done.app';
 const pagePath = '/features/';
 const canonical = `${siteUrl}${pagePath}`;
 
-const title = 'Will Be Done features: weekly timeline, local-first sync, Vim keys and an HTTP API';
+const title = 'Will Be Done features: weekly timeline, calendar, local-first sync, Vim keys and an HTTP API';
 const description =
-  'Every feature of Will Be Done: a weekly timeline you plan by dragging, a full local database on each device, Vim keybindings, a global quick add shortcut, project kanban boards, recurring tasks, Todoist and TickTick import, and a documented HTTP API.';
+  'Every feature of Will Be Done: a weekly timeline you plan by dragging, a calendar for timed tasks, a full local database on each device, Vim keybindings, a global quick add shortcut, project kanban boards, recurring tasks, Todoist and TickTick import, and a documented HTTP API.';
 
 const schema = [
   {
@@ -32,7 +33,7 @@ const everythingElse = [
   'Recurring tasks by day of week, month or year',
   'Project kanban boards with your own columns',
   'Separate spaces for work and personal',
-  'Today view and weekly timeline',
+  'Today view, weekly timeline and calendar',
   'Stash for what you are focused on right now',
   'Desktop apps for Linux, macOS and Windows',
   'Global quick add shortcut',
@@ -113,7 +114,7 @@ const everythingElse = [
                 <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">A column per day, the whole week at once</h2>
                 <p class="mb-4 max-w-md text-[15px] leading-relaxed text-slate-400">
                   Monday through Sunday sit side by side. Drag a task from Wednesday to Friday and it lands on Friday.
-                  A day is an ordered list, not a grid of hours, so you pick the day and never the time.
+                  A day is an ordered list, so you pick the day first and add a time only when a task needs one.
                 </p>
                 <p class="mb-5 max-w-md text-[15px] leading-relaxed text-slate-400">
                   A task you didn't finish keeps its day and gets a yellow marker. It doesn't pile into today, and it
@@ -136,6 +137,39 @@ const everythingElse = [
                   alt="Weekly timeline showing day columns with tasks dragged between days across the full week"
                   class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
                   loading="eager"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Calendar -->
+        <section id="calendar" class="why-feature relative scroll-mt-24 px-6 py-8 md:py-12">
+          <div class="mx-auto max-w-5xl">
+            <div class="grid items-center gap-10 lg:grid-cols-2">
+              <div class="why-feature-copy order-1">
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/10 text-sky-300">
+                  <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                </div>
+                <h2 class="mb-3 text-2xl font-bold tracking-tight text-white md:text-3xl">A calendar for the tasks that need a time</h2>
+                <p class="mb-4 max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Give a task a start time and a duration, and it becomes a block on the calendar. Switch between Day,
+                  Week, Month and a two-week Plan view. Drag a task from a project onto an hour to schedule it, drag the
+                  block to move it, and pull its bottom edge to change how long it takes.
+                </p>
+                <p class="max-w-md text-[15px] leading-relaxed text-slate-400">
+                  Time stays optional. A task without one sits in the all-day row, so you can still plan by the day
+                  and add hours only where they matter.
+                </p>
+              </div>
+              <div class="why-feature-media order-2">
+                <Image
+                  src={calendarImg}
+                  alt="Week calendar with timed task blocks, an all-day row, project sections below for dragging tasks onto the grid, and the task details panel"
+                  class="w-full rounded-2xl ring-1 ring-white/[0.08] shadow-2xl shadow-black/40"
+                  loading="lazy"
                 />
               </div>
             </div>
