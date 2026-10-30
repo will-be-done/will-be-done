@@ -120,6 +120,22 @@ describe("rich text markdown", () => {
     expect(normalizeRichTextMarkdown(markdown, "content")).toBe(markdown);
   });
 
+  it("keeps reference-style link definitions as text", () => {
+    const markdown = "See [docs][1]\n\n[1]: https://example.com/docs";
+
+    expect(markdownToRichTextNodes(markdown, "content")[0]).toEqual({
+      type: "paragraph",
+      content: [{ type: "text", text: "See [docs][1]" }],
+    });
+    expect(richTextMarkdownToPlainText(markdown, "content")).toBe(
+      "See [docs][1]\n[1]: https://example.com/docs",
+    );
+    expect(
+      markdownToRichTextNodes("[docs](https://example.com)", "content")[0]
+        ?.content?.[0]?.marks,
+    ).toEqual([{ type: "link", attrs: { href: "https://example.com" } }]);
+  });
+
   it("renders plain text without markdown syntax", () => {
     expect(richTextMarkdownToPlainText("Buy **oat** `milk`", "title")).toBe(
       "Buy oat milk",
@@ -173,6 +189,51 @@ describe("rich text docs", () => {
     const ba = encodeRichTextDoc(loadRichTextDoc(left, loadRichTextDoc(right)));
 
     expect(mergeRichTextDocs(ab, ba)).toBe(mergeRichTextDocs(ba, ab));
+  });
+
+  it.each([
+    ["Buy milk", "Buy oat milk", "Please Buy oat milk"],
+    ["Buy milk", "Buy **milk**", "Please Buy **milk**"],
+    ["Buy **milk**", "Buy milk now", "Please Buy milk now"],
+    [
+      "Buy milk",
+      "Buy [milk](https://example.com)",
+      "Please Buy [milk](https://example.com)",
+    ],
+    ["Buy 🥛 milk", "Buy 🥛🍪 milk", "Please Buy 🥛🍪 milk"],
+    ["Buy milk", "milk", "Please milk"],
+    [
+      "Read [docs](https://a.com)",
+      "Read [docs](https://b.com)",
+      "Please Read [docs](https://b.com)",
+    ],
+    ["Use `npm` now", "Use `pnpm` now", "Please Use `pnpm` now"],
+  ])(
+    "merges a text write %j → %j with concurrent typing in the same line",
+    (before, after, merged) => {
+      const seed = seedRichTextDoc(before, "title");
+      const api = replaceRichTextDocMarkdown(seed, after, "title");
+      const editor = editText(seed, (text) => text.insert(0, "Please "));
+
+      expect(richTextDocToMarkdown(api, "title")).toBe(after);
+      expect(
+        richTextDocToMarkdown(mergeRichTextDocs(api, editor), "title"),
+      ).toBe(merged);
+    },
+  );
+
+  it("edits a changed paragraph in place, keeping concurrent typing in it", () => {
+    const seed = seedRichTextDoc("First line\n\n# Second", "content");
+    const api = replaceRichTextDocMarkdown(
+      seed,
+      "First *edited* line\n\n# Second",
+      "content",
+    );
+    const editor = editText(seed, (text) => text.insert(10, "!"));
+
+    expect(
+      richTextDocToMarkdown(mergeRichTextDocs(api, editor), "content"),
+    ).toBe("First *edited* line!\n\n# Second");
   });
 
   it("replaces markdown without dropping concurrent edits elsewhere", () => {

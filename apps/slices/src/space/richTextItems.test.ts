@@ -49,6 +49,25 @@ describe("syncItemRichText", () => {
     ).toBe("First changed\n\nSecond edited");
   });
 
+  it("merges a written doc with edits only the stored doc has", () => {
+    const seed = seedRichTextDoc("Buy milk", "title");
+    const edit = (insertAt: number, text: string) => {
+      const doc = loadRichTextDoc(seed);
+      const paragraph = doc
+        .getXmlFragment(RICH_TEXT_FRAGMENT)
+        .get(0) as Y.XmlElement;
+      (paragraph.get(0) as Y.XmlText).insert(insertAt, text);
+      return encodeRichTextDoc(doc);
+    };
+
+    const result = syncItemRichText(
+      { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+      { title: "Please Buy milk", titleDoc: edit(8, " today") },
+    );
+
+    expect(result.title).toBe("Please Buy milk today");
+  });
+
   it("omits cleared content", () => {
     const current: Item = { title: "Task", content: "Notes" };
 

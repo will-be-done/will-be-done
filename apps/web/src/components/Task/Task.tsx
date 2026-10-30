@@ -276,11 +276,11 @@ export const PreloadedTaskComp = ({
     [item, dispatch, select, taskId],
   );
 
-  const { text: displayedTitle, saveDoc: saveTitleDoc } = useSavedRichText(
-    item.title,
-    "title",
-    persistTitleDoc,
-  );
+  const {
+    text: displayedTitle,
+    doc: titleDoc,
+    saveDoc: saveTitleDoc,
+  } = useSavedRichText(item.title, item.titleDoc, "title", persistTitleDoc);
   const flushEditedTitle = useCallback(() => {
     titleEditorRef.current?.flush();
   }, []);
@@ -1436,7 +1436,7 @@ export const PreloadedTaskComp = ({
                   <RichTextEditor
                     ref={titleEditorRef}
                     kind="title"
-                    doc={item.titleDoc}
+                    doc={titleDoc}
                     text={displayedTitle}
                     onSave={saveTitleDoc}
                     onExit={handleTitleExit}

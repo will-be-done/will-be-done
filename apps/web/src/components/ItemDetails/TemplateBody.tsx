@@ -109,6 +109,7 @@ export function TemplateBody({
   return (
     <div className="px-3 py-3 space-y-3">
       <EditableTitle
+        key={template.id}
         icon={
           <RefreshCw
             className="h-4 w-4 text-content shrink-0 mt-0.5"

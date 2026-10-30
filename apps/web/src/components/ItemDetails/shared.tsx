@@ -29,7 +29,12 @@ export function EditableTitle({
   onSave: (titleDoc: string) => void;
   setIsEditingTitle: (v: boolean) => void;
 }) {
-  const { text, saveDoc } = useSavedRichText(title, "title", onSave);
+  const { text, doc, saveDoc } = useSavedRichText(
+    title,
+    titleDoc,
+    "title",
+    onSave,
+  );
   const [caretOffset, setCaretOffset] = useState<number>();
   return (
     <div className="flex items-start gap-2">
@@ -37,7 +42,7 @@ export function EditableTitle({
       {isEditing ? (
         <RichTextEditor
           kind="title"
-          doc={titleDoc}
+          doc={doc}
           text={text}
           onSave={saveDoc}
           onExit={() => setIsEditingTitle(false)}

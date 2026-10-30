@@ -1,4 +1,5 @@
 import {
+  mergeRichTextDocs,
   replaceRichTextDocMarkdown,
   richTextDocToMarkdown,
   seedRichTextDoc,
@@ -20,7 +21,9 @@ const syncField = (
   kind: RichTextKind,
 ): { text: string; doc: string } | undefined => {
   if (nextDoc !== undefined && nextDoc !== currentDoc) {
-    return { doc: nextDoc, text: richTextDocToMarkdown(nextDoc, kind) };
+    // An editor may save before a synced edit reaches it.
+    const doc = currentDoc ? mergeRichTextDocs(currentDoc, nextDoc) : nextDoc;
+    return { doc, text: richTextDocToMarkdown(doc, kind) };
   }
   if ((nextText ?? "") === (currentText ?? "")) return undefined;
   // A text write edits the doc (seeded like every other replica would) so it

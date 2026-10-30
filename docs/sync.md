@@ -320,14 +320,17 @@ must never expose a partially applied logical sync response.
 - Per-field conflicts use HLC last-writer-wins ordering, except registered
   rich-text fields (`registerRichTextFields`). A rich-text doc field holds
   base64 Yjs state and merges by CRDT union; its markdown text field is
-  always re-derived from the merged doc, so a text-only write that meets a doc
-  loses to it. The union keeps one side's exact bytes when it already contains
+  always re-derived from the merged doc. A side whose text won LWW but
+  disagrees with its own doc (a client that predates docs) is replayed as a
+  doc edit with a content-derived client ID, so it merges and its replay is a
+  no-op. A doc that fails to decode keeps the current doc. The union keeps one side's exact bytes when it already contains
   the other and picks the smaller encoding for equal states, so replicas
   converge on identical rows and replays stay no-ops. A doc is created lazily
   from the text with a deterministic seed (`seedRichTextDoc`): replicas
   seeding the same markdown produce identical Yjs structs, which a random
   client ID would duplicate on merge. Whole-text writes such as API updates
-  edit the doc (`richTextItems.ts`) rather than replacing it.
+  edit the doc (`richTextItems.ts`) rather than replacing it. See
+  [rich-text.md](rich-text.md) for the reasons and traps.
 - Concurrent creation of the same ID uses deterministic first-creator-wins
   behavior before field merging.
 - Tombstones are permanent. A deleted ID cannot be reused.

@@ -74,9 +74,12 @@ const parseMarkdown = (markdown: string, kind: RichTextKind): Root =>
     extensions: [
       gfmStrikethrough({ singleTilde: false }),
       gfmAutolinkLiteral(),
-      ...(kind === "title"
-        ? [{ disable: { null: TITLE_DISABLED_CONSTRUCTS } }]
-        : []),
+      // Link definitions have no editor node, so they stay literal text.
+      {
+        disable: {
+          null: kind === "title" ? TITLE_DISABLED_CONSTRUCTS : ["definition"],
+        },
+      },
     ],
     mdastExtensions: [
       gfmStrikethroughFromMarkdown(),
@@ -543,39 +546,30 @@ export const richTextMarkdownToPlainText = (
 const markName = (attribute: string) =>
   attribute.replace(/--[a-zA-Z0-9+/=]{8}$/, "");
 
+type TextOp = {
+  insert?: unknown;
+  attributes?: Record<string, { href?: unknown } | undefined>;
+};
+
+const opMarks = (attributes: TextOp["attributes"] = {}) =>
+  Object.entries(attributes).flatMap(([attribute, value]): RichTextMark[] => {
+    const type = markName(attribute);
+    if (!(MARK_ORDER as string[]).includes(type) && type !== "code") {
+      return [];
+    }
+    return type === "link"
+      ? [{ type: "link", attrs: { href: String(value?.href ?? "") } }]
+      : [{ type: type as RichTextMarkType }];
+  });
+
 const readYNodes = (parent: Y.XmlFragment | Y.XmlElement): RichTextNode[] =>
   parent.toArray().flatMap((child): RichTextNode[] => {
     if (child instanceof Y.XmlText) {
-      return child
-        .toDelta()
-        .flatMap(
-          (op: {
-            insert?: unknown;
-            attributes?: Record<string, { href?: unknown } | undefined>;
-          }) => {
-            if (typeof op.insert !== "string" || !op.insert) return [];
-            const marks = Object.entries(op.attributes ?? {}).flatMap(
-              ([attribute, value]): RichTextMark[] => {
-                const type = markName(attribute);
-                if (
-                  !(MARK_ORDER as string[]).includes(type) &&
-                  type !== "code"
-                ) {
-                  return [];
-                }
-                return type === "link"
-                  ? [
-                      {
-                        type: "link",
-                        attrs: { href: String(value?.href ?? "") },
-                      },
-                    ]
-                  : [{ type: type as RichTextMarkType }];
-              },
-            );
-            return [textNode(op.insert, marks)];
-          },
-        );
+      return (child.toDelta() as TextOp[]).flatMap((op) =>
+        typeof op.insert === "string" && op.insert
+          ? [textNode(op.insert, opMarks(op.attributes))]
+          : [],
+      );
     }
     if (child instanceof Y.XmlElement) {
       // Yjs types attributes as strings, but Tiptap stores numbers too.
@@ -598,22 +592,119 @@ const readYNodes = (parent: Y.XmlFragment | Y.XmlElement): RichTextNode[] =>
     return [];
   });
 
+const markAttributes = (marks: RichTextMark[] = []) =>
+  Object.fromEntries(
+    marks.map((mark) => [
+      mark.type,
+      mark.type === "link"
+        ? { href: mark.attrs?.href ?? "", ...LINK_ATTRS }
+        : {},
+    ]),
+  );
+
 const toYText = (nodes: RichTextNode[]) => {
   const text = new Y.XmlText();
   text.applyDelta(
     nodes.map((node) => ({
       insert: node.text ?? "",
-      attributes: Object.fromEntries(
-        (node.marks ?? []).map((mark) => [
-          mark.type,
-          mark.type === "link"
-            ? { href: mark.attrs?.href ?? "", ...LINK_ATTRS }
-            : {},
-        ]),
-      ),
+      attributes: markAttributes(node.marks),
     })),
   );
   return text;
+};
+
+const marksKey = (marks: RichTextMark[] = []) =>
+  JSON.stringify(
+    marks.map((mark) => `${mark.type}:${mark.attrs?.href ?? ""}`).sort(),
+  );
+
+const withOffsets = <T>(runs: T[], length: (run: T) => number) => {
+  let start = 0;
+  return runs.map((run) => {
+    const end = start + length(run);
+    const result = { start, end, run };
+    start = end;
+    return result;
+  });
+};
+
+const isLowSurrogate = (text: string, index: number) =>
+  /[\uDC00-\uDFFF]/.test(text.charAt(index));
+
+// A text block that can be edited in place: same type and attributes, and
+// only text inside, as titles, checklist items, paragraphs, and headings are.
+const isEditableTextBlock = (
+  block: Y.XmlElement | Y.XmlText | Y.XmlHook | undefined,
+  current: RichTextNode,
+  next: RichTextNode,
+): block is Y.XmlElement =>
+  block instanceof Y.XmlElement &&
+  current.type === next.type &&
+  JSON.stringify(current.attrs ?? {}) === JSON.stringify(next.attrs ?? {}) &&
+  (block.length === 0 ||
+    (block.length === 1 && block.get(0) instanceof Y.XmlText)) &&
+  (next.content ?? []).every((node) => node.type === "text");
+
+// Inserts and deletes only the characters that differ, so typing someone
+// does concurrently in the same block survives.
+const editTextBlock = (block: Y.XmlElement, nodes: RichTextNode[]) => {
+  const text = block.get(0);
+  if (!(text instanceof Y.XmlText)) {
+    if (nodes.length > 0) block.insert(0, [toYText(nodes)]);
+    return;
+  }
+  const from = readYNodes(block)
+    .map((node) => node.text ?? "")
+    .join("");
+  const to = nodes.map((node) => node.text ?? "").join("");
+  let prefix = 0;
+  while (prefix < from.length && from[prefix] === to[prefix]) prefix++;
+  if (isLowSurrogate(from, prefix)) prefix--;
+  let suffix = 0;
+  while (
+    suffix < from.length - prefix &&
+    suffix < to.length - prefix &&
+    from[from.length - 1 - suffix] === to[to.length - 1 - suffix]
+  ) {
+    suffix++;
+  }
+  if (isLowSurrogate(from, from.length - suffix)) suffix--;
+
+  text.delete(prefix, from.length - prefix - suffix);
+  const targets = withOffsets(nodes, (node) => (node.text ?? "").length);
+  for (const { start, end, run: node } of targets) {
+    const sliceStart = Math.max(prefix, start);
+    const sliceEnd = Math.min(to.length - suffix, end);
+    if (sliceStart >= sliceEnd) continue;
+    text.insert(
+      sliceStart,
+      (node.text ?? "").slice(sliceStart - start, sliceEnd - start),
+      markAttributes(node.marks),
+    );
+  }
+
+  // Marks can also change on text that stayed, such as a word turning bold.
+  const ops = (text.toDelta() as TextOp[]).filter(
+    (op): op is TextOp & { insert: string } => typeof op.insert === "string",
+  );
+  for (const current of withOffsets(ops, (op) => op.insert.length)) {
+    for (const target of targets) {
+      const start = Math.max(current.start, target.start);
+      const end = Math.min(current.end, target.end);
+      if (
+        start >= end ||
+        marksKey(opMarks(current.run.attributes)) === marksKey(target.run.marks)
+      ) {
+        continue;
+      }
+      text.format(start, end - start, {
+        ...Object.fromEntries(
+          Object.keys(current.run.attributes ?? {}).map((key) => [key, null]),
+        ),
+        ...markAttributes(target.run.marks),
+      });
+    }
+  }
 };
 
 const toYNodes = (nodes: RichTextNode[]): (Y.XmlElement | Y.XmlText)[] => {
@@ -698,8 +789,12 @@ export const replaceRichTextDocMarkdown = (
   kind: RichTextKind,
 ): string => {
   const doc = loadRichTextDoc(encoded);
+  // The same edit replayed on any replica must produce identical structs, or
+  // merging the copies would repeat it.
+  doc.clientID = fnv1a32(`${kind}:${markdown}:${encoded}`);
   const fragment = doc.getXmlFragment(RICH_TEXT_FRAGMENT);
-  const current = readRichTextDoc(doc).map((node) => JSON.stringify(node));
+  const currentNodes = readRichTextDoc(doc);
+  const current = currentNodes.map((node) => JSON.stringify(node));
   const nextNodes = markdownToRichTextNodes(markdown, kind);
   const next = nextNodes.map((node) => JSON.stringify(node));
   let prefix = 0;
@@ -722,8 +817,29 @@ export const replaceRichTextDocMarkdown = (
     doc.destroy();
     return encoded;
   }
+  const changed = current.length - prefix - suffix;
   doc.transact(() => {
-    fragment.delete(prefix, current.length - prefix - suffix);
+    if (changed === next.length - prefix - suffix) {
+      const edits = currentNodes
+        .slice(prefix, prefix + changed)
+        .map((node, i) => ({
+          block: fragment.get(prefix + i),
+          node,
+          next: nextNodes[prefix + i],
+        }));
+      if (
+        edits.every(
+          ({ block, node, next }) =>
+            next && isEditableTextBlock(block, node, next),
+        )
+      ) {
+        for (const { block, next } of edits) {
+          editTextBlock(block as Y.XmlElement, next?.content ?? []);
+        }
+        return;
+      }
+    }
+    fragment.delete(prefix, changed);
     fragment.insert(
       prefix,
       toYNodes(nextNodes.slice(prefix, next.length - suffix)),

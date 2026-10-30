@@ -171,8 +171,13 @@ const ChecklistItemComp = ({
     },
     [dispatch, item.id, select],
   );
-  const { text: content, saveDoc } = useSavedRichText(
+  const {
+    text: content,
+    doc: contentDoc,
+    saveDoc,
+  } = useSavedRichText(
     item.content,
+    item.contentDoc,
     "title",
     persistContentDoc,
   );
@@ -328,7 +333,7 @@ const ChecklistItemComp = ({
           <RichTextEditor
             ref={editorRef}
             kind="title"
-            doc={item.contentDoc}
+            doc={contentDoc}
             text={content}
             onSave={saveDoc}
             onExit={handleEditorExit}

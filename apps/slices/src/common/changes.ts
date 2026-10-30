@@ -18,6 +18,7 @@ import { compareHlc } from "./hlc";
 import type { ClientCursor } from "./syncV4";
 import {
   mergeRichTextDocs,
+  replaceRichTextDocMarkdown,
   richTextDocToMarkdown,
   type RichTextKind,
 } from "./richText";
@@ -65,18 +66,50 @@ const mergeRichTextFields = (
     ) {
       continue;
     }
-    const doc =
-      typeof currentDoc === "string" && typeof incomingDoc === "string"
-        ? mergeRichTextDocs(currentDoc, incomingDoc)
-        : typeof currentDoc === "string"
-          ? currentDoc
-          : incomingDoc;
-    if (typeof doc !== "string") continue;
-    result = {
-      ...result,
-      [docField]: doc,
-      [textField]: richTextDocToMarkdown(doc, kind),
+    // Clients that predate docs change only the text, leaving their doc stale
+    // or absent. A text that won LWW is replayed as an edit of the doc it was
+    // written against, so it merges instead of being dropped.
+    const textEdit = (row: Row, other: Row) => {
+      const text = row[textField];
+      const own = row[docField];
+      if (
+        typeof text !== "string" ||
+        text !== mergedRow[textField] ||
+        text === other[textField] ||
+        (typeof own === "string" && richTextDocToMarkdown(own, kind) === text)
+      ) {
+        return undefined;
+      }
+      const base = typeof own === "string" ? own : other[docField];
+      return typeof base === "string"
+        ? replaceRichTextDocMarkdown(base, text, kind)
+        : undefined;
     };
+    try {
+      const docs = [
+        currentDoc,
+        incomingDoc,
+        textEdit(currentRow, incomingRow),
+        textEdit(incomingRow, currentRow),
+      ].filter((doc): doc is string => typeof doc === "string");
+      if (docs.length === 0) continue;
+      const doc = docs.reduce(mergeRichTextDocs);
+      result = {
+        ...result,
+        [docField]: doc,
+        [textField]: richTextDocToMarkdown(doc, kind),
+      };
+    } catch (error) {
+      // A malformed doc must not block the rest of the changeset.
+      console.error(`Failed to merge ${tableName}.${docField}`, error);
+      if (typeof currentDoc === "string") {
+        result = {
+          ...result,
+          [docField]: currentDoc,
+          [textField]: currentRow[textField],
+        };
+      }
+    }
   }
   return result;
 };

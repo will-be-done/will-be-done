@@ -229,3 +229,36 @@ test("opens single-line editors with the caret where the text was clicked", asyn
     "Call YBob now",
   );
 });
+
+test("shows a title changed back in another tab", async ({ context, page }) => {
+  const spaceName = uniqueE2EName("E2E Rich Revert Space");
+  const taskTitle = uniqueE2EName("E2E revert task");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  const item = await createTodayTask(page, taskTitle);
+  await item.click();
+  await page.keyboard.press("Enter");
+  await expect(item.getByLabel("Edit task title")).toBeFocused();
+  await page.keyboard.type(" edited");
+  await page.keyboard.press("Enter");
+  await expect(item).toContainText(`${taskTitle} edited`);
+
+  const otherPage = await context.newPage();
+  await otherPage.goto(page.url());
+  const key = await item.getAttribute("data-focusable-key");
+  const otherItem = otherPage.locator(`[data-focusable-key="${key}"]`);
+  await otherItem.click();
+  await otherPage.keyboard.press("Enter");
+  await expect(otherItem.getByLabel("Edit task title")).toBeFocused();
+  for (let i = 0; i < " edited".length; i++) {
+    await otherPage.keyboard.press("Backspace");
+  }
+  await otherPage.keyboard.press("Enter");
+  await expect(otherItem.locator("[data-rich-text-view]")).toHaveText(
+    taskTitle,
+  );
+
+  await expect(item.locator("[data-rich-text-view]")).toHaveText(taskTitle);
+});

@@ -181,6 +181,7 @@ export function TaskBody({
   return (
     <div className="px-3 py-3 space-y-3">
       <EditableTitle
+        key={task.id}
         icon={
           <CheckboxComp
             checked={task.state === "done"}

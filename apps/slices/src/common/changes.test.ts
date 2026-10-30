@@ -31,6 +31,7 @@ import {
   RICH_TEXT_FRAGMENT,
   encodeRichTextDoc,
   loadRichTextDoc,
+  richTextDocToMarkdown,
   seedRichTextDoc,
 } from "./richText";
 
@@ -1760,19 +1761,75 @@ describe("rich text fields", () => {
     expect(committedOperations).toBe(0);
   });
 
-  it("re-derives text when a newer text-only write meets a doc", () => {
-    const withDoc = changeset(
-      { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
-      "0000000020-0001-left",
-      "left",
-    );
+  const withDoc = changeset(
+    { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+    "0000000020-0001-left",
+    "left",
+  );
+  const expectConsistent = (row: ReturnType<typeof readRow>) =>
+    expect(richTextDocToMarkdown(row!.titleDoc!, "title")).toBe(row!.title);
+
+  it("applies a newer text-only write from an older client as a doc edit", () => {
     const legacyText = changeset(
-      { title: "Old client title" },
+      { title: "Buy oat milk" },
       "0000000030-0001-legacy",
       "legacy",
     );
 
-    expect(readRow(setup(withDoc, legacyText))).toMatchObject({
+    const docFirst = readRow(setup(withDoc, legacyText));
+    expect(docFirst?.title).toBe("Buy oat milk");
+    expectConsistent(docFirst);
+    expect(readRow(setup(legacyText, withDoc))).toEqual(docFirst);
+  });
+
+  it("merges an older client's text edit with concurrent doc edits", () => {
+    // Older clients keep the doc they received and change only the text.
+    const legacyText = changeset(
+      { title: "Buy milk today", titleDoc: seed },
+      "0000000030-0001-legacy",
+      "legacy",
+    );
+
+    const docFirst = readRow(setup(withDoc, legacyText));
+    expect(docFirst?.title).toBe("Please Buy milk today");
+    expectConsistent(docFirst);
+    expect(readRow(setup(legacyText, withDoc))).toEqual(docFirst);
+  });
+
+  it("performs no writes when an older client's text edit is replayed", () => {
+    const legacyText = changeset(
+      { title: "Buy milk today", titleDoc: seed },
+      "0000000030-0001-legacy",
+      "legacy",
+    );
+    const db = setup(withDoc, legacyText);
+    let committedOperations = 0;
+    const unsubscribe = db.subscribe((operations) => {
+      committedOperations += operations.length;
+    });
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: legacyText,
+        nextClock: "0000000200-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: richTables,
+      }),
+    );
+    unsubscribe();
+
+    expect(committedOperations).toBe(0);
+  });
+
+  it("keeps the current doc when an incoming doc is malformed", () => {
+    const malformed = changeset(
+      { title: "Broken", titleDoc: "not a yjs doc" },
+      "0000000030-0001-broken",
+      "broken",
+    );
+
+    expect(readRow(setup(withDoc, malformed))).toMatchObject({
       title: "Please Buy milk",
       titleDoc: withDoc[0]!.data[0]!.row!.titleDoc,
     });
