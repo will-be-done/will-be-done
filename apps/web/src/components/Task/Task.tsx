@@ -13,7 +13,6 @@ import {
 import { unstable_batchedUpdates } from "react-dom";
 import { canDropModelData, getDropIndicatorEdge } from "@/lib/dnd/models";
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
-import TextareaAutosize from "react-textarea-autosize";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { focusChecklistItem } from "@/components/Checklist/focus";
 import { TaskDropdownMenu } from "./DropdownMenu";
@@ -21,7 +20,12 @@ import { taskFloatingIconGroupClassName } from "./styles";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "../../utils/isInputElement";
-import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
+import {
+  RichTextEditor,
+  type RichTextEditorHandle,
+} from "@/components/RichText/RichTextEditor";
+import { RichTextView } from "@/components/RichText/RichTextView";
+import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 import {
   getDOMAdjacentStackedPlaceholder,
   getDOMColumnSiblingDropTarget,
@@ -79,7 +83,6 @@ import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   buildFocusKey,
-  focusTextareaAtEnd,
   useFocusStore,
   parseColumnKey,
 } from "@/store/focusSlice.ts";
@@ -95,7 +98,6 @@ import {
 } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
-import { LinkifiedText } from "@/components/LinkifiedText";
 import { formatTaskTime } from "@/lib/taskTime";
 
 export const DropTaskIndicator = ({
@@ -195,7 +197,6 @@ export const PreloadedTaskComp = ({
     startOfDay(date) > lastScheduleTime &&
     isTask(item) &&
     item.state === "todo";
-  const taskTitle = item.title;
   const time = isTaskTemplate(item) ? item.time : scheduledTime;
   const showScheduleDate = displayLastScheduleTime && isTask(item);
   // The time sits in the footer's middle column; the single-day view also
@@ -214,8 +215,7 @@ export const PreloadedTaskComp = ({
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
-  const titleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const shouldPlaceTitleCaretAtEndRef = useRef(false);
+  const titleEditorRef = useRef<RichTextEditorHandle | null>(null);
   const shouldOpenDatePickerAfterActionsCloseRef = useRef(false);
   const focusableItemKey = buildFocusKey(listItem.id, listItem.type);
 
@@ -228,8 +228,8 @@ export const PreloadedTaskComp = ({
   const select = useSelectAsync();
   const openProject = useOpenProject();
 
-  const persistTaskTitle = useCallback(
-    async (title: string) => {
+  const persistTitleDoc = useCallback(
+    async (titleDoc: string) => {
       if (isTask(item)) {
         if (
           !(await select({
@@ -244,7 +244,7 @@ export const PreloadedTaskComp = ({
           updateTask({
             id: taskId,
             task: {
-              title,
+              titleDoc,
             },
           }),
         );
@@ -265,7 +265,7 @@ export const PreloadedTaskComp = ({
           updateTemplate({
             id: taskId,
             template: {
-              title,
+              titleDoc,
             },
           }),
         );
@@ -274,16 +274,14 @@ export const PreloadedTaskComp = ({
     [item, dispatch, select, taskId],
   );
 
-  const {
-    draft: editingTitle,
-    isDraftCurrent,
-    setDraft: setEditingTitle,
-    flush: flushEditedTitle,
-  } = useDebouncedPersistedDraft({
-    value: taskTitle,
-    sourceKey: buildFocusKey(item.id, item.type),
-    persist: persistTaskTitle,
-  });
+  const { text: displayedTitle, saveDoc: saveTitleDoc } = useSavedRichText(
+    item.title,
+    "title",
+    persistTitleDoc,
+  );
+  const flushEditedTitle = useCallback(() => {
+    titleEditorRef.current?.flush();
+  }, []);
 
   const handleTick = useCallback(() => {
     if (!isTask(item)) return;
@@ -961,9 +959,8 @@ export const PreloadedTaskComp = ({
       } else if ((e.code === "Enter" || e.code === "KeyI") && noModifiers) {
         return runShortcutAction(
           () => {
-            shouldPlaceTitleCaretAtEndRef.current = true;
             useFocusStore.getState().editByKey(focusableItemKey);
-            titleTextareaRef.current?.focus();
+            titleEditorRef.current?.focusEnd();
           },
           { skipActionsCloseAutoFocus: true },
         );
@@ -1135,17 +1132,9 @@ export const PreloadedTaskComp = ({
     );
   }, [item, listItem, dailyListId]);
 
-  const focusTitleTextarea = useCallback(() => {
-    const textarea = titleTextareaRef.current;
-    if (!textarea) return;
-
-    focusTextareaAtEnd(textarea);
-  }, []);
-
   const handleChecklistItemsRemoved = useCallback(() => {
     useFocusStore.getState().editByKey(focusableItemKey);
-    window.requestAnimationFrame(focusTitleTextarea);
-  }, [focusTitleTextarea, focusableItemKey]);
+  }, [focusableItemKey]);
 
   // useEffect(() => {
   //   if (isFocused) {
@@ -1160,51 +1149,18 @@ export const PreloadedTaskComp = ({
   //   }
   // }, [isFocused]);
 
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-
-      flushEditedTitle();
-      useFocusStore.getState().resetEdit();
-      e.currentTarget.blur();
-      ref.current?.focus();
-
-      // if (e.key === "Enter") {
-      //   task.setTitle(editingTitle);
-      //   const siblings = listItem.siblings;
-      //   const list = listItem.listRef.current;
-      //   const newItem = list.createChild([listItem, siblings[1]], listItem);
-      //
-      //   currentDailyEntryState.setFocusedItemId(newItem.id);
-      // }
-    }
-  };
+  const handleTitleExit = useCallback(() => {
+    useFocusStore.getState().resetEdit();
+    ref.current?.focus();
+  }, []);
 
   const handleTitleFocus = useCallback(() => {
     useFocusStore.getState().editByKey(focusableItemKey);
   }, [focusableItemKey]);
 
   const handleTitleBlur = useCallback(() => {
-    flushEditedTitle();
     useFocusStore.getState().resetEdit();
-  }, [flushEditedTitle]);
-
-  useEffect(() => {
-    if (!isEditing) return;
-
-    const textarea = titleTextareaRef.current;
-    const isTitleAlreadyFocused = document.activeElement === textarea;
-
-    if (isTitleAlreadyFocused && !shouldPlaceTitleCaretAtEndRef.current) {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      shouldPlaceTitleCaretAtEndRef.current = false;
-      focusTitleTextarea();
-    });
-  }, [focusTitleTextarea, isEditing]);
+  }, []);
 
   // const [isHidden, setIsHidden] = useState(false);
   // const isSelfDragging = dragId === listItem.id;
@@ -1466,38 +1422,34 @@ export const PreloadedTaskComp = ({
                 </div>
               )}
               {isEditing ? (
-                <TextareaAutosize
-                  ref={titleTextareaRef}
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={handleInputKeyDown}
-                  onFocus={handleTitleFocus}
-                  onBlur={handleTitleBlur}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  spellCheck={false}
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  data-gramm="false"
-                  data-gramm_editor="false"
-                  data-enable-grammarly="false"
+                <div
                   data-task-title-input
                   className={cn(
-                    "min-h-5 w-full resize-none bg-transparent focus:outline-none",
+                    "min-h-5 w-full",
                     isTask(item) && item.state === "done" && "line-through",
                   )}
-                  aria-label="Edit task title"
-                />
+                >
+                  <RichTextEditor
+                    ref={titleEditorRef}
+                    kind="title"
+                    doc={item.titleDoc}
+                    text={displayedTitle}
+                    onSave={saveTitleDoc}
+                    onExit={handleTitleExit}
+                    onFocus={handleTitleFocus}
+                    onBlur={handleTitleBlur}
+                    required
+                    autoFocus
+                    ariaLabel="Edit task title"
+                  />
+                </div>
               ) : (
                 <div
                   className={cn("min-h-5 cursor-default", {
                     "line-through": isTask(item) && item.state === "done",
                   })}
                 >
-                  <LinkifiedText
-                    text={isDraftCurrent ? editingTitle : item.title}
-                  />
+                  <RichTextView text={displayedTitle} kind="title" />
                 </div>
               )}
             </div>

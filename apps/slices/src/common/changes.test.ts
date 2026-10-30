@@ -22,9 +22,17 @@ import {
   changesTable,
   changeId,
   insertChangeFromUpdate,
+  registerRichTextFields,
   type Change,
   type ChangesetArrayType,
 } from "./changes";
+import * as Y from "yjs";
+import {
+  RICH_TEXT_FRAGMENT,
+  encodeRichTextDoc,
+  loadRichTextDoc,
+  seedRichTextDoc,
+} from "./richText";
 
 const action = createAction();
 const selector = createSelector();
@@ -1621,5 +1629,152 @@ describe("idempotent merge retries", () => {
 
     expect(getRow(db, entityId)).toEqual(row);
     expect(getChange(db, entityId)).toEqual(changeBeforeMerge);
+  });
+});
+
+describe("rich text fields", () => {
+  const richTable = defineTable("richItems", {
+    id: v.string(),
+    title: v.string(),
+    titleDoc: v.optional(v.string()),
+  });
+  registerRichTextFields("richItems", [
+    { docField: "titleDoc", textField: "title", kind: "title" },
+  ]);
+  const richTables = { richItems: richTable };
+  const createdAt = "0000000010-0001-client";
+  const seed = seedRichTextDoc("Buy milk", "title");
+  const edit = (insertAt: number, text: string) => {
+    const doc = loadRichTextDoc(seed);
+    const paragraph = doc
+      .getXmlFragment(RICH_TEXT_FRAGMENT)
+      .get(0) as Y.XmlElement;
+    (paragraph.get(0) as Y.XmlText).insert(insertAt, text);
+    return encodeRichTextDoc(doc);
+  };
+  const changeset = (
+    row: { title: string; titleDoc?: string },
+    clock: string,
+    clientId: string,
+  ): ChangesetArrayType => [
+    {
+      tableName: "richItems",
+      data: [
+        {
+          row: { id: "rich", ...row },
+          change: {
+            id: "richItems:rich",
+            entityId: "rich",
+            tableName: "richItems",
+            createdAt,
+            updatedAt: clock,
+            deletedAt: null,
+            clientId,
+            changes: {
+              id: createdAt,
+              title: clock,
+              ...(row.titleDoc ? { titleDoc: clock } : {}),
+            },
+          },
+        },
+      ],
+    },
+  ];
+  const getRichRow = selector({
+    name: "getRichRow",
+    args: {},
+    handler: function* getRichRow() {
+      return (yield* selectFrom(richTable, "byId")
+        .where((q) => q.eq("id", "rich"))
+        .limit(1))[0];
+    },
+  });
+  const setup = (...inputs: ChangesetArrayType[]) => {
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(db.loadTables([richTable, changesTable]));
+    inputs.forEach((input, index) =>
+      syncDispatch(
+        db,
+        mergeChanges({
+          input,
+          nextClock: `0000000100-000${index}-server`,
+          clientId: "server",
+          registeredSyncableTableNameMap: richTables,
+        }),
+      ),
+    );
+    return db;
+  };
+  const readRow = (db: SubscribableDB) =>
+    selectSync(db, { selector: getRichRow, args: {} });
+
+  it("unions concurrent doc edits instead of picking a winner", () => {
+    const left = changeset(
+      { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+      "0000000020-0001-left",
+      "left",
+    );
+    const right = changeset(
+      { title: "Buy milk today", titleDoc: edit(8, " today") },
+      "0000000030-0001-right",
+      "right",
+    );
+
+    const leftFirst = readRow(setup(left, right));
+    const rightFirst = readRow(setup(right, left));
+
+    expect(leftFirst?.title).toBe("Please Buy milk today");
+    expect(rightFirst).toEqual(leftFirst);
+  });
+
+  it("performs no writes when the merged state is replayed", () => {
+    const left = changeset(
+      { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+      "0000000020-0001-left",
+      "left",
+    );
+    const right = changeset(
+      { title: "Buy milk today", titleDoc: edit(8, " today") },
+      "0000000030-0001-right",
+      "right",
+    );
+    const db = setup(left, right);
+    let committedOperations = 0;
+    const unsubscribe = db.subscribe((operations) => {
+      committedOperations += operations.length;
+    });
+
+    for (const input of [left, right]) {
+      syncDispatch(
+        db,
+        mergeChanges({
+          input,
+          nextClock: "0000000200-0001-server",
+          clientId: "server",
+          registeredSyncableTableNameMap: richTables,
+        }),
+      );
+    }
+    unsubscribe();
+
+    expect(committedOperations).toBe(0);
+  });
+
+  it("re-derives text when a newer text-only write meets a doc", () => {
+    const withDoc = changeset(
+      { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+      "0000000020-0001-left",
+      "left",
+    );
+    const legacyText = changeset(
+      { title: "Old client title" },
+      "0000000030-0001-legacy",
+      "legacy",
+    );
+
+    expect(readRow(setup(withDoc, legacyText))).toMatchObject({
+      title: "Please Buy milk",
+      titleDoc: withDoc[0]!.data[0]!.row!.titleDoc,
+    });
   });
 });

@@ -1,6 +1,6 @@
 ---
 title: Features
-description: How tasks, projects, scheduling, Stash, and recurring templates work.
+description: How tasks, text formatting, projects, scheduling, Stash, and recurring templates work.
 sidebar:
   order: 1
 ---
@@ -16,6 +16,27 @@ menu. The inbox is a project for tasks you have not organized yet.
 
 Spaces separate your projects and schedules. For example, work and personal
 tasks can live in different spaces.
+
+## Text formatting
+
+Every text field on a task or recurring template is a WYSIWYG editor that
+understands Markdown. This covers the title, the description, and each
+checklist item. Type Markdown and it turns into formatting as you write:
+`**bold**`, `*italic*`, `~~strikethrough~~`, and `` `code` `` work in all of
+them. Descriptions also support `#` headings, `-` and `1.` lists, `>` quotes,
+code blocks, and `---` dividers.
+
+The text stays Markdown underneath. When the cursor is inside formatted text,
+its Markdown markers appear around it, such as the `**` around bold text.
+While you edit a description, a toolbar above it applies the same formatting.
+Paste a URL over selected text to turn it into a link. See
+[text formatting shortcuts](/docs/keyboard-shortcuts/#text-formatting).
+
+Each of these fields syncs as a shared document. If you edit the same title,
+description, or checklist item on two devices, even offline, both sets of edits
+are kept. See [conflicting changes](/docs/offline-and-sync/#conflicting-changes).
+
+Project and section names are plain text.
 
 ## Weekly timeline and Today
 

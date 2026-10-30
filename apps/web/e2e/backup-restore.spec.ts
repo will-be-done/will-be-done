@@ -59,7 +59,7 @@ test("restores a JSON backup through settings", async ({ page }) => {
   await expect(dailyTaskItem(page, taskTitle)).toBeVisible();
 
   const details = await openTaskDetails(page, taskTitle);
-  await expect(details.description).toHaveValue(taskDescription);
+  await expect(details.description).toHaveText(taskDescription);
   await expect(
     dailyTaskItem(page, taskTitle).getByText(checklistItem),
   ).toBeVisible();

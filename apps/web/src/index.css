@@ -310,3 +310,103 @@
   app-region: drag;
   pointer-events: none;
 }
+
+/* Rich text shared by RichTextView and the Tiptap editor. */
+.rich-text {
+  overflow-wrap: anywhere;
+}
+.rich-text > :first-child {
+  margin-top: 0;
+}
+.rich-text > :last-child {
+  margin-bottom: 0;
+}
+.rich-text p,
+.rich-text ul,
+.rich-text ol,
+.rich-text blockquote,
+.rich-text pre {
+  margin: 0.25rem 0;
+}
+.rich-text h1,
+.rich-text h2,
+.rich-text h3,
+.rich-text h4,
+.rich-text h5,
+.rich-text h6 {
+  margin: 0.5rem 0 0.25rem;
+  font-weight: 600;
+}
+.rich-text h1 {
+  font-size: 1.35em;
+}
+.rich-text h2 {
+  font-size: 1.2em;
+}
+.rich-text h3 {
+  font-size: 1.1em;
+}
+.rich-text ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.rich-text ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.rich-text li > p {
+  margin: 0;
+}
+.rich-text blockquote {
+  border-left: 2px solid var(--color-content-tinted-2);
+  padding-left: 0.5rem;
+  color: var(--color-content-tinted);
+}
+.rich-text code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  border-radius: 0.25rem;
+  padding: 0.05em 0.25em;
+  background: color-mix(in oklab, var(--color-content-tinted) 15%, transparent);
+}
+.rich-text pre {
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  overflow-x: auto;
+  background: color-mix(in oklab, var(--color-content-tinted) 12%, transparent);
+}
+.rich-text pre code {
+  padding: 0;
+  background: none;
+}
+.rich-text hr {
+  margin: 0.5rem 0;
+  border-color: var(--color-content-tinted-2);
+}
+.rich-text a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--color-accent) 50%,
+    transparent
+  );
+  text-underline-offset: 2px;
+}
+.rich-text-marker {
+  color: var(--color-content-tinted);
+  opacity: 0.6;
+  font-weight: 400;
+  font-style: normal;
+  text-decoration: none;
+  user-select: none;
+  pointer-events: none;
+}
+.rich-text .is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  font-style: italic;
+  color: var(--color-content-tinted);
+}

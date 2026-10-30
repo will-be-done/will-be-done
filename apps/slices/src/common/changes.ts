@@ -16,6 +16,11 @@ import { groupBy } from "es-toolkit";
 import { changesTable, type Change } from "./tables";
 import { compareHlc } from "./hlc";
 import type { ClientCursor } from "./syncV4";
+import {
+  mergeRichTextDocs,
+  richTextDocToMarkdown,
+  type RichTextKind,
+} from "./richText";
 
 export { changesTable, type Change } from "./tables";
 
@@ -24,6 +29,57 @@ export type PrimitiveRow = Record<string, string | number | boolean | null> & {
 };
 
 const SELECT_OR_CHUNK_SIZE = 400;
+
+type RichTextField = {
+  docField: string;
+  textField: string;
+  kind: RichTextKind;
+};
+
+const richTextFieldsByTable = new Map<string, readonly RichTextField[]>();
+
+// A Yjs doc field merges by CRDT union instead of LWW, and its markdown text
+// field is always re-derived from the merged doc.
+export const registerRichTextFields = (
+  tableName: string,
+  fields: readonly RichTextField[],
+) => {
+  richTextFieldsByTable.set(tableName, fields);
+};
+
+const mergeRichTextFields = (
+  tableName: string,
+  currentRow: Row | undefined,
+  incomingRow: Row | undefined,
+  mergedRow: Row,
+): Row => {
+  const fields = richTextFieldsByTable.get(tableName);
+  if (!fields || !currentRow || !incomingRow) return mergedRow;
+  let result = mergedRow;
+  for (const { docField, textField, kind } of fields) {
+    const currentDoc = currentRow[docField];
+    const incomingDoc = incomingRow[docField];
+    if (
+      currentDoc === incomingDoc &&
+      currentRow[textField] === incomingRow[textField]
+    ) {
+      continue;
+    }
+    const doc =
+      typeof currentDoc === "string" && typeof incomingDoc === "string"
+        ? mergeRichTextDocs(currentDoc, incomingDoc)
+        : typeof currentDoc === "string"
+          ? currentDoc
+          : incomingDoc;
+    if (typeof doc !== "string") continue;
+    result = {
+      ...result,
+      [docField]: doc,
+      [textField]: richTextDocToMarkdown(doc, kind),
+    };
+  }
+  return result;
+};
 export const changeId = (tableName: string, entityId: string): string =>
   `${tableName}:${entityId}`;
 const primitiveValueSchema = v.union(
@@ -436,7 +492,12 @@ export const mergeChanges = action({
             : currentChanges.changes;
 
           const fcwMergedChanges = { ...loserChanges, ...winnerChanges };
-          const fcwMergedRow = { ...loserRow, ...winnerRow } as Row;
+          const fcwMergedRow = mergeRichTextFields(
+            table.tableName,
+            currentRow,
+            incomingRow as Row,
+            { ...loserRow, ...winnerRow } as Row,
+          );
           const currentClock = nextClock;
           const mergedChange: Change = {
             id: changeId(table.tableName, incomingChange.entityId),
@@ -471,11 +532,17 @@ export const mergeChanges = action({
           continue; // Skip normal LWW merge
         }
 
-        const { mergedChanges, mergedRow } = lwwMerge(
+        const { mergedChanges, mergedRow: lwwMergedRow } = lwwMerge(
           currentChanges?.changes ?? {},
           incomingChange.changes,
           currentRow ?? { id: incomingChange.entityId },
           incomingRow ?? { id: incomingChange.entityId },
+        );
+        const mergedRow = mergeRichTextFields(
+          table.tableName,
+          currentRow,
+          incomingRow as Row | undefined,
+          lwwMergedRow,
         );
 
         const currentDeletedAt = currentChanges?.deletedAt ?? null;

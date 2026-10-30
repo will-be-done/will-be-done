@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { richTextMarkdownToPlainText } from "@will-be-done/slices/common";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useSelectAsync } from "@will-be-done/hyperdb/react";
 import { type Task, taskById } from "@will-be-done/slices/space";
@@ -21,7 +22,7 @@ const toEvent = (taskId: string, task: Task | undefined): CalendarEvent => ({
   focusKey: "",
   // Never equal to a calendar date, so any drop schedules the task.
   date: "",
-  title: task?.title ?? "",
+  title: richTextMarkdownToPlainText(task?.title ?? "", "title"),
   nature: task?.nature,
   time: null,
   durationMinutes: task?.durationMinutes ?? null,

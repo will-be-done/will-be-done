@@ -2,6 +2,7 @@ import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { Keyboard, X } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { ALT_KEY, MOD_KEY } from "@/components/RichText/keys";
 import { useDevtoolsEnabled } from "@/lib/devtools";
 import { useFocusStore } from "@/store/focusSlice";
 import { isInputElement } from "@/utils/isInputElement";
@@ -111,6 +112,47 @@ const shortcutGroups: ShortcutGroup[] = [
         bindings: [["D"], ["X"], ["Backspace"]],
         description: "Delete project",
       },
+    ],
+  },
+  {
+    title: "Text formatting",
+    description: "In titles, descriptions, and checklist items",
+    shortcuts: [
+      { bindings: [[MOD_KEY, "B"], ["**text**"]], description: "Bold" },
+      { bindings: [[MOD_KEY, "I"], ["*text*"]], description: "Italic" },
+      {
+        bindings: [[MOD_KEY, "Shift", "S"], ["~~text~~"]],
+        description: "Strikethrough",
+      },
+      { bindings: [[MOD_KEY, "E"], ["`text`"]], description: "Inline code" },
+      {
+        bindings: [[MOD_KEY, "V"]],
+        description: "Paste a URL over selected text to link it",
+      },
+    ],
+  },
+  {
+    title: "Description formatting",
+    description: "Start a line with the Markdown and a space",
+    shortcuts: [
+      {
+        bindings: [[MOD_KEY, ALT_KEY, "1–6"], ["#"], ["##"]],
+        description: "Heading",
+      },
+      {
+        bindings: [[MOD_KEY, "Shift", "8"], ["-"]],
+        description: "Bulleted list",
+      },
+      {
+        bindings: [[MOD_KEY, "Shift", "7"], ["1."]],
+        description: "Numbered list",
+      },
+      { bindings: [[MOD_KEY, "Shift", "B"], [">"]], description: "Quote" },
+      {
+        bindings: [[MOD_KEY, ALT_KEY, "C"], ["```"]],
+        description: "Code block",
+      },
+      { bindings: [["---"]], description: "Divider" },
     ],
   },
 ];
@@ -282,6 +324,8 @@ export function KeyboardShortcutsDialog() {
                   <div className="grid gap-3">
                     <ShortcutSection group={shortcutGroups[0]!} />
                     <ShortcutSection group={shortcutGroups[2]!} />
+                    <ShortcutSection group={shortcutGroups[3]!} />
+                    <ShortcutSection group={shortcutGroups[4]!} />
                   </div>
                   <ShortcutSection group={shortcutGroups[1]!} />
                 </div>

@@ -86,7 +86,7 @@ test("edits task details and persists checklist items", async ({ page }) => {
   await reloadedRow.getByText(checklistItem, { exact: true }).click();
   await expect(
     reloadedRow.getByRole("textbox", { name: "Checklist item" }),
-  ).toHaveValue(checklistItem);
+  ).toHaveText(checklistItem);
 
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL(/\/spaces\/[^/]+\/dates\/\d{4}-\d{2}-\d{2}$/);
@@ -249,7 +249,9 @@ for (const field of ["title", "description", "checklist"] as const) {
 
     const readView =
       field === "checklist"
-        ? detailsPanel.getByText(checklistText, { exact: true })
+        ? detailsPanel
+            .locator("[data-checklist-item-id] [data-disable-task-shortcuts]")
+            .filter({ hasText: checklistText })
         : detailsPanel.getByTestId(`task-${field}`);
     for (const key of ["d", "x", "Backspace"]) {
       // Keep the task selected while keyboard focus belongs to a read view.

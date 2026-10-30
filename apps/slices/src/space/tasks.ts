@@ -25,6 +25,7 @@ import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
 import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
+import { syncItemRichText } from "./richTextItems";
 import {
   taskType,
   dailyEntriesTable,
@@ -210,7 +211,9 @@ export const updateTask = action({
     if (!taskInState) throw new Error("Task not found");
     assertValidTaskDuration(task.durationMinutes);
 
-    yield* upsert(tasksTable, [{ ...taskInState, ...task }]);
+    yield* upsert(tasksTable, [
+      syncItemRichText(taskInState, { ...taskInState, ...task }),
+    ]);
   },
 });
 
