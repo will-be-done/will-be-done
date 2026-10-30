@@ -11,6 +11,7 @@ import {
 } from "@trpc/tanstack-react-query";
 import type { AppRouter } from "@will-be-done/api";
 import { authUtils } from "./auth";
+import { isDemoMode } from "./demoMode";
 import { queryClient } from "./query";
 
 // Create WebSocket URL with auth token
@@ -31,6 +32,8 @@ const wsClient = createWSClient({
   keepAlive: {
     enabled: true,
   },
+  // The demo never subscribes, so it must not try to reach a server.
+  lazy: { enabled: isDemoMode(), closeMs: 0 },
 });
 
 document.addEventListener("visibilitychange", () => {

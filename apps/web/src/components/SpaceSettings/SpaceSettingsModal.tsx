@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc";
-import { isDemoMode } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoMode";
 import { AccountSettings } from "@/components/Auth/AccountSettings";
 import { useState } from "react";
 import { Dialog, DialogPanel } from "@headlessui/react";
