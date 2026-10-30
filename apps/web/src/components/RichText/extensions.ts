@@ -16,7 +16,9 @@ import {
   type RichTextKind,
 } from "@will-be-done/slices/common";
 import type * as Y from "yjs";
+import { LinkClick } from "./links";
 import { MarkdownMarkers } from "./markdownMarkers";
+import { MarkdownPaste } from "./markdownPaste";
 
 // Markdown is stored with `*` emphasis only; `_` rules would italicize names
 // like snake_case while typing.
@@ -54,6 +56,8 @@ export function richTextExtensions({
     StarBold,
     StarItalic,
     MarkdownMarkers,
+    LinkClick,
+    MarkdownPaste.configure({ kind }),
     Placeholder.configure({ placeholder }),
     Collaboration.configure({ document: doc, field: RICH_TEXT_FRAGMENT }),
   ];
@@ -77,7 +81,7 @@ export function richTextExtensions({
         gapcursor: false,
         trailingNode: false,
         undoRedo: false,
-        link: { openOnClick: false, autolink: true },
+        link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
       }),
       TitleDocument,
       ...shared,
@@ -90,7 +94,7 @@ export function richTextExtensions({
       underline: false,
       trailingNode: false,
       undoRedo: false,
-      link: { openOnClick: false, autolink: true },
+      link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
     }),
     ...shared,
   ];

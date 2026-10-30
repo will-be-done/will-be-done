@@ -150,11 +150,18 @@ const phrasingToNodes = (
             textNode(tail, marks),
           ];
         }
+        // Bare www. links get a secure scheme.
+        const href =
+          child?.type === "text" &&
+          child.value.startsWith("www.") &&
+          node.url === `http://${child.value}`
+            ? `https://${child.value}`
+            : node.url;
         return phrasingToNodes(
           node.children,
           [
             ...marks.filter((mark) => mark.type !== "link"),
-            { type: "link", attrs: { href: node.url } },
+            { type: "link", attrs: { href } },
           ],
           kind,
         );
@@ -179,6 +186,12 @@ const phrasingToNodes = (
 
 const paragraph = (content: RichTextNode[]): RichTextNode =>
   content.length > 0 ? { type: "paragraph", content } : { type: "paragraph" };
+
+const emptyParagraphs = (count: number) =>
+  Array.from({ length: Math.max(0, count) }, () => paragraph([]));
+
+const isEmptyParagraph = (node: RichTextNode) =>
+  node.type === "paragraph" && !node.content?.length;
 
 const listItemToNode = (item: ListItem): RichTextNode => {
   const content = blocksToNodes(item.children);
@@ -254,7 +267,21 @@ export const markdownToRichTextNodes = (
       ]);
     return [paragraph(inline)];
   }
-  const blocks = blocksToNodes(root.children);
+  // Markdown has no empty paragraphs, so they round-trip as blank lines
+  // beyond the one that separates two blocks.
+  const lineCount = markdown.split("\n").length;
+  if (root.children.length === 0) return emptyParagraphs(lineCount);
+  const blocks: RichTextNode[] = [];
+  let previousEnd = 0;
+  for (const child of root.children) {
+    const start = child.position?.start.line ?? previousEnd + 1;
+    blocks.push(
+      ...emptyParagraphs(start - previousEnd - (previousEnd === 0 ? 1 : 2)),
+      ...blocksToNodes([child]),
+    );
+    previousEnd = child.position?.end.line ?? start;
+  }
+  blocks.push(...emptyParagraphs(lineCount - previousEnd - 1));
   return blocks.length > 0 ? blocks : [paragraph([])];
 };
 
@@ -414,6 +441,15 @@ const nodesToBlocks = (nodes: RichTextNode[] | undefined): BlockContent[] =>
 
 const serialize = (root: Root) =>
   toMarkdown(root, {
+    // An empty paragraph adds one line on top of the usual blank line.
+    join: [
+      (left, _right, parent) =>
+        parent.type === "root" &&
+        left.type === "paragraph" &&
+        left.children.length === 0
+          ? 0
+          : undefined,
+    ],
     bullet: "-",
     emphasis: "*",
     strong: "*",
@@ -428,10 +464,12 @@ const serialize = (root: Root) =>
         if (
           node.children.length === 1 &&
           child?.type === "text" &&
-          child.value === node.url &&
-          /^https?:\/\/\S+$/.test(node.url)
+          (child.value === node.url
+            ? /^https?:\/\/\S+$/.test(node.url)
+            : /^www\.\S+$/.test(child.value) &&
+              node.url === `https://${child.value}`)
         ) {
-          return node.url;
+          return child.value;
         }
         return defaultHandlers.link(node, parent, state, info);
       },
@@ -443,7 +481,21 @@ export const richTextNodesToMarkdown = (
   kind: RichTextKind,
 ): string => {
   if (kind === "content") {
-    return serialize({ type: "root", children: nodesToBlocks(nodes) });
+    let end = nodes.length;
+    while (end > 0 && isEmptyParagraph(nodes[end - 1]!)) end--;
+    if (end === 0) return "\n".repeat(Math.max(0, nodes.length - 1));
+    const trailing = nodes.length - end;
+    const blocks = nodes
+      .slice(0, end)
+      .flatMap((node): BlockContent[] =>
+        isEmptyParagraph(node)
+          ? [{ type: "paragraph", children: [] }]
+          : nodesToBlocks([node]),
+      );
+    return (
+      serialize({ type: "root", children: blocks }) +
+      (trailing > 0 ? "\n".repeat(trailing + 1) : "")
+    );
   }
   const inline = nodes.flatMap((node, index) => [
     ...(index > 0 ? [{ type: "text", text: " " }] : []),

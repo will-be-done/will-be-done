@@ -99,7 +99,7 @@ export function RichTextToolbar({ editor }: { editor: Editor }) {
   const active = useEditorState({
     editor,
     selector: ({ editor: current }) =>
-      actions.map((action) => action.isActive(current)),
+      actions.map((action) => current.isFocused && action.isActive(current)),
     equalityFn: (a, b) => !!b && a.every((value, index) => value === b[index]),
   });
 

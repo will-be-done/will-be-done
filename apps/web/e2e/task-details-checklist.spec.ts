@@ -113,7 +113,7 @@ test("makes links in task text and checklist items clickable", async ({
   await createTodayTask(page, originalTitle);
 
   const details = await openTaskDetails(page, originalTitle);
-  await details.description.fill("Read `www.example.com/docs`.");
+  await page.keyboard.type("Read www.example.com/docs now");
   await details.description.blur();
 
   const detailsPanel = page.getByTestId("item-details-panel");
@@ -183,8 +183,9 @@ test("makes links in task text and checklist items clickable", async ({
     {
       link: descriptionLink,
       destination: "https://www.example.com/docs",
-      readView: detailsPanel.getByTestId("task-description"),
-      editor: detailsPanel.getByLabel("Edit task description"),
+      readView: descriptionLink,
+      // The description is always an editor.
+      editor: detailsPanel.getByLabel("Edit task title"),
     },
     {
       link: detailsChecklistLink,
@@ -223,7 +224,7 @@ test("makes links in task text and checklist items clickable", async ({
   }
 });
 
-for (const field of ["title", "description", "checklist"] as const) {
+for (const field of ["title", "checklist"] as const) {
   test(`suppresses destructive task shortcuts in the focused ${field} read view`, async ({
     page,
   }) => {

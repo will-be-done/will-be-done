@@ -152,8 +152,6 @@ export async function openTaskDetails(page: Page, title: string) {
 
   const detailsButton = page.getByRole("button", { name: "Task details" });
   const description = page.getByLabel("Edit task description");
-  const descriptionView = page.getByTestId("task-description");
-  const descriptionField = descriptionView.or(description);
   const hasDetailsRouteButton = await isVisibleInViewportSoon(
     page,
     detailsButton,
@@ -162,9 +160,7 @@ export async function openTaskDetails(page: Page, title: string) {
   if (hasDetailsRouteButton) {
     await detailsButton.click();
     await expect(page).toHaveURL(/\/spaces\/[^/]+\/item-details\/[^/]+$/);
-    await expect(descriptionField).toBeVisible();
-    if (await descriptionView.isVisible()) await descriptionView.click();
-    await expect(description).toBeVisible();
+    await description.focus();
 
     return { item, description };
   }
@@ -179,9 +175,7 @@ export async function openTaskDetails(page: Page, title: string) {
 
   await expect(itemDetailsPanel).toHaveAttribute("aria-hidden", "false");
   await expect(page.getByText("Item Details")).toBeVisible();
-  await expect(descriptionField).toBeVisible();
-  if (await descriptionView.isVisible()) await descriptionView.click();
-  await expect(description).toBeVisible();
+  await description.focus();
 
   return { item, description };
 }

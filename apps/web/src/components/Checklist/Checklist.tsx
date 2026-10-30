@@ -51,6 +51,7 @@ import {
   type RichTextExitKey,
 } from "@/components/RichText/RichTextEditor";
 import { RichTextView } from "@/components/RichText/RichTextView";
+import { viewTextOffset } from "@/components/RichText/caret";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 
 export function CheckboxComp({
@@ -152,6 +153,7 @@ const ChecklistItemComp = ({
   const editorRef = useRef<RichTextEditorHandle | null>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [caretOffset, setCaretOffset] = useState<number>();
   const persistContentDoc = useCallback(
     (contentDoc: string) => {
       void (async () => {
@@ -241,6 +243,7 @@ const ChecklistItemComp = ({
     event.stopPropagation();
 
     if (editTrigger === "click") {
+      setCaretOffset(viewTextOffset(event));
       setIsEditing(true);
     }
   };
@@ -249,6 +252,7 @@ const ChecklistItemComp = ({
     event.stopPropagation();
 
     if (editTrigger === "doubleClick") {
+      setCaretOffset(viewTextOffset(event));
       setIsEditing(true);
     }
   };
@@ -328,10 +332,14 @@ const ChecklistItemComp = ({
             text={content}
             onSave={saveDoc}
             onExit={handleEditorExit}
-            onFocus={() => focusParentFromChecklist(focusableItemKey)}
+            onFocus={() => {
+              setCaretOffset(undefined);
+              focusParentFromChecklist(focusableItemKey);
+            }}
             onBlur={() => setIsEditing(false)}
             onEmptyBackspace={removeItem}
             autoFocus
+            caretOffset={caretOffset}
             ariaLabel="Checklist item"
             className={cn(
               "min-h-4 pt-0.5 leading-4 [overflow-wrap:anywhere]",
@@ -360,7 +368,7 @@ const ChecklistItemComp = ({
               }
             }}
           >
-            <RichTextView text={content} kind="title" />
+            <RichTextView text={content} />
           </div>
         )}
         <button

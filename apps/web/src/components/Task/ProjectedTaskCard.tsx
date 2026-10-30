@@ -52,7 +52,7 @@ export const ProjectedTaskCard = ({
       )}
     >
       <div className="font-medium">
-        <RichTextView text={template.title} kind="title" />
+        <RichTextView text={template.title} />
       </div>
       <div className="mt-1 flex items-center gap-1.5 text-xs tabular-nums">
         <Repeat className="size-3" />

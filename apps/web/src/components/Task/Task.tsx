@@ -25,6 +25,7 @@ import {
   type RichTextEditorHandle,
 } from "@/components/RichText/RichTextEditor";
 import { RichTextView } from "@/components/RichText/RichTextView";
+import { viewTextOffset } from "@/components/RichText/caret";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 import {
   getDOMAdjacentStackedPlaceholder,
@@ -216,6 +217,7 @@ export const PreloadedTaskComp = ({
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const titleEditorRef = useRef<RichTextEditorHandle | null>(null);
+  const [titleCaretOffset, setTitleCaretOffset] = useState<number>();
   const shouldOpenDatePickerAfterActionsCloseRef = useRef(false);
   const focusableItemKey = buildFocusKey(listItem.id, listItem.type);
 
@@ -1155,6 +1157,7 @@ export const PreloadedTaskComp = ({
   }, []);
 
   const handleTitleFocus = useCallback(() => {
+    setTitleCaretOffset(undefined);
     useFocusStore.getState().editByKey(focusableItemKey);
   }, [focusableItemKey]);
 
@@ -1302,7 +1305,8 @@ export const PreloadedTaskComp = ({
         onPointerDownCapture={suspendItemDragForInput}
         onPointerUpCapture={restoreItemDrag}
         onPointerCancelCapture={restoreItemDrag}
-        onDoubleClick={() => {
+        onDoubleClick={(event) => {
+          setTitleCaretOffset(viewTextOffset(event));
           useFocusStore.getState().editByKey(focusableItemKey);
         }}
         ref={ref}
@@ -1440,6 +1444,7 @@ export const PreloadedTaskComp = ({
                     onBlur={handleTitleBlur}
                     required
                     autoFocus
+                    caretOffset={titleCaretOffset}
                     ariaLabel="Edit task title"
                   />
                 </div>
@@ -1449,7 +1454,7 @@ export const PreloadedTaskComp = ({
                     "line-through": isTask(item) && item.state === "done",
                   })}
                 >
-                  <RichTextView text={displayedTitle} kind="title" />
+                  <RichTextView text={displayedTitle} />
                 </div>
               )}
             </div>

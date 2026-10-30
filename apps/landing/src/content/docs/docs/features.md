@@ -28,8 +28,9 @@ code blocks, and `---` dividers.
 
 The text stays Markdown underneath. When the cursor is inside formatted text,
 its Markdown markers appear around it, such as the `**` around bold text.
-While you edit a description, a toolbar above it applies the same formatting.
-Paste a URL over selected text to turn it into a link. See
+A toolbar above the description applies the same formatting.
+Pasted Markdown text keeps its formatting, and pasting a URL over selected
+text turns it into a link. See
 [text formatting shortcuts](/docs/keyboard-shortcuts/#text-formatting).
 
 Each of these fields syncs as a shared document. If you edit the same title,

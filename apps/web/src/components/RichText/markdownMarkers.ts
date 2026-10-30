@@ -1,6 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
 const MARK_DELIMITERS: Record<string, string> = {
   strike: "~~",
@@ -82,26 +82,53 @@ function collectActiveDecorations(state: EditorState): Decoration[] {
   return decorations;
 }
 
-const markersKey = new PluginKey<DecorationSet>("markdownMarkers");
+type MarkersState = { focused: boolean; decorations: DecorationSet };
+
+const markersKey = new PluginKey<MarkersState>("markdownMarkers");
+
+const decorate = (state: EditorState) =>
+  DecorationSet.create(state.doc, collectActiveDecorations(state));
+
+const setFocused = (view: EditorView, focused: boolean) => {
+  if (markersKey.getState(view.state)?.focused === focused) return false;
+  view.dispatch(view.state.tr.setMeta(markersKey, focused));
+  return false;
+};
 
 // Shows the markdown syntax of the styled text around the caret, so rich text
-// reads like the markdown it is stored as.
+// reads like the markdown it is stored as. Only while focused: an unfocused
+// editor keeps its selection.
 export const MarkdownMarkers = Extension.create({
   name: "markdownMarkers",
   addProseMirrorPlugins() {
     return [
-      new Plugin<DecorationSet>({
+      new Plugin<MarkersState>({
         key: markersKey,
         state: {
-          init: (_, state) =>
-            DecorationSet.create(state.doc, collectActiveDecorations(state)),
-          apply: (tr, previous, _, state) =>
-            tr.docChanged || tr.selectionSet
-              ? DecorationSet.create(state.doc, collectActiveDecorations(state))
-              : previous,
+          init: (_, state) => ({
+            focused: false,
+            decorations: decorate(state),
+          }),
+          apply: (tr, previous, _, state) => {
+            const focus = tr.getMeta(markersKey) as boolean | undefined;
+            return {
+              focused: focus ?? previous.focused,
+              decorations:
+                tr.docChanged || tr.selectionSet
+                  ? decorate(state)
+                  : previous.decorations,
+            };
+          },
         },
         props: {
-          decorations: (state) => markersKey.getState(state),
+          decorations: (state) => {
+            const markers = markersKey.getState(state);
+            return markers?.focused ? markers.decorations : null;
+          },
+          handleDOMEvents: {
+            focus: (view) => setFocused(view, true),
+            blur: (view) => setFocused(view, false),
+          },
         },
       }),
     ];

@@ -194,6 +194,7 @@ export function TemplateBody({
 
         <div className="pt-1">
           <EditableDescription
+            key={template.id}
             isEditing={isEditingDescription}
             content={template.content ?? ""}
             contentDoc={template.contentDoc}

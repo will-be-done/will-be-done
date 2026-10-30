@@ -7,7 +7,8 @@ import {
   useState,
   type Ref,
 } from "react";
-import { Selection } from "@tiptap/pm/state";
+import type { Node } from "@tiptap/pm/model";
+import { Selection, TextSelection } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import {
   encodeRichTextDoc,
@@ -25,9 +26,23 @@ import { RichTextToolbar } from "./RichTextToolbar";
 const SAVE_DELAY_MS = 200;
 const storedUpdateOrigin = { source: "stored-doc" };
 
+const posAtTextOffset = (doc: Node, offset: number) => {
+  let pos: number | undefined;
+  let remaining = offset;
+  doc.descendants((node, nodePos) => {
+    if (pos !== undefined) return false;
+    if (!node.isText) return true;
+    if (remaining <= node.nodeSize) pos = nodePos + remaining;
+    else remaining -= node.nodeSize;
+    return false;
+  });
+  return pos;
+};
+
 export type RichTextEditorHandle = {
   focusEnd: () => void;
   flush: () => void;
+  blur: () => void;
 };
 
 export type RichTextExitKey = "Enter" | "Escape";
@@ -44,6 +59,7 @@ export function RichTextEditor({
   onEmptyBackspace,
   required = false,
   autoFocus = false,
+  caretOffset,
   toolbar = false,
   placeholder = "",
   ariaLabel,
@@ -62,6 +78,8 @@ export function RichTextEditor({
   // An emptied required field keeps its last saved value.
   required?: boolean;
   autoFocus?: boolean;
+  // Text offset for the autofocused caret; the end when omitted.
+  caretOffset?: number;
   toolbar?: boolean;
   placeholder?: string;
   ariaLabel: string;
@@ -185,17 +203,32 @@ export function RichTextEditor({
     );
   }, [editor]);
 
+  const [initialCaretOffset] = useState(caretOffset);
   useLayoutEffect(() => {
-    if (autoFocus) focusEnd();
-  }, [autoFocus, focusEnd]);
+    if (!autoFocus || !editor || editor.isDestroyed) return;
+    const { doc: editorDoc } = editor.state;
+    const pos =
+      initialCaretOffset === undefined
+        ? undefined
+        : posAtTextOffset(editorDoc, initialCaretOffset);
+    if (pos === undefined) {
+      focusEnd();
+      return;
+    }
+    editor.view.focus();
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editorDoc, pos)),
+    );
+  }, [autoFocus, editor, focusEnd, initialCaretOffset]);
 
   useImperativeHandle(
     ref,
     () => ({
       focusEnd,
       flush,
+      blur: () => editor?.commands.blur(),
     }),
-    [flush, focusEnd],
+    [editor, flush, focusEnd],
   );
 
   return (

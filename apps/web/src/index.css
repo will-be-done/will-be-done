@@ -315,6 +315,11 @@
 .rich-text {
   overflow-wrap: anywhere;
 }
+/* ProseMirror's base styles reset font features; keep the app's Inter glyphs. */
+.rich-text.ProseMirror {
+  font-variant-ligatures: inherit;
+  font-feature-settings: inherit;
+}
 .rich-text > :first-child {
   margin-top: 0;
 }
@@ -392,6 +397,7 @@
     transparent
   );
   text-underline-offset: 2px;
+  cursor: pointer;
 }
 .rich-text-marker {
   color: var(--color-content-tinted);

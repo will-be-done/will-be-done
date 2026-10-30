@@ -98,8 +98,9 @@ clients receive the change through sync.
 Task and template titles, descriptions, and checklist item content are
 Markdown strings, so `**bold**` in a title shows as bold in the app. When you
 update one of them, the server applies your text as an edit to the shared
-document. An edit someone makes in the app at the same time is merged with
-yours, not overwritten.
+document, replacing only the paragraphs that changed. Edits someone makes in
+the app at the same time to other paragraphs are kept. If they edit a
+paragraph you also changed, your text replaces it.
 
 ## Revoke a token
 

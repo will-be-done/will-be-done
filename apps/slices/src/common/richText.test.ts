@@ -44,6 +44,19 @@ describe("rich text markdown", () => {
   });
 
   it.each([
+    ["Para\n\n\nPara", 1],
+    ["```\nx\n```\n\n\n\n```\ny\n```", 2],
+    ["\nLeading", 1],
+    ["Trailing\n\n\n", 2],
+    ["\n\n", 3],
+  ])("keeps extra blank lines in %j as empty paragraphs", (markdown, empty) => {
+    const nodes = markdownToRichTextNodes(markdown, "content");
+
+    expect(nodes.filter((node) => !node.content?.length)).toHaveLength(empty);
+    expect(normalizeRichTextMarkdown(markdown, "content")).toBe(markdown);
+  });
+
+  it.each([
     ["# 123 bug", "# 123 bug"],
     ["1. Call mom", "1. Call mom"],
     ["- buy milk", "- buy milk"],
@@ -87,7 +100,7 @@ describe("rich text markdown", () => {
             type: "text",
             text: "www.example.com/docs",
             marks: [
-              { type: "link", attrs: { href: "http://www.example.com/docs" } },
+              { type: "link", attrs: { href: "https://www.example.com/docs" } },
             ],
           },
           { type: "text", text: "`" },
@@ -95,6 +108,16 @@ describe("rich text markdown", () => {
         ],
       },
     ]);
+  });
+
+  it("links bare www. addresses securely and keeps them bare", () => {
+    const markdown = "Visit www.example.com today";
+    const [paragraph] = markdownToRichTextNodes(markdown, "content");
+
+    expect(paragraph?.content?.[1]?.marks).toEqual([
+      { type: "link", attrs: { href: "https://www.example.com" } },
+    ]);
+    expect(normalizeRichTextMarkdown(markdown, "content")).toBe(markdown);
   });
 
   it("renders plain text without markdown syntax", () => {

@@ -307,6 +307,7 @@ export function TaskBody({
 
         <div className="pt-1">
           <EditableDescription
+            key={task.id}
             isEditing={isEditingDescription}
             content={task.content ?? ""}
             contentDoc={task.contentDoc}
