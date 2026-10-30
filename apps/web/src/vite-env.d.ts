@@ -29,6 +29,7 @@ declare global {
     readonly VITE_POSTHOG_KEY?: string;
     readonly VITE_POSTHOG_HOST?: string;
     readonly VITE_POSTHOG_UI_HOST?: string;
+    readonly VITE_DEMO_MODE?: string;
   }
 
   interface ImportMeta {

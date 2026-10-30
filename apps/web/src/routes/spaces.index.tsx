@@ -7,7 +7,8 @@ import {
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "@/lib/trpc";
-import { authUtils, isDemoMode } from "@/lib/auth";
+import { authUtils } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoMode";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { StandalonePage } from "@/components/Layout/StandalonePage";
 import {

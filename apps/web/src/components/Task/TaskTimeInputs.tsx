@@ -104,7 +104,7 @@ function PickerField({
         align="end"
         data-disable-task-shortcuts
         onDoubleClick={(event) => event.stopPropagation()}
-        className="z-[1200] w-auto bg-task-dropdown p-0 backdrop-blur-none"
+        className="z-[10001] w-auto bg-task-dropdown p-0 backdrop-blur-none"
       >
         {children}
       </PopoverContent>

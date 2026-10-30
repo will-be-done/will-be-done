@@ -42,7 +42,8 @@ Project and section names are plain text.
 ## Weekly timeline and Today
 
 The timeline shows days side by side. Each day contains an ordered task list.
-Scheduling assigns a day, with no time of day or duration.
+Scheduling assigns a day. A start time and duration are optional; see
+[Calendar](#calendar).
 
 A scheduled task still belongs to its project section. Its appearance on the
 timeline refers to the same task, so edits and completion apply in both views.
@@ -53,6 +54,17 @@ The Today view shows the current day's list.
 
 An unfinished task keeps its scheduled day. It does not automatically move to
 today. A yellow schedule indicator marks unfinished work scheduled in the past.
+
+## Calendar
+
+The calendar shows scheduled tasks in Day, Week, Month, or Plan view. Plan
+shows two weeks at a time.
+
+A task can have a start time and a duration. In Day and Week views, timed
+tasks appear as blocks on an hourly grid and tasks without a time sit in the
+all-day row. Drag a block to change its day or time, or drag its bottom edge to
+change its duration. Drag a task from a project section onto the calendar to
+schedule it. Set or clear the time and duration from the task details panel.
 
 ## Stash
 

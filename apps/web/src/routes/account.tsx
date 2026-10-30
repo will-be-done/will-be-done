@@ -1,5 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { authUtils, isDemoMode } from "@/lib/auth";
+import { authUtils } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoMode";
 import { ArrowLeft } from "lucide-react";
 import { StandalonePage } from "@/components/Layout/StandalonePage";
 import { AppLogo } from "@/components/Layout/AppLogo";

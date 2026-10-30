@@ -52,6 +52,7 @@ const shortcutGroups: ShortcutGroup[] = [
     title: "Global",
     description: "Available anywhere in a space",
     shortcuts: [
+      { bindings: [["Ctrl", "A"]], description: "Quick add task" },
       { bindings: [["\\"]], description: "Toggle stash" },
       { bindings: [["V"]], description: "Toggle task details" },
       { bindings: [["P"]], description: "Toggle project view" },

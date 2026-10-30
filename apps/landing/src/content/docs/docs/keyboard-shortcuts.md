@@ -1,6 +1,6 @@
 ---
 title: Keyboard shortcuts
-description: Keys for navigation, task actions, project actions, text formatting, and desktop quick add.
+description: Keys for navigation, task actions, project actions, text formatting, and quick add.
 sidebar:
   order: 2
 ---
@@ -14,6 +14,12 @@ starts a new line and `Shift+Enter` or `Esc` finishes editing.
 
 In this reference, `Shift+O` means hold Shift and press O. Control-based movement
 uses `Ctrl` on macOS too.
+
+## Quick add
+
+Press `Ctrl+A` outside a text field to add a task from anywhere in a space.
+Type the title, pick a project, section, and date, then press `Enter`. The
+project and date start from the page you are on.
 
 ## Panels
 

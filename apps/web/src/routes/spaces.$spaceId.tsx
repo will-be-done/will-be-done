@@ -10,7 +10,8 @@ import {
 import { type SubscribableDB } from "@will-be-done/hyperdb";
 import { DBProvider } from "@will-be-done/hyperdb/react";
 import { initDbStore } from "@/store/load.ts";
-import { authUtils, isDemoMode } from "@/lib/auth";
+import { authUtils } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoMode";
 import { demoSpaceDBConfig, spaceDBConfig } from "@/store/configs";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { useEffect } from "react";

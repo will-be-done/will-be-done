@@ -21,6 +21,9 @@ export const minutesInDay = 24 * 60;
 export const snapMinutes = 15;
 // Timed tasks without a duration still need a visible block.
 export const defaultBlockMinutes = 30;
+// Shorter blocks are drawn this tall so a line of text fits (20px at the time
+// grid's 48px hour); overlap layout uses the drawn height too.
+export const minBlockMinutes = 25;
 
 // One appearance of a Task on a calendar day. Projected events are template
 // occurrences that will be generated later; they are not real Tasks yet.
@@ -143,7 +146,10 @@ export function layoutTimedEvents(
       return {
         key: e.key,
         start,
-        end: Math.min(minutesInDay, start + blockMinutes(e)),
+        end: Math.min(
+          minutesInDay,
+          start + Math.max(blockMinutes(e), minBlockMinutes),
+        ),
       };
     })
     .sort((a, b) => a.start - b.start || b.end - a.end);

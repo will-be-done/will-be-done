@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -7,7 +7,6 @@ import {
   useAsyncSelector,
 } from "@will-be-done/hyperdb/react";
 import {
-  createProjectTask,
   inboxProjectId,
   scheduleTask,
   setDailyEntryTime,
@@ -15,9 +14,6 @@ import {
   updateTemplate,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { formatTaskTime } from "@/lib/taskTime.ts";
-import { captureWebAnalytics } from "@/lib/analytics";
-import { promptDialog } from "@/components/ui/prompt-dialog-service.ts";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavBar } from "@/components/NavBar/NavBar";
 import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
@@ -42,6 +38,7 @@ import {
 import { TimeGridView } from "./TimeGridView";
 import { useExternalTaskDrop } from "./useExternalTaskDrop";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
+import { openQuickAdd } from "@/components/QuickAdd/quickAddStore";
 
 const viewLabels: Record<CalendarView, string> = {
   day: "Day",
@@ -84,23 +81,21 @@ export const CalendarPage = ({
             ? durationMinutes !== event.durationMinutes && { durationMinutes }
             : target?.time !== undefined &&
               target.time !== event.time && { time: target.time };
-        if (template) {
-          void dispatch(updateTemplate({ id: event.templateId, template }));
-        }
-        return;
+        return template
+          ? dispatch(updateTemplate({ id: event.templateId, template }))
+          : undefined;
       }
       if (mode === "resize") {
-        if (durationMinutes !== event.durationMinutes) {
-          void dispatch(
-            updateTask({ id: event.taskId, task: { durationMinutes } }),
-          );
-        }
-        return;
+        return durationMinutes !== event.durationMinutes
+          ? dispatch(
+              updateTask({ id: event.taskId, task: { durationMinutes } }),
+            )
+          : undefined;
       }
       if (!target) return;
 
       if (target.date !== event.date) {
-        void dispatch(
+        return dispatch(
           scheduleTask({
             taskId: event.taskId,
             date: target.date,
@@ -109,8 +104,9 @@ export const CalendarPage = ({
             ...(target.time === undefined ? {} : { time: target.time }),
           }),
         );
-      } else if (target.time !== undefined && target.time !== event.time) {
-        void dispatch(
+      }
+      if (target.time !== undefined && target.time !== event.time) {
+        return dispatch(
           setDailyEntryTime({ taskId: event.taskId, time: target.time }),
         );
       }
@@ -118,34 +114,13 @@ export const CalendarPage = ({
     [dispatch],
   );
 
-  const onCreate = useCallback(
-    (date: string, time: string | null) => {
-      void (async () => {
-        const title = (
-          await promptDialog(
-            time ? `New task at ${formatTaskTime(time)}` : "New task",
-          )
-        )?.trim();
-        if (!title || !inboxId) return;
-
-        const task = await dispatch(
-          createProjectTask({
-            projectId: inboxId,
-            position: "prepend",
-            taskAttrs: { title },
-          }),
-        );
-        await dispatch(
-          scheduleTask({ taskId: task.id, date, position: "append", time }),
-        );
-        captureWebAnalytics({
-          name: "task_created",
-          properties: { creation_method: "add_button", location: "calendar" },
-        });
-      })();
-    },
-    [dispatch, inboxId],
-  );
+  const onCreate = useCallback((date: string, time: string | null) => {
+    openQuickAdd({
+      date: parse(date, "yyyy-MM-dd", new Date()),
+      time,
+      location: "calendar",
+    });
+  }, []);
 
   const onOpenDay = useCallback(
     (date: Date) => {
@@ -265,48 +240,56 @@ export const CalendarPage = ({
         <div
           ref={bodyRef}
           data-focus-region-direction="row"
-          className="flex min-h-0 flex-1 flex-col px-4 pb-4"
+          className="flex min-h-0 flex-1 overflow-x-auto px-4 pb-4"
         >
-          {view === "month" || view === "plan" ? (
-            <>
-              <WeekdayHeader days={days.slice(0, 7)} />
-              <div
-                className="grid min-h-0 flex-1 grid-cols-7 border-l border-white/5"
-                style={{
-                  gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))`,
-                }}
-              >
-                {days.map((day) => {
-                  const events = eventsByDate.get(urlDate(day)) ?? [];
-                  return view === "month" ? (
-                    <MonthCell
-                      key={day.getTime()}
-                      day={day}
-                      anchor={anchor}
-                      today={today}
-                      events={events}
-                      actions={actions}
-                    />
-                  ) : (
-                    <PlanCell
-                      key={day.getTime()}
-                      day={day}
-                      today={today}
-                      events={events}
-                      actions={actions}
-                    />
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <TimeGridView
-              days={days}
-              today={today}
-              eventsByDate={eventsByDate}
-              actions={actions}
-            />
-          )}
+          {/* Seven day columns stay readable; narrow windows scroll sideways. */}
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              view !== "day" && "min-w-[52rem]",
+            )}
+          >
+            {view === "month" || view === "plan" ? (
+              <>
+                <WeekdayHeader days={days.slice(0, 7)} />
+                <div
+                  className="grid min-h-0 flex-1 grid-cols-7 border-l border-white/5"
+                  style={{
+                    gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {days.map((day) => {
+                    const events = eventsByDate.get(urlDate(day)) ?? [];
+                    return view === "month" ? (
+                      <MonthCell
+                        key={day.getTime()}
+                        day={day}
+                        anchor={anchor}
+                        today={today}
+                        events={events}
+                        actions={actions}
+                      />
+                    ) : (
+                      <PlanCell
+                        key={day.getTime()}
+                        day={day}
+                        today={today}
+                        events={events}
+                        actions={actions}
+                      />
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <TimeGridView
+                days={days}
+                today={today}
+                eventsByDate={eventsByDate}
+                actions={actions}
+              />
+            )}
+          </div>
         </div>
       </ProjectsSplit>
 

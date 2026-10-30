@@ -48,9 +48,12 @@ test("opens calendar cards with Enter and Space only when the card is focused", 
     el.closest(".overflow-y-auto")!.scrollTop = 9 * 48;
   });
   await column.click({ position: { x: 10, y: 10 * hourHeight + 5 } });
-  const dialog = page.getByRole("dialog", { name: "New task at 10:00 AM" });
-  await dialog.getByRole("textbox").fill(title);
-  await dialog.getByRole("button", { name: "Confirm" }).click();
+  const dialog = page.getByRole("dialog", { name: "Quick add" });
+  await expect(dialog.getByLabel("Time", { exact: true })).toHaveValue(
+    "10:00 AM",
+  );
+  await dialog.getByLabel("Task title").fill(title);
+  await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
 
   const panel = page.getByTestId("item-details-panel");
@@ -154,9 +157,12 @@ test("plans a timed task on the calendar by dragging and resizing", async ({
     el.closest(".overflow-y-auto")!.scrollTop = 9 * 48;
   });
   await column.click({ position: { x: 10, y: 10 * hourHeight + 5 } });
-  const dialog = page.getByRole("dialog", { name: "New task at 10:00 AM" });
-  await dialog.getByRole("textbox").fill(title);
-  await dialog.getByRole("button", { name: "Confirm" }).click();
+  const dialog = page.getByRole("dialog", { name: "Quick add" });
+  await expect(dialog.getByLabel("Time", { exact: true })).toHaveValue(
+    "10:00 AM",
+  );
+  await dialog.getByLabel("Task title").fill(title);
+  await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await expect(block(page, title)).toContainText("10:00 AM");
 
@@ -234,9 +240,10 @@ test("retimes a repeating task by dragging its upcoming occurrence", async ({
   await page
     .locator(`[data-calendar-untimed][data-calendar-date="${today}"]`)
     .click({ position: { x: 5, y: 5 } });
-  const dialog = page.getByRole("dialog", { name: "New task" });
-  await dialog.getByRole("textbox").fill(title);
-  await dialog.getByRole("button", { name: "Confirm" }).click();
+  const dialog = page.getByRole("dialog", { name: "Quick add" });
+  await expect(dialog.getByLabel("Time", { exact: true })).toHaveValue("");
+  await dialog.getByLabel("Task title").fill(title);
+  await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await page
     .locator("[data-calendar-untimed] [data-focusable-key]", { hasText: title })
