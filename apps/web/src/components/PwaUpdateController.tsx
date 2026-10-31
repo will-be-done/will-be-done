@@ -11,6 +11,7 @@ import {
   getSyncUpdateRequired,
   subscribeSyncUpdateRequired,
 } from "@/store/syncCompatibility";
+import { cacheAllEmoji } from "@/lib/emojiCache";
 
 const UPDATE_TOAST_ID = "pwa-update-available";
 const REQUIRED_UPDATE_TOAST_ID = "pwa-update-required";
@@ -82,6 +83,12 @@ export function PwaUpdateController() {
   } = useRegisterSW({
     onRegisteredSW: (_swScriptUrl, serviceWorkerRegistration) => {
       setRegistration(serviceWorkerRegistration ?? null);
+      // Waits for the precache so emoji never compete with the app shell.
+      void navigator.serviceWorker.ready
+        .then(cacheAllEmoji)
+        .catch((error) =>
+          console.warn("Emoji are not fully cached for offline use", error),
+        );
     },
     onRegisterError(error) {
       console.error("Service worker registration failed", error);

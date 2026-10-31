@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Clock, Folder, Hash, Hourglass, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DurationInput, TimeInput } from "@/components/Task/TaskTimeInputs";
+import { ProjectIcon } from "@/components/ui/emoji";
 import {
   RichTextEditor,
   type RichTextEditorHandle,
@@ -184,7 +185,7 @@ export function ProjectDetailRow({
           className="min-w-0 cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left truncate"
           onClick={onOpenClick}
         >
-          {project.icon || "🟡"} {project.title}
+          <ProjectIcon icon={project.icon} /> {project.title}
         </button>
         <button
           type="button"
