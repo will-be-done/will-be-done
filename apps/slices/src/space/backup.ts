@@ -421,8 +421,16 @@ function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
     parsed = undefined;
   }
   const result = trashSnapshot.normalize(parsed);
-  if (result.ok && !result.omitted && result.value.task.id === id) {
-    return result.value;
+  if (result.ok && !result.omitted) {
+    const { task, checklistItems, dailyEntry, stashEntry } = result.value;
+    const belongsToTask =
+      task.id === id &&
+      checklistItems.every(
+        (item) => item.parentType === taskType && item.parentId === id,
+      ) &&
+      (!dailyEntry || dailyEntry.taskId === id) &&
+      (!stashEntry || stashEntry.taskId === id);
+    if (belongsToTask) return result.value;
   }
   console.warn(`Invalid trash snapshot omitted for task ${id}`);
   return undefined;

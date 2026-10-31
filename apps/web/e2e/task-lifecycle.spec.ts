@@ -15,6 +15,8 @@ test("creates, edits, toggles, deletes, and restores a task across Today and Inb
   page,
   browser,
 }) => {
+  // Signs in a second device to check the restore syncs.
+  test.slow();
   const spaceName = uniqueE2EName("E2E Lifecycle Space");
   const initialTitle = uniqueE2EName("E2E lifecycle task");
   const editedTitle = uniqueE2EName("E2E lifecycle edited");

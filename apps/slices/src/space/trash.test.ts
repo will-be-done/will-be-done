@@ -212,6 +212,22 @@ describe("trash", () => {
       trashedAt: 0,
       snapshot: JSON.stringify({ task: { id: "malformed" } }),
     });
+    backup.trashedTasks.push({
+      id: "foreign",
+      trashedAt: 0,
+      snapshot: JSON.stringify({
+        task: { ...task, id: "foreign" },
+        checklistItems: [],
+        dailyEntry: null,
+        stashEntry: {
+          type: stashEntryType,
+          id: "foreign-stash",
+          taskId: stashedTask.id,
+          orderToken: "c",
+          createdAt: 0,
+        },
+      }),
+    });
 
     const target = createDB("b0000000-0000-4000-8000-000000000002");
     syncDispatch(target, loadSpaceBackup({ backup }));
