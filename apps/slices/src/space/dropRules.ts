@@ -237,7 +237,7 @@ export function canDropModel(
         dropped.modelType === "task" ||
         dropped.modelType === "template" ||
         (dropped.modelType === "dailyEntry" && isTodoTask) ||
-        (target.modelType === "project" && dropped.modelType === "project")
+        dropped.modelType === target.modelType
       );
     case "checklistItem":
       return dropped.modelType === "checklistItem";

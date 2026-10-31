@@ -191,7 +191,7 @@ const cases: [string, string[]][] = [
   ["stash-todo", todoSources],
   ["stash-done", []],
   ["project", [...projectSources, "project"]],
-  ["section", projectSources],
+  ["section", [...projectSources, "section"]],
   ["dailyList", todoSources],
   ["checklist", ["checklist"]],
 ];
