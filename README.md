@@ -12,6 +12,8 @@ Under the hood, Will Be Done runs on [HyperDB](https://github.com/will-be-done/h
 
 <img width="3002" height="1908" alt="Will Be Done weekly planning view" src="https://github.com/user-attachments/assets/b36b1797-83f5-4eca-92c3-75dd7b42a2ac" />
 
+<img width="2000" height="1433" alt="Will Be Done weekly calendar view" src="apps/landing/src/assets/calendar-week.png" />
+
 ## Why Will Be Done?
 
 Will Be Done is for people who want a fast, private task manager aimed at planning rather than capture.
