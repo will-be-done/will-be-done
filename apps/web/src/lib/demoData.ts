@@ -7,6 +7,32 @@ const dmy = (date: Date) => format(date, "yyyy-MM-dd");
 // 60 evenly-spaced fractional-index keys — enough for all orderings.
 const K = generateNKeysBetween(null, null, 60);
 
+const demoTaskSchedule: Record<
+  string,
+  { time: string; durationMinutes: number }
+> = {
+  "tk-be-1": { time: "09:00", durationMinutes: 120 },
+  "tk-dc-2": { time: "09:30", durationMinutes: 60 },
+  "tk-mc-1": { time: "13:00", durationMinutes: 90 },
+  "tk-hw-2": { time: "18:00", durationMinutes: 60 },
+  "tk-fe-1": { time: "09:00", durationMinutes: 60 },
+  "tk-ci-1": { time: "10:30", durationMinutes: 90 },
+  "tk-gc-1": { time: "19:00", durationMinutes: 45 },
+  "tk-cs-1": { time: "09:00", durationMinutes: 45 },
+  "tk-mob-1": { time: "10:00", durationMinutes: 120 },
+  "tk-cloud-1": { time: "14:00", durationMinutes: 90 },
+  "tk-dc-3": { time: "09:00", durationMinutes: 60 },
+  "tk-fe-3": { time: "10:30", durationMinutes: 120 },
+  "tk-mc-2": { time: "14:00", durationMinutes: 90 },
+  "tk-sa-2": { time: "09:00", durationMinutes: 60 },
+  "tk-be-3": { time: "10:30", durationMinutes: 90 },
+  "tk-gc-2": { time: "16:00", durationMinutes: 45 },
+  "tk-hw-1": { time: "08:00", durationMinutes: 45 },
+  "tk-dc-4": { time: "11:00", durationMinutes: 60 },
+  "tk-hn-2": { time: "10:00", durationMinutes: 30 },
+  "tk-gr-1": { time: "17:00", durationMinutes: 60 },
+};
+
 export function generateDemoBackup(): Backup {
   const base = Date.now();
   const t = (offsetMs: number) => base - offsetMs;
@@ -1171,18 +1197,24 @@ export function generateDemoBackup(): Backup {
   // Build the tasks array for the backup.
   // orderToken only needs to be unique within a section; use the task's
   // position index modulo the key pool size.
-  const backupTasks = tasks.map((tk, i) => ({
-    id: tk.id,
-    title: tk.title,
-    state: tk.done ? ("done" as const) : ("todo" as const),
-    projectSectionId: tk.sectionId,
-    orderToken: K[i % K.length],
-    lastToggledAt: tk.done ? t(500_000 - i * 10_000) : 0,
-    createdAt: t(5_000_000 - i * 50_000),
-    templateId: null,
-    templateDate: null,
-    content: "",
-  }));
+  const backupTasks = tasks.map((tk, i) => {
+    const schedule = demoTaskSchedule[tk.id];
+    return {
+      id: tk.id,
+      title: tk.title,
+      state: tk.done ? ("done" as const) : ("todo" as const),
+      projectSectionId: tk.sectionId,
+      orderToken: K[i % K.length],
+      lastToggledAt: tk.done ? t(500_000 - i * 10_000) : 0,
+      createdAt: t(5_000_000 - i * 50_000),
+      templateId: null,
+      templateDate: null,
+      content: "",
+      ...(schedule === undefined
+        ? {}
+        : { durationMinutes: schedule.durationMinutes }),
+    };
+  });
 
   // ── Daily lists & entries ────────────────────────────────────────────────
   // Current week: 5 unique task IDs per day, Mon=0 … Sun=6.
@@ -1278,13 +1310,17 @@ export function generateDemoBackup(): Backup {
   const dailyEntries = [
     ...days.flatMap((_, dayIdx) => {
       const listId = `list-day-${dayIdx}`;
-      return (dailyEntrySlots[dayIdx] ?? []).map((taskId, pos) => ({
-        id: `entry-day-${dayIdx}-${taskId}`,
-        taskId,
-        orderToken: K[pos],
-        listId,
-        createdAt: t(200_000 - dayIdx * 10_000 - pos * 1_000),
-      }));
+      return (dailyEntrySlots[dayIdx] ?? []).map((taskId, pos) => {
+        const schedule = demoTaskSchedule[taskId];
+        return {
+          id: `entry-day-${dayIdx}-${taskId}`,
+          taskId,
+          orderToken: K[pos],
+          listId,
+          createdAt: t(200_000 - dayIdx * 10_000 - pos * 1_000),
+          ...(schedule === undefined ? {} : { time: schedule.time }),
+        };
+      });
     }),
     ...prevWeekDays.flatMap((_, dayIdx) => {
       const listId = `list-prev-${dayIdx}`;
