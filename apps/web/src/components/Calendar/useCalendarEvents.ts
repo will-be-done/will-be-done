@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { richTextMarkdownToPlainText } from "@will-be-done/slices/common";
 import { endOfDay, startOfDay } from "date-fns";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
@@ -42,7 +43,7 @@ export function useCalendarEvents(dates: Date[]): Map<string, CalendarEvent[]> {
         taskId: task.id,
         focusKey: buildFocusKey(entry.id, dailyEntryType),
         date,
-        title: task.title,
+        title: richTextMarkdownToPlainText(task.title, "title"),
         nature: task.nature,
         time: entry.time ?? null,
         durationMinutes: task.durationMinutes ?? null,
@@ -60,7 +61,7 @@ export function useCalendarEvents(dates: Date[]): Map<string, CalendarEvent[]> {
         // A template can occur several times in view; keys must be unique.
         focusKey: buildFocusKey(template.id, taskTemplateType, occurrence.date),
         date: occurrence.date,
-        title: template.title,
+        title: richTextMarkdownToPlainText(template.title, "title"),
         nature: template.nature,
         time: occurrence.time,
         durationMinutes: template.durationMinutes ?? null,

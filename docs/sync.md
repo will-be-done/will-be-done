@@ -324,7 +324,21 @@ must never expose a partially applied logical sync response.
 
 ## Merge Rules
 
-- Per-field conflicts use HLC last-writer-wins ordering.
+- Per-field conflicts use HLC last-writer-wins ordering, except registered
+  rich-text fields (`registerRichTextFields`). A rich-text doc field holds
+  base64 Yjs state and merges by CRDT union; its markdown text field is
+  always re-derived from the merged doc. A side whose text won LWW but
+  disagrees with its own doc (a client that predates docs) is replayed as a
+  doc edit with a content-derived client ID, so it merges and its replay is a
+  no-op. A doc that fails to decode is treated as missing, and dropped if no
+  valid doc remains. The union keeps one side's exact bytes when it already
+  contains the other and picks the smaller encoding for equal states, so replicas
+  converge on identical rows and replays stay no-ops. A doc is created lazily
+  from the text with a deterministic seed (`seedRichTextDoc`): replicas
+  seeding the same markdown produce identical Yjs structs, which a random
+  client ID would duplicate on merge. Whole-text writes such as API updates
+  edit the doc (`richTextItems.ts`) rather than replacing it. See
+  [rich-text.md](rich-text.md) for the reasons and traps.
 - Concurrent creation of the same ID uses deterministic first-creator-wins
   behavior before field merging.
 - An entity is deleted when its deletion HLC is newer than its restore HLC.
@@ -334,11 +348,12 @@ must never expose a partially applied logical sync response.
   restore HLC never brings a deleted ID back, even when its clock is newer.
   Locally, inserting a row whose ID is tombstoned records a restore.
 - Each restore starts a new incarnation. When restore HLCs differ, the newer
-  incarnation's row and field clocks win wholesale; per-field LWW applies only
-  within one incarnation. A deleted row's values are not kept, so this is what
-  keeps convergence independent of arrival order. Edits made concurrently with
-  a delete are lost even if the delete is later restored, and of two concurrent
-  restores the later one wins, discarding edits made to the other.
+  incarnation's row and field clocks win wholesale; per-field LWW and rich-text
+  doc unions apply only within one incarnation. A deleted row's values are not
+  kept, so this is what keeps convergence independent of arrival order. Edits
+  made concurrently with a delete are lost even if the delete is later restored,
+  and of two concurrent restores the later one wins, discarding edits made to
+  the other.
 - Entry conflicts such as multiple daily/stash entries for one task are
   resolved deterministically before the generic merge.
 - DailyLists are deterministic, ensure-only date scaffolding. They are not

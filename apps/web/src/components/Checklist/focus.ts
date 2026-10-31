@@ -1,6 +1,6 @@
 export const focusChecklistItem = (
   itemId: string,
-  options?: { caret?: "end"; attempts?: number; root?: ParentNode | null },
+  options?: { attempts?: number; root?: ParentNode | null },
 ) => {
   const attempts = options?.attempts ?? 12;
   const root = options?.root ?? document;
@@ -9,9 +9,9 @@ export const focusChecklistItem = (
     const item = root.querySelector<HTMLElement>(
       `[data-checklist-item-id="${CSS.escape(itemId)}"]`,
     );
-    const textarea = item?.querySelector<HTMLTextAreaElement>("textarea");
+    const editor = item?.querySelector<HTMLElement>("[contenteditable]");
 
-    if (!textarea) {
+    if (!editor) {
       item?.dispatchEvent(new CustomEvent("checklist-item-edit"));
       if (attempts > 0) {
         focusChecklistItem(itemId, { ...options, attempts: attempts - 1 });
@@ -19,11 +19,6 @@ export const focusChecklistItem = (
       return;
     }
 
-    textarea.focus();
-
-    if (options?.caret === "end") {
-      const end = textarea.value.length;
-      textarea.setSelectionRange(end, end);
-    }
+    editor.focus();
   });
 };

@@ -9,6 +9,7 @@ import {
   createTaskTemplate,
   createTaskTemplateFromTask,
   deleteTemplates,
+  syncItemRichText,
   taskById,
   taskTemplateById,
   taskTemplatesTable,
@@ -46,7 +47,7 @@ async function applyUpdates(
   current: TaskTemplate,
   updates: TaskTemplateUpdates,
 ): Promise<TaskTemplate> {
-  const next: TaskTemplate = {
+  const proposed: TaskTemplate = {
     ...current,
     ...(updates.title === undefined ? {} : { title: updates.title }),
     ...(typeof updates.content === "string"
@@ -64,8 +65,9 @@ async function applyUpdates(
       ? {}
       : { durationMinutes: updates.durationMinutes }),
   };
-  if (updates.content === null) delete next.content;
-  if (updates.nature === null) delete next.nature;
+  if (updates.content === null) delete proposed.content;
+  if (updates.nature === null) delete proposed.nature;
+  const next = syncItemRichText(current, proposed);
 
   await asyncDispatch(db, replaceTaskTemplate({ template: next }));
   return next;

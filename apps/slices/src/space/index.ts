@@ -1,5 +1,6 @@
 // Pure utilities and maps - keep as star exports
 export * from "./utils";
+export * from "./richTextItems";
 export * from "./maps";
 export * from "./syncMap";
 export * from "./tables";

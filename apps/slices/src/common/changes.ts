@@ -16,6 +16,13 @@ import { groupBy } from "es-toolkit";
 import { changesTable, type Change } from "./tables";
 import { compareHlc } from "./hlc";
 import type { ClientCursor } from "./syncV4";
+import {
+  loadRichTextDoc,
+  mergeRichTextDocs,
+  replaceRichTextDocMarkdown,
+  richTextDocToMarkdown,
+  type RichTextKind,
+} from "./richText";
 
 export { changesTable, type Change } from "./tables";
 
@@ -24,6 +31,123 @@ export type PrimitiveRow = Record<string, string | number | boolean | null> & {
 };
 
 const SELECT_OR_CHUNK_SIZE = 400;
+
+type RichTextField = {
+  docField: string;
+  textField: string;
+  kind: RichTextKind;
+};
+
+const richTextFieldsByTable = new Map<string, readonly RichTextField[]>();
+
+// A Yjs doc field merges by CRDT union instead of LWW, and its markdown text
+// field is always re-derived from the merged doc.
+export const registerRichTextFields = (
+  tableName: string,
+  fields: readonly RichTextField[],
+) => {
+  richTextFieldsByTable.set(tableName, fields);
+};
+
+const decodes = (doc: unknown): doc is string => {
+  if (typeof doc !== "string") return false;
+  try {
+    loadRichTextDoc(doc).destroy();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// A doc that does not decode is dropped: the row keeps its text, and the next
+// edit seeds a doc from it again.
+const withoutDoc = (row: Row, docField: string): Row => {
+  const { [docField]: _, ...rest } = row;
+  return rest as Row;
+};
+
+const mergeRichTextFields = (
+  tableName: string,
+  currentRow: Row | undefined,
+  incomingRow: Row | undefined,
+  mergedRow: Row,
+): Row => {
+  const fields = richTextFieldsByTable.get(tableName);
+  if (!fields || !incomingRow) return mergedRow;
+  let result = mergedRow;
+  for (const { docField, textField, kind } of fields) {
+    if (!currentRow) {
+      const doc = result[docField];
+      if (doc !== undefined && !decodes(doc)) {
+        result = withoutDoc(result, docField);
+      }
+      continue;
+    }
+    if (
+      currentRow[docField] === incomingRow[docField] &&
+      currentRow[textField] === incomingRow[textField]
+    ) {
+      continue;
+    }
+    const docOf = (row: Row) =>
+      decodes(row[docField]) ? row[docField] : undefined;
+    const currentDoc = docOf(currentRow);
+    const incomingDoc = docOf(incomingRow);
+    // Clients that predate docs change only the text, leaving their doc stale
+    // or absent. A text that won LWW is replayed as an edit of the doc it was
+    // written against, so it merges instead of being dropped.
+    const textEdit = (
+      row: Row,
+      other: Row,
+      own: string | undefined,
+      otherDoc: string | undefined,
+    ) => {
+      const text = row[textField];
+      if (
+        typeof text !== "string" ||
+        text !== mergedRow[textField] ||
+        text === other[textField] ||
+        (own !== undefined && richTextDocToMarkdown(own, kind) === text)
+      ) {
+        return undefined;
+      }
+      const base = own ?? otherDoc;
+      return base === undefined
+        ? undefined
+        : replaceRichTextDocMarkdown(base, text, kind);
+    };
+    try {
+      const docs = [
+        currentDoc,
+        incomingDoc,
+        textEdit(currentRow, incomingRow, currentDoc, incomingDoc),
+        textEdit(incomingRow, currentRow, incomingDoc, currentDoc),
+      ].filter((doc) => doc !== undefined);
+      if (docs.length === 0) {
+        result = withoutDoc(result, docField);
+        continue;
+      }
+      const doc = docs.reduce(mergeRichTextDocs);
+      result = {
+        ...result,
+        [docField]: doc,
+        [textField]: richTextDocToMarkdown(doc, kind),
+      };
+    } catch (error) {
+      // A doc that decodes but fails to merge must not block the changeset.
+      console.error(`Failed to merge ${tableName}.${docField}`, error);
+      result =
+        currentDoc === undefined
+          ? withoutDoc(result, docField)
+          : {
+              ...result,
+              [docField]: currentDoc,
+              [textField]: currentRow[textField],
+            };
+    }
+  }
+  return result;
+};
 export const changeId = (tableName: string, entityId: string): string =>
   `${tableName}:${entityId}`;
 const primitiveValueSchema = v.union(
@@ -503,7 +627,12 @@ export const mergeChanges = action({
             : currentChanges.changes;
 
           const fcwMergedChanges = { ...loserChanges, ...winnerChanges };
-          const fcwMergedRow = { ...loserRow, ...winnerRow } as Row;
+          const fcwMergedRow = mergeRichTextFields(
+            table.tableName,
+            currentRow,
+            incomingRow as Row,
+            { ...loserRow, ...winnerRow } as Row,
+          );
           const currentClock = nextClock;
           const mergedChange: Change = {
             id: changeId(table.tableName, incomingChange.entityId),
@@ -538,7 +667,7 @@ export const mergeChanges = action({
           continue; // Skip normal LWW merge
         }
 
-        const { mergedChanges, mergedRow } =
+        const { mergedChanges, mergedRow: incarnationRow } =
           restoreOrder > 0
             ? {
                 mergedChanges: incomingChange.changes,
@@ -557,6 +686,16 @@ export const mergeChanges = action({
                   currentRow ?? { id: incomingChange.entityId },
                   incomingRow ?? { id: incomingChange.entityId },
                 );
+        // Docs merge only within one incarnation; a newer one replaces them.
+        const mergedRow =
+          restoreOrder < 0
+            ? incarnationRow
+            : mergeRichTextFields(
+                table.tableName,
+                restoreOrder > 0 ? undefined : currentRow,
+                incomingRow as Row | undefined,
+                incarnationRow,
+              );
 
         const currentDeletedAt = currentChanges?.deletedAt ?? null;
         const incomingDeletedAt = incomingChange.deletedAt;

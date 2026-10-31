@@ -1,4 +1,6 @@
 import { Clock, Repeat } from "lucide-react";
+import { richTextMarkdownToPlainText } from "@will-be-done/slices/common";
+import { RichTextView } from "@/components/RichText/RichTextView";
 import {
   type TaskTemplateOccurrence,
   taskTemplateType,
@@ -32,7 +34,7 @@ export const ProjectedTaskCard = ({
       // Keyboard moves and drops must skip it: it is not a real list item.
       data-ignore-drop
       tabIndex={0}
-      title={template.title}
+      title={richTextMarkdownToPlainText(template.title, "title")}
       onClick={() => useFocusStore.getState().focusByKey(focusKey, true)}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return;
@@ -49,7 +51,9 @@ export const ProjectedTaskCard = ({
           : "border-content-tinted/25 hover:border-content-tinted/40",
       )}
     >
-      <div className="font-medium">{template.title}</div>
+      <div className="font-medium">
+        <RichTextView text={template.title} />
+      </div>
       <div className="mt-1 flex items-center gap-1.5 text-xs tabular-nums">
         <Repeat className="size-3" />
         {occurrence.time && (
