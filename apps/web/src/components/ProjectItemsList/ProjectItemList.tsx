@@ -218,6 +218,7 @@ const ProjectTasksColumn = ({
       }
       columnModelId={section.id}
       columnModelType={section.type}
+      columnProjectId={section.projectId}
       onAddClick={handleAddClick}
       actions={
         <ProjectSectionMenu

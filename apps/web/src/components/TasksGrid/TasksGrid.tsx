@@ -74,6 +74,7 @@ export const TasksColumn = ({
   header,
   columnModelId,
   columnModelType,
+  columnProjectId,
   children,
   panelWidth,
   onAddClick,
@@ -83,15 +84,17 @@ export const TasksColumn = ({
   onHideClick: () => void;
   header?: React.ReactNode;
   columnModelId: string;
-  columnModelType: Extract<
-    AnyModelType,
-    "projectSection" | "dailyList" | "stash"
-  >;
   children: React.ReactNode;
   panelWidth?: number;
   onAddClick?: () => void;
   actions?: React.ReactNode;
-}) => {
+} & (
+  | { columnModelType: "projectSection"; columnProjectId: string }
+  | {
+      columnModelType: Extract<AnyModelType, "dailyList" | "stash">;
+      columnProjectId?: never;
+    }
+)) => {
   const columnRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLButtonElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -112,10 +115,14 @@ export const TasksColumn = ({
       setDndState(idle);
       setDropEdge(null);
     };
-    const data: DndModelData = {
-      modelId: columnModelId,
-      modelType: columnModelType,
-    };
+    const data: DndModelData =
+      columnModelType === "projectSection"
+        ? {
+            modelId: columnModelId,
+            modelType: columnModelType,
+            projectId: columnProjectId,
+          }
+        : { modelId: columnModelId, modelType: columnModelType };
 
     return combine(
       ...(columnModelType === "projectSection"
@@ -137,11 +144,7 @@ export const TasksColumn = ({
                 allowedEdges: ["left", "right"],
               })
             : data,
-        canDrop: ({ source }) =>
-          canDropModelData(source.data, {
-            modelId: columnModelId,
-            modelType: columnModelType,
-          }),
+        canDrop: ({ source }) => canDropModelData(source.data, data),
         getIsSticky: () => true,
         onDragEnter: updateDropIndicator,
         onDrag: updateDropIndicator,
@@ -155,7 +158,7 @@ export const TasksColumn = ({
         canScroll: ({ source }) => isModelDNDData(source.data),
       }),
     );
-  }, [columnModelId, columnModelType]);
+  }, [columnModelId, columnModelType, columnProjectId]);
 
   return (
     <div
