@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { DB, execSync, syncDispatch } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import fastify from "fastify";
+import staticPlugin from "@fastify/static";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createAppRouter } from "./appRouter";
 import {
   createAppRateLimiter,
@@ -208,6 +212,44 @@ describe("tRPC rate limiting", () => {
       expect(otherClient.statusCode).toBe(200);
     } finally {
       await server.close();
+    }
+  });
+
+  test("public files do not consume the API budget and remain available after it is exhausted", async () => {
+    const root = await mkdtemp(join(tmpdir(), "emoji-rate-limit-"));
+    const server = await createLoginServer({
+      backend: "memory",
+      globalOverride: { max: 2, timeWindow: 60_000 },
+    });
+    await writeFile(join(root, "icon.webp"), "emoji");
+    server.register(async (frontend) => {
+      frontend.addHook("onRoute", (route) => {
+        route.config = { ...route.config, rateLimit: false };
+      });
+      frontend.register(staticPlugin, { root });
+    });
+
+    try {
+      for (const method of ["GET", "HEAD", "GET", "GET"] as const) {
+        expect(
+          (await server.inject({ method, url: "/icon.webp" })).statusCode,
+        ).toBe(200);
+      }
+      expect(
+        (
+          await server.inject({
+            method: "POST",
+            url: "/api/trpc/login",
+            payload: { email: "limited@example.com", password: "password1" },
+          })
+        ).statusCode,
+      ).toBe(200);
+      expect((await server.inject("/api/health")).statusCode).toBe(200);
+      expect((await server.inject("/api/health")).statusCode).toBe(429);
+      expect((await server.inject("/icon.webp")).statusCode).toBe(200);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
     }
   });
 });
