@@ -227,12 +227,13 @@ export const trashedTasksTable = defineTable("trashed_tasks", {
 registerSpaceSyncableTable(trashedTasksTable, trashedTaskType);
 
 export type TrashedTaskRow = ExtractSchema<typeof trashedTasksTable>;
-export type TrashSnapshot = {
-  task: Task;
-  checklistItems: ChecklistItem[];
-  dailyEntry: DailyEntry | null;
-  stashEntry: StashEntry | null;
-};
+export const trashSnapshot = v.object({
+  task: tasksTable.v(),
+  checklistItems: v.array(checklistItemsTable.v()),
+  dailyEntry: v.union(dailyEntriesTable.v(), v.null()),
+  stashEntry: v.union(stashEntriesTable.v(), v.null()),
+});
+export type TrashSnapshot = Infer<typeof trashSnapshot>;
 export type TrashedTask = TrashSnapshot & { id: string; trashedAt: number };
 
 export const item = v.union(tasksTable.v(), taskTemplatesTable.v());

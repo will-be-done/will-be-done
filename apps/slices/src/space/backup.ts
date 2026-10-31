@@ -37,6 +37,7 @@ import {
   taskType,
   trashedTasksTable,
   trashedTaskType,
+  trashSnapshot,
   type TrashedTaskRow,
   type TrashSnapshot,
 } from "./tables";
@@ -412,15 +413,19 @@ function validDuration(minutes: number | undefined, owner: string) {
   return undefined;
 }
 
-function validTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
+function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(snapshot) as Partial<TrashSnapshot> | null;
-    if (parsed?.task?.id === id) return true;
+    parsed = JSON.parse(snapshot);
   } catch {
-    // Reported below.
+    parsed = undefined;
+  }
+  const result = trashSnapshot.normalize(parsed);
+  if (result.ok && !result.omitted && result.value.task.id === id) {
+    return result.value;
   }
   console.warn(`Invalid trash snapshot omitted for task ${id}`);
-  return false;
+  return undefined;
 }
 
 const getNewModels = action({
@@ -660,7 +665,32 @@ const getNewModels = action({
       }
     }
 
-    return models;
+    const liveTaskIds = new Set(
+      models.filter((model) => model.type === taskType).map(({ id }) => id),
+    );
+    const trashedTasks: TrashedTaskRow[] = [];
+    for (const row of backup.trashedTasks || []) {
+      if (liveTaskIds.has(row.id)) continue;
+      const snapshot = parseTrashSnapshot(row);
+      if (!snapshot) continue;
+
+      // DailyList IDs are derived per space, so remap like live entries.
+      const { dailyEntry } = snapshot;
+      const dailyListId =
+        dailyEntry && dailyListIdMap.get(dailyEntry.dailyListId);
+      trashedTasks.push({
+        type: trashedTaskType,
+        id: row.id,
+        trashedAt: row.trashedAt,
+        snapshot: JSON.stringify({
+          ...snapshot,
+          dailyEntry:
+            dailyEntry && dailyListId ? { ...dailyEntry, dailyListId } : null,
+        } satisfies TrashSnapshot),
+      });
+    }
+
+    return { models, trashedTasks };
   },
 });
 
@@ -677,7 +707,7 @@ export const loadSpaceBackup = selector({
       yield* deleteRows(table, allIds);
     }
 
-    const models = yield* getNewModels({
+    const { models, trashedTasks } = yield* getNewModels({
       backup: normalizeSpaceBackup(backup),
     });
     const modelsByTable = new Map<
@@ -699,14 +729,7 @@ export const loadSpaceBackup = selector({
         yield* insert(table, tableModels);
       }
     }
-
-    const liveTaskIds = new Set(
-      models.filter((model) => model.type === taskType).map(({ id }) => id),
-    );
-    const trashed = (("trashedTasks" in backup && backup.trashedTasks) || [])
-      .filter((row) => !liveTaskIds.has(row.id) && validTrashSnapshot(row))
-      .map((row): TrashedTaskRow => ({ ...row, type: trashedTaskType }));
-    if (trashed.length > 0) yield* insert(trashedTasksTable, trashed);
+    if (trashedTasks.length > 0) yield* insert(trashedTasksTable, trashedTasks);
   },
 });
 

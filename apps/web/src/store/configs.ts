@@ -20,6 +20,7 @@ import {
   stashEntriesTable,
   dailyEntriesTable,
   tasksTable,
+  trashedTasks,
 } from "@will-be-done/slices/space";
 import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
@@ -96,12 +97,10 @@ export const demoSpaceDBConfig = () => {
     },
     afterInit: async (db: SubscribableDB) => {
       await asyncDispatch(db, createInboxIfNotExists({}));
-      const tasks = await selectAsync(db, {
-        selector: allTasks,
-        args: {},
-      });
+      const tasks = await selectAsync(db, { selector: allTasks, args: {} });
+      const trash = await selectAsync(db, { selector: trashedTasks, args: {} });
 
-      if (tasks.length === 0) {
+      if (tasks.length === 0 && trash.length === 0) {
         await asyncDispatch(
           db,
           loadSpaceBackup({ backup: generateDemoBackup() }),

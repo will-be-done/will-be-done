@@ -24,7 +24,7 @@ export const runSyncMaintenance = async (
 ) => {
   for (const { database, dbType, db } of loadedDatabases) {
     try {
-      // Browsers purge too; this covers spaces no client opens.
+      // Browsers purge too; this covers spaces used only through the API.
       if (dbType === "space") {
         await asyncDispatch(db, purgeExpiredTrash({ now: Date.now() }));
       }

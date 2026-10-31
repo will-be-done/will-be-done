@@ -13,12 +13,15 @@ import {
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
 import { inboxProjectSectionId } from "./projectSections";
+import { dailyListGetId } from "./dailyLists";
 import { registeredSpaceSyncableTables } from "./syncMap";
 import {
   checklistItemsTable,
   checklistItemType,
   dailyEntriesTable,
   dailyEntryType,
+  dailyListsTable,
+  dailyListType,
   projectSectionsTable,
   projectSectionType,
   stashEntriesTable,
@@ -74,6 +77,10 @@ const seed = action({
         createdAt: 0,
       },
     ]);
+    const dailyListId = yield* dailyListGetId({ date: "2026-10-30" });
+    yield* insert(dailyListsTable, [
+      { type: dailyListType, id: dailyListId, date: "2026-10-30" },
+    ]);
     yield* insert(tasksTable, [task, stashedTask]);
     yield* insert(checklistItemsTable, [
       {
@@ -94,7 +101,7 @@ const seed = action({
         id: "entry",
         taskId: task.id,
         orderToken: "a",
-        dailyListId: "list",
+        dailyListId,
         createdAt: 0,
         time: "09:30",
       },
@@ -134,9 +141,9 @@ const liveRows = selector({
   },
 });
 
-function createDB() {
+function createDB(spaceId = "a0000000-0000-4000-8000-000000000001") {
   const db = new DB(new BptreeInmemDriver(), {
-    traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+    traits: [dbIdTrait("space", spaceId)],
   });
   execSync(db.loadTables(registeredSpaceSyncableTables));
   syncDispatch(db, seed({}));
@@ -176,7 +183,7 @@ describe("trash", () => {
       { id: "check", parentId: task.id, content: "Outline", state: "done" },
     ]);
     expect(restored.dailyEntries).toMatchObject([
-      { id: "entry", taskId: task.id, dailyListId: "list", time: "09:30" },
+      { id: "entry", taskId: task.id, time: "09:30" },
     ]);
     expect(restored.stashEntries).toMatchObject([
       { id: "stash", taskId: stashedTask.id, orderToken: "b" },
@@ -194,6 +201,40 @@ describe("trash", () => {
     const restored = selectSync(db, { selector: liveRows, args: {} });
     expect(restored.tasks.map(({ id }) => id)).toContain(task.id);
     expect(restored.checklistItems).toMatchObject([{ id: "check" }]);
+  });
+
+  test("backups move trashed entries onto the target space's DailyList", () => {
+    const source = createDB();
+    syncDispatch(source, trashTasks({ ids: [task.id] }));
+    const backup = selectSync(source, { selector: getSpaceBackup, args: {} });
+    backup.trashedTasks.push({
+      id: "malformed",
+      trashedAt: 0,
+      snapshot: JSON.stringify({ task: { id: "malformed" } }),
+    });
+
+    const target = createDB("b0000000-0000-4000-8000-000000000002");
+    syncDispatch(target, loadSpaceBackup({ backup }));
+    expect(
+      selectSync(target, { selector: trashedTasks, args: {} }).map(
+        ({ id }) => id,
+      ),
+    ).toEqual([task.id]);
+    syncDispatch(target, restoreTrashedTasks({ ids: [task.id] }));
+
+    const { dailyEntries } = selectSync(target, {
+      selector: liveRows,
+      args: {},
+    });
+    expect(dailyEntries).toMatchObject([
+      {
+        id: "entry",
+        dailyListId: selectSync(target, {
+          selector: dailyListGetId,
+          args: { date: "2026-10-30" },
+        }),
+      },
+    ]);
   });
 
   test("restores into the inbox when the task's section is gone", () => {
