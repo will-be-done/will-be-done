@@ -1,6 +1,6 @@
 ---
 title: Keyboard shortcuts
-description: Keys for navigation, task actions, project actions, and quick add.
+description: Keys for navigation, task actions, project actions, text formatting, and quick add.
 sidebar:
   order: 2
 ---
@@ -9,7 +9,8 @@ sidebar:
 
 Click a task to focus it. Navigation and action shortcuts apply while you are
 outside a text field. Press `i` or `Enter` to edit a focused task's title.
-Press `Enter` or `Esc` to finish editing; `Shift+Enter` inserts a line break.
+Press `Enter` or `Esc` to finish editing a title. In a description, `Enter`
+starts a new line and `Shift+Enter` or `Esc` finishes editing.
 
 In this reference, `Shift+O` means hold Shift and press O. Control-based movement
 uses `Ctrl` on macOS too.
@@ -73,6 +74,32 @@ or Stash, they remove its appearance and keep the task in its project. See
 | `i`                   | Edit project              |
 | `j`, `k`              | Navigate between projects |
 | `d`, `x`, `Backspace` | Delete project            |
+
+## Text formatting
+
+These work while editing a title, a description, or a checklist item. `Mod` is
+`Cmd` on macOS and `Ctrl` elsewhere. Typing the Markdown applies the same
+formatting.
+
+| Keys          | Markdown     | Action                                    |
+| ------------- | ------------ | ----------------------------------------- |
+| `Mod+B`       | `**text**`   | Bold                                      |
+| `Mod+I`       | `*text*`     | Italic                                    |
+| `Mod+Shift+S` | `~~text~~`   | Strikethrough                             |
+| `Mod+E`       | `` `text` `` | Inline code                               |
+| `Mod+V`       |              | Paste a URL over selected text to link it |
+
+Descriptions also have block formatting. Start a line with the Markdown and a
+space, use the keys, or use the toolbar above the description.
+
+| Keys            | Markdown     | Action        |
+| --------------- | ------------ | ------------- |
+| `Mod+Alt+1`–`6` | `#`–`######` | Heading       |
+| `Mod+Shift+8`   | `-`          | Bulleted list |
+| `Mod+Shift+7`   | `1.`         | Numbered list |
+| `Mod+Shift+B`   | `>`          | Quote         |
+| `Mod+Alt+C`     | ` ``` `      | Code block    |
+|                 | `---`        | Divider       |
 
 ## Desktop quick add
 

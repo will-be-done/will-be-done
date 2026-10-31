@@ -11,6 +11,7 @@ import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { appById, appCanDrop } from "./app";
 import { registerModelSlice } from "./maps";
+import { syncChecklistItemRichText } from "./richTextItems";
 import {
   ChecklistItem,
   checklistItemType,
@@ -225,7 +226,9 @@ export const updateItem = action({
     const itemInState = yield* checklistItemById({ id });
     if (!itemInState) throw new Error("Checklist item not found");
 
-    yield* upsert(checklistItemsTable, [{ ...itemInState, ...item }]);
+    yield* upsert(checklistItemsTable, [
+      syncChecklistItemRichText(itemInState, { ...itemInState, ...item }),
+    ]);
   },
 });
 
@@ -233,12 +236,12 @@ export const updateChecklistItemContent = action({
   name: "updateChecklistItemContent",
   args: {
     id: v.string(),
-    content: v.string(),
+    contentDoc: v.string(),
   },
-  handler: function* updateChecklistItemContent({ id, content }) {
+  handler: function* updateChecklistItemContent({ id, contentDoc }) {
     yield* updateItem({
       id,
-      item: { content },
+      item: { contentDoc },
     });
   },
 });

@@ -13,6 +13,7 @@ import {
   dailyListsByIds,
   deleteTaskById,
   setDailyEntryTime,
+  syncItemRichText,
   taskById,
   tasksTable,
   updateTask as updateTaskAction,
@@ -236,7 +237,7 @@ export async function updateTask({
     throw new ConflictError("Unscheduled tasks cannot have a time");
   }
 
-  const next: Task = {
+  const proposed: Task = {
     ...current,
     ...(updates.title === undefined ? {} : { title: updates.title }),
     ...(typeof updates.content === "string"
@@ -251,8 +252,9 @@ export async function updateTask({
       ? { lastToggledAt: Date.now() }
       : {}),
   };
-  if (updates.content === null) delete next.content;
-  if (updates.nature === null) delete next.nature;
+  if (updates.content === null) delete proposed.content;
+  if (updates.nature === null) delete proposed.nature;
+  const next = syncItemRichText(current, proposed);
 
   await asyncDispatch(
     db,

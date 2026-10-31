@@ -1,53 +1,61 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { Clock, Folder, Hash, Hourglass, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DurationInput, TimeInput } from "@/components/Task/TaskTimeInputs";
-import TextareaAutosize from "react-textarea-autosize";
-import { LinkifiedText } from "@/components/LinkifiedText";
 import { ProjectIcon } from "@/components/ui/emoji";
+import {
+  RichTextEditor,
+  type RichTextEditorHandle,
+} from "@/components/RichText/RichTextEditor";
+import { RichTextView } from "@/components/RichText/RichTextView";
+import { viewTextOffset } from "@/components/RichText/caret";
+import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 
 // Editable title
 
 export function EditableTitle({
   icon,
   isEditing,
-  editingTitle,
+  title,
+  titleDoc,
   titleClassName,
-  setTitleDraft,
-  handleTitleKeyDown,
-  textareaRef,
-  saveTitle,
+  onSave,
   setIsEditingTitle,
 }: {
   icon: React.ReactNode;
   isEditing: boolean;
-  editingTitle: string;
+  title: string;
+  titleDoc: string | undefined;
   titleClassName?: string;
-  setTitleDraft: (v: string) => void;
-  handleTitleKeyDown: (e: React.KeyboardEvent) => void;
-  textareaRef: (el: HTMLTextAreaElement | null) => void;
-  saveTitle: () => void;
+  onSave: (titleDoc: string) => void;
   setIsEditingTitle: (v: boolean) => void;
 }) {
+  const { text, doc, saveDoc } = useSavedRichText(
+    title,
+    titleDoc,
+    "title",
+    onSave,
+  );
+  const [caretOffset, setCaretOffset] = useState<number>();
   return (
-    <div className="flex items-start gap-2 whitespace-break-spaces [overflow-wrap:anywhere] ">
+    <div className="flex items-start gap-2">
       <div className="shrink-0">{icon}</div>
       {isEditing ? (
-        <TextareaAutosize
-          ref={textareaRef}
-          value={editingTitle}
-          onChange={(e) => setTitleDraft(e.target.value)}
-          onKeyDown={handleTitleKeyDown}
-          onBlur={saveTitle}
+        <RichTextEditor
+          kind="title"
+          doc={doc}
+          text={text}
+          onSave={saveDoc}
+          onExit={() => setIsEditingTitle(false)}
+          onFocus={() => setCaretOffset(undefined)}
+          onBlur={() => setIsEditingTitle(false)}
+          required
+          autoFocus
+          caretOffset={caretOffset}
           placeholder="Untitled"
-          spellCheck={false}
-          autoCorrect="off"
-          autoCapitalize="off"
-          data-gramm="false"
-          data-gramm_editor="false"
-          data-enable-grammarly="false"
-          aria-label="Edit task title"
+          ariaLabel="Edit task title"
           className={cn(
-            "flex-1 resize-none bg-transparent text-sm font-medium leading-snug focus:outline-none placeholder:italic placeholder:text-content-tinted",
+            "text-sm font-medium leading-snug",
             titleClassName ?? "text-content",
           )}
         />
@@ -60,7 +68,10 @@ export function EditableTitle({
             titleClassName ?? "text-content",
           )}
           tabIndex={0}
-          onClick={() => setIsEditingTitle(true)}
+          onClick={(event) => {
+            setCaretOffset(viewTextOffset(event));
+            setIsEditingTitle(true);
+          }}
           onKeyDown={(event) => {
             if (
               event.target === event.currentTarget &&
@@ -71,8 +82,8 @@ export function EditableTitle({
             }
           }}
         >
-          {editingTitle ? (
-            <LinkifiedText text={editingTitle} />
+          {text ? (
+            <RichTextView text={text} />
           ) : (
             <span className="italic text-content-tinted">Untitled</span>
           )}
@@ -104,60 +115,54 @@ export function DetailRow({
   );
 }
 
+// Always an editor, so its text, links, and remote edits are live.
 export function EditableDescription({
   isEditing,
-  editingDescription,
-  setDescriptionDraft,
-  handleDescriptionKeyDown,
-  textareaRef,
-  saveDescription,
+  content,
+  contentDoc,
+  onSave,
   setIsEditingDescription,
 }: {
   isEditing: boolean;
-  editingDescription: string;
-  setDescriptionDraft: (v: string) => void;
-  handleDescriptionKeyDown: (
-    e: React.KeyboardEvent<HTMLTextAreaElement>,
-  ) => void;
-  textareaRef: (el: HTMLTextAreaElement | null) => void;
-  saveDescription: () => void;
+  content: string;
+  contentDoc: string | undefined;
+  onSave: (contentDoc: string) => void;
   setIsEditingDescription: (v: boolean) => void;
 }) {
-  return isEditing ? (
-    <TextareaAutosize
-      ref={textareaRef}
-      value={editingDescription}
-      onChange={(e) => setDescriptionDraft(e.target.value)}
-      onKeyDown={handleDescriptionKeyDown}
-      onFocus={() => setIsEditingDescription(true)}
-      onBlur={saveDescription}
-      minRows={4}
-      className="w-full rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content resize-none focus:outline-none focus:ring-1 focus:ring-accent placeholder:italic placeholder:text-content-tinted"
-      placeholder="Add a description"
-      aria-label="Edit task description"
-    />
-  ) : (
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const editorRef = useRef<RichTextEditorHandle | null>(null);
+
+  // The `e` shortcut asks to edit the description.
+  useLayoutEffect(() => {
+    if (isEditing && !boxRef.current?.contains(document.activeElement)) {
+      editorRef.current?.focusEnd();
+    }
+  }, [isEditing]);
+
+  return (
     <div
+      ref={boxRef}
       data-testid="task-description"
-      data-disable-task-shortcuts
-      className="min-h-[94px] w-full cursor-text whitespace-break-spaces [overflow-wrap:anywhere] rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-      tabIndex={0}
-      onClick={() => setIsEditingDescription(true)}
-      onKeyDown={(event) => {
-        if (
-          event.target === event.currentTarget &&
-          (event.key === "Enter" || event.key === " ")
-        ) {
-          event.preventDefault();
-          setIsEditingDescription(true);
-        }
-      }}
+      className="min-h-[94px] w-full cursor-text rounded-md border border-task-panel-ring/30 bg-task-panel-hover/40 px-2 py-1.5 text-xs leading-5 text-content focus-within:ring-1 focus-within:ring-accent"
+      onClick={() => editorRef.current?.focusEnd()}
     >
-      {editingDescription ? (
-        <LinkifiedText text={editingDescription} />
-      ) : (
-        <span className="italic text-content-tinted">Add a description</span>
-      )}
+      <RichTextEditor
+        ref={editorRef}
+        kind="content"
+        doc={contentDoc}
+        text={content}
+        onSave={onSave}
+        onFocus={() => setIsEditingDescription(true)}
+        onExit={() => {
+          setIsEditingDescription(false);
+          editorRef.current?.blur();
+        }}
+        onBlur={() => setIsEditingDescription(false)}
+        toolbar
+        placeholder="Add a description"
+        ariaLabel="Edit task description"
+        className="min-h-[56px]"
+      />
     </div>
   );
 }

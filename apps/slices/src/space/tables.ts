@@ -5,7 +5,13 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { registerSpaceSyncableTable } from "./syncMap";
+import { registerRichTextFields } from "../common/changes";
 import { isObjectType } from "..";
+
+const itemRichTextFields = [
+  { docField: "titleDoc", textField: "title", kind: "title" },
+  { docField: "contentDoc", textField: "content", kind: "content" },
+] as const satisfies Parameters<typeof registerRichTextFields>[1];
 
 export const taskType = "task";
 export const tasksTable = defineTable("tasks", {
@@ -13,6 +19,9 @@ export const tasksTable = defineTable("tasks", {
   id: v.string(),
   title: v.string(),
   content: v.optional(v.string()),
+  // Base64 Yjs states; once present they own title/content (see richText.ts).
+  titleDoc: v.optional(v.string()),
+  contentDoc: v.optional(v.string()),
   state: v.union(v.literal("todo"), v.literal("done")),
   projectSectionId: v.string(),
   orderToken: v.string(),
@@ -40,6 +49,7 @@ export const tasksTable = defineTable("tasks", {
   .index("byCreatedAtId", ["createdAt", "id"])
   .index("byTemplateId", ["templateId"]);
 registerSpaceSyncableTable(tasksTable, taskType);
+registerRichTextFields(tasksTable.tableName, itemRichTextFields);
 
 export type Task = ExtractSchema<typeof tasksTable>;
 export type TaskNature = Task["nature"];
@@ -51,6 +61,8 @@ export const taskTemplatesTable = defineTable("task_templates", {
   id: v.string(),
   title: v.string(),
   content: v.optional(v.string()),
+  titleDoc: v.optional(v.string()),
+  contentDoc: v.optional(v.string()),
   orderToken: v.string(),
   repeatRule: v.string(),
   repeatRuleDtStart: v.number(),
@@ -68,6 +80,7 @@ export const taskTemplatesTable = defineTable("task_templates", {
   .index("byProjectSectionIdOrderStates", ["projectSectionId", "orderToken"])
   .index("byLastGeneratedAt", ["lastGeneratedAt"]);
 registerSpaceSyncableTable(taskTemplatesTable, taskTemplateType);
+registerRichTextFields(taskTemplatesTable.tableName, itemRichTextFields);
 export type TaskTemplate = ExtractSchema<typeof taskTemplatesTable>;
 export const isTaskTemplate = isObjectType<TaskTemplate>(taskTemplateType);
 
@@ -196,12 +209,16 @@ export const checklistItemsTable = defineTable("checklist_items", {
   orderToken: v.string(),
   state: v.union(v.literal("todo"), v.literal("done")),
   content: v.string(),
+  contentDoc: v.optional(v.string()),
   createdAt: v.number(),
   checkedAt: v.union(v.number(), v.null()),
 })
   .index("byIds", ["id"])
   .index("byParentOrder", ["parentType", "parentId", "orderToken"]);
 registerSpaceSyncableTable(checklistItemsTable, checklistItemType);
+registerRichTextFields(checklistItemsTable.tableName, [
+  { docField: "contentDoc", textField: "content", kind: "title" },
+]);
 
 export type ChecklistParentType = Infer<typeof checklistParentType>;
 export type ChecklistItem = ExtractSchema<typeof checklistItemsTable>;
