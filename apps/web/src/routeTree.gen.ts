@@ -30,6 +30,7 @@ import { Route as SpacesSpaceIdCalendarIndexRouteImport } from './routes/spaces.
 import { Route as SpacesSpaceIdTimelineDateRouteImport } from './routes/spaces.$spaceId.timeline.$date'
 import { Route as SpacesSpaceIdItemDetailsItemIdRouteImport } from './routes/spaces.$spaceId.item-details.$itemId'
 import { Route as SpacesSpaceIdCalendarDateRouteImport } from './routes/spaces.$spaceId.calendar.$date'
+import { Route as SpacesSpaceIdWithSidebarTrashRouteImport } from './routes/spaces.$spaceId._withSidebar.trash'
 import { Route as SpacesSpaceIdWithSidebarProjectsProjectIdRouteImport } from './routes/spaces.$spaceId._withSidebar.projects.$projectId'
 import { Route as SpacesSpaceIdWithSidebarDatesDateRouteImport } from './routes/spaces.$spaceId._withSidebar.dates.$date'
 
@@ -144,6 +145,12 @@ const SpacesSpaceIdCalendarDateRoute =
     path: '/calendar/$date',
     getParentRoute: () => SpacesSpaceIdRoute,
   } as any)
+const SpacesSpaceIdWithSidebarTrashRoute =
+  SpacesSpaceIdWithSidebarTrashRouteImport.update({
+    id: '/trash',
+    path: '/trash',
+    getParentRoute: () => SpacesSpaceIdWithSidebarRoute,
+  } as any)
 const SpacesSpaceIdWithSidebarProjectsProjectIdRoute =
   SpacesSpaceIdWithSidebarProjectsProjectIdRouteImport.update({
     id: '/projects/$projectId',
@@ -171,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/spaces/$spaceId': typeof SpacesSpaceIdRouteWithChildren
   '/spaces/': typeof SpacesIndexRoute
   '/spaces/$spaceId/': typeof SpacesSpaceIdIndexRoute
+  '/spaces/$spaceId/trash': typeof SpacesSpaceIdWithSidebarTrashRoute
   '/spaces/$spaceId/calendar/$date': typeof SpacesSpaceIdCalendarDateRoute
   '/spaces/$spaceId/item-details/$itemId': typeof SpacesSpaceIdItemDetailsItemIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
@@ -193,6 +201,7 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/spaces': typeof SpacesIndexRoute
   '/spaces/$spaceId': typeof SpacesSpaceIdIndexRoute
+  '/spaces/$spaceId/trash': typeof SpacesSpaceIdWithSidebarTrashRoute
   '/spaces/$spaceId/calendar/$date': typeof SpacesSpaceIdCalendarDateRoute
   '/spaces/$spaceId/item-details/$itemId': typeof SpacesSpaceIdItemDetailsItemIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
@@ -219,6 +228,7 @@ export interface FileRoutesById {
   '/spaces/': typeof SpacesIndexRoute
   '/spaces/$spaceId/_withSidebar': typeof SpacesSpaceIdWithSidebarRouteWithChildren
   '/spaces/$spaceId/': typeof SpacesSpaceIdIndexRoute
+  '/spaces/$spaceId/_withSidebar/trash': typeof SpacesSpaceIdWithSidebarTrashRoute
   '/spaces/$spaceId/calendar/$date': typeof SpacesSpaceIdCalendarDateRoute
   '/spaces/$spaceId/item-details/$itemId': typeof SpacesSpaceIdItemDetailsItemIdRoute
   '/spaces/$spaceId/timeline/$date': typeof SpacesSpaceIdTimelineDateRoute
@@ -245,6 +255,7 @@ export interface FileRouteTypes {
     | '/spaces/$spaceId'
     | '/spaces/'
     | '/spaces/$spaceId/'
+    | '/spaces/$spaceId/trash'
     | '/spaces/$spaceId/calendar/$date'
     | '/spaces/$spaceId/item-details/$itemId'
     | '/spaces/$spaceId/timeline/$date'
@@ -267,6 +278,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/spaces'
     | '/spaces/$spaceId'
+    | '/spaces/$spaceId/trash'
     | '/spaces/$spaceId/calendar/$date'
     | '/spaces/$spaceId/item-details/$itemId'
     | '/spaces/$spaceId/timeline/$date'
@@ -292,6 +304,7 @@ export interface FileRouteTypes {
     | '/spaces/'
     | '/spaces/$spaceId/_withSidebar'
     | '/spaces/$spaceId/'
+    | '/spaces/$spaceId/_withSidebar/trash'
     | '/spaces/$spaceId/calendar/$date'
     | '/spaces/$spaceId/item-details/$itemId'
     | '/spaces/$spaceId/timeline/$date'
@@ -465,6 +478,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SpacesSpaceIdCalendarDateRouteImport
       parentRoute: typeof SpacesSpaceIdRoute
     }
+    '/spaces/$spaceId/_withSidebar/trash': {
+      id: '/spaces/$spaceId/_withSidebar/trash'
+      path: '/trash'
+      fullPath: '/spaces/$spaceId/trash'
+      preLoaderRoute: typeof SpacesSpaceIdWithSidebarTrashRouteImport
+      parentRoute: typeof SpacesSpaceIdWithSidebarRoute
+    }
     '/spaces/$spaceId/_withSidebar/projects/$projectId': {
       id: '/spaces/$spaceId/_withSidebar/projects/$projectId'
       path: '/projects/$projectId'
@@ -483,12 +503,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface SpacesSpaceIdWithSidebarRouteChildren {
+  SpacesSpaceIdWithSidebarTrashRoute: typeof SpacesSpaceIdWithSidebarTrashRoute
   SpacesSpaceIdWithSidebarDatesDateRoute: typeof SpacesSpaceIdWithSidebarDatesDateRoute
   SpacesSpaceIdWithSidebarProjectsProjectIdRoute: typeof SpacesSpaceIdWithSidebarProjectsProjectIdRoute
 }
 
 const SpacesSpaceIdWithSidebarRouteChildren: SpacesSpaceIdWithSidebarRouteChildren =
   {
+    SpacesSpaceIdWithSidebarTrashRoute: SpacesSpaceIdWithSidebarTrashRoute,
     SpacesSpaceIdWithSidebarDatesDateRoute:
       SpacesSpaceIdWithSidebarDatesDateRoute,
     SpacesSpaceIdWithSidebarProjectsProjectIdRoute:

@@ -229,6 +229,30 @@ export function isChecklistParentType(
   return modelType === taskType || modelType === taskTemplateType;
 }
 
+export const trashedTaskType = "trashedTask";
+// A deleted Task's snapshot, keyed by the task's ID. Restoring re-inserts the
+// snapshot rows, which revives their tombstoned IDs.
+export const trashedTasksTable = defineTable("trashed_tasks", {
+  type: v.literal(trashedTaskType),
+  id: v.string(),
+  trashedAt: v.number(),
+  // JSON-encoded TrashSnapshot: synced rows carry only primitive values.
+  snapshot: v.string(),
+})
+  .index("byIds", ["id"])
+  .index("byTrashedAtId", ["trashedAt", "id"]);
+registerSpaceSyncableTable(trashedTasksTable, trashedTaskType);
+
+export type TrashedTaskRow = ExtractSchema<typeof trashedTasksTable>;
+export const trashSnapshot = v.object({
+  task: tasksTable.v(),
+  checklistItems: v.array(checklistItemsTable.v()),
+  dailyEntry: v.union(dailyEntriesTable.v(), v.null()),
+  stashEntry: v.union(stashEntriesTable.v(), v.null()),
+});
+export type TrashSnapshot = Infer<typeof trashSnapshot>;
+export type TrashedTask = TrashSnapshot & { id: string; trashedAt: number };
+
 export const item = v.union(tasksTable.v(), taskTemplatesTable.v());
 export type Item = Infer<typeof item>;
 export type ItemType = Item["type"];
@@ -284,7 +308,8 @@ export type AnyTable =
   | typeof dailyEntriesTable
   | typeof projectSectionsTable
   | typeof stashEntriesTable
-  | typeof checklistItemsTable;
+  | typeof checklistItemsTable
+  | typeof trashedTasksTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),

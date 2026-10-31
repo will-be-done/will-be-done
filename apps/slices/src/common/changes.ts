@@ -168,6 +168,7 @@ const changeSchema = v.object({
   entityId: v.string(),
   tableName: v.string(),
   deletedAt: v.union(v.string(), v.null()),
+  restoredAt: v.optional(v.string()),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
   createdAt: v.string(),
@@ -192,6 +193,29 @@ const chunkArray = <T>(items: T[], chunkSize: number): T[][] => {
   }
   return chunks;
 };
+
+const compareOptionalHlc = (
+  left: string | undefined,
+  right: string | undefined,
+) =>
+  left === right
+    ? 0
+    : left === undefined
+      ? -1
+      : right === undefined
+        ? 1
+        : compareHlc(left, right);
+
+const maxOptionalHlc = (left: string | undefined, right: string | undefined) =>
+  compareOptionalHlc(left, right) >= 0 ? left : right;
+
+/** An entity is deleted unless a later restore clock revived it. */
+export const isDeletedChange = (change: {
+  deletedAt: string | null;
+  restoredAt?: string;
+}) =>
+  change.deletedAt !== null &&
+  compareOptionalHlc(change.deletedAt, change.restoredAt) > 0;
 
 const getChangeByEntityAndTableName = selector({
   name: "getChangeByEntityAndTableName",
@@ -280,7 +304,7 @@ export const getChangesetAfter = selector({
           const row = rowsMap.get(c.entityId);
 
           if (!row) {
-            if (c.deletedAt == null) {
+            if (!isDeletedChange(c)) {
               console.error(
                 "failed to find row for not deleted change, skipping sync",
                 c,
@@ -341,6 +365,23 @@ export const insertChangeFromInsert = action({
     const changes: Record<string, string> = {};
     for (const col of Object.keys(row)) {
       changes[col] = createdAt;
+    }
+
+    const existing = yield* getChangeByEntityAndTableName({
+      entityId: row.id,
+      tableName: tableDef.tableName,
+    });
+    if (existing && isDeletedChange(existing)) {
+      // Inserting a deleted ID restores that entity as a new incarnation.
+      const restoredChange: Change = {
+        ...existing,
+        restoredAt: nextClock,
+        updatedAt: nextClock,
+        clientId,
+        changes,
+      };
+      yield* upsert(changesTable, [restoredChange]);
+      return restoredChange;
     }
 
     const newChange: Change = {
@@ -531,6 +572,31 @@ export const mergeChanges = action({
         touchedEntityIds.add(incomingChange.entityId);
         const currentChanges = currentChangesMap.get(incomingChange.entityId);
         const currentRow = currentRowsMap.get(incomingChange.entityId);
+        // Each restore starts a new incarnation. The newer incarnation wins
+        // wholesale, so edits to an older one can never leak into it.
+        const restoreOrder = compareOptionalHlc(
+          incomingChange.restoredAt,
+          currentChanges?.restoredAt,
+        );
+        const lastDeletedAt =
+          currentChanges?.deletedAt == null
+            ? incomingChange.deletedAt
+            : incomingChange.deletedAt == null
+              ? currentChanges.deletedAt
+              : compareHlc(currentChanges.deletedAt, incomingChange.deletedAt) >
+                  0
+                ? currentChanges.deletedAt
+                : incomingChange.deletedAt;
+        const lastRestoredAt = maxOptionalHlc(
+          currentChanges?.restoredAt,
+          incomingChange.restoredAt,
+        );
+        const lifecycle = {
+          deletedAt: lastDeletedAt,
+          ...(lastRestoredAt === undefined
+            ? {}
+            : { restoredAt: lastRestoredAt }),
+        };
 
         // First-creator-wins: when both sides created the same entity,
         // the earlier creator's values always take precedence
@@ -538,8 +604,9 @@ export const mergeChanges = action({
           currentChanges != null &&
           currentRow != null &&
           incomingRow != null &&
-          incomingChange.deletedAt == null &&
-          currentChanges.deletedAt == null &&
+          restoreOrder === 0 &&
+          !isDeletedChange(incomingChange) &&
+          !isDeletedChange(currentChanges) &&
           currentChanges.createdAt !== incomingChange.createdAt
         ) {
           const currentCreatedFirst =
@@ -575,7 +642,7 @@ export const mergeChanges = action({
               ? currentChanges.createdAt
               : incomingChange.createdAt,
             updatedAt: currentClock,
-            deletedAt: null,
+            ...lifecycle,
             clientId: currentCreatedFirst
               ? currentChanges.clientId
               : incomingChange.clientId,
@@ -600,32 +667,41 @@ export const mergeChanges = action({
           continue; // Skip normal LWW merge
         }
 
-        const { mergedChanges, mergedRow: lwwMergedRow } = lwwMerge(
-          currentChanges?.changes ?? {},
-          incomingChange.changes,
-          currentRow ?? { id: incomingChange.entityId },
-          incomingRow ?? { id: incomingChange.entityId },
-        );
-        const mergedRow = mergeRichTextFields(
-          table.tableName,
-          currentRow,
-          incomingRow as Row | undefined,
-          lwwMergedRow,
-        );
+        const { mergedChanges, mergedRow: incarnationRow } =
+          restoreOrder > 0
+            ? {
+                mergedChanges: incomingChange.changes,
+                mergedRow: (incomingRow as Row | undefined) ?? {
+                  id: incomingChange.entityId,
+                },
+              }
+            : restoreOrder < 0 && currentChanges
+              ? {
+                  mergedChanges: currentChanges.changes,
+                  mergedRow: currentRow ?? { id: incomingChange.entityId },
+                }
+              : lwwMerge(
+                  currentChanges?.changes ?? {},
+                  incomingChange.changes,
+                  currentRow ?? { id: incomingChange.entityId },
+                  incomingRow ?? { id: incomingChange.entityId },
+                );
+        // Docs merge only within one incarnation; a newer one replaces them.
+        const mergedRow =
+          restoreOrder < 0
+            ? incarnationRow
+            : mergeRichTextFields(
+                table.tableName,
+                restoreOrder > 0 ? undefined : currentRow,
+                incomingRow as Row | undefined,
+                incarnationRow,
+              );
 
         const currentDeletedAt = currentChanges?.deletedAt ?? null;
         const incomingDeletedAt = incomingChange.deletedAt;
-        const isDeleted = currentDeletedAt != null || incomingDeletedAt != null;
+        const isDeleted = isDeletedChange(lifecycle);
 
         const currentClock = nextClock;
-        const lastDeletedAt =
-          currentDeletedAt == null
-            ? incomingDeletedAt
-            : incomingDeletedAt == null
-              ? currentDeletedAt
-              : compareHlc(currentDeletedAt, incomingDeletedAt) > 0
-                ? currentDeletedAt
-                : incomingDeletedAt;
         const incomingDeleteWins =
           incomingDeletedAt != null &&
           (currentDeletedAt == null ||
@@ -655,7 +731,7 @@ export const mergeChanges = action({
           tableName: table.tableName,
           createdAt: mergedCreatedAt,
           updatedAt: currentClock,
-          deletedAt: lastDeletedAt,
+          ...lifecycle,
           clientId: winnerClientId,
           changes: mergedChanges,
         };
@@ -671,7 +747,6 @@ export const mergeChanges = action({
           continue;
         }
 
-        // A tombstone is permanent: deleted IDs cannot be reused.
         if (isDeleted) {
           currentRowsMap.delete(incomingChange.entityId);
         } else {
@@ -707,7 +782,7 @@ export const mergeChanges = action({
             originalRow,
             finalChange,
             finalRow ?? { id: entityId },
-            finalChange.deletedAt !== null,
+            isDeletedChange(finalChange),
           )
         ) {
           changesToUpsert.push(finalChange);
@@ -734,6 +809,7 @@ const isSameMergedState = (
   currentChange !== undefined &&
   currentChange.createdAt === mergedChange.createdAt &&
   currentChange.deletedAt === mergedChange.deletedAt &&
+  currentChange.restoredAt === mergedChange.restoredAt &&
   currentChange.clientId === mergedChange.clientId &&
   isEqual(currentChange.changes, mergedChange.changes);
 
@@ -812,6 +888,7 @@ export const Changeset = z.object({
         entityId: z.string(),
         tableName: z.string(),
         deletedAt: z.string().nullable(),
+        restoredAt: z.string().optional(),
         clientId: z.string(),
         changes: z.record(z.string(), z.string()),
         createdAt: z.string(),

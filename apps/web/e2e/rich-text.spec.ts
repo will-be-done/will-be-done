@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { formatHlc } from "@will-be-done/slices/common";
+import { CURRENT_SYNC_VERSION, formatHlc } from "@will-be-done/slices/common";
 import { expect, test, type Locator, type Page } from "playwright/test";
 
 import {
@@ -290,7 +290,7 @@ async function syncAsOldApp(
   const sessionResponse = await page.request.post(sessionsUrl, {
     headers,
     data: {
-      syncVersion: 4,
+      syncVersion: CURRENT_SYNC_VERSION,
       dbId: spaceId,
       dbType: "space",
       clientId: `e2e-old-app-${randomUUID()}`,

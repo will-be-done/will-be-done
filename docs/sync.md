@@ -5,8 +5,10 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current wire protocol is version 4. It is a hard protocol boundary: v3
-upload and download procedures must not be reintroduced as an alternate path.
+The current sync version is 5, carried over the v4 transport routes. Version 5
+added restore clocks; a v4 client would treat a restored entity as still deleted,
+so the server rejects it and the client must update. v3 upload and download
+procedures must not be reintroduced as an alternate path.
 
 ## Required Server-Backup Recovery Guarantee
 
@@ -52,7 +54,7 @@ The protocol deliberately does not use one value for every ordering problem.
 ### Hybrid logical clock
 
 Every materialized `Change` contains HLC timestamps. HLC values determine
-causal/LWW ordering for creations, fields, and tombstones. They use the fixed
+causal/LWW ordering for creations, fields, tombstones, and restores. They use the fixed
 width form:
 
 ```text
@@ -74,7 +76,7 @@ already been generated or persisted.
 
 Uploaded materialized changes may be at most five minutes ahead of current
 server wall time. The server validates the maximum creation, field, deletion,
-and materialization HLC before staging and validates the session maximum again
+restore, and materialization HLC before staging and validates the session maximum again
 before commit. A value beyond the bound is rejected with
 `SYNC_CLOCK_SKEW`; it is never clamped, merged, or observed by the server HLC.
 Clamping is forbidden because it can change causal order or make distinct
@@ -149,9 +151,14 @@ Each syncable row has one materialized `changes` record identified by
 
 - the creation HLC;
 - the latest receipt/materialization HLC;
-- an optional permanent deletion HLC;
+- an optional deletion HLC and an optional restore HLC;
 - per-field HLC values;
 - the client that won the relevant merge state.
+
+Field clocks are per top-level column, and the transport accepts only
+primitive column values (string, number, boolean, null). A syncable table that
+needs structured data stores it as a JSON string column, which merges as one
+field.
 
 The outbound cursor is the stable compound key `[updatedAt, id]`. The `id`
 tie-breaker is mandatory: a timestamp alone can skip rows that share an HLC.
@@ -334,7 +341,19 @@ must never expose a partially applied logical sync response.
   [rich-text.md](rich-text.md) for the reasons and traps.
 - Concurrent creation of the same ID uses deterministic first-creator-wins
   behavior before field merging.
-- Tombstones are permanent. A deleted ID cannot be reused.
+- An entity is deleted when its deletion HLC is newer than its restore HLC.
+  Both clocks merge by maximum, so a later delete beats an earlier restore and
+  a later restore beats an earlier delete in any arrival order.
+- Only a restore revives an entity. A field edit or recreation without a newer
+  restore HLC never brings a deleted ID back, even when its clock is newer.
+  Locally, inserting a row whose ID is tombstoned records a restore.
+- Each restore starts a new incarnation. When restore HLCs differ, the newer
+  incarnation's row and field clocks win wholesale; per-field LWW and rich-text
+  doc unions apply only within one incarnation. A deleted row's values are not
+  kept, so this is what keeps convergence independent of arrival order. Edits
+  made concurrently with a delete are lost even if the delete is later restored,
+  and of two concurrent restores the later one wins, discarding edits made to
+  the other.
 - Entry conflicts such as multiple daily/stash entries for one task are
   resolved deterministically before the generic merge.
 - DailyLists are deterministic, ensure-only date scaffolding. They are not
@@ -384,7 +403,8 @@ Every retry boundary is effect-idempotent:
 - Applying a staged download and advancing the client revision is one
   transaction. A crash leaves either the old state or the complete new state.
 - Download acknowledgement and temporary-session cleanup are effect-idempotent.
-- Permanent tombstones ensure a replay cannot resurrect a deleted entity.
+- Deletion and restore HLCs merge by maximum, so a replay cannot resurrect a
+  deleted entity or undo a restore.
 
 ## Transport Limits and Lifecycle
 
@@ -477,7 +497,8 @@ Any sync change must preserve all of the following:
 8. Never suppress an echo without semantic equality; always return canonical
    conflict corrections.
 9. Never make receipt timestamps defeat merge idempotency.
-10. Never discard tombstones or permit deleted IDs to be reused.
+10. Never discard tombstones, and never revive a deleted ID except through a
+    restore HLC newer than its deletion HLC.
 11. Every syncable server-side domain write must update the revision feed in
     the same database transaction.
 12. Retries after timeouts, reloads, duplicated requests, and lost responses
@@ -497,4 +518,5 @@ At minimum, sync-logic changes must test normal convergence, exact echo
 suppression, canonical conflict correction, duplicate chunk/commit retries,
 atomic parent-and-projection application, server backup rollback, client backup
 rollback, HLC wall-clock rollback, fast and slow client-clock calibration,
-future-skew rejection, permanent tombstones, and staged-download recovery.
+future-skew rejection, tombstones and restores in every arrival order, and
+staged-download recovery.

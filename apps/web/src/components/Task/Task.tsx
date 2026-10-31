@@ -53,7 +53,7 @@ import {
   dailyListType,
   dailyEntryDateOfTask,
   dailyEntryByTaskId,
-  deleteTasks,
+  trashTasks,
   getDMY,
   isTask,
   isTaskTemplate,
@@ -900,7 +900,7 @@ export const PreloadedTaskComp = ({
           const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
           void (async () => {
-            await dispatch(deleteTasks({ ids: [taskId] }));
+            await dispatch(trashTasks({ ids: [taskId] }));
             if (isTask(item)) captureTaskDeleted(item);
           })();
 

@@ -25,6 +25,7 @@ const changeSchema = v.object({
   entityId: v.string(),
   tableName: v.string(),
   deletedAt: v.union(v.string(), v.null()),
+  restoredAt: v.optional(v.string()),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
   createdAt: v.string(),
