@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { DurationInput, TimeInput } from "@/components/Task/TaskTimeInputs";
 import TextareaAutosize from "react-textarea-autosize";
 import { LinkifiedText } from "@/components/LinkifiedText";
+import { ProjectIcon } from "@/components/ui/emoji";
 
 // Editable title
 
@@ -179,7 +180,7 @@ export function ProjectDetailRow({
           className="min-w-0 cursor-pointer rounded px-1 -mx-1 hover:bg-task-panel-hover transition-colors text-left truncate"
           onClick={onOpenClick}
         >
-          {project.icon || "🟡"} {project.title}
+          <ProjectIcon icon={project.icon} /> {project.title}
         </button>
         <button
           type="button"

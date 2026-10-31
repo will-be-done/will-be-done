@@ -97,6 +97,7 @@ import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { LinkifiedText } from "@/components/LinkifiedText";
 import { formatTaskTime } from "@/lib/taskTime";
+import { ProjectIcon } from "@/components/ui/emoji";
 
 export const DropTaskIndicator = ({
   direction,
@@ -1295,7 +1296,7 @@ export const PreloadedTaskComp = ({
       title={project.title}
       onClick={handleOpenProject}
     >
-      <span className="shrink-0">{project.icon || "🟡"}</span>
+      <ProjectIcon icon={project.icon} />
       <span className="truncate">{project.title}</span>
     </button>
   );

@@ -34,6 +34,7 @@ import {
 import invariant from "tiny-invariant";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { ProjectIcon } from "@/components/ui/emoji";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -382,7 +383,9 @@ export const ProjectTaskPanel = ({
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3 shrink-0">
-        <span className="text-base">{project.icon || "🟡"}</span>
+        <span className="text-base">
+          <ProjectIcon icon={project.icon} />
+        </span>
         <span className="text-sm font-semibold text-content truncate">
           {project.title}
         </span>

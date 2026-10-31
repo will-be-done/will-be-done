@@ -24,6 +24,7 @@ import { useMemo, useState, useEffect } from "react";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
+import { ProjectIcon } from "@/components/ui/emoji";
 
 const DeleteIcon = () => (
   <svg
@@ -110,9 +111,9 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="text-4xl flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity leading-none mt-1"
+                  className="flex h-[1.25em] items-center text-3xl flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
                 >
-                  {project.icon || "🟡"}
+                  <ProjectIcon icon={project.icon} />
                 </button>
               </PopoverTrigger>
               <PopoverContent className="z-50 w-fit p-0">

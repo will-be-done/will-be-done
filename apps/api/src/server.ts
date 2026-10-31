@@ -177,7 +177,9 @@ export function createServer({
       const isApiRequest =
         requestPath === "/api" || requestPath.startsWith("/api/");
       const isAssetRequest =
-        requestPath === "/assets" || requestPath.startsWith("/assets/");
+        requestPath === "/assets" ||
+        requestPath.startsWith("/assets/") ||
+        requestPath.startsWith("/emoji/");
       const isServiceWorkerRequest = requestPath === "/sw.js";
 
       if (isApiRequest || isAssetRequest || isServiceWorkerRequest) {

@@ -114,6 +114,16 @@ export default defineConfig({
         ],
         runtimeCaching: [
           {
+            // Precaching installs files one by one and would block the app
+            // shell, so src/lib/emojiCache.ts fills this cache in background.
+            urlPattern: /\/emoji\/[^/]+\.webp$/,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "emoji-images",
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             urlPattern: /^https:\/\/rsms\.me\/.*/i,
             handler: "CacheFirst",
             options: {
