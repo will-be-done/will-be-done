@@ -35,7 +35,8 @@ function renderText(node: RichTextNode, key: number): ReactNode {
   return <Fragment key={key}>{content}</Fragment>;
 }
 
-// Renders a single-line rich text field: a title or a checklist item.
+// Renders a single-line rich text field: a title or a checklist item. Lists
+// hold many of them, so an editor mounts only while one is being edited.
 export function RichTextView({
   text,
   className,

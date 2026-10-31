@@ -323,8 +323,9 @@ must never expose a partially applied logical sync response.
   always re-derived from the merged doc. A side whose text won LWW but
   disagrees with its own doc (a client that predates docs) is replayed as a
   doc edit with a content-derived client ID, so it merges and its replay is a
-  no-op. A doc that fails to decode keeps the current doc. The union keeps one side's exact bytes when it already contains
-  the other and picks the smaller encoding for equal states, so replicas
+  no-op. A doc that fails to decode is treated as missing, and dropped if no
+  valid doc remains. The union keeps one side's exact bytes when it already
+  contains the other and picks the smaller encoding for equal states, so replicas
   converge on identical rows and replays stay no-ops. A doc is created lazily
   from the text with a deterministic seed (`seedRichTextDoc`): replicas
   seeding the same markdown produce identical Yjs structs, which a random

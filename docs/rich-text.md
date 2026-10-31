@@ -31,7 +31,7 @@ error.
 
 Rich text fields are registered with `registerRichTextFields` in
 `space/tables.ts`. `mergeChanges` unions the two docs instead of picking a
-last-writer-wins value, then re-derives the text. Two traps make this harder
+last-writer-wins value, then re-derives the text. These traps make it harder
 than calling `Y.mergeUpdates`:
 
 - **Seeds must be identical across replicas.** Two devices that seed a doc from
@@ -47,8 +47,9 @@ than calling `Y.mergeUpdates`:
 - **Generated edits must be deterministic too.** `replaceRichTextDocMarkdown`
   derives its client ID from its input, so the same text write replayed on the
   server produces the same structs instead of a second copy of the edit.
-- **One malformed doc must not stall sync.** If a doc fails to decode, the
-  merge keeps the current doc for that field and carries on.
+- **One malformed doc must not stall sync.** A doc that fails to decode is
+  treated as missing: the row keeps its text, and a doc is seeded from it on
+  the next edit.
 
 Every doc save is merged into the stored doc rather than replacing it, since an
 editor can save before a synced edit reaches it.
@@ -56,23 +57,16 @@ editor can save before a synced edit reaches it.
 ### Text-only writes
 
 A write that sets only the Markdown text (the v1 API, `updateTask` with a
-title) goes through `syncItemRichText` / `syncChecklistItemRichText`
-(`space/richTextItems.ts`). It edits the doc rather than replacing it:
-`replaceRichTextDocMarkdown` diffs top-level blocks and leaves unchanged ones
-alone. A changed text block that keeps its type (a title, a checklist item, a
-paragraph, a heading) is edited in place: only the characters that differ are
-deleted and inserted, then marks are reformatted. So a title renamed through
-the API merges with someone typing in it, just like two editors. When paragraphs
-are added, removed, or change type, everything from the first to the last
-changed block is replaced, and concurrent typing inside that range is lost.
+title) must go through `syncItemRichText` / `syncChecklistItemRichText`
+(`space/richTextItems.ts`), which edit the doc instead of replacing it. Edits
+within a block merge with concurrent typing. When blocks are added, removed, or
+change type, the changed range is replaced and concurrent typing inside it is
+lost.
 
 Clients that predate docs still sync on the same protocol version. They change
-only the text, keeping the doc they received (or none). `mergeChanges` spots a
-side whose text won LWW but disagrees with its own doc and replays that text as
-an edit of the doc it was written against, falling back to the other side's doc
-when it has none. With the stale doc as the base, the old client's edit merges
-with concurrent ones; without it, the edit applies like a last-writer-wins
-write over the changed range.
+only the text and keep the doc they received, or none. Their text must be
+replayed as an edit of that stale doc, which is what lets it merge with
+concurrent edits; with no doc to start from, it overwrites the changed range.
 
 ## Markdown round trip
 
@@ -98,23 +92,15 @@ field and fights concurrent edits. Things that would otherwise drift:
 `apps/web/src/components/RichText/RichTextEditor.tsx` wraps Tiptap with a
 private `Y.Doc` per mounted editor.
 
-- **Saving.** Local doc updates save after a short debounce and flush on blur,
-  unmount, and when the page is hidden (`pendingDraftFlushes`). Stored docs
-  arriving from sync are applied with a dedicated origin so they do not trigger
-  a save. While the row has no doc, a text change from an older app is applied
-  the same way, as an edit of the doc the editor was seeded from; otherwise the
-  next keystroke would save the stale text over it. A `required` field
-  (titles) does not save an empty value.
-- **Leaving the editor.** `useSavedRichText` shows what the editor just saved
-  until the stored row catches up, so the read view never flashes the old
-  text. It also hands that saved doc to an editor reopened in the meantime:
-  seeding from text there would start a second copy of the text, and merging
-  the two copies duplicates it.
-- **Views.** Titles and checklist items render the cheap `RichTextView` and
-  mount an editor only while editing, because lists hold many of them. The
-  caret opens at the clicked character by passing the click's text offset
-  (`caret.ts`) into the editor. Descriptions are always an editor, so remote
-  edits and clickable links stay live.
+- **Stored docs** arriving from sync are applied with a dedicated origin, or
+  they would trigger a save of their own. While the row has no doc, a text
+  change from an older app must be applied the same way, as an edit of the doc
+  the editor was seeded from; otherwise the next keystroke saves the stale text
+  over it.
+- **Duplicate seeds.** An editor reopened before the stored row catches up
+  with its last save must start from that saved doc (`useSavedRichText`).
+  Seeding from text there starts a second copy of the text, and merging the
+  two copies duplicates it.
 - **Markdown markers** (`**` around bold text) are decorations, not document
   content, and only show while the editor is focused.
 - **Paste.** Plain text is parsed as Markdown in the field's kind. Rich HTML is

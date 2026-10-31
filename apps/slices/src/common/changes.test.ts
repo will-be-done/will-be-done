@@ -1822,16 +1822,33 @@ describe("rich text fields", () => {
     expect(committedOperations).toBe(0);
   });
 
-  it("keeps the current doc when an incoming doc is malformed", () => {
+  it("treats a malformed incoming doc as missing", () => {
     const malformed = changeset(
       { title: "Broken", titleDoc: "not a yjs doc" },
       "0000000030-0001-broken",
       "broken",
     );
 
-    expect(readRow(setup(withDoc, malformed))).toMatchObject({
-      title: "Please Buy milk",
-      titleDoc: withDoc[0]!.data[0]!.row!.titleDoc,
-    });
+    const row = readRow(setup(withDoc, malformed));
+    expect(row.title).toBe("Broken");
+    expect(richTextDocToMarkdown(row.titleDoc!, "title")).toBe("Broken");
+  });
+
+  it.each([
+    ["a new row", []],
+    [
+      "a row without a doc",
+      [changeset({ title: "Buy milk" }, "0000000020-0001-old", "old")],
+    ],
+  ])("drops a malformed doc arriving for %s", (_, before) => {
+    const malformed = changeset(
+      { title: "Broken", titleDoc: "not a yjs doc" },
+      "0000000030-0001-broken",
+      "broken",
+    );
+
+    const row = readRow(setup(...before, malformed));
+    expect(row).toMatchObject({ title: "Broken" });
+    expect(row).not.toHaveProperty("titleDoc");
   });
 });

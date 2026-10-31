@@ -17,6 +17,7 @@ import { changesTable, type Change } from "./tables";
 import { compareHlc } from "./hlc";
 import type { ClientCursor } from "./syncV4";
 import {
+  loadRichTextDoc,
   mergeRichTextDocs,
   replaceRichTextDocMarkdown,
   richTextDocToMarkdown,
@@ -48,6 +49,23 @@ export const registerRichTextFields = (
   richTextFieldsByTable.set(tableName, fields);
 };
 
+const decodes = (doc: unknown): doc is string => {
+  if (typeof doc !== "string") return false;
+  try {
+    loadRichTextDoc(doc).destroy();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// A doc that does not decode is dropped: the row keeps its text, and the next
+// edit seeds a doc from it again.
+const withoutDoc = (row: Row, docField: string): Row => {
+  const { [docField]: _, ...rest } = row;
+  return rest as Row;
+};
+
 const mergeRichTextFields = (
   tableName: string,
   currentRow: Row | undefined,
@@ -55,44 +73,60 @@ const mergeRichTextFields = (
   mergedRow: Row,
 ): Row => {
   const fields = richTextFieldsByTable.get(tableName);
-  if (!fields || !currentRow || !incomingRow) return mergedRow;
+  if (!fields || !incomingRow) return mergedRow;
   let result = mergedRow;
   for (const { docField, textField, kind } of fields) {
-    const currentDoc = currentRow[docField];
-    const incomingDoc = incomingRow[docField];
+    if (!currentRow) {
+      const doc = result[docField];
+      if (doc !== undefined && !decodes(doc)) {
+        result = withoutDoc(result, docField);
+      }
+      continue;
+    }
     if (
-      currentDoc === incomingDoc &&
+      currentRow[docField] === incomingRow[docField] &&
       currentRow[textField] === incomingRow[textField]
     ) {
       continue;
     }
+    const docOf = (row: Row) =>
+      decodes(row[docField]) ? row[docField] : undefined;
+    const currentDoc = docOf(currentRow);
+    const incomingDoc = docOf(incomingRow);
     // Clients that predate docs change only the text, leaving their doc stale
     // or absent. A text that won LWW is replayed as an edit of the doc it was
     // written against, so it merges instead of being dropped.
-    const textEdit = (row: Row, other: Row) => {
+    const textEdit = (
+      row: Row,
+      other: Row,
+      own: string | undefined,
+      otherDoc: string | undefined,
+    ) => {
       const text = row[textField];
-      const own = row[docField];
       if (
         typeof text !== "string" ||
         text !== mergedRow[textField] ||
         text === other[textField] ||
-        (typeof own === "string" && richTextDocToMarkdown(own, kind) === text)
+        (own !== undefined && richTextDocToMarkdown(own, kind) === text)
       ) {
         return undefined;
       }
-      const base = typeof own === "string" ? own : other[docField];
-      return typeof base === "string"
-        ? replaceRichTextDocMarkdown(base, text, kind)
-        : undefined;
+      const base = own ?? otherDoc;
+      return base === undefined
+        ? undefined
+        : replaceRichTextDocMarkdown(base, text, kind);
     };
     try {
       const docs = [
         currentDoc,
         incomingDoc,
-        textEdit(currentRow, incomingRow),
-        textEdit(incomingRow, currentRow),
-      ].filter((doc): doc is string => typeof doc === "string");
-      if (docs.length === 0) continue;
+        textEdit(currentRow, incomingRow, currentDoc, incomingDoc),
+        textEdit(incomingRow, currentRow, incomingDoc, currentDoc),
+      ].filter((doc) => doc !== undefined);
+      if (docs.length === 0) {
+        result = withoutDoc(result, docField);
+        continue;
+      }
       const doc = docs.reduce(mergeRichTextDocs);
       result = {
         ...result,
@@ -100,15 +134,16 @@ const mergeRichTextFields = (
         [textField]: richTextDocToMarkdown(doc, kind),
       };
     } catch (error) {
-      // A malformed doc must not block the rest of the changeset.
+      // A doc that decodes but fails to merge must not block the changeset.
       console.error(`Failed to merge ${tableName}.${docField}`, error);
-      if (typeof currentDoc === "string") {
-        result = {
-          ...result,
-          [docField]: currentDoc,
-          [textField]: currentRow[textField],
-        };
-      }
+      result =
+        currentDoc === undefined
+          ? withoutDoc(result, docField)
+          : {
+              ...result,
+              [docField]: currentDoc,
+              [textField]: currentRow[textField],
+            };
     }
   }
   return result;
