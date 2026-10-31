@@ -8,6 +8,7 @@ import {
   itemByListItemId,
   isTask,
   isTaskTemplate,
+  type Item,
   type ListItemType,
   projectSectionItemById,
   stashEntryType,
@@ -41,14 +42,16 @@ export function ItemDetails() {
   const focusedListItemType =
     parsed && isListItemType(parsed.type) ? parsed.type : null;
   const focusedListItemId = focusedListItemType && parsed ? parsed.id : null;
-  const { data: focusedItem } = useAsyncSelector({
+  // Keep the previous item while the next loads so focus moves don't flash empty.
+  const { data: selectedItem } = useAsyncSelector({
     selector: itemByListItemId,
     args: {
       id: focusedListItemId ?? "",
       modelType: focusedListItemType ?? taskType,
     },
-    enabled: !!focusedListItemId,
+    placeholderData: (previous) => previous,
   });
+  const focusedItem = focusedListItemId ? selectedItem : undefined;
   const itemId = focusedItem?.id ?? null;
   const isVisible = focusedItem !== undefined;
 
@@ -96,7 +99,6 @@ export function ItemDetails() {
     [setWidth],
   );
 
-  const hasItem = isVisible && !!itemId;
   const panelWidth = isPanelOpen ? width : 0;
   const widthTransitionClass = isResizing
     ? "transition-none"
@@ -189,9 +191,9 @@ export function ItemDetails() {
             </span>
           </div>
 
-          {hasItem && itemId ? (
+          {focusedItem ? (
             <ItemDetailsBody
-              itemId={itemId}
+              item={focusedItem}
               isEditingTitle={isEditingTitle}
               setIsEditingTitle={setIsEditingTitle}
               isEditingDescription={isEditingDescription}
@@ -221,7 +223,6 @@ export function ItemDetailsPage({
     selector: projectSectionItemById,
     args: { id: itemId },
   });
-  const isVisible = item !== undefined;
   const {
     isEditingTitle,
     setIsEditingTitle,
@@ -255,9 +256,9 @@ export function ItemDetailsPage({
         className="min-h-0 flex-1 overflow-y-auto"
         style={{ paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
       >
-        {isVisible ? (
+        {item ? (
           <ItemDetailsBody
-            itemId={itemId}
+            item={item}
             isEditingTitle={isEditingTitle}
             setIsEditingTitle={setIsEditingTitle}
             isEditingDescription={isEditingDescription}
@@ -318,25 +319,20 @@ function useItemDetailsEditing(itemId: string | null) {
 // ─── Body dispatcher ──────────────────────────────────────────────────────────
 
 function ItemDetailsBody({
-  itemId,
+  item,
   isEditingTitle,
   setIsEditingTitle,
   isEditingDescription,
   setIsEditingDescription,
   onItemIdChange,
 }: {
-  itemId: string;
+  item: Item;
   isEditingTitle: boolean;
   setIsEditingTitle: (v: boolean) => void;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
   onItemIdChange?: (itemId: string) => void;
 }) {
-  const { data: item } = useAsyncSelector({
-    selector: projectSectionItemById,
-    args: { id: itemId },
-  });
-
   if (isTask(item)) {
     return (
       <TaskBody

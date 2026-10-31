@@ -96,7 +96,3 @@ export const authUtils = {
     );
   },
 };
-
-export const isDemoMode = () =>
-  typeof window !== "undefined" &&
-  window.location.hostname === "demo.will-be-done.app";

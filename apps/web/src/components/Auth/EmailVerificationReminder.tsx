@@ -1,7 +1,8 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
-import { authUtils, isDemoMode } from "@/lib/auth";
+import { authUtils } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoMode";
 import { useTRPC } from "@/lib/trpc";
 
 export function EmailVerificationReminder() {

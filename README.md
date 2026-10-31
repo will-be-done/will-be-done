@@ -335,6 +335,13 @@ pnpm all
 WBD_DB_ENGINE=tursod pnpm all
 ```
 
+Or run only the web app in demo mode, with seeded data kept in the browser and
+no API server:
+
+```bash
+pnpm run:demo
+```
+
 Useful checks:
 
 ```bash

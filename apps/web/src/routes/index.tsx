@@ -1,4 +1,5 @@
-import { authUtils, isDemoMode } from "@/lib/auth";
+import { authUtils } from "@/lib/auth";
+import { isDemoMode } from "@/lib/demoMode";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
