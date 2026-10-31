@@ -102,7 +102,8 @@ document, changing only the characters that differ. An edit someone makes in
 the app at the same time is merged with yours, even in the same line. If you
 add, remove, or restructure paragraphs, such as turning one into a list,
 everything from the first to the last changed paragraph takes your version,
-and edits made there at the same time can be lost.
+and edits made there at the same time can be lost. Paragraphs before and after
+that range are kept, along with edits made to them at the same time.
 
 ## Revoke a token
 

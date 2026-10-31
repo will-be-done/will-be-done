@@ -252,4 +252,22 @@ describe("rich text docs", () => {
       replaceRichTextDocMarkdown(api, "First **changed**\n\nSecond", "content"),
     ).toBe(api);
   });
+
+  it("keeps concurrent edits around a restructured paragraph", () => {
+    const seed = seedRichTextDoc("First\n\nMiddle\n\nLast", "content");
+    const api = replaceRichTextDocMarkdown(
+      seed,
+      "First\n\n- Middle\n\nLast",
+      "content",
+    );
+    const before = editText(seed, (text) => text.insert(5, " edited"), 0);
+    const after = editText(seed, (text) => text.insert(4, " edited"), 2);
+
+    expect(
+      richTextDocToMarkdown(
+        mergeRichTextDocs(mergeRichTextDocs(api, before), after),
+        "content",
+      ),
+    ).toBe("First edited\n\n- Middle\n\nLast edited");
+  });
 });

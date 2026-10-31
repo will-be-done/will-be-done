@@ -1,4 +1,6 @@
-import { expect, test, type Locator } from "playwright/test";
+import { createHash, randomUUID } from "node:crypto";
+import { formatHlc } from "@will-be-done/slices/common";
+import { expect, test, type Locator, type Page } from "playwright/test";
 
 import {
   createSpace,
@@ -261,4 +263,150 @@ test("shows a title changed back in another tab", async ({ context, page }) => {
   );
 
   await expect(item.locator("[data-rich-text-view]")).toHaveText(taskTitle);
+});
+
+const sha256 = (value: string) =>
+  createHash("sha256").update(value).digest("hex");
+
+type SyncChange = { id: string; entityId: string } & Record<string, unknown>;
+type SyncRow = { id: string } & Record<string, unknown>;
+type SyncChangeset = {
+  tableName: string;
+  data: Array<{ change: SyncChange; row?: SyncRow }>;
+};
+
+// Syncs as an app that predates rich text docs: it writes the Markdown text
+// and keeps the doc it was sent, or none.
+async function syncAsOldApp(
+  page: Page,
+  spaceId: string,
+  changesets: SyncChangeset[],
+  cursor: { clock: string; changeId: string } | null = null,
+) {
+  const token = await page.evaluate(() => localStorage.getItem("auth_token"));
+  const headers = { Authorization: `Bearer ${token}` };
+  const sessionsUrl = `/api/sync/v4/space/${spaceId}/sessions`;
+  const sessionResponse = await page.request.post(sessionsUrl, {
+    headers,
+    data: {
+      syncVersion: 4,
+      dbId: spaceId,
+      dbType: "space",
+      clientId: `e2e-old-app-${randomUUID()}`,
+      expectedAcceptedClientCursor: null,
+      coveredClientCursor: cursor,
+      expectedAcknowledgedServerRevision: 0,
+      appliedServerRevision: 0,
+    },
+  });
+  await expect(sessionResponse).toBeOK();
+  const { uploadId } = (await sessionResponse.json()) as { uploadId: string };
+
+  const checksums: string[] = [];
+  if (changesets.length > 0) {
+    const payload = JSON.stringify(changesets);
+    const checksum = sha256(payload);
+    checksums.push(checksum);
+    await expect(
+      await page.request.put(`${sessionsUrl}/${uploadId}/chunks/0`, {
+        headers,
+        data: { checksum, payload },
+      }),
+    ).toBeOK();
+  }
+
+  const commitResponse = await page.request.post(
+    `${sessionsUrl}/${uploadId}/commit`,
+    {
+      headers,
+      data: {
+        chunkCount: checksums.length,
+        changeCount: changesets.reduce((n, { data }) => n + data.length, 0),
+        throughCursor: cursor,
+        checksum: sha256(checksums.join("\n")),
+      },
+    },
+  );
+  await expect(commitResponse).toBeOK();
+  const { download } = (await commitResponse.json()) as {
+    download: { type: "inline"; changesets: SyncChangeset[] };
+  };
+  expect(download.type).toBe("inline");
+  return download.changesets;
+}
+
+test("shows a description an older app changed while it is open", async ({
+  page,
+}) => {
+  const spaceName = uniqueE2EName("E2E Old App Space");
+  const taskTitle = uniqueE2EName("E2E old app task");
+
+  await signupUser(page);
+  await createSpace(page, spaceName);
+  await openSpace(page, spaceName);
+  const indicator = page.getByRole("button", { name: /^Sync status:/ });
+  await createTodayTask(page, taskTitle);
+  await expect(indicator).toHaveAttribute("data-sync-state", "synced");
+  const { description } = await openTaskDetails(page, taskTitle);
+  const spaceId = new URL(page.url()).pathname.split("/")[2];
+
+  const tasks = (await syncAsOldApp(page, spaceId, [])).find(
+    ({ tableName }) => tableName === "tasks",
+  );
+  const task = tasks?.data.find(({ row }) => row?.title === taskTitle);
+  expect(task?.row).toBeTruthy();
+  expect(task?.row).not.toHaveProperty("contentDoc");
+
+  const clientId = `e2e-old-app-${randomUUID()}`;
+  const clock = formatHlc({
+    physical: Date.now(),
+    logical: 0,
+    actorId: clientId,
+  });
+  const change = {
+    ...task!.change,
+    updatedAt: clock,
+    clientId,
+    changes: { ...(task!.change.changes as object), content: clock },
+  };
+  await syncAsOldApp(
+    page,
+    spaceId,
+    [
+      {
+        tableName: "tasks",
+        data: [{ change, row: { ...task!.row!, content: "From the old app" } }],
+      },
+    ],
+    { clock, changeId: change.id },
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(description).toHaveText("From the old app");
+
+  let uploadPath: string | undefined;
+  const committed = page.waitForResponse(
+    (response) =>
+      uploadPath !== undefined &&
+      response.url().endsWith(`${uploadPath}/commit`) &&
+      response.ok(),
+  );
+  void page.waitForRequest((request) => {
+    const isUpload =
+      request.method() === "PUT" &&
+      request.url().includes(`/api/sync/v4/space/${spaceId}/`) &&
+      (request.postData() ?? "").includes("and this one");
+    if (isUpload)
+      uploadPath = new URL(request.url()).pathname.split("/chunks/")[0];
+    return isUpload;
+  });
+  await description.click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" and this one");
+  await description.blur();
+  await committed;
+
+  const synced = (await syncAsOldApp(page, spaceId, []))
+    .find(({ tableName }) => tableName === "tasks")
+    ?.data.find(({ row }) => row?.id === task!.row!.id);
+  expect(synced?.row?.content).toBe("From the old app and this one");
 });

@@ -114,7 +114,7 @@ export const MobileTaskToolbar = () => {
   return (
     <div
       className={cn(
-        "fixed bottom-0 inset-x-0 z-50 transition-transform duration-200 ease-out",
+        "fixed bottom-0 inset-x-0 z-[1060] transition-transform duration-200 ease-out",
         visible ? "translate-y-0" : "translate-y-full",
       )}
     >

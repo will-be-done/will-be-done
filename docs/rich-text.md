@@ -101,7 +101,10 @@ private `Y.Doc` per mounted editor.
 - **Saving.** Local doc updates save after a short debounce and flush on blur,
   unmount, and when the page is hidden (`pendingDraftFlushes`). Stored docs
   arriving from sync are applied with a dedicated origin so they do not trigger
-  a save. A `required` field (titles) does not save an empty value.
+  a save. While the row has no doc, a text change from an older app is applied
+  the same way, as an edit of the doc the editor was seeded from; otherwise the
+  next keystroke would save the stale text over it. A `required` field
+  (titles) does not save an empty value.
 - **Leaving the editor.** `useSavedRichText` shows what the editor just saved
   until the stored row catches up, so the read view never flashes the old
   text. It also hands that saved doc to an editor reopened in the meantime:

@@ -51,6 +51,8 @@ export function RichTextView({
     [text],
   );
   return (
-    <span data-rich-text-view className={cn("rich-text", className)}>{nodes.map(renderText)}</span>
+    <span data-rich-text-view className={cn("rich-text", className)}>
+      {nodes.map(renderText)}
+    </span>
   );
 }

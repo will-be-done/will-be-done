@@ -13,6 +13,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import {
   encodeRichTextDoc,
   loadRichTextDoc,
+  replaceRichTextDocMarkdown,
   richTextDocToMarkdown,
   seedRichTextDoc,
   type RichTextKind,
@@ -85,9 +86,11 @@ export function RichTextEditor({
   ariaLabel: string;
   className?: string;
 }) {
-  const [ydoc] = useState(() =>
-    loadRichTextDoc(doc ?? seedRichTextDoc(text, kind)),
-  );
+  const [initialDoc] = useState(() => doc ?? seedRichTextDoc(text, kind));
+  const [ydoc] = useState(() => loadRichTextDoc(initialDoc));
+  // What the row stored when it had no doc yet: its text and the doc edits of
+  // that text build on, so unsaved typing merges with them.
+  const doclessRef = useRef({ text, doc: initialDoc });
   const hasUnsavedRef = useRef(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSaveRef = useRef(onSave);
@@ -130,8 +133,17 @@ export function RichTextEditor({
 
   // Remote and other-tab edits merge into the open editor.
   useEffect(() => {
-    if (doc) loadRichTextDoc(doc, ydoc, storedUpdateOrigin);
-  }, [doc, ydoc]);
+    if (doc) {
+      loadRichTextDoc(doc, ydoc, storedUpdateOrigin);
+      return;
+    }
+    // Apps without rich text support change only the text.
+    const docless = doclessRef.current;
+    if (text === docless.text) return;
+    const next = replaceRichTextDocMarkdown(docless.doc, text, kind);
+    doclessRef.current = { text, doc: next };
+    loadRichTextDoc(next, ydoc, storedUpdateOrigin);
+  }, [doc, kind, text, ydoc]);
 
   useEffect(() => registerPendingDraftFlush(flush), [flush]);
   useUnmount(flush);
