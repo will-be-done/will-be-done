@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { expect, type Locator, type Page } from "playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+} from "playwright/test";
 import {
   dailyEntryType,
   stashEntryType,
@@ -270,4 +276,32 @@ export async function signOutUser(page: Page) {
 export async function openAccountSettings(page: Page) {
   await page.getByRole("button", { name: "Account menu" }).click();
   await page.getByRole("menuitem", { name: "Account settings" }).click();
+}
+
+// Resolves once the server commits a sync upload carrying `text`. Wait for it
+// before a reload: a reload right after a write can drop it from IndexedDB.
+export function waitForSyncedText(page: Page, text: string) {
+  return new Promise<void>((resolve) => {
+    const uploads = new Set<string>();
+    const onRequest = (request: Request) => {
+      if (
+        request.method() === "PUT" &&
+        request.url().includes("/api/sync/v4/") &&
+        (request.postData() ?? "").includes(text)
+      ) {
+        uploads.add(new URL(request.url()).pathname.split("/chunks/")[0]);
+      }
+    };
+    const onResponse = (response: Response) => {
+      const path = new URL(response.url()).pathname;
+      if (!response.ok() || !uploads.has(path.replace(/\/commit$/, ""))) {
+        return;
+      }
+      page.off("request", onRequest);
+      page.off("response", onResponse);
+      resolve();
+    };
+    page.on("request", onRequest);
+    page.on("response", onResponse);
+  });
 }

@@ -10,6 +10,7 @@ import {
   signupUser,
   taskItem,
   uniqueE2EName,
+  waitForSyncedText,
 } from "./helpers";
 
 const pasteText = (editor: Locator, text: string) =>
@@ -383,30 +384,15 @@ test("shows a description an older app changed while it is open", async ({
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(description).toHaveText("From the old app");
 
-  let uploadPath: string | undefined;
-  const committed = page.waitForResponse(
-    (response) =>
-      uploadPath !== undefined &&
-      response.url().endsWith(`${uploadPath}/commit`) &&
-      response.ok(),
-  );
-  void page.waitForRequest((request) => {
-    const isUpload =
-      request.method() === "PUT" &&
-      request.url().includes(`/api/sync/v4/space/${spaceId}/`) &&
-      (request.postData() ?? "").includes("and this one");
-    if (isUpload)
-      uploadPath = new URL(request.url()).pathname.split("/chunks/")[0];
-    return isUpload;
-  });
+  const synced = waitForSyncedText(page, "and this one");
   await description.click();
   await page.keyboard.press("End");
   await page.keyboard.type(" and this one");
   await description.blur();
-  await committed;
+  await synced;
 
-  const synced = (await syncAsOldApp(page, spaceId, []))
+  const stored = (await syncAsOldApp(page, spaceId, []))
     .find(({ tableName }) => tableName === "tasks")
     ?.data.find(({ row }) => row?.id === task!.row!.id);
-  expect(synced?.row?.content).toBe("From the old app and this one");
+  expect(stored?.row?.content).toBe("From the old app and this one");
 });
