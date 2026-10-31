@@ -30,6 +30,9 @@ for (const source of ["Inbox", "project"] as const) {
 
       if (source === "Inbox") {
         await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
+        await expect(
+          page.getByRole("heading", { level: 1, name: "Inbox" }),
+        ).toBeVisible();
       } else {
         await createProject(page, sourceProject);
         await projectSidebarLink(page, sourceProject).click();

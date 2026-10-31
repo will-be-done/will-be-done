@@ -31,7 +31,6 @@ import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
-import { useDescriptionEditing, useTitleEditing } from "./hooks.ts";
 import {
   EditableTitle,
   DetailRow,
@@ -99,38 +98,16 @@ export function TaskBody({
   const [isMoveProjectModalOpen, setIsMoveProjectModalOpen] = useState(false);
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
 
-  const {
-    editingTitle,
-    setTitleDraft,
-    saveTitle,
-    handleTitleKeyDown,
-    textareaRef,
-  } = useTitleEditing({
-    title: task.title,
-    setIsEditingTitle,
-    onSave: useCallback(
-      (trimmed: string) =>
-        void dispatch(updateTask({ id: taskId, task: { title: trimmed } })),
-      [dispatch, taskId],
-    ),
-  });
-
-  const {
-    editingDescription,
-    setDescriptionDraft,
-    saveDescription,
-    handleDescriptionKeyDown,
-    textareaRef: descriptionTextareaRef,
-  } = useDescriptionEditing({
-    description: task.content ?? "",
-    isEditingDescription,
-    setIsEditingDescription,
-    onSave: useCallback(
-      (content: string) =>
-        void dispatch(updateTask({ id: taskId, task: { content } })),
-      [dispatch, taskId],
-    ),
-  });
+  const saveTitleDoc = useCallback(
+    (titleDoc: string) =>
+      void dispatch(updateTask({ id: taskId, task: { titleDoc } })),
+    [dispatch, taskId],
+  );
+  const saveContentDoc = useCallback(
+    (contentDoc: string) =>
+      void dispatch(updateTask({ id: taskId, task: { contentDoc } })),
+    [dispatch, taskId],
+  );
 
   const handleRemoveRepeat = useCallback(() => {
     if (!task.templateId) return;
@@ -204,6 +181,7 @@ export function TaskBody({
   return (
     <div className="px-3 py-3 space-y-3">
       <EditableTitle
+        key={task.id}
         icon={
           <CheckboxComp
             checked={task.state === "done"}
@@ -211,16 +189,14 @@ export function TaskBody({
           />
         }
         isEditing={isEditingTitle}
-        editingTitle={editingTitle}
+        title={task.title}
+        titleDoc={task.titleDoc}
         titleClassName={
           task.state === "done"
             ? "line-through text-content-tinted"
             : "text-content"
         }
-        setTitleDraft={setTitleDraft}
-        handleTitleKeyDown={handleTitleKeyDown}
-        textareaRef={textareaRef}
-        saveTitle={saveTitle}
+        onSave={saveTitleDoc}
         setIsEditingTitle={setIsEditingTitle}
       />
 
@@ -332,12 +308,11 @@ export function TaskBody({
 
         <div className="pt-1">
           <EditableDescription
+            key={task.id}
             isEditing={isEditingDescription}
-            editingDescription={editingDescription}
-            setDescriptionDraft={setDescriptionDraft}
-            handleDescriptionKeyDown={handleDescriptionKeyDown}
-            textareaRef={descriptionTextareaRef}
-            saveDescription={saveDescription}
+            content={task.content ?? ""}
+            contentDoc={task.contentDoc}
+            onSave={saveContentDoc}
             setIsEditingDescription={setIsEditingDescription}
           />
         </div>

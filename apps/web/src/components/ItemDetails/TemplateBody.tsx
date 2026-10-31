@@ -16,7 +16,6 @@ import {
 } from "@will-be-done/slices/space";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
 import { RepeatModal } from "@/components/RepeatModal/RepeatModal.tsx";
-import { useDescriptionEditing, useTitleEditing } from "./hooks.ts";
 import {
   EditableTitle,
   DetailRow,
@@ -67,47 +66,18 @@ export function TemplateBody({
   const [isMoveProjectModalOpen, setIsMoveProjectModalOpen] = useState(false);
   const [isRepeatModalOpen, setIsRepeatModalOpen] = useState(false);
 
-  const {
-    editingTitle,
-    setTitleDraft,
-    saveTitle,
-    handleTitleKeyDown,
-    textareaRef,
-  } = useTitleEditing({
-    title: template.title,
-    setIsEditingTitle,
-    onSave: useCallback(
-      (trimmed: string) =>
-        void dispatch(
-          updateTemplate({
-            id: templateId,
-            template: {
-              title: trimmed,
-            },
-          }),
-        ),
-      [dispatch, templateId],
-    ),
-  });
-
-  const {
-    editingDescription,
-    setDescriptionDraft,
-    saveDescription,
-    handleDescriptionKeyDown,
-    textareaRef: descriptionTextareaRef,
-  } = useDescriptionEditing({
-    description: template.content ?? "",
-    isEditingDescription,
-    setIsEditingDescription,
-    onSave: useCallback(
-      (content: string) =>
-        void dispatch(
-          updateTemplate({ id: templateId, template: { content } }),
-        ),
-      [dispatch, templateId],
-    ),
-  });
+  const saveTitleDoc = useCallback(
+    (titleDoc: string) =>
+      void dispatch(updateTemplate({ id: templateId, template: { titleDoc } })),
+    [dispatch, templateId],
+  );
+  const saveContentDoc = useCallback(
+    (contentDoc: string) =>
+      void dispatch(
+        updateTemplate({ id: templateId, template: { contentDoc } }),
+      ),
+    [dispatch, templateId],
+  );
 
   const handleConvertToTask = useCallback(() => {
     void (async () => {
@@ -139,6 +109,7 @@ export function TemplateBody({
   return (
     <div className="px-3 py-3 space-y-3">
       <EditableTitle
+        key={template.id}
         icon={
           <RefreshCw
             className="h-4 w-4 text-content shrink-0 mt-0.5"
@@ -146,11 +117,9 @@ export function TemplateBody({
           />
         }
         isEditing={isEditingTitle}
-        editingTitle={editingTitle}
-        setTitleDraft={setTitleDraft}
-        handleTitleKeyDown={handleTitleKeyDown}
-        textareaRef={textareaRef}
-        saveTitle={saveTitle}
+        title={template.title}
+        titleDoc={template.titleDoc}
+        onSave={saveTitleDoc}
         setIsEditingTitle={setIsEditingTitle}
       />
 
@@ -226,12 +195,11 @@ export function TemplateBody({
 
         <div className="pt-1">
           <EditableDescription
+            key={template.id}
             isEditing={isEditingDescription}
-            editingDescription={editingDescription}
-            setDescriptionDraft={setDescriptionDraft}
-            handleDescriptionKeyDown={handleDescriptionKeyDown}
-            textareaRef={descriptionTextareaRef}
-            saveDescription={saveDescription}
+            content={template.content ?? ""}
+            contentDoc={template.contentDoc}
+            onSave={saveContentDoc}
             setIsEditingDescription={setIsEditingDescription}
           />
         </div>
