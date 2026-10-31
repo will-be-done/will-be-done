@@ -12,6 +12,7 @@ import {
   projectSectionsTable,
   projectSectionTaskStatsTable,
   projectsTable,
+  purgeExpiredTrash,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
   scheduledTodoTasksTable,
@@ -19,6 +20,7 @@ import {
   stashEntriesTable,
   dailyEntriesTable,
   tasksTable,
+  trashedTasks,
 } from "@will-be-done/slices/space";
 import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
@@ -72,19 +74,16 @@ export const spaceDBConfig = (dbId: string) => {
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
       await asyncDispatch(db, migrateScheduledTodoTasks({}));
 
+      const runMaintenance = () => {
+        void asyncDispatch(
+          db,
+          generateTasksFromTemplates({ toDate: Date.now() }),
+        );
+        void asyncDispatch(db, purgeExpiredTrash({ now: Date.now() }));
+      };
       // To make load faster
-      setTimeout(() => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-      }, 2000);
-      setInterval(() => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-      }, 60 * 1000);
+      setTimeout(runMaintenance, 2000);
+      setInterval(runMaintenance, 60 * 1000);
     },
   } satisfies SyncConfig;
 };
@@ -98,12 +97,10 @@ export const demoSpaceDBConfig = () => {
     },
     afterInit: async (db: SubscribableDB) => {
       await asyncDispatch(db, createInboxIfNotExists({}));
-      const tasks = await selectAsync(db, {
-        selector: allTasks,
-        args: {},
-      });
+      const tasks = await selectAsync(db, { selector: allTasks, args: {} });
+      const trash = await selectAsync(db, { selector: trashedTasks, args: {} });
 
-      if (tasks.length === 0) {
+      if (tasks.length === 0 && trash.length === 0) {
         await asyncDispatch(
           db,
           loadSpaceBackup({ backup: generateDemoBackup() }),
@@ -123,19 +120,16 @@ export const demoSpaceDBConfig = () => {
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
       await asyncDispatch(db, migrateScheduledTodoTasks({}));
 
+      const runMaintenance = () => {
+        void asyncDispatch(
+          db,
+          generateTasksFromTemplates({ toDate: Date.now() }),
+        );
+        void asyncDispatch(db, purgeExpiredTrash({ now: Date.now() }));
+      };
       // To make load faster
-      setTimeout(() => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-      });
-      setInterval(() => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-      }, 60 * 1000);
+      setTimeout(runMaintenance);
+      setInterval(runMaintenance, 60 * 1000);
     },
   } satisfies SyncConfig;
 };

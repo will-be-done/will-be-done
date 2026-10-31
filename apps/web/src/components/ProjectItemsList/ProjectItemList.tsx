@@ -24,24 +24,136 @@ import {
 } from "@/components/TasksGrid/TasksGrid.tsx";
 
 import {
-  AddLeftIcon,
-  AddRightIcon,
-  MoveLeftIcon,
-  MoveRightIcon,
-  PencilIcon,
-  TrashIcon,
-} from "@/components/ui/icons.tsx";
+  ArrowLeft,
+  ArrowRight,
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { captureWebAnalytics } from "@/lib/analytics";
+
+const ProjectSectionMenu = ({
+  section,
+  isFirst,
+  isLast,
+}: {
+  section: ProjectSection;
+  isFirst: boolean;
+  isLast: boolean;
+}) => {
+  const dispatch = useAsyncDispatch();
+
+  const handleRename = async () => {
+    const newTitle = await promptDialog("Enter new title", section.title);
+    if (!newTitle) return;
+
+    await dispatch(
+      updateProjectSection({
+        projectSectionId: section.id,
+        section: { title: newTitle },
+      }),
+    );
+  };
+
+  const handleAdd = async (side: "left" | "right") => {
+    const title = await promptDialog("Enter new name");
+    if (!title) return;
+
+    const [left, right] = await dispatch(
+      projectSectionSiblings({ projectSectionId: section.id }),
+    );
+
+    await dispatch(
+      createProjectSection({
+        sectionDraft: { projectId: section.projectId, title },
+        position:
+          side === "left" ? [left ?? null, section] : [section, right ?? null],
+      }),
+    );
+  };
+
+  const handleDelete = () => {
+    if (!confirm(`Delete column "${section.title}"?`)) return;
+
+    void dispatch(deleteProjectSections({ ids: [section.id] }));
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="hidden group-hover:block pointer-coarse:block data-[state=open]:block cursor-pointer text-white mb-2"
+          type="button"
+          aria-label="Column actions"
+        >
+          <MoreHorizontal className="size-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="min-w-48">
+        <DropdownMenuItem onSelect={() => void handleRename()}>
+          <Pencil />
+          Rename
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={isFirst}
+          onSelect={() =>
+            void dispatch(moveLeft({ projectSectionId: section.id }))
+          }
+        >
+          <ArrowLeft />
+          Move left
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={isLast}
+          onSelect={() =>
+            void dispatch(moveRight({ projectSectionId: section.id }))
+          }
+        >
+          <ArrowRight />
+          Move right
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => void handleAdd("left")}>
+          <ArrowLeftToLine />
+          Add column left
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void handleAdd("right")}>
+          <ArrowRightToLine />
+          Add column right
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={handleDelete}>
+          <Trash2 />
+          Delete column
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
 
 const ProjectTasksColumn = ({
   project,
   section,
   weekDayTimes,
+  isFirst,
+  isLast,
 }: {
   project: Project;
   section: ProjectSection;
   weekDayTimes?: Set<number>;
+  isFirst: boolean;
+  isLast: boolean;
 }) => {
   const dispatch = useAsyncDispatch();
 
@@ -106,124 +218,14 @@ const ProjectTasksColumn = ({
       }
       columnModelId={section.id}
       columnModelType={section.type}
+      columnProjectId={section.projectId}
       onAddClick={handleAddClick}
       actions={
-        <>
-          <button
-            className="hidden group-hover:block cursor-pointer text-white mb-2"
-            type="button"
-            title="Add column to the left"
-            onClick={() => {
-              void (async () => {
-                const title = await promptDialog("Enter new name");
-                if (!title) return;
-
-                const [left, _right] = await dispatch(
-                  projectSectionSiblings({ projectSectionId: section.id }),
-                );
-
-                await dispatch(
-                  createProjectSection({
-                    sectionDraft: {
-                      projectId: section.projectId,
-                      title,
-                    },
-                    position: [left ?? null, section],
-                  }),
-                );
-              })();
-            }}
-          >
-            <AddLeftIcon />
-          </button>
-          <button
-            className="hidden group-hover:block cursor-pointer text-white mb-2"
-            type="button"
-            title="Add column to the right"
-            onClick={() => {
-              void (async () => {
-                const title = await promptDialog("Enter new name");
-                if (!title) return;
-
-                const [_left, right] = await dispatch(
-                  projectSectionSiblings({ projectSectionId: section.id }),
-                );
-
-                await dispatch(
-                  createProjectSection({
-                    sectionDraft: {
-                      projectId: section.projectId,
-                      title,
-                    },
-                    position: [section, right ?? null],
-                  }),
-                );
-              })();
-            }}
-          >
-            <AddRightIcon />
-          </button>
-          <button
-            className="hidden group-hover:block cursor-pointer text-white mb-2"
-            type="button"
-            title="Move column to the left"
-            onClick={() => {
-              void dispatch(moveLeft({ projectSectionId: section.id }));
-            }}
-          >
-            <MoveLeftIcon className="rotate-180" />
-          </button>
-          <button
-            className="hidden group-hover:block cursor-pointer text-white mb-2"
-            type="button"
-            title="Move column to the right"
-            onClick={() => {
-              void dispatch(moveRight({ projectSectionId: section.id }));
-            }}
-          >
-            <MoveRightIcon className="rotate-180" />
-          </button>
-          <button
-            className="hidden group-hover:block cursor-pointer text-white mb-2"
-            type="button"
-            title="Delete column"
-            onClick={() => {
-              const confirmed = confirm(
-                "Are you sure you want to delete this project section?",
-              );
-              if (!confirmed) return;
-
-              void dispatch(deleteProjectSections({ ids: [section.id] }));
-            }}
-          >
-            <TrashIcon className="rotate-180" />
-          </button>
-          <button
-            className="hidden group-hover:block cursor-pointer text-white mb-6"
-            type="button"
-            title="Edit column name"
-            onClick={() => {
-              void (async () => {
-                const newTitle = await promptDialog(
-                  "Enter new title",
-                  section.title,
-                );
-                if (!newTitle) return;
-
-                await dispatch(
-                  updateProjectSection({
-                    projectSectionId: section.id,
-                    section: {
-                      title: newTitle,
-                    },
-                  }),
-                );
-              })();
-            }}
-          >
-            <PencilIcon className="rotate-180" />
-          </button>
-        </>
+        <ProjectSectionMenu
+          section={section}
+          isFirst={isFirst}
+          isLast={isLast}
+        />
       }
     >
       <div className="flex flex-col gap-4 w-full py-4">
@@ -305,12 +307,14 @@ export const ProjectItemsList = ({
         columnsCount={sections.length}
         isFocusRegion={isFocusRegion}
       >
-        {sections.map((group) => (
+        {sections.map((group, i) => (
           <ProjectTasksColumn
             key={group.id}
             section={group}
             project={project}
             weekDayTimes={weekDayTimes}
+            isFirst={i === 0}
+            isLast={i === sections.length - 1}
           />
         ))}
       </TasksColumnGrid>

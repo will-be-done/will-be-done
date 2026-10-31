@@ -38,6 +38,7 @@ import {
   isTask,
   isTaskTemplate,
   isDailyEntry,
+  isProjectSection,
   taskTemplatesTable,
 } from "./tables";
 
@@ -401,6 +402,31 @@ export const projectSectionHandleDrop = action({
       modelType: dropModelType,
     });
     if (!dropItem) return;
+
+    if (isProjectSection(dropItem)) {
+      const target = yield* projectSectionById({ id: projectSectionId });
+      if (!target || target.projectId !== dropItem.projectId) return;
+
+      const [before, after] = yield* projectSectionSiblings({
+        projectSectionId,
+      });
+      yield* updateProjectSection({
+        projectSectionId: dropItem.id,
+        section: {
+          orderToken:
+            edge === "top"
+              ? generateJitteredKeyBetween(
+                  before?.orderToken || null,
+                  target.orderToken,
+                )
+              : generateJitteredKeyBetween(
+                  target.orderToken,
+                  after?.orderToken || null,
+                ),
+        },
+      });
+      return;
+    }
 
     const childrenIds = yield* projectSectionItemIds({
       projectSectionId: projectSectionId,

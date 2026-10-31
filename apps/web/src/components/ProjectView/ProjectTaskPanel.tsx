@@ -111,11 +111,13 @@ const SectionSection = ({
       getData: (): DndModelData => ({
         modelId: projectSectionId,
         modelType: section.type,
+        projectId: section.projectId,
       }),
       canDrop: ({ source }) =>
         canDropModelData(source.data, {
           modelId: projectSectionId,
           modelType: section.type,
+          projectId: section.projectId,
         }),
       getIsSticky: () => true,
       onDragEnter: updateDropIndicator,

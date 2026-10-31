@@ -19,6 +19,7 @@ import {
   type ChangesetArrayType,
   getChangesetAfter,
   getSyncStateOrDefault,
+  isDeletedChange,
   updateSyncState,
 } from "@will-be-done/slices/common";
 import { action } from "./builders";
@@ -396,7 +397,7 @@ export const createApplySyncV4Download = (nextClock: () => string) =>
           const toDelete: string[] = [];
           const toUpsert: { id: string; [key: string]: unknown }[] = [];
           for (const { change, row } of changeset.data) {
-            if (change.deletedAt != null) toDelete.push(change.entityId);
+            if (isDeletedChange(change)) toDelete.push(change.entityId);
             else if (row) toUpsert.push(row);
             const updatedAt = nextClock();
             const localChange: Change = {
@@ -552,7 +553,7 @@ export const createApplyServerChangesIfNoClientChanges = (
         }
 
         for (const { change, row } of changeset.data) {
-          if (change.deletedAt != null) {
+          if (isDeletedChange(change)) {
             toDeleteRows.push(change.entityId);
           } else if (row) {
             toUpsertRows.push(row);
@@ -568,6 +569,9 @@ export const createApplyServerChangesIfNoClientChanges = (
             createdAt: change.createdAt,
             updatedAt: currentClock,
             deletedAt: change.deletedAt,
+            ...(change.restoredAt === undefined
+              ? {}
+              : { restoredAt: change.restoredAt }),
             clientId,
             changes: change.changes,
           } satisfies Change;

@@ -16,12 +16,12 @@ describe("generateDemoBackup", () => {
       ),
     ).toBe(true);
 
-    expect(
-      timedEntries.find((entry) => entry.taskId === "tk-be-1")?.time,
-    ).toBe("09:00");
+    expect(timedEntries.find((entry) => entry.taskId === "tk-be-1")?.time).toBe(
+      "09:00",
+    );
     expect(tasksById.get("tk-be-1")?.durationMinutes).toBe(120);
-    expect(
-      timedEntries.find((entry) => entry.taskId === "tk-dc-2")?.time,
-    ).toBe("09:30");
+    expect(timedEntries.find((entry) => entry.taskId === "tk-dc-2")?.time).toBe(
+      "09:30",
+    );
   });
 });

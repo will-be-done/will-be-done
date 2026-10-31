@@ -3,6 +3,7 @@ import {
   changesTable,
   type Change,
   type ChangesetArrayType,
+  isDeletedChange,
   type PrimitiveRow,
 } from "@will-be-done/slices/common";
 import { flushPendingDrafts } from "./pendingDraftFlushes.ts";
@@ -59,10 +60,9 @@ const createChangesetFromOps = (ops: Op[]): ChangesetArrayType => {
       changesByTable.set(change.tableName, []);
     }
 
-    const row =
-      change.deletedAt == null
-        ? changedRows.get(opRowKey(change.tableName, change.entityId))
-        : undefined;
+    const row = !isDeletedChange(change)
+      ? changedRows.get(opRowKey(change.tableName, change.entityId))
+      : undefined;
 
     changesByTable.get(change.tableName)!.push({ row, change });
   }
