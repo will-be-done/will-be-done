@@ -36,6 +36,7 @@ import { dailyEntryByTaskId } from "./dailyEntries";
 import { stashEntryAllTaskIds } from "./stashEntries";
 import { taskById, updateTask } from "./tasks";
 import { updateTemplate } from "./taskTemplates";
+import { updateNote } from "./notes";
 import {
   firstProjectSectionItem,
   lastProjectSectionItem,
@@ -54,6 +55,7 @@ import {
   isDailyEntry,
   isTask,
   isTaskTemplate,
+  isNote,
 } from "./tables";
 
 export const defaultProject: Project = {
@@ -479,6 +481,7 @@ export const projectHandleDrop = action({
     } else if (
       isTask(dropItem) ||
       isTaskTemplate(dropItem) ||
+      isNote(dropItem) ||
       isDailyEntry(dropItem)
     ) {
       const section = yield* firstProjectSectionChild({
@@ -510,6 +513,14 @@ export const projectHandleDrop = action({
         yield* updateTemplate({
           id: dropItem.id,
           template: {
+            projectSectionId: section.id,
+            orderToken,
+          },
+        });
+      } else if (isNote(dropItem)) {
+        yield* updateNote({
+          id: dropItem.id,
+          note: {
             projectSectionId: section.id,
             orderToken,
           },

@@ -8,16 +8,19 @@ import {
   itemByListItemId,
   isTask,
   isTaskTemplate,
+  isNote,
   type Item,
   type ListItemType,
   projectSectionItemById,
   stashEntryType,
   taskTemplateType,
+  noteType,
   taskType,
 } from "@will-be-done/slices/space";
 import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { TaskBody } from "./TaskBody.tsx";
 import { TemplateBody } from "./TemplateBody.tsx";
+import { NoteBody } from "./NoteBody.tsx";
 import { ResizableDivider } from "@/components/DaysBoard/ResizableDivider.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import {
@@ -29,6 +32,7 @@ import {
 const isListItemType = (type: string): type is ListItemType =>
   type === taskType ||
   type === taskTemplateType ||
+  type === noteType ||
   type === dailyEntryType ||
   type === stashEntryType;
 
@@ -350,6 +354,19 @@ function ItemDetailsBody({
     return (
       <TemplateBody
         template={item}
+        isEditingTitle={isEditingTitle}
+        setIsEditingTitle={setIsEditingTitle}
+        isEditingDescription={isEditingDescription}
+        setIsEditingDescription={setIsEditingDescription}
+        onItemIdChange={onItemIdChange}
+      />
+    );
+  }
+
+  if (isNote(item)) {
+    return (
+      <NoteBody
+        note={item}
         isEditingTitle={isEditingTitle}
         setIsEditingTitle={setIsEditingTitle}
         isEditingDescription={isEditingDescription}

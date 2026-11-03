@@ -3,6 +3,7 @@ import {
   projectSectionById,
   projectSectionItems,
   projectSectionTasksByState,
+  type Note,
   type TaskTemplate,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
@@ -24,7 +25,27 @@ export interface PublicTaskTemplate {
   lastGeneratedAt: number;
 }
 
-export type PublicItem = PublicTask | PublicTaskTemplate;
+export interface PublicNote {
+  type: "note";
+  id: string;
+  title: string;
+  content?: string;
+  projectSectionId: string;
+  createdAt: number;
+}
+
+export type PublicItem = PublicTask | PublicTaskTemplate | PublicNote;
+
+export function toPublicNote(note: Note): PublicNote {
+  return {
+    type: "note",
+    id: note.id,
+    title: note.title,
+    ...(note.content === undefined ? {} : { content: note.content }),
+    projectSectionId: note.projectSectionId,
+    createdAt: note.createdAt,
+  };
+}
 
 export function toPublicTaskTemplate(
   template: TaskTemplate,
@@ -86,9 +107,11 @@ export async function listSectionItems({
     db,
     items.flatMap((item) => (item.type === "task" ? [item.id] : [])),
   );
-  return items.map((item) =>
-    item.type === "task"
-      ? toPublicTask(item, schedules.get(item.id) ?? null)
-      : toPublicTaskTemplate(item),
-  );
+  return items.map((item) => {
+    if (item.type === "task") {
+      return toPublicTask(item, schedules.get(item.id) ?? null);
+    }
+    if (item.type === "note") return toPublicNote(item);
+    return toPublicTaskTemplate(item);
+  });
 }

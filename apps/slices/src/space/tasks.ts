@@ -29,6 +29,7 @@ import {
 import { firstProjectSectionChild } from "./projectSections";
 import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
+import { updateNote } from "./notes";
 import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
 import { syncItemRichText } from "./richTextItems";
@@ -47,6 +48,7 @@ import {
   isTask,
   isDailyEntry,
   isTaskTemplate,
+  isNote,
 } from "./tables";
 
 export const defaultTask: Task = {
@@ -381,6 +383,14 @@ export const taskHandleDrop = action({
       yield* updateTemplate({
         id: dropItem.id,
         template: {
+          projectSectionId: task.projectSectionId,
+          orderToken: orderToken,
+        },
+      });
+    } else if (isNote(dropItem)) {
+      yield* updateNote({
+        id: dropItem.id,
+        note: {
           projectSectionId: task.projectSectionId,
           orderToken: orderToken,
         },

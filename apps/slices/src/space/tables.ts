@@ -84,6 +84,25 @@ registerRichTextFields(taskTemplatesTable.tableName, itemRichTextFields);
 export type TaskTemplate = ExtractSchema<typeof taskTemplatesTable>;
 export const isTaskTemplate = isObjectType<TaskTemplate>(taskTemplateType);
 
+export const noteType = "note";
+export const notesTable = defineTable("notes", {
+  type: v.literal(noteType),
+  id: v.string(),
+  title: v.string(),
+  content: v.optional(v.string()),
+  titleDoc: v.optional(v.string()),
+  contentDoc: v.optional(v.string()),
+  projectSectionId: v.string(),
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byProjectSectionIdOrder", ["projectSectionId", "orderToken"]);
+registerSpaceSyncableTable(notesTable, noteType);
+registerRichTextFields(notesTable.tableName, itemRichTextFields);
+export type Note = ExtractSchema<typeof notesTable>;
+export const isNote = isObjectType<Note>(noteType);
+
 export const projectType = "project";
 export const projectsTable = defineTable("projects", {
   type: v.literal(projectType),
@@ -230,8 +249,8 @@ export function isChecklistParentType(
 }
 
 export const trashedTaskType = "trashedTask";
-// A deleted Task's snapshot, keyed by the task's ID. Restoring re-inserts the
-// snapshot rows, which revives their tombstoned IDs.
+// A deleted Task's or Note's snapshot, keyed by its ID. Restoring re-inserts
+// the snapshot rows, which revives their tombstoned IDs.
 export const trashedTasksTable = defineTable("trashed_tasks", {
   type: v.literal(trashedTaskType),
   id: v.string(),
@@ -244,22 +263,31 @@ export const trashedTasksTable = defineTable("trashed_tasks", {
 registerSpaceSyncableTable(trashedTasksTable, trashedTaskType);
 
 export type TrashedTaskRow = ExtractSchema<typeof trashedTasksTable>;
-export const trashSnapshot = v.object({
+export const taskTrashSnapshot = v.object({
   task: tasksTable.v(),
   checklistItems: v.array(checklistItemsTable.v()),
   dailyEntry: v.union(dailyEntriesTable.v(), v.null()),
   stashEntry: v.union(stashEntriesTable.v(), v.null()),
 });
+export type TaskTrashSnapshot = Infer<typeof taskTrashSnapshot>;
+export const noteTrashSnapshot = v.object({ note: notesTable.v() });
+export type NoteTrashSnapshot = Infer<typeof noteTrashSnapshot>;
+export const trashSnapshot = v.union(taskTrashSnapshot, noteTrashSnapshot);
 export type TrashSnapshot = Infer<typeof trashSnapshot>;
 export type TrashedTask = TrashSnapshot & { id: string; trashedAt: number };
 
-export const item = v.union(tasksTable.v(), taskTemplatesTable.v());
+export const item = v.union(
+  tasksTable.v(),
+  taskTemplatesTable.v(),
+  notesTable.v(),
+);
 export type Item = Infer<typeof item>;
 export type ItemType = Item["type"];
 
 export const itemType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
+  v.literal(noteType),
 );
 
 export const entry = v.union(dailyEntriesTable.v(), stashEntriesTable.v());
@@ -274,6 +302,7 @@ export const entryType = v.union(
 export const listItem = v.union(
   tasksTable.v(),
   taskTemplatesTable.v(),
+  notesTable.v(),
   dailyEntriesTable.v(),
   stashEntriesTable.v(),
 );
@@ -283,6 +312,7 @@ export type ListItemType = ListItem["type"];
 export const listItemType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
+  v.literal(noteType),
   v.literal(dailyEntryType),
   v.literal(stashEntryType),
 );
@@ -290,6 +320,7 @@ export const listItemType = v.union(
 export const possibleModel = v.union(
   tasksTable.v(),
   taskTemplatesTable.v(),
+  notesTable.v(),
   projectsTable.v(),
   dailyListsTable.v(),
   projectSectionsTable.v(),
@@ -303,6 +334,7 @@ export type AnyModelType = AnyModel["type"] | "stash";
 export type AnyTable =
   | typeof tasksTable
   | typeof taskTemplatesTable
+  | typeof notesTable
   | typeof dailyListsTable
   | typeof projectsTable
   | typeof dailyEntriesTable
@@ -314,6 +346,7 @@ export type AnyTable =
 export const possibleModelType = v.union(
   v.literal(taskType),
   v.literal(taskTemplateType),
+  v.literal(noteType),
   v.literal(projectType),
   v.literal(dailyListType),
   v.literal(projectSectionType),

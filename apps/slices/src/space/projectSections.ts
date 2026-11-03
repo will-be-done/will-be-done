@@ -24,6 +24,7 @@ import {
 import { projectById, projectByIdOrDefault } from "./projects";
 import { createTask, taskById, updateTask } from "./tasks";
 import { updateTemplate } from "./taskTemplates";
+import { updateNote } from "./notes";
 import { defaultProject } from "./projects";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { genUUIDV5 } from "../traits";
@@ -37,9 +38,11 @@ import {
   Project,
   isTask,
   isTaskTemplate,
+  isNote,
   isDailyEntry,
   isProjectSection,
   taskTemplatesTable,
+  notesTable,
 } from "./tables";
 
 export const defaultProjectSection: ProjectSection = {
@@ -370,7 +373,15 @@ export const deleteProjectSections = action({
         q.eq("projectSectionId", projectSectionId).eq("state", "done"),
       )).map((t) => t.id);
 
+      const noteIds = (yield* selectFrom(
+        notesTable,
+        "byProjectSectionIdOrder",
+      ).where((q) => q.eq("projectSectionId", projectSectionId))).map(
+        (n) => n.id,
+      );
+
       idsToDelete.push(...templatesIds);
+      idsToDelete.push(...noteIds);
       idsToDelete.push(...taskIds);
       idsToDelete.push(...doneTaskIds);
     }
@@ -458,6 +469,14 @@ export const projectSectionHandleDrop = action({
       yield* updateTemplate({
         id: dropItem.id,
         template: {
+          projectSectionId: projectSectionId,
+          orderToken,
+        },
+      });
+    } else if (isNote(dropItem)) {
+      yield* updateNote({
+        id: dropItem.id,
+        note: {
           projectSectionId: projectSectionId,
           orderToken,
         },

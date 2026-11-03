@@ -15,6 +15,7 @@ export * from "./app";
 export * from "./items";
 export * from "./tasks";
 export * from "./taskTemplates";
+export * from "./notes";
 export * from "./projectSections";
 export * from "./projectSectionItems";
 export * from "./projects";

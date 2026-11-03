@@ -12,6 +12,7 @@ import { allProjectSections } from "./projectSections";
 import { allProjects } from "./projectsAll";
 import { allTasks } from "./tasks";
 import { allTaskTemplates } from "./taskTemplates";
+import { allNotes } from "./notes";
 import { dailyListAllIds, dailyListById, dailyListGetId } from "./dailyLists";
 import { dailyEntryAllIds, dailyEntryById } from "./dailyEntries";
 import { inboxProjectId as getInboxProjectId } from "./projects";
@@ -34,6 +35,8 @@ import {
   DailyEntry,
   TaskTemplate,
   taskTemplateType,
+  Note,
+  noteType,
   taskType,
   trashedTasksTable,
   trashedTaskType,
@@ -107,6 +110,15 @@ interface TaskTemplateBackup {
   durationMinutes?: number;
 }
 
+interface NoteBackup {
+  id: string;
+  title: string;
+  content?: string;
+  orderToken: string;
+  createdAt: number;
+  projectSectionId: string;
+}
+
 interface ChecklistItemBackup {
   id: string;
   parentId: string;
@@ -133,6 +145,7 @@ export interface Backup {
   dailyEntries?: DailyEntryBackup[];
   checklistItems?: ChecklistItemBackup[];
   trashedTasks?: TrashedTaskBackup[];
+  notes?: NoteBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -265,6 +278,18 @@ const backupSchema = v.object({
         id: v.string(),
         trashedAt: v.number(),
         snapshot: v.string(),
+      }),
+    ),
+  ),
+  notes: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        content: v.optional(v.string()),
+        orderToken: v.string(),
+        createdAt: v.number(),
+        projectSectionId: v.string(),
       }),
     ),
   ),
@@ -422,6 +447,11 @@ function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
   }
   const result = trashSnapshot.normalize(parsed);
   if (result.ok && !result.omitted) {
+    if ("note" in result.value) {
+      if (result.value.note.id === id) return result.value;
+      console.warn(`Invalid trash snapshot omitted for note ${id}`);
+      return undefined;
+    }
     const { task, checklistItems, dailyEntry, stashEntry } = result.value;
     const belongsToTask =
       task.id === id &&
@@ -591,6 +621,32 @@ const getNewModels = action({
       models.push(template);
     }
 
+    for (const noteBackup of backup.notes || []) {
+      const section = backup.projectSections.find(
+        (p) => p.id === noteBackup.projectSectionId,
+      );
+      if (!section) {
+        console.warn(
+          `Project section ${noteBackup.projectSectionId} not found for note ${noteBackup.id}`,
+        );
+        continue;
+      }
+
+      const note: Note = {
+        type: noteType,
+        id: noteBackup.id,
+        title: noteBackup.title,
+        ...(noteBackup.content === undefined
+          ? {}
+          : { content: noteBackup.content }),
+        orderToken: noteBackup.orderToken,
+        createdAt: noteBackup.createdAt,
+        projectSectionId: section.id,
+      };
+
+      models.push(note);
+    }
+
     // Create entries from both independent-id backups and older task-id entries.
     if (backup.dailyEntries) {
       for (const entryBackup of backup.dailyEntries) {
@@ -673,14 +729,25 @@ const getNewModels = action({
       }
     }
 
-    const liveTaskIds = new Set(
-      models.filter((model) => model.type === taskType).map(({ id }) => id),
+    const liveItemIds = new Set(
+      models
+        .filter((model) => model.type === taskType || model.type === noteType)
+        .map(({ id }) => id),
     );
     const trashedTasks: TrashedTaskRow[] = [];
     for (const row of backup.trashedTasks || []) {
-      if (liveTaskIds.has(row.id)) continue;
+      if (liveItemIds.has(row.id)) continue;
       const snapshot = parseTrashSnapshot(row);
       if (!snapshot) continue;
+      if ("note" in snapshot) {
+        trashedTasks.push({
+          type: trashedTaskType,
+          id: row.id,
+          trashedAt: row.trashedAt,
+          snapshot: JSON.stringify(snapshot satisfies TrashSnapshot),
+        });
+        continue;
+      }
 
       // DailyList IDs are derived per space, so remap like live entries.
       const { dailyEntry } = snapshot;
@@ -748,6 +815,7 @@ export const getSpaceBackup = selector({
     const tasks: Task[] = yield* allTasks({});
     const projects: Project[] = yield* allProjects({});
     const taskTemplates: TaskTemplate[] = yield* allTaskTemplates({});
+    const notes: Note[] = yield* allNotes({});
     const checklistItems: ChecklistItem[] = yield* allChecklistItems({});
     const trashedTasks = yield* selectFrom(trashedTasksTable, "byIds");
     const dailyLists: DailyList[] = [];
@@ -845,6 +913,14 @@ export const getSpaceBackup = selector({
         id,
         trashedAt,
         snapshot,
+      })),
+      notes: notes.map((note) => ({
+        id: note.id,
+        title: note.title,
+        content: note.content || "",
+        orderToken: note.orderToken,
+        createdAt: note.createdAt,
+        projectSectionId: note.projectSectionId,
       })),
     } satisfies Backup;
   },

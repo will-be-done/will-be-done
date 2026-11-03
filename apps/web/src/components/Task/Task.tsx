@@ -33,7 +33,7 @@ import {
   getDOMSiblings,
 } from "@/components/Focus/domNavigation.ts";
 import clsx from "clsx";
-import { CircleDashed, Clock, RotateCw } from "lucide-react";
+import { CircleDashed, Clock, RotateCw, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   addToDailyList,
@@ -49,6 +49,7 @@ import {
   createDailyListIfNotPresent,
   createItem,
   createTaskNextToListItem,
+  createNoteNextToSectionItem,
   createTaskTemplateFromTask,
   dailyListType,
   dailyEntryDateOfTask,
@@ -57,8 +58,11 @@ import {
   getDMY,
   isTask,
   isTaskTemplate,
+  isNote,
+  moveNoteToProject,
   moveTaskToProject,
   moveTemplateToProject,
+  noteById,
   Project,
   ProjectSection,
   projectSectionByIdOrDefault,
@@ -77,9 +81,11 @@ import {
   taskTemplateById,
   taskType,
   toggleTaskState,
+  updateNote,
   updateTask,
   updateTemplate,
 } from "@will-be-done/slices/space";
+import { useNoteConversion } from "./useNoteConversion";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
@@ -272,6 +278,15 @@ export const PreloadedTaskComp = ({
             },
           }),
         );
+        return;
+      }
+
+      if (isNote(item)) {
+        if (!(await select({ selector: noteById, args: { id: taskId } }))) {
+          throw new Error("Note no longer exists");
+        }
+
+        await dispatch(updateNote({ id: taskId, note: { titleDoc } }));
       }
     },
     [item, dispatch, select, taskId],
@@ -579,6 +594,20 @@ export const PreloadedTaskComp = ({
     (position: "after" | "before") => {
       if (isTask(item) && item.state === "done") return;
 
+      if (isNote(item)) {
+        void (async () => {
+          const note = await dispatch(
+            createNoteNextToSectionItem({ itemId: item.id, position }),
+          );
+          unstable_batchedUpdates(() => {
+            useFocusStore
+              .getState()
+              .editByKey(buildFocusKey(note.id, note.type));
+          });
+        })();
+        return;
+      }
+
       void (async () => {
         const newBox = await dispatch(
           createTaskNextToListItem({
@@ -756,6 +785,21 @@ export const PreloadedTaskComp = ({
     },
     [item, dispatch, flushEditedTitle, select, taskId],
   );
+
+  const noteConversion = useNoteConversion();
+  const handleConvertToNote = useCallback(() => {
+    if (!isTask(item)) return;
+
+    flushEditedTitle();
+    void noteConversion.toNote(taskId);
+  }, [item, flushEditedTitle, noteConversion, taskId]);
+
+  const handleConvertToTask = useCallback(() => {
+    if (!isNote(item)) return;
+
+    flushEditedTitle();
+    void noteConversion.toTask(taskId);
+  }, [item, flushEditedTitle, noteConversion, taskId]);
 
   const handleConvertToTemplateCancel = useCallback(() => {
     setIsRepeatModalOpen(false);
@@ -1068,6 +1112,8 @@ export const PreloadedTaskComp = ({
       void dispatch(
         moveTemplateToProject({ templateId: taskId, projectId: projectId }),
       );
+    } else if (isNote(item)) {
+      void dispatch(moveNoteToProject({ noteId: taskId, projectId }));
     }
   };
 
@@ -1328,7 +1374,9 @@ export const PreloadedTaskComp = ({
             )}
           >
             <div className="absolute right-1.5 top-1.5 z-10 h-5">
-              {(isTaskTemplate(item) || (isTask(item) && item.templateId)) && (
+              {(isTaskTemplate(item) ||
+                isNote(item) ||
+                (isTask(item) && item.templateId)) && (
                 <div
                   className={taskFloatingIconGroupClassName({
                     isShifted: isFocused || isActionsOpen,
@@ -1336,6 +1384,7 @@ export const PreloadedTaskComp = ({
                   })}
                 >
                   {isTaskTemplate(item) && <CircleDashed className="size-3" />}
+                  {isNote(item) && <StickyNote className="size-3" />}
                   {isTask(item) && item.templateId && (
                     <RotateCw className="size-3" />
                   )}
@@ -1356,6 +1405,8 @@ export const PreloadedTaskComp = ({
                     listItem.type !== stashEntryType
                   }
                   canConvertToTemplate={isTask(item) && !item.templateId}
+                  canConvertToNote={isTask(item)}
+                  canConvertToTask={isNote(item)}
                   canAddChecklistItem={isTask(item) || isTaskTemplate(item)}
                   onOpenChange={setIsActionsOpen}
                   onMarkDone={handleTick}
@@ -1364,9 +1415,12 @@ export const PreloadedTaskComp = ({
                   onChangeDate={handleOpenDatePickerAfterActionsClose}
                   onScheduleToday={handleScheduleToday}
                   onResetSchedule={handleResetSchedule}
+                  siblingLabel={isNote(item) ? "note" : "task"}
                   onAddTaskAfter={handleAddTaskAfter}
                   onAddTaskBefore={handleAddTaskBefore}
                   onConvertToTemplate={handleConvertToTemplate}
+                  onConvertToNote={handleConvertToNote}
+                  onConvertToTask={handleConvertToTask}
                   onAddChecklistItem={handleAddChecklistItem}
                   onMoveUp={handleMoveUp}
                   onMoveDown={handleMoveDown}
