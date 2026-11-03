@@ -448,7 +448,9 @@ server clock after deployment of this rule.
 Download chunk reads and acknowledgements use the same request deadline as the
 other sync requests. If a new local change appears after the upload snapshot
 was frozen, the freshness check skips the staged download and discards both
-local transfer snapshots; the next session retries from persisted cursors.
+local transfer snapshots. The client immediately starts a fresh session from
+persisted cursors, even if the local change predates the current loop's wake-up
+snapshot, as can happen when resuming an upload after reload.
 After a successful apply, the legacy sent clock is derived from the maximum
 locally covered compound cursor, not from iteration order.
 

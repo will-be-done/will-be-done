@@ -21,7 +21,7 @@ import {
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
 import { Syncer } from "./syncer";
-import { getPendingSyncV4Upload } from "./syncActions";
+import { freezeSyncV4Upload, getPendingSyncV4Upload } from "./syncActions";
 import {
   shouldRestartExpiredUpload,
   shouldRestartFrozenUpload,
@@ -116,15 +116,20 @@ const config: SyncConfig = {
   afterInit: () => {},
 };
 
-const createSyncer = () => {
+const createSyncer = (syncConfig = config) => {
   const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
   execSync(
-    db.loadTables([changesTable, syncStateTable, ...clientSyncV4Tables]),
+    db.loadTables([
+      ...syncConfig.syncableDBTables,
+      changesTable,
+      syncStateTable,
+      ...clientSyncV4Tables,
+    ]),
   );
   const nextClock = createHlcClock("client-1");
   return {
     db,
-    syncer: new Syncer(db, "client-1", config, nextClock),
+    syncer: new Syncer(db, "client-1", syncConfig, nextClock),
   };
 };
 
@@ -530,6 +535,84 @@ afterEach(() => {
 });
 
 describe("sync v4 request recovery", () => {
+  it("wakes a fresh session when a resumed upload predates local changes", async () => {
+    const items = defineTable("resumed_items", {
+      id: v.string(),
+      title: v.string(),
+    });
+    const syncConfig = {
+      ...config,
+      syncableDBTables: [items],
+      tableNameMap: { [items.tableName]: items },
+    };
+    const { db, syncer } = createSyncer(syncConfig);
+    const access = syncer as unknown as SyncerTestAccess;
+    registerSyncChangeHooks({
+      syncSubDb: db,
+      syncableDBTables: [items],
+      clientId: "client-1",
+      nextClock: createHlcClock("client-1"),
+    });
+    await asyncDispatch(
+      db,
+      freezeSyncV4Upload({
+        uploadId: "resumed-upload",
+        after: null,
+        registeredSyncableTableNameMap: syncConfig.tableNameMap,
+        now: Date.now(),
+      }),
+    );
+    const row = { id: "local-edit", title: "Edited before sync resumed" };
+    await asyncDispatch(
+      db,
+      createAction()({
+        name: "editBeforeResume",
+        args: {},
+        handler: function* () {
+          yield* upsert(items, [row]);
+        },
+      })({}),
+    );
+
+    const uploaded: ChangesetArrayType = [];
+    const requests: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init: RequestInit) => {
+        const url = String(input);
+        requests.push(url);
+        if (url.endsWith("/sessions")) {
+          return jsonResponse(sessionResponse("fresh-upload"));
+        }
+        if (url.includes("/chunks/")) {
+          const { payload } = JSON.parse(String(init.body));
+          uploaded.push(...(JSON.parse(payload) as ChangesetArrayType));
+          return jsonResponse({});
+        }
+        if (url.endsWith("/commit")) {
+          const { throughCursor } = JSON.parse(String(init.body));
+          return jsonResponse({
+            acceptedClientCursor: throughCursor,
+            serverRevision: 0,
+            download: { type: "inline", changesets: [] },
+          });
+        }
+        throw new Error(`Unexpected sync request: ${url}`);
+      }),
+    );
+    const wake = vi.spyOn(syncer, "forceSync");
+
+    expect(await access.syncV4()).toBe(false);
+    expect(wake).toHaveBeenCalledOnce();
+    expect(await asyncDispatch(db, getPendingSyncV4Upload({}))).toBeUndefined();
+
+    expect(await access.syncV4()).toBe(true);
+    expect(requests.filter((url) => url.endsWith("/sessions"))).toHaveLength(1);
+    expect(uploaded).toEqual([
+      { tableName: items.tableName, data: [expect.objectContaining({ row })] },
+    ]);
+  });
+
   it("restarts only a resumed upload that received an actual 404", () => {
     expect(
       shouldRestartExpiredUpload(
