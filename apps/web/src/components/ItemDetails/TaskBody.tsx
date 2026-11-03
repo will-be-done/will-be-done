@@ -41,6 +41,7 @@ import {
   DurationDetailRow,
 } from "./shared.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { TaskMindmapsRow } from "@/components/Mindmap/TaskMindmapsRow.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
 
 export function TaskBody({
@@ -263,6 +264,8 @@ export function TaskBody({
         >
           {format(new Date(task.createdAt), "MMM d, yyyy, h:mm a")}
         </DetailRow>
+
+        <TaskMindmapsRow taskId={taskId} />
 
         {!!task.lastToggledAt && (
           <DetailRow

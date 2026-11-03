@@ -30,6 +30,7 @@ import {
   TaskTemplate,
   taskTemplatesTable,
   stashEntriesTable,
+  mindmapNodesTable,
 } from "./tables";
 
 const action = createAction();
@@ -65,6 +66,7 @@ function createDB(timezoneOffsetMinutes: number) {
       tasksTable,
       taskTemplatesTable,
       stashEntriesTable,
+      mindmapNodesTable,
     ]),
   );
   return db;

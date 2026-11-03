@@ -566,3 +566,123 @@ export const MoveChecklistItemBodySchema = z
     placement: PlacementSchema,
   })
   .strict();
+
+export const MindmapParamsSchema = z.object({
+  spaceId: z.string().min(1).describe("Space identifier"),
+  mindmapId: z.string().min(1).describe("Mindmap identifier"),
+});
+
+export const MindmapNodeParamsSchema = z.object({
+  spaceId: z.string().min(1).describe("Space identifier"),
+  nodeId: z.string().min(1).describe("Mindmap node identifier"),
+});
+
+const MindmapNodeSideSchema = z
+  .enum(["left", "right"])
+  .describe("Side of the central topic a main branch sits on");
+
+export const MindmapSchema = z.object({
+  type: z.literal("mindmap"),
+  id: z.string().describe("Mindmap identifier"),
+  title: z.string().describe("Central topic"),
+  createdAt: z.number().int().nonnegative(),
+});
+
+export const MindmapNodeSchema = z.object({
+  type: z.literal("mindmapNode"),
+  id: z.string().describe("Mindmap node identifier"),
+  mindmapId: z.string(),
+  parentId: z
+    .string()
+    .nullable()
+    .describe("Parent node, or null for a main branch of the central topic"),
+  kind: z
+    .enum(["topic", "task"])
+    .describe("A topic owns its title; a task node shows a task"),
+  taskId: z.string().nullable(),
+  title: z.string().describe("Topic text, or the task's title"),
+  side: MindmapNodeSideSchema,
+  collapsed: z.boolean(),
+  createdAt: z.number().int().nonnegative(),
+});
+
+export const MindmapsResponseSchema = z.object({
+  mindmaps: z.array(MindmapSchema),
+});
+
+export const MindmapResponseSchema = z.object({
+  mindmap: MindmapSchema,
+});
+
+export const MindmapWithNodesResponseSchema = z.object({
+  mindmap: MindmapSchema,
+  nodes: z
+    .array(MindmapNodeSchema)
+    .describe(
+      "Depth-first: each parent precedes its children, and siblings are in order",
+    ),
+});
+
+export const MindmapNodeResponseSchema = z.object({
+  node: MindmapNodeSchema,
+});
+
+export const CreateMindmapBodySchema = z
+  .object({ title: z.string().trim().min(1) })
+  .strict();
+
+export const UpdateMindmapBodySchema = z
+  .object({ title: z.string().trim().min(1) })
+  .strict();
+
+export const CreateMindmapNodeBodySchema = z
+  .object({
+    parentId: z
+      .string()
+      .min(1)
+      .nullable()
+      .optional()
+      .describe("Parent node; omit or null for a main branch"),
+    placement: PlacementSchema.optional(),
+    side: MindmapNodeSideSchema.optional().describe(
+      "Side for a main branch placed first or last; defaults to the side with fewer branches",
+    ),
+    title: z.string().trim().min(1).optional().describe("Creates a topic"),
+    taskId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Adds a task; a task already on the mindmap moves to the new place",
+      ),
+  })
+  .strict()
+  .refine(
+    (body) => (body.title === undefined) !== (body.taskId === undefined),
+    {
+      message: "Provide exactly one of title or taskId",
+    },
+  );
+
+export const UpdateMindmapNodeBodySchema = z
+  .object({
+    title: z.string().trim().min(1).optional().describe("Topics only"),
+    collapsed: z.boolean().optional(),
+    side: MindmapNodeSideSchema.optional(),
+  })
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "At least one field must be provided",
+  });
+
+export const MoveMindmapNodeBodySchema = z
+  .object({
+    parentId: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe("New parent node, or null for a main branch"),
+    placement: PlacementSchema,
+    side: MindmapNodeSideSchema.optional(),
+  })
+  .strict();

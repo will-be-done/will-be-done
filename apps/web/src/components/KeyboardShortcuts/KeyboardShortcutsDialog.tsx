@@ -116,6 +116,27 @@ const shortcutGroups: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Mindmap",
+    description: "Actions for the selected topic or task",
+    shortcuts: [
+      { bindings: [["Tab"]], description: "Add subtopic" },
+      { bindings: [["Enter"]], description: "Add task under topic" },
+      { bindings: [["O"]], description: "Add topic below" },
+      { bindings: [["Shift", "O"]], description: "Add topic above" },
+      { bindings: [["I"]], description: "Edit title" },
+      {
+        bindings: [["H"], ["J"], ["K"], ["L"]],
+        description: "Move between topics",
+      },
+      { bindings: [["Space"]], description: "Toggle task state" },
+      { bindings: [["."]], description: "Collapse or expand" },
+      {
+        bindings: [["D"], ["X"], ["Backspace"]],
+        description: "Remove from mindmap",
+      },
+    ],
+  },
+  {
     title: "Text formatting",
     description: "In titles, descriptions, and checklist items",
     shortcuts: [

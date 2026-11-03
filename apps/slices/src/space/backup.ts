@@ -32,6 +32,12 @@ import {
   projectType,
   Task,
   DailyEntry,
+  type Mindmap,
+  type MindmapNode,
+  mindmapNodesTable,
+  mindmapNodeType,
+  mindmapsTable,
+  mindmapType,
   TaskTemplate,
   taskTemplateType,
   taskType,
@@ -118,6 +124,25 @@ interface ChecklistItemBackup {
   checkedAt: number | null;
 }
 
+interface MindmapBackup {
+  id: string;
+  title: string;
+  orderToken: string;
+  createdAt: number;
+}
+
+interface MindmapNodeBackup {
+  id: string;
+  mindmapId: string;
+  parentId: string;
+  orderToken: string;
+  side: "left" | "right";
+  taskId: string | null;
+  title: string;
+  collapsed: boolean;
+  createdAt: number;
+}
+
 interface TrashedTaskBackup {
   id: string;
   trashedAt: number;
@@ -133,6 +158,8 @@ export interface Backup {
   dailyEntries?: DailyEntryBackup[];
   checklistItems?: ChecklistItemBackup[];
   trashedTasks?: TrashedTaskBackup[];
+  mindmaps?: MindmapBackup[];
+  mindmapNodes?: MindmapNodeBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -265,6 +292,31 @@ const backupSchema = v.object({
         id: v.string(),
         trashedAt: v.number(),
         snapshot: v.string(),
+      }),
+    ),
+  ),
+  mindmaps: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        orderToken: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
+  ),
+  mindmapNodes: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        mindmapId: v.string(),
+        parentId: v.string(),
+        orderToken: v.string(),
+        side: v.union(v.literal("left"), v.literal("right")),
+        taskId: v.union(v.string(), v.null()),
+        title: v.string(),
+        collapsed: v.boolean(),
+        createdAt: v.number(),
       }),
     ),
   ),
@@ -422,9 +474,11 @@ function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
   }
   const result = trashSnapshot.normalize(parsed);
   if (result.ok && !result.omitted) {
-    const { task, checklistItems, dailyEntry, stashEntry } = result.value;
+    const { task, checklistItems, dailyEntry, stashEntry, mindmapNodes } =
+      result.value;
     const belongsToTask =
       task.id === id &&
+      (mindmapNodes ?? []).every((node) => node.taskId === id) &&
       checklistItems.every(
         (item) => item.parentType === taskType && item.parentId === id,
       ) &&
@@ -698,7 +752,26 @@ const getNewModels = action({
       });
     }
 
-    return { models, trashedTasks };
+    const mindmaps: Mindmap[] = (backup.mindmaps || []).map((mindmap) => ({
+      type: mindmapType,
+      ...mindmap,
+    }));
+    const mindmapIds = new Set(mindmaps.map(({ id }) => id));
+    const mindmapNodes: MindmapNode[] = [];
+    for (const node of backup.mindmapNodes || []) {
+      if (!mindmapIds.has(node.mindmapId)) {
+        console.warn(`Mindmap ${node.mindmapId} not found for node ${node.id}`);
+        continue;
+      }
+      // Its children then show as main branches, like any orphaned node.
+      if (node.taskId !== null && !liveTaskIds.has(node.taskId)) {
+        console.warn(`Task ${node.taskId} not found for mindmap node`);
+        continue;
+      }
+      mindmapNodes.push({ type: mindmapNodeType, ...node });
+    }
+
+    return { models, trashedTasks, mindmaps, mindmapNodes };
   },
 });
 
@@ -715,9 +788,10 @@ export const loadSpaceBackup = selector({
       yield* deleteRows(table, allIds);
     }
 
-    const { models, trashedTasks } = yield* getNewModels({
-      backup: normalizeSpaceBackup(backup),
-    });
+    const { models, trashedTasks, mindmaps, mindmapNodes } =
+      yield* getNewModels({
+        backup: normalizeSpaceBackup(backup),
+      });
     const modelsByTable = new Map<
       (typeof registeredSpaceSyncableTables)[number],
       AnyModel[]
@@ -738,6 +812,10 @@ export const loadSpaceBackup = selector({
       }
     }
     if (trashedTasks.length > 0) yield* insert(trashedTasksTable, trashedTasks);
+    if (mindmaps.length > 0) yield* insert(mindmapsTable, mindmaps);
+    if (mindmapNodes.length > 0) {
+      yield* insert(mindmapNodesTable, mindmapNodes);
+    }
   },
 });
 
@@ -750,6 +828,8 @@ export const getSpaceBackup = selector({
     const taskTemplates: TaskTemplate[] = yield* allTaskTemplates({});
     const checklistItems: ChecklistItem[] = yield* allChecklistItems({});
     const trashedTasks = yield* selectFrom(trashedTasksTable, "byIds");
+    const mindmaps = yield* selectFrom(mindmapsTable, "byIds");
+    const mindmapNodes = yield* selectFrom(mindmapNodesTable, "byIds");
     const dailyLists: DailyList[] = [];
 
     // Get all daily lists
@@ -846,6 +926,15 @@ export const getSpaceBackup = selector({
         trashedAt,
         snapshot,
       })),
+      mindmaps: mindmaps.map(({ id, title, orderToken, createdAt }) => ({
+        id,
+        title,
+        orderToken,
+        createdAt,
+      })),
+      mindmapNodes: mindmapNodes.map(
+        ({ type: _type, titleDoc: _titleDoc, ...node }) => node,
+      ),
     } satisfies Backup;
   },
 });

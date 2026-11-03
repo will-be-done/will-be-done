@@ -7,6 +7,7 @@ import { dailyListRoutes } from "./v1/dailyLists";
 import { taskTemplateRoutes } from "./v1/taskTemplates";
 import { checklistItemRoutes } from "./v1/checklistItems";
 import { stashRoutes } from "./v1/stash";
+import { mindmapRoutes } from "./v1/mindmaps";
 import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
 import { sendError } from "./errors";
@@ -116,4 +117,5 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
   server.register(taskTemplateRoutes);
   server.register(checklistItemRoutes, { analytics });
   server.register(stashRoutes);
+  server.register(mindmapRoutes);
 };

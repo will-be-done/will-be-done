@@ -2,9 +2,12 @@ import { deleteRows, insert, selectFrom, v } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { inboxProjectSectionId, projectSectionById } from "./projectSections";
 import { taskTemplateById } from "./taskTemplates";
+import { mindmapById } from "./mindmaps";
 import {
   checklistItemsTable,
   dailyEntriesTable,
+  type MindmapNode,
+  mindmapNodesTable,
   stashEntriesTable,
   tasksTable,
   trashedTasksTable,
@@ -42,7 +45,13 @@ export const restoreTrashedTasks = action({
       ids.map((id) => q.eq("id", id)),
     )).map(decodeTrashedTask);
 
-    for (const { task, checklistItems, dailyEntry, stashEntry } of rows) {
+    for (const {
+      task,
+      checklistItems,
+      dailyEntry,
+      stashEntry,
+      mindmapNodes = [],
+    } of rows) {
       const section = yield* projectSectionById({ id: task.projectSectionId });
       const template = task.templateId
         ? yield* taskTemplateById({ id: task.templateId })
@@ -61,6 +70,15 @@ export const restoreTrashedTasks = action({
       // DailyLists are never deleted, so the entry's list still exists.
       if (dailyEntry) yield* insert(dailyEntriesTable, [dailyEntry]);
       if (stashEntry) yield* insert(stashEntriesTable, [stashEntry]);
+      // A node whose parent is gone shows as a main branch (see mindmapTree).
+      const restoredNodes: MindmapNode[] = [];
+      for (const node of mindmapNodes) {
+        if (yield* mindmapById({ id: node.mindmapId }))
+          restoredNodes.push(node);
+      }
+      if (restoredNodes.length > 0) {
+        yield* insert(mindmapNodesTable, restoredNodes);
+      }
     }
 
     yield* deleteRows(

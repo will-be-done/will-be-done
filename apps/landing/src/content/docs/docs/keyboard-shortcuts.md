@@ -75,6 +75,25 @@ or Stash, they remove its appearance and keep the task in its project. See
 | `j`, `k`              | Navigate between projects |
 | `d`, `x`, `Backspace` | Delete project            |
 
+## Mindmap
+
+| Keys                  | Action                                              |
+| --------------------- | --------------------------------------------------- |
+| `Tab`                 | Add a subtopic                                      |
+| `Enter`               | Add a task under the topic                          |
+| `o`                   | Add a topic below                                   |
+| `Shift+O`             | Add a topic above                                   |
+| `i`                   | Edit the title                                      |
+| `h`, `j`, `k`, `l`    | Move to the parent, a neighbor, or a child          |
+| `Space`               | Toggle a task todo or done                          |
+| `.`                   | Collapse or expand the topic                        |
+| `d`, `x`, `Backspace` | Remove the topic and its subtopics from the mindmap |
+| `Escape`              | Clear the selection                                 |
+
+Arrow keys work like `h`, `j`, `k`, and `l`. New tasks go to the inbox. With several topics selected,
+`d`, `x`, and `Backspace` remove all of them. Removing a task from a mindmap
+keeps the task in its project.
+
 ## Text formatting
 
 These work while editing a title, a description, or a checklist item. `Mod` is

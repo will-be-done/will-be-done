@@ -66,6 +66,32 @@ all-day row. Drag a block to change its day or time, or drag its bottom edge to
 change its duration. Drag a task from a project section onto the calendar to
 schedule it. Set or clear the time and duration from the task details panel.
 
+## Mindmaps
+
+A mindmap lays out ideas around a central topic, and its branches can hold
+tasks from any project. Open **maps** from the view switcher, then create a
+mindmap and type its central topic.
+
+Select a topic and press `Tab` to add a subtopic, `Enter` to add a task under
+it, or `o` to add a topic below it. New tasks go to the inbox.
+Drag a task from the project panel onto a topic to place it under that topic,
+or onto empty space to start a new branch on that side. Drag topics to
+rearrange them. While you drag, a faded copy shows where the topic will land:
+drop on a topic to nest under it, or on its top or bottom edge to place it
+above or below. A task appears once per mindmap, so dropping it again moves
+it.
+
+Drag across empty space to select several topics, or `Shift`-click to add one.
+Drag any selected topic to move them together, or press `Backspace` to remove
+them. Scroll to pan, `Ctrl`-scroll to zoom, or drag with the middle mouse
+button to pan.
+
+Task topics stay linked to their task: renaming or completing one changes the
+task everywhere, and selecting one opens it in the task details panel. Task
+details list the mindmaps a task appears on. Removing a topic, or deleting a
+whole mindmap, keeps its tasks in their projects. Deleting a task removes it
+from its mindmaps, and restoring it from the trash puts it back.
+
 ## Stash
 
 Stash keeps tasks handy when you know you will need them soon but are not sure
