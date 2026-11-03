@@ -360,6 +360,7 @@ I am building Will Be Done as the task manager I want to use for the rest of my 
 That means it needs to stay fast with years of task history, start quickly without waiting on a full database load, work even when the internet disappears, and keep sensitive task data under my control. It also needs to fit the way I work: weekly planning, keyboard-first navigation, a persistent focus stash, desktop quick add, and an API that can connect to tools like Telegram or an MCP server.
 
 Super Productivity came closest of the self-hosted apps I tried, but I wanted something more opinionated about weekly planning, local-first sync, visual customization, and Vim-style keys.
+
 ## Note on AI usage
 
 I have been developing this project for more than a year, and this is my third attempt in three years. The first two attempts failed because the technology for fast offline-first apps was not ready for the experience I wanted.
