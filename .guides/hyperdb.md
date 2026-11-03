@@ -316,6 +316,14 @@ startup. The driver may serialize internally, and higher concurrency can retain
 multiple decoded tables temporarily before only their index keys, IDs, and
 hydrated rows remain.
 
+`PreloadedHybridDB` publishes atomic memory transactions before queued
+persistence. Cached `asyncDispatch` work runs before the call returns its
+promise and suspends only for I/O or a busy lock. Await
+`execAsync(db.waitForPersistence())` on a hybrid runtime or its `SubscribableDB`
+wrapper when a caller needs durability, including cross-tab publication and
+sync acknowledgements. Permanent persistence failure blocks further access
+with `HybridDBCrashedError`.
+
 ## React Pattern
 
 ```tsx

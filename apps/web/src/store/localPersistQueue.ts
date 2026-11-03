@@ -1,4 +1,9 @@
-import { type Op, type SubscribableDB } from "@will-be-done/hyperdb";
+import {
+  execAsync,
+  execMaybeAsync,
+  type Op,
+  type SubscribableDB,
+} from "@will-be-done/hyperdb";
 import {
   changesTable,
   type Change,
@@ -83,8 +88,11 @@ export const createLocalPersistQueue = ({
   postChanges,
   onPersisted,
 }: CreateLocalPersistQueueArgs) => {
+  const publications = new Set<Promise<void>>();
   const flushDraftsAndPersist = async () => {
     flushPendingDrafts();
+    await execAsync(syncSubDb.waitForPersistence());
+    await Promise.all([...publications]);
   };
 
   const flushDraftsAndPersistBestEffort = () => {
@@ -119,8 +127,24 @@ export const createLocalPersistQueue = ({
         const changeset = createChangesetFromOps(ops);
         if (changeset.length === 0) return;
 
-        postChanges({ changeset });
-        onPersisted();
+        const publish = () => {
+          postChanges({ changeset });
+          onPersisted();
+        };
+        const persisted = execMaybeAsync(syncSubDb.waitForPersistence());
+        if (!(persisted instanceof Promise)) {
+          publish();
+          return;
+        }
+        const publication = persisted.then(publish);
+        publications.add(publication);
+        void publication.then(
+          () => publications.delete(publication),
+          (error: unknown) => {
+            publications.delete(publication);
+            console.error(error);
+          },
+        );
       });
     },
     drain: flushDraftsAndPersist,

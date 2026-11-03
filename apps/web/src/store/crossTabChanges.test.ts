@@ -60,6 +60,85 @@ afterEach(() => {
 });
 
 describe("cross-tab changes", () => {
+  it("broadcasts and wakes sync only after local changes are durable", async () => {
+    vi.stubGlobal("window", { addEventListener: vi.fn() });
+    vi.stubGlobal("document", {
+      addEventListener: vi.fn(),
+      visibilityState: "visible",
+    });
+    const primary = new DB(new BptreeInmemDriver());
+    const runtime = new PreloadedHybridDB(primary);
+    const db = new SubscribableDB(runtime);
+    await execAsync(db.loadTables([crossTabItemsTable, changesTable]));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const begin = primary.beginTx.bind(primary);
+    vi.spyOn(primary, "beginTx").mockImplementation(function* (mode) {
+      const tx = yield* begin(mode);
+      const commit = tx.commit.bind(tx);
+      tx.commit = function* () {
+        yield { type: "unwrap", data: gate };
+        yield* commit();
+      };
+      return tx;
+    });
+    const postChanges = vi.fn();
+    const onPersisted = vi.fn();
+    const queue = createLocalPersistQueue({
+      syncSubDb: db,
+      postChanges,
+      onPersisted,
+    });
+    queue.start();
+    const clock = createHlcClock("sender")();
+    const row = { id: "local", title: "Visible before persistence" };
+    const change: Change = {
+      id: `${crossTabItemsTable.tableName}:${row.id}`,
+      entityId: row.id,
+      tableName: crossTabItemsTable.tableName,
+      createdAt: clock,
+      updatedAt: clock,
+      deletedAt: null,
+      clientId: "sender",
+      changes: { id: clock, title: clock },
+    };
+    await asyncDispatch(
+      db,
+      action({
+        name: "writePendingCrossTabChange",
+        args: {},
+        handler: function* () {
+          yield* upsert(crossTabItemsTable, [row]);
+          yield* upsert(changesTable, [change]);
+        },
+      })({}),
+    );
+    try {
+      expect(
+        (
+          await selectAsync(db, {
+            selector: crossTabState,
+            args: { id: row.id },
+          })
+        ).row,
+      ).toEqual(row);
+      expect(postChanges).not.toHaveBeenCalled();
+      expect(onPersisted).not.toHaveBeenCalled();
+    } finally {
+      release();
+      await execAsync(runtime.waitForPersistence());
+    }
+    await queue.drain();
+    expect(postChanges).toHaveBeenCalledExactlyOnceWith({
+      changeset: [
+        { tableName: crossTabItemsTable.tableName, data: [{ row, change }] },
+      ],
+    });
+    expect(onPersisted).toHaveBeenCalledOnce();
+  });
+
   it("publishes an externally persisted row without creating a local echo", async () => {
     vi.stubGlobal("window", { addEventListener: vi.fn() });
     vi.stubGlobal("document", {

@@ -113,7 +113,11 @@ cursor and may be duplicated or lost. The persisted server revision is the
 authority.
 
 Cross-tab change broadcasts are also wake-up/data-transfer hints sent only
-after the originating tab has persisted its changes. A receiving tab merges
+after the originating tab has persisted its changes. UI subscribers observe
+atomic memory commits before persistence completes. The publication queue
+waits for runtime durability before broadcasting or waking sync, and sync
+operations wait for durability before advancing transport or acknowledging a
+download. A receiving tab merges
 them with both `skip-sync` and HyperDB's `externalStorageMergeTrait`: the first
 prevents a duplicate local change-log entry, while the second lets the
 preloaded snapshot emit normal insert/upsert/delete invalidations and treats
