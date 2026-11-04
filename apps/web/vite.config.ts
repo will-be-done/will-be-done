@@ -35,11 +35,20 @@ function isLocalOverride(override: string | undefined) {
 
 const hyperdbOverride = getWorkspaceOverride("@will-be-done/hyperdb");
 const useLocalHyperdbAliases = isLocalOverride(hyperdbOverride);
-const hyperdbRoot = path.resolve(
-  path.dirname(workspaceConfigPath),
-  hyperdbOverride?.replace(/^(link|file):/, "") ??
-    "../hyperdb/packages/hyperdb",
+const hyperdbOverridePath = hyperdbOverride?.replace(
+  /^(link|file|workspace):/,
+  "",
 );
+const hyperdbRoot =
+  hyperdbOverride?.startsWith("workspace:") &&
+  !isLocalOverride(hyperdbOverridePath)
+    ? fs.realpathSync(
+        path.resolve(__dirname, "node_modules/@will-be-done/hyperdb"),
+      )
+    : path.resolve(
+        path.dirname(workspaceConfigPath),
+        hyperdbOverridePath ?? "../hyperdb/packages/hyperdb",
+      );
 
 const hyperdbAliases = useLocalHyperdbAliases
   ? [
