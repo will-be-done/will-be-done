@@ -137,16 +137,20 @@ describe("persisted startup clock", () => {
     );
     await execAsync(db.waitForPersistence());
     const begin = runtime.primary.beginTx.bind(runtime.primary);
-    const reads = vi.spyOn(runtime.primary, "beginTx").mockImplementation(function* (mode) {
-      yield { type: "unwrap", data: Promise.resolve() };
-      return yield* begin(mode);
-    });
+    const reads = vi
+      .spyOn(runtime.primary, "beginTx")
+      .mockImplementation(function* (mode) {
+        yield { type: "unwrap", data: Promise.resolve() };
+        return yield* begin(mode);
+      });
     const operations: string[][] = [];
     db.subscribe((ops) => operations.push(ops.map((op) => op.table.tableName)));
     for (const state of ["done", "todo"]) {
       reads.mockClear();
       const pending = asyncDispatch(db, toggleTaskState({ taskId: task.id }));
-      expect(reads.mock.calls.filter(([mode]) => mode === "readonly")).toEqual([]);
+      expect(reads.mock.calls.filter(([mode]) => mode === "readonly")).toEqual(
+        [],
+      );
       expect(
         execSync(
           db.intervalScan(tasksTable, "byId", [
