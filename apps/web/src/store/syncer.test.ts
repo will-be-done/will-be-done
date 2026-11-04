@@ -16,6 +16,7 @@ import {
   changesTable,
   createHlcClock,
   syncStateTable,
+  syncStateId,
   type ChangesetArrayType,
   type ClientCursor,
   type SyncSessionResponse,
@@ -535,6 +536,66 @@ afterEach(() => {
 });
 
 describe("sync v4 request recovery", () => {
+  it("waits for durable download apply before acknowledging the server", async () => {
+    const { db, syncer } = createSyncer();
+    const blocked = deferred();
+    const durable = deferred();
+    const acknowledged = deferred();
+    vi.spyOn(db, "waitForPersistence").mockImplementation(function* () {
+      const state = execSync(
+        db.intervalScan(syncStateTable, "byId", [
+          { eq: [{ col: "id", val: syncStateId }] },
+        ]),
+      )[0];
+      if (state?.lastServerAppliedRevision === 7) {
+        blocked.resolve();
+        yield { type: "unwrap", data: durable.promise };
+      }
+    });
+    const ack = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith("/sessions"))
+          return jsonResponse(sessionResponse("durability-upload"));
+        if (url.endsWith("/commit"))
+          return jsonResponse({
+            acceptedClientCursor: null,
+            serverRevision: 7,
+            download: {
+              type: "staged",
+              downloadId: "durability-download",
+              chunkCount: 0,
+              checksum:
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            },
+          });
+        if (url.endsWith("/ack")) {
+          ack();
+          acknowledged.resolve();
+          return jsonResponse({});
+        }
+        throw new Error(`Unexpected sync request: ${url}`);
+      }),
+    );
+    const running = (syncer as unknown as SyncerTestAccess).syncV4();
+    try {
+      expect(
+        await Promise.race([
+          blocked.promise.then(() => "blocked"),
+          acknowledged.promise.then(() => "acknowledged"),
+          running.then(() => "finished"),
+        ]),
+      ).toBe("blocked");
+      expect(ack).not.toHaveBeenCalled();
+    } finally {
+      durable.resolve();
+      await running;
+    }
+    expect(ack).toHaveBeenCalledOnce();
+  });
+
   it("wakes a fresh session when a resumed upload predates local changes", async () => {
     const items = defineTable("resumed_items", {
       id: v.string(),

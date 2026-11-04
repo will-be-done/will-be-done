@@ -1,4 +1,4 @@
-import { asyncDispatch, type HyperDB } from "@will-be-done/hyperdb";
+import { asyncDispatch, execAsync, type HyperDB } from "@will-be-done/hyperdb";
 import {
   CURRENT_SYNC_VERSION,
   observedChangeClocks,
@@ -266,6 +266,16 @@ export class Syncer {
       .join("");
   }
 
+  private async dispatch<T>(
+    db: HyperDB,
+    action: Generator<unknown, T, unknown>,
+  ): Promise<T> {
+    const result = await asyncDispatch(db, action);
+    if (this.syncDB.waitForPersistence)
+      await execAsync(this.syncDB.waitForPersistence());
+    return result;
+  }
+
   private async syncFetch<T>(path: string, init: RequestInit): Promise<T> {
     const token = authUtils.getToken();
     const response = await fetch(path, {
@@ -288,13 +298,13 @@ export class Syncer {
 
   private async syncV4(): Promise<boolean> {
     const baseUrl = this.syncV4BaseUrl();
-    await asyncDispatch(
+    await this.dispatch(
       this.syncDB.withTraits({ type: "skip-sync" }),
       cleanupStaleSyncV4Transfers({
         createdBefore: Date.now() - SYNC_SESSION_STALE_MS,
       }),
     );
-    const pending = await asyncDispatch(
+    const pending = await this.dispatch(
       this.syncDB,
       getPendingSyncV4Upload({}),
     );
@@ -316,7 +326,7 @@ export class Syncer {
         chunkCount: pending.chunkCount,
       };
     } else {
-      const state = await asyncDispatch(
+      const state = await this.dispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         getSyncV4HandshakeState({}),
       );
@@ -341,7 +351,7 @@ export class Syncer {
       );
       this.nextClock.calibrate(session.serverTimeMs);
       uploadId = session.uploadId;
-      await asyncDispatch(
+      await this.dispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         recordSyncV4Handshake({
           acceptedClientCursor: session.uploadFromCursor,
@@ -349,7 +359,7 @@ export class Syncer {
         }),
       );
       this.setStatus({ phase: "preparing" });
-      snapshot = await asyncDispatch(
+      snapshot = await this.dispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         freezeSyncV4Upload({
           uploadId,
@@ -365,7 +375,7 @@ export class Syncer {
     });
     const chunkChecksums: string[] = [];
     for (let sequence = 0; sequence < snapshot.chunkCount; sequence += 1) {
-      const localChunk = await asyncDispatch(
+      const localChunk = await this.dispatch(
         this.syncDB,
         getSyncV4UploadChunk({ uploadId, sequence }),
       );
@@ -388,7 +398,7 @@ export class Syncer {
         );
       } catch (error) {
         if (shouldRestartFrozenUpload(resumingUpload, error)) {
-          await asyncDispatch(
+          await this.dispatch(
             this.syncDB.withTraits({ type: "skip-sync" }),
             discardSyncV4Transfer({ uploadId, downloadId: "" }),
           );
@@ -425,7 +435,7 @@ export class Syncer {
       );
     } catch (error) {
       if (shouldRestartFrozenUpload(resumingUpload, error)) {
-        await asyncDispatch(
+        await this.dispatch(
           this.syncDB.withTraits({ type: "skip-sync" }),
           discardSyncV4Transfer({ uploadId, downloadId: "" }),
         );
@@ -445,7 +455,7 @@ export class Syncer {
           changeset.data.flatMap(({ change }) => observedChangeClocks(change)),
         ),
       );
-      await asyncDispatch(
+      await this.dispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         stageSyncV4Download({
           downloadId: localDownloadId,
@@ -462,7 +472,7 @@ export class Syncer {
       this.setStatus({
         progress: { completed: 0, total: stagedDownload.chunkCount },
       });
-      await asyncDispatch(
+      await this.dispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         beginSyncV4Download({
           downloadId: localDownloadId,
@@ -500,7 +510,7 @@ export class Syncer {
             ),
           ),
         );
-        await asyncDispatch(
+        await this.dispatch(
           this.syncDB.withTraits({ type: "skip-sync" }),
           stageSyncV4DownloadChunk({
             downloadId: localDownloadId,
@@ -523,7 +533,7 @@ export class Syncer {
       }
     }
     this.setStatus({ phase: "applying", progress: null });
-    const applied = await asyncDispatch(
+    const applied = await this.dispatch(
       this.syncDB.withTraits({ type: "skip-sync" }),
       this.applySyncV4Download({
         downloadId: localDownloadId,
@@ -533,7 +543,7 @@ export class Syncer {
       }),
     );
     if (!applied) {
-      await asyncDispatch(
+      await this.dispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         discardSyncV4Transfer({
           uploadId,
