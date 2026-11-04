@@ -214,6 +214,29 @@ const InboxNavItem = ({
   );
 };
 
+const TrashNavItem = () => {
+  const spaceId = Route.useParams().spaceId;
+  const closeMobile = useCloseMobileOnNav();
+  const isActive = useRouterState({
+    select: (s) =>
+      s.matches.some((m) => (m.pathname as string).endsWith("/trash")),
+  });
+
+  return (
+    <Link
+      to="/spaces/$spaceId/trash"
+      params={{ spaceId }}
+      onClick={closeMobile}
+      className={cn(
+        "text-[12px] transition-colors",
+        isActive ? "text-accent" : "text-content-tinted/60 hover:text-accent",
+      )}
+    >
+      Trash
+    </Link>
+  );
+};
+
 const NavStrip = () => {
   const spaceId = Route.useParams().spaceId;
 
@@ -293,7 +316,7 @@ export const AppSidebar = () => {
           ))}
       </div>
 
-      <div className="flex items-center justify-center pb-3 pt-2 border-t border-ring/40">
+      <div className="flex items-center justify-between px-4 pb-3 pt-2 border-t border-ring/40">
         <button
           type="button"
           onClick={() => void handleAddProjectClick()}
@@ -301,6 +324,7 @@ export const AppSidebar = () => {
         >
           + Add Project
         </button>
+        <TrashNavItem />
       </div>
 
       {import.meta.env.DEV && <GenerateTestDataButton />}

@@ -7,6 +7,8 @@ export const changesTable = defineTable("changes", {
   createdAt: v.string(),
   updatedAt: v.string(),
   deletedAt: v.union(v.string(), v.null()),
+  // Absent until the entity is restored after a deletion.
+  restoredAt: v.optional(v.string()),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
 }).index("byUpdatedAtId", ["updatedAt", "id"]);

@@ -17,7 +17,6 @@ import {
   attachClosestEdge,
   type Edge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
-import TextareaAutosize from "react-textarea-autosize";
 import clsx from "clsx";
 import { GripVertical, Plus, X } from "lucide-react";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
@@ -44,10 +43,16 @@ import {
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import { cn } from "@/lib/utils";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice";
-import { useDebouncedPersistedDraft } from "@/hooks/useDebouncedPersistedDraft";
 import { focusChecklistItem } from "./focus";
 import { captureWebAnalytics } from "@/lib/analytics";
-import { LinkifiedText } from "@/components/LinkifiedText";
+import {
+  RichTextEditor,
+  type RichTextEditorHandle,
+  type RichTextExitKey,
+} from "@/components/RichText/RichTextEditor";
+import { RichTextView } from "@/components/RichText/RichTextView";
+import { viewTextOffset } from "@/components/RichText/caret";
+import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 
 export function CheckboxComp({
   checked,
@@ -145,11 +150,12 @@ const ChecklistItemComp = ({
   const select = useSelectAsync();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const dragHandleRef = useRef<HTMLButtonElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<RichTextEditorHandle | null>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const persistContent = useCallback(
-    (content: string) => {
+  const [caretOffset, setCaretOffset] = useState<number>();
+  const persistContentDoc = useCallback(
+    (contentDoc: string) => {
       void (async () => {
         if (
           !(await select({
@@ -160,22 +166,21 @@ const ChecklistItemComp = ({
           return;
         }
 
-        await dispatch(
-          updateChecklistItemContent({ id: item.id, content: content }),
-        );
+        await dispatch(updateChecklistItemContent({ id: item.id, contentDoc }));
       })();
     },
     [dispatch, item.id, select],
   );
   const {
-    draft: content,
-    setDraft: setContent,
-    flush: flushContent,
-  } = useDebouncedPersistedDraft({
-    value: item.content,
-    persist: persistContent,
-  });
-  const isTextareaVisible = isEditing;
+    text: content,
+    doc: contentDoc,
+    saveDoc,
+  } = useSavedRichText(
+    item.content,
+    item.contentDoc,
+    "title",
+    persistContentDoc,
+  );
 
   useEffect(() => {
     const rowElement = rowRef.current;
@@ -239,23 +244,11 @@ const ChecklistItemComp = ({
     };
   }, []);
 
-  useEffect(() => {
-    if (!isEditing) return;
-
-    window.requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      textarea.focus();
-      const end = textarea.value.length;
-      textarea.setSelectionRange(end, end);
-    });
-  }, [isEditing]);
-
   const handleReadonlyItemClick = (event: MouseEvent<HTMLDivElement>) => {
     event.stopPropagation();
 
     if (editTrigger === "click") {
+      setCaretOffset(viewTextOffset(event));
       setIsEditing(true);
     }
   };
@@ -264,16 +257,13 @@ const ChecklistItemComp = ({
     event.stopPropagation();
 
     if (editTrigger === "doubleClick") {
+      setCaretOffset(viewTextOffset(event));
       setIsEditing(true);
     }
   };
 
-  const focusItemInCurrentChecklist = (
-    itemId: string,
-    options?: { caret?: "end" },
-  ) => {
+  const focusItemInCurrentChecklist = (itemId: string) => {
     focusChecklistItem(itemId, {
-      ...options,
       root: rowRef.current?.closest("[data-checklist-container]"),
     });
   };
@@ -284,17 +274,30 @@ const ChecklistItemComp = ({
         selector: checklistItemSiblings,
         args: { itemId: item.id },
       });
-      flushContent();
+      editorRef.current?.flush();
       await dispatch(deleteItems({ ids: [item.id] }));
 
       if (before) {
-        focusItemInCurrentChecklist(before.id, { caret: "end" });
+        focusItemInCurrentChecklist(before.id);
       } else if (after) {
-        focusItemInCurrentChecklist(after.id, { caret: "end" });
+        focusItemInCurrentChecklist(after.id);
       } else {
         onItemsRemoved();
       }
     })();
+  };
+
+  const handleEditorExit = (key: RichTextExitKey) => {
+    setIsEditing(false);
+
+    if (key === "Enter") {
+      void (async () => {
+        const newItem = await dispatch(createItemAfter({ itemId: item.id }));
+        focusItemInCurrentChecklist(newItem.id);
+      })();
+    } else {
+      focusParentElementFromChecklist(focusableItemKey);
+    }
   };
 
   return (
@@ -326,64 +329,27 @@ const ChecklistItemComp = ({
             })();
           }}
         />
-        {isTextareaVisible ? (
-          <TextareaAutosize
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                flushContent();
-                setIsEditing(false);
-
-                void (async () => {
-                  const newItem = await dispatch(
-                    createItemAfter({ itemId: item.id }),
-                  );
-                  focusItemInCurrentChecklist(newItem.id);
-                })();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                flushContent();
-                setIsEditing(false);
-
-                if (focusableItemKey) {
-                  focusParentElementFromChecklist(focusableItemKey);
-                } else {
-                  e.currentTarget.blur();
-                }
-              } else if (
-                e.key === "Backspace" &&
-                e.currentTarget.value.length === 0
-              ) {
-                e.preventDefault();
-                e.stopPropagation();
-                removeItem();
-              }
+        {isEditing ? (
+          <RichTextEditor
+            ref={editorRef}
+            kind="title"
+            doc={contentDoc}
+            text={content}
+            onSave={saveDoc}
+            onExit={handleEditorExit}
+            onFocus={() => {
+              setCaretOffset(undefined);
+              focusParentFromChecklist(focusableItemKey);
             }}
-            onFocus={() => focusParentFromChecklist(focusableItemKey)}
-            onBlur={() => {
-              flushContent();
-              setIsEditing(false);
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            data-gramm="false"
-            data-gramm_editor="false"
-            data-enable-grammarly="false"
+            onBlur={() => setIsEditing(false)}
+            onEmptyBackspace={removeItem}
+            autoFocus
+            caretOffset={caretOffset}
+            ariaLabel="Checklist item"
             className={cn(
-              "min-h-4 flex-1 resize-none bg-transparent pt-0.5 leading-4 focus:outline-none",
+              "min-h-4 pt-0.5 leading-4 [overflow-wrap:anywhere]",
               item.state === "done" && "text-content-tinted line-through",
             )}
-            aria-label="Checklist item"
           />
         ) : (
           <div
@@ -407,7 +373,7 @@ const ChecklistItemComp = ({
               }
             }}
           >
-            <LinkifiedText text={content} />
+            <RichTextView text={content} />
           </div>
         )}
         <button

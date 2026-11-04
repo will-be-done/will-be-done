@@ -28,6 +28,7 @@ import {
   updateTask,
 } from "./tasks";
 import { registerModelSlice } from "./maps";
+import { syncItemRichText } from "./richTextItems";
 import { genUUIDV5 } from "../traits/";
 import {
   assertValidTaskDuration,
@@ -523,7 +524,10 @@ export const updateTemplate = action({
     assertValidTaskTime(template.time);
     assertValidTaskDuration(template.durationMinutes);
 
-    const updatedTemplate = { ...templateInState, ...template };
+    const updatedTemplate = syncItemRichText(templateInState, {
+      ...templateInState,
+      ...template,
+    });
     yield* upsert(taskTemplatesTable, [updatedTemplate]);
     return updatedTemplate;
   },

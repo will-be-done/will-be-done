@@ -12,6 +12,8 @@ Under the hood, Will Be Done runs on [HyperDB](https://github.com/will-be-done/h
 
 <img width="3002" height="1908" alt="Will Be Done weekly planning view" src="https://github.com/user-attachments/assets/b36b1797-83f5-4eca-92c3-75dd7b42a2ac" />
 
+<img width="2000" height="1433" alt="Will Be Done weekly calendar view" src="apps/landing/src/assets/calendar-week.png" />
+
 ## Why Will Be Done?
 
 Will Be Done is for people who want a fast, private task manager aimed at planning rather than capture.
@@ -358,25 +360,6 @@ I am building Will Be Done as the task manager I want to use for the rest of my 
 That means it needs to stay fast with years of task history, start quickly without waiting on a full database load, work even when the internet disappears, and keep sensitive task data under my control. It also needs to fit the way I work: weekly planning, keyboard-first navigation, a persistent focus stash, desktop quick add, and an API that can connect to tools like Telegram or an MCP server.
 
 Super Productivity came closest of the self-hosted apps I tried, but I wanted something more opinionated about weekly planning, local-first sync, visual customization, and Vim-style keys.
-
-## Comparison
-
-This table captures the feature set I was optimizing for while building Will Be Done. Other projects may have changed since this comparison was written.
-
-| Feature                                 | Will Be Done | Super Productivity | Donetick | Tududi | Vikunja | TaskTrove |
-| --------------------------------------- | ------------ | ------------------ | -------- | ------ | ------- | --------- |
-| Open source and self-hosted             | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
-| Fully usable offline                    | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
-| Drag and drop for tasks and projects    | ✅           | ✅                 | 🟥       | 🟥     | ✅      | ✅        |
-| Real-time refresh without manual reload | ✅           | ✅ with SuperSync  | ✅       | 🟥     | 🟥      | 🟥        |
-| Multi-tab support                       | ✅           | 🟥                 | ✅       | 🟨     | 🟨      | 🟨        |
-| API                                     | ✅           | ✅ with SuperSync  | ✅       | ✅     | ✅      | ✅        |
-| Mobile version                          | ✅           | ✅                 | ✅       | ✅     | ✅      | ✅        |
-| Keyboard shortcuts / Vim bindings       | ✅           | ✅                 | ✅       | ✅     | ✅      | 🟨        |
-| Weekly planner                          | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
-| Sections or columns inside projects     | ✅           | ✅                 | 🟥       | 🟥     | ✅      | ✅        |
-| Desktop app with global quick add       | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
-| Local-first architecture                | ✅           | ✅                 | 🟥       | 🟥     | 🟥      | 🟥        |
 
 ## Note on AI usage
 

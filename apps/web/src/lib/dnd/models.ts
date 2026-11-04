@@ -51,8 +51,9 @@ export function isModelDNDData(data: unknown): data is DndModelData {
       return (
         "projectSectionId" in data && typeof data.projectSectionId === "string"
       );
-    case "project":
     case "projectSection":
+      return "projectId" in data && typeof data.projectId === "string";
+    case "project":
     case "dailyList":
     case "stash":
     case "checklistItem":

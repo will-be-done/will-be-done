@@ -190,6 +190,7 @@ const dbPromises = new Map<string, Promise<HyperDBCacheEntry>>();
 export const getLoadedHyperDBs = () =>
   [...dbs.entries()].map(([database, entry]) => ({
     database,
+    dbType: entry.dbConfig.dbType,
     db: entry.db,
   }));
 

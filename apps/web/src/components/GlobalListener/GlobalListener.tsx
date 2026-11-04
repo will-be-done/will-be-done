@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { getModelDropTarget, isModelDNDData } from "@/lib/dnd/models";
-import { shouldNeverHappen } from "@/utils.ts";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { appHandleDrop } from "@will-be-done/slices/space";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
@@ -159,11 +158,14 @@ export function GlobalListener() {
         );
         if (!target || !isModelDNDData(target.data)) return;
 
-        const edge = extractClosestEdge(target.data);
-        if (edge && edge !== "top" && edge !== "bottom") {
-          shouldNeverHappen("edge is not top or bottom");
-          return;
-        }
+        const closestEdge = extractClosestEdge(target.data);
+        // Columns reorder horizontally; slices model "before" as top.
+        const edge =
+          closestEdge === "left"
+            ? "top"
+            : closestEdge === "right"
+              ? "bottom"
+              : closestEdge;
 
         void dispatch(
           appHandleDrop({

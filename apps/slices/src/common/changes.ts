@@ -16,6 +16,13 @@ import { groupBy } from "es-toolkit";
 import { changesTable, type Change } from "./tables";
 import { compareHlc } from "./hlc";
 import type { ClientCursor } from "./syncV4";
+import {
+  loadRichTextDoc,
+  mergeRichTextDocs,
+  replaceRichTextDocMarkdown,
+  richTextDocToMarkdown,
+  type RichTextKind,
+} from "./richText";
 
 export { changesTable, type Change } from "./tables";
 
@@ -24,6 +31,123 @@ export type PrimitiveRow = Record<string, string | number | boolean | null> & {
 };
 
 const SELECT_OR_CHUNK_SIZE = 400;
+
+type RichTextField = {
+  docField: string;
+  textField: string;
+  kind: RichTextKind;
+};
+
+const richTextFieldsByTable = new Map<string, readonly RichTextField[]>();
+
+// A Yjs doc field merges by CRDT union instead of LWW, and its markdown text
+// field is always re-derived from the merged doc.
+export const registerRichTextFields = (
+  tableName: string,
+  fields: readonly RichTextField[],
+) => {
+  richTextFieldsByTable.set(tableName, fields);
+};
+
+const decodes = (doc: unknown): doc is string => {
+  if (typeof doc !== "string") return false;
+  try {
+    loadRichTextDoc(doc).destroy();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// A doc that does not decode is dropped: the row keeps its text, and the next
+// edit seeds a doc from it again.
+const withoutDoc = (row: Row, docField: string): Row => {
+  const { [docField]: _, ...rest } = row;
+  return rest as Row;
+};
+
+const mergeRichTextFields = (
+  tableName: string,
+  currentRow: Row | undefined,
+  incomingRow: Row | undefined,
+  mergedRow: Row,
+): Row => {
+  const fields = richTextFieldsByTable.get(tableName);
+  if (!fields || !incomingRow) return mergedRow;
+  let result = mergedRow;
+  for (const { docField, textField, kind } of fields) {
+    if (!currentRow) {
+      const doc = result[docField];
+      if (doc !== undefined && !decodes(doc)) {
+        result = withoutDoc(result, docField);
+      }
+      continue;
+    }
+    if (
+      currentRow[docField] === incomingRow[docField] &&
+      currentRow[textField] === incomingRow[textField]
+    ) {
+      continue;
+    }
+    const docOf = (row: Row) =>
+      decodes(row[docField]) ? row[docField] : undefined;
+    const currentDoc = docOf(currentRow);
+    const incomingDoc = docOf(incomingRow);
+    // Clients that predate docs change only the text, leaving their doc stale
+    // or absent. A text that won LWW is replayed as an edit of the doc it was
+    // written against, so it merges instead of being dropped.
+    const textEdit = (
+      row: Row,
+      other: Row,
+      own: string | undefined,
+      otherDoc: string | undefined,
+    ) => {
+      const text = row[textField];
+      if (
+        typeof text !== "string" ||
+        text !== mergedRow[textField] ||
+        text === other[textField] ||
+        (own !== undefined && richTextDocToMarkdown(own, kind) === text)
+      ) {
+        return undefined;
+      }
+      const base = own ?? otherDoc;
+      return base === undefined
+        ? undefined
+        : replaceRichTextDocMarkdown(base, text, kind);
+    };
+    try {
+      const docs = [
+        currentDoc,
+        incomingDoc,
+        textEdit(currentRow, incomingRow, currentDoc, incomingDoc),
+        textEdit(incomingRow, currentRow, incomingDoc, currentDoc),
+      ].filter((doc) => doc !== undefined);
+      if (docs.length === 0) {
+        result = withoutDoc(result, docField);
+        continue;
+      }
+      const doc = docs.reduce(mergeRichTextDocs);
+      result = {
+        ...result,
+        [docField]: doc,
+        [textField]: richTextDocToMarkdown(doc, kind),
+      };
+    } catch (error) {
+      // A doc that decodes but fails to merge must not block the changeset.
+      console.error(`Failed to merge ${tableName}.${docField}`, error);
+      result =
+        currentDoc === undefined
+          ? withoutDoc(result, docField)
+          : {
+              ...result,
+              [docField]: currentDoc,
+              [textField]: currentRow[textField],
+            };
+    }
+  }
+  return result;
+};
 export const changeId = (tableName: string, entityId: string): string =>
   `${tableName}:${entityId}`;
 const primitiveValueSchema = v.union(
@@ -44,6 +168,7 @@ const changeSchema = v.object({
   entityId: v.string(),
   tableName: v.string(),
   deletedAt: v.union(v.string(), v.null()),
+  restoredAt: v.optional(v.string()),
   clientId: v.string(),
   changes: v.record(v.string(), v.string()),
   createdAt: v.string(),
@@ -68,6 +193,29 @@ const chunkArray = <T>(items: T[], chunkSize: number): T[][] => {
   }
   return chunks;
 };
+
+const compareOptionalHlc = (
+  left: string | undefined,
+  right: string | undefined,
+) =>
+  left === right
+    ? 0
+    : left === undefined
+      ? -1
+      : right === undefined
+        ? 1
+        : compareHlc(left, right);
+
+const maxOptionalHlc = (left: string | undefined, right: string | undefined) =>
+  compareOptionalHlc(left, right) >= 0 ? left : right;
+
+/** An entity is deleted unless a later restore clock revived it. */
+export const isDeletedChange = (change: {
+  deletedAt: string | null;
+  restoredAt?: string;
+}) =>
+  change.deletedAt !== null &&
+  compareOptionalHlc(change.deletedAt, change.restoredAt) > 0;
 
 const getChangeByEntityAndTableName = selector({
   name: "getChangeByEntityAndTableName",
@@ -156,7 +304,7 @@ export const getChangesetAfter = selector({
           const row = rowsMap.get(c.entityId);
 
           if (!row) {
-            if (c.deletedAt == null) {
+            if (!isDeletedChange(c)) {
               console.error(
                 "failed to find row for not deleted change, skipping sync",
                 c,
@@ -217,6 +365,23 @@ export const insertChangeFromInsert = action({
     const changes: Record<string, string> = {};
     for (const col of Object.keys(row)) {
       changes[col] = createdAt;
+    }
+
+    const existing = yield* getChangeByEntityAndTableName({
+      entityId: row.id,
+      tableName: tableDef.tableName,
+    });
+    if (existing && isDeletedChange(existing)) {
+      // Inserting a deleted ID restores that entity as a new incarnation.
+      const restoredChange: Change = {
+        ...existing,
+        restoredAt: nextClock,
+        updatedAt: nextClock,
+        clientId,
+        changes,
+      };
+      yield* upsert(changesTable, [restoredChange]);
+      return restoredChange;
     }
 
     const newChange: Change = {
@@ -407,6 +572,31 @@ export const mergeChanges = action({
         touchedEntityIds.add(incomingChange.entityId);
         const currentChanges = currentChangesMap.get(incomingChange.entityId);
         const currentRow = currentRowsMap.get(incomingChange.entityId);
+        // Each restore starts a new incarnation. The newer incarnation wins
+        // wholesale, so edits to an older one can never leak into it.
+        const restoreOrder = compareOptionalHlc(
+          incomingChange.restoredAt,
+          currentChanges?.restoredAt,
+        );
+        const lastDeletedAt =
+          currentChanges?.deletedAt == null
+            ? incomingChange.deletedAt
+            : incomingChange.deletedAt == null
+              ? currentChanges.deletedAt
+              : compareHlc(currentChanges.deletedAt, incomingChange.deletedAt) >
+                  0
+                ? currentChanges.deletedAt
+                : incomingChange.deletedAt;
+        const lastRestoredAt = maxOptionalHlc(
+          currentChanges?.restoredAt,
+          incomingChange.restoredAt,
+        );
+        const lifecycle = {
+          deletedAt: lastDeletedAt,
+          ...(lastRestoredAt === undefined
+            ? {}
+            : { restoredAt: lastRestoredAt }),
+        };
 
         // First-creator-wins: when both sides created the same entity,
         // the earlier creator's values always take precedence
@@ -414,8 +604,9 @@ export const mergeChanges = action({
           currentChanges != null &&
           currentRow != null &&
           incomingRow != null &&
-          incomingChange.deletedAt == null &&
-          currentChanges.deletedAt == null &&
+          restoreOrder === 0 &&
+          !isDeletedChange(incomingChange) &&
+          !isDeletedChange(currentChanges) &&
           currentChanges.createdAt !== incomingChange.createdAt
         ) {
           const currentCreatedFirst =
@@ -436,7 +627,12 @@ export const mergeChanges = action({
             : currentChanges.changes;
 
           const fcwMergedChanges = { ...loserChanges, ...winnerChanges };
-          const fcwMergedRow = { ...loserRow, ...winnerRow } as Row;
+          const fcwMergedRow = mergeRichTextFields(
+            table.tableName,
+            currentRow,
+            incomingRow as Row,
+            { ...loserRow, ...winnerRow } as Row,
+          );
           const currentClock = nextClock;
           const mergedChange: Change = {
             id: changeId(table.tableName, incomingChange.entityId),
@@ -446,7 +642,7 @@ export const mergeChanges = action({
               ? currentChanges.createdAt
               : incomingChange.createdAt,
             updatedAt: currentClock,
-            deletedAt: null,
+            ...lifecycle,
             clientId: currentCreatedFirst
               ? currentChanges.clientId
               : incomingChange.clientId,
@@ -471,26 +667,41 @@ export const mergeChanges = action({
           continue; // Skip normal LWW merge
         }
 
-        const { mergedChanges, mergedRow } = lwwMerge(
-          currentChanges?.changes ?? {},
-          incomingChange.changes,
-          currentRow ?? { id: incomingChange.entityId },
-          incomingRow ?? { id: incomingChange.entityId },
-        );
+        const { mergedChanges, mergedRow: incarnationRow } =
+          restoreOrder > 0
+            ? {
+                mergedChanges: incomingChange.changes,
+                mergedRow: (incomingRow as Row | undefined) ?? {
+                  id: incomingChange.entityId,
+                },
+              }
+            : restoreOrder < 0 && currentChanges
+              ? {
+                  mergedChanges: currentChanges.changes,
+                  mergedRow: currentRow ?? { id: incomingChange.entityId },
+                }
+              : lwwMerge(
+                  currentChanges?.changes ?? {},
+                  incomingChange.changes,
+                  currentRow ?? { id: incomingChange.entityId },
+                  incomingRow ?? { id: incomingChange.entityId },
+                );
+        // Docs merge only within one incarnation; a newer one replaces them.
+        const mergedRow =
+          restoreOrder < 0
+            ? incarnationRow
+            : mergeRichTextFields(
+                table.tableName,
+                restoreOrder > 0 ? undefined : currentRow,
+                incomingRow as Row | undefined,
+                incarnationRow,
+              );
 
         const currentDeletedAt = currentChanges?.deletedAt ?? null;
         const incomingDeletedAt = incomingChange.deletedAt;
-        const isDeleted = currentDeletedAt != null || incomingDeletedAt != null;
+        const isDeleted = isDeletedChange(lifecycle);
 
         const currentClock = nextClock;
-        const lastDeletedAt =
-          currentDeletedAt == null
-            ? incomingDeletedAt
-            : incomingDeletedAt == null
-              ? currentDeletedAt
-              : compareHlc(currentDeletedAt, incomingDeletedAt) > 0
-                ? currentDeletedAt
-                : incomingDeletedAt;
         const incomingDeleteWins =
           incomingDeletedAt != null &&
           (currentDeletedAt == null ||
@@ -520,7 +731,7 @@ export const mergeChanges = action({
           tableName: table.tableName,
           createdAt: mergedCreatedAt,
           updatedAt: currentClock,
-          deletedAt: lastDeletedAt,
+          ...lifecycle,
           clientId: winnerClientId,
           changes: mergedChanges,
         };
@@ -536,7 +747,6 @@ export const mergeChanges = action({
           continue;
         }
 
-        // A tombstone is permanent: deleted IDs cannot be reused.
         if (isDeleted) {
           currentRowsMap.delete(incomingChange.entityId);
         } else {
@@ -572,7 +782,7 @@ export const mergeChanges = action({
             originalRow,
             finalChange,
             finalRow ?? { id: entityId },
-            finalChange.deletedAt !== null,
+            isDeletedChange(finalChange),
           )
         ) {
           changesToUpsert.push(finalChange);
@@ -599,6 +809,7 @@ const isSameMergedState = (
   currentChange !== undefined &&
   currentChange.createdAt === mergedChange.createdAt &&
   currentChange.deletedAt === mergedChange.deletedAt &&
+  currentChange.restoredAt === mergedChange.restoredAt &&
   currentChange.clientId === mergedChange.clientId &&
   isEqual(currentChange.changes, mergedChange.changes);
 
@@ -677,6 +888,7 @@ export const Changeset = z.object({
         entityId: z.string(),
         tableName: z.string(),
         deletedAt: z.string().nullable(),
+        restoredAt: z.string().optional(),
         clientId: z.string(),
         changes: z.record(z.string(), z.string()),
         createdAt: z.string(),

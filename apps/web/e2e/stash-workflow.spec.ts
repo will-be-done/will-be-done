@@ -15,6 +15,7 @@ import {
   stashPanel,
   stashTaskItem,
   uniqueE2EName,
+  waitForSyncedText,
 } from "./helpers";
 
 for (const view of ["project", "today", "timeline"] as const) {
@@ -38,8 +39,10 @@ for (const view of ["project", "today", "timeline"] as const) {
       await projectSidebarLink(page, projectTitle).click();
       await createProjectTask(page, mainTitle);
     } else {
+      const synced = waitForSyncedText(page, mainTitle);
       await createTodayTask(page, mainTitle);
       if (view === "timeline") {
+        await synced;
         // Start the timeline at Today so this task is adjacent to the stash.
         await page.goto(
           new URL(page.url()).pathname.replace("/dates/", "/timeline/"),
@@ -121,8 +124,10 @@ for (const view of ["project", "today", "timeline"] as const) {
       await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
       await createProjectTask(page, taskTitle);
     } else {
+      const synced = waitForSyncedText(page, taskTitle);
       await createTodayTask(page, taskTitle);
       if (view === "timeline") {
+        await synced;
         await page.goto(
           new URL(page.url()).pathname.replace("/dates/", "/timeline/"),
         );

@@ -9379,6 +9379,7 @@ export const getDeleteTaskUrl = (spaceId: string, taskId: string) => {
 };
 
 /**
+ * Moves the task to the trash, where it can be restored from the app for 30 days.
  * @summary Delete a task
  */
 export const deleteTask = async (

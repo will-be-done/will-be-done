@@ -18,16 +18,28 @@ import {
   copyItems,
   deleteForParents,
 } from "./checklistItems";
-import { deleteDailyEntriesByTaskIds } from "./dailyEntries";
-import { deleteStashEntriesByTaskIds } from "./stashEntries";
+import {
+  dailyEntriesByTaskIds,
+  deleteDailyEntriesByTaskIds,
+} from "./dailyEntries";
+import {
+  deleteStashEntriesByTaskIds,
+  stashEntriesByTaskIds,
+} from "./stashEntries";
 import { firstProjectSectionChild } from "./projectSections";
 import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
 import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
+import { syncItemRichText } from "./richTextItems";
 import {
   taskType,
+  checklistItemsTable,
   dailyEntriesTable,
+  trashedTasksTable,
+  trashedTaskType,
+  TrashedTaskRow,
+  TrashSnapshot,
   tasksTable,
   taskTemplatesTable,
   possibleModelType,
@@ -199,6 +211,49 @@ export const deleteTasks = action({
   },
 });
 
+export const trashTasks = action({
+  name: "trashTasks",
+  args: { ids: v.array(v.string()) },
+  handler: function* trashTasks({ ids }): Generator<unknown, void, unknown> {
+    const tasks = yield* tasksByIds({ ids });
+    if (tasks.length === 0) return;
+
+    const taskIds = tasks.map((task) => task.id);
+    const checklistItems = yield* selectFrom(
+      checklistItemsTable,
+      "byParentOrder",
+    ).where((q) =>
+      taskIds.map((id) => q.eq("parentType", taskType).eq("parentId", id)),
+    );
+    const dailyEntries = new Map(
+      (yield* dailyEntriesByTaskIds({ taskIds })).map((e) => [e.taskId, e]),
+    );
+    const stashEntries = new Map(
+      (yield* stashEntriesByTaskIds({ taskIds })).map((e) => [e.taskId, e]),
+    );
+    const trashedAt = Date.now();
+
+    const trashed = tasks.map(
+      (task): TrashedTaskRow => ({
+        type: trashedTaskType,
+        id: task.id,
+        trashedAt,
+        snapshot: JSON.stringify({
+          task,
+          checklistItems: checklistItems.filter(
+            (item) => item.parentId === task.id,
+          ),
+          dailyEntry: dailyEntries.get(task.id) ?? null,
+          stashEntry: stashEntries.get(task.id) ?? null,
+        } satisfies TrashSnapshot),
+      }),
+    );
+
+    yield* deleteTasks({ ids: taskIds });
+    yield* insert(trashedTasksTable, trashed);
+  },
+});
+
 export const updateTask = action({
   name: "updateTask",
   args: {
@@ -210,7 +265,9 @@ export const updateTask = action({
     if (!taskInState) throw new Error("Task not found");
     assertValidTaskDuration(task.durationMinutes);
 
-    yield* upsert(tasksTable, [{ ...taskInState, ...task }]);
+    yield* upsert(tasksTable, [
+      syncItemRichText(taskInState, { ...taskInState, ...task }),
+    ]);
   },
 });
 
@@ -451,18 +508,10 @@ export const deleteTasksByIds = action({
   },
 });
 
-export const deleteTaskById = action({
-  name: "deleteTaskById",
-  args: { id: v.string() },
-  handler: function* deleteTaskById({ id }) {
-    yield* deleteTasks({ ids: [id] });
-  },
-});
-
 // Local slice object for registerModelSlice (not exported)
 const tasksSlice = {
   byId: taskById,
-  delete: deleteTasks,
+  delete: trashTasks,
   canDrop: taskCanDrop,
   handleDrop: taskHandleDrop,
 };

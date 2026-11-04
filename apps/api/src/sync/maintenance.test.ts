@@ -1,12 +1,20 @@
 import { describe, expect, mock, test } from "bun:test";
 import {
   createAction,
+  createSelector,
   DB,
   execSync,
+  selectFrom,
+  selectSync,
   SubscribableDB,
   syncDispatch,
   upsert,
 } from "@will-be-done/hyperdb";
+import {
+  TRASH_RETENTION_MS,
+  trashedTasksTable,
+  trashedTaskType,
+} from "@will-be-done/slices/space";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { runSyncMaintenance } from "./maintenance";
 import { serverSyncTables, syncUploadSessionsTable } from "./tables";
@@ -38,6 +46,14 @@ const seedExpiredUploads = testAction({
   },
 });
 
+const trashIds = createSelector()({
+  name: "trashIdsForMaintenance",
+  args: {},
+  handler: function* () {
+    return yield* selectFrom(trashedTasksTable, "byIds");
+  },
+});
+
 const createSyncDb = () => {
   const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
   execSync(db.loadTables([...serverSyncTables]));
@@ -55,7 +71,9 @@ describe("sync v4 maintenance", () => {
     syncDispatch(db, seedExpiredUploads({}));
     const logger = createLogger();
 
-    await runSyncMaintenance(logger as never, [{ database: "good", db }]);
+    await runSyncMaintenance(logger as never, [
+      { database: "good", dbType: "user", db },
+    ]);
 
     expect(logger.error).not.toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledTimes(1);
@@ -79,8 +97,8 @@ describe("sync v4 maintenance", () => {
     const logger = createLogger();
 
     await runSyncMaintenance(logger as never, [
-      { database: "broken", db: broken },
-      { database: "good-after-broken", db: good },
+      { database: "broken", dbType: "user", db: broken },
+      { database: "good-after-broken", dbType: "user", db: good },
     ]);
 
     expect(logger.error).toHaveBeenCalledTimes(1);
@@ -92,5 +110,35 @@ describe("sync v4 maintenance", () => {
       database: "good-after-broken",
       cleanup: { uploads: 2, hasMore: false },
     });
+  });
+
+  test("purges expired trash in space databases", async () => {
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(db.loadTables([...serverSyncTables, trashedTasksTable]));
+    const trashedAt = Date.now() - TRASH_RETENTION_MS;
+    syncDispatch(
+      db,
+      testAction({
+        name: "seedTrashForMaintenance",
+        args: {},
+        handler: function* () {
+          yield* upsert(
+            trashedTasksTable,
+            [
+              { id: "expired", trashedAt: trashedAt - 60_000 },
+              { id: "recent", trashedAt: trashedAt + 60_000 },
+            ].map((row) => ({ ...row, type: trashedTaskType, snapshot: "{}" })),
+          );
+        },
+      })({}),
+    );
+
+    await runSyncMaintenance(createLogger() as never, [
+      { database: "space", dbType: "space", db },
+    ]);
+
+    expect(
+      selectSync(db, { selector: trashIds, args: {} }).map(({ id }) => id),
+    ).toEqual(["recent"]);
   });
 });

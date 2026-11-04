@@ -5405,6 +5405,7 @@
         "operationId": "deleteTask",
         "summary": "Delete a task",
         "tags": ["Tasks"],
+        "description": "Moves the task to the trash, where it can be restored from the app for 30 days.",
         "parameters": [
           {
             "schema": { "type": "string", "minLength": 1 },

@@ -157,3 +157,29 @@ describe("API documentation", () => {
     }
   });
 });
+
+test("the public frontend route opts out of the API limit", async () => {
+  const server = createServer({
+    appRouter: createAppRouter({
+      mainDB: new DB(new BptreeInmemDriver()),
+      captchaConfig: null,
+    }),
+    logger: false,
+    rateLimit: {
+      backend: "memory",
+      globalOverride: { max: 1, timeWindow: 60_000 },
+    },
+  });
+
+  try {
+    for (let i = 0; i < 3; i++) {
+      expect(
+        (await server.inject("/emoji/does-not-exist.webp")).statusCode,
+      ).toBe(404);
+    }
+    expect((await server.inject("/api/health")).statusCode).toBe(200);
+    expect((await server.inject("/api/health")).statusCode).toBe(429);
+  } finally {
+    await server.close();
+  }
+});

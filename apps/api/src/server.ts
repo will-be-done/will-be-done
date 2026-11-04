@@ -62,7 +62,7 @@ export function createServer({
   server.setSerializerCompiler(serializerCompiler);
 
   // Register before every route/plugin so the broad per-IP limit covers the
-  // complete HTTP surface. Sensitive tRPC procedures add stricter limits.
+  // API surface. Public frontend files opt out; sensitive procedures add limits.
   if (rateLimitEnabled) {
     registerAppRateLimiting(server, rateLimit);
   }
@@ -158,18 +158,23 @@ export function createServer({
   if (serveFrontend) {
     const publicRoot = path.join(__dirname, "..", "public");
     const serviceWorkerPath = path.join(publicRoot, "sw.js");
-    server.register(staticPlugin, {
-      root: publicRoot,
-      setHeaders(response, filePath) {
-        if (filePath === serviceWorkerPath) {
-          // A service worker controls how the rest of the frontend is cached,
-          // so browsers and intermediary CDNs must always revalidate it.
-          response.setHeader(
-            "Cache-Control",
-            "no-cache, no-store, must-revalidate",
-          );
-        }
-      },
+    server.register(async (frontend) => {
+      frontend.addHook("onRoute", (route) => {
+        route.config = { ...route.config, rateLimit: false };
+      });
+      frontend.register(staticPlugin, {
+        root: publicRoot,
+        setHeaders(response, filePath) {
+          if (filePath === serviceWorkerPath) {
+            // A service worker controls how the rest of the frontend is cached,
+            // so browsers and intermediary CDNs must always revalidate it.
+            response.setHeader(
+              "Cache-Control",
+              "no-cache, no-store, must-revalidate",
+            );
+          }
+        },
+      });
     });
 
     server.setNotFoundHandler((request, reply) => {
@@ -177,7 +182,9 @@ export function createServer({
       const isApiRequest =
         requestPath === "/api" || requestPath.startsWith("/api/");
       const isAssetRequest =
-        requestPath === "/assets" || requestPath.startsWith("/assets/");
+        requestPath === "/assets" ||
+        requestPath.startsWith("/assets/") ||
+        requestPath.startsWith("/emoji/");
       const isServiceWorkerRequest = requestPath === "/sw.js";
 
       if (isApiRequest || isAssetRequest || isServiceWorkerRequest) {

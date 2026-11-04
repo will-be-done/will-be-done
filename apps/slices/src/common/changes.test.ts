@@ -21,10 +21,22 @@ import {
   getChangesetAfter,
   changesTable,
   changeId,
+  insertChangeFromDelete,
+  insertChangeFromInsert,
   insertChangeFromUpdate,
+  isDeletedChange,
+  registerRichTextFields,
   type Change,
   type ChangesetArrayType,
 } from "./changes";
+import * as Y from "yjs";
+import {
+  RICH_TEXT_FRAGMENT,
+  encodeRichTextDoc,
+  loadRichTextDoc,
+  richTextDocToMarkdown,
+  seedRichTextDoc,
+} from "./richText";
 
 const action = createAction();
 const selector = createSelector();
@@ -267,6 +279,215 @@ const getChangeSelector = selector({
       .limit(1);
     return changes[0] as Change | undefined;
   },
+});
+
+describe("restoring deleted entities", () => {
+  const entityId = "restorable";
+  const createdAt = "0000000010-0001-client1";
+  const deletedAt = "0000000020-0001-client1";
+  const restoredAt = "0000000030-0001-client1";
+  const fields = ["type", "id", "title", "orderToken", "createdAt"];
+
+  const changeset = ({
+    title,
+    deleted = null,
+    restored,
+    fieldClock,
+    clientId,
+  }: {
+    title?: string;
+    deleted?: string | null;
+    restored?: string;
+    fieldClock: string;
+    clientId: string;
+  }): ChangesetArrayType => [
+    {
+      tableName: "testItems",
+      data: [
+        {
+          ...(title === undefined
+            ? {}
+            : {
+                row: {
+                  type: "task",
+                  id: entityId,
+                  title,
+                  orderToken: "a",
+                  createdAt: 100,
+                },
+              }),
+          change: {
+            id: changeId("testItems", entityId),
+            entityId,
+            tableName: "testItems",
+            createdAt,
+            updatedAt: restored ?? deleted ?? fieldClock,
+            deletedAt: deleted,
+            ...(restored === undefined ? {} : { restoredAt: restored }),
+            clientId,
+            changes: {
+              ...Object.fromEntries(fields.map((key) => [key, createdAt])),
+              title: fieldClock,
+            },
+          },
+        },
+      ],
+    },
+  ];
+
+  const created = changeset({
+    title: "created",
+    fieldClock: createdAt,
+    clientId: "client1",
+  });
+  const deleted = changeset({
+    deleted: deletedAt,
+    fieldClock: createdAt,
+    clientId: "client1",
+  });
+  // An offline client that never saw the delete edits after the restore clock.
+  const staleEdit = changeset({
+    title: "stale",
+    fieldClock: "0000000040-0001-client2",
+    clientId: "client2",
+  });
+  const restored: ChangesetArrayType = [
+    {
+      tableName: "testItems",
+      data: [
+        {
+          row: {
+            type: "task",
+            id: entityId,
+            title: "restored",
+            orderToken: "a",
+            createdAt: 100,
+          },
+          change: {
+            ...changeset({
+              deleted: deletedAt,
+              restored: restoredAt,
+              fieldClock: restoredAt,
+              clientId: "client1",
+            })[0]!.data[0]!.change,
+            changes: Object.fromEntries(fields.map((key) => [key, restoredAt])),
+          },
+        },
+      ],
+    },
+  ];
+
+  const apply = (db: DB, inputs: ChangesetArrayType[]) => {
+    inputs.forEach((input, index) => {
+      syncDispatch(
+        db,
+        mergeChanges({
+          input,
+          nextClock: `0000000090-${String(index).padStart(4, "0")}-server`,
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredTables,
+        }),
+      );
+    });
+  };
+  const semanticState = (db: DB) => {
+    const { updatedAt: _receipt, ...change } = getChange(db, entityId)!;
+    return { row: getRow(db, entityId), change };
+  };
+  const permutations = <T>(items: T[]): T[][] =>
+    items.length <= 1
+      ? [items]
+      : items.flatMap((item, index) =>
+          permutations([
+            ...items.slice(0, index),
+            ...items.slice(index + 1),
+          ]).map((rest) => [item, ...rest]),
+        );
+
+  it("records a local insert of a deleted id as a restore", () => {
+    const db = createDB();
+    const row = {
+      type: "task",
+      id: entityId,
+      title: "x",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    const record = (
+      handler: () => Generator<unknown, unknown, unknown>,
+      name: string,
+    ) => syncDispatch(db, action({ name, args: {}, handler })({}));
+
+    record(function* () {
+      yield* insertChangeFromInsert({
+        tableDef: testTable,
+        row,
+        clientId: "local",
+        nextClock: createdAt,
+      });
+      yield* insertChangeFromDelete({
+        tableDef: testTable,
+        row,
+        clientId: "local",
+        nextClock: deletedAt,
+      });
+      yield* insertChangeFromInsert({
+        tableDef: testTable,
+        row,
+        clientId: "local",
+        nextClock: restoredAt,
+      });
+    }, "recordRestoreTest");
+
+    const change = getChange(db, entityId)!;
+    expect(change).toMatchObject({ createdAt, deletedAt, restoredAt });
+    expect(isDeletedChange(change)).toBe(false);
+    expect(Object.values(change.changes)).toEqual(fields.map(() => restoredAt));
+  });
+
+  it("converges on the restored row in every arrival order", () => {
+    const orders = permutations([created, deleted, staleEdit, restored]);
+    const states = orders.map((order) => {
+      const db = createDB();
+      apply(db, order);
+      return semanticState(db);
+    });
+
+    expect(states[0]!.row).toMatchObject({ title: "restored" });
+    expect(states[0]!.change).toMatchObject({ deletedAt, restoredAt });
+    for (const state of states) expect(state).toEqual(states[0]);
+  });
+
+  it("lets a later delete win over an earlier restore in either order", () => {
+    const laterDelete = changeset({
+      deleted: "0000000050-0001-client2",
+      fieldClock: createdAt,
+      clientId: "client2",
+    });
+
+    for (const order of [
+      [created, restored, laterDelete],
+      [laterDelete, restored, created],
+    ]) {
+      const db = createDB();
+      apply(db, order);
+      expect(getRow(db, entityId)).toBeUndefined();
+      expect(getChange(db, entityId)).toMatchObject({
+        deletedAt: "0000000050-0001-client2",
+        restoredAt,
+      });
+    }
+  });
+
+  it("performs no writes when a restore is replayed", () => {
+    const db = createDB();
+    apply(db, [created, deleted, restored]);
+    const before = getChange(db, entityId);
+
+    apply(db, [restored, deleted, staleEdit]);
+
+    expect(getChange(db, entityId)).toEqual(before);
+  });
 });
 
 describe("immutable change rows", () => {
@@ -1274,7 +1495,7 @@ describe("idempotent merge retries", () => {
     expect(getChange(inReverseOrder, entityId)).toEqual(reverseBeforeRetry);
   });
 
-  it("chooses the same permanent tombstone for concurrent deletes", () => {
+  it("chooses the same tombstone for concurrent deletes", () => {
     const entityId = "concurrent-deletes";
     const createdAt = "0000000010-0001-client";
     const created = makeIncomingCreate(entityId, "delete me", createdAt);
@@ -1621,5 +1842,282 @@ describe("idempotent merge retries", () => {
 
     expect(getRow(db, entityId)).toEqual(row);
     expect(getChange(db, entityId)).toEqual(changeBeforeMerge);
+  });
+});
+
+describe("rich text fields", () => {
+  const richTable = defineTable("richItems", {
+    id: v.string(),
+    title: v.string(),
+    titleDoc: v.optional(v.string()),
+  });
+  registerRichTextFields("richItems", [
+    { docField: "titleDoc", textField: "title", kind: "title" },
+  ]);
+  const richTables = { richItems: richTable };
+  const createdAt = "0000000010-0001-client";
+  const seed = seedRichTextDoc("Buy milk", "title");
+  const edit = (insertAt: number, text: string) => {
+    const doc = loadRichTextDoc(seed);
+    const paragraph = doc
+      .getXmlFragment(RICH_TEXT_FRAGMENT)
+      .get(0) as Y.XmlElement;
+    (paragraph.get(0) as Y.XmlText).insert(insertAt, text);
+    return encodeRichTextDoc(doc);
+  };
+  const changeset = (
+    row: { title: string; titleDoc?: string },
+    clock: string,
+    clientId: string,
+    lifecycle: Partial<Pick<Change, "deletedAt" | "restoredAt">> = {},
+  ): ChangesetArrayType => [
+    {
+      tableName: "richItems",
+      data: [
+        {
+          row: { id: "rich", ...row },
+          change: {
+            id: "richItems:rich",
+            entityId: "rich",
+            tableName: "richItems",
+            createdAt,
+            updatedAt: clock,
+            deletedAt: null,
+            clientId,
+            ...lifecycle,
+            changes: {
+              id: createdAt,
+              title: clock,
+              ...(row.titleDoc ? { titleDoc: clock } : {}),
+            },
+          },
+        },
+      ],
+    },
+  ];
+  const getRichRow = selector({
+    name: "getRichRow",
+    args: {},
+    handler: function* getRichRow() {
+      return (yield* selectFrom(richTable, "byId")
+        .where((q) => q.eq("id", "rich"))
+        .limit(1))[0];
+    },
+  });
+  const setup = (...inputs: ChangesetArrayType[]) => {
+    const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
+    execSync(db.loadTables([richTable, changesTable]));
+    inputs.forEach((input, index) =>
+      syncDispatch(
+        db,
+        mergeChanges({
+          input,
+          nextClock: `0000000100-000${index}-server`,
+          clientId: "server",
+          registeredSyncableTableNameMap: richTables,
+        }),
+      ),
+    );
+    return db;
+  };
+  const readRow = (db: SubscribableDB) =>
+    selectSync(db, { selector: getRichRow, args: {} });
+
+  it.each([undefined, "0000000015-0001-client"])(
+    "unions concurrent doc edits with restore clock %s",
+    (restoredAt) => {
+      const left = changeset(
+        { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+        "0000000020-0001-left",
+        "left",
+        { restoredAt },
+      );
+      const right = changeset(
+        { title: "Buy milk today", titleDoc: edit(8, " today") },
+        "0000000030-0001-right",
+        "right",
+        { restoredAt },
+      );
+
+      const leftFirst = readRow(setup(left, right));
+      const rightFirst = readRow(setup(right, left));
+
+      expect(leftFirst?.title).toBe("Please Buy milk today");
+      expect(rightFirst).toEqual(leftFirst);
+    },
+  );
+
+  it.each([undefined, "0000000015-0001-client"])(
+    "replaces documents from an older restore clock %s in either arrival order",
+    (restoredAt) => {
+      const stale = changeset(
+        { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+        "0000000050-0001-stale",
+        "stale",
+        { restoredAt },
+      );
+      const titleDoc = seedRichTextDoc("Restored task", "title");
+      const restored = changeset(
+        { title: "Restored task", titleDoc },
+        "0000000030-0001-restored",
+        "restored",
+        {
+          deletedAt: "0000000020-0001-client",
+          restoredAt: "0000000030-0001-restored",
+        },
+      );
+
+      const expected = { id: "rich", title: "Restored task", titleDoc };
+      expect(readRow(setup(stale, restored))).toEqual(expected);
+      expect(readRow(setup(restored, stale))).toEqual(expected);
+    },
+  );
+
+  it.each([undefined, "not a yjs doc"])(
+    "keeps restored text without an older document when the restored doc is %s",
+    (titleDoc) => {
+      const stale = changeset(
+        { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+        "0000000050-0001-stale",
+        "stale",
+      );
+      const restored = changeset(
+        { title: "Restored task", ...(titleDoc ? { titleDoc } : {}) },
+        "0000000030-0001-restored",
+        "restored",
+        {
+          deletedAt: "0000000020-0001-client",
+          restoredAt: "0000000030-0001-restored",
+        },
+      );
+
+      const expected = { id: "rich", title: "Restored task" };
+      expect(readRow(setup(stale, restored))).toEqual(expected);
+      expect(readRow(setup(restored, stale))).toEqual(expected);
+    },
+  );
+
+  it("performs no writes when the merged state is replayed", () => {
+    const left = changeset(
+      { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+      "0000000020-0001-left",
+      "left",
+    );
+    const right = changeset(
+      { title: "Buy milk today", titleDoc: edit(8, " today") },
+      "0000000030-0001-right",
+      "right",
+    );
+    const db = setup(left, right);
+    let committedOperations = 0;
+    const unsubscribe = db.subscribe((operations) => {
+      committedOperations += operations.length;
+    });
+
+    for (const input of [left, right]) {
+      syncDispatch(
+        db,
+        mergeChanges({
+          input,
+          nextClock: "0000000200-0001-server",
+          clientId: "server",
+          registeredSyncableTableNameMap: richTables,
+        }),
+      );
+    }
+    unsubscribe();
+
+    expect(committedOperations).toBe(0);
+  });
+
+  const withDoc = changeset(
+    { title: "Please Buy milk", titleDoc: edit(0, "Please ") },
+    "0000000020-0001-left",
+    "left",
+  );
+  const expectConsistent = (row: ReturnType<typeof readRow>) =>
+    expect(richTextDocToMarkdown(row!.titleDoc!, "title")).toBe(row!.title);
+
+  it("applies a newer text-only write from an older client as a doc edit", () => {
+    const legacyText = changeset(
+      { title: "Buy oat milk" },
+      "0000000030-0001-legacy",
+      "legacy",
+    );
+
+    const docFirst = readRow(setup(withDoc, legacyText));
+    expect(docFirst?.title).toBe("Buy oat milk");
+    expectConsistent(docFirst);
+    expect(readRow(setup(legacyText, withDoc))).toEqual(docFirst);
+  });
+
+  it("merges an older client's text edit with concurrent doc edits", () => {
+    // Older clients keep the doc they received and change only the text.
+    const legacyText = changeset(
+      { title: "Buy milk today", titleDoc: seed },
+      "0000000030-0001-legacy",
+      "legacy",
+    );
+
+    const docFirst = readRow(setup(withDoc, legacyText));
+    expect(docFirst?.title).toBe("Please Buy milk today");
+    expectConsistent(docFirst);
+    expect(readRow(setup(legacyText, withDoc))).toEqual(docFirst);
+  });
+
+  it("performs no writes when an older client's text edit is replayed", () => {
+    const legacyText = changeset(
+      { title: "Buy milk today", titleDoc: seed },
+      "0000000030-0001-legacy",
+      "legacy",
+    );
+    const db = setup(withDoc, legacyText);
+    let committedOperations = 0;
+    const unsubscribe = db.subscribe((operations) => {
+      committedOperations += operations.length;
+    });
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: legacyText,
+        nextClock: "0000000200-0001-server",
+        clientId: "server",
+        registeredSyncableTableNameMap: richTables,
+      }),
+    );
+    unsubscribe();
+
+    expect(committedOperations).toBe(0);
+  });
+
+  it("treats a malformed incoming doc as missing", () => {
+    const malformed = changeset(
+      { title: "Broken", titleDoc: "not a yjs doc" },
+      "0000000030-0001-broken",
+      "broken",
+    );
+
+    const row = readRow(setup(withDoc, malformed));
+    expect(row.title).toBe("Broken");
+    expect(richTextDocToMarkdown(row.titleDoc!, "title")).toBe("Broken");
+  });
+
+  it.each([
+    ["a new row", []],
+    [
+      "a row without a doc",
+      [changeset({ title: "Buy milk" }, "0000000020-0001-old", "old")],
+    ],
+  ])("drops a malformed doc arriving for %s", (_, before) => {
+    const malformed = changeset(
+      { title: "Broken", titleDoc: "not a yjs doc" },
+      "0000000030-0001-broken",
+      "broken",
+    );
+
+    const row = readRow(setup(...before, malformed));
+    expect(row).toMatchObject({ title: "Broken" });
+    expect(row).not.toHaveProperty("titleDoc");
   });
 });

@@ -9,7 +9,14 @@ import {
 import { LoaderIcon, SearchIcon } from "lucide-react";
 import type * as React from "react";
 
+import { Emoji } from "@/components/ui/emoji";
 import { cn } from "@/lib/utils";
+
+// The newest Emoji version covered by public/emoji. Pinning it shows the same
+// set on every OS instead of only what the system font can draw.
+const EMOJI_VERSION = 18;
+// Served by the app instead of jsDelivr so the picker works offline.
+const EMOJIBASE_URL = `${import.meta.env.BASE_URL}emoji/emojibase`;
 
 function EmojiPicker({
   className,
@@ -17,6 +24,8 @@ function EmojiPicker({
 }: React.ComponentProps<typeof EmojiPickerPrimitive.Root>) {
   return (
     <EmojiPickerPrimitive.Root
+      emojiVersion={EMOJI_VERSION}
+      emojibaseUrl={EMOJIBASE_URL}
       className={cn(
         "bg-popover text-content isolate flex h-full w-fit flex-col overflow-hidden rounded-lg ring-1 ring-ring backdrop-blur-xl",
         className,
@@ -72,7 +81,7 @@ function EmojiPickerEmoji({
       )}
       data-slot="emoji-picker-emoji"
     >
-      {emoji.emoji}
+      <Emoji emoji={emoji.emoji} />
     </button>
   );
 }

@@ -37,6 +37,7 @@ export type ProjectDropModelData = {
 export type ProjectSectionDropModelData = {
   modelId: string;
   modelType: "projectSection";
+  projectId: string;
 };
 
 export type DailyListDropModelData = {
@@ -142,6 +143,13 @@ export function getDropModelData(
       projectSectionId: model.projectSectionId,
     };
   }
+  if (model.type === "projectSection") {
+    return {
+      modelId: model.id,
+      modelType: model.type,
+      projectId: model.projectId,
+    };
+  }
   return { modelId: model.id, modelType: model.type };
 }
 
@@ -190,6 +198,9 @@ export function canDropModel(
     return false;
   }
   if (target.modelType === "projectSection") {
+    if (source.modelType === "projectSection") {
+      return source.projectId === target.projectId;
+    }
     const sectionId =
       "task" in source
         ? source.task.projectSectionId
@@ -237,7 +248,7 @@ export function canDropModel(
         dropped.modelType === "task" ||
         dropped.modelType === "template" ||
         (dropped.modelType === "dailyEntry" && isTodoTask) ||
-        (target.modelType === "project" && dropped.modelType === "project")
+        dropped.modelType === target.modelType
       );
     case "checklistItem":
       return dropped.modelType === "checklistItem";

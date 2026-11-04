@@ -95,6 +95,16 @@ curl --fail-with-body \
 The server creates the task in the inbox and adds it to Stash. Connected
 clients receive the change through sync.
 
+Task and template titles, descriptions, and checklist item content are
+Markdown strings, so `**bold**` in a title shows as bold in the app. When you
+update one of them, the server applies your text as an edit to the shared
+document, changing only the characters that differ. An edit someone makes in
+the app at the same time is merged with yours, even in the same line. If you
+add, remove, or restructure paragraphs, such as turning one into a list,
+everything from the first to the last changed paragraph takes your version,
+and edits made there at the same time can be lost. Paragraphs before and after
+that range are kept, along with edits made to them at the same time.
+
 ## Revoke a token
 
 1. Open **Space Settings → Tokens**.

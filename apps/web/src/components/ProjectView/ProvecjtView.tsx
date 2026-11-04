@@ -53,6 +53,7 @@ import { create } from "zustand";
 import { startOfDay } from "date-fns";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { ProjectIcon } from "@/components/ui/emoji";
 
 const MIN_PROJECTS_LIST_WIDTH = 240;
 const MAX_PROJECTS_LIST_WIDTH = 520;
@@ -98,7 +99,9 @@ const ProjectDragPreview = function TaskPrimitiveComponent({
       )}
       style={style}
     >
-      <span className="text-base mr-2 flex-shrink-0">{icon}</span>
+      <span className="text-base mr-2 flex-shrink-0">
+        <ProjectIcon icon={icon} />
+      </span>
       <span className="text-content text-sm whitespace-nowrap overflow-hidden text-ellipsis">
         {title}
       </span>
@@ -364,7 +367,7 @@ const ProjectItem = function ProjectItemComp({
               type="button"
               className="text-base mr-4 flex-shrink-0 cursor-pointer"
             >
-              {project.icon || "🟡"}
+              <ProjectIcon icon={project.icon} />
             </button>
           </PopoverTrigger>
           <PopoverContent className="z-50 w-fit p-0">
@@ -471,7 +474,7 @@ const ProjectItem = function ProjectItemComp({
         ReactDOM.createPortal(
           <ProjectDragPreview
             title={project.title}
-            icon={project.icon || "🟡"}
+            icon={project.icon}
             style={{
               boxSizing: "border-box",
               width: dndState.rect.width,

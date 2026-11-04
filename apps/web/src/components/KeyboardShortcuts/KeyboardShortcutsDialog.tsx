@@ -2,6 +2,7 @@ import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { Keyboard, X } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { ALT_KEY, MOD_KEY } from "@/components/RichText/keys";
 import { useDevtoolsEnabled } from "@/lib/devtools";
 import { useFocusStore } from "@/store/focusSlice";
 import { isInputElement } from "@/utils/isInputElement";
@@ -112,6 +113,47 @@ const shortcutGroups: ShortcutGroup[] = [
         bindings: [["D"], ["X"], ["Backspace"]],
         description: "Delete project",
       },
+    ],
+  },
+  {
+    title: "Text formatting",
+    description: "In titles, descriptions, and checklist items",
+    shortcuts: [
+      { bindings: [[MOD_KEY, "B"], ["**text**"]], description: "Bold" },
+      { bindings: [[MOD_KEY, "I"], ["*text*"]], description: "Italic" },
+      {
+        bindings: [[MOD_KEY, "Shift", "S"], ["~~text~~"]],
+        description: "Strikethrough",
+      },
+      { bindings: [[MOD_KEY, "E"], ["`text`"]], description: "Inline code" },
+      {
+        bindings: [[MOD_KEY, "V"]],
+        description: "Paste a URL over selected text to link it",
+      },
+    ],
+  },
+  {
+    title: "Description formatting",
+    description: "Start a line with the Markdown and a space",
+    shortcuts: [
+      {
+        bindings: [[MOD_KEY, ALT_KEY, "1–6"], ["#"], ["##"]],
+        description: "Heading",
+      },
+      {
+        bindings: [[MOD_KEY, "Shift", "8"], ["-"]],
+        description: "Bulleted list",
+      },
+      {
+        bindings: [[MOD_KEY, "Shift", "7"], ["1."]],
+        description: "Numbered list",
+      },
+      { bindings: [[MOD_KEY, "Shift", "B"], [">"]], description: "Quote" },
+      {
+        bindings: [[MOD_KEY, ALT_KEY, "C"], ["```"]],
+        description: "Code block",
+      },
+      { bindings: [["---"]], description: "Divider" },
     ],
   },
 ];
@@ -232,7 +274,7 @@ export function KeyboardShortcutsDialog() {
         <button
           aria-keyshortcuts="?"
           aria-label="Show keyboard shortcuts"
-          className={`fixed bottom-4 z-40 flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-dialog-bg/90 text-[14px] font-semibold text-content-tinted shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[color,background-color,border-color,transform] hover:scale-105 hover:border-blue-400/35 hover:bg-dialog-item-active hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-95 motion-reduce:transition-none ${devtoolsEnabled ? "right-20" : "right-4"}`}
+          className={`fixed bottom-4 z-[1050] flex size-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-dialog-bg/90 text-[14px] font-semibold text-content-tinted shadow-[0_8px_24px_rgba(0,0,0,0.45)] backdrop-blur-xl transition-[color,background-color,border-color,transform] hover:scale-105 hover:border-blue-400/35 hover:bg-dialog-item-active hover:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 active:scale-95 motion-reduce:transition-none ${devtoolsEnabled ? "right-20" : "right-4"}`}
           onClick={() => setIsOpen(true)}
           title="Keyboard shortcuts (?)"
           type="button"
@@ -283,6 +325,8 @@ export function KeyboardShortcutsDialog() {
                   <div className="grid gap-3">
                     <ShortcutSection group={shortcutGroups[0]!} />
                     <ShortcutSection group={shortcutGroups[2]!} />
+                    <ShortcutSection group={shortcutGroups[3]!} />
+                    <ShortcutSection group={shortcutGroups[4]!} />
                   </div>
                   <ShortcutSection group={shortcutGroups[1]!} />
                 </div>

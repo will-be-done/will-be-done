@@ -2,15 +2,21 @@ import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-sc
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
+  draggable,
   dropTargetForElements,
   type ElementDropTargetEventBasePayload,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import {
+  attachClosestEdge,
+  type Edge,
+} from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import {
   type DndModelData,
   isModelDNDData,
   canDropModelData,
+  getDropIndicatorEdge,
   isActiveDropTarget,
 } from "@/lib/dnd/models";
 import { AnyModelType } from "@will-be-done/slices/space";
@@ -68,6 +74,7 @@ export const TasksColumn = ({
   header,
   columnModelId,
   columnModelType,
+  columnProjectId,
   children,
   panelWidth,
   onAddClick,
@@ -77,53 +84,81 @@ export const TasksColumn = ({
   onHideClick: () => void;
   header?: React.ReactNode;
   columnModelId: string;
-  columnModelType: Extract<
-    AnyModelType,
-    "projectSection" | "dailyList" | "stash"
-  >;
   children: React.ReactNode;
   panelWidth?: number;
   onAddClick?: () => void;
   actions?: React.ReactNode;
-}) => {
+} & (
+  | { columnModelType: "projectSection"; columnProjectId: string }
+  | {
+      columnModelType: Extract<AnyModelType, "dailyList" | "stash">;
+      columnProjectId?: never;
+    }
+)) => {
   const columnRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLButtonElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [dndState, setDndState] = useState<DailyListDndState>(idle);
+  const [dropEdge, setDropEdge] = useState<Edge | null>(null);
   const [isPlaceholderFocused, setIsPlaceholderFocused] = useState(false);
   const isOver = dndState.type == "is-task-over";
 
   useEffect(() => {
     invariant(columnRef.current);
     invariant(scrollableRef.current);
-    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) =>
+    invariant(headerRef.current);
+    const updateDropIndicator = (args: ElementDropTargetEventBasePayload) => {
       setDndState(isActiveDropTarget(args) ? isTaskOver : idle);
-
-    return combine(
-      dropTargetForElements({
-        element: columnRef.current,
-        getData: (): DndModelData => ({
-          modelId: columnModelId,
-          modelType: columnModelType,
-        }),
-        canDrop: ({ source }) =>
-          canDropModelData(source.data, {
+      setDropEdge(getDropIndicatorEdge(args));
+    };
+    const resetDropIndicator = () => {
+      setDndState(idle);
+      setDropEdge(null);
+    };
+    const data: DndModelData =
+      columnModelType === "projectSection"
+        ? {
             modelId: columnModelId,
             modelType: columnModelType,
-          }),
+            projectId: columnProjectId,
+          }
+        : { modelId: columnModelId, modelType: columnModelType };
+
+    return combine(
+      ...(columnModelType === "projectSection"
+        ? [
+            draggable({
+              element: headerRef.current,
+              getInitialData: () => data,
+            }),
+          ]
+        : []),
+      dropTargetForElements({
+        element: columnRef.current,
+        // Only column drags pick a side; tasks keep dropping at the top.
+        getData: ({ input, element, source }) =>
+          source.data.modelType === columnModelType
+            ? attachClosestEdge(data, {
+                input,
+                element,
+                allowedEdges: ["left", "right"],
+              })
+            : data,
+        canDrop: ({ source }) => canDropModelData(source.data, data),
         getIsSticky: () => true,
         onDragEnter: updateDropIndicator,
         onDrag: updateDropIndicator,
         onDropTargetChange: updateDropIndicator,
-        onDragLeave: () => setDndState(idle),
+        onDragLeave: resetDropIndicator,
         onDragStart: updateDropIndicator,
-        onDrop: () => setDndState(idle),
+        onDrop: resetDropIndicator,
       }),
       autoScrollForElements({
         element: scrollableRef.current,
         canScroll: ({ source }) => isModelDNDData(source.data),
       }),
     );
-  }, [columnModelId, columnModelType]);
+  }, [columnModelId, columnModelType, columnProjectId]);
 
   return (
     <div
@@ -134,10 +169,21 @@ export const TasksColumn = ({
       ref={columnRef}
       className={cn(
         "relative flex h-full px-1 pt-1 flex-shrink-0 min-h-0 group",
-        isOver && !isHidden && "rounded-lg ring-2 ring-inset ring-accent",
+        isOver &&
+          !isHidden &&
+          !dropEdge &&
+          "rounded-lg ring-2 ring-inset ring-accent",
       )}
       style={!isHidden ? { minWidth: `${panelWidth ?? 400}px` } : {}}
     >
+      {dropEdge && (
+        <div
+          className={cn(
+            "absolute inset-y-0 w-0.5 rounded-full bg-accent",
+            dropEdge === "left" ? "left-0" : "right-0",
+          )}
+        />
+      )}
       <div
         className="flex justify-end"
         style={{
@@ -147,18 +193,20 @@ export const TasksColumn = ({
         }}
       >
         <div className="mb-4 flex">
+          {actions}
           {header != null && onAddClick && (
             <button
-              className="hidden group-hover:block cursor-pointer text-white mb-2"
+              className="cursor-pointer text-white mb-2"
               onClick={onAddClick}
               type="button"
+              aria-label="Add task"
             >
               <PlusIcon className="rotate-180" />
             </button>
           )}
-          {actions}
         </div>
         <button
+          ref={headerRef}
           type="button"
           className={cn(
             "flex gap-3 justify-end flex-shrink-0 p-1 rounded-lg group focus:outline-none transition-all",

@@ -5,6 +5,7 @@ import {
   changeId,
   changesetArrayValidator,
   changesTable,
+  isDeletedChange,
   mergeChanges,
   tableDefinitionArgSchema,
   type Change,
@@ -121,7 +122,7 @@ const preserveEntryTaskIdentity = (
   for (const [index, data] of changeset.data.entries()) {
     const existingRow = existingByEntityId.get(data.change.entityId);
     if (
-      data.change.deletedAt === null &&
+      !isDeletedChange(data.change) &&
       data.row !== undefined &&
       existingRow !== undefined &&
       data.row.taskId !== existingRow.taskId
@@ -137,7 +138,7 @@ const preserveEntryTaskIdentity = (
 const getLiveIncomingEntries = (changeset: Changeset): LiveIncomingData[] =>
   changeset.data.filter(
     (data): data is LiveIncomingData =>
-      data.change.deletedAt === null &&
+      !isDeletedChange(data.change) &&
       data.row !== undefined &&
       typeof data.row.taskId === "string",
   );
@@ -172,17 +173,25 @@ const resolveEntriesSharingTask = ({
     const indexes = incomingIndexesByEntityId.get(data.change.entityId) ?? [];
     indexes.push(index);
     incomingIndexesByEntityId.set(data.change.entityId, indexes);
-    if (data.change.deletedAt !== null) {
+    if (isDeletedChange(data.change)) {
       incomingDeletedEntityIds.add(data.change.entityId);
     }
   }
 
-  // A tombstone is permanent. When a client retries the live version of an
-  // entry that already lost, reuse the exact tombstone instead of stamping a
-  // new one. That makes redelivery effect-idempotent.
+  // When a client retries the live version of an entry that already lost,
+  // reuse the exact tombstone instead of stamping a new one. That makes
+  // redelivery effect-idempotent. A newer restore is a new incarnation.
   const activeIncomingLive = incomingLive.filter((data) => {
     const storedChange = changeByEntityId.get(data.change.entityId);
-    if (storedChange?.deletedAt == null) return true;
+    if (
+      !storedChange ||
+      !isDeletedChange(storedChange) ||
+      (data.change.restoredAt !== undefined &&
+        (storedChange.restoredAt === undefined ||
+          compareHlc(data.change.restoredAt, storedChange.restoredAt) > 0))
+    ) {
+      return true;
+    }
 
     for (const index of incomingIndexesByEntityId.get(data.change.entityId) ??
       []) {
@@ -246,7 +255,7 @@ const resolveEntriesSharingTask = ({
           const incoming = changeset.data[index]!;
           changeset.data[index] = {
             change:
-              storedTombstone?.deletedAt != null
+              storedTombstone && isDeletedChange(storedTombstone)
                 ? storedTombstone
                 : loserTombstone(
                     incoming.change as Change,

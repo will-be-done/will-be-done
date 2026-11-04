@@ -76,6 +76,7 @@ describe("drop target feedback", () => {
       const column = target({
         modelId: modelType === "dailyList" ? "day" : "source-section",
         modelType,
+        projectId: "project",
       });
       const row = target({
         modelId: "row",
@@ -156,7 +157,11 @@ describe("drop target feedback", () => {
       modelType: "task",
       task: { id: "task", state: "todo", projectSectionId: "source-section" },
     });
-    const column = target({ modelId: "section", modelType: "projectSection" });
+    const column = target({
+      modelId: "section",
+      modelType: "projectSection",
+      projectId: "project",
+    });
     const targets = [checklist, row, column];
     expect(getModelDropTarget(source, targets)).toBe(row);
     expect(getDropIndicatorEdge(event(source, targets, checklist))).toBeNull();
@@ -207,6 +212,8 @@ describe("drop target feedback", () => {
     { modelId: "id" },
     { modelId: 1, modelType: "project" },
     { modelId: "id", modelType: "unknown" },
+    { modelId: "id", modelType: "projectSection" },
+    { modelId: "id", modelType: "projectSection", projectId: 1 },
     { modelId: "id", modelType: "task" },
     {
       modelId: "id",

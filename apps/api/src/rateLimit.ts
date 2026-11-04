@@ -121,7 +121,8 @@ export function registerAppRateLimiting(
         });
       }
     });
-    server.addHook("onRequest", async () => {
+    server.addHook("onRequest", async (request) => {
+      if (request.routeOptions.config.rateLimit === false) return;
       if (redisHealthy) return;
 
       throw Object.assign(
@@ -152,6 +153,7 @@ export function registerAppRateLimiting(
   let checkGlobalLimit: ReturnType<FastifyInstance["rateLimit"]> | undefined;
 
   server.addHook("onRequest", async (request, reply) => {
+    if (request.routeOptions.config.rateLimit === false) return;
     if (!checkGlobalLimit) {
       throw new Error("Global rate limiter was not initialized");
     }

@@ -1,5 +1,6 @@
 // Pure utilities and maps - keep as star exports
 export * from "./utils";
+export * from "./richTextItems";
 export * from "./maps";
 export * from "./syncMap";
 export * from "./tables";
@@ -23,5 +24,6 @@ export * from "./dailyLists";
 export * from "./dailyEntries";
 export * from "./stashEntries";
 export * from "./checklistItems";
+export * from "./trash";
 export * from "./backup";
 export * from "./importer/ticktick";

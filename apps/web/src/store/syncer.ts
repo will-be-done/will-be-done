@@ -550,6 +550,7 @@ export class Syncer {
           downloadId: localDownloadId,
         }),
       );
+      this.forceSync();
       return false;
     }
     if (commit.download.type === "staged") {

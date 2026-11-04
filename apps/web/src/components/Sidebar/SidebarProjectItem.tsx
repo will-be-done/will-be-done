@@ -24,6 +24,7 @@ import {
 } from "@/lib/dnd/models";
 import ReactDOM from "react-dom";
 import { useSidebar } from "@/components/ui/sidebar.tsx";
+import { ProjectIcon } from "@/components/ui/emoji";
 
 type DndState =
   | { type: "idle" }
@@ -56,7 +57,9 @@ const DragPreview = ({
     className="flex items-center px-2 py-1.5 rounded-lg bg-panel ring-1 ring-ring"
     style={style}
   >
-    <span className="text-base mr-2 flex-shrink-0">{icon}</span>
+    <span className="text-base mr-2 flex-shrink-0">
+      <ProjectIcon icon={icon} />
+    </span>
     <span className="text-content text-sm whitespace-nowrap overflow-hidden text-ellipsis">
       {title}
     </span>
@@ -178,7 +181,9 @@ export const SidebarProjectItem = ({
           isOver && "ring-2 ring-accent bg-accent/10",
         )}
       >
-        <span className="text-base flex-shrink-0">{project.icon || "🟡"}</span>
+        <span className="text-base flex-shrink-0">
+          <ProjectIcon icon={project.icon} />
+        </span>
         <span className="flex-1 truncate">{project.title}</span>
         {(notDoneCount > 0 || overdueCount > 0) && (
           <span className="flex items-center gap-1 text-xs tabular-nums text-content-tinted">
@@ -197,7 +202,7 @@ export const SidebarProjectItem = ({
         ReactDOM.createPortal(
           <DragPreview
             title={project.title}
-            icon={project.icon || "🟡"}
+            icon={project.icon}
             style={{
               boxSizing: "border-box",
               width: dndState.rect.width,

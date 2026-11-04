@@ -5,3 +5,4 @@ export * from "./syncProtocol";
 export * from "./hlc";
 export * from "./syncV4";
 export * from "./syncV4Migration";
+export * from "./richText";

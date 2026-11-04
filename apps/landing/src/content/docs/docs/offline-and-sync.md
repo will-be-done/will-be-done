@@ -45,10 +45,19 @@ Sync merges a task's fields independently. If you change the title on your
 phone and the description on your desktop while both are offline, both edits
 can survive.
 
-If both devices change the same field, the edit ordered later by the sync
-clock wins. Reconnection order does not decide the winner. For example, a
-phone's earlier title edit does not overwrite a later desktop title edit just
-because the phone reconnects last.
+Task and recurring template titles, descriptions, and checklist items are
+stored as CRDT text, a format built for concurrent editing, like a shared
+document. If two devices edit the same text while offline, the edits merge
+character by character once they sync. Both devices end up with the same text,
+and neither edit is lost. For example, if you fix a typo in a description on
+your phone and add a paragraph on your desktop, you get both changes. Two
+edits to the same words can come out interleaved, so check the text after a
+conflict.
+
+For other fields, if both devices change the same field, the edit ordered
+later by the sync clock wins. Reconnection order does not decide the winner.
+For example, a phone's earlier schedule change does not overwrite a later
+desktop schedule change just because the phone reconnects last.
 
 Deleting a task records a deletion for other devices to receive. A stale edit
 on another device does not recreate the deleted task.

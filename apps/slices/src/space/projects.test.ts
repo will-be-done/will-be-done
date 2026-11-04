@@ -686,6 +686,78 @@ describe("moving stashed tasks through app drops", () => {
   });
 });
 
+describe("reordering project sections through app drops", () => {
+  function sectionIds(db: DB, projectId: string) {
+    return runSelector<string[]>(
+      db,
+      function* () {
+        return (yield* projectSectionsByProjectId({ projectId })).map(
+          (section) => section.id,
+        );
+      },
+      [],
+    );
+  }
+
+  function dropSection(
+    db: DB,
+    target: string,
+    dropped: string,
+    edge: "top" | "bottom",
+  ) {
+    syncDispatch(
+      db,
+      appHandleDrop({
+        id: target,
+        modelType: "projectSection",
+        dropId: dropped,
+        dropModelType: "projectSection",
+        edge,
+      }),
+    );
+  }
+
+  it("places the dropped section before or after the target", () => {
+    const db = createDB();
+    const { project } = createProject(db);
+    for (const id of ["b", "c"]) {
+      syncDispatch(
+        db,
+        createProjectSection({
+          sectionDraft: { id, projectId: project.id, title: id },
+          position: "append",
+        }),
+      );
+    }
+    const [a, b, c] = sectionIds(db, project.id).slice(-3);
+    const rest = sectionIds(db, project.id).slice(0, -3);
+
+    dropSection(db, a, c, "top");
+    expect(sectionIds(db, project.id)).toEqual([...rest, c, a, b]);
+
+    dropSection(db, b, c, "bottom");
+    expect(sectionIds(db, project.id)).toEqual([...rest, a, b, c]);
+
+    dropSection(db, a, b, "bottom");
+    expect(sectionIds(db, project.id)).toEqual([...rest, a, b, c]);
+  });
+
+  it("ignores a section dropped onto another project's section", () => {
+    const db = createDB();
+    const { project: first, section: firstSection } = createProject(db);
+    const { project: second, section: secondSection } = createProject(db, {
+      id: "project-2",
+    });
+    const before = [sectionIds(db, first.id), sectionIds(db, second.id)];
+
+    dropSection(db, firstSection.id, secondSection.id, "top");
+
+    expect([sectionIds(db, first.id), sectionIds(db, second.id)]).toEqual(
+      before,
+    );
+  });
+});
+
 describe("project stash-aware timeline counts", () => {
   it("excludes stashed tasks from the stash-aware not-done count only", () => {
     const db = createDB();

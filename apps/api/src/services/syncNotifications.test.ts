@@ -48,7 +48,7 @@ describe("database sync notifications", () => {
     const subscription = await caller.onChangesAvailable({
       dbId: "user-1",
       dbType: "user",
-      syncVersion: 4,
+      syncVersion: 5,
     });
     const iterator = subscription[Symbol.asyncIterator]();
 
@@ -83,7 +83,7 @@ describe("database sync notifications", () => {
     const subscription = await caller.onChangesAvailable({
       dbId: "user-1",
       dbType: "user",
-      syncVersion: 4,
+      syncVersion: 5,
     });
     const iterator = subscription[Symbol.asyncIterator]();
 

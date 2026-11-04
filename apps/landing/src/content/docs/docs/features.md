@@ -1,6 +1,6 @@
 ---
 title: Features
-description: How tasks, projects, scheduling, Stash, and recurring templates work.
+description: How tasks, text formatting, projects, scheduling, Stash, and recurring templates work.
 sidebar:
   order: 1
 ---
@@ -16,6 +16,28 @@ menu. The inbox is a project for tasks you have not organized yet.
 
 Spaces separate your projects and schedules. For example, work and personal
 tasks can live in different spaces.
+
+## Text formatting
+
+Every text field on a task or recurring template is a WYSIWYG editor that
+understands Markdown. This covers the title, the description, and each
+checklist item. Type Markdown and it turns into formatting as you write:
+`**bold**`, `*italic*`, `~~strikethrough~~`, and `` `code` `` work in all of
+them. Descriptions also support `#` headings, `-` and `1.` lists, `>` quotes,
+code blocks, and `---` dividers.
+
+The text stays Markdown underneath. When the cursor is inside formatted text,
+its Markdown markers appear around it, such as the `**` around bold text.
+A toolbar above the description applies the same formatting.
+Pasted Markdown text keeps its formatting, and pasting a URL over selected
+text turns it into a link. See
+[text formatting shortcuts](/docs/keyboard-shortcuts/#text-formatting).
+
+Each of these fields syncs as a shared document. If you edit the same title,
+description, or checklist item on two devices, even offline, both sets of edits
+are kept. See [conflicting changes](/docs/offline-and-sync/#conflicting-changes).
+
+Project and section names are plain text.
 
 ## Weekly timeline and Today
 
@@ -98,12 +120,18 @@ The delete action depends on where you use it:
 
 | View              | Effect                                                            |
 | ----------------- | ----------------------------------------------------------------- |
-| Project section   | Deletes the task and its scheduled and Stash appearances          |
+| Project section   | Moves the task to Trash with its scheduled and Stash appearances  |
 | Timeline or Today | Removes the scheduled appearance; the task remains in its project |
 | Stash             | Removes the Stash appearance; the task remains in its project     |
 
 Resetting a task's schedule also keeps the task. Undo and redo are not available
 yet. See [keyboard shortcuts](/docs/keyboard-shortcuts/) for the corresponding keys.
+
+Open **Trash** at the bottom of the sidebar to restore a deleted task or delete
+it forever. Restoring returns the task to its section, checklist, schedule, and
+Stash; if its project is gone, it returns to the Inbox. Tasks are deleted forever
+30 days after they enter Trash. Deleting a project deletes its tasks without
+moving them to Trash.
 
 ## Imports and space backups
 

@@ -381,6 +381,61 @@ describe("entry conflict merge", () => {
     ]);
   });
 
+  it("revives a tombstoned entry id only through a newer restore", () => {
+    const db = createDB();
+    const createdAt = "0000000010-0001-client-a";
+    const deletedAt = "0000000020-0001-client-a";
+    syncDispatch(
+      db,
+      action({
+        name: "seedRestorableEntryTombstone",
+        args: {},
+        handler: function* () {
+          yield* insert(changesTable, [
+            {
+              ...makeChange(
+                dailyEntriesTable.tableName,
+                "entry-deleted",
+                createdAt,
+              ),
+              deletedAt,
+              updatedAt: deletedAt,
+            },
+          ]);
+        },
+      })({}),
+    );
+    const merge = (input: ChangesetArrayType, nextClock: string) =>
+      syncDispatch(
+        db,
+        mergeSpaceChanges({
+          input,
+          nextClock,
+          clientId: "server",
+          registeredSyncableTableNameMap: registeredSpaceSyncableTableNameMap,
+        }),
+      );
+    const daily = () =>
+      selectSync(db, { selector: rowsAndChanges, args: {} }).daily;
+
+    const stale = incomingDailyEntry("entry-deleted", "list-old", createdAt);
+    merge(stale, "0000000030-0001-server");
+    expect(daily()).toEqual([]);
+
+    const restoredAt = "0000000040-0001-client-a";
+    const restored = incomingDailyEntry("entry-deleted", "list-old", createdAt);
+    restored[0]!.data[0]!.change = {
+      ...restored[0]!.data[0]!.change,
+      deletedAt,
+      restoredAt,
+      updatedAt: restoredAt,
+    };
+    merge(restored, "0000000050-0001-server");
+    expect(daily()).toEqual([
+      expect.objectContaining({ id: "entry-deleted", taskId: "task-1" }),
+    ]);
+  });
+
   it("resolves duplicates split across changesets before inserting", () => {
     const db = createDB();
 

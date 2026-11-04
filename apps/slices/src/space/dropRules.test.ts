@@ -27,6 +27,7 @@ import {
   defaultChecklistItem,
   taskById,
   updateTask,
+  updateProjectSection,
   updateDailyEntry,
   dailyEntryByTaskId,
   stashEntryByTaskId,
@@ -191,12 +192,45 @@ const cases: [string, string[]][] = [
   ["stash-todo", todoSources],
   ["stash-done", []],
   ["project", [...projectSources, "project"]],
-  ["section", projectSources],
+  ["section", [...projectSources, "section"]],
   ["dailyList", todoSources],
   ["checklist", ["checklist"]],
 ];
 
 describe("drop eligibility", () => {
+  it.each(["project", "other-project"])(
+    "checks section project membership for %s in UI metadata and DB selectors",
+    (projectId) => {
+      const db = createDB();
+      const source = sources.find((model) => model.type === "projectSection")!;
+      const target = {
+        ...defaultProjectSection,
+        id: "target-section",
+        projectId,
+      };
+      syncDispatch(
+        db,
+        updateProjectSection({
+          projectSectionId: target.id,
+          section: { projectId },
+        }),
+      );
+      const expected = projectId === "project";
+      expect(canDropModel(dropData(source), dropData(target))).toBe(expected);
+      expect(
+        selectSync(db, {
+          selector: appCanDrop,
+          args: {
+            id: target.id,
+            modelType: target.type,
+            dropId: source.id,
+            dropModelType: source.type,
+          },
+        }),
+      ).toBe(expected);
+    },
+  );
+
   it.each([
     ["dailyList", todoSources],
     [

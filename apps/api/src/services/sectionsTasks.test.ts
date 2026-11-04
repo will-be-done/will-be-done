@@ -32,6 +32,7 @@ import {
   taskTemplatesTable,
   taskTemplateType,
   taskType,
+  trashedTasksTable,
   type Project,
   type ProjectSection,
   type Task,
@@ -294,6 +295,7 @@ function setUpDatabases() {
       dailyEntriesTable,
       scheduledTodoTasksTable,
       stashEntriesTable,
+      trashedTasksTable,
     ]),
   );
   syncDispatch(spaceDB, seedDomain({}));

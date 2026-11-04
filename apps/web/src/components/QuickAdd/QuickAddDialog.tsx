@@ -42,6 +42,7 @@ import { closeQuickAdd, openQuickAdd, useQuickAdd } from "./quickAddStore";
 import { cn } from "@/lib/utils";
 import { useFocusStore } from "@/store/focusSlice";
 import { TimeInput } from "@/components/Task/TaskTimeInputs";
+import { ProjectIcon } from "@/components/ui/emoji";
 
 const chipClass =
   "flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 text-xs text-content-tinted transition-colors hover:bg-white/[0.05] hover:text-content focus:outline-none focus-visible:border-accent/60";
@@ -237,7 +238,8 @@ function QuickAddForm({
             value={project?.id}
             options={projects.map((p) => ({
               value: p.id,
-              label: `${p.icon || "🟡"} ${p.title}`,
+              label: p.title,
+              prefix: <ProjectIcon icon={p.icon} />,
             }))}
             onChange={(id) => {
               setProjectId(id);
@@ -336,7 +338,7 @@ function SelectChip({
   label: string;
   icon: React.ReactNode;
   value: string | undefined;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; prefix?: React.ReactNode }[];
   onChange: (value: string) => void;
   returnFocusRef: React.RefObject<HTMLElement | null>;
 }) {
@@ -349,7 +351,7 @@ function SelectChip({
         <button type="button" aria-label={label} className={chipClass}>
           {icon}
           <span className="max-w-44 truncate text-content">
-            {current?.label}
+            {current?.prefix} {current?.label}
           </span>
           <ChevronDown className="h-3 w-3 shrink-0" />
         </button>
@@ -385,7 +387,9 @@ function SelectChip({
                 }}
                 className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-calendar-day transition-colors data-[selected=true]:bg-panel-tinted data-[selected=true]:text-content"
               >
-                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {option.prefix} {option.label}
+                </span>
                 {option.value === value && (
                   <Check className="h-3.5 w-3.5 shrink-0 text-accent" />
                 )}

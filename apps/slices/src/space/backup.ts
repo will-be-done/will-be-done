@@ -35,6 +35,11 @@ import {
   TaskTemplate,
   taskTemplateType,
   taskType,
+  trashedTasksTable,
+  trashedTaskType,
+  trashSnapshot,
+  type TrashedTaskRow,
+  type TrashSnapshot,
 } from "./tables";
 import { uuidv7 } from "uuidv7";
 
@@ -113,6 +118,12 @@ interface ChecklistItemBackup {
   checkedAt: number | null;
 }
 
+interface TrashedTaskBackup {
+  id: string;
+  trashedAt: number;
+  snapshot: string;
+}
+
 export interface Backup {
   tasks: TaskBackup[];
   projects: ProjectBackup[];
@@ -121,6 +132,7 @@ export interface Backup {
   projectSections: ProjectSectionBackup[];
   dailyEntries?: DailyEntryBackup[];
   checklistItems?: ChecklistItemBackup[];
+  trashedTasks?: TrashedTaskBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -244,6 +256,15 @@ const backupSchema = v.object({
         content: v.string(),
         createdAt: v.number(),
         checkedAt: v.union(v.number(), v.null()),
+      }),
+    ),
+  ),
+  trashedTasks: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        trashedAt: v.number(),
+        snapshot: v.string(),
       }),
     ),
   ),
@@ -389,6 +410,29 @@ function validTime(time: string | undefined, owner: string) {
 function validDuration(minutes: number | undefined, owner: string) {
   if (minutes === undefined || isValidTaskDuration(minutes)) return minutes;
   console.warn(`Invalid duration ${minutes} omitted for ${owner}`);
+  return undefined;
+}
+
+function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(snapshot);
+  } catch {
+    parsed = undefined;
+  }
+  const result = trashSnapshot.normalize(parsed);
+  if (result.ok && !result.omitted) {
+    const { task, checklistItems, dailyEntry, stashEntry } = result.value;
+    const belongsToTask =
+      task.id === id &&
+      checklistItems.every(
+        (item) => item.parentType === taskType && item.parentId === id,
+      ) &&
+      (!dailyEntry || dailyEntry.taskId === id) &&
+      (!stashEntry || stashEntry.taskId === id);
+    if (belongsToTask) return result.value;
+  }
+  console.warn(`Invalid trash snapshot omitted for task ${id}`);
   return undefined;
 }
 
@@ -629,7 +673,32 @@ const getNewModels = action({
       }
     }
 
-    return models;
+    const liveTaskIds = new Set(
+      models.filter((model) => model.type === taskType).map(({ id }) => id),
+    );
+    const trashedTasks: TrashedTaskRow[] = [];
+    for (const row of backup.trashedTasks || []) {
+      if (liveTaskIds.has(row.id)) continue;
+      const snapshot = parseTrashSnapshot(row);
+      if (!snapshot) continue;
+
+      // DailyList IDs are derived per space, so remap like live entries.
+      const { dailyEntry } = snapshot;
+      const dailyListId =
+        dailyEntry && dailyListIdMap.get(dailyEntry.dailyListId);
+      trashedTasks.push({
+        type: trashedTaskType,
+        id: row.id,
+        trashedAt: row.trashedAt,
+        snapshot: JSON.stringify({
+          ...snapshot,
+          dailyEntry:
+            dailyEntry && dailyListId ? { ...dailyEntry, dailyListId } : null,
+        } satisfies TrashSnapshot),
+      });
+    }
+
+    return { models, trashedTasks };
   },
 });
 
@@ -639,14 +708,14 @@ export const loadSpaceBackup = selector({
   handler: function* loadSpaceBackup({ backup }) {
     for (const table of registeredSpaceSyncableTables) {
       // DailyLists are deterministic, ensure-only scaffolding. A backup that
-      // omits a date must not turn that absence into a permanent tombstone.
+      // omits a date must not turn that absence into a tombstone.
       if (table === dailyListsTable) continue;
       const allIds = (yield* selectFrom(table, "byIds")).map((r) => r.id);
 
       yield* deleteRows(table, allIds);
     }
 
-    const models = yield* getNewModels({
+    const { models, trashedTasks } = yield* getNewModels({
       backup: normalizeSpaceBackup(backup),
     });
     const modelsByTable = new Map<
@@ -668,6 +737,7 @@ export const loadSpaceBackup = selector({
         yield* insert(table, tableModels);
       }
     }
+    if (trashedTasks.length > 0) yield* insert(trashedTasksTable, trashedTasks);
   },
 });
 
@@ -679,6 +749,7 @@ export const getSpaceBackup = selector({
     const projects: Project[] = yield* allProjects({});
     const taskTemplates: TaskTemplate[] = yield* allTaskTemplates({});
     const checklistItems: ChecklistItem[] = yield* allChecklistItems({});
+    const trashedTasks = yield* selectFrom(trashedTasksTable, "byIds");
     const dailyLists: DailyList[] = [];
 
     // Get all daily lists
@@ -769,6 +840,11 @@ export const getSpaceBackup = selector({
         content: item.content,
         createdAt: item.createdAt,
         checkedAt: item.checkedAt,
+      })),
+      trashedTasks: trashedTasks.map(({ id, trashedAt, snapshot }) => ({
+        id,
+        trashedAt,
+        snapshot,
       })),
     } satisfies Backup;
   },
