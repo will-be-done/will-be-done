@@ -1,3 +1,4 @@
+import ICAL from "ical.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DB,
@@ -235,6 +236,99 @@ describe("expandExternalEvent", () => {
       "2030-01-14T10:00:00.000Z",
     ]);
   });
+
+  it("shows an instance moved far before its original date", () => {
+    const ics = vcalendar(
+      vevent(
+        "UID:d",
+        "SUMMARY:Daily",
+        "DTSTART:20261101T100000Z",
+        "DTEND:20261101T110000Z",
+        "RRULE:FREQ=DAILY",
+      ),
+      vevent(
+        "UID:d",
+        "SUMMARY:Daily (pulled in)",
+        "RECURRENCE-ID:20261120T100000Z",
+        "DTSTART:20261110T150000Z",
+        "DTEND:20261110T160000Z",
+      ),
+    );
+    const occurrences = expandExternalEvent(
+      row(ics),
+      utc("2026-11-10T00:00:00Z"),
+      utc("2026-11-11T00:00:00Z"),
+    );
+    expect(occurrences.map((o) => o.title)).toEqual([
+      "Daily",
+      "Daily (pulled in)",
+    ]);
+    expect(
+      expandExternalEvent(
+        row(ics),
+        utc("2026-11-20T00:00:00Z"),
+        utc("2026-11-21T00:00:00Z"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("expands years-old dense series near the requested range", () => {
+    const hourly = vcalendar(
+      vevent(
+        "UID:h",
+        "DTSTART:20200101T000000Z",
+        "DURATION:PT10M",
+        "RRULE:FREQ=HOURLY",
+      ),
+    );
+    expect(
+      expandExternalEvent(
+        row(hourly),
+        utc("2026-11-10T00:00:00Z"),
+        utc("2026-11-10T03:00:00Z"),
+      ).map((o) => new Date(o.startMs).toISOString()),
+    ).toEqual([
+      "2026-11-10T00:00:00.000Z",
+      "2026-11-10T01:00:00.000Z",
+      "2026-11-10T02:00:00.000Z",
+    ]);
+  });
+
+  it.each([
+    [
+      "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH",
+      "2026-10-20T00:00:00Z",
+      "2026-11-20T00:00:00Z",
+    ],
+    ["FREQ=HOURLY;INTERVAL=6", "2026-11-01T00:00:00Z", "2026-11-03T00:00:00Z"],
+    // Skipping ahead lands on a day the rule filters out.
+    ["FREQ=DAILY;BYMONTH=1,7", "2026-12-30T00:00:00Z", "2027-01-03T00:00:00Z"],
+    ["FREQ=DAILY;BYMONTH=1,7", "2026-11-01T00:00:00Z", "2026-11-20T00:00:00Z"],
+  ])("matches a full expansion when skipping ahead: %s", (rule, from, to) => {
+    const ics = vcalendar(
+      berlin,
+      vevent(
+        "UID:r",
+        "DTSTART;TZID=Europe/Berlin:20200102T090000",
+        "DURATION:PT1H",
+        `RRULE:${rule}`,
+      ),
+    );
+    const event = new ICAL.Event(
+      new ICAL.Component(ICAL.parse(ics)).getFirstSubcomponent("vevent")!,
+    );
+    const expected: number[] = [];
+    const iterator = event.iterator();
+    for (let next = iterator.next(); next; next = iterator.next()) {
+      const start = next.toJSDate().getTime();
+      if (start >= utc(to)) break;
+      if (start >= utc(from)) expected.push(start);
+    }
+
+    expect(
+      expandExternalEvent(row(ics), utc(from), utc(to)).map((o) => o.startMs),
+    ).toEqual(expected);
+  });
 });
 
 describe("externalEventSeriesBounds", () => {
@@ -270,6 +364,23 @@ describe("externalEventSeriesBounds", () => {
       ),
     );
     expect(bounds?.seriesEnd).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("starts an unbounded series at an instance moved before it", () => {
+    const bounds = externalEventSeriesBounds(
+      vcalendar(
+        vevent("UID:a", "DTSTART:20261110T100000Z", "RRULE:FREQ=DAILY"),
+        vevent(
+          "UID:a",
+          "RECURRENCE-ID:20261112T100000Z",
+          "DTSTART:20261101T100000Z",
+        ),
+      ),
+    );
+    expect(bounds).toEqual({
+      seriesStart: utc("2026-11-01T10:00:00Z") - 14 * HOUR,
+      seriesEnd: Number.MAX_SAFE_INTEGER,
+    });
   });
 
   it("rejects resources without a usable event", () => {

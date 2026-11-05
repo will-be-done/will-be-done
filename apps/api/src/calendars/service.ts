@@ -106,10 +106,20 @@ async function mirrorSource(
   now: number,
 ): Promise<DiscoveredCalendar[]> {
   const spaceDb = (await getHyperDB(spaceDBConfig(source.spaceId))).db;
+  const disabled = new Set(parseJson<string[]>(source.disabledCalendarKeys));
+  // Unticked calendars disappear even when the remote fetch below fails.
+  await asyncDispatch(
+    spaceDb,
+    removeExternalCalendars({
+      sourceId: source.id,
+      keepCalendarKeys: parseJson<DiscoveredCalendar[]>(source.calendars)
+        .filter((calendar) => !disabled.has(calendar.key))
+        .map((calendar) => calendar.key),
+    }),
+  );
   const secret = parseJson<CalendarSourceSecret>(
     decryptSecret(source.secret, config.encryptionKey),
   );
-  const disabled = new Set(parseJson<string[]>(source.disabledCalendarKeys));
   const notBefore = now - CALENDAR_PAST_WINDOW_MS;
 
   let calendars: DiscoveredCalendar[];
@@ -155,8 +165,12 @@ async function mirrorSource(
         changed.length > 0
           ? await client.fetchEvents(calendar.key, changed)
           : [];
+      // A fetched body that can't be stored drops the old row instead of
+      // leaving a stale version visible.
+      const rejected = new Set<string>();
       const events = fetched.flatMap(({ resource, etag, ics }) => {
         const prepared = prepareEventIcs(ics, notBefore);
+        if (!prepared) rejected.add(resource);
         return prepared ? [{ resource, etag, ...prepared }] : [];
       });
       await asyncDispatch(
@@ -166,7 +180,7 @@ async function mirrorSource(
           calendarKey: calendar.key,
           name: calendar.name,
           color: calendar.color,
-          resources: [...remote.keys()],
+          resources: [...remote.keys()].filter((key) => !rejected.has(key)),
           events,
         }),
       );

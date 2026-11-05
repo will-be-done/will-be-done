@@ -32,6 +32,7 @@ import {
   CalendarFetchError,
   guardedFetch,
   isPrivateAddress,
+  mayShareCredentials,
 } from "./guardedFetch";
 import { syncDueCalendarSources } from "./scheduler";
 import {
@@ -102,6 +103,7 @@ const davState = {
   events: new Map<string, FakeEvent>(),
   multigetHrefs: [] as string[][],
   feed: "",
+  foreignAuth: [] as string[],
 };
 
 const multistatus = (responses: string[]) =>
@@ -133,6 +135,12 @@ beforeAll(() => {
         return new Response(request.headers.get("authorization") ?? "none");
       }
       if (url.pathname === "/big") return new Response("x".repeat(2048));
+      if (url.pathname === "/foreign-principal/") {
+        davState.foreignAuth.push(
+          request.headers.get("authorization") ?? "none",
+        );
+        return new Response("no", { status: 401 });
+      }
 
       if (
         request.headers.get("authorization") !== `Basic ${btoa("me:secret")}`
@@ -145,6 +153,14 @@ beforeAll(() => {
           status: 301,
           headers: { location: "/dav/" },
         });
+      }
+      if (url.pathname === "/hijacked/") {
+        return multistatus([
+          response(
+            "/hijacked/",
+            `<D:current-user-principal><D:href>http://localhost:${url.port}/foreign-principal/</D:href></D:current-user-principal>`,
+          ),
+        ]);
       }
       if (url.pathname === "/dav/") {
         return multistatus([
@@ -248,7 +264,25 @@ afterEach(() => {
   mock.restore();
   davState.events.clear();
   davState.multigetHrefs = [];
+  davState.foreignAuth = [];
 });
+
+const replaceSecret = (mainDB: DB, id: string, password: string) => {
+  const sealed = encryptSecret(
+    JSON.stringify({ url: `${baseUrl}/`, username: "me", password }),
+    config.encryptionKey,
+  );
+  const replace = createAction()({
+    name: "replaceSourceSecretForTest",
+    args: {},
+    handler: function* () {
+      yield* upsert(calendarSourcesTable, [
+        { ...source(mainDB, id), secret: sealed },
+      ]);
+    },
+  });
+  syncDispatch(mainDB, replace({}));
+};
 
 describe("CalDAV sources", () => {
   test("discovers event calendars and mirrors them incrementally", async () => {
@@ -353,20 +387,7 @@ describe("CalDAV sources", () => {
       kind: "caldav",
       secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
     });
-    const sealed = encryptSecret(
-      JSON.stringify({ url: `${baseUrl}/`, username: "me", password: "old" }),
-      config.encryptionKey,
-    );
-    const replace = createAction()({
-      name: "replaceSourceSecretForTest",
-      args: {},
-      handler: function* () {
-        yield* upsert(calendarSourcesTable, [
-          { ...source(mainDB, id), secret: sealed },
-        ]);
-      },
-    });
-    syncDispatch(mainDB, replace({}));
+    replaceSecret(mainDB, id, "old");
 
     const before = Date.now();
     await syncCalendarSource(mainDB, id, config);
@@ -376,6 +397,76 @@ describe("CalDAV sources", () => {
     expect(failed.nextSyncAt).toBeGreaterThanOrEqual(
       before + config.syncIntervalMs,
     );
+  });
+});
+
+describe("CalDAV source safety", () => {
+  test("does not send the password to a host found during discovery", async () => {
+    const { mainDB } = setup();
+    const error = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: {
+        url: `${baseUrl}/hijacked/`,
+        username: "me",
+        password: "secret",
+      },
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(CalendarFetchError);
+    expect(davState.foreignAuth).toEqual(["none"]);
+  });
+
+  test("hides an unticked calendar even when the server fails", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.events.set("/dav/calendars/me/work/a.ics", {
+      etag: '"1"',
+      ics: ics("a", "A", "20991110T100000Z"),
+    });
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+    });
+    expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toHaveLength(
+      1,
+    );
+
+    replaceSecret(mainDB, id, "revoked");
+    await setCalendarEnabled(
+      mainDB,
+      config,
+      source(mainDB, id),
+      `${baseUrl}/dav/calendars/me/work/`,
+      false,
+    );
+    expect(source(mainDB, id).status).toBe("error");
+    expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
+    expect(selectSync(spaceDb, { selector: allCalendars, args: {} })).toEqual(
+      [],
+    );
+  });
+
+  test("drops an event whose update can no longer be stored", async () => {
+    const { mainDB, spaceDb } = setup();
+    davState.events.set("/dav/calendars/me/work/a.ics", {
+      etag: '"1"',
+      ics: ics("a", "A", "20991110T100000Z"),
+    });
+    const id = await addCalendarSource(mainDB, config, {
+      userId: "user",
+      spaceId: "space-1",
+      kind: "caldav",
+      secret: { url: `${baseUrl}/`, username: "me", password: "secret" },
+    });
+
+    davState.events.set("/dav/calendars/me/work/a.ics", {
+      etag: '"2"',
+      ics: ics("a", "A".repeat(300 * 1024), "20991110T100000Z"),
+    });
+    await syncCalendarSource(mainDB, id, config);
+    expect(selectSync(spaceDb, { selector: allEvents, args: {} })).toEqual([]);
   });
 });
 
@@ -505,6 +596,10 @@ describe("guardedFetch", () => {
     ["fd00::1", true],
     ["fe80::1", true],
     ["::ffff:127.0.0.1", true],
+    // How URL parsing normalizes [::ffff:127.0.0.1].
+    ["::ffff:7f00:1", true],
+    ["::7f00:1", true],
+    ["0.0.0.0", true],
     ["8.8.8.8", false],
     ["2606:4700::1111", false],
   ])("%s private: %s", (ip, expected) => {
@@ -514,6 +609,21 @@ describe("guardedFetch", () => {
   test("refuses private hosts unless allowed", async () => {
     expect(
       guardedFetch(`${baseUrl}/big`, {}, { allowPrivateNetworks: false }),
+    ).rejects.toThrow("private network address");
+    expect(
+      guardedFetch(
+        `http://[::ffff:127.0.0.1]:${server.port}/big`,
+        {},
+        { allowPrivateNetworks: false },
+      ),
+    ).rejects.toThrow("private network address");
+    // Resolved names are checked by the lookup the connection itself uses.
+    expect(
+      guardedFetch(
+        `http://localhost:${server.port}/big`,
+        {},
+        { allowPrivateNetworks: false },
+      ),
     ).rejects.toThrow("private network address");
     expect(
       guardedFetch("file:///etc/passwd", {}, { allowPrivateNetworks: true }),
@@ -533,9 +643,20 @@ describe("guardedFetch", () => {
   test("drops credentials when redirected to another site", async () => {
     const result = await guardedFetch(
       `${baseUrl}/redirect-elsewhere`,
-      { headers: { authorization: "Basic abc" } },
+      { authorization: "Basic abc" },
       { allowPrivateNetworks: true },
     );
     expect(result.body).toBe("none");
+  });
+
+  test.each([
+    ["https://caldav.icloud.com/", "https://p52-caldav.icloud.com/1/", true],
+    ["https://dav.example.com/", "https://dav.example.com:8443/", true],
+    ["https://calendar.example.co.uk/", "https://attacker.co.uk/", false],
+    ["https://me.github.io/", "https://attacker.github.io/", false],
+    ["https://dav.example.com/", "http://dav.example.com/", false],
+    ["http://10.0.0.5/", "http://10.0.0.6/", false],
+  ])("credentials from %s to %s: %s", (from, to, expected) => {
+    expect(mayShareCredentials(new URL(from), new URL(to))).toBe(expected);
   });
 });

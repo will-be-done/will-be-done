@@ -3,6 +3,7 @@ import {
   CalendarFetchError,
   guardedFetch,
   type GuardedFetchOptions,
+  mayShareCredentials,
 } from "./guardedFetch";
 import type { DiscoveredCalendar } from "./tables";
 
@@ -89,16 +90,19 @@ export class CalDavClient {
     depth: "0" | "1",
     body: string,
   ) {
+    // Discovery follows server-provided links; only those near the account
+    // URL get the password.
+    const trusted = mayShareCredentials(
+      new URL(this.account.url),
+      new URL(url),
+    );
     const response = await guardedFetch(
       url,
       {
         method,
-        headers: {
-          authorization: this.authorization,
-          depth,
-          "content-type": "application/xml; charset=utf-8",
-        },
+        headers: { depth, "content-type": "application/xml; charset=utf-8" },
         body,
+        ...(trusted ? { authorization: this.authorization } : {}),
       },
       this.fetchOptions,
     );
