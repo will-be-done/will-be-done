@@ -10,6 +10,7 @@ import { useUnmount } from "../../utils";
 import { parseColumnKey, useFocusStore } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
 import { hasMultiSelection } from "@/components/Selection/useSelectionActions";
+import { hasModKey } from "@/components/RichText/keys";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   allProjectsSorted,
@@ -77,12 +78,12 @@ export const MoveModal = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown" || (e.ctrlKey && e.code === "KeyJ")) {
+    if (e.key === "ArrowDown" || (hasModKey(e) && e.code === "KeyJ")) {
       e.preventDefault();
       setSelectedIndex((prev) =>
         prev < projects.length - 1 ? prev + 1 : prev,
       );
-    } else if (e.key === "ArrowUp" || (e.ctrlKey && e.code === "KeyK")) {
+    } else if (e.key === "ArrowUp" || (hasModKey(e) && e.code === "KeyK")) {
       e.preventDefault();
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
     } else if (e.key === "Enter" && projects[selectedIndex]) {

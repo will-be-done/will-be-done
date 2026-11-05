@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { hasModKey } from "@/components/RichText/keys";
 import { useMatch, useParams, useSearch } from "@tanstack/react-router";
 import { format, isToday, isTomorrow, parse } from "date-fns";
 import { Command } from "cmdk";
@@ -51,7 +52,7 @@ const popoverClass =
   "z-[10001] border border-white/10 bg-task-dropdown p-0 backdrop-blur-none";
 
 // Unlike isInputElement, focused cards and buttons still get the shortcut;
-// only Ctrl+A's select-all while typing must win.
+// only select-all while typing must win.
 const isEditingText = (target: EventTarget | null) =>
   target instanceof HTMLInputElement ||
   target instanceof HTMLTextAreaElement ||
@@ -84,8 +85,7 @@ export function QuickAddDialog() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.code !== "KeyA" ||
-        !event.ctrlKey ||
-        event.metaKey ||
+        !hasModKey(event) ||
         event.altKey ||
         event.shiftKey ||
         event.repeat ||

@@ -54,7 +54,7 @@ const shortcutGroups: ShortcutGroup[] = [
     column: "left",
     description: "Available anywhere in a space",
     shortcuts: [
-      { bindings: [["Ctrl", "A"]], description: "Quick add task" },
+      { bindings: [[MOD_KEY, "A"]], description: "Quick add task" },
       { bindings: [["\\"]], description: "Toggle stash" },
       { bindings: [["V"]], description: "Toggle task details" },
       { bindings: [["P"]], description: "Toggle project view" },
@@ -73,19 +73,19 @@ const shortcutGroups: ShortcutGroup[] = [
       { bindings: [["H"], ["L"]], description: "Move between columns" },
       {
         bindings: [
-          ["Ctrl", "J"],
-          ["Ctrl", "K"],
-          ["Ctrl", "↓"],
-          ["Ctrl", "↑"],
+          [MOD_KEY, "J"],
+          [MOD_KEY, "K"],
+          [MOD_KEY, "↓"],
+          [MOD_KEY, "↑"],
         ],
         description: "Move task up or down",
       },
       {
         bindings: [
-          ["Ctrl", "H"],
-          ["Ctrl", "L"],
-          ["Ctrl", "←"],
-          ["Ctrl", "→"],
+          [MOD_KEY, "H"],
+          [MOD_KEY, "L"],
+          [MOD_KEY, "←"],
+          [MOD_KEY, "→"],
         ],
         description: "Move task left or right",
       },
