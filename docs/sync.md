@@ -115,7 +115,11 @@ cursor and may be duplicated or lost. The persisted server revision is the
 authority.
 
 Cross-tab change broadcasts are also wake-up/data-transfer hints sent only
-after the originating tab has persisted its changes. A receiving tab merges
+after the originating tab has persisted its changes. UI subscribers observe
+atomic memory commits before persistence completes. The publication queue
+waits for runtime durability before broadcasting or waking sync, and sync
+operations wait for durability before advancing transport or acknowledging a
+download. A receiving tab merges
 them with both `skip-sync` and HyperDB's `externalStorageMergeTrait`: the first
 prevents a duplicate local change-log entry, while the second lets the
 preloaded snapshot emit normal insert/upsert/delete invalidations and treats
@@ -452,7 +456,9 @@ server clock after deployment of this rule.
 Download chunk reads and acknowledgements use the same request deadline as the
 other sync requests. If a new local change appears after the upload snapshot
 was frozen, the freshness check skips the staged download and discards both
-local transfer snapshots; the next session retries from persisted cursors.
+local transfer snapshots. The client immediately starts a fresh session from
+persisted cursors, even if the local change predates the current loop's wake-up
+snapshot, as can happen when resuming an upload after reload.
 After a successful apply, the legacy sent clock is derived from the maximum
 locally covered compound cursor, not from iteration order.
 

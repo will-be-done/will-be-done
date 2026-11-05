@@ -42,10 +42,14 @@ pnpm sync:releases --images-only   # re-download images, keep the prose
 pnpm sync:releases --tag v0.10.1   # only this release
 ```
 
-It downloads the images a release body references, converts them to webp at the width the release
-author asked for, and rewrites the body to point at the local copies — so the images are served
-from our domain and optimised by Astro instead of hotlinked from GitHub. Downloads are staged and
-swapped in at the end, so a failure never leaves the assets out of step with the markdown.
+It downloads the images a release body references and converts PNG and JPEG images to WebP,
+keeping up to 1600 pixels of resolution for Retina displays. Image wrappers preserve the display
+widths set on GitHub. The images are served from our domain and optimised by Astro.
+Downloads are staged and swapped in at the end, so a failure never leaves the assets out of step
+with the markdown.
+
+`--images-only` refreshes the images and their display widths while preserving release text and
+metadata.
 
 `--images-only` refuses to run when a release body has gained, lost or reordered an image upstream,
 because the numbering would have moved and the hand-edited markdown would end up pointing at the

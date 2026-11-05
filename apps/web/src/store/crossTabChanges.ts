@@ -1,5 +1,6 @@
 import {
   asyncDispatch,
+  execAsync,
   externalStorageMergeTrait,
   type SubscribableDB,
 } from "@will-be-done/hyperdb";
@@ -48,6 +49,7 @@ export const createCrossTabChanges = ({
       syncSubDb.withTraits({ type: "skip-sync" }, externalStorageMergeTrait),
       merge(mergeArgs),
     );
+    await execAsync(syncSubDb.waitForPersistence());
     // A status-channel wake-up can finish before this asynchronous merge.
     // Wake again only once the incoming changes are visible to sync reads.
     onApplied();

@@ -169,20 +169,10 @@ function isPlaceholderAlt(alt: string): boolean {
   return /^(image|screenshot|img|picture)\b/i.test(trimmed);
 }
 
-/** Screenshots wider than this carry no extra detail on the page. */
+/** Enough pixels for the 768px release column on a 2x display. */
 const MAX_IMAGE_WIDTH = 1600;
 
-/**
- * Markdown images cannot carry a width, so the stored file's own width is what
- * decides how large the image renders (the page styles it as `width: auto`).
- * Resizing to the width the release author put on the `<img>` therefore
- * reproduces the layout they intended on GitHub.
- */
-async function downloadImage(
-  url: string,
-  targetBase: string,
-  displayWidth?: number,
-): Promise<string> {
+async function downloadImage(url: string, targetBase: string): Promise<string> {
   const response = await fetch(url, { redirect: "follow" });
   if (!response.ok) {
     throw new Error(
@@ -206,9 +196,8 @@ async function downloadImage(
   // this file at build time. Animations and vectors are kept as-is.
   if (extension === "png" || extension === "jpg") {
     const filePath = `${targetBase}.webp`;
-    const width = Math.min(displayWidth ?? MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH);
     await sharp(source)
-      .resize({ width, withoutEnlargement: true })
+      .resize({ width: MAX_IMAGE_WIDTH, withoutEnlargement: true })
       .webp({ quality: 82 })
       .toFile(filePath);
     return filePath;
@@ -223,6 +212,7 @@ async function downloadImage(
 interface RewriteResult {
   body: string;
   imageCount: number;
+  imageWidths: Map<string, number>;
   /**
    * Moves the downloaded images into place. Nothing under `src/assets/releases`
    * changes until this is called, so a caller that rejects the new body leaves
@@ -233,8 +223,9 @@ interface RewriteResult {
   discard: () => Promise<void>;
 }
 
-const NO_IMAGES: Pick<RewriteResult, "imageCount" | "commit" | "discard"> = {
+const NO_IMAGES: Omit<RewriteResult, "body"> = {
   imageCount: 0,
+  imageWidths: new Map(),
   commit: async () => {},
   discard: async () => {},
 };
@@ -289,6 +280,7 @@ async function localiseImages(
   await mkdir(stagingDir, { recursive: true });
 
   let result = withPlaceholders;
+  const imageWidths = new Map<string, number>();
 
   try {
     for (const [position, image] of found.entries()) {
@@ -296,7 +288,6 @@ async function localiseImages(
       const stagedPath = await downloadImage(
         image.url,
         path.join(stagingDir, String(number)),
-        image.width,
       );
       // The markdown must reference the final location, not the staging one.
       const finalPath = path.join(releaseAssetsDir, path.basename(stagedPath));
@@ -304,6 +295,7 @@ async function localiseImages(
         .relative(contentDir, finalPath)
         .split(path.sep)
         .join("/");
+      if (image.width !== undefined) imageWidths.set(relativePath, image.width);
 
       const alt = isPlaceholderAlt(image.alt)
         ? `Will Be Done ${release.tagName} screenshot ${number}`
@@ -320,8 +312,9 @@ async function localiseImages(
   }
 
   return {
-    body: result,
+    body: setImageDisplayWidths(result, imageWidths),
     imageCount: found.length,
+    imageWidths,
     commit: async () => {
       await rm(releaseAssetsDir, { recursive: true, force: true });
       await rename(stagingDir, releaseAssetsDir);
@@ -411,6 +404,7 @@ function buildSummary(body: string, highlights: string[], tag: string): string {
       (block) =>
         block.length > 0 &&
         !block.startsWith("#") &&
+        !block.startsWith("<") &&
         !BULLET_RE.test(block) &&
         !block.startsWith("!["),
     );
@@ -473,6 +467,19 @@ function renderFrontmatter(fields: Record<string, unknown>): string {
 }
 
 const LOCAL_IMAGE_RE = /!\[[^\]]*\]\((\.\.\/[^)\s]+)\)/g;
+const SIZED_IMAGE_RE =
+  /<figure style="max-width: [\d.]+px">\s*(!\[[^\]]*\]\(\.\.\/[^)\s]+\))\s*<\/figure>/g;
+
+function setImageDisplayWidths(markdown: string, widths: Map<string, number>) {
+  return markdown
+    .replace(SIZED_IMAGE_RE, "$1")
+    .replace(LOCAL_IMAGE_RE, (image, imagePath: string) => {
+      const width = widths.get(imagePath);
+      return width === undefined
+        ? image
+        : `<figure style="max-width: ${width}px">\n\n${image}\n\n</figure>`;
+    });
+}
 
 function localImagePaths(markdown: string): string[] {
   return [...markdown.matchAll(LOCAL_IMAGE_RE)].map((match) => match[1]).sort();
@@ -499,13 +506,14 @@ async function writeRelease(
   const {
     body: localised,
     imageCount,
+    imageWidths,
     commit,
     discard,
   } = await localiseImages(raw, release);
   const { body, compareUrl } = normaliseBody(localised);
 
   if (imagesOnly) {
-    // The markdown on disk is hand-edited and stays as it is, so the refreshed
+    // The text on disk is hand-edited and stays as it is, so the refreshed
     // files have to be exactly the ones it already references. If the release
     // body gained, lost or reordered an image upstream, the numbering has moved
     // and swapping the directory in would point the page at the wrong pictures.
@@ -526,6 +534,7 @@ async function writeRelease(
     }
 
     await commit();
+    await writeFile(filePath, setImageDisplayWidths(existing!, imageWidths));
     console.log(
       `  refreshed ${imageCount} image${imageCount === 1 ? "" : "s"}`,
     );
@@ -628,7 +637,7 @@ async function main(): Promise<void> {
 
   if (args.imagesOnly) {
     console.log(
-      "\nDone. Images were re-downloaded; the markdown was left untouched.",
+      "\nDone. Images and display sizes were refreshed; release text and metadata were preserved.",
     );
     return;
   }

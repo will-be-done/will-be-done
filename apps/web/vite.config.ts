@@ -7,14 +7,6 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { configDefaults, defineConfig } from "vitest/config";
 
-const hyperdbRoot = path.resolve(
-  __dirname,
-  "../../../hyperdb/packages/hyperdb",
-);
-const hyperdbDevtoolRoot = path.resolve(
-  __dirname,
-  "../../../hyperdb/packages/hyperdb-devtool",
-);
 const workspaceConfigPath = path.resolve(
   __dirname,
   "../../pnpm-workspace.yaml",
@@ -41,9 +33,22 @@ function isLocalOverride(override: string | undefined) {
   );
 }
 
-const useLocalHyperdbAliases = isLocalOverride(
-  getWorkspaceOverride("@will-be-done/hyperdb"),
+const hyperdbOverride = getWorkspaceOverride("@will-be-done/hyperdb");
+const useLocalHyperdbAliases = isLocalOverride(hyperdbOverride);
+const hyperdbOverridePath = hyperdbOverride?.replace(
+  /^(link|file|workspace):/,
+  "",
 );
+const hyperdbRoot =
+  hyperdbOverride?.startsWith("workspace:") &&
+  !isLocalOverride(hyperdbOverridePath)
+    ? fs.realpathSync(
+        path.resolve(__dirname, "node_modules/@will-be-done/hyperdb"),
+      )
+    : path.resolve(
+        path.dirname(workspaceConfigPath),
+        hyperdbOverridePath ?? "../hyperdb/packages/hyperdb",
+      );
 
 const hyperdbAliases = useLocalHyperdbAliases
   ? [
@@ -79,10 +84,6 @@ const hyperdbAliases = useLocalHyperdbAliases
       {
         find: /^@will-be-done\/hyperdb$/,
         replacement: path.resolve(hyperdbRoot, "src/index.ts"),
-      },
-      {
-        find: /^@will-be-done\/hyperdb-devtool\/react$/,
-        replacement: path.resolve(hyperdbDevtoolRoot, "src/react.ts"),
       },
     ]
   : [];

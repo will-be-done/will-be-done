@@ -16,12 +16,13 @@ import {
   changesTable,
   createHlcClock,
   syncStateTable,
+  syncStateId,
   type ChangesetArrayType,
   type ClientCursor,
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
 import { Syncer } from "./syncer";
-import { getPendingSyncV4Upload } from "./syncActions";
+import { freezeSyncV4Upload, getPendingSyncV4Upload } from "./syncActions";
 import {
   shouldRestartExpiredUpload,
   shouldRestartFrozenUpload,
@@ -116,15 +117,20 @@ const config: SyncConfig = {
   afterInit: () => {},
 };
 
-const createSyncer = () => {
+const createSyncer = (syncConfig = config) => {
   const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
   execSync(
-    db.loadTables([changesTable, syncStateTable, ...clientSyncV4Tables]),
+    db.loadTables([
+      ...syncConfig.syncableDBTables,
+      changesTable,
+      syncStateTable,
+      ...clientSyncV4Tables,
+    ]),
   );
   const nextClock = createHlcClock("client-1");
   return {
     db,
-    syncer: new Syncer(db, "client-1", config, nextClock),
+    syncer: new Syncer(db, "client-1", syncConfig, nextClock),
   };
 };
 
@@ -530,6 +536,144 @@ afterEach(() => {
 });
 
 describe("sync v4 request recovery", () => {
+  it("waits for durable download apply before acknowledging the server", async () => {
+    const { db, syncer } = createSyncer();
+    const blocked = deferred();
+    const durable = deferred();
+    const acknowledged = deferred();
+    vi.spyOn(db, "waitForPersistence").mockImplementation(function* () {
+      const state = execSync(
+        db.intervalScan(syncStateTable, "byId", [
+          { eq: [{ col: "id", val: syncStateId }] },
+        ]),
+      )[0];
+      if (state?.lastServerAppliedRevision === 7) {
+        blocked.resolve();
+        yield { type: "unwrap", data: durable.promise };
+      }
+    });
+    const ack = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith("/sessions"))
+          return jsonResponse(sessionResponse("durability-upload"));
+        if (url.endsWith("/commit"))
+          return jsonResponse({
+            acceptedClientCursor: null,
+            serverRevision: 7,
+            download: {
+              type: "staged",
+              downloadId: "durability-download",
+              chunkCount: 0,
+              checksum:
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            },
+          });
+        if (url.endsWith("/ack")) {
+          ack();
+          acknowledged.resolve();
+          return jsonResponse({});
+        }
+        throw new Error(`Unexpected sync request: ${url}`);
+      }),
+    );
+    const running = (syncer as unknown as SyncerTestAccess).syncV4();
+    try {
+      expect(
+        await Promise.race([
+          blocked.promise.then(() => "blocked"),
+          acknowledged.promise.then(() => "acknowledged"),
+          running.then(() => "finished"),
+        ]),
+      ).toBe("blocked");
+      expect(ack).not.toHaveBeenCalled();
+    } finally {
+      durable.resolve();
+      await running;
+    }
+    expect(ack).toHaveBeenCalledOnce();
+  });
+
+  it("wakes a fresh session when a resumed upload predates local changes", async () => {
+    const items = defineTable("resumed_items", {
+      id: v.string(),
+      title: v.string(),
+    });
+    const syncConfig = {
+      ...config,
+      syncableDBTables: [items],
+      tableNameMap: { [items.tableName]: items },
+    };
+    const { db, syncer } = createSyncer(syncConfig);
+    const access = syncer as unknown as SyncerTestAccess;
+    registerSyncChangeHooks({
+      syncSubDb: db,
+      syncableDBTables: [items],
+      clientId: "client-1",
+      nextClock: createHlcClock("client-1"),
+    });
+    await asyncDispatch(
+      db,
+      freezeSyncV4Upload({
+        uploadId: "resumed-upload",
+        after: null,
+        registeredSyncableTableNameMap: syncConfig.tableNameMap,
+        now: Date.now(),
+      }),
+    );
+    const row = { id: "local-edit", title: "Edited before sync resumed" };
+    await asyncDispatch(
+      db,
+      createAction()({
+        name: "editBeforeResume",
+        args: {},
+        handler: function* () {
+          yield* upsert(items, [row]);
+        },
+      })({}),
+    );
+
+    const uploaded: ChangesetArrayType = [];
+    const requests: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init: RequestInit) => {
+        const url = String(input);
+        requests.push(url);
+        if (url.endsWith("/sessions")) {
+          return jsonResponse(sessionResponse("fresh-upload"));
+        }
+        if (url.includes("/chunks/")) {
+          const { payload } = JSON.parse(String(init.body));
+          uploaded.push(...(JSON.parse(payload) as ChangesetArrayType));
+          return jsonResponse({});
+        }
+        if (url.endsWith("/commit")) {
+          const { throughCursor } = JSON.parse(String(init.body));
+          return jsonResponse({
+            acceptedClientCursor: throughCursor,
+            serverRevision: 0,
+            download: { type: "inline", changesets: [] },
+          });
+        }
+        throw new Error(`Unexpected sync request: ${url}`);
+      }),
+    );
+    const wake = vi.spyOn(syncer, "forceSync");
+
+    expect(await access.syncV4()).toBe(false);
+    expect(wake).toHaveBeenCalledOnce();
+    expect(await asyncDispatch(db, getPendingSyncV4Upload({}))).toBeUndefined();
+
+    expect(await access.syncV4()).toBe(true);
+    expect(requests.filter((url) => url.endsWith("/sessions"))).toHaveLength(1);
+    expect(uploaded).toEqual([
+      { tableName: items.tableName, data: [expect.objectContaining({ row })] },
+    ]);
+  });
+
   it("restarts only a resumed upload that received an actual 404", () => {
     expect(
       shouldRestartExpiredUpload(
