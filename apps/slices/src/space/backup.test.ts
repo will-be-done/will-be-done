@@ -333,4 +333,42 @@ describe("space backup compatibility", () => {
     ]);
     expect(backup).not.toHaveProperty("dailyListProjections");
   });
+
+  it("round-trips notes and loads backups without them", () => {
+    const db = new DB(new BptreeInmemDriver(), {
+      traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+    });
+    execSync(db.loadTables(registeredSpaceSyncableTables));
+    const section = {
+      id: "section-1",
+      title: "Section",
+      projectId: "project-1",
+      createdAt: 1,
+      orderToken: "a",
+    };
+    const note = {
+      id: "note-1",
+      title: "Note",
+      content: "Body",
+      projectSectionId: section.id,
+      orderToken: "a",
+      createdAt: 2,
+    };
+    const backup = {
+      ...baseBackup,
+      projectSections: [section],
+      tasks: [],
+      taskTemplates: [],
+    };
+
+    syncDispatch(db, loadSpaceBackup({ backup: { ...backup, notes: [note] } }));
+    expect(
+      selectSync(db, { selector: getSpaceBackup, args: {} }).notes,
+    ).toEqual([note]);
+
+    syncDispatch(db, loadSpaceBackup({ backup }));
+    expect(
+      selectSync(db, { selector: getSpaceBackup, args: {} }).notes,
+    ).toEqual([]);
+  });
 });

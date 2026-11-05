@@ -4,23 +4,25 @@ import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { createTask, taskById, defaultTask } from "./tasks";
 import { taskTemplateById } from "./taskTemplates";
+import { noteById } from "./notes";
 import { parse } from "date-fns";
 import {
   tasksTable,
   taskTemplatesTable,
+  notesTable,
   dailyEntriesTable,
   projectSectionsTable,
   projectsTable,
   dailyListsTable,
   checklistItemsTable,
+  item as itemSchema,
   listItem,
   dailyEntryType,
   stashEntryType,
   isDailyEntry,
   isStashEntry,
+  isNote,
   type ListItem,
-  type Task,
-  type TaskTemplate,
   type Project,
   type ProjectSection,
   type DailyList,
@@ -88,7 +90,12 @@ export const projectSectionItems = selector({
       "byProjectSectionIdOrderStates",
     ).where((q) => q.eq("projectSectionId", projectSectionId));
 
-    const allItems = [...tasks, ...templates];
+    const notes = yield* selectFrom(
+      notesTable,
+      "byProjectSectionIdOrder",
+    ).where((q) => q.eq("projectSectionId", projectSectionId));
+
+    const allItems = [...tasks, ...templates, ...notes];
 
     return allItems.sort((a, b) => {
       if (a.orderToken > b.orderToken) {
@@ -99,14 +106,14 @@ export const projectSectionItems = selector({
       }
 
       return 0;
-    }) as (Task | TaskTemplate)[];
+    }) as Item[];
   },
 });
 
 export const projectSectionItemsForDisplay = selector({
   name: "projectSectionItemsForDisplay",
   args: {
-    items: v.array(v.union(tasksTable.v(), taskTemplatesTable.v())),
+    items: v.array(itemSchema),
     listItems: v.array(listItem),
   },
   handler: function* projectSectionItemsForDisplay({
@@ -169,9 +176,10 @@ export const projectSectionItemsForDisplay = selector({
       ]),
     );
 
-    const checklistItems = items.length
+    const checklistParents = items.filter((item) => !isNote(item));
+    const checklistItems = checklistParents.length
       ? yield* selectFrom(checklistItemsTable, "byParentOrder").where((q) =>
-          items.map((item) =>
+          checklistParents.map((item) =>
             q.eq("parentType", item.type).eq("parentId", item.id),
           ),
         )
@@ -281,6 +289,9 @@ export const projectSectionItemById = selector({
 
     const template = yield* taskTemplateById({ id });
     if (template) return template;
+
+    const note = yield* noteById({ id });
+    if (note) return note;
 
     return undefined;
   },

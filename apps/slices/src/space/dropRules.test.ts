@@ -25,6 +25,7 @@ import {
   defaultProjectSection,
   defaultDailyList,
   defaultChecklistItem,
+  defaultNote,
   taskById,
   updateTask,
   updateProjectSection,
@@ -39,6 +40,7 @@ import {
   projectSectionsTable,
   dailyListsTable,
   checklistItemsTable,
+  notesTable,
   type AnyModel,
   type DropModelData,
   type Task,
@@ -97,6 +99,12 @@ function models(prefix: string): AnyModel[] {
       id: `${prefix}checklist`,
       parentId: `${prefix}todo`,
     },
+    {
+      ...defaultNote,
+      id: `${prefix}note`,
+      projectSectionId: `${prefix}section`,
+      orderToken: `${prefix}note`,
+    },
   ];
 }
 
@@ -133,6 +141,7 @@ function createDB() {
       projectSectionsTable,
       dailyListsTable,
       checklistItemsTable,
+      notesTable,
     ]),
   );
   const seed = createAction()({
@@ -168,6 +177,10 @@ function createDB() {
         checklistItemsTable,
         rows.filter((model) => model.type === "checklistItem"),
       );
+      yield* insert(
+        notesTable,
+        rows.filter((model) => model.type === "note"),
+      );
     },
   });
   syncDispatch(db, seed({}));
@@ -179,14 +192,16 @@ const projectSources = [
   "todo",
   "done",
   "template",
+  "note",
   "daily-todo",
   "stash-todo",
   "stash-done",
 ];
 const cases: [string, string[]][] = [
-  ["todo", [...todoSources, "template", "checklist"]],
+  ["todo", [...todoSources, "template", "note", "checklist"]],
   ["done", []],
-  ["template", [...todoSources, "template", "checklist"]],
+  ["template", [...todoSources, "template", "note", "checklist"]],
+  ["note", [...todoSources, "template", "note"]],
   ["daily-todo", todoSources],
   ["daily-done", []],
   ["stash-todo", todoSources],

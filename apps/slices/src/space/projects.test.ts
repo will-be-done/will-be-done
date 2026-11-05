@@ -52,6 +52,7 @@ import {
   dailyEntriesTable,
   tasksTable,
   taskTemplatesTable,
+  notesTable,
 } from "./tables";
 
 const selector = createSelector();
@@ -85,6 +86,7 @@ function createDB() {
       stashEntriesTable,
       dailyEntriesTable,
       taskTemplatesTable,
+      notesTable,
       tasksTable,
     ]),
   );

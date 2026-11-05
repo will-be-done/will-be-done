@@ -23,7 +23,8 @@ import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   type ChecklistItem,
-  type Item,
+  type Task,
+  type TaskTemplate,
   getDropModelData,
   checklistItemById,
   checklistItemChildren,
@@ -398,7 +399,7 @@ const ChecklistItemComp = ({
 };
 
 type ChecklistItemsProps = {
-  parent: Item;
+  parent: Task | TaskTemplate;
   hasChecklistItems: boolean | undefined;
   visible?: boolean;
   focusableItemKey?: ChecklistFocusKey;

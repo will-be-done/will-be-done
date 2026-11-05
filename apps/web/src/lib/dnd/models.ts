@@ -48,6 +48,7 @@ export function isModelDNDData(data: unknown): data is DndModelData {
       );
     }
     case "template":
+    case "note":
       return (
         "projectSectionId" in data && typeof data.projectSectionId === "string"
       );

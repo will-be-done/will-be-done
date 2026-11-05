@@ -6,6 +6,7 @@ import { createTaskNextToSectionItem } from "./projectSectionItems";
 import { createStashEntrySibling } from "./stashEntries";
 import { deleteTasksByIds, taskById, defaultTask } from "./tasks";
 import { deleteTemplates, taskTemplateById } from "./taskTemplates";
+import { deleteNotes, noteById } from "./notes";
 import { appTypeSlicesMap } from "./maps";
 import {
   listItem,
@@ -19,6 +20,7 @@ import {
   isStashEntry,
   isTask,
   isTaskTemplate,
+  isNote,
 } from "./tables";
 
 export const itemById = selector({
@@ -30,6 +32,9 @@ export const itemById = selector({
 
     const templates = yield* taskTemplateById({ id });
     if (templates) return templates;
+
+    const note = yield* noteById({ id });
+    if (note) return note;
 
     return undefined as Item | undefined;
   },
@@ -67,7 +72,11 @@ export const createTaskNextToListItem = action({
         position,
         taskParams,
       });
-    } else if (isTask(listItem) || isTaskTemplate(listItem)) {
+    } else if (
+      isTask(listItem) ||
+      isTaskTemplate(listItem) ||
+      isNote(listItem)
+    ) {
       return yield* createTaskNextToSectionItem({
         itemId: listItem.id,
         position,
@@ -158,5 +167,6 @@ export const deleteItemsByIds = action({
   handler: function* deleteItemsByIds({ ids }) {
     yield* deleteTasksByIds({ ids });
     yield* deleteTemplates({ taskTemplateIds: ids });
+    yield* deleteNotes({ ids });
   },
 });

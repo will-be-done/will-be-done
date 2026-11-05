@@ -49,6 +49,7 @@ export const spaceDBConfig = (dbId: string) => {
       "daily_lists",
       "tasks",
       "task_templates",
+      "notes",
       "checklist_items",
       "daily_entries",
       "stash_entries",

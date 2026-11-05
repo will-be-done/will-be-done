@@ -2594,6 +2594,20 @@ export type ListSectionItems200ItemsItem =
        * @maximum 9007199254740991
        */
       lastGeneratedAt: number;
+    }
+  | {
+      type: "note";
+      /** Note identifier */
+      id: string;
+      title: string;
+      content?: string;
+      /** Parent project section identifier */
+      projectSectionId: string;
+      /**
+       * @minimum 0
+       * @maximum 9007199254740991
+       */
+      createdAt: number;
     };
 
 export type ListSectionItems200 = {
@@ -5494,6 +5508,830 @@ export const ConvertTaskTemplateToTask500Code = {
  */
 export type ConvertTaskTemplateToTask500 = {
   code: ConvertTaskTemplateToTask500Code;
+  message: string;
+};
+
+export type GetNote200NoteType =
+  (typeof GetNote200NoteType)[keyof typeof GetNote200NoteType];
+
+export const GetNote200NoteType = {
+  note: "note",
+} as const;
+
+export type GetNote200Note = {
+  type: GetNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type GetNote200 = {
+  note: GetNote200Note;
+};
+
+export type GetNote400Code =
+  (typeof GetNote400Code)[keyof typeof GetNote400Code];
+
+export const GetNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote400 = {
+  code: GetNote400Code;
+  message: string;
+};
+
+export type GetNote401Code =
+  (typeof GetNote401Code)[keyof typeof GetNote401Code];
+
+export const GetNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote401 = {
+  code: GetNote401Code;
+  message: string;
+};
+
+export type GetNote403Code =
+  (typeof GetNote403Code)[keyof typeof GetNote403Code];
+
+export const GetNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote403 = {
+  code: GetNote403Code;
+  message: string;
+};
+
+export type GetNote404Code =
+  (typeof GetNote404Code)[keyof typeof GetNote404Code];
+
+export const GetNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote404 = {
+  code: GetNote404Code;
+  message: string;
+};
+
+export type GetNote500Code =
+  (typeof GetNote500Code)[keyof typeof GetNote500Code];
+
+export const GetNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type GetNote500 = {
+  code: GetNote500Code;
+  message: string;
+};
+
+export type UpdateNoteBody = {
+  /** @minLength 1 */
+  title?: string;
+  content?: string;
+};
+
+export type UpdateNote200NoteType =
+  (typeof UpdateNote200NoteType)[keyof typeof UpdateNote200NoteType];
+
+export const UpdateNote200NoteType = {
+  note: "note",
+} as const;
+
+export type UpdateNote200Note = {
+  type: UpdateNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type UpdateNote200 = {
+  note: UpdateNote200Note;
+};
+
+export type UpdateNote400Code =
+  (typeof UpdateNote400Code)[keyof typeof UpdateNote400Code];
+
+export const UpdateNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote400 = {
+  code: UpdateNote400Code;
+  message: string;
+};
+
+export type UpdateNote401Code =
+  (typeof UpdateNote401Code)[keyof typeof UpdateNote401Code];
+
+export const UpdateNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote401 = {
+  code: UpdateNote401Code;
+  message: string;
+};
+
+export type UpdateNote403Code =
+  (typeof UpdateNote403Code)[keyof typeof UpdateNote403Code];
+
+export const UpdateNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote403 = {
+  code: UpdateNote403Code;
+  message: string;
+};
+
+export type UpdateNote404Code =
+  (typeof UpdateNote404Code)[keyof typeof UpdateNote404Code];
+
+export const UpdateNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote404 = {
+  code: UpdateNote404Code;
+  message: string;
+};
+
+export type UpdateNote500Code =
+  (typeof UpdateNote500Code)[keyof typeof UpdateNote500Code];
+
+export const UpdateNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type UpdateNote500 = {
+  code: UpdateNote500Code;
+  message: string;
+};
+
+export type DeleteNote400Code =
+  (typeof DeleteNote400Code)[keyof typeof DeleteNote400Code];
+
+export const DeleteNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote400 = {
+  code: DeleteNote400Code;
+  message: string;
+};
+
+export type DeleteNote401Code =
+  (typeof DeleteNote401Code)[keyof typeof DeleteNote401Code];
+
+export const DeleteNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote401 = {
+  code: DeleteNote401Code;
+  message: string;
+};
+
+export type DeleteNote403Code =
+  (typeof DeleteNote403Code)[keyof typeof DeleteNote403Code];
+
+export const DeleteNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote403 = {
+  code: DeleteNote403Code;
+  message: string;
+};
+
+export type DeleteNote404Code =
+  (typeof DeleteNote404Code)[keyof typeof DeleteNote404Code];
+
+export const DeleteNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote404 = {
+  code: DeleteNote404Code;
+  message: string;
+};
+
+export type DeleteNote500Code =
+  (typeof DeleteNote500Code)[keyof typeof DeleteNote500Code];
+
+export const DeleteNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type DeleteNote500 = {
+  code: DeleteNote500Code;
+  message: string;
+};
+
+/**
+ * Position within an ordered collection
+ */
+export type MoveNoteBodyPlacement =
+  | {
+      kind: "first";
+    }
+  | {
+      kind: "last";
+    }
+  | {
+      kind: "before";
+      /**
+       * Sibling to place the entity before
+       * @minLength 1
+       */
+      anchorId: string;
+    }
+  | {
+      kind: "after";
+      /**
+       * Sibling to place the entity after
+       * @minLength 1
+       */
+      anchorId: string;
+    };
+
+export type MoveNoteBody = {
+  /** @minLength 1 */
+  projectSectionId: string;
+  /** Position within an ordered collection */
+  placement: MoveNoteBodyPlacement;
+};
+
+export type MoveNote200NoteType =
+  (typeof MoveNote200NoteType)[keyof typeof MoveNote200NoteType];
+
+export const MoveNote200NoteType = {
+  note: "note",
+} as const;
+
+export type MoveNote200Note = {
+  type: MoveNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type MoveNote200 = {
+  note: MoveNote200Note;
+};
+
+export type MoveNote400Code =
+  (typeof MoveNote400Code)[keyof typeof MoveNote400Code];
+
+export const MoveNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote400 = {
+  code: MoveNote400Code;
+  message: string;
+};
+
+export type MoveNote401Code =
+  (typeof MoveNote401Code)[keyof typeof MoveNote401Code];
+
+export const MoveNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote401 = {
+  code: MoveNote401Code;
+  message: string;
+};
+
+export type MoveNote403Code =
+  (typeof MoveNote403Code)[keyof typeof MoveNote403Code];
+
+export const MoveNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote403 = {
+  code: MoveNote403Code;
+  message: string;
+};
+
+export type MoveNote404Code =
+  (typeof MoveNote404Code)[keyof typeof MoveNote404Code];
+
+export const MoveNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote404 = {
+  code: MoveNote404Code;
+  message: string;
+};
+
+export type MoveNote409Code =
+  (typeof MoveNote409Code)[keyof typeof MoveNote409Code];
+
+export const MoveNote409Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote409 = {
+  code: MoveNote409Code;
+  message: string;
+};
+
+export type MoveNote500Code =
+  (typeof MoveNote500Code)[keyof typeof MoveNote500Code];
+
+export const MoveNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type MoveNote500 = {
+  code: MoveNote500Code;
+  message: string;
+};
+
+export type ConvertTaskToNote200NoteType =
+  (typeof ConvertTaskToNote200NoteType)[keyof typeof ConvertTaskToNote200NoteType];
+
+export const ConvertTaskToNote200NoteType = {
+  note: "note",
+} as const;
+
+export type ConvertTaskToNote200Note = {
+  type: ConvertTaskToNote200NoteType;
+  /** Note identifier */
+  id: string;
+  title: string;
+  content?: string;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  /**
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+};
+
+export type ConvertTaskToNote200 = {
+  note: ConvertTaskToNote200Note;
+};
+
+export type ConvertTaskToNote400Code =
+  (typeof ConvertTaskToNote400Code)[keyof typeof ConvertTaskToNote400Code];
+
+export const ConvertTaskToNote400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote400 = {
+  code: ConvertTaskToNote400Code;
+  message: string;
+};
+
+export type ConvertTaskToNote401Code =
+  (typeof ConvertTaskToNote401Code)[keyof typeof ConvertTaskToNote401Code];
+
+export const ConvertTaskToNote401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote401 = {
+  code: ConvertTaskToNote401Code;
+  message: string;
+};
+
+export type ConvertTaskToNote403Code =
+  (typeof ConvertTaskToNote403Code)[keyof typeof ConvertTaskToNote403Code];
+
+export const ConvertTaskToNote403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote403 = {
+  code: ConvertTaskToNote403Code;
+  message: string;
+};
+
+export type ConvertTaskToNote404Code =
+  (typeof ConvertTaskToNote404Code)[keyof typeof ConvertTaskToNote404Code];
+
+export const ConvertTaskToNote404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote404 = {
+  code: ConvertTaskToNote404Code;
+  message: string;
+};
+
+export type ConvertTaskToNote500Code =
+  (typeof ConvertTaskToNote500Code)[keyof typeof ConvertTaskToNote500Code];
+
+export const ConvertTaskToNote500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertTaskToNote500 = {
+  code: ConvertTaskToNote500Code;
+  message: string;
+};
+
+export type ConvertNoteToTask200TaskType =
+  (typeof ConvertNoteToTask200TaskType)[keyof typeof ConvertNoteToTask200TaskType];
+
+export const ConvertNoteToTask200TaskType = {
+  task: "task",
+} as const;
+
+export type ConvertNoteToTask200TaskState =
+  (typeof ConvertNoteToTask200TaskState)[keyof typeof ConvertNoteToTask200TaskState];
+
+export const ConvertNoteToTask200TaskState = {
+  todo: "todo",
+  done: "done",
+} as const;
+
+export type ConvertNoteToTask200TaskNature =
+  (typeof ConvertNoteToTask200TaskNature)[keyof typeof ConvertNoteToTask200TaskNature];
+
+export const ConvertNoteToTask200TaskNature = {
+  red: "red",
+  green: "green",
+  unknown: "unknown",
+} as const;
+
+export type ConvertNoteToTask200Task = {
+  type: ConvertNoteToTask200TaskType;
+  /** Task identifier */
+  id: string;
+  title: string;
+  content?: string;
+  state: ConvertNoteToTask200TaskState;
+  /** Parent project section identifier */
+  projectSectionId: string;
+  nature: ConvertNoteToTask200TaskNature;
+  /**
+   * Creation time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  createdAt: number;
+  /**
+   * Last state change time as Unix milliseconds
+   * @minimum 0
+   * @maximum 9007199254740991
+   */
+  lastToggledAt: number;
+  /** Current schedule date, or null when the task is unscheduled */
+  scheduledDate: string | null;
+  /** Time on the schedule date in HH:mm, or null when the task has no time */
+  scheduledTime: string | null;
+  durationMinutes: number | null;
+};
+
+/**
+ * Task details
+ */
+export type ConvertNoteToTask200 = {
+  task: ConvertNoteToTask200Task;
+};
+
+export type ConvertNoteToTask400Code =
+  (typeof ConvertNoteToTask400Code)[keyof typeof ConvertNoteToTask400Code];
+
+export const ConvertNoteToTask400Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask400 = {
+  code: ConvertNoteToTask400Code;
+  message: string;
+};
+
+export type ConvertNoteToTask401Code =
+  (typeof ConvertNoteToTask401Code)[keyof typeof ConvertNoteToTask401Code];
+
+export const ConvertNoteToTask401Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask401 = {
+  code: ConvertNoteToTask401Code;
+  message: string;
+};
+
+export type ConvertNoteToTask403Code =
+  (typeof ConvertNoteToTask403Code)[keyof typeof ConvertNoteToTask403Code];
+
+export const ConvertNoteToTask403Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask403 = {
+  code: ConvertNoteToTask403Code;
+  message: string;
+};
+
+export type ConvertNoteToTask404Code =
+  (typeof ConvertNoteToTask404Code)[keyof typeof ConvertNoteToTask404Code];
+
+export const ConvertNoteToTask404Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask404 = {
+  code: ConvertNoteToTask404Code;
+  message: string;
+};
+
+export type ConvertNoteToTask500Code =
+  (typeof ConvertNoteToTask500Code)[keyof typeof ConvertNoteToTask500Code];
+
+export const ConvertNoteToTask500Code = {
+  BAD_REQUEST: "BAD_REQUEST",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  FORBIDDEN: "FORBIDDEN",
+  NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
+  INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+} as const;
+
+/**
+ * Error response
+ */
+export type ConvertNoteToTask500 = {
+  code: ConvertNoteToTask500Code;
   message: string;
 };
 
@@ -10391,6 +11229,450 @@ export const convertTaskTemplateToTask = async (
     status: res.status,
     headers: res.headers,
   } as convertTaskTemplateToTaskResponse;
+};
+
+export type getNoteResponse200 = {
+  data: GetNote200;
+  status: 200;
+};
+
+export type getNoteResponse400 = {
+  data: GetNote400;
+  status: 400;
+};
+
+export type getNoteResponse401 = {
+  data: GetNote401;
+  status: 401;
+};
+
+export type getNoteResponse403 = {
+  data: GetNote403;
+  status: 403;
+};
+
+export type getNoteResponse404 = {
+  data: GetNote404;
+  status: 404;
+};
+
+export type getNoteResponse500 = {
+  data: GetNote500;
+  status: 500;
+};
+
+export type getNoteResponseSuccess = getNoteResponse200 & {
+  headers: Headers;
+};
+export type getNoteResponseError = (
+  | getNoteResponse400
+  | getNoteResponse401
+  | getNoteResponse403
+  | getNoteResponse404
+  | getNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type getNoteResponse = getNoteResponseSuccess | getNoteResponseError;
+
+export const getGetNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}`;
+};
+
+/**
+ * @summary Get a note
+ */
+export const getNote = async (
+  spaceId: string,
+  noteId: string,
+  options?: RequestInit,
+): Promise<getNoteResponse> => {
+  const res = await fetch(getGetNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "GET",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as getNoteResponse;
+};
+
+export type updateNoteResponse200 = {
+  data: UpdateNote200;
+  status: 200;
+};
+
+export type updateNoteResponse400 = {
+  data: UpdateNote400;
+  status: 400;
+};
+
+export type updateNoteResponse401 = {
+  data: UpdateNote401;
+  status: 401;
+};
+
+export type updateNoteResponse403 = {
+  data: UpdateNote403;
+  status: 403;
+};
+
+export type updateNoteResponse404 = {
+  data: UpdateNote404;
+  status: 404;
+};
+
+export type updateNoteResponse500 = {
+  data: UpdateNote500;
+  status: 500;
+};
+
+export type updateNoteResponseSuccess = updateNoteResponse200 & {
+  headers: Headers;
+};
+export type updateNoteResponseError = (
+  | updateNoteResponse400
+  | updateNoteResponse401
+  | updateNoteResponse403
+  | updateNoteResponse404
+  | updateNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type updateNoteResponse =
+  | updateNoteResponseSuccess
+  | updateNoteResponseError;
+
+export const getUpdateNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}`;
+};
+
+/**
+ * @summary Update a note
+ */
+export const updateNote = async (
+  spaceId: string,
+  noteId: string,
+  updateNoteBody: UpdateNoteBody,
+  options?: RequestInit,
+): Promise<updateNoteResponse> => {
+  const res = await fetch(getUpdateNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateNoteBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as updateNoteResponse;
+};
+
+export type deleteNoteResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteNoteResponse400 = {
+  data: DeleteNote400;
+  status: 400;
+};
+
+export type deleteNoteResponse401 = {
+  data: DeleteNote401;
+  status: 401;
+};
+
+export type deleteNoteResponse403 = {
+  data: DeleteNote403;
+  status: 403;
+};
+
+export type deleteNoteResponse404 = {
+  data: DeleteNote404;
+  status: 404;
+};
+
+export type deleteNoteResponse500 = {
+  data: DeleteNote500;
+  status: 500;
+};
+
+export type deleteNoteResponseSuccess = deleteNoteResponse204 & {
+  headers: Headers;
+};
+export type deleteNoteResponseError = (
+  | deleteNoteResponse400
+  | deleteNoteResponse401
+  | deleteNoteResponse403
+  | deleteNoteResponse404
+  | deleteNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type deleteNoteResponse =
+  | deleteNoteResponseSuccess
+  | deleteNoteResponseError;
+
+export const getDeleteNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}`;
+};
+
+/**
+ * @summary Delete a note
+ */
+export const deleteNote = async (
+  spaceId: string,
+  noteId: string,
+  options?: RequestInit,
+): Promise<deleteNoteResponse> => {
+  const res = await fetch(getDeleteNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "DELETE",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteNoteResponse["data"] = body ? JSON.parse(body) : undefined;
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as deleteNoteResponse;
+};
+
+export type moveNoteResponse200 = {
+  data: MoveNote200;
+  status: 200;
+};
+
+export type moveNoteResponse400 = {
+  data: MoveNote400;
+  status: 400;
+};
+
+export type moveNoteResponse401 = {
+  data: MoveNote401;
+  status: 401;
+};
+
+export type moveNoteResponse403 = {
+  data: MoveNote403;
+  status: 403;
+};
+
+export type moveNoteResponse404 = {
+  data: MoveNote404;
+  status: 404;
+};
+
+export type moveNoteResponse409 = {
+  data: MoveNote409;
+  status: 409;
+};
+
+export type moveNoteResponse500 = {
+  data: MoveNote500;
+  status: 500;
+};
+
+export type moveNoteResponseSuccess = moveNoteResponse200 & {
+  headers: Headers;
+};
+export type moveNoteResponseError = (
+  | moveNoteResponse400
+  | moveNoteResponse401
+  | moveNoteResponse403
+  | moveNoteResponse404
+  | moveNoteResponse409
+  | moveNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type moveNoteResponse = moveNoteResponseSuccess | moveNoteResponseError;
+
+export const getMoveNoteUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}/move`;
+};
+
+/**
+ * @summary Move a note
+ */
+export const moveNote = async (
+  spaceId: string,
+  noteId: string,
+  moveNoteBody: MoveNoteBody,
+  options?: RequestInit,
+): Promise<moveNoteResponse> => {
+  const res = await fetch(getMoveNoteUrl(spaceId, noteId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(moveNoteBody),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: moveNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as moveNoteResponse;
+};
+
+export type convertTaskToNoteResponse200 = {
+  data: ConvertTaskToNote200;
+  status: 200;
+};
+
+export type convertTaskToNoteResponse400 = {
+  data: ConvertTaskToNote400;
+  status: 400;
+};
+
+export type convertTaskToNoteResponse401 = {
+  data: ConvertTaskToNote401;
+  status: 401;
+};
+
+export type convertTaskToNoteResponse403 = {
+  data: ConvertTaskToNote403;
+  status: 403;
+};
+
+export type convertTaskToNoteResponse404 = {
+  data: ConvertTaskToNote404;
+  status: 404;
+};
+
+export type convertTaskToNoteResponse500 = {
+  data: ConvertTaskToNote500;
+  status: 500;
+};
+
+export type convertTaskToNoteResponseSuccess = convertTaskToNoteResponse200 & {
+  headers: Headers;
+};
+export type convertTaskToNoteResponseError = (
+  | convertTaskToNoteResponse400
+  | convertTaskToNoteResponse401
+  | convertTaskToNoteResponse403
+  | convertTaskToNoteResponse404
+  | convertTaskToNoteResponse500
+) & {
+  headers: Headers;
+};
+
+export type convertTaskToNoteResponse =
+  | convertTaskToNoteResponseSuccess
+  | convertTaskToNoteResponseError;
+
+export const getConvertTaskToNoteUrl = (spaceId: string, taskId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/tasks/${taskId}/convert-to-note`;
+};
+
+/**
+ * @summary Convert a task to a note
+ */
+export const convertTaskToNote = async (
+  spaceId: string,
+  taskId: string,
+  options?: RequestInit,
+): Promise<convertTaskToNoteResponse> => {
+  const res = await fetch(getConvertTaskToNoteUrl(spaceId, taskId), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: convertTaskToNoteResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as convertTaskToNoteResponse;
+};
+
+export type convertNoteToTaskResponse200 = {
+  data: ConvertNoteToTask200;
+  status: 200;
+};
+
+export type convertNoteToTaskResponse400 = {
+  data: ConvertNoteToTask400;
+  status: 400;
+};
+
+export type convertNoteToTaskResponse401 = {
+  data: ConvertNoteToTask401;
+  status: 401;
+};
+
+export type convertNoteToTaskResponse403 = {
+  data: ConvertNoteToTask403;
+  status: 403;
+};
+
+export type convertNoteToTaskResponse404 = {
+  data: ConvertNoteToTask404;
+  status: 404;
+};
+
+export type convertNoteToTaskResponse500 = {
+  data: ConvertNoteToTask500;
+  status: 500;
+};
+
+export type convertNoteToTaskResponseSuccess = convertNoteToTaskResponse200 & {
+  headers: Headers;
+};
+export type convertNoteToTaskResponseError = (
+  | convertNoteToTaskResponse400
+  | convertNoteToTaskResponse401
+  | convertNoteToTaskResponse403
+  | convertNoteToTaskResponse404
+  | convertNoteToTaskResponse500
+) & {
+  headers: Headers;
+};
+
+export type convertNoteToTaskResponse =
+  | convertNoteToTaskResponseSuccess
+  | convertNoteToTaskResponseError;
+
+export const getConvertNoteToTaskUrl = (spaceId: string, noteId: string) => {
+  return `${process.env.WBD_API_BASE_URL ?? ""}/api/v1/spaces/${spaceId}/notes/${noteId}/convert-to-task`;
+};
+
+/**
+ * @summary Convert a note to a task
+ */
+export const convertNoteToTask = async (
+  spaceId: string,
+  noteId: string,
+  options?: RequestInit,
+): Promise<convertNoteToTaskResponse> => {
+  const res = await fetch(getConvertNoteToTaskUrl(spaceId, noteId), {
+    ...options,
+    method: "POST",
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: convertNoteToTaskResponse["data"] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as convertNoteToTaskResponse;
 };
 
 export type listTaskChecklistItemsResponse200 = {

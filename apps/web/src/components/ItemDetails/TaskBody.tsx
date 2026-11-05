@@ -5,6 +5,7 @@ import {
   Clock,
   RefreshCw,
   Pencil,
+  StickyNote,
   X as XIcon,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -42,6 +43,7 @@ import {
 } from "./shared.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { useNoteConversion } from "@/components/Task/useNoteConversion.ts";
 
 export function TaskBody({
   task,
@@ -61,6 +63,7 @@ export function TaskBody({
   const dispatch = useAsyncDispatch();
   const taskId = task.id;
   const openProject = useOpenProject();
+  const noteConversion = useNoteConversion(onItemIdChange);
 
   const { data: project } = useAsyncSelector({
     selector: projectOfProjectSectionOrDefault,
@@ -327,6 +330,14 @@ export function TaskBody({
           Make repeating
         </button>
       )}
+
+      <button
+        onClick={() => void noteConversion.toNote(taskId)}
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium text-content-tinted border border-border hover:bg-task-panel-hover hover:text-content transition-colors cursor-pointer"
+      >
+        <StickyNote className="h-3 w-3" />
+        Convert to note
+      </button>
 
       {isMoveProjectModalOpen && (
         <MoveModal
