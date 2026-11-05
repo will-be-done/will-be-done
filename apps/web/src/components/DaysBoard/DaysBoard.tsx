@@ -38,6 +38,8 @@ import { useGlobalListener } from "@/components/GlobalListener/hooks.tsx";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { useItemDetailsOpen } from "@/components/ItemDetails/ItemDetailsStore.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { DayEventsStrip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
+import { useDayExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
 
 const ColumnView = ({
   dailyList,
@@ -60,6 +62,7 @@ const ColumnView = ({
     selector: doneDailyEntryChildrenForDisplay,
     args: { dailyListId: dailyList.id },
   });
+  const externalEvents = useDayExternalEvents(dailyList.date);
 
   // const [isHiddenClicked, setIsHiddenClicked] = useState(false);
 
@@ -72,7 +75,8 @@ const ColumnView = ({
     isManuallyHidden ||
     (itemsForDisplay.length == 0 &&
       doneItemsForDisplay.length == 0 &&
-      occurrences.length == 0);
+      occurrences.length == 0 &&
+      externalEvents.length == 0);
   const handleHideClick = () => toggleIsHidden(dailyList.id);
 
   const handleAddClick = () => {
@@ -116,6 +120,8 @@ const ColumnView = ({
       onAddClick={handleAddClick}
     >
       <div className={cn("flex flex-col gap-4 w-full py-4")}>
+        <DayEventsStrip events={externalEvents} />
+
         {occurrences.map((occurrence) => (
           <ProjectedTaskCard
             key={occurrence.id}

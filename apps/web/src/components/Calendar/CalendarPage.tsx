@@ -29,6 +29,7 @@ import {
 } from "./calendarModel";
 import { type DragCommit, useCalendarDrag } from "./calendarDrag";
 import { useCalendarEvents } from "./useCalendarEvents";
+import { useExternalEvents } from "@/components/ExternalEvents/useExternalEvents.ts";
 import {
   type DayActions,
   MonthCell,
@@ -72,6 +73,7 @@ export const CalendarPage = ({
 
   const days = useMemo(() => visibleDates(view, anchor), [view, anchor]);
   const eventsByDate = useCalendarEvents(days);
+  const externalByDate = useExternalEvents(days);
 
   const onCommit: DragCommit = useCallback(
     ({ event, mode, target, durationMinutes }) => {
@@ -260,6 +262,7 @@ export const CalendarPage = ({
                 >
                   {days.map((day) => {
                     const events = eventsByDate.get(urlDate(day)) ?? [];
+                    const external = externalByDate.get(urlDate(day)) ?? [];
                     return view === "month" ? (
                       <MonthCell
                         key={day.getTime()}
@@ -267,6 +270,7 @@ export const CalendarPage = ({
                         anchor={anchor}
                         today={today}
                         events={events}
+                        external={external}
                         actions={actions}
                       />
                     ) : (
@@ -275,6 +279,7 @@ export const CalendarPage = ({
                         day={day}
                         today={today}
                         events={events}
+                        external={external}
                         actions={actions}
                       />
                     );
@@ -286,6 +291,7 @@ export const CalendarPage = ({
                 days={days}
                 today={today}
                 eventsByDate={eventsByDate}
+                externalByDate={externalByDate}
                 actions={actions}
               />
             )}

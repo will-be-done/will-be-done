@@ -23,6 +23,7 @@
     "date-fns": "^4.1.0",
     "es-toolkit": "^1.42.0",
     "fractional-indexing-jittered": "^1.0.0",
+    "ical.js": "^2.2.1",
     "lib0": "^0.2.119",
     "mdast-util-from-markdown": "2.0.3",
     "mdast-util-gfm-autolink-literal": "2.0.1",

@@ -48,6 +48,16 @@ const EnvConfigSchema = z.object({
     .default(60_000),
   WBD_POSTHOG_KEY: z.string().trim().min(1).optional(),
   WBD_POSTHOG_HOST: z.url().default("https://eu.i.posthog.com"),
+  WBD_CALENDAR_ENCRYPTION_KEY: z.string().trim().min(32).optional(),
+  WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  WBD_CALENDAR_SYNC_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .min(60_000)
+    .default(15 * 60_000),
 });
 
 let envConfig:
@@ -79,6 +89,9 @@ let envConfig:
       WBD_TASK_GENERATION_INTERVAL_MS: number;
       WBD_POSTHOG_KEY?: string;
       WBD_POSTHOG_HOST: string;
+      WBD_CALENDAR_ENCRYPTION_KEY?: string;
+      WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS: boolean;
+      WBD_CALENDAR_SYNC_INTERVAL_MS: number;
     }
   | undefined;
 
@@ -115,6 +128,10 @@ export function getEnvConfig() {
       process.env.WBD_TASK_GENERATION_INTERVAL_MS,
     WBD_POSTHOG_KEY: process.env.WBD_POSTHOG_KEY,
     WBD_POSTHOG_HOST: process.env.WBD_POSTHOG_HOST,
+    WBD_CALENDAR_ENCRYPTION_KEY: process.env.WBD_CALENDAR_ENCRYPTION_KEY,
+    WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS:
+      process.env.WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS,
+    WBD_CALENDAR_SYNC_INTERVAL_MS: process.env.WBD_CALENDAR_SYNC_INTERVAL_MS,
   });
 
   if (parsed.WBD_DB_ENGINE === "turso-cloud") {
@@ -187,6 +204,10 @@ export function getEnvConfig() {
     WBD_TASK_GENERATION_INTERVAL_MS: parsed.WBD_TASK_GENERATION_INTERVAL_MS,
     WBD_POSTHOG_KEY: parsed.WBD_POSTHOG_KEY,
     WBD_POSTHOG_HOST: parsed.WBD_POSTHOG_HOST,
+    WBD_CALENDAR_ENCRYPTION_KEY: parsed.WBD_CALENDAR_ENCRYPTION_KEY,
+    WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS:
+      parsed.WBD_CALENDAR_ALLOW_PRIVATE_NETWORKS,
+    WBD_CALENDAR_SYNC_INTERVAL_MS: parsed.WBD_CALENDAR_SYNC_INTERVAL_MS,
   };
 
   return envConfig;

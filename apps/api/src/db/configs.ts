@@ -53,6 +53,8 @@ export const spaceDBConfig = (dbId: string) => {
       "daily_entries",
       "stash_entries",
       "trashed_tasks",
+      "external_calendars",
+      "external_events",
     ],
   } satisfies DBConfig;
 };

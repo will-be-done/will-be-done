@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils.ts";
 import { type CalendarEvent } from "./calendarModel";
 import { type DragCommit, useIsDropTarget } from "./calendarDrag";
 import { CalendarCard } from "./CalendarCard";
+import { type DayExternalEvent } from "@/components/ExternalEvents/externalEventsModel.ts";
+import { ExternalEventChip } from "@/components/ExternalEvents/ExternalEventChip.tsx";
 
 export type DayActions = {
   onCommit: DragCommit;
@@ -75,17 +77,22 @@ export const MonthCell = ({
   anchor,
   today,
   events,
+  external,
   actions,
 }: {
   day: Date;
   anchor: Date;
   today: string;
   events: CalendarEvent[];
+  external: DayExternalEvent[];
   actions: DayActions;
 }) => {
   const date = getDMY(day);
-  const overflows = events.length > monthChipLimit;
-  const shown = overflows ? events.slice(0, monthChipLimit - 1) : events;
+  const total = external.length + events.length;
+  const limit = total > monthChipLimit ? monthChipLimit - 1 : total;
+  const shownExternal = external.slice(0, limit);
+  const shown = events.slice(0, limit - shownExternal.length);
+  const hidden = total - shownExternal.length - shown.length;
 
   return (
     <DayCell date={date} isToday={date === today} onCreate={actions.onCreate}>
@@ -96,6 +103,9 @@ export const MonthCell = ({
           isMuted={!isSameMonth(day, anchor)}
         />
       </div>
+      {shownExternal.map((event) => (
+        <ExternalEventChip key={event.key} event={event} />
+      ))}
       {shown.map((event) => (
         <CalendarCard
           key={event.key}
@@ -104,13 +114,13 @@ export const MonthCell = ({
           onCommit={actions.onCommit}
         />
       ))}
-      {overflows && (
+      {hidden > 0 && (
         <button
           type="button"
           onClick={() => actions.onOpenDay(day)}
           className="self-start rounded px-1.5 text-xs text-content-tinted hover:bg-white/5 hover:text-content cursor-pointer"
         >
-          +{events.length - shown.length} more
+          +{hidden} more
         </button>
       )}
     </DayCell>
@@ -121,11 +131,13 @@ export const PlanCell = ({
   day,
   today,
   events,
+  external,
   actions,
 }: {
   day: Date;
   today: string;
   events: CalendarEvent[];
+  external: DayExternalEvent[];
   actions: DayActions;
 }) => {
   const date = getDMY(day);
@@ -139,6 +151,9 @@ export const PlanCell = ({
       <div className="pointer-events-none flex">
         <DayNumber label={format(day, "MMM d")} isToday={date === today} />
       </div>
+      {external.map((event) => (
+        <ExternalEventChip key={event.key} event={event} />
+      ))}
       {events.map((event) => (
         <CalendarCard
           key={event.key}

@@ -16,7 +16,10 @@ import { dailyListAllIds, dailyListById, dailyListGetId } from "./dailyLists";
 import { dailyEntryAllIds, dailyEntryById } from "./dailyEntries";
 import { inboxProjectId as getInboxProjectId } from "./projects";
 import { appTypeTablesMap } from "./maps";
-import { registeredSpaceSyncableTables } from "./syncMap";
+import {
+  registeredSpaceSyncableTables,
+  serverOwnedSpaceTables,
+} from "./syncMap";
 import {
   AnyModel,
   ChecklistItem,
@@ -710,6 +713,9 @@ export const loadSpaceBackup = selector({
       // DailyLists are deterministic, ensure-only scaffolding. A backup that
       // omits a date must not turn that absence into a tombstone.
       if (table === dailyListsTable) continue;
+      // The server refills these from their sources; deleting them would sync
+      // tombstones for every event.
+      if (serverOwnedSpaceTables.has(table)) continue;
       const allIds = (yield* selectFrom(table, "byIds")).map((r) => r.id);
 
       yield* deleteRows(table, allIds);

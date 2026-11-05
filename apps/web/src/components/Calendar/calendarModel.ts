@@ -133,26 +133,25 @@ export function sortDayEvents(events: CalendarEvent[]): CalendarEvent[] {
 }
 
 export type BlockLayout = { column: number; columns: number };
+export type TimedSpan = { key: string; start: number; end: number };
 
-// Places overlapping timed events side by side. Events that transitively
-// overlap form a cluster sharing one column count.
-export function layoutTimedEvents(
-  events: CalendarEvent[],
-): Map<string, BlockLayout> {
-  const items = events
-    .filter((e) => e.time !== null)
-    .map((e) => {
-      const start = timeToMinutes(e.time!);
-      return {
-        key: e.key,
-        start,
-        end: Math.min(
-          minutesInDay,
-          start + Math.max(blockMinutes(e), minBlockMinutes),
-        ),
-      };
-    })
-    .sort((a, b) => a.start - b.start || b.end - a.end);
+// A timed task's span as drawn, in minutes from midnight.
+export const timedEventSpan = (event: CalendarEvent): TimedSpan => {
+  const start = timeToMinutes(event.time!);
+  return {
+    key: event.key,
+    start,
+    end: Math.min(
+      minutesInDay,
+      start + Math.max(blockMinutes(event), minBlockMinutes),
+    ),
+  };
+};
+
+// Places overlapping spans side by side. Spans that transitively overlap form
+// a cluster sharing one column count.
+export function layoutSpans(spans: TimedSpan[]): Map<string, BlockLayout> {
+  const items = [...spans].sort((a, b) => a.start - b.start || b.end - a.end);
 
   const result = new Map<string, BlockLayout>();
   let cluster: { key: string; column: number }[] = [];

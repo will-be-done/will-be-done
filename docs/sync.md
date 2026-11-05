@@ -5,9 +5,11 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 5, carried over the v4 transport routes. Version 5
-added restore clocks; a v4 client would treat a restored entity as still deleted,
-so the server rejects it and the client must update. v3 upload and download
+The current sync version is 6, carried over the v4 transport routes. Version 5
+added restore clocks; a v4 client would treat a restored entity as still deleted.
+Version 6 added the server-owned external calendar tables, which a v5 client
+cannot apply. The server rejects older clients and they must update. A new
+synced table always needs a version bump for the same reason. v3 upload and download
 procedures must not be reintroduced as an alternate path.
 
 ## Required Server-Backup Recovery Guarantee
@@ -364,6 +366,13 @@ must never expose a partially applied logical sync response.
   user-deletable, and replacement imports preserve existing DailyLists while
   upserting the canonical lists contained in the backup. Backup omission must
   never create a DailyList tombstone.
+- Server-owned tables (`external_calendars`, `external_events`) have the
+  server's calendar fetcher as their only writer; clients have no action that
+  writes them. The server still merges uploaded rows for them, because server
+  backup recovery resends canonical rows clients received, and the next fetch
+  corrects anything stale. Backup load and export skip them, so a restore
+  cannot tombstone every event. The fetcher writes only rows whose content
+  changed, so an unchanged refresh adds nothing to the feed.
 - Dependency-bearing table types are committed in a stable order: parents and
   lists first, tasks/templates next, then checklist and entry/projection rows.
 - Receipt metadata such as a newly generated `updatedAt` must not by itself

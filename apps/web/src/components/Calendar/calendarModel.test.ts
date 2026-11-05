@@ -3,9 +3,10 @@ import { format } from "date-fns";
 import {
   type CalendarEvent,
   calendarTitle,
-  layoutTimedEvents,
+  layoutSpans,
   shiftAnchor,
   sortDayEvents,
+  timedEventSpan,
   visibleDates,
 } from "./calendarModel";
 
@@ -97,14 +98,18 @@ describe("calendar model", () => {
   });
 
   it("lays out overlapping events side by side", () => {
-    const layout = layoutTimedEvents([
-      event("a", "09:00", 60),
-      event("b", "09:30", 60),
-      event("c", "10:00", 30),
-      event("d", "12:00", 30),
-      event("e", "14:00", 15),
-      event("f", "14:15", 15),
-      event("untimed", null),
+    const layout = layoutSpans([
+      ...[
+        event("a", "09:00", 60),
+        event("b", "09:30", 60),
+        event("c", "10:00", 30),
+        event("d", "12:00", 30),
+        event("e", "14:00", 15),
+        event("f", "14:15", 15),
+      ].map(timedEventSpan),
+      // An external event shares columns with the tasks it overlaps.
+      { key: "meeting", start: 16 * 60, end: 17 * 60 },
+      timedEventSpan(event("g", "16:30", 60)),
     ]);
     expect(Object.fromEntries(layout)).toEqual({
       a: { column: 0, columns: 2 },
@@ -115,6 +120,8 @@ describe("calendar model", () => {
       // e is drawn taller than 15 minutes, so f sits beside it.
       e: { column: 0, columns: 2 },
       f: { column: 1, columns: 2 },
+      meeting: { column: 0, columns: 2 },
+      g: { column: 1, columns: 2 },
     });
   });
 });

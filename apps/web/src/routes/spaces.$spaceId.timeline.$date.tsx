@@ -17,7 +17,9 @@ import {
   projectSectionsByProjectId,
   projectSectionItemsForDisplayChildren,
   projectsWithTaskStats,
+  externalEventOccurrencesInRange,
 } from "@will-be-done/slices/space";
+import { externalEventsRange } from "@/components/ExternalEvents/useExternalEvents.ts";
 
 const filterParams = z.object({
   projectId: z.string().default("inbox"),
@@ -81,6 +83,15 @@ export const Route = createFileRoute("/spaces/$spaceId/timeline/$date")({
         preloadSelectorAsync(db, {
           selector: doneProjectSectionItemsForDisplay,
           args: { projectSectionId: section.id, limited: true },
+        }),
+      );
+    }
+
+    for (const date of dates) {
+      appendPromise(
+        preloadSelectorAsync(db, {
+          selector: externalEventOccurrencesInRange,
+          args: externalEventsRange([new Date(date)]),
         }),
       );
     }

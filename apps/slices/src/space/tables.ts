@@ -244,6 +244,47 @@ export const trashedTasksTable = defineTable("trashed_tasks", {
 registerSpaceSyncableTable(trashedTasksTable, trashedTaskType);
 
 export type TrashedTaskRow = ExtractSchema<typeof trashedTasksTable>;
+
+// External calendar tables are written only by the server's calendar fetcher.
+export const externalCalendarType = "externalCalendar";
+export const externalCalendarsTable = defineTable("external_calendars", {
+  type: v.literal(externalCalendarType),
+  id: v.string(),
+  sourceId: v.string(),
+  name: v.string(),
+  color: v.union(v.string(), v.null()),
+}).index("byIds", ["id"]);
+registerSpaceSyncableTable(externalCalendarsTable, externalCalendarType, {
+  serverOwned: true,
+});
+export type ExternalCalendar = ExtractSchema<typeof externalCalendarsTable>;
+
+export const externalEventType = "externalEvent";
+// One row per event series (calendar resource); occurrences are expanded on
+// read.
+export const externalEventsTable = defineTable("external_events", {
+  type: v.literal(externalEventType),
+  id: v.string(),
+  calendarId: v.string(),
+  // CalDAV resource href, or the event UID for ICS feeds.
+  resource: v.string(),
+  // CalDAV resource ETag; null for ICS feeds.
+  etag: v.union(v.string(), v.null()),
+  // VCALENDAR with the UID's VEVENTs and the VTIMEZONEs they reference.
+  ics: v.string(),
+  // UTC ms bounds of all occurrences, padded so floating and all-day times
+  // stay inside them in any timezone. seriesEnd is MAX_SAFE_INTEGER when the
+  // series never ends.
+  seriesStart: v.number(),
+  seriesEnd: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byCalendarResource", ["calendarId", "resource"])
+  .index("bySeriesEnd", ["seriesEnd", "id"]);
+registerSpaceSyncableTable(externalEventsTable, externalEventType, {
+  serverOwned: true,
+});
+export type ExternalEvent = ExtractSchema<typeof externalEventsTable>;
 export const trashSnapshot = v.object({
   task: tasksTable.v(),
   checklistItems: v.array(checklistItemsTable.v()),
@@ -309,7 +350,9 @@ export type AnyTable =
   | typeof projectSectionsTable
   | typeof stashEntriesTable
   | typeof checklistItemsTable
-  | typeof trashedTasksTable;
+  | typeof trashedTasksTable
+  | typeof externalCalendarsTable
+  | typeof externalEventsTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),
