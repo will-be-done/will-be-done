@@ -43,6 +43,7 @@ type Shortcut = {
 
 type ShortcutGroup = {
   title: string;
+  column: "left" | "right";
   description: string;
   shortcuts: Shortcut[];
 };
@@ -50,6 +51,7 @@ type ShortcutGroup = {
 const shortcutGroups: ShortcutGroup[] = [
   {
     title: "Global",
+    column: "left",
     description: "Available anywhere in a space",
     shortcuts: [
       { bindings: [["Ctrl", "A"]], description: "Quick add task" },
@@ -62,6 +64,7 @@ const shortcutGroups: ShortcutGroup[] = [
   },
   {
     title: "Focused task",
+    column: "right",
     description: "Actions for the selected task",
     shortcuts: [
       { bindings: [["I"], ["Enter"]], description: "Edit task" },
@@ -101,10 +104,37 @@ const shortcutGroups: ShortcutGroup[] = [
       { bindings: [["E"]], description: "Edit description" },
       { bindings: [["C"]], description: "Add checklist item" },
       { bindings: [["A"]], description: "Open action menu" },
+      { bindings: [[MOD_KEY, "C"]], description: "Copy task" },
+      { bindings: [[MOD_KEY, "X"]], description: "Cut task" },
+      { bindings: [[MOD_KEY, "V"]], description: "Paste below the task" },
+    ],
+  },
+  {
+    title: "Multiple tasks",
+    column: "right",
+    description: "Select several items, then use the task actions above",
+    shortcuts: [
+      {
+        bindings: [["Shift", "Click"]],
+        description: "Select a range",
+      },
+      {
+        bindings: [[MOD_KEY, "Click"]],
+        description: "Add or remove from selection",
+      },
+      {
+        bindings: [
+          ["Shift", "J"],
+          ["Shift", "K"],
+        ],
+        description: "Extend selection",
+      },
+      { bindings: [["Esc"]], description: "Clear selection" },
     ],
   },
   {
     title: "Focused project",
+    column: "left",
     description: "Actions for the selected project",
     shortcuts: [
       { bindings: [["I"]], description: "Edit project" },
@@ -155,6 +185,7 @@ const shortcutGroups: ShortcutGroup[] = [
   },
   {
     title: "Text formatting",
+    column: "left",
     description: "In titles, descriptions, and checklist items",
     shortcuts: [
       { bindings: [[MOD_KEY, "B"], ["**text**"]], description: "Bold" },
@@ -172,6 +203,7 @@ const shortcutGroups: ShortcutGroup[] = [
   },
   {
     title: "Description formatting",
+    column: "left",
     description: "Start a line with the Markdown and a space",
     shortcuts: [
       {
@@ -360,13 +392,15 @@ export function KeyboardShortcutsDialog() {
 
               <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
                 <div className="grid items-start gap-3 md:grid-cols-2">
-                  <div className="grid gap-3">
-                    <ShortcutSection group={shortcutGroups[0]!} />
-                    <ShortcutSection group={shortcutGroups[2]!} />
-                    <ShortcutSection group={shortcutGroups[3]!} />
-                    <ShortcutSection group={shortcutGroups[4]!} />
-                  </div>
-                  <ShortcutSection group={shortcutGroups[1]!} />
+                  {(["left", "right"] as const).map((column) => (
+                    <div key={column} className="grid gap-3">
+                      {shortcutGroups
+                        .filter((group) => group.column === column)
+                        .map((group) => (
+                          <ShortcutSection key={group.title} group={group} />
+                        ))}
+                    </div>
+                  ))}
                 </div>
               </div>
 

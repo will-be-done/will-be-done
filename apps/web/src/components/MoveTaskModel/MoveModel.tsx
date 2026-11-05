@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
 import { parseColumnKey, useFocusStore } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
+import { hasMultiSelection } from "@/components/Selection/useSelectionActions";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   allProjectsSorted,
@@ -25,7 +26,7 @@ export const MoveModal = ({
 }: {
   setIsOpen: (val: boolean) => void;
   handleMove: (projectId: string) => void;
-  exceptProjectId: string;
+  exceptProjectId?: string;
   // The moved item stays where it is shown, as on a mindmap.
   keepsFocus?: boolean;
 }) => {
@@ -54,8 +55,10 @@ export const MoveModal = ({
     const { focusItemKey } = useFocusStore.getState();
     const focusedType = focusItemKey ? parseColumnKey(focusItemKey).type : null;
     // Project items disappear when moved; daily and stash entries stay in place.
+    // A selection moves its own focus out of the moved items.
     const isProjectItem =
       !keepsFocus &&
+      !hasMultiSelection() &&
       (focusedType === taskType ||
         focusedType === taskTemplateType ||
         focusedType === noteType);
