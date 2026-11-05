@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useUnmount } from "../../utils";
 import { parseColumnKey, useFocusStore } from "@/store/focusSlice.ts";
 import { getDOMSiblings } from "@/components/Focus/domNavigation.ts";
+import { hasMultiSelection } from "@/components/Selection/useSelectionActions";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   allProjectsSorted,
@@ -24,7 +25,7 @@ export const MoveModal = ({
 }: {
   setIsOpen: (val: boolean) => void;
   handleMove: (projectId: string) => void;
-  exceptProjectId: string;
+  exceptProjectId?: string;
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -51,10 +52,12 @@ export const MoveModal = ({
     const { focusItemKey } = useFocusStore.getState();
     const focusedType = focusItemKey ? parseColumnKey(focusItemKey).type : null;
     // Project items disappear when moved; daily and stash entries stay in place.
+    // A selection moves its own focus out of the moved items.
     const isProjectItem =
-      focusedType === taskType ||
-      focusedType === taskTemplateType ||
-      focusedType === noteType;
+      !hasMultiSelection() &&
+      (focusedType === taskType ||
+        focusedType === taskTemplateType ||
+        focusedType === noteType);
     const [previousKey, nextKey] =
       isProjectItem && focusItemKey
         ? getDOMSiblings(focusItemKey)

@@ -195,7 +195,10 @@ const ProjectItem = function ProjectItemComp({
     const isAddAfter = noModifiers && (e.code === "KeyA" || e.code === "KeyO");
     const isAddBefore = e.shiftKey && (e.code === "KeyA" || e.code === "KeyO");
 
-    if (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") {
+    if (
+      (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
+      noModifiers
+    ) {
       e.preventDefault();
 
       const [upKey, downKey] = getDOMSiblings(focusItemKey);

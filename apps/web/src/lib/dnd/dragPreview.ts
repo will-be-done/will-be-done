@@ -74,14 +74,25 @@ const createElementDragPreview = ({
   return preview;
 };
 
+// Marks a preview that stands for several dragged items.
+const createCountBadge = (count: number) => {
+  const badge = document.createElement("div");
+  badge.textContent = String(count);
+  badge.className =
+    "absolute -right-1 -top-1 z-20 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-white";
+  return badge;
+};
+
 export const setElementDragPreview = ({
   source,
   input,
   nativeSetDragImage,
+  count,
 }: {
   source: HTMLElement;
   input: Input;
   nativeSetDragImage: ElementEventPayloadMap["onGenerateDragPreview"]["nativeSetDragImage"];
+  count?: number;
 }) => {
   const rect = source.getBoundingClientRect();
   const getSourceOffset = preserveOffsetOnSource({ element: source, input });
@@ -95,6 +106,8 @@ export const setElementDragPreview = ({
     render: ({ container }) => {
       container.style.padding = `${previewPadding}px`;
       const preview = createElementDragPreview({ source, rect });
+      // The cloned card is positioned, so the badge pins to its corner.
+      if (count && count > 1) preview.appendChild(createCountBadge(count));
       container.appendChild(preview);
       return () => preview.remove();
     },
