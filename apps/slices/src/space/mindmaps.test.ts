@@ -3,6 +3,7 @@ import {
   createAction,
   createSelector,
   DB,
+  deleteRows,
   execSync,
   insert,
   selectFrom,
@@ -40,10 +41,13 @@ import {
   deleteMindmap,
   deleteMindmapNodes,
   mindmapsOfItem,
+  mindmapsWithTitles,
   mindmapTree,
   moveMindmapNode,
   moveMindmapNodes,
   type MindmapTreeNode,
+  updateMindmap,
+  updateMindmapNode,
 } from "./mindmaps";
 import {
   type MindmapNode,
@@ -89,7 +93,7 @@ const note = (id: string): Note => ({
 
 const node = (
   id: string,
-  parentId: string,
+  parentId: string | null,
   attrs: Partial<MindmapNode> = {},
 ): MindmapNode => ({
   type: mindmapNodeType,
@@ -144,11 +148,22 @@ const seed = action({
   },
 });
 
+const deleteRootRow = action({
+  name: "mindmapTestDeleteRootRow",
+  args: {},
+  handler: function* () {
+    yield* deleteRows(mindmapNodesTable, ["map"]);
+  },
+});
+
+// Every node but the center topic, which lives as long as its map.
 const nodeRows = selector({
   name: "mindmapTestNodeRows",
   args: {},
   handler: function* () {
-    return yield* selectFrom(mindmapNodesTable, "byIds");
+    return (yield* selectFrom(mindmapNodesTable, "byIds")).filter(
+      (row) => row.id !== row.mindmapId,
+    );
   },
 });
 
@@ -170,8 +185,10 @@ const treeShape = (db: DB) =>
 describe("buildMindmapTree", () => {
   test("repairs orphans, cycles and missing tasks the same way in any order", () => {
     const nodes = [
+      node("map", null),
       node("a", "map"),
       node("orphan", "deleted-node"),
+      node("loose", null),
       // b -> c -> d -> b: broken at "b", the smallest ID.
       node("c", "b"),
       node("d", "c"),
@@ -183,7 +200,7 @@ describe("buildMindmapTree", () => {
     ];
     const tasks = new Map([["t1", task("t1")]]);
 
-    const expected = "a(lifted kept) b(c(d)) orphan";
+    const expected = "a(lifted kept) b(c(d)) loose orphan";
     expect(shape(buildMindmapTree("map", nodes, { tasks }))).toBe(expected);
     expect(
       shape(buildMindmapTree("map", [...nodes].reverse(), { tasks })),
@@ -206,6 +223,89 @@ describe("buildMindmapTree", () => {
 });
 
 describe("mindmaps", () => {
+  test("the center topic is a node; the map's name is plain text and falls back to it", () => {
+    const db = createDB();
+    const tree = () =>
+      selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!;
+    const listed = () =>
+      selectSync(db, { selector: mindmapsWithTitles, args: {} });
+    expect(tree().root).toMatchObject({ id: "map", parentId: null });
+
+    syncDispatch(db, updateMindmap({ id: "map", mindmap: { title: "" } }));
+    syncDispatch(
+      db,
+      updateMindmapNode({ id: "map", node: { title: "**Q3** launch" } }),
+    );
+    expect(tree().root.title).toBe("**Q3** launch");
+    expect(listed()).toMatchObject([{ title: "Q3 launch" }]);
+
+    syncDispatch(
+      db,
+      updateMindmap({ id: "map", mindmap: { title: "Plan *b*" } }),
+    );
+    expect(listed()).toMatchObject([{ title: "Plan *b*" }]);
+    expect(tree().root.title).toBe("**Q3** launch");
+  });
+
+  test("the center topic cannot move, go away, convert or get siblings", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "topic",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    expect(
+      syncDispatch(
+        db,
+        moveMindmapNodes({
+          ids: ["map"],
+          placement: { parentId: "topic", position: "last" },
+        }),
+      ),
+    ).toEqual([]);
+    syncDispatch(db, deleteMindmapNodes({ ids: ["map"] }));
+    expect(() =>
+      syncDispatch(db, convertMindmapNodeToTask({ id: "map" })),
+    ).toThrow();
+    expect(() =>
+      syncDispatch(
+        db,
+        createMindmapNode({
+          mindmapId: "map",
+          placement: { siblingId: "map", edge: "after" },
+        }),
+      ),
+    ).toThrow();
+    const tree = selectSync(db, {
+      selector: mindmapTree,
+      args: { mindmapId: "map" },
+    })!;
+    expect(tree.root).toMatchObject({ id: "map", parentId: null });
+    expect(shape(tree.branches)).toBe("topic");
+  });
+
+  // The map row can sync before its root row.
+  test("a map without its root row shows an empty center topic that edits into a row", () => {
+    const db = createDB();
+    syncDispatch(db, deleteRootRow({}));
+    expect(
+      selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!
+        .root,
+    ).toMatchObject({ id: "map", parentId: null, title: "" });
+
+    syncDispatch(
+      db,
+      updateMindmapNode({ id: "map", node: { title: "Center" } }),
+    );
+    expect(
+      selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!
+        .root,
+    ).toMatchObject({ title: "Center" });
+  });
+
   test("a task appears once per map and dropping it again moves it", () => {
     const db = createDB();
     syncDispatch(
@@ -240,7 +340,7 @@ describe("mindmaps", () => {
     ]);
     expect(
       selectSync(db, { selector: mindmapsOfItem, args: { id: "t1" } }),
-    ).toMatchObject([{ id: "map" }]);
+    ).toMatchObject([{ mindmap: { id: "map" } }]);
   });
 
   test("new main branches alternate sides", () => {
@@ -550,7 +650,7 @@ describe("mindmaps", () => {
     });
     expect(
       selectSync(db, { selector: mindmapsOfItem, args: { id: back.id } }),
-    ).toMatchObject([{ id: "map" }]);
+    ).toMatchObject([{ mindmap: { id: "map" } }]);
 
     syncDispatch(db, convertMindmapNodeToTopic({ id: "note-node" }));
     expect(branch()).toMatchObject({

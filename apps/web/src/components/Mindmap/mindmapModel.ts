@@ -1,5 +1,5 @@
 import {
-  type Mindmap,
+  type MindmapNode,
   type MindmapNodeSide,
   type MindmapPlacement,
   type MindmapTree,
@@ -16,7 +16,7 @@ import { mindmapNodeFocusKey, mindmapRootFocusKey } from "./focusKeys.ts";
 import type { MindmapItem } from "./mindmapDnd.ts";
 
 export type CanvasNode =
-  | { kind: "root"; id: string; focusKey: FocusKey; mindmap: Mindmap }
+  | { kind: "root"; id: string; focusKey: FocusKey; node: MindmapNode }
   | {
       kind: "node";
       id: string;
@@ -35,10 +35,7 @@ export function indexMindmapTree(tree: MindmapTree): CanvasIndex {
   const rootId = tree.mindmap.id;
   const rootKey = mindmapRootFocusKey(rootId);
   const nodes = new Map<string, CanvasNode>([
-    [
-      rootId,
-      { kind: "root", id: rootId, focusKey: rootKey, mindmap: tree.mindmap },
-    ],
+    [rootId, { kind: "root", id: rootId, focusKey: rootKey, node: tree.root }],
   ]);
   const byFocusKey = new Map<FocusKey, string>([[rootKey, rootId]]);
   const visit = (trees: MindmapTreeNode[], parentId: string) => {

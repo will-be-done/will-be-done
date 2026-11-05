@@ -5,7 +5,7 @@ import { preloadSelectorAsync } from "@will-be-done/hyperdb";
 import {
   doneProjectSectionItemsForDisplay,
   inboxProjectId as getInboxProjectId,
-  mindmapsOrdered,
+  mindmapsWithTitles,
   mindmapTree,
   projectSectionItemsForDisplayChildren,
   projectSectionsByProjectId,
@@ -16,6 +16,8 @@ import { selectedProject } from "@/components/ProjectView/selectors.ts";
 
 const searchParams = z.object({
   projectId: z.string().default("inbox"),
+  // A task or note to focus on open.
+  itemId: z.string().optional(),
 });
 
 export const Route = createFileRoute("/spaces/$spaceId/mindmaps/$mindmapId")({
@@ -40,7 +42,7 @@ export const Route = createFileRoute("/spaces/$spaceId/mindmaps/$mindmapId")({
         selector: mindmapTree,
         args: { mindmapId: params.mindmapId },
       }),
-      preloadSelectorAsync(db, { selector: mindmapsOrdered, args: {} }),
+      preloadSelectorAsync(db, { selector: mindmapsWithTitles, args: {} }),
     ]);
     const sections = await preloadSelectorAsync(db, {
       selector: projectSectionsByProjectId,
@@ -63,11 +65,15 @@ export const Route = createFileRoute("/spaces/$spaceId/mindmaps/$mindmapId")({
 
 function RouteComponent() {
   const { mindmapId } = Route.useParams();
-  const { projectId } = Route.useSearch();
+  const { projectId, itemId } = Route.useSearch();
 
   return (
     <GlobalLayout>
-      <MindmapPage mindmapId={mindmapId} projectId={projectId} />
+      <MindmapPage
+        mindmapId={mindmapId}
+        projectId={projectId}
+        focusItemId={itemId}
+      />
     </GlobalLayout>
   );
 }

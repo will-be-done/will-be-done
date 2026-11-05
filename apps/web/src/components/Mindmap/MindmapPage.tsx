@@ -8,7 +8,9 @@ import {
 import {
   deleteMindmap,
   inboxProjectId,
-  mindmapsOrdered,
+  mindmapDisplayTitle,
+  mindmapRootNode,
+  mindmapsWithTitles,
   mindmapTree,
 } from "@will-be-done/slices/space";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
@@ -28,6 +30,7 @@ import {
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { MindmapCanvas } from "./MindmapCanvas.tsx";
 import {
+  confirmDeleteMindmap,
   mindmapTitle,
   useCreateMindmap,
   useCreatingMindmaps,
@@ -36,9 +39,11 @@ import {
 export const MindmapPage = ({
   mindmapId,
   projectId,
+  focusItemId,
 }: {
   mindmapId: string;
   projectId: string;
+  focusItemId: string | undefined;
 }) => {
   const { spaceId } = Route.useParams();
   const dispatch = useAsyncDispatch();
@@ -54,22 +59,32 @@ export const MindmapPage = ({
     args: { mindmapId },
   });
   const creating = useCreatingMindmaps((s) => s.mindmaps.get(mindmapId));
-  const tree = storedTree ?? (creating && { mindmap: creating, branches: [] });
+  const tree =
+    storedTree ??
+    (creating && {
+      mindmap: creating,
+      root: mindmapRootNode(creating),
+      branches: [],
+    });
   const { data: mindmaps = [] } = useAsyncSelector({
-    selector: mindmapsOrdered,
+    selector: mindmapsWithTitles,
     args: {},
   });
 
   const selectedProjectId = projectId === "inbox" ? inboxId : projectId;
 
+  // Dropping the focused item from the URL lets the same link focus it again.
+  const clearFocusItem = useCallback(() => {
+    void navigate({
+      to: "/spaces/$spaceId/mindmaps/$mindmapId",
+      params: { spaceId, mindmapId },
+      search: { projectId },
+      replace: true,
+    });
+  }, [navigate, spaceId, mindmapId, projectId]);
+
   const handleDelete = () => {
-    if (
-      !confirm(
-        "Delete this mindmap? Its topics are removed; tasks stay in their projects.",
-      )
-    ) {
-      return;
-    }
+    if (!confirmDeleteMindmap()) return;
     void (async () => {
       await navigate({ to: "/spaces/$spaceId/mindmaps", params: { spaceId } });
       await dispatch(deleteMindmap({ id: mindmapId }));
@@ -118,12 +133,14 @@ export const MindmapPage = ({
             <DropdownMenu>
               <DropdownMenuTrigger className="flex min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-lg font-semibold text-content outline-none hover:bg-white/5 [app-region:no-drag]">
                 <span className="truncate">
-                  {tree ? mindmapTitle(tree.mindmap.title) : "Mindmaps"}
+                  {tree
+                    ? mindmapTitle(mindmapDisplayTitle(tree.mindmap, tree.root))
+                    : "Mindmaps"}
                 </span>
                 <ChevronDown className="size-4 shrink-0 text-content-tinted" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-56">
-                {mindmaps.map((mindmap) => (
+                {mindmaps.map(({ mindmap, title }) => (
                   <DropdownMenuItem key={mindmap.id} asChild>
                     <Link
                       to="/spaces/$spaceId/mindmaps/$mindmapId"
@@ -133,9 +150,7 @@ export const MindmapPage = ({
                         mindmap.id === mindmapId ? "font-medium" : undefined
                       }
                     >
-                      <span className="truncate">
-                        {mindmapTitle(mindmap.title)}
-                      </span>
+                      <span className="truncate">{mindmapTitle(title)}</span>
                     </Link>
                   </DropdownMenuItem>
                 ))}
@@ -174,6 +189,8 @@ export const MindmapPage = ({
               key={mindmapId}
               tree={tree}
               projectId={selectedProjectId || undefined}
+              focusItemId={focusItemId}
+              onItemFocused={clearFocusItem}
             />
           ) : (
             !isFetching && (

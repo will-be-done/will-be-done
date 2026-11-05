@@ -60,7 +60,7 @@ test("covers every mindmap operation", async () => {
     )
   ).data.node;
   expect(marketing).toMatchObject({
-    parentId: null,
+    parentId: mindmap.id,
     kind: "topic",
     side: "left",
   });
@@ -131,6 +131,31 @@ test("covers every mindmap operation", async () => {
     200,
   );
   expect(collapsed.data.node.collapsed).toBe(true);
+
+  // The central topic is a node with the mindmap's ID; it can be renamed but
+  // stays in the center.
+  expectResponseStatus(
+    await updateMindmapNode(
+      space.id,
+      mindmap.id,
+      { title: "Ship it" },
+      options,
+    ),
+    200,
+  );
+  expectResponseStatus(
+    await moveMindmapNode(
+      space.id,
+      mindmap.id,
+      { parentId: marketing.id, placement: { kind: "last" } },
+      options,
+    ),
+    409,
+  );
+  expectResponseStatus(
+    await deleteMindmapNode(space.id, mindmap.id, options),
+    409,
+  );
   expectResponseStatus(
     await updateMindmapNode(
       space.id,
@@ -183,12 +208,14 @@ test("covers every mindmap operation", async () => {
   expect(
     fetched.data.nodes.map(({ title, parentId }) => [title, parentId]),
   ).toEqual([
-    ["Marketing", null],
+    ["Ship it", null],
+    ["Marketing", mindmap.id],
     ["Engineering", marketing.id],
     [task.title, engineering.id],
     ["Draft", marketing.id],
   ]);
-  expect(fetched.data.nodes[3]).toMatchObject({
+  expect(fetched.data.mindmap.title).toBe("Launch plan");
+  expect(fetched.data.nodes[4]).toMatchObject({
     id: noteNode.id,
     kind: "task",
     taskId: draftTask.id,
@@ -205,7 +232,7 @@ test("covers every mindmap operation", async () => {
       await getMindmap(space.id, mindmap.id, options),
       200,
     ).data.nodes.map(({ id }) => id),
-  ).toEqual([marketing.id, noteNode.id]);
+  ).toEqual([mindmap.id, marketing.id, noteNode.id]);
   expectResponseStatus(await getTask(space.id, task.id, options), 200);
 
   await coverOperation(

@@ -5,11 +5,13 @@ import {
   deleteMindmap as deleteMindmapAction,
   deleteMindmapNodes,
   isMindmapNodeWithin,
+  isMindmapRoot,
   type Mindmap,
   mindmapById,
   type MindmapNode,
   mindmapNodeById,
   mindmapNodes,
+  mindmapRootNode,
   type MindmapNodeSide,
   type MindmapPlacement,
   mindmapsOrdered,
@@ -86,11 +88,7 @@ async function publicNode(
     : node.noteId
       ? await selectAsync(db, { selector: noteById, args: { id: node.noteId } })
       : undefined;
-  return toPublicNode(
-    node,
-    node.parentId === node.mindmapId ? null : node.parentId,
-    item?.title,
-  );
+  return toPublicNode(node, node.parentId, item?.title);
 }
 
 async function requireMindmap(db: SpaceDatabase, mindmapId: string) {
@@ -107,8 +105,14 @@ async function requireNode(db: SpaceDatabase, nodeId: string) {
     selector: mindmapNodeById,
     args: { id: nodeId },
   });
-  if (!node) throw new ResourceNotFoundError("Mindmap node");
-  return node;
+  if (node) return node;
+  // A center topic whose row has not synced yet.
+  const mindmap = await selectAsync(db, {
+    selector: mindmapById,
+    args: { id: nodeId },
+  });
+  if (!mindmap) throw new ResourceNotFoundError("Mindmap node");
+  return mindmapRootNode(mindmap);
 }
 
 async function resolvePlacement({
@@ -121,12 +125,12 @@ async function resolvePlacement({
 }: {
   db: SpaceDatabase;
   mindmapId: string;
-  parentId: string | null;
+  parentId: string;
   placement: Placement;
   side?: MindmapNodeSide;
   movingId?: string;
 }): Promise<MindmapPlacement> {
-  if (parentId !== null) {
+  if (parentId !== mindmapId) {
     const parent = await selectAsync(db, {
       selector: mindmapNodeById,
       args: { id: parentId },
@@ -135,7 +139,7 @@ async function resolvePlacement({
       throw new ResourceNotFoundError("Parent node");
     }
   }
-  const parent = parentId ?? mindmapId;
+  const parent = parentId;
   if (placement.kind === "first" || placement.kind === "last") {
     return {
       parentId: parent,
@@ -190,10 +194,11 @@ export async function getMindmap({
   });
   if (!tree) throw new ResourceNotFoundError("Mindmap");
 
-  // Depth-first, so every parent precedes its children and siblings keep
-  // their order. Nodes reflect the same conflict repair the apps show.
-  const nodes: PublicMindmapNode[] = [];
-  const visit = (trees: MindmapTreeNode[], parentId: string | null) => {
+  // Depth-first from the center topic, so every parent precedes its children
+  // and siblings keep their order. Nodes reflect the same conflict repair the
+  // apps show.
+  const nodes: PublicMindmapNode[] = [toPublicNode(tree.root, null, undefined)];
+  const visit = (trees: MindmapTreeNode[], parentId: string) => {
     for (const tree of trees) {
       nodes.push(
         toPublicNode(tree.node, parentId, (tree.task ?? tree.note)?.title),
@@ -201,7 +206,7 @@ export async function getMindmap({
       visit(tree.children, tree.node.id);
     }
   };
-  visit(tree.branches, null);
+  visit(tree.branches, tree.root.id);
 
   return { mindmap: toPublicMindmap(tree.mindmap), nodes };
 }
@@ -260,7 +265,7 @@ export async function createMindmapNode({
   spaceId,
   userId,
   mindmapId,
-  parentId = null,
+  parentId = mindmapId,
   placement = { kind: "last" },
   side,
   title,
@@ -270,7 +275,7 @@ export async function createMindmapNode({
   spaceId: string;
   userId: string;
   mindmapId: string;
-  parentId?: string | null;
+  parentId?: string;
   placement?: Placement;
   side?: MindmapNodeSide;
   title?: string;
@@ -363,20 +368,21 @@ export async function moveMindmapNode({
   spaceId: string;
   userId: string;
   nodeId: string;
-  parentId: string | null;
+  parentId: string;
   placement: Placement;
   side?: MindmapNodeSide;
 }): Promise<PublicMindmapNode> {
   const db = await getSpaceDatabase(spaceId, userId);
   const node = await requireNode(db, nodeId);
-  if (parentId !== null) {
-    const nodes = await selectAsync(db, {
-      selector: mindmapNodes,
-      args: { mindmapId: node.mindmapId },
-    });
-    if (isMindmapNodeWithin(nodes, nodeId, parentId)) {
-      throw new ConflictError("A node cannot move into its own subtree");
-    }
+  if (isMindmapRoot(node)) {
+    throw new ConflictError("The central topic cannot move");
+  }
+  const nodes = await selectAsync(db, {
+    selector: mindmapNodes,
+    args: { mindmapId: node.mindmapId },
+  });
+  if (isMindmapNodeWithin(nodes, nodeId, parentId)) {
+    throw new ConflictError("A node cannot move into its own subtree");
   }
 
   const moved = await asyncDispatch(
@@ -406,6 +412,11 @@ export async function deleteMindmapNode({
   nodeId: string;
 }): Promise<void> {
   const db = await getSpaceDatabase(spaceId, userId);
-  await requireNode(db, nodeId);
+  const node = await requireNode(db, nodeId);
+  if (isMindmapRoot(node)) {
+    throw new ConflictError(
+      "The central topic goes with its mindmap; delete the mindmap instead",
+    );
+  }
   await asyncDispatch(db, deleteMindmapNodes({ ids: [nodeId] }));
 }

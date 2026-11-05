@@ -620,7 +620,11 @@ const MindmapNodeSideSchema = z
 export const MindmapSchema = z.object({
   type: z.literal("mindmap"),
   id: z.string().describe("Mindmap identifier"),
-  title: z.string().describe("Central topic"),
+  title: z
+    .string()
+    .describe(
+      "Name, plain text. Apps show the central topic's text while it is empty",
+    ),
   createdAt: z.number().int().nonnegative(),
 });
 
@@ -631,7 +635,9 @@ export const MindmapNodeSchema = z.object({
   parentId: z
     .string()
     .nullable()
-    .describe("Parent node, or null for a main branch of the central topic"),
+    .describe(
+      "Parent node, or null for the central topic, whose ID is the mindmap's",
+    ),
   kind: z
     .enum(["topic", "task", "note"])
     .describe("A topic owns its title; a task or note node shows that item"),
@@ -677,9 +683,10 @@ export const CreateMindmapNodeBodySchema = z
     parentId: z
       .string()
       .min(1)
-      .nullable()
       .optional()
-      .describe("Parent node; omit or null for a main branch"),
+      .describe(
+        "Parent node; the central topic (the mindmap ID) or omitted for a main branch",
+      ),
     placement: PlacementSchema.optional(),
     side: MindmapNodeSideSchema.optional().describe(
       "Side for a main branch placed first or last; defaults to the side with fewer branches",
@@ -724,8 +731,9 @@ export const MoveMindmapNodeBodySchema = z
     parentId: z
       .string()
       .min(1)
-      .nullable()
-      .describe("New parent node, or null for a main branch"),
+      .describe(
+        "New parent node; the central topic (the mindmap ID) for a main branch",
+      ),
     placement: PlacementSchema,
     side: MindmapNodeSideSchema.optional(),
   })

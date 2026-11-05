@@ -18,22 +18,37 @@ Code lives in:
 
 ## Model
 
-A mindmap is a tree drawn around a central topic. The central topic is not a
-node: the `mindmaps` row is the root, and its `title`/`titleDoc` are the
-central topic's text.
+A mindmap is a tree drawn around a central topic. The `mindmaps` row holds
+only the map's name (`title`, plain text, last write wins) and list order.
+Lists show the central topic's plain text while the name is empty
+(`mindmapDisplayTitle`). `titleDoc` on `mindmaps` is unused; rows from before
+the central topic moved to a node carry it, and HyperDB rejects rows with
+fields the schema lacks.
 
-Every other node is a `mindmap_nodes` row:
+Every node, the central topic included, is a `mindmap_nodes` row:
 
-| Field        | Meaning                                                           |
-| ------------ | ----------------------------------------------------------------- |
-| `mindmapId`  | Owning map.                                                       |
-| `parentId`   | The mindmap ID for a main branch, otherwise the parent node's ID. |
-| `orderToken` | Fractional key among siblings of the same parent.                 |
-| `side`       | `left` or `right` of the root. Read on main branches only.        |
-| `taskId`     | Linked Task, or `null`.                                           |
-| `noteId`     | Linked Note. Optional; absent means no note.                      |
-| `title(Doc)` | Topic text. Empty on task and note nodes.                         |
-| `collapsed`  | Children are hidden in the layout.                                |
+| Field        | Meaning                                                    |
+| ------------ | ---------------------------------------------------------- |
+| `mindmapId`  | Owning map.                                                |
+| `parentId`   | The parent node's ID, or `null` on a root.                 |
+| `orderToken` | Fractional key among siblings of the same parent.          |
+| `side`       | `left` or `right` of the root. Read on main branches only. |
+| `taskId`     | Linked Task, or `null`.                                    |
+| `noteId`     | Linked Note. Optional; absent means no note.               |
+| `title(Doc)` | Topic text. Empty on task and note nodes.                  |
+| `collapsed`  | Children are hidden in the layout.                         |
+
+The central topic is the root whose ID is the map's (`isMindmapRoot`), so a
+main branch's `parentId` is the map ID. `createMindmap` writes it with the map.
+It stays a topic and stays in the center: moves, removal, conversion, and
+sibling placements skip or reject it, and it goes only with `deleteMindmap`.
+Its ID is fixed rather than random so a map can never have two, and so the
+tree can stand in an empty one (`mindmapRootNode`) while the row has not
+synced; `updateMindmapNode` on that stand-in writes the row.
+
+`parentId: null` leaves room for detached topics placed freely on the canvas.
+None are written yet; until they are, any parentless node other than the
+central topic shows as a main branch.
 
 A node is exactly one kind:
 
@@ -66,7 +81,9 @@ rows can describe something that is not a tree. `buildMindmapTree` repairs it
 on read, never by writing fixes back, so every replica derives the same
 picture from the same rows:
 
-- a node whose parent is missing, or belongs to another map, is a main branch;
+- the central topic is the tree's root and is left out of the branches;
+- a node whose parent is missing, belongs to another map, or is `null` is a
+  main branch;
 - a parent cycle is broken at its smallest node ID, which becomes a main
   branch;
 - a task or note node whose item is gone is hidden, and its children take its
@@ -77,8 +94,10 @@ picture from the same rows:
 
 Siblings sort by `orderToken`, then by ID. The result must not depend on input
 row order. `buildMindmapTree repairs orphans, cycles and missing tasks the same
-way in any order` and `a node linking a task and a note shows whichever exists,
-task first` cover these rules.
+way in any order`, `a node linking a task and a note shows whichever exists,
+task first`, `the center topic cannot move, go away, convert or get siblings`
+and `a map without its root row shows an empty center topic that edits into a
+row` cover these rules.
 
 ## Placement
 
@@ -182,7 +201,11 @@ lifts its children and restoring brings it back`.
 | `deleteMindmapNode` | `DELETE /spaces/:spaceId/mindmap-nodes/:nodeId`    |
 
 - `getMindmap` returns nodes depth-first from the repaired tree, so clients see
-  what the apps show. `parentId` is `null` for main branches.
+  what the apps show. The first node is the central topic: its ID is the
+  mindmap's and its `parentId` is `null`; main branches name it as parent.
+- A mindmap's `title` is its plain-text name; the central topic's text is the
+  root node's `title`.
+- Moving or deleting the central topic is a 409.
 - A node reports `kind` (`topic`, `task`, `note`), `taskId`, `noteId` (`null`
   when absent), and `title`, which is the item's title for task and note nodes.
 - `createMindmapNode` takes exactly one of `title`, `taskId`, `noteId`.
@@ -207,6 +230,12 @@ panel at the bottom (the `projectId` search param picks the project; `inbox`
 is an alias), and the item details panel on the right. Tasks and Notes are
 dragged from the project panel or the stash onto the canvas. The stash sits at
 the canvas's left edge (`WithStash`) and pushes the canvas aside when open.
+
+The details panel's mindmaps row links with `itemId`. The canvas expands the
+node's collapsed ancestors, waits until the node is measured (centering on an
+estimated layout lands off-center once real sizes arrive), centers and focuses
+it, then drops `itemId` from the URL with a replace so the same link works
+again.
 
 Creating a map must open it without a visible delay (`useCreateMindmap`):
 
@@ -269,6 +298,7 @@ project. On the root, new nodes are topics.
 | `r`                       | Reset a task's schedule.                       |
 | `Shift+S`                 | Stash a todo task.                             |
 | `e`                       | Edit the item's description in details.        |
+| `c`                       | Add a checklist item to a task node.           |
 | `a`                       | Open the node's "…" menu.                      |
 | `.`                       | Collapse or expand.                            |
 | `d`, `x`, `Backspace`     | Remove the node (or the selection) and below.  |
@@ -282,13 +312,14 @@ trash. Task and note nodes show "project · section · date"
 (`MindmapItemPlace`); the project opens the move dialog and the section a
 picker of that project's sections.
 
-Item keys (`m s t r Shift+S e`) reuse the project-list actions
+Item keys (`m s t r Shift+S e c`) reuse the project-list actions
 (`moveTaskToProject`/`moveNoteToProject`, `TaskDatePicker`, `scheduleTask`,
-`removeFromDailyList`, the stash column drop, the details description request),
-so they behave the same as on a task in a list. Keys a map node cannot show the
-result of are not bound: nature (`1 2 3`), checklist (`c`), the action menu
-(`a`), and template conversion (`Shift+T`). Task nodes show their scheduled date
-next to the project.
+`removeFromDailyList`, the stash column drop, the details description request,
+checklist `createItem`), so they behave the same as on a task in a list. Task
+nodes render the list's `ChecklistItems` under the title; the node's size
+observer relayouts as it grows. Keys a map node cannot show the result of are
+not bound: nature (`1 2 3`) and template conversion (`Shift+T`). Task nodes
+show their scheduled date next to the project.
 
 `treeMoveOf` maps a screen direction to a placement, by the node's branch side:
 

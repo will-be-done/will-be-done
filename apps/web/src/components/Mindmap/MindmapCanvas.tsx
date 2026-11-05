@@ -22,6 +22,7 @@ import {
   convertTaskToNote,
   convertMindmapNodeToTask,
   convertMindmapNodeToTopic,
+  createItem as createChecklistItem,
   createMindmapNode,
   createMindmapNote,
   createMindmapTask,
@@ -48,6 +49,8 @@ import { Maximize, Minus, Plus } from "lucide-react";
 import { type FocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
 import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
+import { focusChecklistItem } from "@/components/Checklist/focus";
+import { captureWebAnalytics } from "@/lib/analytics";
 import {
   useItemDetailsEditRequest,
   useItemDetailsOpen,
@@ -88,6 +91,7 @@ import {
 } from "./MindmapNodeCard.tsx";
 
 type View = { x: number; y: number; zoom: number };
+type Pending = { key: FocusKey; focus: boolean; center?: boolean };
 
 // Survives navigating between maps within a session.
 const savedViews = new Map<string, View>();
@@ -162,10 +166,14 @@ function neighborOf(
 export function MindmapCanvas({
   tree,
   projectId,
+  focusItemId,
+  onItemFocused,
 }: {
   tree: MindmapTree;
   // Where new tasks and notes go: the project shown under the map.
   projectId: string | undefined;
+  focusItemId: string | undefined;
+  onItemFocused: () => void;
 }) {
   const dispatch = useAsyncDispatch();
   const select = useSelectAsync();
@@ -179,7 +187,7 @@ export function MindmapCanvas({
     sizeStore.subscribe,
     sizeStore.getSnapshot,
   );
-  const pendingRef = useRef<{ key: FocusKey; focus: boolean } | null>(null);
+  const pendingRef = useRef<Pending | null>(null);
 
   const preview = useMindmapDrop((s) => s.preview);
 
@@ -309,10 +317,33 @@ export function MindmapCanvas({
     [applyView],
   );
 
+  const center = useCallback(
+    (element: HTMLElement) => {
+      const viewport = viewportRef.current?.getBoundingClientRect();
+      if (!viewport) return;
+      const rect = element.getBoundingClientRect();
+      const view = viewRef.current;
+      applyView({
+        ...view,
+        x:
+          view.x +
+          viewport.left +
+          viewport.width / 2 -
+          (rect.left + rect.width / 2),
+        y:
+          view.y +
+          viewport.top +
+          viewport.height / 2 -
+          (rect.top + rect.height / 2),
+      });
+    },
+    [applyView],
+  );
+
   // A node created or moved by an action renders after the dispatch resolves,
   // so focusing it may have to wait for the next commit.
   const settle = useCallback(
-    (pending: { key: FocusKey; focus: boolean }) => {
+    (pending: Pending) => {
       const element = viewportRef.current?.querySelector<HTMLElement>(
         `[data-focusable-key="${pending.key}"]`,
       );
@@ -322,14 +353,50 @@ export function MindmapCanvas({
       }
       pendingRef.current = null;
       if (pending.focus) element.focus({ preventScroll: true });
-      reveal(element);
+      if (pending.center) center(element);
+      else reveal(element);
     },
-    [reveal],
+    [center, reveal],
   );
 
   useLayoutEffect(() => {
     if (pendingRef.current) settle(pendingRef.current);
   });
+
+  // Opened from an item's details: expand down to its node, then center it
+  // once measured, so the measured layout cannot shift it off-center.
+  const focusedItemRef = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!focusItemId) {
+      focusedItemRef.current = undefined;
+      return;
+    }
+    if (focusedItemRef.current === focusItemId) return;
+    const entry = [...index.nodes.values()].find(
+      (e) =>
+        e.kind === "node" &&
+        (e.tree.task?.id === focusItemId || e.tree.note?.id === focusItemId),
+    );
+    if (entry?.kind !== "node") return;
+    let collapsed = false;
+    for (
+      let parent = index.nodes.get(entry.parentId);
+      parent?.kind === "node";
+      parent = index.nodes.get(parent.parentId)
+    ) {
+      if (!parent.tree.node.collapsed) continue;
+      collapsed = true;
+      void dispatch(
+        updateMindmapNode({ id: parent.id, node: { collapsed: false } }),
+      );
+    }
+    if (collapsed || !sizes.has(entry.id)) return;
+    focusedItemRef.current = focusItemId;
+    useMindmapSelection.getState().clear();
+    useFocusStore.getState().focusByKey(entry.focusKey, true);
+    settle({ key: entry.focusKey, focus: true, center: true });
+    onItemFocused();
+  }, [dispatch, focusItemId, index, onItemFocused, settle, sizes]);
 
   useEffect(() => sizeStore.disconnect, [sizeStore]);
 
@@ -547,6 +614,28 @@ export function MindmapCanvas({
             edge: "top",
           }),
         );
+      },
+      addChecklistItem: (id) => {
+        const entry = entryOf(id);
+        const task = taskOf(id);
+        if (!entry || !task) return;
+        focusNode(entry.focusKey);
+        void (async () => {
+          const item = await dispatch(
+            createChecklistItem({
+              item: { parentId: task.id, parentType: task.type },
+            }),
+          );
+          captureWebAnalytics({
+            name: "checklist_item_created",
+            properties: { creation_method: "web" },
+          });
+          focusChecklistItem(item.id, {
+            root: document.querySelector(
+              `[data-mindmap-node="${CSS.escape(id)}"]`,
+            ),
+          });
+        })();
       },
       editDescription: (id) => {
         const item = itemOf(id);
@@ -945,6 +1034,7 @@ export function MindmapCanvas({
       KeyT: () => actions.scheduleToday(id),
       KeyR: () => actions.resetSchedule(id),
       KeyE: () => actions.editDescription(id),
+      KeyC: () => actions.addChecklistItem(id),
       KeyA: () => {
         if (entry.kind === "node") {
           useMindmapMenu.getState().setNodeId(id);
@@ -1033,7 +1123,7 @@ export function MindmapCanvas({
                 startEditing={
                   entry.kind === "root" &&
                   tree.branches.length === 0 &&
-                  !tree.mindmap.title.trim()
+                  !tree.root.title.trim()
                 }
               />
             )

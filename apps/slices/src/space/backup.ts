@@ -146,7 +146,7 @@ interface MindmapBackup {
 interface MindmapNodeBackup {
   id: string;
   mindmapId: string;
-  parentId: string;
+  parentId: string | null;
   orderToken: string;
   side: "left" | "right";
   taskId: string | null;
@@ -324,7 +324,7 @@ const backupSchema = v.object({
       v.object({
         id: v.string(),
         mindmapId: v.string(),
-        parentId: v.string(),
+        parentId: v.union(v.string(), v.null()),
         orderToken: v.string(),
         side: v.union(v.literal("left"), v.literal("right")),
         taskId: v.union(v.string(), v.null()),

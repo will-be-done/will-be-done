@@ -1,7 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
-import { richTextMarkdownToPlainText } from "@will-be-done/slices/common";
 import {
   createMindmap,
   type Mindmap,
@@ -58,4 +57,9 @@ export const useCreateMindmap = () => {
 };
 
 export const mindmapTitle = (title: string) =>
-  richTextMarkdownToPlainText(title, "title") || "Untitled mindmap";
+  title.trim() || "Untitled mindmap";
+
+export const confirmDeleteMindmap = () =>
+  confirm(
+    "Delete this mindmap? Its topics are removed; tasks stay in their projects.",
+  );

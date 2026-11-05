@@ -249,11 +249,12 @@ export function isChecklistParentType(
 }
 
 export const mindmapType = "mindmap";
-// The mindmap row is also the map's root node; its title is the center topic.
+// The map's name, plain text; its center topic is the root node.
 export const mindmapsTable = defineTable("mindmaps", {
   type: v.literal(mindmapType),
   id: v.string(),
   title: v.string(),
+  // Unused; rows from when the map row held the center topic carry it.
   titleDoc: v.optional(v.string()),
   orderToken: v.string(),
   createdAt: v.number(),
@@ -261,9 +262,6 @@ export const mindmapsTable = defineTable("mindmaps", {
   .index("byIds", ["id"])
   .index("byOrderToken", ["orderToken"]);
 registerSpaceSyncableTable(mindmapsTable, mindmapType);
-registerRichTextFields(mindmapsTable.tableName, [
-  { docField: "titleDoc", textField: "title", kind: "title" },
-]);
 
 export type Mindmap = ExtractSchema<typeof mindmapsTable>;
 export const isMindmap = isObjectType<Mindmap>(mindmapType);
@@ -276,8 +274,9 @@ export const mindmapNodesTable = defineTable("mindmap_nodes", {
   type: v.literal(mindmapNodeType),
   id: v.string(),
   mindmapId: v.string(),
-  // The mindmap ID for main branches, otherwise the parent node's ID.
-  parentId: v.string(),
+  // null on a root. The center topic is the root whose ID is the map's, so
+  // main branches have the map ID as their parent.
+  parentId: v.union(v.string(), v.null()),
   orderToken: v.string(),
   // Which side of the root a main branch sits on; ignored on deeper nodes.
   side: mindmapNodeSide,

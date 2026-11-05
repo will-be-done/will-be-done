@@ -13530,7 +13530,7 @@
                           },
                           "title": {
                             "type": "string",
-                            "description": "Central topic"
+                            "description": "Name, plain text. Apps show the central topic's text while it is empty"
                           },
                           "createdAt": {
                             "type": "integer",
@@ -13758,7 +13758,7 @@
                         },
                         "title": {
                           "type": "string",
-                          "description": "Central topic"
+                          "description": "Name, plain text. Apps show the central topic's text while it is empty"
                         },
                         "createdAt": {
                           "type": "integer",
@@ -13981,7 +13981,7 @@
                         },
                         "title": {
                           "type": "string",
-                          "description": "Central topic"
+                          "description": "Name, plain text. Apps show the central topic's text while it is empty"
                         },
                         "createdAt": {
                           "type": "integer",
@@ -14005,7 +14005,7 @@
                           "mindmapId": { "type": "string" },
                           "parentId": {
                             "anyOf": [{ "type": "string" }, { "type": "null" }],
-                            "description": "Parent node, or null for a main branch of the central topic"
+                            "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
                           },
                           "kind": {
                             "type": "string",
@@ -14274,7 +14274,7 @@
                         },
                         "title": {
                           "type": "string",
-                          "description": "Central topic"
+                          "description": "Name, plain text. Apps show the central topic's text while it is empty"
                         },
                         "createdAt": {
                           "type": "integer",
@@ -14658,11 +14658,9 @@
                 "type": "object",
                 "properties": {
                   "parentId": {
-                    "description": "Parent node; omit or null for a main branch",
-                    "anyOf": [
-                      { "type": "string", "minLength": 1 },
-                      { "type": "null" }
-                    ]
+                    "description": "Parent node; the central topic (the mindmap ID) or omitted for a main branch",
+                    "type": "string",
+                    "minLength": 1
                   },
                   "placement": {
                     "oneOf": [
@@ -14773,7 +14771,7 @@
                         "mindmapId": { "type": "string" },
                         "parentId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }],
-                          "description": "Parent node, or null for a main branch of the central topic"
+                          "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
                         },
                         "kind": {
                           "type": "string",
@@ -15054,7 +15052,7 @@
                         "mindmapId": { "type": "string" },
                         "parentId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }],
-                          "description": "Parent node, or null for a main branch of the central topic"
+                          "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
                         },
                         "kind": {
                           "type": "string",
@@ -15471,11 +15469,9 @@
                 "type": "object",
                 "properties": {
                   "parentId": {
-                    "anyOf": [
-                      { "type": "string", "minLength": 1 },
-                      { "type": "null" }
-                    ],
-                    "description": "New parent node, or null for a main branch"
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "New parent node; the central topic (the mindmap ID) for a main branch"
                   },
                   "placement": {
                     "oneOf": [
@@ -15572,7 +15568,7 @@
                         "mindmapId": { "type": "string" },
                         "parentId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }],
-                          "description": "Parent node, or null for a main branch of the central topic"
+                          "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
                         },
                         "kind": {
                           "type": "string",

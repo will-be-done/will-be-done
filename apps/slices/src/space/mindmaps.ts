@@ -12,6 +12,7 @@ import {
 } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
+import { richTextMarkdownToPlainText } from "../common/richText";
 import { noteById } from "./notes";
 import {
   createNoteInSection,
@@ -52,8 +53,40 @@ export type MindmapTreeNode = {
 
 export type MindmapTree = {
   mindmap: Mindmap;
+  // The center topic; its children are the main branches.
+  root: MindmapNode;
   branches: MindmapTreeNode[];
 };
+
+/** The center topic is the node whose ID is its map's. */
+export const isMindmapRoot = (node: Pick<MindmapNode, "id" | "mindmapId">) =>
+  node.id === node.mindmapId;
+
+// Written with the map, but stood in for while its row has not synced yet.
+export const mindmapRootNode = (
+  mindmap: Pick<Mindmap, "id" | "createdAt">,
+): MindmapNode => ({
+  type: mindmapNodeType,
+  id: mindmap.id,
+  mindmapId: mindmap.id,
+  parentId: null,
+  orderToken: "a0",
+  side: "right",
+  taskId: null,
+  title: "",
+  collapsed: false,
+  createdAt: mindmap.createdAt,
+});
+
+/** A map without a name goes by its center topic. */
+export const mindmapDisplayTitle = (
+  mindmap: Pick<Mindmap, "title">,
+  root: Pick<MindmapNode, "title"> | undefined,
+) =>
+  mindmap.title.trim() ||
+  richTextMarkdownToPlainText(root?.title ?? "", "title");
+
+export type MindmapListItem = { mindmap: Mindmap; title: string };
 
 const compareNodes = (a: MindmapNode, b: MindmapNode) => {
   if (a.orderToken !== b.orderToken)
@@ -64,7 +97,8 @@ const compareNodes = (a: MindmapNode, b: MindmapNode) => {
 
 // Every replica repairs concurrent edits the same way, so they converge on one
 // picture without writing fixes back:
-// - a node whose parent is gone becomes a main branch;
+// - the root is not part of the result; the result is its children;
+// - a node whose parent is gone, or with no parent, becomes a main branch;
 // - a parent cycle is broken at its smallest node ID, which becomes a main branch;
 // - a task or note node whose item is gone is hidden and its children take its
 //   place.
@@ -81,12 +115,15 @@ export function buildMindmapTree(
     { project: Project; section: ProjectSection }
   > = new Map(),
 ): MindmapTreeNode[] {
+  nodes = nodes.filter((node) => node.id !== mindmapId);
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const parentOf = new Map<string, string>();
   for (const node of nodes) {
     parentOf.set(
       node.id,
-      node.mindmapId === mindmapId && byId.has(node.parentId)
+      node.mindmapId === mindmapId &&
+        node.parentId !== null &&
+        byId.has(node.parentId)
         ? node.parentId
         : mindmapId,
     );
@@ -154,8 +191,8 @@ export function isMindmapNodeWithin(
 ) {
   const parentOf = new Map(nodes.map((node) => [node.id, node.parentId]));
   const seen = new Set<string>();
-  let current: string | undefined = nodeId;
-  while (current !== undefined && !seen.has(current)) {
+  let current: string | null | undefined = nodeId;
+  while (typeof current === "string" && !seen.has(current)) {
     if (current === ancestorId) return true;
     seen.add(current);
     current = parentOf.get(current);
@@ -196,6 +233,28 @@ export const mindmapsOrdered = selector({
   },
 });
 
+function* withDisplayTitles(
+  mindmaps: Mindmap[],
+): Generator<unknown, MindmapListItem[], unknown> {
+  if (mindmaps.length === 0) return [];
+  const roots = (yield* selectFrom(mindmapNodesTable, "byId").where((q) =>
+    mindmaps.map((mindmap) => q.eq("id", mindmap.id)),
+  )) as MindmapNode[];
+  const rootsById = new Map(roots.map((root) => [root.id, root]));
+  return mindmaps.map((mindmap) => ({
+    mindmap,
+    title: mindmapDisplayTitle(mindmap, rootsById.get(mindmap.id)),
+  }));
+}
+
+export const mindmapsWithTitles = selector({
+  name: "mindmapsWithTitles",
+  args: {},
+  handler: function* mindmapsWithTitles() {
+    return yield* withDisplayTitles(yield* mindmapsOrdered({}));
+  },
+});
+
 export const mindmapNodeById = selector({
   name: "mindmapNodeById",
   args: { id: v.string() },
@@ -218,7 +277,7 @@ export const mindmapNodes = selector({
 
 const mindmapNodeChildren = selector({
   name: "mindmapNodeChildren",
-  args: { mindmapId: v.string(), parentId: v.string() },
+  args: { mindmapId: v.string(), parentId: v.union(v.string(), v.null()) },
   handler: function* mindmapNodeChildren({ mindmapId, parentId }) {
     return (yield* selectFrom(mindmapNodesTable, "byMindmapParentOrder").where(
       (q) => q.eq("mindmapId", mindmapId).eq("parentId", parentId),
@@ -262,7 +321,9 @@ export const mindmapsOfItem = selector({
     const mindmaps = (yield* selectFrom(mindmapsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
     )) as Mindmap[];
-    return mindmaps.sort((a, b) => (a.orderToken < b.orderToken ? -1 : 1));
+    return yield* withDisplayTitles(
+      mindmaps.sort((a, b) => (a.orderToken < b.orderToken ? -1 : 1)),
+    );
   },
 });
 
@@ -323,6 +384,8 @@ export const mindmapTree = selector({
 
     return {
       mindmap,
+      root:
+        nodes.find((node) => node.id === mindmapId) ?? mindmapRootNode(mindmap),
       branches: buildMindmapTree(
         mindmapId,
         nodes,
@@ -357,6 +420,9 @@ function* resolvePlacement(
     const sibling = yield* mindmapNodeById({ id: placement.siblingId });
     if (!sibling || sibling.mindmapId !== mindmapId) {
       throw new Error("Mindmap node not found");
+    }
+    if (sibling.parentId === null) {
+      throw new Error("A root has no siblings");
     }
     const siblings = (yield* mindmapNodeChildren({
       mindmapId,
@@ -406,7 +472,7 @@ function* resolvePlacement(
 
 // Depth-first map order, so a moved selection keeps its on-screen order.
 function treeOrder(mindmapId: string, nodes: readonly MindmapNode[]) {
-  const children = new Map<string, MindmapNode[]>();
+  const children = new Map<string | null, MindmapNode[]>();
   for (const node of nodes) {
     children.set(node.parentId, [...(children.get(node.parentId) ?? []), node]);
   }
@@ -440,6 +506,7 @@ export const createMindmap = action({
       createdAt: Date.now(),
     };
     yield* insert(mindmapsTable, [mindmap]);
+    yield* insert(mindmapNodesTable, [mindmapRootNode(mindmap)]);
     return mindmap;
   },
 });
@@ -448,12 +515,12 @@ export const updateMindmap = action({
   name: "updateMindmap",
   args: {
     id: v.string(),
-    mindmap: v.partial(v.object({ title: v.string(), titleDoc: v.string() })),
+    mindmap: v.partial(v.object({ title: v.string() })),
   },
   handler: function* updateMindmap({ id, mindmap }) {
     const current = yield* mindmapById({ id });
     if (!current) throw new Error("Mindmap not found");
-    const next = syncItemRichText(current, { ...current, ...mindmap });
+    const next = { ...current, ...mindmap };
     yield* upsert(mindmapsTable, [next]);
     return next;
   },
@@ -501,7 +568,11 @@ export const moveMindmapNodes = action({
     if (!first) return [];
     const { mindmapId } = first;
     const nodes = yield* mindmapNodes({ mindmapId });
-    const selected = nodes.filter((node) => ids.includes(node.id));
+    // The center topic stays in the center.
+    const selected = nodes.filter(
+      (node) => ids.includes(node.id) && !isMindmapRoot(node),
+    );
+    if (selected.length === 0) return [];
     if ("siblingId" in placement && ids.includes(placement.siblingId)) {
       return selected;
     }
@@ -519,7 +590,7 @@ export const moveMindmapNodes = action({
         ),
     );
     if (
-      target !== undefined &&
+      typeof target === "string" &&
       roots.some((node) => isMindmapNodeWithin(nodes, node.id, target))
     ) {
       throw new Error("Cannot move a mindmap node into itself");
@@ -629,7 +700,10 @@ export const updateMindmapNode = action({
     ),
   },
   handler: function* updateMindmapNode({ id, node }) {
-    const current = yield* mindmapNodeById({ id });
+    const mindmap = yield* mindmapById({ id });
+    const current =
+      (yield* mindmapNodeById({ id })) ??
+      (mindmap ? mindmapRootNode(mindmap) : undefined);
     if (!current) throw new Error("Mindmap node not found");
     const next = syncItemRichText(current, { ...current, ...node });
     yield* upsert(mindmapNodesTable, [next]);
@@ -643,9 +717,11 @@ export const deleteMindmapNodes = action({
   args: { ids: v.array(v.string()) },
   handler: function* deleteMindmapNodes({ ids }) {
     if (ids.length === 0) return;
-    const roots = (yield* selectFrom(mindmapNodesTable, "byId").where((q) =>
-      ids.map((id) => q.eq("id", id)),
-    )) as MindmapNode[];
+    const roots = (
+      (yield* selectFrom(mindmapNodesTable, "byId").where((q) =>
+        ids.map((id) => q.eq("id", id)),
+      )) as MindmapNode[]
+    ).filter((node) => !isMindmapRoot(node));
     const toDelete = new Set<string>();
     for (const mindmapId of new Set(roots.map((node) => node.mindmapId))) {
       const nodes = yield* mindmapNodes({ mindmapId });
@@ -683,7 +759,7 @@ export const convertMindmapNodeToTask = action({
   handler: function* convertMindmapNodeToTask({ id, projectId }) {
     const node = yield* mindmapNodeById({ id });
     if (!node) throw new Error("Mindmap node not found");
-    if (node.taskId || node.noteId) {
+    if (node.taskId || node.noteId || isMindmapRoot(node)) {
       throw new Error("Only a topic converts to a task");
     }
 
@@ -728,7 +804,7 @@ export const convertMindmapNodeToNote = action({
   handler: function* convertMindmapNodeToNote({ id, projectId }) {
     const node = yield* mindmapNodeById({ id });
     if (!node) throw new Error("Mindmap node not found");
-    if (node.taskId || node.noteId) {
+    if (node.taskId || node.noteId || isMindmapRoot(node)) {
       throw new Error("Only a topic converts to a note");
     }
 

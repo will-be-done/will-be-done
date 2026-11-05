@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { type LayoutTree, layoutMindmap } from "./mindmapLayout";
-import type {
-  MindmapNodeSide,
-  MindmapTreeNode,
+import {
+  type MindmapNodeSide,
+  type MindmapTreeNode,
+  mindmapRootNode,
 } from "@will-be-done/slices/space";
 import {
   type DropPreview,
@@ -182,14 +183,16 @@ describe("treeMoveOf", () => {
     children,
   });
   // Right: a(a1 a2), b. Left: l.
+  const mindmap = {
+    type: "mindmap",
+    id: "root",
+    title: "",
+    orderToken: "a",
+    createdAt: 0,
+  } as const;
   const index = indexMindmapTree({
-    mindmap: {
-      type: "mindmap",
-      id: "root",
-      title: "",
-      orderToken: "a",
-      createdAt: 0,
-    },
+    mindmap,
+    root: mindmapRootNode(mindmap),
     branches: [
       topic("a", [topic("a1"), topic("a2")]),
       topic("b"),

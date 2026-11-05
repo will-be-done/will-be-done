@@ -362,7 +362,8 @@ must never expose a partially applied logical sync response.
   resolved deterministically before the generic merge.
 - Mindmap nodes merge with the generic rules only. Concurrent moves, deletes
   and conversions can leave a node whose parent is gone, a parent cycle, a
-  node whose Task or Note is gone, or a node linking both (it shows the Task);
+  node whose Task or Note is gone, a node linking both (it shows the Task), or
+  a map whose central-topic node has not arrived (an empty one stands in);
   `buildMindmapTree` repairs these deterministically on read instead of
   writing fixes back, so every replica shows the same tree.
 - DailyLists are deterministic, ensure-only date scaffolding. They are not

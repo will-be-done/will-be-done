@@ -144,6 +144,7 @@ const shortcutGroups: ShortcutGroup[] = [
       { bindings: [["R"]], description: "Reset schedule" },
       { bindings: [["Shift", "S"]], description: "Stash task" },
       { bindings: [["E"]], description: "Edit description" },
+      { bindings: [["C"]], description: "Add checklist item" },
       { bindings: [["A"]], description: "Open action menu" },
       { bindings: [["."]], description: "Collapse or expand" },
       {

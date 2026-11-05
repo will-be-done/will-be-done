@@ -8372,7 +8372,7 @@ export type ListMindmaps200MindmapsItem = {
   type: ListMindmaps200MindmapsItemType;
   /** Mindmap identifier */
   id: string;
-  /** Central topic */
+  /** Name, plain text. Apps show the central topic's text while it is empty */
   title: string;
   /**
    * @minimum 0
@@ -8521,7 +8521,7 @@ export type CreateMindmap201Mindmap = {
   type: CreateMindmap201MindmapType;
   /** Mindmap identifier */
   id: string;
-  /** Central topic */
+  /** Name, plain text. Apps show the central topic's text while it is empty */
   title: string;
   /**
    * @minimum 0
@@ -8665,7 +8665,7 @@ export type GetMindmap200Mindmap = {
   type: GetMindmap200MindmapType;
   /** Mindmap identifier */
   id: string;
-  /** Central topic */
+  /** Name, plain text. Apps show the central topic's text while it is empty */
   title: string;
   /**
    * @minimum 0
@@ -8709,7 +8709,7 @@ export type GetMindmap200NodesItem = {
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for a main branch of the central topic */
+  /** Parent node, or null for the central topic, whose ID is the mindmap's */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: GetMindmap200NodesItemKind;
@@ -8869,7 +8869,7 @@ export type UpdateMindmap200Mindmap = {
   type: UpdateMindmap200MindmapType;
   /** Mindmap identifier */
   id: string;
-  /** Central topic */
+  /** Name, plain text. Apps show the central topic's text while it is empty */
   title: string;
   /**
    * @minimum 0
@@ -9161,8 +9161,11 @@ export const CreateMindmapNodeBodySide = {
 } as const;
 
 export type CreateMindmapNodeBody = {
-  /** Parent node; omit or null for a main branch */
-  parentId?: string | null;
+  /**
+   * Parent node; the central topic (the mindmap ID) or omitted for a main branch
+   * @minLength 1
+   */
+  parentId?: string;
   /** Position within an ordered collection */
   placement?: CreateMindmapNodeBodyPlacement;
   /** Side for a main branch placed first or last; defaults to the side with fewer branches */
@@ -9219,7 +9222,7 @@ export type CreateMindmapNode201Node = {
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for a main branch of the central topic */
+  /** Parent node, or null for the central topic, whose ID is the mindmap's */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: CreateMindmapNode201NodeKind;
@@ -9418,7 +9421,7 @@ export type UpdateMindmapNode200Node = {
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for a main branch of the central topic */
+  /** Parent node, or null for the central topic, whose ID is the mindmap's */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: UpdateMindmapNode200NodeKind;
@@ -9719,8 +9722,11 @@ export const MoveMindmapNodeBodySide = {
 } as const;
 
 export type MoveMindmapNodeBody = {
-  /** New parent node, or null for a main branch */
-  parentId: string | null;
+  /**
+   * New parent node; the central topic (the mindmap ID) for a main branch
+   * @minLength 1
+   */
+  parentId: string;
   /** Position within an ordered collection */
   placement: MoveMindmapNodeBodyPlacement;
   /** Side of the central topic a main branch sits on */
@@ -9762,7 +9768,7 @@ export type MoveMindmapNode200Node = {
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for a main branch of the central topic */
+  /** Parent node, or null for the central topic, whose ID is the mindmap's */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: MoveMindmapNode200NodeKind;

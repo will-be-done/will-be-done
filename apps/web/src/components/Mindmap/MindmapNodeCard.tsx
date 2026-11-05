@@ -8,7 +8,6 @@ import { richTextDocToMarkdown } from "@will-be-done/slices/common";
 import {
   dailyEntryDateOfTask,
   toggleTaskState,
-  updateMindmap,
   updateMindmapNode,
   updateNote,
   updateTask,
@@ -16,7 +15,7 @@ import {
 import { ListTodo, Plus, StickyNote, Trash2, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { useFocusStore } from "@/store/focusSlice.ts";
-import { CheckboxComp } from "@/components/Checklist/Checklist";
+import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { RichTextEditor } from "@/components/RichText/RichTextEditor";
 import { RichTextView } from "@/components/RichText/RichTextView";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
@@ -60,6 +59,7 @@ export type MindmapNodeActions = {
   resetSchedule: (id: string) => void;
   stash: (id: string) => void;
   editDescription: (id: string) => void;
+  addChecklistItem: (id: string) => void;
 };
 
 const toolbarButtonClass =
@@ -101,7 +101,7 @@ export function MindmapNodeCard({
   const isDatePickerOpen = useMindmapDatePicker((s) => s.nodeId === id);
   const isMenuOpen = useMindmapMenu((s) => s.nodeId === id);
 
-  const node = entry.kind === "node" ? entry.tree.node : undefined;
+  const node = entry.kind === "node" ? entry.tree.node : entry.node;
   const task = entry.kind === "node" ? entry.tree.task : undefined;
   const note = entry.kind === "node" ? entry.tree.note : undefined;
   const item = task ?? note;
@@ -114,19 +114,14 @@ export function MindmapNodeCard({
   });
   const color = branchColor(layout.branch);
 
-  const stored =
-    entry.kind === "root"
-      ? { text: entry.mindmap.title, doc: entry.mindmap.titleDoc }
-      : item
-        ? { text: item.title, doc: item.titleDoc }
-        : { text: entry.tree.node.title, doc: entry.tree.node.titleDoc };
+  const stored = item
+    ? { text: item.title, doc: item.titleDoc }
+    : { text: node.title, doc: node.titleDoc };
   const isEmptyRef = useRef(!stored.text.trim());
   const persist = useCallback(
     async (titleDoc: string) => {
       isEmptyRef.current = !richTextDocToMarkdown(titleDoc, "title").trim();
-      if (entry.kind === "root") {
-        await dispatch(updateMindmap({ id, mindmap: { titleDoc } }));
-      } else if (task) {
+      if (task) {
         await dispatch(updateTask({ id: task.id, task: { titleDoc } }));
       } else if (note) {
         await dispatch(updateNote({ id: note.id, note: { titleDoc } }));
@@ -134,7 +129,7 @@ export function MindmapNodeCard({
         await dispatch(updateMindmapNode({ id, node: { titleDoc } }));
       }
     },
-    [dispatch, entry.kind, id, note, task],
+    [dispatch, id, note, task],
   );
   const { text, doc, saveDoc } = useSavedRichText(
     stored.text,
@@ -260,7 +255,7 @@ export function MindmapNodeCard({
                 autoFocus
                 placeholder={placeholder}
                 ariaLabel={
-                  entry.kind === "root" ? "Edit mindmap title" : "Edit topic"
+                  entry.kind === "root" ? "Edit central topic" : "Edit topic"
                 }
               />
             </div>
@@ -271,6 +266,16 @@ export function MindmapNodeCard({
           )}
         </div>
       </div>
+      {task && (
+        <ChecklistItems
+          hasChecklistItems={undefined}
+          parent={task}
+          focusableItemKey={focusKey}
+          editTrigger="doubleClick"
+          onItemsRemoved={() => ref.current?.focus({ preventScroll: true })}
+          className="-mx-1 mt-1.5 pt-1"
+        />
+      )}
       {entry.kind === "node" && (
         <MindmapItemPlace
           id={id}
@@ -297,7 +302,7 @@ export function MindmapNodeCard({
         />
       )}
 
-      {hasChildren && node && (
+      {hasChildren && entry.kind === "node" && (
         <button
           type="button"
           tabIndex={-1}

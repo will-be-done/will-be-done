@@ -18,15 +18,15 @@ export function ItemMindmapsRow({ itemId }: { itemId: string }) {
   return (
     <DetailRow icon={<Network className="h-3 w-3 shrink-0" />} label="Mindmaps">
       <span className="flex flex-wrap gap-x-2">
-        {mindmaps.map((mindmap) => (
+        {mindmaps.map(({ mindmap, title }) => (
           <Link
             key={mindmap.id}
             to="/spaces/$spaceId/mindmaps/$mindmapId"
             params={{ spaceId, mindmapId: mindmap.id }}
-            search={{ projectId: "inbox" }}
+            search={{ projectId: "inbox", itemId }}
             className="truncate hover:underline"
           >
-            {mindmapTitle(mindmap.title)}
+            {mindmapTitle(title)}
           </Link>
         ))}
       </span>

@@ -9,6 +9,7 @@ import {
   CalendarX,
   CircleCheck,
   FileText,
+  ListChecks,
   FolderOpen,
   ListTodo,
   MoreHorizontal,
@@ -123,6 +124,15 @@ export function MindmapNodeMenu({
                       <DropdownMenuShortcut>r</DropdownMenuShortcut>
                     </DropdownMenuItem>
                   </>
+                )}
+                {task && (
+                  <DropdownMenuItem
+                    onSelect={() => actions.addChecklistItem(id)}
+                  >
+                    <ListChecks />
+                    Add checklist item
+                    <DropdownMenuShortcut>c</DropdownMenuShortcut>
+                  </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => actions.editDescription(id)}>
                   <FileText />

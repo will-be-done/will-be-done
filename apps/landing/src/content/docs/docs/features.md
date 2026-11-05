@@ -84,8 +84,9 @@ schedule it. Set or clear the time and duration from the task details panel.
 A mindmap lays out ideas around a central topic, and its branches can hold
 tasks and notes from any project. Mindmaps are off by default: turn on
 **Mindmaps** in Settings → General to show **maps** in the view switcher, then
-create a mindmap and type its central topic. Links to a mindmap open even while
-the setting is off.
+create a mindmap and type its central topic. A mindmap goes by its central
+topic until you give it a name: rename or delete it from the mindmaps list.
+Links to a mindmap open even while the setting is off.
 
 Select a topic and press `Tab` to add a subtopic, or `Enter` to add a topic
 below it. On a task or note, the same keys add another task or note. New tasks
@@ -106,8 +107,9 @@ button to pan.
 
 Task and note topics stay linked to their item: renaming or completing one
 changes it everywhere, and selecting one opens it in the details panel, which
-lists the mindmaps it appears on. Each one shows its project and section:
-click either to move it. Hover a topic and open **…**, or press `a`, for the
+lists the mindmaps it appears on; click one to jump to its topic. Task and
+note topics show their project and section: click either to move it. A task topic shows its checklist, and `c` adds an
+item. Hover a topic and open **…**, or press `a`, for the
 same actions a task has in a list. Converting a task to a note, or back, keeps
 its place on the map. Removing a topic, or deleting a whole mindmap, keeps its
 tasks and notes in their projects. Deleting a task or note removes it from its

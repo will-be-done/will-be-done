@@ -93,6 +93,7 @@ or Stash, they remove its appearance and keep the task in its project. See
 | `r`                   | Reset a task's schedule                             |
 | `Shift+S`             | Stash a task                                        |
 | `e`                   | Edit a task's or note's description                 |
+| `c`                   | Add a checklist item to a task                      |
 | `a`                   | Open the action menu                                |
 | `.`                   | Collapse or expand the topic                        |
 | `d`, `x`, `Backspace` | Remove the topic and its subtopics from the mindmap |
