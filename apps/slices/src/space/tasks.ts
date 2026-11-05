@@ -27,7 +27,7 @@ import {
   stashEntriesByTaskIds,
 } from "./stashEntries";
 import { firstProjectSectionChild } from "./projectSections";
-import { detachMindmapNodesOfTasks, mindmapNodesByTaskIds } from "./mindmaps";
+import { detachMindmapNodesOfItems, mindmapNodesByTaskIds } from "./mindmaps";
 import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
 import { updateNote } from "./notes";
@@ -211,7 +211,7 @@ export const deleteTasks = action({
     yield* deleteRows(tasksTable, ids);
     yield* deleteDailyEntriesByTaskIds({ taskIds: ids });
     yield* deleteStashEntriesByTaskIds({ taskIds: ids });
-    yield* detachMindmapNodesOfTasks({ taskIds: ids });
+    yield* detachMindmapNodesOfItems({ ids });
   },
 });
 

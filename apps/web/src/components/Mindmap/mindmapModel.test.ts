@@ -1,6 +1,16 @@
 import { describe, expect, test } from "vitest";
 import { type LayoutTree, layoutMindmap } from "./mindmapLayout";
-import { type DropPreview, dropIntentAt, withDropGhosts } from "./mindmapModel";
+import type {
+  MindmapNodeSide,
+  MindmapTreeNode,
+} from "@will-be-done/slices/space";
+import {
+  type DropPreview,
+  dropIntentAt,
+  indexMindmapTree,
+  treeMoveOf,
+  withDropGhosts,
+} from "./mindmapModel";
 
 const tree = (
   id: string,
@@ -103,7 +113,7 @@ describe("dropIntentAt", () => {
           "root",
           withDropGhosts(branches, "root", {
             intent,
-            dragged: { kind: "task", taskId: "t" },
+            dragged: { kind: "item", item: { type: "task", id: "t" } },
             side: "right",
           }),
           sizeOf,
@@ -143,6 +153,77 @@ describe("dropIntentAt", () => {
     expect(dropIntentAt(base, { x: 160, y: 70 }, options)).toEqual({
       kind: "after",
       nodeId: "b",
+    });
+  });
+});
+
+describe("treeMoveOf", () => {
+  const topic = (
+    id: string,
+    children: MindmapTreeNode[] = [],
+    side: MindmapNodeSide = "right",
+  ): MindmapTreeNode => ({
+    node: {
+      type: "mindmapNode",
+      id,
+      mindmapId: "root",
+      parentId: "",
+      orderToken: id,
+      side,
+      taskId: null,
+      title: id,
+      collapsed: false,
+      createdAt: 0,
+    },
+    task: undefined,
+    note: undefined,
+    project: undefined,
+    children,
+  });
+  // Right: a(a1 a2), b. Left: l.
+  const index = indexMindmapTree({
+    mindmap: {
+      type: "mindmap",
+      id: "root",
+      title: "",
+      orderToken: "a",
+      createdAt: 0,
+    },
+    branches: [
+      topic("a", [topic("a1"), topic("a2")]),
+      topic("b"),
+      topic("l", [], "left"),
+    ],
+  });
+  const move = (id: string, direction: Parameters<typeof treeMoveOf>[2]) =>
+    treeMoveOf(index, id, direction);
+
+  test("up and down swap with neighbors on the same side", () => {
+    expect(move("a2", "up")).toEqual({
+      placement: { siblingId: "a1", edge: "before" },
+    });
+    expect(move("a1", "up")).toBeNull();
+    expect(move("a", "down")).toEqual({
+      placement: { siblingId: "b", edge: "after" },
+    });
+    expect(move("b", "down")).toBeNull();
+  });
+
+  test("away from the root nests, toward it moves out or across", () => {
+    expect(move("a2", "right")).toEqual({
+      placement: { parentId: "a1", position: "last" },
+      newParentId: "a1",
+    });
+    expect(move("a1", "right")).toBeNull();
+    expect(move("a1", "left")).toEqual({
+      placement: { siblingId: "a", edge: "after" },
+    });
+    expect(move("b", "left")).toEqual({
+      placement: { parentId: "root", position: "last", side: "left" },
+    });
+    expect(move("l", "left")).toBeNull();
+    expect(move("l", "right")).toEqual({
+      placement: { parentId: "root", position: "last", side: "right" },
     });
   });
 });

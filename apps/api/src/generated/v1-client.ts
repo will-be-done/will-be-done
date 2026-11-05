@@ -8682,7 +8682,7 @@ export const GetMindmap200NodesItemType = {
 } as const;
 
 /**
- * A topic owns its title; a task node shows a task
+ * A topic owns its title; a task or note node shows that item
  */
 export type GetMindmap200NodesItemKind =
   (typeof GetMindmap200NodesItemKind)[keyof typeof GetMindmap200NodesItemKind];
@@ -8690,6 +8690,7 @@ export type GetMindmap200NodesItemKind =
 export const GetMindmap200NodesItemKind = {
   topic: "topic",
   task: "task",
+  note: "note",
 } as const;
 
 /**
@@ -8710,10 +8711,11 @@ export type GetMindmap200NodesItem = {
   mindmapId: string;
   /** Parent node, or null for a main branch of the central topic */
   parentId: string | null;
-  /** A topic owns its title; a task node shows a task */
+  /** A topic owns its title; a task or note node shows that item */
   kind: GetMindmap200NodesItemKind;
   taskId: string | null;
-  /** Topic text, or the task's title */
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
   title: string;
   /** Side of the central topic a main branch sits on */
   side: GetMindmap200NodesItemSide;
@@ -9175,6 +9177,11 @@ export type CreateMindmapNodeBody = {
    * @minLength 1
    */
   taskId?: string;
+  /**
+   * Adds a note; a note already on the mindmap moves to the new place
+   * @minLength 1
+   */
+  noteId?: string;
 };
 
 export type CreateMindmapNode201NodeType =
@@ -9185,7 +9192,7 @@ export const CreateMindmapNode201NodeType = {
 } as const;
 
 /**
- * A topic owns its title; a task node shows a task
+ * A topic owns its title; a task or note node shows that item
  */
 export type CreateMindmapNode201NodeKind =
   (typeof CreateMindmapNode201NodeKind)[keyof typeof CreateMindmapNode201NodeKind];
@@ -9193,6 +9200,7 @@ export type CreateMindmapNode201NodeKind =
 export const CreateMindmapNode201NodeKind = {
   topic: "topic",
   task: "task",
+  note: "note",
 } as const;
 
 /**
@@ -9213,10 +9221,11 @@ export type CreateMindmapNode201Node = {
   mindmapId: string;
   /** Parent node, or null for a main branch of the central topic */
   parentId: string | null;
-  /** A topic owns its title; a task node shows a task */
+  /** A topic owns its title; a task or note node shows that item */
   kind: CreateMindmapNode201NodeKind;
   taskId: string | null;
-  /** Topic text, or the task's title */
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
   title: string;
   /** Side of the central topic a main branch sits on */
   side: CreateMindmapNode201NodeSide;
@@ -9382,7 +9391,7 @@ export const UpdateMindmapNode200NodeType = {
 } as const;
 
 /**
- * A topic owns its title; a task node shows a task
+ * A topic owns its title; a task or note node shows that item
  */
 export type UpdateMindmapNode200NodeKind =
   (typeof UpdateMindmapNode200NodeKind)[keyof typeof UpdateMindmapNode200NodeKind];
@@ -9390,6 +9399,7 @@ export type UpdateMindmapNode200NodeKind =
 export const UpdateMindmapNode200NodeKind = {
   topic: "topic",
   task: "task",
+  note: "note",
 } as const;
 
 /**
@@ -9410,10 +9420,11 @@ export type UpdateMindmapNode200Node = {
   mindmapId: string;
   /** Parent node, or null for a main branch of the central topic */
   parentId: string | null;
-  /** A topic owns its title; a task node shows a task */
+  /** A topic owns its title; a task or note node shows that item */
   kind: UpdateMindmapNode200NodeKind;
   taskId: string | null;
-  /** Topic text, or the task's title */
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
   title: string;
   /** Side of the central topic a main branch sits on */
   side: UpdateMindmapNode200NodeSide;
@@ -9724,7 +9735,7 @@ export const MoveMindmapNode200NodeType = {
 } as const;
 
 /**
- * A topic owns its title; a task node shows a task
+ * A topic owns its title; a task or note node shows that item
  */
 export type MoveMindmapNode200NodeKind =
   (typeof MoveMindmapNode200NodeKind)[keyof typeof MoveMindmapNode200NodeKind];
@@ -9732,6 +9743,7 @@ export type MoveMindmapNode200NodeKind =
 export const MoveMindmapNode200NodeKind = {
   topic: "topic",
   task: "task",
+  note: "note",
 } as const;
 
 /**
@@ -9752,10 +9764,11 @@ export type MoveMindmapNode200Node = {
   mindmapId: string;
   /** Parent node, or null for a main branch of the central topic */
   parentId: string | null;
-  /** A topic owns its title; a task node shows a task */
+  /** A topic owns its title; a task or note node shows that item */
   kind: MoveMindmapNode200NodeKind;
   taskId: string | null;
-  /** Topic text, or the task's title */
+  noteId: string | null;
+  /** Topic text, or the task's or note's title */
   title: string;
   /** Side of the central topic a main branch sits on */
   side: MoveMindmapNode200NodeSide;
@@ -14675,7 +14688,7 @@ export const getCreateMindmapNodeUrl = (spaceId: string, mindmapId: string) => {
 };
 
 /**
- * @summary Add a topic or task to a mindmap
+ * @summary Add a topic, task, or note to a mindmap
  */
 export const createMindmapNode = async (
   spaceId: string,

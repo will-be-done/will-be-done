@@ -16,21 +16,37 @@ import {
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import {
+  appHandleDrop,
+  convertMindmapNodeToNote,
   convertMindmapNodeToTask,
   convertMindmapNodeToTopic,
   createMindmapNode,
+  createMindmapNote,
   createMindmapTask,
   deleteMindmapNodes,
+  getDMY,
   type MindmapNode,
   type MindmapPlacement,
   type MindmapTree,
   moveMindmapNodes,
+  moveNoteToProject,
+  moveTaskToProject,
+  removeFromDailyList,
+  scheduleTask,
+  STASH_ID,
+  stashType,
+  taskType,
   toggleTaskState,
   updateMindmapNode,
 } from "@will-be-done/slices/space";
 import { Maximize, Minus, Plus } from "lucide-react";
 import { type FocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { isInputElement } from "@/utils/isInputElement.ts";
+import { MoveModal } from "@/components/MoveTaskModel/MoveModel.tsx";
+import {
+  useItemDetailsEditRequest,
+  useItemDetailsOpen,
+} from "@/components/ItemDetails/ItemDetailsStore.ts";
 import {
   type MindmapLayout,
   type Size,
@@ -39,14 +55,19 @@ import {
 import {
   type CanvasIndex,
   type DraggedItems,
+  type Direction,
   type DropPreview,
+  type NodeKind,
   branchColor,
   dropIntentAt,
   ghostSourceId,
   indexMindmapTree,
   isGhostId,
+  nodeKind,
   placementOfIntent,
   subtreeIds,
+  treeMoveOf,
+  useMindmapDatePicker,
   useMindmapDrop,
   useMindmapSelection,
   withDropGhosts,
@@ -76,10 +97,19 @@ const isRemoveKey = (code: string) =>
   code === "KeyD" ||
   code === "KeyX";
 
-type Direction = "left" | "right" | "up" | "down";
-
 const centerY = (node: { y: number; height: number }) =>
   node.y + node.height / 2;
+
+const treeMoveKeys: Record<string, Direction | undefined> = {
+  ArrowLeft: "left",
+  KeyH: "left",
+  ArrowRight: "right",
+  KeyL: "right",
+  ArrowUp: "up",
+  KeyK: "up",
+  ArrowDown: "down",
+  KeyJ: "down",
+};
 
 function neighborOf(
   layout: MindmapLayout,
@@ -312,11 +342,20 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
     pendingRef.current = { key, focus: false };
   }, []);
 
+  // The node whose item is being moved to another project.
+  const [movingItemNodeId, setMovingItemNodeId] = useState<string | null>(null);
+
   const actions: MindmapNodeActions & {
     addSibling: (id: string, edge: "before" | "after") => void;
-    addTask: (id: string) => void;
     toggleTask: (id: string) => void;
     removeNodes: (ids: string[]) => void;
+    moveInTree: (id: string, direction: Direction) => void;
+    moveToProject: (id: string) => void;
+    schedule: (id: string) => void;
+    scheduleToday: (id: string) => void;
+    resetSchedule: (id: string) => void;
+    stash: (id: string) => void;
+    editDescription: (id: string) => void;
   } = useMemo(() => {
     const entryOf = (id: string) => latestRef.current.index.nodes.get(id);
     const parentKeyOf = (id: string) => {
@@ -325,24 +364,30 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
         ? entryOf(entry.parentId)?.focusKey
         : undefined;
     };
-    const create = async (placement: MindmapPlacement) =>
-      editNode(await dispatch(createMindmapNode({ mindmapId, placement })));
-    const createUnder = async (id: string, kind: "topic" | "task") => {
-      const entry = entryOf(id);
-      if (entry?.kind === "node" && entry.tree.node.collapsed) {
-        void dispatch(updateMindmapNode({ id, node: { collapsed: false } }));
-      }
-      const placement = {
-        parentId: entry?.kind === "node" ? id : mindmapId,
-        position: "last",
-      } as const;
+    // New nodes match the node they are created from: tasks beget tasks.
+    const create = async (placement: MindmapPlacement, kind: NodeKind) =>
       editNode(
         await dispatch(
           kind === "task"
             ? createMindmapTask({ mindmapId, placement })
-            : createMindmapNode({ mindmapId, placement }),
+            : kind === "note"
+              ? createMindmapNote({ mindmapId, placement })
+              : createMindmapNode({ mindmapId, placement }),
         ),
       );
+    const taskOf = (id: string) => {
+      const entry = entryOf(id);
+      return entry?.kind === "node" ? entry.tree.task : undefined;
+    };
+    const itemOf = (id: string) => {
+      const entry = entryOf(id);
+      return entry?.kind === "node"
+        ? (entry.tree.task ?? entry.tree.note)
+        : undefined;
+    };
+    const kindOf = (id: string): NodeKind => {
+      const entry = entryOf(id);
+      return entry?.kind === "node" ? nodeKind(entry.tree) : "topic";
     };
     // Focus moves to the nearest ancestor that survives the removal.
     const removeNodes = (ids: string[]) => {
@@ -363,14 +408,25 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
 
     return {
       register: sizeStore.register,
-      addChild: (id) => void createUnder(id, "topic"),
-      addTask: (id) => void createUnder(id, "task"),
+      addChild: (id) => {
+        const entry = entryOf(id);
+        if (entry?.kind === "node" && entry.tree.node.collapsed) {
+          void dispatch(updateMindmapNode({ id, node: { collapsed: false } }));
+        }
+        void create(
+          {
+            parentId: entry?.kind === "node" ? id : mindmapId,
+            position: "last",
+          },
+          kindOf(id),
+        );
+      },
       addSibling: (id, edge) => {
         if (entryOf(id)?.kind !== "node") {
-          void create({ parentId: mindmapId, position: "last" });
+          void create({ parentId: mindmapId, position: "last" }, "topic");
           return;
         }
-        void create({ siblingId: id, edge });
+        void create({ siblingId: id, edge }, kindOf(id));
       },
       removeNodes,
       remove: (id) => {
@@ -404,19 +460,23 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
         void dispatch(deleteMindmapNodes({ ids: [id] }));
         if (refocus && parentKey) focusNode(parentKey);
       },
-      convert: (id) => {
-        const entry = entryOf(id);
-        if (entry?.kind !== "node") return;
+      convert: (id, to) => {
+        if (entryOf(id)?.kind !== "node") return;
         void (async () => {
-          if (entry.tree.task) {
+          if (to === "topic") {
             focusNode(
               mindmapNodeFocusKey(
                 await dispatch(convertMindmapNodeToTopic({ id })),
               ),
             );
-          } else {
+          } else if (to === "task") {
             const task = await dispatch(convertMindmapNodeToTask({ id }));
             focusNode(mindmapNodeFocusKey({ id, taskId: task.id }));
+          } else {
+            const note = await dispatch(convertMindmapNodeToNote({ id }));
+            focusNode(
+              mindmapNodeFocusKey({ id, taskId: null, noteId: note.id }),
+            );
           }
         })();
       },
@@ -431,10 +491,61 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
         );
       },
       toggleTask: (id) => {
-        const entry = entryOf(id);
-        if (entry?.kind === "node" && entry.tree.task) {
-          void dispatch(toggleTaskState({ taskId: entry.tree.task.id }));
+        const task = taskOf(id);
+        if (task) void dispatch(toggleTaskState({ taskId: task.id }));
+      },
+      moveInTree: (id, direction) => {
+        const move = treeMoveOf(latestRef.current.index, id, direction);
+        if (!move) return;
+        const parent = move.newParentId && entryOf(move.newParentId);
+        if (parent && parent.kind === "node" && parent.tree.node.collapsed) {
+          void dispatch(
+            updateMindmapNode({ id: parent.id, node: { collapsed: false } }),
+          );
         }
+        void dispatch(
+          moveMindmapNodes({ ids: [id], placement: move.placement }),
+        );
+      },
+      moveToProject: (id) => {
+        if (itemOf(id)) setMovingItemNodeId(id);
+      },
+      schedule: (id) => {
+        if (taskOf(id)) useMindmapDatePicker.getState().setNodeId(id);
+      },
+      scheduleToday: (id) => {
+        const task = taskOf(id);
+        if (!task) return;
+        void dispatch(
+          scheduleTask({
+            taskId: task.id,
+            date: getDMY(new Date()),
+            position: "append",
+          }),
+        );
+      },
+      resetSchedule: (id) => {
+        const task = taskOf(id);
+        if (task) void dispatch(removeFromDailyList({ taskId: task.id }));
+      },
+      stash: (id) => {
+        const task = taskOf(id);
+        if (task?.state !== "todo") return;
+        void dispatch(
+          appHandleDrop({
+            id: STASH_ID,
+            modelType: stashType,
+            dropId: task.id,
+            dropModelType: taskType,
+            edge: "top",
+          }),
+        );
+      },
+      editDescription: (id) => {
+        const item = itemOf(id);
+        if (!item) return;
+        useItemDetailsOpen.getState().setOpen(true);
+        useItemDetailsEditRequest.getState().editDescription(item.id);
       },
     };
   }, [dispatch, editNode, focusNode, mindmapId, sizeStore]);
@@ -468,17 +579,19 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
     if (!element) return;
     const { setPreview } = useMindmapDrop.getState();
 
-    // A task already on the map moves its node; a node under another
+    // An item already on the map moves its node; a node under another
     // dragged node travels with it.
     const draggedOf = (data: unknown): DraggedItems | null => {
       const source = mindmapDragSource(data, mindmapId);
       if (!source) return null;
       const { index } = latestRef.current;
       const nodes = [...index.nodes.values()];
-      if (source.kind === "task") {
+      if (source.kind === "item") {
         const existing = nodes.find(
           (entry) =>
-            entry.kind === "node" && entry.tree.node.taskId === source.taskId,
+            entry.kind === "node" &&
+            (entry.tree.node.taskId ?? entry.tree.node.noteId) ===
+              source.item.id,
         );
         return existing ? { kind: "nodes", ids: [existing.id] } : source;
       }
@@ -555,12 +668,13 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
             );
           }
           void (async () => {
-            if (dragged.kind === "task") {
+            if (dragged.kind === "item") {
+              const { type, id } = dragged.item;
               const node = await dispatch(
                 createMindmapNode({
                   mindmapId,
-                  taskId: dragged.taskId,
                   placement,
+                  ...(type === "task" ? { taskId: id } : { noteId: id }),
                 }),
               );
               focusNode(mindmapNodeFocusKey(node));
@@ -702,13 +816,25 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
     }
   };
 
+  const movingEntry = movingItemNodeId
+    ? index.nodes.get(movingItemNodeId)
+    : undefined;
+  const movingItem =
+    movingEntry?.kind === "node"
+      ? (movingEntry.tree.task ?? movingEntry.tree.note)
+      : undefined;
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const focus = useFocusStore.getState();
     if (focus.isFocusDisabled || focus.editItemKey || e.defaultPrevented) {
       return;
     }
+    // Popovers and dialogs portal out of the viewport but still bubble here.
+    if (!(e.target instanceof Node && e.currentTarget.contains(e.target))) {
+      return;
+    }
     if (e.target instanceof Element && isInputElement(e.target)) return;
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.metaKey || e.altKey) return;
 
     const selection = useMindmapSelection.getState().ids;
     if (selection.size > 0 && (isRemoveKey(e.code) || e.code === "Escape")) {
@@ -728,10 +854,23 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
     if (!id) return;
     const entry = index.nodes.get(id)!;
 
+    if (e.ctrlKey) {
+      const direction = treeMoveKeys[e.code];
+      if (!direction || e.shiftKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      actions.moveInTree(id, direction);
+      return;
+    }
+
     const move = (direction: Direction) => {
       const next = neighborOf(layout, index, id, direction);
       const nextEntry = next ? index.nodes.get(next) : undefined;
       if (nextEntry) focusNode(nextEntry.focusKey);
+    };
+    const shiftCommands: Record<string, (() => void) | undefined> = {
+      KeyO: () => actions.addSibling(id, "before"),
+      KeyS: () => actions.stash(id),
     };
     const commands: Record<string, (() => void) | undefined> = {
       ArrowLeft: () => move("left"),
@@ -743,8 +882,8 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
       ArrowDown: () => move("down"),
       KeyJ: () => move("down"),
       Tab: () => actions.addChild(id),
-      KeyO: () => actions.addSibling(id, e.shiftKey ? "before" : "after"),
-      Enter: () => actions.addTask(id),
+      KeyO: () => actions.addSibling(id, "after"),
+      Enter: () => actions.addSibling(id, "after"),
       KeyI: () => useFocusStore.getState().editByKey(entry.focusKey),
       Space: () => actions.toggleTask(id),
       Backspace: () => actions.removeNodes([id]),
@@ -752,13 +891,17 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
       KeyD: () => actions.removeNodes([id]),
       KeyX: () => actions.removeNodes([id]),
       Period: () => actions.toggleCollapsed(id),
+      KeyM: () => actions.moveToProject(id),
+      KeyS: () => actions.schedule(id),
+      KeyT: () => actions.scheduleToday(id),
+      KeyR: () => actions.resetSchedule(id),
+      KeyE: () => actions.editDescription(id),
       Escape: () => {
         useFocusStore.getState().resetFocus();
         (e.target as HTMLElement).blur();
       },
     };
-    if (e.shiftKey && e.code !== "KeyO") return;
-    const command = commands[e.code];
+    const command = (e.shiftKey ? shiftCommands : commands)[e.code];
     if (!command) return;
     e.preventDefault();
     e.stopPropagation();
@@ -806,19 +949,21 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
         </svg>
         {[...layout.nodes.values()].map((laidOut) => {
           if (isGhostId(laidOut.id)) {
-            const sourceId = ghostSourceId(laidOut.id);
-            const sourceEntry = index.nodes.get(sourceId);
+            const sourceEntry = index.nodes.get(ghostSourceId(laidOut.id));
+            const source = sourceEntry
+              ? ({ kind: "node", entry: sourceEntry } as const)
+              : preview?.dragged.kind === "item"
+                ? ({ kind: "item", item: preview.dragged.item } as const)
+                : undefined;
             return (
-              <MindmapGhostCard
-                key={laidOut.id}
-                layout={laidOut}
-                source={
-                  sourceEntry
-                    ? { kind: "node", entry: sourceEntry }
-                    : { kind: "task", taskId: sourceId }
-                }
-                register={sizeStore.register}
-              />
+              source && (
+                <MindmapGhostCard
+                  key={laidOut.id}
+                  layout={laidOut}
+                  source={source}
+                  register={sizeStore.register}
+                />
+              )
             );
           }
           const entry = index.nodes.get(laidOut.id);
@@ -842,6 +987,25 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
         })}
       </div>
 
+      {movingEntry?.kind === "node" && movingItem && (
+        <MoveModal
+          keepsFocus
+          exceptProjectId={movingEntry.tree.project?.id ?? ""}
+          setIsOpen={(open) => {
+            if (open) return;
+            setMovingItemNodeId(null);
+            focusNode(movingEntry.focusKey);
+          }}
+          handleMove={(projectId) =>
+            void dispatch(
+              movingEntry.tree.task
+                ? moveTaskToProject({ taskId: movingItem.id, projectId })
+                : moveNoteToProject({ noteId: movingItem.id, projectId }),
+            )
+          }
+        />
+      )}
+
       <div
         ref={marqueeRef}
         className="pointer-events-none absolute left-0 top-0 hidden rounded-sm border border-accent/70 bg-accent/10"
@@ -850,7 +1014,7 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
       {tree.branches.length === 0 && (
         <p className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-[12px] text-content-tinted/60">
           Select the central topic and press Tab to add a topic, or drag tasks
-          here from the projects below.
+          and notes here from the projects below.
         </p>
       )}
 

@@ -37,6 +37,15 @@ export const trashedTasks = selector({
   },
 });
 
+// A node whose parent is gone shows as a main branch (see mindmapTree).
+function* restoreMindmapNodes(nodes: MindmapNode[]) {
+  const restored: MindmapNode[] = [];
+  for (const node of nodes) {
+    if (yield* mindmapById({ id: node.mindmapId })) restored.push(node);
+  }
+  if (restored.length > 0) yield* insert(mindmapNodesTable, restored);
+}
+
 export const restoreTrashedTasks = action({
   name: "restoreTrashedTasks",
   args: { ids: v.array(v.string()) },
@@ -57,6 +66,7 @@ export const restoreTrashedTasks = action({
             projectSectionId: section?.id ?? (yield* inboxProjectSectionId({})),
           },
         ]);
+        yield* restoreMindmapNodes(row.mindmapNodes ?? []);
         continue;
       }
 
@@ -85,15 +95,7 @@ export const restoreTrashedTasks = action({
       // DailyLists are never deleted, so the entry's list still exists.
       if (dailyEntry) yield* insert(dailyEntriesTable, [dailyEntry]);
       if (stashEntry) yield* insert(stashEntriesTable, [stashEntry]);
-      // A node whose parent is gone shows as a main branch (see mindmapTree).
-      const restoredNodes: MindmapNode[] = [];
-      for (const node of mindmapNodes) {
-        if (yield* mindmapById({ id: node.mindmapId }))
-          restoredNodes.push(node);
-      }
-      if (restoredNodes.length > 0) {
-        yield* insert(mindmapNodesTable, restoredNodes);
-      }
+      yield* restoreMindmapNodes(mindmapNodes);
     }
 
     yield* deleteRows(

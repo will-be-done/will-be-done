@@ -21,10 +21,13 @@ export const MoveModal = ({
   setIsOpen,
   handleMove,
   exceptProjectId,
+  keepsFocus = false,
 }: {
   setIsOpen: (val: boolean) => void;
   handleMove: (projectId: string) => void;
   exceptProjectId: string;
+  // The moved item stays where it is shown, as on a mindmap.
+  keepsFocus?: boolean;
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -52,9 +55,10 @@ export const MoveModal = ({
     const focusedType = focusItemKey ? parseColumnKey(focusItemKey).type : null;
     // Project items disappear when moved; daily and stash entries stay in place.
     const isProjectItem =
-      focusedType === taskType ||
-      focusedType === taskTemplateType ||
-      focusedType === noteType;
+      !keepsFocus &&
+      (focusedType === taskType ||
+        focusedType === taskTemplateType ||
+        focusedType === noteType);
     const [previousKey, nextKey] =
       isProjectItem && focusItemKey
         ? getDOMSiblings(focusItemKey)

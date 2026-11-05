@@ -14009,15 +14009,18 @@
                           },
                           "kind": {
                             "type": "string",
-                            "enum": ["topic", "task"],
-                            "description": "A topic owns its title; a task node shows a task"
+                            "enum": ["topic", "task", "note"],
+                            "description": "A topic owns its title; a task or note node shows that item"
                           },
                           "taskId": {
                             "anyOf": [{ "type": "string" }, { "type": "null" }]
                           },
+                          "noteId": {
+                            "anyOf": [{ "type": "string" }, { "type": "null" }]
+                          },
                           "title": {
                             "type": "string",
-                            "description": "Topic text, or the task's title"
+                            "description": "Topic text, or the task's or note's title"
                           },
                           "side": {
                             "type": "string",
@@ -14038,6 +14041,7 @@
                           "parentId",
                           "kind",
                           "taskId",
+                          "noteId",
                           "title",
                           "side",
                           "collapsed",
@@ -14644,7 +14648,7 @@
     "/api/v1/spaces/{spaceId}/mindmaps/{mindmapId}/nodes": {
       "post": {
         "operationId": "createMindmapNode",
-        "summary": "Add a topic or task to a mindmap",
+        "summary": "Add a topic, task, or note to a mindmap",
         "tags": ["Mindmaps"],
         "requestBody": {
           "required": true,
@@ -14721,6 +14725,11 @@
                     "description": "Adds a task; a task already on the mindmap moves to the new place",
                     "type": "string",
                     "minLength": 1
+                  },
+                  "noteId": {
+                    "description": "Adds a note; a note already on the mindmap moves to the new place",
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "additionalProperties": false
@@ -14768,15 +14777,18 @@
                         },
                         "kind": {
                           "type": "string",
-                          "enum": ["topic", "task"],
-                          "description": "A topic owns its title; a task node shows a task"
+                          "enum": ["topic", "task", "note"],
+                          "description": "A topic owns its title; a task or note node shows that item"
                         },
                         "taskId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }]
                         },
+                        "noteId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
                         "title": {
                           "type": "string",
-                          "description": "Topic text, or the task's title"
+                          "description": "Topic text, or the task's or note's title"
                         },
                         "side": {
                           "type": "string",
@@ -14797,6 +14809,7 @@
                         "parentId",
                         "kind",
                         "taskId",
+                        "noteId",
                         "title",
                         "side",
                         "collapsed",
@@ -15045,15 +15058,18 @@
                         },
                         "kind": {
                           "type": "string",
-                          "enum": ["topic", "task"],
-                          "description": "A topic owns its title; a task node shows a task"
+                          "enum": ["topic", "task", "note"],
+                          "description": "A topic owns its title; a task or note node shows that item"
                         },
                         "taskId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }]
                         },
+                        "noteId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
                         "title": {
                           "type": "string",
-                          "description": "Topic text, or the task's title"
+                          "description": "Topic text, or the task's or note's title"
                         },
                         "side": {
                           "type": "string",
@@ -15074,6 +15090,7 @@
                         "parentId",
                         "kind",
                         "taskId",
+                        "noteId",
                         "title",
                         "side",
                         "collapsed",
@@ -15559,15 +15576,18 @@
                         },
                         "kind": {
                           "type": "string",
-                          "enum": ["topic", "task"],
-                          "description": "A topic owns its title; a task node shows a task"
+                          "enum": ["topic", "task", "note"],
+                          "description": "A topic owns its title; a task or note node shows that item"
                         },
                         "taskId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }]
                         },
+                        "noteId": {
+                          "anyOf": [{ "type": "string" }, { "type": "null" }]
+                        },
                         "title": {
                           "type": "string",
-                          "description": "Topic text, or the task's title"
+                          "description": "Topic text, or the task's or note's title"
                         },
                         "side": {
                           "type": "string",
@@ -15588,6 +15608,7 @@
                         "parentId",
                         "kind",
                         "taskId",
+                        "noteId",
                         "title",
                         "side",
                         "collapsed",

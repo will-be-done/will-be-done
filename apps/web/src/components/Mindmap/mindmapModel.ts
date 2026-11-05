@@ -13,6 +13,7 @@ import type {
   MindmapLayout,
 } from "./mindmapLayout.ts";
 import { mindmapNodeFocusKey, mindmapRootFocusKey } from "./focusKeys.ts";
+import type { MindmapItem } from "./mindmapDnd.ts";
 
 export type CanvasNode =
   | { kind: "root"; id: string; focusKey: FocusKey; mindmap: Mindmap }
@@ -64,13 +65,79 @@ export const subtreeIds = (tree: MindmapTreeNode, ids = new Set<string>()) => {
   return ids;
 };
 
+export type Direction = "left" | "right" | "up" | "down";
+
+const sideOf = (index: CanvasIndex, entry: CanvasNode & { kind: "node" }) => {
+  let branch = entry;
+  for (;;) {
+    const parent = index.nodes.get(branch.parentId);
+    if (parent?.kind !== "node") return branch.tree.node.side;
+    branch = parent;
+  }
+};
+
+/**
+ * Where Ctrl+arrow moves a node, by screen direction: up and down swap it with
+ * its neighbor; away from the root nests it under the sibling above; toward
+ * the root moves it out after its parent, or a main branch to the other side.
+ */
+export function treeMoveOf(
+  index: CanvasIndex,
+  id: string,
+  direction: Direction,
+): { placement: MindmapPlacement; newParentId?: string } | null {
+  const entry = index.nodes.get(id);
+  if (entry?.kind !== "node") return null;
+  const side = sideOf(index, entry);
+  const isBranch = entry.parentId === index.rootId;
+  const siblings = [...index.nodes.values()].filter(
+    (other): other is CanvasNode & { kind: "node" } =>
+      other.kind === "node" &&
+      other.parentId === entry.parentId &&
+      (!isBranch || other.tree.node.side === side),
+  );
+  const at = siblings.findIndex((other) => other.id === id);
+  const above = siblings[at - 1];
+  const below = siblings[at + 1];
+
+  if (direction === "up") {
+    return above
+      ? { placement: { siblingId: above.id, edge: "before" } }
+      : null;
+  }
+  if (direction === "down") {
+    return below ? { placement: { siblingId: below.id, edge: "after" } } : null;
+  }
+  if (direction === side) {
+    return above
+      ? {
+          placement: { parentId: above.id, position: "last" },
+          newParentId: above.id,
+        }
+      : null;
+  }
+  return isBranch
+    ? {
+        placement: {
+          parentId: index.rootId,
+          position: "last",
+          side: side === "left" ? "right" : "left",
+        },
+      }
+    : { placement: { siblingId: entry.parentId, edge: "after" } };
+}
+
+export type NodeKind = "topic" | "task" | "note";
+export const nodeKind = (tree: MindmapTreeNode): NodeKind =>
+  tree.task ? "task" : tree.note ? "note" : "topic";
+
 export type DropIntent =
   | { kind: "child" | "before" | "after"; nodeId: string }
   | { kind: "branch"; side: MindmapNodeSide };
 
 export type DraggedItems =
   | { kind: "nodes"; ids: string[] }
-  | { kind: "task"; taskId: string };
+  | { kind: "item"; item: MindmapItem };
 
 export type DropPreview = {
   intent: DropIntent;
@@ -90,6 +157,15 @@ export const useMindmapDrop = create<{
   setPreview: (preview) => {
     if (!samePreview(get().preview, preview)) set({ preview });
   },
+}));
+
+// The task node whose date picker is open.
+export const useMindmapDatePicker = create<{
+  nodeId: string | null;
+  setNodeId: (nodeId: string | null) => void;
+}>((set) => ({
+  nodeId: null,
+  setNodeId: (nodeId) => set({ nodeId }),
 }));
 
 const emptySelection: ReadonlySet<string> = new Set();
@@ -119,7 +195,7 @@ export const ghostSourceId = (id: string) => id.slice(ghostPrefix.length);
 export const ghostIdsOf = (dragged: DraggedItems) =>
   dragged.kind === "nodes"
     ? dragged.ids.map(ghostId)
-    : [ghostId(dragged.taskId)];
+    : [ghostId(dragged.item.id)];
 
 /** Inserts placeholder leaves where a drop would land, for a live preview. */
 export function withDropGhosts(

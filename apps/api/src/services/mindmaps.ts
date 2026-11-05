@@ -16,6 +16,7 @@ import {
   mindmapTree,
   type MindmapTreeNode,
   moveMindmapNode as moveMindmapNodeAction,
+  noteById,
   taskById,
   updateMindmap as updateMindmapAction,
   updateMindmapNode as updateMindmapNodeAction,
@@ -42,8 +43,9 @@ export interface PublicMindmapNode {
   id: string;
   mindmapId: string;
   parentId: string | null;
-  kind: "topic" | "task";
+  kind: "topic" | "task" | "note";
   taskId: string | null;
+  noteId: string | null;
   title: string;
   side: MindmapNodeSide;
   collapsed: boolean;
@@ -60,15 +62,16 @@ const toPublicMindmap = (mindmap: Mindmap): PublicMindmap => ({
 const toPublicNode = (
   node: MindmapNode,
   parentId: string | null,
-  taskTitle: string | undefined,
+  itemTitle: string | undefined,
 ): PublicMindmapNode => ({
   type: "mindmapNode",
   id: node.id,
   mindmapId: node.mindmapId,
   parentId,
-  kind: node.taskId === null ? "topic" : "task",
+  kind: node.taskId ? "task" : node.noteId ? "note" : "topic",
   taskId: node.taskId,
-  title: node.taskId === null ? node.title : (taskTitle ?? ""),
+  noteId: node.noteId ?? null,
+  title: node.taskId || node.noteId ? (itemTitle ?? "") : node.title,
   side: node.side,
   collapsed: node.collapsed,
   createdAt: node.createdAt,
@@ -78,17 +81,15 @@ async function publicNode(
   db: SpaceDatabase,
   node: MindmapNode,
 ): Promise<PublicMindmapNode> {
-  const task =
-    node.taskId === null
-      ? undefined
-      : await selectAsync(db, {
-          selector: taskById,
-          args: { id: node.taskId },
-        });
+  const item = node.taskId
+    ? await selectAsync(db, { selector: taskById, args: { id: node.taskId } })
+    : node.noteId
+      ? await selectAsync(db, { selector: noteById, args: { id: node.noteId } })
+      : undefined;
   return toPublicNode(
     node,
     node.parentId === node.mindmapId ? null : node.parentId,
-    task?.title,
+    item?.title,
   );
 }
 
@@ -194,7 +195,9 @@ export async function getMindmap({
   const nodes: PublicMindmapNode[] = [];
   const visit = (trees: MindmapTreeNode[], parentId: string | null) => {
     for (const tree of trees) {
-      nodes.push(toPublicNode(tree.node, parentId, tree.task?.title));
+      nodes.push(
+        toPublicNode(tree.node, parentId, (tree.task ?? tree.note)?.title),
+      );
       visit(tree.children, tree.node.id);
     }
   };
@@ -262,6 +265,7 @@ export async function createMindmapNode({
   side,
   title,
   taskId,
+  noteId,
 }: {
   spaceId: string;
   userId: string;
@@ -271,6 +275,7 @@ export async function createMindmapNode({
   side?: MindmapNodeSide;
   title?: string;
   taskId?: string;
+  noteId?: string;
 }): Promise<PublicMindmapNode> {
   const db = await getSpaceDatabase(spaceId, userId);
   await requireMindmap(db, mindmapId);
@@ -280,6 +285,13 @@ export async function createMindmapNode({
       args: { id: taskId },
     });
     if (!task) throw new ResourceNotFoundError("Task");
+  }
+  if (noteId !== undefined) {
+    const note = await selectAsync(db, {
+      selector: noteById,
+      args: { id: noteId },
+    });
+    if (!note) throw new ResourceNotFoundError("Note");
   }
 
   const node = await asyncDispatch(
@@ -293,7 +305,11 @@ export async function createMindmapNode({
         placement,
         side,
       }),
-      ...(taskId === undefined ? { title: title ?? "" } : { taskId }),
+      ...(taskId !== undefined
+        ? { taskId }
+        : noteId !== undefined
+          ? { noteId }
+          : { title: title ?? "" }),
     }),
   );
   return publicNode(db, node);
@@ -316,9 +332,9 @@ export async function updateMindmapNode({
 }): Promise<PublicMindmapNode> {
   const db = await getSpaceDatabase(spaceId, userId);
   const node = await requireNode(db, nodeId);
-  if (title !== undefined && node.taskId !== null) {
+  if (title !== undefined && (node.taskId || node.noteId)) {
     throw new ConflictError(
-      "A task node shows its task's title; update the task instead",
+      "A task or note node shows its item's title; update the item instead",
     );
   }
 

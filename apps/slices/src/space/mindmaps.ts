@@ -12,7 +12,13 @@ import {
 } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
-import { createTaskInSection, inboxProjectSectionId } from "./projectSections";
+import { noteById } from "./notes";
+import {
+  createNoteInSection,
+  createTaskInSection,
+  firstProjectSectionChild,
+} from "./projectSections";
+import { inboxProjectId } from "./projects";
 import { syncItemRichText } from "./richTextItems";
 import { taskById, tasksByIds } from "./tasks";
 import {
@@ -24,6 +30,8 @@ import {
   mindmapNodeType,
   mindmapsTable,
   mindmapType,
+  type Note,
+  notesTable,
   type Project,
   projectSectionsTable,
   projectsTable,
@@ -32,8 +40,10 @@ import {
 
 export type MindmapTreeNode = {
   node: MindmapNode;
-  // Set for task nodes; a task node whose Task is gone is not in the tree.
+  // Set for task and note nodes; one whose Task or Note is gone is not in the
+  // tree.
   task: Task | undefined;
+  note: Note | undefined;
   project: Project | undefined;
   children: MindmapTreeNode[];
 };
@@ -54,11 +64,15 @@ const compareNodes = (a: MindmapNode, b: MindmapNode) => {
 // picture without writing fixes back:
 // - a node whose parent is gone becomes a main branch;
 // - a parent cycle is broken at its smallest node ID, which becomes a main branch;
-// - a task node whose Task is gone is hidden and its children take its place.
+// - a task or note node whose item is gone is hidden and its children take its
+//   place.
 export function buildMindmapTree(
   mindmapId: string,
   nodes: readonly MindmapNode[],
-  tasksById: ReadonlyMap<string, Task>,
+  items: {
+    tasks?: ReadonlyMap<string, Task>;
+    notes?: ReadonlyMap<string, Note>;
+  },
   projectsBySectionId: ReadonlyMap<string, Project> = new Map(),
 ): MindmapTreeNode[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));
@@ -103,19 +117,18 @@ export function buildMindmapTree(
     const result: MindmapTreeNode[] = [];
     for (const node of (childrenOf.get(parentId) ?? []).sort(compareNodes)) {
       const children = build(node.id);
-      if (node.taskId === null) {
-        result.push({ node, task: undefined, project: undefined, children });
-        continue;
-      }
-      const task = tasksById.get(node.taskId);
-      if (!task) {
+      const task = node.taskId ? items.tasks?.get(node.taskId) : undefined;
+      const note = node.noteId ? items.notes?.get(node.noteId) : undefined;
+      const item = task ?? note;
+      if (!item && (node.taskId || node.noteId)) {
         result.push(...children);
         continue;
       }
       result.push({
         node,
         task,
-        project: projectsBySectionId.get(task.projectSectionId),
+        note,
+        project: item && projectsBySectionId.get(item.projectSectionId),
         children,
       });
     }
@@ -216,17 +229,27 @@ export const mindmapNodesByTaskIds = selector({
   },
 });
 
-export const mindmapsOfTask = selector({
-  name: "mindmapsOfTask",
-  args: { taskId: v.string() },
-  handler: function* mindmapsOfTask({ taskId }) {
-    const ids = [
-      ...new Set(
-        (yield* mindmapNodesByTaskIds({ taskIds: [taskId] })).map(
-          (node) => node.mindmapId,
-        ),
-      ),
+export const mindmapNodesByNoteIds = selector({
+  name: "mindmapNodesByNoteIds",
+  args: { noteIds: v.array(v.string()) },
+  handler: function* mindmapNodesByNoteIds({ noteIds }) {
+    if (noteIds.length === 0) return [];
+    return (yield* selectFrom(mindmapNodesTable, "byNoteId").where((q) =>
+      noteIds.map((noteId) => q.eq("noteId", noteId)),
+    )) as MindmapNode[];
+  },
+});
+
+/** The mindmaps a Task or Note appears on. */
+export const mindmapsOfItem = selector({
+  name: "mindmapsOfItem",
+  args: { id: v.string() },
+  handler: function* mindmapsOfItem({ id }) {
+    const nodes = [
+      ...(yield* mindmapNodesByTaskIds({ taskIds: [id] })),
+      ...(yield* mindmapNodesByNoteIds({ noteIds: [id] })),
     ];
+    const ids = [...new Set(nodes.map((node) => node.mindmapId))];
     if (ids.length === 0) return [];
     const mindmaps = (yield* selectFrom(mindmapsTable, "byId").where((q) =>
       ids.map((id) => q.eq("id", id)),
@@ -251,7 +274,18 @@ export const mindmapTree = selector({
       ),
     ];
     const tasks = yield* tasksByIds({ ids: taskIds });
-    const sectionIds = [...new Set(tasks.map((task) => task.projectSectionId))];
+    const noteIds = [
+      ...new Set(nodes.flatMap((node) => (node.noteId ? [node.noteId] : []))),
+    ];
+    const notes =
+      noteIds.length === 0
+        ? []
+        : ((yield* selectFrom(notesTable, "byId").where((q) =>
+            noteIds.map((id) => q.eq("id", id)),
+          )) as Note[]);
+    const sectionIds = [
+      ...new Set([...tasks, ...notes].map((item) => item.projectSectionId)),
+    ];
     const sections =
       sectionIds.length === 0
         ? []
@@ -281,7 +315,10 @@ export const mindmapTree = selector({
       branches: buildMindmapTree(
         mindmapId,
         nodes,
-        new Map(tasks.map((task) => [task.id, task])),
+        {
+          tasks: new Map(tasks.map((task) => [task.id, task])),
+          notes: new Map(notes.map((note) => [note.id, note])),
+        },
         projectsBySectionId,
       ),
     };
@@ -508,7 +545,9 @@ export const createMindmapNode = action({
     mindmapId: v.string(),
     placement: mindmapPlacement,
     id: v.optional(v.string()),
+    // At most one of taskId and noteId.
     taskId: v.optional(v.string()),
+    noteId: v.optional(v.string()),
     title: v.optional(v.string()),
   },
   handler: function* createMindmapNode({
@@ -516,17 +555,28 @@ export const createMindmapNode = action({
     placement,
     id,
     taskId,
+    noteId,
     title,
   }): Generator<unknown, MindmapNode, unknown> {
     if (!(yield* mindmapById({ id: mindmapId }))) {
       throw new Error("Mindmap not found");
     }
-    if (taskId !== undefined) {
-      if (!(yield* taskById({ id: taskId }))) throw new Error("Task not found");
-      // A task appears once per map; dropping it again moves it.
-      const existing = (yield* mindmapNodesByTaskIds({
-        taskIds: [taskId],
-      })).find((node) => node.mindmapId === mindmapId);
+    if (taskId !== undefined && noteId !== undefined) {
+      throw new Error("A mindmap node links a task or a note, not both");
+    }
+    if (taskId !== undefined && !(yield* taskById({ id: taskId }))) {
+      throw new Error("Task not found");
+    }
+    if (noteId !== undefined && !(yield* noteById({ id: noteId }))) {
+      throw new Error("Note not found");
+    }
+    if (taskId !== undefined || noteId !== undefined) {
+      // An item appears once per map; dropping it again moves it.
+      const existing = (
+        taskId !== undefined
+          ? yield* mindmapNodesByTaskIds({ taskIds: [taskId] })
+          : yield* mindmapNodesByNoteIds({ noteIds: [noteId!] })
+      ).find((node) => node.mindmapId === mindmapId);
       if (existing) {
         return yield* moveMindmapNode({ id: existing.id, placement });
       }
@@ -544,7 +594,8 @@ export const createMindmapNode = action({
       side,
       orderToken: orderTokens[0]!,
       taskId: taskId ?? null,
-      title: taskId === undefined ? (title ?? "") : "",
+      ...(noteId === undefined ? {} : { noteId }),
+      title: taskId === undefined && noteId === undefined ? (title ?? "") : "",
       collapsed: false,
       createdAt: Date.now(),
     };
@@ -575,7 +626,7 @@ export const updateMindmapNode = action({
   },
 });
 
-/** Removes nodes and everything under them from their map; Tasks stay. */
+/** Removes nodes and everything under them from their map; items stay. */
 export const deleteMindmapNodes = action({
   name: "deleteMindmapNodes",
   args: { ids: v.array(v.string()) },
@@ -599,16 +650,27 @@ export const deleteMindmapNodes = action({
   },
 });
 
+// The inbox's original section can be deleted, so use whichever comes first.
+function* inboxSectionId(): Generator<unknown, string, unknown> {
+  const section = yield* firstProjectSectionChild({
+    projectId: yield* inboxProjectId({}),
+  });
+  if (!section) throw new Error("Inbox has no sections");
+  return section.id;
+}
+
 export const convertMindmapNodeToTask = action({
   name: "convertMindmapNodeToTask",
   args: { id: v.string() },
   handler: function* convertMindmapNodeToTask({ id }) {
     const node = yield* mindmapNodeById({ id });
     if (!node) throw new Error("Mindmap node not found");
-    if (node.taskId !== null) throw new Error("Mindmap node is already a task");
+    if (node.taskId || node.noteId) {
+      throw new Error("Only a topic converts to a task");
+    }
 
     const task = yield* createTaskInSection({
-      projectSectionId: yield* inboxProjectSectionId({}),
+      projectSectionId: yield* inboxSectionId(),
       position: "prepend",
       taskAttrs: { title: node.title },
     });
@@ -632,7 +694,7 @@ export const createMindmapTask = action({
     title,
   }): Generator<unknown, MindmapNode, unknown> {
     const task = yield* createTaskInSection({
-      projectSectionId: yield* inboxProjectSectionId({}),
+      projectSectionId: yield* inboxSectionId(),
       position: "prepend",
       taskAttrs: { title: title ?? "" },
     });
@@ -640,34 +702,82 @@ export const createMindmapTask = action({
   },
 });
 
-/** Unlinks a task node into a topic with the task's title; the Task stays. */
+export const convertMindmapNodeToNote = action({
+  name: "convertMindmapNodeToNote",
+  args: { id: v.string() },
+  handler: function* convertMindmapNodeToNote({ id }) {
+    const node = yield* mindmapNodeById({ id });
+    if (!node) throw new Error("Mindmap node not found");
+    if (node.taskId || node.noteId) {
+      throw new Error("Only a topic converts to a note");
+    }
+
+    const note = yield* createNoteInSection({
+      projectSectionId: yield* inboxSectionId(),
+      position: "prepend",
+      noteAttrs: { title: node.title },
+    });
+    const { titleDoc: _titleDoc, ...rest } = node;
+    yield* upsert(mindmapNodesTable, [{ ...rest, noteId: note.id, title: "" }]);
+    return note;
+  },
+});
+
+/** Creates an inbox note and places it on the map. */
+export const createMindmapNote = action({
+  name: "createMindmapNote",
+  args: {
+    mindmapId: v.string(),
+    placement: mindmapPlacement,
+    title: v.optional(v.string()),
+  },
+  handler: function* createMindmapNote({
+    mindmapId,
+    placement,
+    title,
+  }): Generator<unknown, MindmapNode, unknown> {
+    const note = yield* createNoteInSection({
+      projectSectionId: yield* inboxSectionId(),
+      position: "prepend",
+      noteAttrs: { title: title ?? "" },
+    });
+    return yield* createMindmapNode({ mindmapId, placement, noteId: note.id });
+  },
+});
+
+/** Unlinks a task or note node into a topic with its title; the item stays. */
 export const convertMindmapNodeToTopic = action({
   name: "convertMindmapNodeToTopic",
   args: { id: v.string() },
   handler: function* convertMindmapNodeToTopic({ id }) {
     const node = yield* mindmapNodeById({ id });
     if (!node) throw new Error("Mindmap node not found");
-    if (node.taskId === null) return node;
+    if (!node.taskId && !node.noteId) return node;
 
-    const task = yield* taskById({ id: node.taskId });
-    const { titleDoc: _titleDoc, ...rest } = node;
+    const item = node.taskId
+      ? yield* taskById({ id: node.taskId })
+      : yield* noteById({ id: node.noteId! });
+    const { titleDoc: _titleDoc, noteId: _noteId, ...rest } = node;
     const next: MindmapNode = {
       ...rest,
       taskId: null,
-      title: task?.title ?? "",
+      title: item?.title ?? "",
     };
     yield* upsert(mindmapNodesTable, [next]);
     return next;
   },
 });
 
-// Called whenever Tasks are deleted: their nodes go, and each node's children
-// take its place so topics placed under a task are not lost.
-export const detachMindmapNodesOfTasks = action({
-  name: "detachMindmapNodesOfTasks",
-  args: { taskIds: v.array(v.string()) },
-  handler: function* detachMindmapNodesOfTasks({ taskIds }) {
-    const detached = yield* mindmapNodesByTaskIds({ taskIds });
+// Called whenever Tasks or Notes are deleted: their nodes go, and each node's
+// children take its place so topics placed under an item are not lost.
+export const detachMindmapNodesOfItems = action({
+  name: "detachMindmapNodesOfItems",
+  args: { ids: v.array(v.string()) },
+  handler: function* detachMindmapNodesOfItems({ ids }) {
+    const detached = [
+      ...(yield* mindmapNodesByTaskIds({ taskIds: ids })),
+      ...(yield* mindmapNodesByNoteIds({ noteIds: ids })),
+    ];
     for (const { id } of detached) {
       // Re-read: an earlier iteration may have moved this node.
       const node = yield* mindmapNodeById({ id });
@@ -699,5 +809,33 @@ export const detachMindmapNodesOfTasks = action({
       );
     }
     return detached;
+  },
+});
+
+// Task <-> Note conversion replaces the row with a new ID; the map keeps the
+// node and its children and links them to the new item.
+export const relinkMindmapNodes = action({
+  name: "relinkMindmapNodes",
+  args: {
+    from: v.string(),
+    to: v.object({
+      type: v.union(v.literal("task"), v.literal("note")),
+      id: v.string(),
+    }),
+  },
+  handler: function* relinkMindmapNodes({ from, to }) {
+    const nodes = [
+      ...(yield* mindmapNodesByTaskIds({ taskIds: [from] })),
+      ...(yield* mindmapNodesByNoteIds({ noteIds: [from] })),
+    ];
+    if (nodes.length === 0) return;
+    yield* upsert(
+      mindmapNodesTable,
+      nodes.map(({ noteId: _noteId, ...node }) =>
+        to.type === "task"
+          ? { ...node, taskId: to.id }
+          : { ...node, taskId: null, noteId: to.id },
+      ),
+    );
   },
 });

@@ -21,6 +21,7 @@ import {
 } from "./shared.tsx";
 import { SquareCheckboxIcon } from "@/components/ui/icons.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 
 export function NoteBody({
   note,
@@ -108,6 +109,8 @@ export function NoteBody({
         >
           {format(new Date(note.createdAt), "MMM d, yyyy, h:mm a")}
         </DetailRow>
+
+        <ItemMindmapsRow itemId={noteId} />
 
         <div className="pt-1">
           <EditableDescription

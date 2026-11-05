@@ -117,18 +117,33 @@ const shortcutGroups: ShortcutGroup[] = [
   },
   {
     title: "Mindmap",
-    description: "Actions for the selected topic or task",
+    description:
+      "Actions for the selected node; on a task or note, they add the same kind",
     shortcuts: [
-      { bindings: [["Tab"]], description: "Add subtopic" },
-      { bindings: [["Enter"]], description: "Add task under topic" },
-      { bindings: [["O"]], description: "Add topic below" },
-      { bindings: [["Shift", "O"]], description: "Add topic above" },
+      { bindings: [["Tab"]], description: "Add child" },
+      { bindings: [["Enter"], ["O"]], description: "Add below" },
+      { bindings: [["Shift", "O"]], description: "Add above" },
       { bindings: [["I"]], description: "Edit title" },
       {
         bindings: [["H"], ["J"], ["K"], ["L"]],
         description: "Move between topics",
       },
+      {
+        bindings: [
+          ["Ctrl", "H"],
+          ["Ctrl", "J"],
+          ["Ctrl", "K"],
+          ["Ctrl", "L"],
+        ],
+        description: "Move topic up, down, in or out",
+      },
       { bindings: [["Space"]], description: "Toggle task state" },
+      { bindings: [["M"]], description: "Move task or note to a project" },
+      { bindings: [["S"]], description: "Schedule date" },
+      { bindings: [["T"]], description: "Schedule for today" },
+      { bindings: [["R"]], description: "Reset schedule" },
+      { bindings: [["Shift", "S"]], description: "Stash task" },
+      { bindings: [["E"]], description: "Edit description" },
       { bindings: [["."]], description: "Collapse or expand" },
       {
         bindings: [["D"], ["X"], ["Backspace"]],

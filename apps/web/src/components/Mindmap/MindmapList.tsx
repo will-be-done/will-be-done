@@ -8,7 +8,7 @@ import { mindmapTitle, useCreateMindmap } from "./useCreateMindmap.ts";
 
 export const MindmapList = () => {
   const { spaceId } = Route.useParams();
-  const createAndOpen = useCreateMindmap();
+  const { createAndOpen, preload } = useCreateMindmap();
   const { data: mindmaps = [] } = useAsyncSelector({
     selector: mindmapsOrdered,
     args: {},
@@ -27,7 +27,9 @@ export const MindmapList = () => {
             </h1>
             <button
               type="button"
-              onClick={() => void createAndOpen()}
+              onClick={createAndOpen}
+              onPointerEnter={preload}
+              onFocus={preload}
               className="flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-medium text-content-tinted transition-colors hover:bg-accent/10 hover:text-accent"
             >
               <Plus className="size-3.5" />

@@ -194,7 +194,7 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       schema: {
         ...common,
         operationId: "createMindmapNode",
-        summary: "Add a topic or task to a mindmap",
+        summary: "Add a topic, task, or note to a mindmap",
         params: MindmapParamsSchema,
         body: CreateMindmapNodeBodySchema,
         response: { 201: MindmapNodeResponseSchema, ...errorResponses },

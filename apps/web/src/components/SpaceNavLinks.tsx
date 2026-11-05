@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils.ts";
+import { useMindmapsEnabled } from "@/components/Mindmap/mindmapsSetting.ts";
 
 const linkClass = (isActive: boolean) =>
   cn(
@@ -28,13 +29,14 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
       s.matches.some((m) => (m.pathname as string).includes("/calendar")),
   });
 
+  const mindmapsEnabled = useMindmapsEnabled((s) => s.enabled);
   const isMindmapsActive = useRouterState({
     select: (s) =>
       s.matches.some((m) => (m.pathname as string).includes("/mindmaps")),
   });
 
   return (
-    <div className="flex items-center h-8 px-1.5 ring-1 ring-ring rounded-lg desktop-macos:ml-20 desktop-macos:py-2 mt-2 [app-region:no-drag]">
+    <div className="flex items-center gap-1 h-8 px-1.5 ring-1 ring-ring rounded-lg desktop-macos:ml-20 desktop-macos:py-2 mt-2 [app-region:no-drag]">
       <Link
         to="/spaces/$spaceId/dates"
         params={{ spaceId }}
@@ -56,13 +58,15 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
       >
         calendar
       </Link>
-      <Link
-        to="/spaces/$spaceId/mindmaps"
-        params={{ spaceId }}
-        className={linkClass(isMindmapsActive)}
-      >
-        maps
-      </Link>
+      {mindmapsEnabled && (
+        <Link
+          to="/spaces/$spaceId/mindmaps"
+          params={{ spaceId }}
+          className={linkClass(isMindmapsActive)}
+        >
+          maps
+        </Link>
+      )}
     </div>
   );
 };

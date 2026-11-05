@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
 import {
+  convertNoteToTask,
+  convertTaskToNote,
   createMindmap,
   createMindmapNode,
+  createSectionTask,
   deleteMindmap,
   deleteMindmapNode,
   getMindmap,
@@ -19,7 +22,7 @@ import {
 import { coverOperation } from "./operationCoverage";
 
 test("covers every mindmap operation", async () => {
-  const { space, task, options } = await createTaskFixture(
+  const { space, task, projectSection, options } = await createTaskFixture(
     await createAuthorization(),
   );
 
@@ -138,6 +141,40 @@ test("covers every mindmap operation", async () => {
     409,
   );
 
+  // Converting a note to a task elsewhere keeps its place on the map.
+  const draft = expectResponseStatus(
+    await createSectionTask(
+      space.id,
+      projectSection.id,
+      { title: "Draft" },
+      options,
+    ),
+    201,
+  ).data.task;
+  const note = expectResponseStatus(
+    await convertTaskToNote(space.id, draft.id, options),
+    200,
+  ).data.note;
+  const noteNode = expectResponseStatus(
+    await createMindmapNode(
+      space.id,
+      mindmap.id,
+      { noteId: note.id, parentId: marketing.id },
+      options,
+    ),
+    201,
+  ).data.node;
+  expect(noteNode).toMatchObject({
+    kind: "note",
+    noteId: note.id,
+    taskId: null,
+    title: "Draft",
+  });
+  const draftTask = expectResponseStatus(
+    await convertNoteToTask(space.id, note.id, options),
+    200,
+  ).data.task;
+
   const fetched = await coverOperation(
     "getMindmap",
     getMindmap(space.id, mindmap.id, options),
@@ -149,7 +186,14 @@ test("covers every mindmap operation", async () => {
     ["Marketing", null],
     ["Engineering", marketing.id],
     [task.title, engineering.id],
+    ["Draft", marketing.id],
   ]);
+  expect(fetched.data.nodes[3]).toMatchObject({
+    id: noteNode.id,
+    kind: "task",
+    taskId: draftTask.id,
+    noteId: null,
+  });
 
   await coverOperation(
     "deleteMindmapNode",
@@ -161,7 +205,7 @@ test("covers every mindmap operation", async () => {
       await getMindmap(space.id, mindmap.id, options),
       200,
     ).data.nodes.map(({ id }) => id),
-  ).toEqual([marketing.id]);
+  ).toEqual([marketing.id, noteNode.id]);
   expectResponseStatus(await getTask(space.id, task.id, options), 200);
 
   await coverOperation(

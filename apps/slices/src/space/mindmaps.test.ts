@@ -13,18 +13,32 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
 import { registeredSpaceSyncableTables } from "./syncMap";
 import { getSpaceBackup, loadSpaceBackup } from "./backup";
-import { inboxProjectSectionId } from "./projectSections";
+import {
+  createProjectSection,
+  deleteProjectSections,
+  inboxProjectSectionId,
+} from "./projectSections";
+import { createInboxIfNotExists } from "./projects";
 import { taskById, trashTasks } from "./tasks";
+import {
+  convertNoteToTask,
+  convertTaskToNote,
+  noteById,
+  trashNotes,
+} from "./notes";
 import { restoreTrashedTasks } from "./trash";
 import {
   buildMindmapTree,
+  convertMindmapNodeToNote,
   convertMindmapNodeToTask,
+  convertMindmapNodeToTopic,
   createMindmap,
   createMindmapNode,
+  createMindmapNote,
   createMindmapTask,
   deleteMindmap,
   deleteMindmapNodes,
-  mindmapsOfTask,
+  mindmapsOfItem,
   mindmapTree,
   moveMindmapNode,
   moveMindmapNodes,
@@ -33,7 +47,10 @@ import {
 import {
   type MindmapNode,
   mindmapNodesTable,
+  type Note,
   mindmapNodeType,
+  notesTable,
+  noteType,
   projectSectionsTable,
   projectSectionType,
   projectsTable,
@@ -58,6 +75,15 @@ const task = (id: string): Task => ({
   createdAt: 0,
   templateId: null,
   templateDate: null,
+});
+
+const note = (id: string): Note => ({
+  type: noteType,
+  id,
+  title: "Draft",
+  projectSectionId: "section",
+  orderToken: id,
+  createdAt: 0,
 });
 
 const node = (
@@ -112,6 +138,7 @@ const seed = action({
       },
     ]);
     yield* insert(tasksTable, [task("t1"), task("t2")]);
+    yield* insert(notesTable, [note("n1")]);
     yield* createMindmap({ id: "map", title: "Plan" });
   },
 });
@@ -156,10 +183,24 @@ describe("buildMindmapTree", () => {
     const tasks = new Map([["t1", task("t1")]]);
 
     const expected = "a(lifted kept) b(c(d)) orphan";
-    expect(shape(buildMindmapTree("map", nodes, tasks))).toBe(expected);
-    expect(shape(buildMindmapTree("map", [...nodes].reverse(), tasks))).toBe(
-      expected,
-    );
+    expect(shape(buildMindmapTree("map", nodes, { tasks }))).toBe(expected);
+    expect(
+      shape(buildMindmapTree("map", [...nodes].reverse(), { tasks })),
+    ).toBe(expected);
+  });
+
+  // Concurrent conversions can merge into a node linking both.
+  test("a node linking a task and a note shows whichever exists, task first", () => {
+    const both = node("both", "map", { taskId: "t1", noteId: "n1" });
+    const [withTask] = buildMindmapTree("map", [both], {
+      tasks: new Map([["t1", task("t1")]]),
+      notes: new Map([["n1", note("n1")]]),
+    });
+    expect(withTask).toMatchObject({ task: { id: "t1" } });
+    const [noteOnly] = buildMindmapTree("map", [both], {
+      notes: new Map([["n1", note("n1")]]),
+    });
+    expect(noteOnly).toMatchObject({ task: undefined, note: { id: "n1" } });
   });
 });
 
@@ -197,7 +238,7 @@ describe("mindmaps", () => {
       { parentId: "topic" },
     ]);
     expect(
-      selectSync(db, { selector: mindmapsOfTask, args: { taskId: "t1" } }),
+      selectSync(db, { selector: mindmapsOfItem, args: { id: "t1" } }),
     ).toMatchObject([{ id: "map" }]);
   });
 
@@ -315,8 +356,23 @@ describe("mindmaps", () => {
     ).toHaveLength(2);
   });
 
-  test("new tasks and converted topics go to the inbox", () => {
+  test("new tasks, notes and converted topics go to the inbox", () => {
     const db = createDB();
+    // The inbox's original section can be deleted; tasks go to whichever is first.
+    const inbox = syncDispatch(db, createInboxIfNotExists({}));
+    const { id: inboxSectionId } = syncDispatch(
+      db,
+      createProjectSection({
+        sectionDraft: { projectId: inbox.id, title: "Later" },
+        position: "append",
+      }),
+    );
+    syncDispatch(
+      db,
+      deleteProjectSections({
+        ids: [selectSync(db, { selector: inboxProjectSectionId, args: {} })],
+      }),
+    );
     syncDispatch(
       db,
       createMindmapNode({
@@ -337,10 +393,6 @@ describe("mindmaps", () => {
       node: { id: "topic", taskId: created.id, title: "" },
       task: { id: created.id },
     });
-    const inboxSectionId = selectSync(db, {
-      selector: inboxProjectSectionId,
-      args: {},
-    });
     expect(created.projectSectionId).toBe(inboxSectionId);
 
     const node = syncDispatch(
@@ -354,6 +406,97 @@ describe("mindmaps", () => {
     expect(
       selectSync(db, { selector: taskById, args: { id: node.taskId! } }),
     ).toMatchObject({ title: "", projectSectionId: inboxSectionId });
+
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "idea",
+        title: "Idea",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    const note = syncDispatch(db, convertMindmapNodeToNote({ id: "idea" }));
+    expect(note).toMatchObject({
+      title: "Idea",
+      projectSectionId: inboxSectionId,
+    });
+    const noteNode = syncDispatch(
+      db,
+      createMindmapNote({
+        mindmapId: "map",
+        placement: { parentId: "idea", position: "last" },
+      }),
+    );
+    expect(
+      selectSync(db, { selector: noteById, args: { id: noteNode.noteId! } }),
+    ).toMatchObject({ title: "", projectSectionId: inboxSectionId });
+    expect(
+      selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!
+        .branches[1],
+    ).toMatchObject({
+      node: { id: "idea", noteId: note.id, title: "" },
+      note: { id: note.id },
+      children: [{ note: { id: noteNode.noteId } }],
+    });
+  });
+
+  test("a note node survives trash and task conversion, and unlinks to a topic", () => {
+    const db = createDB();
+    const draft = { id: "n1" };
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "note-node",
+        noteId: draft.id,
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "x",
+        placement: { parentId: "note-node", position: "last" },
+      }),
+    );
+    const branch = () =>
+      selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!
+        .branches[0];
+
+    syncDispatch(db, trashNotes({ ids: [draft.id] }));
+    expect(treeShape(db)).toBe("x");
+    syncDispatch(db, restoreTrashedTasks({ ids: [draft.id] }));
+    expect(treeShape(db)).toBe("note-node x");
+
+    // Conversion replaces the item with a new ID; the node follows it.
+    const task = syncDispatch(db, convertNoteToTask({ noteId: draft.id }));
+    expect(treeShape(db)).toBe("note-node x");
+    expect(branch()).toMatchObject({
+      node: { taskId: task.id },
+      task: { id: task.id },
+      project: { id: "project" },
+    });
+    expect(branch()!.node).not.toHaveProperty("noteId");
+    const back = syncDispatch(db, convertTaskToNote({ taskId: task.id }));
+    expect(branch()).toMatchObject({
+      node: { taskId: null, noteId: back.id },
+      note: { id: back.id },
+    });
+    expect(
+      selectSync(db, { selector: mindmapsOfItem, args: { id: back.id } }),
+    ).toMatchObject([{ id: "map" }]);
+
+    syncDispatch(db, convertMindmapNodeToTopic({ id: "note-node" }));
+    expect(branch()).toMatchObject({
+      node: { taskId: null, title: "Draft" },
+      note: undefined,
+    });
+    expect(branch()!.node).not.toHaveProperty("noteId");
+    expect(
+      selectSync(db, { selector: noteById, args: { id: back.id } }),
+    ).toBeDefined();
   });
 
   test("trashing a task lifts its children and restoring brings it back", () => {
@@ -409,16 +552,25 @@ describe("mindmaps", () => {
         placement: { parentId: "topic", position: "last" },
       }),
     );
+    syncDispatch(
+      source,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "note-node",
+        noteId: "n1",
+        placement: { parentId: "topic", position: "last" },
+      }),
+    );
     const backup = selectSync(source, { selector: getSpaceBackup, args: {} });
 
     const target = createDB("b0000000-0000-4000-8000-000000000002");
     syncDispatch(target, loadSpaceBackup({ backup }));
-    expect(treeShape(target)).toBe("topic(task-node)");
+    expect(treeShape(target)).toBe("topic(task-node note-node)");
 
     syncDispatch(target, deleteMindmap({ id: "map" }));
     expect(selectSync(target, { selector: nodeRows, args: {} })).toEqual([]);
     expect(
-      selectSync(target, { selector: mindmapsOfTask, args: { taskId: "t2" } }),
+      selectSync(target, { selector: mindmapsOfItem, args: { id: "t2" } }),
     ).toEqual([]);
   });
 });

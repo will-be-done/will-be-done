@@ -26,7 +26,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { MindmapCanvas } from "./MindmapCanvas.tsx";
-import { mindmapTitle, useCreateMindmap } from "./useCreateMindmap.ts";
+import {
+  mindmapTitle,
+  useCreateMindmap,
+  useCreatingMindmaps,
+} from "./useCreateMindmap.ts";
 
 export const MindmapPage = ({
   mindmapId,
@@ -38,16 +42,18 @@ export const MindmapPage = ({
   const { spaceId } = Route.useParams();
   const dispatch = useAsyncDispatch();
   const navigate = useNavigate();
-  const createAndOpen = useCreateMindmap();
+  const { createAndOpen, preload } = useCreateMindmap();
   const today = useMemo(() => startOfDay(new Date()), []);
   const { data: inboxId = "" } = useAsyncSelector({
     selector: inboxProjectId,
     args: {},
   });
-  const { data: tree, isFetching } = useAsyncSelector({
+  const { data: storedTree, isFetching } = useAsyncSelector({
     selector: mindmapTree,
     args: { mindmapId },
   });
+  const creating = useCreatingMindmaps((s) => s.mindmaps.get(mindmapId));
+  const tree = storedTree ?? (creating && { mindmap: creating, branches: [] });
   const { data: mindmaps = [] } = useAsyncSelector({
     selector: mindmapsOrdered,
     args: {},
@@ -131,7 +137,11 @@ export const MindmapPage = ({
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void createAndOpen()}>
+                <DropdownMenuItem
+                  onSelect={createAndOpen}
+                  onPointerEnter={preload}
+                  onFocus={preload}
+                >
                   <Plus />
                   New mindmap
                 </DropdownMenuItem>

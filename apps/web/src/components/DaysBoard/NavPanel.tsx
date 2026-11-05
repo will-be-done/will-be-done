@@ -27,22 +27,24 @@ export const NavPanel = ({
   const navigate = useNavigate();
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  // Equal side columns keep the date centered; once it reaches the tabs, their
+  // column grows and pushes it right. Below sm it compacts to stay in the row.
   return (
-    <>
-      <div className="absolute left-0 top-0 [app-region:no-drag]">
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 grid grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)] items-start gap-x-2 max-sm:gap-x-1">
+      <div className="pointer-events-auto justify-self-start [app-region:no-drag]">
         <NavBar spaceId={spaceId} />
       </div>
 
-      <div className="top-0 fixed right-10 min-[650px]:right-0 min-[650px]:left-0 min-[650px]:m-auto min-[650px]:max-w-60 z-40 [app-region:no-drag]">
-        <div className="bg-surface-elevated rounded-bl-lg min-[650px]:rounded-b-lg text-[13px] text-content flex items-center justify-center h-10 stroke-content ring-1 ring-ring px-3">
-          <div className="flex items-center gap-2 h-full shrink-0">
+      <div className="pointer-events-auto [app-region:no-drag]">
+        <div className="bg-surface-elevated rounded-b-lg text-[13px] text-content flex items-center justify-center h-10 stroke-content ring-1 ring-ring px-3 w-60 max-sm:w-auto max-sm:px-1.5">
+          <div className="flex items-center gap-2 max-sm:gap-0.5 h-full shrink-0">
             <Link
               to="/spaces/$spaceId/timeline/$date"
               params={{
                 date: format(previousDate, "yyyy-MM-dd"),
                 spaceId,
               }}
-              className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
+              className="cursor-pointer w-6 max-sm:w-4 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
               aria-label="Previous day"
               search={{
                 projectId: selectedProjectId,
@@ -64,8 +66,13 @@ export const NavPanel = ({
             </Link>
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
-                <span className="font-medium cursor-pointer hover:text-primary transition-colors select-none w-24 text-center">
-                  {format(selectedDate, "dd MMM yyyy")}
+                <span className="font-medium cursor-pointer hover:text-primary transition-colors select-none text-center sm:w-24">
+                  <span className="sm:hidden">
+                    {format(selectedDate, "dd MMM")}
+                  </span>
+                  <span className="max-sm:hidden">
+                    {format(selectedDate, "dd MMM yyyy")}
+                  </span>
                 </span>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="center">
@@ -94,7 +101,7 @@ export const NavPanel = ({
               search={{
                 projectId: selectedProjectId,
               }}
-              className="cursor-pointer w-6 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
+              className="cursor-pointer w-6 max-sm:w-4 flex items-center justify-center h-full text-content-tinted hover:text-primary transition-colors"
               aria-label="Next day"
             >
               <svg
@@ -115,11 +122,11 @@ export const NavPanel = ({
         </div>
       </div>
 
-      <div className="fixed right-2 top-2 z-40 [app-region:no-drag]">
+      <div className="pointer-events-auto justify-self-end mr-2 max-sm:mr-1 mt-2 [app-region:no-drag]">
         <TooltipProvider>
           <SyncIndicator />
         </TooltipProvider>
       </div>
-    </>
+    </div>
   );
 };

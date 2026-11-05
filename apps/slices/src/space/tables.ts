@@ -281,8 +281,11 @@ export const mindmapNodesTable = defineTable("mindmap_nodes", {
   orderToken: v.string(),
   // Which side of the root a main branch sits on; ignored on deeper nodes.
   side: mindmapNodeSide,
-  // A task node shows and edits its Task; a topic node owns its title.
+  // A task or note node shows and edits its Task or Note; a topic node, with
+  // neither set, owns its title. noteId is optional so rows written before
+  // notes could join a map stay valid.
   taskId: v.union(v.string(), v.null()),
+  noteId: v.optional(v.string()),
   title: v.string(),
   titleDoc: v.optional(v.string()),
   collapsed: v.boolean(),
@@ -290,7 +293,8 @@ export const mindmapNodesTable = defineTable("mindmap_nodes", {
 })
   .index("byIds", ["id"])
   .index("byMindmapParentOrder", ["mindmapId", "parentId", "orderToken"])
-  .index("byTaskId", ["taskId"]);
+  .index("byTaskId", ["taskId"])
+  .index("byNoteId", ["noteId"]);
 registerSpaceSyncableTable(mindmapNodesTable, mindmapNodeType);
 registerRichTextFields(mindmapNodesTable.tableName, [
   { docField: "titleDoc", textField: "title", kind: "title" },
@@ -324,7 +328,10 @@ export const taskTrashSnapshot = v.object({
   mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
 });
 export type TaskTrashSnapshot = Infer<typeof taskTrashSnapshot>;
-export const noteTrashSnapshot = v.object({ note: notesTable.v() });
+export const noteTrashSnapshot = v.object({
+  note: notesTable.v(),
+  mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
+});
 export type NoteTrashSnapshot = Infer<typeof noteTrashSnapshot>;
 export const trashSnapshot = v.union(taskTrashSnapshot, noteTrashSnapshot);
 export type TrashSnapshot = Infer<typeof trashSnapshot>;

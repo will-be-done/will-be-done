@@ -150,6 +150,7 @@ interface MindmapNodeBackup {
   orderToken: string;
   side: "left" | "right";
   taskId: string | null;
+  noteId?: string;
   title: string;
   collapsed: boolean;
   createdAt: number;
@@ -327,6 +328,7 @@ const backupSchema = v.object({
         orderToken: v.string(),
         side: v.union(v.literal("left"), v.literal("right")),
         taskId: v.union(v.string(), v.null()),
+        noteId: v.optional(v.string()),
         title: v.string(),
         collapsed: v.boolean(),
         createdAt: v.number(),
@@ -500,7 +502,13 @@ function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
   const result = trashSnapshot.normalize(parsed);
   if (result.ok && !result.omitted) {
     if ("note" in result.value) {
-      if (result.value.note.id === id) return result.value;
+      const { note, mindmapNodes } = result.value;
+      if (
+        note.id === id &&
+        (mindmapNodes ?? []).every((node) => node.noteId === id)
+      ) {
+        return result.value;
+      }
       console.warn(`Invalid trash snapshot omitted for note ${id}`);
       return undefined;
     }
@@ -831,8 +839,9 @@ const getNewModels = action({
         continue;
       }
       // Its children then show as main branches, like any orphaned node.
-      if (node.taskId !== null && !liveItemIds.has(node.taskId)) {
-        console.warn(`Task ${node.taskId} not found for mindmap node`);
+      const itemId = node.taskId ?? node.noteId;
+      if (itemId && !liveItemIds.has(itemId)) {
+        console.warn(`Item ${itemId} not found for mindmap node`);
         continue;
       }
       mindmapNodes.push({ type: mindmapNodeType, ...node });

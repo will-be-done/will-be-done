@@ -633,10 +633,11 @@ export const MindmapNodeSchema = z.object({
     .nullable()
     .describe("Parent node, or null for a main branch of the central topic"),
   kind: z
-    .enum(["topic", "task"])
-    .describe("A topic owns its title; a task node shows a task"),
+    .enum(["topic", "task", "note"])
+    .describe("A topic owns its title; a task or note node shows that item"),
   taskId: z.string().nullable(),
-  title: z.string().describe("Topic text, or the task's title"),
+  noteId: z.string().nullable(),
+  title: z.string().describe("Topic text, or the task's or note's title"),
   side: MindmapNodeSideSchema,
   collapsed: z.boolean(),
   createdAt: z.number().int().nonnegative(),
@@ -691,13 +692,20 @@ export const CreateMindmapNodeBodySchema = z
       .describe(
         "Adds a task; a task already on the mindmap moves to the new place",
       ),
+    noteId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Adds a note; a note already on the mindmap moves to the new place",
+      ),
   })
   .strict()
   .refine(
-    (body) => (body.title === undefined) !== (body.taskId === undefined),
-    {
-      message: "Provide exactly one of title or taskId",
-    },
+    (body) =>
+      [body.title, body.taskId, body.noteId].filter((v) => v !== undefined)
+        .length === 1,
+    { message: "Provide exactly one of title, taskId, or noteId" },
   );
 
 export const UpdateMindmapNodeBodySchema = z

@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import {
+  useAsyncDispatch,
+  useAsyncSelector,
+} from "@will-be-done/hyperdb/react";
 import { richTextDocToMarkdown } from "@will-be-done/slices/common";
 import {
+  dailyEntryDateOfTask,
   toggleTaskState,
   updateMindmap,
   updateMindmapNode,
+  updateNote,
   updateTask,
 } from "@will-be-done/slices/space";
-import { ListTodo, Plus, Trash2, Unlink } from "lucide-react";
+import { ListTodo, Plus, StickyNote, Trash2, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { useFocusStore } from "@/store/focusSlice.ts";
 import { CheckboxComp } from "@/components/Checklist/Checklist";
@@ -16,11 +21,15 @@ import { RichTextEditor } from "@/components/RichText/RichTextEditor";
 import { RichTextView } from "@/components/RichText/RichTextView";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
+import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
+import { format } from "date-fns";
 import type { LaidOutNode } from "./mindmapLayout.ts";
 import {
   type CanvasNode,
+  type NodeKind,
   branchColor,
   nodeShapeClass,
+  useMindmapDatePicker,
   useMindmapDrop,
   useMindmapSelection,
 } from "./mindmapModel.ts";
@@ -29,7 +38,7 @@ import { mindmapNodeDragData } from "./mindmapDnd.ts";
 export type MindmapNodeActions = {
   addChild: (id: string) => void;
   remove: (id: string) => void;
-  convert: (id: string) => void;
+  convert: (id: string, to: NodeKind) => void;
   toggleCollapsed: (id: string) => void;
   // A topic left empty after editing is discarded, like an empty new task.
   discardIfEmpty: (id: string, refocus: boolean) => void;
@@ -73,19 +82,27 @@ export function MindmapNodeCard({
     return intent?.kind === "child" && intent.nodeId === id;
   });
   const isSelected = useMindmapSelection((s) => s.ids.has(id));
+  const isDatePickerOpen = useMindmapDatePicker((s) => s.nodeId === id);
 
   const node = entry.kind === "node" ? entry.tree.node : undefined;
   const task = entry.kind === "node" ? entry.tree.task : undefined;
+  const note = entry.kind === "node" ? entry.tree.note : undefined;
+  const item = task ?? note;
   const project = entry.kind === "node" ? entry.tree.project : undefined;
   const hasChildren = entry.kind === "node" && entry.tree.children.length > 0;
   const isDone = task?.state === "done";
+  const { data: scheduledAt } = useAsyncSelector({
+    selector: dailyEntryDateOfTask,
+    args: { taskId: task?.id ?? "" },
+    enabled: !!task,
+  });
   const color = branchColor(layout.branch);
 
   const stored =
     entry.kind === "root"
       ? { text: entry.mindmap.title, doc: entry.mindmap.titleDoc }
-      : task
-        ? { text: task.title, doc: task.titleDoc }
+      : item
+        ? { text: item.title, doc: item.titleDoc }
         : { text: entry.tree.node.title, doc: entry.tree.node.titleDoc };
   const isEmptyRef = useRef(!stored.text.trim());
   const persist = useCallback(
@@ -95,11 +112,13 @@ export function MindmapNodeCard({
         await dispatch(updateMindmap({ id, mindmap: { titleDoc } }));
       } else if (task) {
         await dispatch(updateTask({ id: task.id, task: { titleDoc } }));
+      } else if (note) {
+        await dispatch(updateNote({ id: note.id, note: { titleDoc } }));
       } else {
         await dispatch(updateMindmapNode({ id, node: { titleDoc } }));
       }
     },
-    [dispatch, entry.kind, id, task],
+    [dispatch, entry.kind, id, note, task],
   );
   const { text, doc, saveDoc } = useSavedRichText(
     stored.text,
@@ -146,7 +165,7 @@ export function MindmapNodeCard({
     setIsStartEditing(false);
     useFocusStore.getState().resetEdit();
     ref.current?.focus({ preventScroll: true });
-    if (!task && entry.kind === "node" && isEmptyRef.current) {
+    if (!item && entry.kind === "node" && isEmptyRef.current) {
       actions.discardIfEmpty(id, true);
     }
   };
@@ -154,13 +173,19 @@ export function MindmapNodeCard({
   const handleBlur = () => {
     setIsStartEditing(false);
     useFocusStore.getState().resetEdit();
-    if (!task && entry.kind === "node" && isEmptyRef.current) {
+    if (!item && entry.kind === "node" && isEmptyRef.current) {
       actions.discardIfEmpty(id, false);
     }
   };
 
   const placeholder =
-    entry.kind === "root" ? "Central topic" : task ? "Untitled task" : "Topic";
+    entry.kind === "root"
+      ? "Central topic"
+      : task
+        ? "Untitled task"
+        : note
+          ? "Untitled note"
+          : "Topic";
 
   return (
     <div
@@ -202,6 +227,9 @@ export function MindmapNodeCard({
             onChange={() => void dispatch(toggleTaskState({ taskId: task.id }))}
           />
         )}
+        {note && (
+          <StickyNote className="mt-0.5 size-3.5 shrink-0 text-content-tinted" />
+        )}
         <div className={cn("min-w-0 flex-1", isDone && "line-through")}>
           {isEditing ? (
             <div data-task-title-input className="min-w-12">
@@ -212,7 +240,7 @@ export function MindmapNodeCard({
                 onSave={saveDoc}
                 onExit={handleExit}
                 onBlur={handleBlur}
-                required={!!task}
+                required={!!item}
                 autoFocus
                 placeholder={placeholder}
                 ariaLabel={
@@ -227,10 +255,29 @@ export function MindmapNodeCard({
           )}
         </div>
       </div>
-      {project && (
+      {(project || scheduledAt) && (
         <div className="mt-0.5 truncate text-[10px] font-normal text-content-tinted/60">
-          {project.icon} {project.title}
+          {project && `${project.icon} ${project.title}`}
+          {project && scheduledAt && " · "}
+          {scheduledAt && format(scheduledAt, "MMM d")}
         </div>
+      )}
+      {task && isDatePickerOpen && (
+        <TaskDatePicker
+          taskId={task.id}
+          currentDate={scheduledAt}
+          open
+          onOpenChange={(open) => {
+            if (!open) useMindmapDatePicker.getState().setNodeId(null);
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            ref.current?.focus({ preventScroll: true });
+          }}
+          anchor={
+            <span className="pointer-events-none absolute inset-x-0 bottom-0" />
+          }
+        />
       )}
 
       {hasChildren && node && (
@@ -268,7 +315,13 @@ export function MindmapNodeCard({
             <button
               type="button"
               tabIndex={-1}
-              title="Add subtopic (Tab)"
+              title={
+                task
+                  ? "Add subtask (Tab)"
+                  : note
+                    ? "Add subnote (Tab)"
+                    : "Add subtopic (Tab)"
+              }
               className={toolbarButtonClass}
               onClick={() => actions.addChild(id)}
             >
@@ -276,21 +329,38 @@ export function MindmapNodeCard({
             </button>
             {entry.kind === "node" && (
               <>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  title={
-                    task ? "Unlink task, keep as topic" : "Convert to task"
-                  }
-                  className={toolbarButtonClass}
-                  onClick={() => actions.convert(id)}
-                >
-                  {task ? (
+                {item ? (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    title={`Unlink ${task ? "task" : "note"}, keep as topic`}
+                    className={toolbarButtonClass}
+                    onClick={() => actions.convert(id, "topic")}
+                  >
                     <Unlink className="size-3.5" />
-                  ) : (
-                    <ListTodo className="size-3.5" />
-                  )}
-                </button>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title="Convert to task"
+                      className={toolbarButtonClass}
+                      onClick={() => actions.convert(id, "task")}
+                    >
+                      <ListTodo className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      title="Convert to note"
+                      className={toolbarButtonClass}
+                      onClick={() => actions.convert(id, "note")}
+                    >
+                      <StickyNote className="size-3.5" />
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   tabIndex={-1}

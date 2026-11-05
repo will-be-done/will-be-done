@@ -80,19 +80,32 @@ or Stash, they remove its appearance and keep the task in its project. See
 | Keys                  | Action                                              |
 | --------------------- | --------------------------------------------------- |
 | `Tab`                 | Add a subtopic                                      |
-| `Enter`               | Add a task under the topic                          |
-| `o`                   | Add a topic below                                   |
+| `Enter`, `o`          | Add a topic below                                   |
 | `Shift+O`             | Add a topic above                                   |
 | `i`                   | Edit the title                                      |
 | `h`, `j`, `k`, `l`    | Move to the parent, a neighbor, or a child          |
+| `Ctrl+J`, `Ctrl+K`    | Move the topic down or up among its siblings        |
+| `Ctrl+H`, `Ctrl+L`    | Move the topic toward or away from the center       |
 | `Space`               | Toggle a task todo or done                          |
+| `m`                   | Move a task or note to another project              |
+| `s`                   | Schedule a task for a date                          |
+| `t`                   | Schedule a task for today                           |
+| `r`                   | Reset a task's schedule                             |
+| `Shift+S`             | Stash a task                                        |
+| `e`                   | Edit a task's or note's description                 |
 | `.`                   | Collapse or expand the topic                        |
 | `d`, `x`, `Backspace` | Remove the topic and its subtopics from the mindmap |
 | `Escape`              | Clear the selection                                 |
 
-Arrow keys work like `h`, `j`, `k`, and `l`. New tasks go to the inbox. With several topics selected,
-`d`, `x`, and `Backspace` remove all of them. Removing a task from a mindmap
-keeps the task in its project.
+Arrow keys work like `h`, `j`, `k`, and `l`, with or without `Ctrl`. Moving a
+topic away from the center nests it under the topic above it; moving it toward
+the center places it after its parent, or moves a main branch to the other
+side.
+
+On a task or note, `Tab`, `Enter`, and `o` add another task or note instead of
+a topic; it goes to the inbox. With several topics selected, `d`, `x`, and
+`Backspace` remove all of them. Removing a task or note from a mindmap keeps
+it in its project.
 
 ## Text formatting
 

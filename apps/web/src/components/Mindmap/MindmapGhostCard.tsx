@@ -1,16 +1,19 @@
 import { useCallback } from "react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
-import { taskById } from "@will-be-done/slices/space";
+import { noteById, taskById } from "@will-be-done/slices/space";
+import { StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils.ts";
 import { RichTextView } from "@/components/RichText/RichTextView";
 import type { LaidOutNode } from "./mindmapLayout.ts";
+import type { MindmapItem } from "./mindmapDnd.ts";
 import {
   type CanvasNode,
   branchColor,
+  nodeKind,
   nodeShapeClass,
 } from "./mindmapModel.ts";
 
-// Where a dragged node or task lands if dropped now.
+// Where a dragged node, task or note lands if dropped now.
 export function MindmapGhostCard({
   layout,
   source,
@@ -19,21 +22,25 @@ export function MindmapGhostCard({
   layout: LaidOutNode;
   source:
     | { kind: "node"; entry: CanvasNode }
-    | { kind: "task"; taskId: string };
+    | { kind: "item"; item: MindmapItem };
   register: (id: string, element: HTMLElement | null) => void;
 }) {
+  const dropped = source.kind === "item" ? source.item : undefined;
   const { data: droppedTask } = useAsyncSelector({
     selector: taskById,
-    args: { id: source.kind === "task" ? source.taskId : "" },
+    args: { id: dropped?.type === "task" ? dropped.id : "" },
+  });
+  const { data: droppedNote } = useAsyncSelector({
+    selector: noteById,
+    args: { id: dropped?.type === "note" ? dropped.id : "" },
   });
   const entry = source.kind === "node" ? source.entry : undefined;
-  const task =
-    entry?.kind === "node" ? entry.tree.task : (droppedTask ?? undefined);
-  const title =
-    entry?.kind === "node" && !entry.tree.task
-      ? entry.tree.node.title
-      : (task?.title ?? "");
-  const isTask = source.kind === "task" || !!task;
+  const tree = entry?.kind === "node" ? entry.tree : undefined;
+  const kind = dropped ? dropped.type : tree ? nodeKind(tree) : "topic";
+  const item = tree
+    ? (tree.task ?? tree.note)
+    : (droppedTask ?? droppedNote ?? undefined);
+  const title = item ? item.title : (tree?.node.title ?? "");
   const { id } = layout;
 
   const setRef = useCallback(
@@ -59,15 +66,22 @@ export function MindmapGhostCard({
       }}
     >
       <div className="flex items-start gap-2">
-        {isTask && (
+        {kind === "task" && (
           <span className="mt-0.5 size-4 shrink-0 rounded border border-content-tinted/60" />
+        )}
+        {kind === "note" && (
+          <StickyNote className="mt-0.5 size-3.5 shrink-0 text-content-tinted" />
         )}
         <div className="min-w-0 flex-1">
           {title.trim() ? (
             <RichTextView text={title} />
           ) : (
             <span className="italic text-content-tinted/50">
-              {isTask ? "Untitled task" : "Topic"}
+              {kind === "task"
+                ? "Untitled task"
+                : kind === "note"
+                  ? "Untitled note"
+                  : "Topic"}
             </span>
           )}
         </div>

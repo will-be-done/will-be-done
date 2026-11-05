@@ -18,6 +18,11 @@ import { firstProjectSectionChild } from "./projectSections";
 import { deleteTasks, taskById, updateTask } from "./tasks";
 import { updateTemplate } from "./taskTemplates";
 import { registerModelSlice } from "./maps";
+import {
+  detachMindmapNodesOfItems,
+  mindmapNodesByNoteIds,
+  relinkMindmapNodes,
+} from "./mindmaps";
 import { syncItemRichText } from "./richTextItems";
 import { generateKeyPositionedBetween } from "./utils";
 import {
@@ -35,6 +40,7 @@ import {
   taskType,
   trashedTasksTable,
   trashedTaskType,
+  type TrashedTaskRow,
   type TrashSnapshot,
 } from "./tables";
 
@@ -127,6 +133,7 @@ export const deleteNotes = action({
   args: { ids: v.array(v.string()) },
   handler: function* deleteNotes({ ids }) {
     yield* deleteRows(notesTable, ids);
+    yield* detachMindmapNodesOfItems({ ids });
   },
 });
 
@@ -140,17 +147,22 @@ export const trashNotes = action({
     );
     if (notes.length === 0) return;
 
+    const noteIds = notes.map((note) => note.id);
+    const mindmapNodes = yield* mindmapNodesByNoteIds({ noteIds });
     const trashedAt = Date.now();
-    yield* deleteNotes({ ids: notes.map((note) => note.id) });
-    yield* insert(
-      trashedTasksTable,
-      notes.map((note) => ({
+    const trashed = notes.map(
+      (note): TrashedTaskRow => ({
         type: trashedTaskType,
         id: note.id,
         trashedAt,
-        snapshot: JSON.stringify({ note } satisfies TrashSnapshot),
-      })),
+        snapshot: JSON.stringify({
+          note,
+          mindmapNodes: mindmapNodes.filter((node) => node.noteId === note.id),
+        } satisfies TrashSnapshot),
+      }),
     );
+    yield* deleteNotes({ ids: noteIds });
+    yield* insert(trashedTasksTable, trashed);
   },
 });
 
@@ -205,11 +217,16 @@ export const convertTaskToNote = action({
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 
+    const id = uuidv7();
+    yield* relinkMindmapNodes({
+      from: task.id,
+      to: { type: "note", id },
+    });
     yield* deleteTasks({ ids: [task.id] });
 
     const note: Note = {
       type: noteType,
-      id: uuidv7(),
+      id,
       ...richTextOf(task),
       projectSectionId: task.projectSectionId,
       orderToken: task.orderToken,
@@ -227,11 +244,16 @@ export const convertNoteToTask = action({
     const note = yield* noteById({ id: noteId });
     if (!note) throw new Error("Note not found");
 
+    const id = uuidv7();
+    yield* relinkMindmapNodes({
+      from: note.id,
+      to: { type: "task", id },
+    });
     yield* deleteNotes({ ids: [note.id] });
 
     const task: Task = {
       type: taskType,
-      id: uuidv7(),
+      id,
       ...richTextOf(note),
       state: "todo",
       projectSectionId: note.projectSectionId,
