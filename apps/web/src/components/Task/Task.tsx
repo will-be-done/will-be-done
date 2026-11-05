@@ -114,7 +114,6 @@ import {
   useSelectionActions,
 } from "@/components/Selection/useSelectionActions";
 import { useClipboardStore } from "@/components/Selection/clipboard";
-import { hasModClick, hasModKey } from "@/components/RichText/keys";
 import { SelectionDatePicker } from "@/components/Selection/SelectionDatePicker";
 
 export const DropTaskIndicator = ({
@@ -915,14 +914,13 @@ export const PreloadedTaskComp = ({
         e.code === "Backspace" &&
         listItem.type === dailyEntryType;
 
-      const isMoveUp =
-        hasModKey(e) && (e.code === "ArrowUp" || e.code == "KeyK");
+      const isMoveUp = e.ctrlKey && (e.code === "ArrowUp" || e.code == "KeyK");
       const isMoveDown =
-        hasModKey(e) && (e.code === "ArrowDown" || e.code == "KeyJ");
+        e.ctrlKey && (e.code === "ArrowDown" || e.code == "KeyJ");
       const isMoveLeft =
-        hasModKey(e) && (e.code === "ArrowLeft" || e.code == "KeyH");
+        e.ctrlKey && (e.code === "ArrowLeft" || e.code == "KeyH");
       const isMoveRight =
-        hasModKey(e) && (e.code === "ArrowRight" || e.code == "KeyL");
+        e.ctrlKey && (e.code === "ArrowRight" || e.code == "KeyL");
       const isScheduleDate = noModifiers && e.code === "KeyS";
       const isScheduleToday = noModifiers && e.code === "KeyT";
       const isResetSchedule = noModifiers && e.code === "KeyR";
@@ -1255,7 +1253,7 @@ export const PreloadedTaskComp = ({
 
   const handleSelectionMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      const isToggle = hasModClick(event);
+      const isToggle = event.metaKey || event.ctrlKey;
       if (event.button !== 0 || isEditing || (!isToggle && !event.shiftKey)) {
         return;
       }

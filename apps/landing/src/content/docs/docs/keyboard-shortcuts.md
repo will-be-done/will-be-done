@@ -12,12 +12,12 @@ outside a text field. Press `i` or `Enter` to edit a focused task's title.
 Press `Enter` or `Esc` to finish editing a title. In a description, `Enter`
 starts a new line and `Shift+Enter` or `Esc` finishes editing.
 
-In this reference, `Shift+O` means hold Shift and press O. `Mod` is `Cmd` on
-macOS and `Ctrl` elsewhere.
+In this reference, `Shift+O` means hold Shift and press O. Control-based movement
+uses `Ctrl` on macOS too.
 
 ## Quick add
 
-Press `Mod+A` outside a text field to add a task from anywhere in a space.
+Press `Ctrl+A` outside a text field to add a task from anywhere in a space.
 Type the title, pick a project, section, and date, then press `Enter`. The
 project and date start from the page you are on.
 
@@ -41,27 +41,27 @@ project and date start from the page you are on.
 
 ## Focused task
 
-| Keys                      | Action                                                      |
-| ------------------------- | ----------------------------------------------------------- |
-| `i`, `Enter`              | Edit title                                                  |
-| `o`                       | Create a task below a todo task, or a note below a note     |
-| `Shift+O`                 | Create a task above a todo task, or a note above a note     |
-| `Space`                   | Toggle todo or done                                         |
-| `Mod+j`, `Mod+ArrowDown`  | Move down in the list                                       |
-| `Mod+k`, `Mod+ArrowUp`    | Move up in the list                                         |
-| `Mod+h`, `Mod+ArrowLeft`  | Move to the column on the left                              |
-| `Mod+l`, `Mod+ArrowRight` | Move to the column on the right                             |
-| `m`                       | Move to another project                                     |
-| `s`                       | Choose a scheduled date                                     |
-| `t`                       | Schedule for today                                          |
-| `r`                       | Clear the schedule                                          |
-| `Shift+S`                 | Move to Stash                                               |
-| `Shift+T`                 | Convert a task without a template into a recurring template |
-| `e`                       | Edit description in task details                            |
-| `c`                       | Add a checklist item                                        |
-| `a`                       | Open the action menu                                        |
-| `d`, `x`, `Backspace`     | Remove the focused item from its current view               |
-| `Mod+Backspace`           | Delete the underlying task when focused in a daily list     |
+| Keys                              | Action                                                      |
+| --------------------------------- | ----------------------------------------------------------- |
+| `i`, `Enter`                      | Edit title                                                  |
+| `o`                               | Create a task below a todo task, or a note below a note     |
+| `Shift+O`                         | Create a task above a todo task, or a note above a note     |
+| `Space`                           | Toggle todo or done                                         |
+| `Ctrl+j`, `Ctrl+ArrowDown`        | Move down in the list                                       |
+| `Ctrl+k`, `Ctrl+ArrowUp`          | Move up in the list                                         |
+| `Ctrl+h`, `Ctrl+ArrowLeft`        | Move to the column on the left                              |
+| `Ctrl+l`, `Ctrl+ArrowRight`       | Move to the column on the right                             |
+| `m`                               | Move to another project                                     |
+| `s`                               | Choose a scheduled date                                     |
+| `t`                               | Schedule for today                                          |
+| `r`                               | Clear the schedule                                          |
+| `Shift+S`                         | Move to Stash                                               |
+| `Shift+T`                         | Convert a task without a template into a recurring template |
+| `e`                               | Edit description in task details                            |
+| `c`                               | Add a checklist item                                        |
+| `a`                               | Open the action menu                                        |
+| `d`, `x`, `Backspace`             | Remove the focused item from its current view               |
+| `Ctrl+Backspace`, `Cmd+Backspace` | Delete the underlying task when focused in a daily list     |
 
 In a project section, `d`, `x`, and `Backspace` delete the task. In a daily list
 or Stash, they remove its appearance and keep the task in its project. See
@@ -69,7 +69,8 @@ or Stash, they remove its appearance and keep the task in its project. See
 
 ## Copy, cut, and paste
 
-These act on the focused item or on every selected item.
+`Mod` is `Cmd` on macOS and `Ctrl` elsewhere. These act on the focused item or
+on every selected item.
 
 | Keys    | Action                       |
 | ------- | ---------------------------- |
@@ -88,7 +89,7 @@ titles on your system clipboard as plain text.
 ## Selecting several items
 
 Select tasks, notes, and templates in projects, daily lists, and Stash to act
-on them together.
+on them together. `Mod` is `Cmd` on macOS and `Ctrl` elsewhere.
 
 | Keys                               | Action                                   |
 | ---------------------------------- | ---------------------------------------- |
@@ -100,10 +101,10 @@ on them together.
 
 With a selection, drag any selected item to move them all in their current
 order, or copy, cut, and paste them. `Space`, `1`–`3`, `m`, `s`, `t`, `r`,
-`Shift+S`, the `Mod` movement keys, `d`, `x`, `Backspace`, and `Mod+Backspace`
-act on every selected item, and so does the action menu of a selected item.
-Clicking an item without a modifier or moving with `j` and `k` clears the
-selection.
+`Shift+S`, the `Ctrl` movement keys, `d`, `x`, `Backspace`, and
+`Ctrl+Backspace` act on every selected item, and so does the action menu of a
+selected item. Clicking an item without a
+modifier or moving with `j` and `k` clears the selection.
 
 ## Focused project
 
