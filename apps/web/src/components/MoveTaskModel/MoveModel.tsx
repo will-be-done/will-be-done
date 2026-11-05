@@ -13,6 +13,7 @@ import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   allProjectsSorted,
   taskTemplateType,
+  noteType,
   taskType,
 } from "@will-be-done/slices/space";
 
@@ -51,7 +52,9 @@ export const MoveModal = ({
     const focusedType = focusItemKey ? parseColumnKey(focusItemKey).type : null;
     // Project items disappear when moved; daily and stash entries stay in place.
     const isProjectItem =
-      focusedType === taskType || focusedType === taskTemplateType;
+      focusedType === taskType ||
+      focusedType === taskTemplateType ||
+      focusedType === noteType;
     const [previousKey, nextKey] =
       isProjectItem && focusItemKey
         ? getDOMSiblings(focusItemKey)

@@ -32,6 +32,7 @@ export const parseColumnKey = (
 ): {
   type:
     | "template"
+    | "note"
     | "dailyList"
     | "project"
     | "task"
@@ -49,6 +50,7 @@ export const parseColumnKey = (
   return {
     type: type as
       | "template"
+      | "note"
       | "dailyList"
       | "project"
       | "task"

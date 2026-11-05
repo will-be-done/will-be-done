@@ -44,8 +44,8 @@ project and date start from the page you are on.
 | Keys                              | Action                                                      |
 | --------------------------------- | ----------------------------------------------------------- |
 | `i`, `Enter`                      | Edit title                                                  |
-| `o`                               | Create a task below the focused todo task                   |
-| `Shift+O`                         | Create a task above the focused todo task                   |
+| `o`                               | Create a task below a todo task, or a note below a note     |
+| `Shift+O`                         | Create a task above a todo task, or a note above a note     |
 | `Space`                           | Toggle todo or done                                         |
 | `Ctrl+j`, `Ctrl+ArrowDown`        | Move down in the list                                       |
 | `Ctrl+k`, `Ctrl+ArrowUp`          | Move up in the list                                         |

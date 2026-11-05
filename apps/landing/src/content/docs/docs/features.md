@@ -1,6 +1,6 @@
 ---
 title: Features
-description: How tasks, text formatting, projects, scheduling, Stash, and recurring templates work.
+description: How tasks, notes, text formatting, projects, scheduling, Stash, and recurring templates work.
 sidebar:
   order: 1
 ---
@@ -16,6 +16,19 @@ menu. The inbox is a project for tasks you have not organized yet.
 
 Spaces separate your projects and schedules. For example, work and personal
 tasks can live in different spaces.
+
+## Notes
+
+A note is a section item with a title and a description but no done state. Use
+it for reference text that sits between tasks, such as meeting notes or a
+project brief. Notes live only in project sections: they cannot be scheduled,
+stashed, or given a checklist.
+
+Select **Convert to note** in a task's dropdown menu or task details to turn it
+into a note in the same place. Converting removes the task's schedule, Stash
+appearance, and checklist, and asks first when it has any. Select **Convert to
+task** on a note to turn it back into a todo task. With a note focused, press
+`o` or `Shift+O` to add another note below or above it.
 
 ## Text formatting
 
@@ -156,8 +169,8 @@ yet. See [keyboard shortcuts](/docs/keyboard-shortcuts/) for the corresponding k
 Open **Trash** at the bottom of the sidebar to restore a deleted task or delete
 it forever. Restoring returns the task to its section, checklist, schedule, and
 Stash; if its project is gone, it returns to the Inbox. Tasks are deleted forever
-30 days after they enter Trash. Deleting a project deletes its tasks without
-moving them to Trash.
+30 days after they enter Trash. Deleted notes go to Trash the same way.
+Deleting a project deletes its tasks and notes without moving them to Trash.
 
 ## Imports and space backups
 
@@ -167,5 +180,5 @@ empty space, or export a backup before importing.
 
 **Space Settings → Backup** exports the selected space as JSON. Restoring that
 file replaces the space's existing data. A space export contains its tasks,
-projects, templates, checklists, schedules, and Stash entries. It does not back
+projects, notes, templates, checklists, schedules, and Stash entries. It does not back
 up your server's accounts or API tokens.

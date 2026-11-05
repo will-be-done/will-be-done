@@ -328,9 +328,45 @@ export const TaskTemplateResponseSchema = z.object({
   template: TaskTemplateSchema,
 });
 
+export const NoteSchema = z.object({
+  type: z.literal("note"),
+  id: z.string().describe("Note identifier"),
+  title: z.string(),
+  content: z.string().optional(),
+  projectSectionId: z.string().describe("Parent project section identifier"),
+  createdAt: z.number().int().nonnegative(),
+});
+
+export const NoteParamsSchema = z.object({
+  spaceId: z.string().min(1).describe("Space identifier"),
+  noteId: z.string().min(1).describe("Note identifier"),
+});
+
+export const UpdateNoteBodySchema = z
+  .object({
+    title: z.string().trim().min(1).optional(),
+    content: z.string().optional(),
+  })
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "At least one field must be provided",
+  });
+
+export const MoveNoteBodySchema = z
+  .object({
+    projectSectionId: z.string().min(1),
+    placement: PlacementSchema,
+  })
+  .strict();
+
+export const NoteResponseSchema = z.object({
+  note: NoteSchema,
+});
+
 export const ItemSchema = z.discriminatedUnion("type", [
   TaskSchema,
   TaskTemplateSchema,
+  NoteSchema,
 ]);
 
 export const ListSectionItemsQuerySchema = z.object({

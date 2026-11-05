@@ -11,6 +11,7 @@ import {
   type TrashedTask,
 } from "@will-be-done/slices/space";
 import { formatDistanceToNow } from "date-fns";
+import { StickyNote } from "lucide-react";
 import { useCurrentDate } from "@/components/DaysBoard/hooks.tsx";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -22,8 +23,12 @@ const TrashRow = ({ row, now }: { row: TrashedTask; now: number }) => {
     Math.ceil((row.trashedAt + TRASH_RETENTION_MS - now) / DAY_MS),
   );
 
+  const isNote = "note" in row;
+  const title = isNote ? row.note.title : row.task.title;
+  const isDone = !isNote && row.task.state === "done";
+
   const handleDelete = () => {
-    if (!confirm("Delete this task forever?")) return;
+    if (!confirm(`Delete this ${isNote ? "note" : "task"} forever?`)) return;
     void dispatch(deleteTrashedTasks({ ids: [row.id] }));
   };
 
@@ -32,14 +37,19 @@ const TrashRow = ({ row, now }: { row: TrashedTask; now: number }) => {
       <div className="flex min-w-0 flex-1 flex-col">
         <span
           className={
-            row.task.state === "done"
-              ? "truncate text-[13px] text-content-tinted line-through"
-              : "truncate text-[13px] text-content"
+            isDone
+              ? "flex items-center gap-1.5 truncate text-[13px] text-content-tinted line-through"
+              : "flex items-center gap-1.5 truncate text-[13px] text-content"
           }
         >
-          {row.task.title || (
-            <span className="italic text-content-tinted">Untitled</span>
+          {isNote && (
+            <StickyNote className="size-3 shrink-0 text-content-tinted" />
           )}
+          <span className="truncate">
+            {title || (
+              <span className="italic text-content-tinted">Untitled</span>
+            )}
+          </span>
         </span>
         <span className="text-[11px] text-content-tinted/60">
           Deleted {formatDistanceToNow(row.trashedAt, { addSuffix: true })} ·{" "}
@@ -73,7 +83,7 @@ export const TrashView = () => {
   });
 
   const handleEmpty = () => {
-    if (!confirm("Delete all tasks in the trash forever?")) return;
+    if (!confirm("Delete everything in the trash forever?")) return;
     void dispatch(emptyTrash({}));
   };
 
@@ -86,7 +96,7 @@ export const TrashView = () => {
               Trash
             </h1>
             <p className="mt-1 text-[12px] text-content-tinted/60">
-              Deleted tasks are removed forever after 30 days.
+              Deleted tasks and notes are removed forever after 30 days.
             </p>
           </div>
           {rows.length > 0 && (

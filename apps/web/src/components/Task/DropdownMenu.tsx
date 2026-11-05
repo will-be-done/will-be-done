@@ -15,6 +15,8 @@ import {
   ListPlus,
   MoreHorizontal,
   Plus,
+  SquareCheck,
+  StickyNote,
   Trash2,
 } from "lucide-react";
 
@@ -91,7 +93,10 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   canResetSchedule,
   canStashTask,
   canConvertToTemplate,
+  canConvertToNote,
+  canConvertToTask,
   canAddChecklistItem,
+  siblingLabel,
   onOpenChange,
   onMarkDone,
   onMoveToProject,
@@ -102,6 +107,8 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   onAddTaskAfter,
   onAddTaskBefore,
   onConvertToTemplate,
+  onConvertToNote,
+  onConvertToTask,
   onAddChecklistItem,
   onMoveUp,
   onMoveDown,
@@ -120,7 +127,10 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   canResetSchedule: boolean;
   canStashTask: boolean;
   canConvertToTemplate: boolean;
+  canConvertToNote: boolean;
+  canConvertToTask: boolean;
   canAddChecklistItem: boolean;
+  siblingLabel: "task" | "note";
   onOpenChange: (open: boolean) => void;
   onMarkDone: () => void;
   onMoveToProject: () => void;
@@ -131,6 +141,8 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
   onAddTaskAfter: () => void;
   onAddTaskBefore: () => void;
   onConvertToTemplate: () => void;
+  onConvertToNote: () => void;
+  onConvertToTask: () => void;
   onAddChecklistItem: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -281,6 +293,28 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
                 <DropdownMenuShortcut>T</DropdownMenuShortcut>
               </DropdownMenuItem>
             )}
+            {canConvertToNote && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  shouldSkipNextCloseAutoFocusRef.current = true;
+                  onConvertToNote();
+                }}
+              >
+                <StickyNote />
+                Convert to note
+              </DropdownMenuItem>
+            )}
+            {canConvertToTask && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  shouldSkipNextCloseAutoFocusRef.current = true;
+                  onConvertToTask();
+                }}
+              >
+                <SquareCheck />
+                Convert to task
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onSelect={() => {
                 shouldSkipNextCloseAutoFocusRef.current = true;
@@ -289,7 +323,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
               disabled={isDone}
             >
               <Plus />
-              Add task after
+              Add {siblingLabel} after
               <DropdownMenuShortcut>o</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -300,7 +334,7 @@ export const TaskDropdownMenu = memo(function TaskDropdownMenu({
               disabled={isDone}
             >
               <Plus />
-              Add task before
+              Add {siblingLabel} before
               <DropdownMenuShortcut>O</DropdownMenuShortcut>
             </DropdownMenuItem>
           </DropdownMenuGroup>

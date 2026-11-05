@@ -8,6 +8,7 @@ import {
   dailyEntriesTable,
   type MindmapNode,
   mindmapNodesTable,
+  notesTable,
   stashEntriesTable,
   tasksTable,
   trashedTasksTable,
@@ -45,13 +46,27 @@ export const restoreTrashedTasks = action({
       ids.map((id) => q.eq("id", id)),
     )).map(decodeTrashedTask);
 
-    for (const {
-      task,
-      checklistItems,
-      dailyEntry,
-      stashEntry,
-      mindmapNodes = [],
-    } of rows) {
+    for (const row of rows) {
+      if ("note" in row) {
+        const section = yield* projectSectionById({
+          id: row.note.projectSectionId,
+        });
+        yield* insert(notesTable, [
+          {
+            ...row.note,
+            projectSectionId: section?.id ?? (yield* inboxProjectSectionId({})),
+          },
+        ]);
+        continue;
+      }
+
+      const {
+        task,
+        checklistItems,
+        dailyEntry,
+        stashEntry,
+        mindmapNodes = [],
+      } = row;
       const section = yield* projectSectionById({ id: task.projectSectionId });
       const template = task.templateId
         ? yield* taskTemplateById({ id: task.templateId })

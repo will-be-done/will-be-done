@@ -12,6 +12,7 @@ import {
   type ListItemType,
   stashEntryType,
   taskTemplateType,
+  noteType,
   taskType,
 } from "@will-be-done/slices/space";
 import { useIsMobile } from "@/hooks/use-mobile.ts";
@@ -23,6 +24,7 @@ import { differenceInCalendarDays } from "date-fns";
 const isListItemType = (type: string): type is ListItemType =>
   type === taskType ||
   type === taskTemplateType ||
+  type === noteType ||
   type === dailyEntryType ||
   type === stashEntryType;
 

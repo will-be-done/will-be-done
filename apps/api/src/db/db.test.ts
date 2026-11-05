@@ -23,6 +23,7 @@ import {
   serverSyncTables,
 } from "../sync/tables";
 import { installServerChangeFeedHook } from "./db";
+import { spaceDBConfig, userDBConfig } from "./configs";
 
 const action = createAction();
 const selector = createSelector();
@@ -102,5 +103,16 @@ describe("server database startup", () => {
       })({}),
     );
     expect(syncDispatch(db, readServerRevision({}))).toBe(2);
+  });
+});
+
+describe("server sync table order", () => {
+  test.each([
+    ["space", spaceDBConfig("space-id")],
+    ["user", userDBConfig("user-id")],
+  ])("lists every %s syncable table so uploads are committed", (_, config) => {
+    expect([...config.syncTableNamesInDependencyOrder].sort()).toEqual(
+      Object.keys(config.tableNameMap).sort(),
+    );
   });
 });
