@@ -49,7 +49,7 @@ export const appByIdOrDefault = selector({
   },
 });
 
-const appDropModelData = selector({
+export const appDropModelData = selector({
   name: "appDropModelData",
   args: { id: v.string(), modelType: possibleModelType },
   handler: function* ({ id, modelType }) {

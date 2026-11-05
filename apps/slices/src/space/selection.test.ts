@@ -24,6 +24,7 @@ import {
   defaultTask,
   moveListItemsToProject,
   notesTable,
+  allTasks,
   pasteListItemCopies,
   projectSectionItemIds,
   projectSectionsTable,
@@ -70,6 +71,7 @@ function createDB() {
         task("a", "s1", "a0"),
         task("b", "s1", "a1"),
         task("c", "s1", "a2"),
+        { ...task("d", "s1", "a3"), state: "done" },
         task("x", "s2", "a0"),
         task("y", "s2", "a1"),
       ]);
@@ -250,5 +252,40 @@ describe("pasteListItemCopies", () => {
 
     expect(dayOrder(db)).toEqual(["c", copyA]);
     expect(sectionOrder(db, "s1")).toEqual(["a", copyA, "b", "c"]);
+  });
+
+  it("leaves nothing behind when the target rejects the copies", () => {
+    const db = createDB();
+    const taskCount = selectSync(db, { selector: allTasks, args: {} }).length;
+    const copies = syncDispatch(
+      db,
+      pasteListItemCopies({
+        listItems: [aAndEntryC[0]!],
+        id: "d",
+        modelType: "task",
+        edge: "bottom",
+      }),
+    );
+
+    expect(copies).toEqual([]);
+    expect(selectSync(db, { selector: allTasks, args: {} })).toHaveLength(
+      taskCount,
+    );
+  });
+
+  it("pastes copies of done tasks as todo", () => {
+    const db = createDB();
+    const [copyD] = syncDispatch(
+      db,
+      pasteListItemCopies({
+        listItems: [{ id: "d", modelType: "task" }],
+        id: "x",
+        modelType: "task",
+        edge: "bottom",
+      }),
+    );
+
+    expect(copyD).toMatchObject({ type: "task", state: "todo" });
+    expect(sectionOrder(db, "s2")).toEqual(["x", copyD!.id, "y"]);
   });
 });

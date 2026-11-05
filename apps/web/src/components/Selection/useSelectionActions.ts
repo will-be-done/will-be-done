@@ -3,12 +3,12 @@ import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   type AnyModelType,
   appHandleDropMany,
-  dailyEntryByTaskId,
+  dailyEntriesByTaskIds,
   dailyEntryType,
   dailyListType,
   deleteListItems,
   getDMY,
-  itemByListItemId,
+  itemsByListItemRefs,
   itemsOfListItems,
   isTask,
   type Item,
@@ -18,7 +18,7 @@ import {
   scheduleListItems,
   setListItemsNature,
   setListItemsTaskState,
-  stashEntryByTaskId,
+  stashEntriesByTaskIds,
   stashEntryType,
   stashListItems,
   stashType,
@@ -94,21 +94,35 @@ export const useSelectionActions = () => {
   const select = useSelectAsync();
 
   return useMemo(() => {
-    const keyInList = async (item: Item, kind: ListKind) => {
-      if (kind === "section") return buildFocusKey(item.id, item.type);
-      if (!isTask(item)) return undefined;
+    // The key each item has in a list of the given kind, aligned with items.
+    const keysInList = async (
+      items: (Item | undefined)[],
+      kind: ListKind,
+    ): Promise<(FocusKey | undefined)[]> => {
+      if (kind === "section") {
+        return items.map((item) => item && buildFocusKey(item.id, item.type));
+      }
 
-      const entry =
+      const taskIds = items.flatMap((item) =>
+        item && isTask(item) ? [item.id] : [],
+      );
+      const entries =
         kind === "daily"
           ? await select({
-              selector: dailyEntryByTaskId,
-              args: { taskId: item.id },
+              selector: dailyEntriesByTaskIds,
+              args: { taskIds },
             })
           : await select({
-              selector: stashEntryByTaskId,
-              args: { taskId: item.id },
+              selector: stashEntriesByTaskIds,
+              args: { taskIds },
             });
-      return entry ? buildFocusKey(entry.id, entry.type) : undefined;
+      const entryByTaskId = new Map(
+        entries.map((entry) => [entry.taskId, entry]),
+      );
+      return items.map((item) => {
+        const entry = item && entryByTaskId.get(item.id);
+        return entry && buildFocusKey(entry.id, entry.type);
+      });
     };
 
     // Selection keys name list rows, so a move into another kind of list
@@ -121,17 +135,13 @@ export const useSelectionActions = () => {
       targetListType: string = target.modelType,
     ) => {
       const kind = listKindOf(targetListType);
-      const movedItems = await Promise.all(
-        keys
-          .filter((key) => listKindOf(parseColumnKey(key).type) !== kind)
-          .map(async (key) => ({
-            key,
-            item: await select({
-              selector: itemByListItemId,
-              args: toRef(key),
-            }),
-          })),
+      const movedKeys = keys.filter(
+        (key) => listKindOf(parseColumnKey(key).type) !== kind,
       );
+      const movedItems = await select({
+        selector: itemsByListItemRefs,
+        args: { listItems: movedKeys.map(toRef) },
+      });
 
       await dispatch(
         appHandleDropMany({
@@ -143,12 +153,10 @@ export const useSelectionActions = () => {
       );
 
       const remapped = new Map<FocusKey, FocusKey>();
-      await Promise.all(
-        movedItems.map(async ({ key, item }) => {
-          const movedKey = item && (await keyInList(item, kind));
-          if (movedKey) remapped.set(key, movedKey);
-        }),
-      );
+      (await keysInList(movedItems, kind)).forEach((movedKey, index) => {
+        const key = movedKeys[index];
+        if (key && movedKey) remapped.set(key, movedKey);
+      });
 
       if (remapped.size > 0) {
         useFocusStore.setState((s) => ({
@@ -187,9 +195,7 @@ export const useSelectionActions = () => {
               edge: "bottom",
             }),
           );
-          keys = await Promise.all(
-            copies.map((copy) => keyInList(copy, listKindOf(type))),
-          );
+          keys = await keysInList(copies, listKindOf(type));
         }
 
         // A sidebar project takes the items off screen.
@@ -262,13 +268,18 @@ export const useSelectionActions = () => {
           unscheduleListItems({ listItems: selectedKeysInOrder().map(toRef) }),
         ),
 
-      moveToProject: (projectId: string) =>
-        dispatch(
-          moveListItemsToProject({
-            listItems: selectedKeysInOrder().map(toRef),
-            projectId,
-          }),
-        ),
+      moveToProject: (projectId: string) => {
+        const keys = selectedKeysInOrder();
+        // Project items leave the view; daily and stash entries stay put.
+        if (
+          keys.some((key) => listKindOf(parseColumnKey(key).type) === "section")
+        ) {
+          focusPastSelection(keys);
+        }
+        return dispatch(
+          moveListItemsToProject({ listItems: keys.map(toRef), projectId }),
+        );
+      },
 
       moveStacked: async (direction: "up" | "down") => {
         const keys = selectedKeysInOrder();

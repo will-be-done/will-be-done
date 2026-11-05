@@ -380,15 +380,22 @@ export const getDOMAdjacentColumns = (
 
 const SELECTABLE_SELECTOR = "[data-selectable][data-focusable-key]";
 
-const getDOMSelectableKeys = () =>
-  Array.from(document.querySelectorAll(SELECTABLE_SELECTOR)).map(
-    (el) => el.getAttribute("data-focusable-key") as FocusKey,
-  );
+// Collapsed columns keep their items mounted but hidden.
+const isShown = (el: Element) =>
+  el.getClientRects().length > 0 &&
+  !el.closest('[inert], [aria-hidden="true"]');
 
-export const isDOMSelectable = (key: string) =>
-  !!document.querySelector(
+const getDOMSelectableKeys = () =>
+  Array.from(document.querySelectorAll(SELECTABLE_SELECTOR))
+    .filter(isShown)
+    .map((el) => el.getAttribute("data-focusable-key") as FocusKey);
+
+export const isDOMSelectable = (key: string) => {
+  const el = document.querySelector(
     `${SELECTABLE_SELECTOR}[data-focusable-key="${key}"]`,
   );
+  return !!el && isShown(el);
+};
 
 // Selectable keys from `from` to `to` inclusive, in DOM order.
 export const getDOMSelectableRange = (from: string, to: string): FocusKey[] => {

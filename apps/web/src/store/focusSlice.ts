@@ -194,9 +194,14 @@ export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
   enableFocus: () => set({ isFocusDisabled: false }),
 
   focusByKey: (key: FocusKey, skipElFocus = false) => {
-    if (get().focusItemKey === key) return;
+    const { focusItemKey, selectedKeys } = get();
+    if (focusItemKey === key) return;
 
-    set({ focusItemKey: key, editItemKey: null });
+    set({
+      focusItemKey: key,
+      editItemKey: null,
+      ...(selectedKeys.includes(key) ? {} : emptySelection),
+    });
 
     if (skipElFocus) return;
 

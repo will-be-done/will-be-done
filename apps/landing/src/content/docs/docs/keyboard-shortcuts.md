@@ -79,12 +79,12 @@ on every selected item.
 | `Mod+V` | Paste below the focused item |
 
 Pasting a copy creates new items with the same title, description, and
-checklist. Copies pasted into a daily list or Stash are also added to the
-original's project, next to the original. Pasting a cut moves the items instead,
-as dragging them would. With a project focused in the sidebar, pasting adds the
-items to the end of that project. Cut items stay dimmed until you paste them or
-press `Esc`. Copying also puts the titles on your system clipboard as plain
-text.
+checklist. Copies of done tasks start as to-dos. Copies pasted into a daily
+list or Stash are also added to the original's project, next to the original.
+Pasting a cut moves the items instead, as dragging them would. With a project
+focused in the sidebar, pasting adds the items to the end of that project. Cut
+items stay dimmed until you paste them or press `Esc`. Copying also puts the
+titles on your system clipboard as plain text.
 
 ## Selecting several items
 
