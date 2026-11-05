@@ -22,28 +22,44 @@ import { RichTextView } from "@/components/RichText/RichTextView";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
-import { format } from "date-fns";
 import type { LaidOutNode } from "./mindmapLayout.ts";
 import {
   type CanvasNode,
+  type Direction,
   type NodeKind,
   branchColor,
   nodeShapeClass,
   useMindmapDatePicker,
+  useMindmapMenu,
   useMindmapDrop,
   useMindmapSelection,
 } from "./mindmapModel.ts";
 import { mindmapNodeDragData } from "./mindmapDnd.ts";
+import { MindmapItemPlace } from "./MindmapItemPlace.tsx";
+import { MindmapNodeMenu } from "./MindmapNodeMenu.tsx";
 
 export type MindmapNodeActions = {
   addChild: (id: string) => void;
+  addSibling: (id: string, edge: "before" | "after") => void;
   remove: (id: string) => void;
+  removeNodes: (ids: string[]) => void;
   convert: (id: string, to: NodeKind) => void;
+  // Task <-> Note; the node keeps its place.
+  convertItem: (id: string) => void;
+  trashItem: (id: string) => void;
   toggleCollapsed: (id: string) => void;
+  toggleTask: (id: string) => void;
   // A topic left empty after editing is discarded, like an empty new task.
   discardIfEmpty: (id: string, refocus: boolean) => void;
   register: (id: string, element: HTMLElement | null) => void;
   toggleSelected: (id: string) => void;
+  moveInTree: (id: string, direction: Direction) => void;
+  moveToProject: (id: string) => void;
+  schedule: (id: string) => void;
+  scheduleToday: (id: string) => void;
+  resetSchedule: (id: string) => void;
+  stash: (id: string) => void;
+  editDescription: (id: string) => void;
 };
 
 const toolbarButtonClass =
@@ -83,12 +99,12 @@ export function MindmapNodeCard({
   });
   const isSelected = useMindmapSelection((s) => s.ids.has(id));
   const isDatePickerOpen = useMindmapDatePicker((s) => s.nodeId === id);
+  const isMenuOpen = useMindmapMenu((s) => s.nodeId === id);
 
   const node = entry.kind === "node" ? entry.tree.node : undefined;
   const task = entry.kind === "node" ? entry.tree.task : undefined;
   const note = entry.kind === "node" ? entry.tree.note : undefined;
   const item = task ?? note;
-  const project = entry.kind === "node" ? entry.tree.project : undefined;
   const hasChildren = entry.kind === "node" && entry.tree.children.length > 0;
   const isDone = task?.state === "done";
   const { data: scheduledAt } = useAsyncSelector({
@@ -255,12 +271,13 @@ export function MindmapNodeCard({
           )}
         </div>
       </div>
-      {(project || scheduledAt) && (
-        <div className="mt-0.5 truncate text-[10px] font-normal text-content-tinted/60">
-          {project && `${project.icon} ${project.title}`}
-          {project && scheduledAt && " · "}
-          {scheduledAt && format(scheduledAt, "MMM d")}
-        </div>
+      {entry.kind === "node" && (
+        <MindmapItemPlace
+          id={id}
+          tree={entry.tree}
+          actions={actions}
+          scheduledAt={scheduledAt}
+        />
       )}
       {task && isDatePickerOpen && (
         <TaskDatePicker
@@ -304,6 +321,7 @@ export function MindmapNodeCard({
           className={cn(
             "absolute bottom-full left-0 pb-1 transition-opacity",
             !isFocused &&
+              !isMenuOpen &&
               "pointer-events-none opacity-0 group-hover/node:pointer-events-auto group-hover/node:opacity-100",
           )}
           onPointerDown={(e) => {
@@ -370,6 +388,27 @@ export function MindmapNodeCard({
                 >
                   <Trash2 className="size-3.5" />
                 </button>
+                <MindmapNodeMenu
+                  id={id}
+                  tree={entry.tree}
+                  actions={actions}
+                  isScheduled={!!scheduledAt}
+                  open={isMenuOpen}
+                  onOpenChange={(open) =>
+                    useMindmapMenu.getState().setNodeId(open ? id : null)
+                  }
+                  onCloseAutoFocus={(event) => {
+                    event.preventDefault();
+                    // Unless an action moved focus on, as the move dialog does.
+                    if (
+                      !document.activeElement ||
+                      document.activeElement === document.body
+                    ) {
+                      ref.current?.focus({ preventScroll: true });
+                    }
+                  }}
+                  triggerClassName={toolbarButtonClass}
+                />
               </>
             )}
           </div>

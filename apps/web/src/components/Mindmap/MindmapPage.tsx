@@ -16,6 +16,7 @@ import { NavBar } from "@/components/NavBar/NavBar";
 import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ItemDetails } from "@/components/ItemDetails/ItemDetails.tsx";
+import { WithStash } from "@/components/Stash/WithStash.tsx";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
 import {
   DropdownMenu,
@@ -58,6 +59,8 @@ export const MindmapPage = ({
     selector: mindmapsOrdered,
     args: {},
   });
+
+  const selectedProjectId = projectId === "inbox" ? inboxId : projectId;
 
   const handleDelete = () => {
     if (
@@ -104,7 +107,7 @@ export const MindmapPage = ({
       <ProjectsSplit
         topClassName="flex min-h-0 flex-col"
         projectLink={ProjectLink}
-        selectedProjectId={projectId === "inbox" ? inboxId : projectId}
+        selectedProjectId={selectedProjectId}
         selectedDate={today}
       >
         <header className="flex h-14 shrink-0 items-start gap-4 pr-4">
@@ -165,22 +168,28 @@ export const MindmapPage = ({
           </div>
         </header>
 
-        {tree ? (
-          <MindmapCanvas key={mindmapId} tree={tree} />
-        ) : (
-          !isFetching && (
-            <p className="py-12 text-center text-[13px] text-content-tinted/60">
-              This mindmap was deleted.{" "}
-              <Link
-                to="/spaces/$spaceId/mindmaps"
-                params={{ spaceId }}
-                className="text-accent hover:underline"
-              >
-                See all mindmaps
-              </Link>
-            </p>
-          )
-        )}
+        <WithStash>
+          {tree ? (
+            <MindmapCanvas
+              key={mindmapId}
+              tree={tree}
+              projectId={selectedProjectId || undefined}
+            />
+          ) : (
+            !isFetching && (
+              <p className="py-12 text-center text-[13px] text-content-tinted/60">
+                This mindmap was deleted.{" "}
+                <Link
+                  to="/spaces/$spaceId/mindmaps"
+                  params={{ spaceId }}
+                  className="text-accent hover:underline"
+                >
+                  See all mindmaps
+                </Link>
+              </p>
+            )
+          )}
+        </WithStash>
       </ProjectsSplit>
 
       <ItemDetails />

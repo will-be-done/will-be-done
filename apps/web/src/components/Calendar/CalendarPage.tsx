@@ -38,6 +38,7 @@ import {
 import { TimeGridView } from "./TimeGridView";
 import { useExternalTaskDrop } from "./useExternalTaskDrop";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
+import { WithStash } from "@/components/Stash/WithStash.tsx";
 import { openQuickAdd } from "@/components/QuickAdd/quickAddStore";
 
 const viewLabels: Record<CalendarView, string> = {
@@ -237,60 +238,62 @@ export const CalendarPage = ({
           </div>
         </header>
 
-        <div
-          ref={bodyRef}
-          data-focus-region-direction="row"
-          className="flex min-h-0 flex-1 overflow-x-auto px-4 pb-4"
-        >
-          {/* Seven day columns stay readable; narrow windows scroll sideways. */}
+        <WithStash reserveButton>
           <div
-            className={cn(
-              "flex min-h-0 flex-1 flex-col",
-              view !== "day" && "min-w-[52rem]",
-            )}
+            ref={bodyRef}
+            data-focus-region-direction="row"
+            className="flex min-h-0 flex-1 overflow-x-auto px-4 pb-4"
           >
-            {view === "month" || view === "plan" ? (
-              <>
-                <WeekdayHeader days={days.slice(0, 7)} />
-                <div
-                  className="grid min-h-0 flex-1 grid-cols-7 border-l border-white/5"
-                  style={{
-                    gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {days.map((day) => {
-                    const events = eventsByDate.get(urlDate(day)) ?? [];
-                    return view === "month" ? (
-                      <MonthCell
-                        key={day.getTime()}
-                        day={day}
-                        anchor={anchor}
-                        today={today}
-                        events={events}
-                        actions={actions}
-                      />
-                    ) : (
-                      <PlanCell
-                        key={day.getTime()}
-                        day={day}
-                        today={today}
-                        events={events}
-                        actions={actions}
-                      />
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <TimeGridView
-                days={days}
-                today={today}
-                eventsByDate={eventsByDate}
-                actions={actions}
-              />
-            )}
+            {/* Seven day columns stay readable; narrow windows scroll sideways. */}
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col",
+                view !== "day" && "min-w-[52rem]",
+              )}
+            >
+              {view === "month" || view === "plan" ? (
+                <>
+                  <WeekdayHeader days={days.slice(0, 7)} />
+                  <div
+                    className="grid min-h-0 flex-1 grid-cols-7 border-l border-white/5"
+                    style={{
+                      gridTemplateRows: `repeat(${days.length / 7}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {days.map((day) => {
+                      const events = eventsByDate.get(urlDate(day)) ?? [];
+                      return view === "month" ? (
+                        <MonthCell
+                          key={day.getTime()}
+                          day={day}
+                          anchor={anchor}
+                          today={today}
+                          events={events}
+                          actions={actions}
+                        />
+                      ) : (
+                        <PlanCell
+                          key={day.getTime()}
+                          day={day}
+                          today={today}
+                          events={events}
+                          actions={actions}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <TimeGridView
+                  days={days}
+                  today={today}
+                  eventsByDate={eventsByDate}
+                  actions={actions}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        </WithStash>
       </ProjectsSplit>
 
       <ItemDetails />

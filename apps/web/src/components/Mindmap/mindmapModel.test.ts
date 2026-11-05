@@ -178,6 +178,7 @@ describe("treeMoveOf", () => {
     task: undefined,
     note: undefined,
     project: undefined,
+    section: undefined,
     children,
   });
   // Right: a(a1 a2), b. Left: l.

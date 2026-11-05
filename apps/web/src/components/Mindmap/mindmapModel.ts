@@ -168,6 +168,15 @@ export const useMindmapDatePicker = create<{
   setNodeId: (nodeId) => set({ nodeId }),
 }));
 
+// The node whose "…" menu is open; the toolbar stays shown while it is.
+export const useMindmapMenu = create<{
+  nodeId: string | null;
+  setNodeId: (nodeId: string | null) => void;
+}>((set) => ({
+  nodeId: null,
+  setNodeId: (nodeId) => set({ nodeId }),
+}));
+
 const emptySelection: ReadonlySet<string> = new Set();
 
 export const useMindmapSelection = create<{

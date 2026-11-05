@@ -17,8 +17,9 @@ import {
   createProjectSection,
   deleteProjectSections,
   inboxProjectSectionId,
+  projectSectionsByProjectId,
 } from "./projectSections";
-import { createInboxIfNotExists } from "./projects";
+import { createInboxIfNotExists, createProject } from "./projects";
 import { taskById, trashTasks } from "./tasks";
 import {
   convertNoteToTask,
@@ -356,7 +357,7 @@ describe("mindmaps", () => {
     ).toHaveLength(2);
   });
 
-  test("new tasks, notes and converted topics go to the inbox", () => {
+  test("new tasks, notes and converted topics go to the chosen project or the inbox", () => {
     const db = createDB();
     // The inbox's original section can be deleted; tasks go to whichever is first.
     const inbox = syncDispatch(db, createInboxIfNotExists({}));
@@ -439,6 +440,69 @@ describe("mindmaps", () => {
       note: { id: note.id },
       children: [{ note: { id: noteNode.noteId } }],
     });
+
+    // The project picked under the map; an unknown one falls back to the inbox.
+    const work = syncDispatch(
+      db,
+      createProject({ project: { title: "Work" }, position: "append" }),
+    );
+    const [workSection] = selectSync(db, {
+      selector: projectSectionsByProjectId,
+      args: { projectId: work.id },
+    });
+    const sectionOf = (node: MindmapNode) =>
+      (node.taskId
+        ? selectSync(db, { selector: taskById, args: { id: node.taskId } })
+        : selectSync(db, { selector: noteById, args: { id: node.noteId! } })
+      )?.projectSectionId;
+    const placement = { parentId: "map", position: "last" } as const;
+    expect(
+      sectionOf(
+        syncDispatch(
+          db,
+          createMindmapTask({
+            mindmapId: "map",
+            placement,
+            projectId: work.id,
+          }),
+        ),
+      ),
+    ).toBe(workSection!.id);
+    expect(
+      sectionOf(
+        syncDispatch(
+          db,
+          createMindmapNote({
+            mindmapId: "map",
+            placement,
+            projectId: work.id,
+          }),
+        ),
+      ),
+    ).toBe(workSection!.id);
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "plan",
+        title: "Plan",
+        placement,
+      }),
+    );
+    expect(
+      syncDispatch(
+        db,
+        convertMindmapNodeToTask({ id: "plan", projectId: work.id }),
+      ).projectSectionId,
+    ).toBe(workSection!.id);
+    expect(
+      sectionOf(
+        syncDispatch(
+          db,
+          createMindmapTask({ mindmapId: "map", placement, projectId: "gone" }),
+        ),
+      ),
+    ).toBe(inboxSectionId);
   });
 
   test("a note node survives trash and task conversion, and unlinks to a topic", () => {
@@ -529,7 +593,11 @@ describe("mindmaps", () => {
     expect(
       selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!
         .branches[0],
-    ).toMatchObject({ task: { id: "t1" }, project: { id: "project" } });
+    ).toMatchObject({
+      task: { id: "t1" },
+      project: { id: "project" },
+      section: { id: "section" },
+    });
   });
 
   test("backups keep mindmaps, and deleting a map keeps its tasks", () => {

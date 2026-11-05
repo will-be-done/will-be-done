@@ -57,7 +57,8 @@ across maps. All reads in request paths go through these indexes.
 ## Reading the Tree
 
 `mindmapTree` loads one map's nodes by index, batches the linked Tasks, Notes,
-their sections, and projects, and passes them to `buildMindmapTree`. The tree is
+their sections, and projects, and passes them to `buildMindmapTree`, which puts
+each item's `project` and `section` on its tree node. The tree is
 the only shape the UI and the v1 API expose.
 
 Concurrent edits are merged field by field (see `docs/sync.md`), so the stored
@@ -117,8 +118,11 @@ Removing a node, a subtree, or a whole map (`deleteMindmapNodes`,
 `deleteMindmap`) deletes only `mindmap_nodes` rows. Tasks and Notes stay in
 their projects. There is no confirmation dialog for removing nodes.
 
-Items created from a map go to the inbox's **first** section
-(`inboxSectionId`), because the inbox's original section can be deleted:
+Items created from a map go to the **first** section of the project shown in
+the page's bottom panel (the `projectId` argument), or of the inbox when none
+is given or the project is gone (`sectionForNewItem`). It is the first section
+rather than a fixed one because sections, including the inbox's original one,
+can be deleted:
 
 - `createMindmapTask` / `createMindmapNote` create an empty item and place it;
 - `convertMindmapNodeToTask` / `convertMindmapNodeToNote` turn a topic into an
@@ -145,7 +149,8 @@ replaces a Task or Note must go through them:
 `mindmapsOfItem` lists the maps an item appears on; the details panel shows it
 for Tasks and Notes.
 
-Tests: `new tasks, notes and converted topics go to the inbox`, `a note node
+Tests: `new tasks, notes and converted topics go to the chosen project or the
+inbox`, `a note node
 survives trash and task conversion, and unlinks to a topic`, `trashing a task
 lifts its children and restoring brings it back`.
 
@@ -200,7 +205,8 @@ the API work the same either way.
 `/spaces/:spaceId/mindmaps/:mindmapId?projectId=…` shows the canvas, a project
 panel at the bottom (the `projectId` search param picks the project; `inbox`
 is an alias), and the item details panel on the right. Tasks and Notes are
-dragged from the project panel onto the canvas.
+dragged from the project panel or the stash onto the canvas. The stash sits at
+the canvas's left edge (`WithStash`) and pushes the canvas aside when open.
 
 Creating a map must open it without a visible delay (`useCreateMindmap`):
 
@@ -245,8 +251,8 @@ the node ID keeps the key distinct from the same item shown in a project list.
 ### Keyboard
 
 New nodes match the kind of the node they are created from: a topic makes
-topics, a task makes inbox tasks, a note makes inbox notes. On the root, new
-nodes are topics.
+topics, a task makes tasks, a note makes notes, created in the bottom panel's
+project. On the root, new nodes are topics.
 
 | Keys                      | Action                                         |
 | ------------------------- | ---------------------------------------------- |
@@ -263,9 +269,18 @@ nodes are topics.
 | `r`                       | Reset a task's schedule.                       |
 | `Shift+S`                 | Stash a todo task.                             |
 | `e`                       | Edit the item's description in details.        |
+| `a`                       | Open the node's "…" menu.                      |
 | `.`                       | Collapse or expand.                            |
 | `d`, `x`, `Backspace`     | Remove the node (or the selection) and below.  |
 | `Escape`                  | Clear the selection, then focus.               |
+
+The "…" menu (`MindmapNodeMenu`) sits in the hover toolbar, which stays shown
+while the menu is open (`useMindmapMenu`). It calls the same actions as the
+keys, plus two only it offers: converting a task to a note or back (the node
+keeps its place through `relinkMindmapNodes`) and deleting the item to the
+trash. Task and note nodes show "project · section · date"
+(`MindmapItemPlace`); the project opens the move dialog and the section a
+picker of that project's sections.
 
 Item keys (`m s t r Shift+S e`) reuse the project-list actions
 (`moveTaskToProject`/`moveNoteToProject`, `TaskDatePicker`, `scheduleTask`,

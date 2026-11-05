@@ -33,6 +33,7 @@ import {
   type Note,
   notesTable,
   type Project,
+  type ProjectSection,
   projectSectionsTable,
   projectsTable,
   type Task,
@@ -45,6 +46,7 @@ export type MindmapTreeNode = {
   task: Task | undefined;
   note: Note | undefined;
   project: Project | undefined;
+  section: ProjectSection | undefined;
   children: MindmapTreeNode[];
 };
 
@@ -73,7 +75,11 @@ export function buildMindmapTree(
     tasks?: ReadonlyMap<string, Task>;
     notes?: ReadonlyMap<string, Note>;
   },
-  projectsBySectionId: ReadonlyMap<string, Project> = new Map(),
+  // Where each item lives, by its section ID.
+  places: ReadonlyMap<
+    string,
+    { project: Project; section: ProjectSection }
+  > = new Map(),
 ): MindmapTreeNode[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const parentOf = new Map<string, string>();
@@ -124,11 +130,13 @@ export function buildMindmapTree(
         result.push(...children);
         continue;
       }
+      const place = item && places.get(item.projectSectionId);
       result.push({
         node,
         task,
         note,
-        project: item && projectsBySectionId.get(item.projectSectionId),
+        project: place?.project,
+        section: place?.section,
         children,
       });
     }
@@ -304,10 +312,13 @@ export const mindmapTree = selector({
     const projectsById = new Map(
       projects.map((project) => [project.id, project]),
     );
-    const projectsBySectionId = new Map<string, Project>();
+    const places = new Map<
+      string,
+      { project: Project; section: ProjectSection }
+    >();
     for (const section of sections) {
       const project = projectsById.get(section.projectId);
-      if (project) projectsBySectionId.set(section.id, project);
+      if (project) places.set(section.id, { project, section });
     }
 
     return {
@@ -319,7 +330,7 @@ export const mindmapTree = selector({
           tasks: new Map(tasks.map((task) => [task.id, task])),
           notes: new Map(notes.map((note) => [note.id, note])),
         },
-        projectsBySectionId,
+        places,
       ),
     };
   },
@@ -650,19 +661,26 @@ export const deleteMindmapNodes = action({
   },
 });
 
-// The inbox's original section can be deleted, so use whichever comes first.
-function* inboxSectionId(): Generator<unknown, string, unknown> {
-  const section = yield* firstProjectSectionChild({
-    projectId: yield* inboxProjectId({}),
-  });
+// New items go to the first section of the chosen project, or of the inbox,
+// whose original section can be deleted.
+function* sectionForNewItem(
+  projectId: string | undefined,
+): Generator<unknown, string, unknown> {
+  const inboxId = yield* inboxProjectId({});
+  const section =
+    (yield* firstProjectSectionChild({ projectId: projectId ?? inboxId })) ??
+    (yield* firstProjectSectionChild({ projectId: inboxId }));
   if (!section) throw new Error("Inbox has no sections");
   return section.id;
 }
 
+// The project new tasks and notes go to; defaults to the inbox.
+const newItemProjectId = v.optional(v.string());
+
 export const convertMindmapNodeToTask = action({
   name: "convertMindmapNodeToTask",
-  args: { id: v.string() },
-  handler: function* convertMindmapNodeToTask({ id }) {
+  args: { id: v.string(), projectId: newItemProjectId },
+  handler: function* convertMindmapNodeToTask({ id, projectId }) {
     const node = yield* mindmapNodeById({ id });
     if (!node) throw new Error("Mindmap node not found");
     if (node.taskId || node.noteId) {
@@ -670,7 +688,7 @@ export const convertMindmapNodeToTask = action({
     }
 
     const task = yield* createTaskInSection({
-      projectSectionId: yield* inboxSectionId(),
+      projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
       taskAttrs: { title: node.title },
     });
@@ -680,21 +698,23 @@ export const convertMindmapNodeToTask = action({
   },
 });
 
-/** Creates an inbox task and places it on the map. */
+/** Creates a task in a project's first section and places it on the map. */
 export const createMindmapTask = action({
   name: "createMindmapTask",
   args: {
     mindmapId: v.string(),
     placement: mindmapPlacement,
     title: v.optional(v.string()),
+    projectId: newItemProjectId,
   },
   handler: function* createMindmapTask({
     mindmapId,
     placement,
     title,
+    projectId,
   }): Generator<unknown, MindmapNode, unknown> {
     const task = yield* createTaskInSection({
-      projectSectionId: yield* inboxSectionId(),
+      projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
       taskAttrs: { title: title ?? "" },
     });
@@ -704,8 +724,8 @@ export const createMindmapTask = action({
 
 export const convertMindmapNodeToNote = action({
   name: "convertMindmapNodeToNote",
-  args: { id: v.string() },
-  handler: function* convertMindmapNodeToNote({ id }) {
+  args: { id: v.string(), projectId: newItemProjectId },
+  handler: function* convertMindmapNodeToNote({ id, projectId }) {
     const node = yield* mindmapNodeById({ id });
     if (!node) throw new Error("Mindmap node not found");
     if (node.taskId || node.noteId) {
@@ -713,7 +733,7 @@ export const convertMindmapNodeToNote = action({
     }
 
     const note = yield* createNoteInSection({
-      projectSectionId: yield* inboxSectionId(),
+      projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
       noteAttrs: { title: node.title },
     });
@@ -723,21 +743,23 @@ export const convertMindmapNodeToNote = action({
   },
 });
 
-/** Creates an inbox note and places it on the map. */
+/** Creates a note in a project's first section and places it on the map. */
 export const createMindmapNote = action({
   name: "createMindmapNote",
   args: {
     mindmapId: v.string(),
     placement: mindmapPlacement,
     title: v.optional(v.string()),
+    projectId: newItemProjectId,
   },
   handler: function* createMindmapNote({
     mindmapId,
     placement,
     title,
+    projectId,
   }): Generator<unknown, MindmapNode, unknown> {
     const note = yield* createNoteInSection({
-      projectSectionId: yield* inboxSectionId(),
+      projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
       noteAttrs: { title: title ?? "" },
     });

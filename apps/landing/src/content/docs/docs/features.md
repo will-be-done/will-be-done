@@ -88,9 +88,10 @@ create a mindmap and type its central topic. Links to a mindmap open even while
 the setting is off.
 
 Select a topic and press `Tab` to add a subtopic, or `Enter` to add a topic
-below it. On a task or note, the same keys add another task or note, which
-goes to the inbox. Turn a topic into a task or a note with the buttons above
-it.
+below it. On a task or note, the same keys add another task or note. New tasks
+and notes go to the project shown in the panel below the map, or the inbox.
+Turn a topic into a task or a note with the buttons above it. Stash is on the
+left edge of the map, as on the timeline.
 Drag a task or note from the project panel onto a topic to place it under that
 topic, or onto empty space to start a new branch on that side. Drag topics to
 rearrange them. While you drag, a faded copy shows where the topic will land:
@@ -105,7 +106,9 @@ button to pan.
 
 Task and note topics stay linked to their item: renaming or completing one
 changes it everywhere, and selecting one opens it in the details panel, which
-lists the mindmaps it appears on. Converting a task to a note, or back, keeps
+lists the mindmaps it appears on. Each one shows its project and section:
+click either to move it. Hover a topic and open **…**, or press `a`, for the
+same actions a task has in a list. Converting a task to a note, or back, keeps
 its place on the map. Removing a topic, or deleting a whole mindmap, keeps its
 tasks and notes in their projects. Deleting a task or note removes it from its
 mindmaps, and restoring it from the trash puts it back.

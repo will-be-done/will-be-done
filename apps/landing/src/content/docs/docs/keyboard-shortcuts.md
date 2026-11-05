@@ -93,6 +93,7 @@ or Stash, they remove its appearance and keep the task in its project. See
 | `r`                   | Reset a task's schedule                             |
 | `Shift+S`             | Stash a task                                        |
 | `e`                   | Edit a task's or note's description                 |
+| `a`                   | Open the action menu                                |
 | `.`                   | Collapse or expand the topic                        |
 | `d`, `x`, `Backspace` | Remove the topic and its subtopics from the mindmap |
 | `Escape`              | Clear the selection                                 |
@@ -103,9 +104,9 @@ the center places it after its parent, or moves a main branch to the other
 side.
 
 On a task or note, `Tab`, `Enter`, and `o` add another task or note instead of
-a topic; it goes to the inbox. With several topics selected, `d`, `x`, and
-`Backspace` remove all of them. Removing a task or note from a mindmap keeps
-it in its project.
+a topic; it goes to the project shown below the map. With several topics
+selected, `d`, `x`, and `Backspace` remove all of them. Removing a task or note
+from a mindmap keeps it in its project.
 
 ## Text formatting
 

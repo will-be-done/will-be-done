@@ -14,10 +14,12 @@ import {
   monitorForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   appHandleDrop,
   convertMindmapNodeToNote,
+  convertNoteToTask,
+  convertTaskToNote,
   convertMindmapNodeToTask,
   convertMindmapNodeToTopic,
   createMindmapNode,
@@ -35,8 +37,11 @@ import {
   scheduleTask,
   STASH_ID,
   stashType,
+  taskHasNoteIncompatibleData,
   taskType,
   toggleTaskState,
+  trashNotes,
+  trashTasks,
   updateMindmapNode,
 } from "@will-be-done/slices/space";
 import { Maximize, Minus, Plus } from "lucide-react";
@@ -69,6 +74,7 @@ import {
   treeMoveOf,
   useMindmapDatePicker,
   useMindmapDrop,
+  useMindmapMenu,
   useMindmapSelection,
   withDropGhosts,
 } from "./mindmapModel.ts";
@@ -153,8 +159,16 @@ function neighborOf(
   );
 }
 
-export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
+export function MindmapCanvas({
+  tree,
+  projectId,
+}: {
+  tree: MindmapTree;
+  // Where new tasks and notes go: the project shown under the map.
+  projectId: string | undefined;
+}) {
   const dispatch = useAsyncDispatch();
+  const select = useSelectAsync();
   const mindmapId = tree.mindmap.id;
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -345,18 +359,7 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
   // The node whose item is being moved to another project.
   const [movingItemNodeId, setMovingItemNodeId] = useState<string | null>(null);
 
-  const actions: MindmapNodeActions & {
-    addSibling: (id: string, edge: "before" | "after") => void;
-    toggleTask: (id: string) => void;
-    removeNodes: (ids: string[]) => void;
-    moveInTree: (id: string, direction: Direction) => void;
-    moveToProject: (id: string) => void;
-    schedule: (id: string) => void;
-    scheduleToday: (id: string) => void;
-    resetSchedule: (id: string) => void;
-    stash: (id: string) => void;
-    editDescription: (id: string) => void;
-  } = useMemo(() => {
+  const actions: MindmapNodeActions = useMemo(() => {
     const entryOf = (id: string) => latestRef.current.index.nodes.get(id);
     const parentKeyOf = (id: string) => {
       const entry = entryOf(id);
@@ -369,9 +372,9 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
       editNode(
         await dispatch(
           kind === "task"
-            ? createMindmapTask({ mindmapId, placement })
+            ? createMindmapTask({ mindmapId, placement, projectId })
             : kind === "note"
-              ? createMindmapNote({ mindmapId, placement })
+              ? createMindmapNote({ mindmapId, placement, projectId })
               : createMindmapNode({ mindmapId, placement }),
         ),
       );
@@ -470,10 +473,14 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
               ),
             );
           } else if (to === "task") {
-            const task = await dispatch(convertMindmapNodeToTask({ id }));
+            const task = await dispatch(
+              convertMindmapNodeToTask({ id, projectId }),
+            );
             focusNode(mindmapNodeFocusKey({ id, taskId: task.id }));
           } else {
-            const note = await dispatch(convertMindmapNodeToNote({ id }));
+            const note = await dispatch(
+              convertMindmapNodeToNote({ id, projectId }),
+            );
             focusNode(
               mindmapNodeFocusKey({ id, taskId: null, noteId: note.id }),
             );
@@ -547,8 +554,50 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
         useItemDetailsOpen.getState().setOpen(true);
         useItemDetailsEditRequest.getState().editDescription(item.id);
       },
+      convertItem: (id) => {
+        const entry = entryOf(id);
+        if (entry?.kind !== "node") return;
+        const { task, note } = entry.tree;
+        void (async () => {
+          if (task) {
+            const losesData = await select({
+              selector: taskHasNoteIncompatibleData,
+              args: { taskId: task.id },
+            });
+            if (
+              losesData &&
+              !window.confirm(
+                "Convert to note? Its schedule, stash entry and checklist will be removed.",
+              )
+            ) {
+              return;
+            }
+            const created = await dispatch(
+              convertTaskToNote({ taskId: task.id }),
+            );
+            focusNode(
+              mindmapNodeFocusKey({ id, taskId: null, noteId: created.id }),
+            );
+          } else if (note) {
+            const created = await dispatch(
+              convertNoteToTask({ noteId: note.id }),
+            );
+            focusNode(mindmapNodeFocusKey({ id, taskId: created.id }));
+          }
+        })();
+      },
+      trashItem: (id) => {
+        const entry = entryOf(id);
+        if (entry?.kind !== "node") return;
+        const { task, note } = entry.tree;
+        const parentKey = parentKeyOf(id);
+        if (task) void dispatch(trashTasks({ ids: [task.id] }));
+        else if (note) void dispatch(trashNotes({ ids: [note.id] }));
+        else return;
+        if (parentKey) focusNode(parentKey);
+      },
     };
-  }, [dispatch, editNode, focusNode, mindmapId, sizeStore]);
+  }, [dispatch, editNode, focusNode, mindmapId, projectId, select, sizeStore]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -896,6 +945,11 @@ export function MindmapCanvas({ tree }: { tree: MindmapTree }) {
       KeyT: () => actions.scheduleToday(id),
       KeyR: () => actions.resetSchedule(id),
       KeyE: () => actions.editDescription(id),
+      KeyA: () => {
+        if (entry.kind === "node") {
+          useMindmapMenu.getState().setNodeId(id);
+        }
+      },
       Escape: () => {
         useFocusStore.getState().resetFocus();
         (e.target as HTMLElement).blur();
