@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import invariant from "tiny-invariant";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import {
@@ -107,6 +107,14 @@ import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { formatTaskTime } from "@/lib/taskTime";
 import { ProjectIcon } from "@/components/ui/emoji";
+import {
+  getDraggedSelectionKeys,
+  hasMultiSelection,
+  selectionDragData,
+  useSelectionActions,
+} from "@/components/Selection/useSelectionActions";
+import { useClipboardStore } from "@/components/Selection/clipboard";
+import { SelectionDatePicker } from "@/components/Selection/SelectionDatePicker";
 
 export const DropTaskIndicator = ({
   direction,
@@ -225,7 +233,12 @@ export const PreloadedTaskComp = ({
   const ref = useRef<HTMLDivElement | null>(null);
   const titleEditorRef = useRef<RichTextEditorHandle | null>(null);
   const [titleCaretOffset, setTitleCaretOffset] = useState<number>();
-  const shouldOpenDatePickerAfterActionsCloseRef = useRef(false);
+  const datePickerAfterActionsCloseRef = useRef<"item" | "selection" | null>(
+    null,
+  );
+  const [isSelectionDatePickerOpen, setIsSelectionDatePickerOpen] =
+    useState(false);
+  const [isMovingSelection, setIsMovingSelection] = useState(false);
   const focusableItemKey = buildFocusKey(listItem.id, listItem.type);
 
   const isFocused = useFocusStore(
@@ -234,6 +247,20 @@ export const PreloadedTaskComp = ({
   const isEditing = useFocusStore(
     (s) => !s.isFocusDisabled && s.editItemKey === focusableItemKey,
   );
+  // Non-zero only while this item is part of a multi-selection.
+  const selectionCount = useFocusStore((s) =>
+    s.selectedKeys.includes(focusableItemKey) ? s.selectedKeys.length : 0,
+  );
+  const isSelected = selectionCount > 0;
+  const isDraggedWithSelection = useFocusStore(
+    (s) => s.isDraggingSelection && isSelected,
+  );
+  const isCut = useClipboardStore(
+    (s) =>
+      s.clipboard?.mode === "cut" &&
+      s.clipboard.keys.includes(focusableItemKey),
+  );
+  const selection = useSelectionActions();
   const select = useSelectAsync();
   const openProject = useOpenProject();
 
@@ -639,7 +666,19 @@ export const PreloadedTaskComp = ({
   const handleOpenMoveModal = useCallback(() => {
     // NOTE: this is needed to restore Focus back correctly after modal close
     ref.current?.focus();
+    setIsMovingSelection(false);
     setIsMoveModalOpen(true);
+  }, []);
+
+  const handleOpenSelectionMoveModal = useCallback(() => {
+    ref.current?.focus();
+    setIsMovingSelection(true);
+    setIsMoveModalOpen(true);
+  }, []);
+
+  const handleOpenSelectionDatePicker = useCallback(() => {
+    ref.current?.focus();
+    setIsSelectionDatePickerOpen(true);
   }, []);
 
   const handleOpenProject = useCallback(
@@ -656,7 +695,12 @@ export const PreloadedTaskComp = ({
   }, []);
 
   const handleOpenDatePickerAfterActionsClose = useCallback(() => {
-    shouldOpenDatePickerAfterActionsCloseRef.current = true;
+    datePickerAfterActionsCloseRef.current = "item";
+    setIsActionsOpen(false);
+  }, []);
+
+  const handleOpenSelectionDatePickerAfterActionsClose = useCallback(() => {
+    datePickerAfterActionsCloseRef.current = "selection";
     setIsActionsOpen(false);
   }, []);
 
@@ -809,9 +853,11 @@ export const PreloadedTaskComp = ({
   const focusTaskOnOverlayCloseAutoFocus = useCallback((event: Event) => {
     event.preventDefault();
 
-    if (shouldOpenDatePickerAfterActionsCloseRef.current) {
-      shouldOpenDatePickerAfterActionsCloseRef.current = false;
-      setIsDatePickerOpen(true);
+    const datePicker = datePickerAfterActionsCloseRef.current;
+    if (datePicker) {
+      datePickerAfterActionsCloseRef.current = null;
+      if (datePicker === "item") setIsDatePickerOpen(true);
+      else setIsSelectionDatePickerOpen(true);
       return;
     }
 
@@ -849,7 +895,7 @@ export const PreloadedTaskComp = ({
       if (isSomethingEditing) return false;
       if (!isFocused) return false;
       if (isActionsOpen && !isActionsMenuSource) return false;
-      if (isDatePickerOpen) return false;
+      if (isDatePickerOpen || isSelectionDatePickerOpen) return false;
       if (isFocusDisabled || e.defaultPrevented) return false;
 
       const target =
@@ -890,6 +936,67 @@ export const PreloadedTaskComp = ({
         !e.metaKey &&
         !e.altKey &&
         e.code === "KeyT";
+
+      if (hasMultiSelection()) {
+        const nature =
+          e.code === "Digit1"
+            ? "red"
+            : e.code === "Digit2"
+              ? "green"
+              : e.code === "Digit3"
+                ? "unknown"
+                : null;
+
+        if (nature && noModifiers) {
+          return runShortcutAction(() => void selection.setNature(nature));
+        } else if (
+          (e.metaKey || e.ctrlKey) &&
+          !e.shiftKey &&
+          e.code === "Backspace"
+        ) {
+          return runShortcutAction(() => void selection.trash());
+        } else if (e.code === "Space" && noModifiers) {
+          return runShortcutAction(() => void selection.toggleDone());
+        } else if (isOpenActions && !isActionsMenuSource) {
+          return runShortcutAction(() => setIsActionsOpen(true));
+        } else if (e.code === "KeyM" && noModifiers) {
+          return runShortcutAction(handleOpenSelectionMoveModal, {
+            skipActionsCloseAutoFocus: true,
+          });
+        } else if (isScheduleDate) {
+          if (isActionsMenuSource) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleOpenSelectionDatePickerAfterActionsClose();
+            return false;
+          }
+
+          return runShortcutAction(handleOpenSelectionDatePicker, {
+            skipActionsCloseAutoFocus: true,
+          });
+        } else if (isScheduleToday) {
+          return runShortcutAction(() => void selection.schedule(date));
+        } else if (isResetSchedule) {
+          return runShortcutAction(() => void selection.unschedule());
+        } else if (isStashTask) {
+          return runShortcutAction(() => void selection.stash());
+        } else if (isMoveLeft || isMoveRight) {
+          return runShortcutAction(
+            () => void selection.moveColumn(isMoveLeft ? "left" : "right"),
+          );
+        } else if (isMoveUp || isMoveDown) {
+          return runShortcutAction(
+            () => void selection.moveStacked(isMoveUp ? "up" : "down"),
+          );
+        } else if (
+          (e.code === "Backspace" || e.code === "KeyD" || e.code === "KeyX") &&
+          noModifiers
+        ) {
+          return runShortcutAction(() => void selection.delete());
+        }
+
+        return false;
+      }
 
       if (e.code === "Digit1" && noModifiers) {
         return runShortcutAction(() => {
@@ -1034,8 +1141,14 @@ export const PreloadedTaskComp = ({
       item,
       taskId,
       listItem.type,
+      date,
       dispatch,
       focusableItemKey,
+      selection,
+      handleOpenSelectionDatePicker,
+      handleOpenSelectionDatePickerAfterActionsClose,
+      handleOpenSelectionMoveModal,
+      isSelectionDatePickerOpen,
       handleAddChecklistItem,
       handleAddSiblingTask,
       handleConvertToTemplate,
@@ -1104,6 +1217,11 @@ export const PreloadedTaskComp = ({
   const handleMove = (projectId: string) => {
     setIsMoveModalOpen(false);
 
+    if (isMovingSelection) {
+      void selection.moveToProject(projectId);
+      return;
+    }
+
     if (isTask(item)) {
       void dispatch(
         moveTaskToProject({ taskId: taskId, projectId: projectId }),
@@ -1133,6 +1251,73 @@ export const PreloadedTaskComp = ({
     ref.current?.setAttribute("draggable", "true");
   }, []);
 
+  const handleSelectionMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const isToggle = event.metaKey || event.ctrlKey;
+      if (event.button !== 0 || isEditing || (!isToggle && !event.shiftKey)) {
+        return;
+      }
+      if (
+        event.target instanceof Element &&
+        event.target.closest("button, a, input, textarea, [contenteditable]")
+      ) {
+        return;
+      }
+
+      // Keep the browser from moving focus (and the anchor) or selecting text.
+      event.preventDefault();
+
+      const store = useFocusStore.getState();
+      if (isToggle) store.toggleSelected(focusableItemKey);
+      else store.selectRangeTo(focusableItemKey);
+
+      const focusKey = useFocusStore.getState().focusItemKey;
+      document
+        .querySelector<HTMLElement>(`[data-focusable-key="${focusKey}"]`)
+        ?.focus({ preventScroll: true });
+    },
+    [focusableItemKey, isEditing],
+  );
+
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.shiftKey || event.metaKey || event.ctrlKey) return;
+
+      const store = useFocusStore.getState();
+      // Clicks inside portaled popovers bubble here through React.
+      if (
+        event.target instanceof Node &&
+        event.currentTarget.contains(event.target)
+      ) {
+        store.clearSelection();
+      }
+      store.focusByKey(focusableItemKey, true);
+    },
+    [focusableItemKey],
+  );
+
+  const selectionMenuHandlers = useMemo(
+    () => ({
+      onMarkDone: () => void selection.toggleDone(),
+      onMoveToProject: handleOpenSelectionMoveModal,
+      onStashTask: () => void selection.stash(),
+      onChangeDate: handleOpenSelectionDatePickerAfterActionsClose,
+      onScheduleToday: () => void selection.schedule(date),
+      onResetSchedule: () => void selection.unschedule(),
+      onMoveUp: () => void selection.moveStacked("up"),
+      onMoveDown: () => void selection.moveStacked("down"),
+      onMoveLeft: () => void selection.moveColumn("left"),
+      onMoveRight: () => void selection.moveColumn("right"),
+      onDelete: () => void selection.delete(),
+    }),
+    [
+      selection,
+      date,
+      handleOpenSelectionMoveModal,
+      handleOpenSelectionDatePickerAfterActionsClose,
+    ],
+  );
+
   useEffect(() => {
     const element = ref.current;
     invariant(element);
@@ -1146,12 +1331,16 @@ export const PreloadedTaskComp = ({
     return combine(
       draggable({
         element: element,
-        getInitialData: () => dndData,
+        getInitialData: () => ({
+          ...dndData,
+          ...selectionDragData(focusableItemKey),
+        }),
         onGenerateDragPreview: ({ location, source, nativeSetDragImage }) => {
           setElementDragPreview({
             source: source.element,
             input: location.current.input,
             nativeSetDragImage,
+            count: getDraggedSelectionKeys(source.data)?.length,
           });
         },
       }),
@@ -1160,7 +1349,9 @@ export const PreloadedTaskComp = ({
       }),
       dropTargetForElements({
         element: element,
-        canDrop: ({ source }) => canDropModelData(source.data, dndData),
+        canDrop: ({ source }) =>
+          canDropModelData(source.data, dndData) &&
+          !getDraggedSelectionKeys(source.data)?.includes(focusableItemKey),
         getData: ({ input, element }) =>
           attachClosestEdge(dndData, {
             input,
@@ -1179,7 +1370,7 @@ export const PreloadedTaskComp = ({
         },
       }),
     );
-  }, [item, listItem, dailyListId]);
+  }, [item, listItem, dailyListId, focusableItemKey]);
 
   const handleChecklistItemsRemoved = useCallback(() => {
     useFocusStore.getState().editByKey(focusableItemKey);
@@ -1311,6 +1502,8 @@ export const PreloadedTaskComp = ({
       {closestEdge == "top" && <DropTaskIndicator direction="top" />}
       <div
         data-focusable-key={focusableItemKey}
+        data-selectable
+        data-copy-text={displayedTitle}
         data-ignore-drop={
           isTask(item) && item.state === "done" ? true : undefined
         }
@@ -1319,7 +1512,8 @@ export const PreloadedTaskComp = ({
         className={clsx(
           `group/task relative rounded-lg whitespace-break-spaces [overflow-wrap:anywhere] text-sm ring-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent`,
           "[&[data-suppress-focus-visible=true]]:focus-visible:outline-none",
-          isFocused
+          (isDraggedWithSelection || isCut) && "opacity-40",
+          isFocused || isSelected
             ? isTask(item) && item.state === "done"
               ? isOnTimeline
                 ? "ring-ring outline-2 outline-dashed outline-done-panel-selected focus-visible:outline-dashed text-done-content"
@@ -1336,9 +1530,8 @@ export const PreloadedTaskComp = ({
                 : "ring-ring text-content hover:ring-ring-hover",
         )}
         style={{}}
-        onClick={() =>
-          useFocusStore.getState().focusByKey(focusableItemKey, true)
-        }
+        onMouseDown={handleSelectionMouseDown}
+        onClick={handleClick}
         onBlur={(event) => {
           if (
             event.relatedTarget instanceof Node &&
@@ -1364,13 +1557,15 @@ export const PreloadedTaskComp = ({
             className={clsx(
               "pb-2 rounded-t-lg",
 
-              isFocused
-                ? isTask(item) && item.state === "done"
-                  ? "bg-done-panel"
-                  : "bg-panel-hover"
-                : isTask(item) && item.state === "done"
-                  ? "bg-done-panel"
-                  : "bg-panel hover:bg-panel-hover",
+              isSelected
+                ? "bg-accent/20"
+                : isFocused
+                  ? isTask(item) && item.state === "done"
+                    ? "bg-done-panel"
+                    : "bg-panel-hover"
+                  : isTask(item) && item.state === "done"
+                    ? "bg-done-panel"
+                    : "bg-panel hover:bg-panel-hover",
             )}
           >
             <div className="absolute right-1.5 top-1.5 z-10 h-5">
@@ -1379,7 +1574,7 @@ export const PreloadedTaskComp = ({
                 (isTask(item) && item.templateId)) && (
                 <div
                   className={taskFloatingIconGroupClassName({
-                    isShifted: isFocused || isActionsOpen,
+                    isShifted: isFocused || isSelected || isActionsOpen,
                     isDone: isTask(item) && item.state === "done",
                   })}
                 >
@@ -1392,7 +1587,7 @@ export const PreloadedTaskComp = ({
               )}
               <div className="absolute right-0 top-0">
                 <TaskDropdownMenu
-                  isFocused={isFocused}
+                  isFocused={isFocused || isSelected}
                   isOpen={isActionsOpen}
                   isDone={isTask(item) && item.state === "done"}
                   isTemplate={isTaskTemplate(item)}
@@ -1416,6 +1611,7 @@ export const PreloadedTaskComp = ({
                   onScheduleToday={handleScheduleToday}
                   onResetSchedule={handleResetSchedule}
                   siblingLabel={isNote(item) ? "note" : "task"}
+                  selectionCount={selectionCount}
                   onAddTaskAfter={handleAddTaskAfter}
                   onAddTaskBefore={handleAddTaskBefore}
                   onConvertToTemplate={handleConvertToTemplate}
@@ -1429,7 +1625,29 @@ export const PreloadedTaskComp = ({
                   onDelete={handleDelete}
                   onShortcutKeyDown={handleActionsShortcutKeyDown}
                   onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
+                  {...(isSelected && {
+                    ...selectionMenuHandlers,
+                    canMarkDone: true,
+                    canScheduleTask: true,
+                    canResetSchedule: true,
+                    canStashTask: true,
+                  })}
                 />
+                {(isSelected || isSelectionDatePickerOpen) && (
+                  <SelectionDatePicker
+                    open={isSelectionDatePickerOpen}
+                    onOpenChange={setIsSelectionDatePickerOpen}
+                    onSelectDate={(day) => void selection.schedule(day)}
+                    onClearDate={() => void selection.unschedule()}
+                    onCloseAutoFocus={focusTaskOnOverlayCloseAutoFocus}
+                    anchor={
+                      <span
+                        className="absolute right-0 top-0 h-5 w-5 opacity-0 pointer-events-none"
+                        aria-hidden="true"
+                      />
+                    }
+                  />
+                )}
                 {isTask(item) && !displayLastScheduleTime && (
                   <TaskDatePicker
                     taskId={taskId}
@@ -1579,7 +1797,7 @@ export const PreloadedTaskComp = ({
         <MoveModal
           setIsOpen={setIsMoveModalOpen}
           handleMove={handleMove}
-          exceptProjectId={project.id}
+          exceptProjectId={isMovingSelection ? undefined : project.id}
         />
       )}
     </div>

@@ -10,6 +10,7 @@ import {
 import { appTypeSlicesMap } from "./maps";
 import {
   AnyModel,
+  AnyModelType,
   possibleModelType,
   stashEntriesTable,
   taskType,
@@ -179,5 +180,45 @@ export const appDeleteModel = action({
     if (!slice) throw new Error(`Unknown model type: ${model.type}`);
 
     yield* slice.delete([id]);
+  },
+});
+
+const dropRef = v.object({ id: v.string(), modelType: possibleModelType });
+const containerModelTypes = new Set<AnyModelType>([
+  "project",
+  "projectSection",
+  "dailyList",
+  "stash",
+]);
+
+export const appHandleDropMany = action({
+  name: "appHandleDropMany",
+  args: {
+    id: v.string(),
+    modelType: possibleModelType,
+    drops: v.array(dropRef),
+    edge: v.union(v.literal("top"), v.literal("bottom")),
+  },
+  handler: function* appHandleDropMany({
+    id,
+    modelType,
+    drops,
+    edge,
+  }): Generator<unknown, void, unknown> {
+    // Item targets insert next to themselves; containers prepend or append.
+    // Pick the iteration order that keeps the drops in their given order.
+    const isContainer = containerModelTypes.has(modelType);
+    const ordered =
+      isContainer === (edge === "top") ? [...drops].reverse() : drops;
+
+    for (const drop of ordered) {
+      yield* appHandleDrop({
+        id,
+        modelType,
+        dropId: drop.id,
+        dropModelType: drop.modelType,
+        edge,
+      });
+    }
   },
 });

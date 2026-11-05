@@ -101,6 +101,31 @@ const shortcutGroups: ShortcutGroup[] = [
       { bindings: [["E"]], description: "Edit description" },
       { bindings: [["C"]], description: "Add checklist item" },
       { bindings: [["A"]], description: "Open action menu" },
+      { bindings: [[MOD_KEY, "C"]], description: "Copy task" },
+      { bindings: [[MOD_KEY, "X"]], description: "Cut task" },
+      { bindings: [[MOD_KEY, "V"]], description: "Paste below the task" },
+    ],
+  },
+  {
+    title: "Multiple tasks",
+    description: "Select several items, then use the task actions above",
+    shortcuts: [
+      {
+        bindings: [["Shift", "Click"]],
+        description: "Select a range",
+      },
+      {
+        bindings: [[MOD_KEY, "Click"]],
+        description: "Add or remove from selection",
+      },
+      {
+        bindings: [
+          ["Shift", "J"],
+          ["Shift", "K"],
+        ],
+        description: "Extend selection",
+      },
+      { bindings: [["Esc"]], description: "Clear selection" },
     ],
   },
   {

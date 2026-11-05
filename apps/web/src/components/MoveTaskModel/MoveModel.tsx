@@ -24,7 +24,7 @@ export const MoveModal = ({
 }: {
   setIsOpen: (val: boolean) => void;
   handleMove: (projectId: string) => void;
-  exceptProjectId: string;
+  exceptProjectId?: string;
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);

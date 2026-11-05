@@ -1,4 +1,8 @@
 import { shouldNeverHappen } from "@/utils.ts";
+import {
+  getDOMSelectableRange,
+  isDOMSelectable,
+} from "@/components/Focus/domNavigation.ts";
 import { create } from "zustand";
 import {
   dailyEntryType,
@@ -122,10 +126,42 @@ export const focusTaskTitleTextareaByKey = (key: FocusKey) => {
   return focusTextareaAtEnd(textarea);
 };
 
+export const focusElementByKey = (key: FocusKey) => {
+  const elements = document.querySelectorAll<HTMLElement>(
+    '[data-focusable-key="' + key + '"]',
+  );
+
+  if (!elements.length) {
+    shouldNeverHappen("focusable element not found", { key });
+    return;
+  }
+
+  if (elements.length > 1) {
+    shouldNeverHappen("focusable element > 1", { key, elements });
+    return;
+  }
+
+  const el = elements[0];
+
+  if (el) {
+    el.focus();
+    el.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "center",
+    });
+  }
+};
+
 interface FocusState {
   focusItemKey: FocusKey | null;
   editItemKey: FocusKey | null;
   isFocusDisabled: boolean;
+  // Multi-selection: empty, or at least two keys. A single selected item is
+  // just the focused one.
+  selectedKeys: FocusKey[];
+  selectionAnchorKey: FocusKey | null;
+  isDraggingSelection: boolean;
 }
 
 interface FocusActions {
@@ -135,12 +171,24 @@ interface FocusActions {
   editByKey: (key: FocusKey) => void;
   resetFocus: () => void;
   resetEdit: () => void;
+  selectRangeTo: (key: FocusKey) => void;
+  toggleSelected: (key: FocusKey) => void;
+  setSelectedKeys: (keys: FocusKey[]) => void;
+  clearSelection: () => void;
+  setIsDraggingSelection: (isDragging: boolean) => void;
 }
+
+const emptySelection = {
+  selectedKeys: [] as FocusKey[],
+  selectionAnchorKey: null,
+};
 
 export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
   focusItemKey: null,
   editItemKey: null,
   isFocusDisabled: false,
+  ...emptySelection,
+  isDraggingSelection: false,
 
   disableFocus: () => set({ isFocusDisabled: true }),
   enableFocus: () => set({ isFocusDisabled: false }),
@@ -152,40 +200,74 @@ export const useFocusStore = create<FocusState & FocusActions>((set, get) => ({
 
     if (skipElFocus) return;
 
-    setTimeout(() => {
-      const elements = document.querySelectorAll<HTMLElement>(
-        '[data-focusable-key="' + key + '"]',
-      );
-
-      if (!elements.length) {
-        shouldNeverHappen("focusable element not found", { key });
-        return;
-      }
-
-      if (elements.length > 1) {
-        shouldNeverHappen("focusable element > 1", { key, elements });
-        return;
-      }
-
-      const el = elements[0];
-
-      if (el) {
-        el.focus();
-        el.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-          inline: "center",
-        });
-      }
-    }, 0);
+    setTimeout(() => focusElementByKey(key), 0);
   },
 
   editByKey: (key: FocusKey) => {
     if (get().editItemKey === key) return;
 
-    set({ focusItemKey: key, editItemKey: key });
+    set({ focusItemKey: key, editItemKey: key, ...emptySelection });
   },
 
-  resetFocus: () => set({ focusItemKey: null, editItemKey: null }),
+  resetFocus: () =>
+    set({ focusItemKey: null, editItemKey: null, ...emptySelection }),
   resetEdit: () => set({ editItemKey: null }),
+
+  selectRangeTo: (key: FocusKey) => {
+    const { selectionAnchorKey, selectedKeys, focusItemKey } = get();
+    const anchor =
+      (selectedKeys.length > 0 ? selectionAnchorKey : focusItemKey) ?? key;
+    const range = getDOMSelectableRange(anchor, key);
+
+    set({
+      focusItemKey: key,
+      editItemKey: null,
+      ...(range.length > 1
+        ? { selectedKeys: range, selectionAnchorKey: anchor }
+        : emptySelection),
+    });
+  },
+
+  toggleSelected: (key: FocusKey) => {
+    const { selectedKeys, focusItemKey } = get();
+    const current =
+      selectedKeys.length > 0
+        ? selectedKeys
+        : focusItemKey && isDOMSelectable(focusItemKey)
+          ? [focusItemKey]
+          : [];
+    const next = current.includes(key)
+      ? current.filter((k) => k !== key)
+      : [...current, key];
+
+    if (next.length > 1) {
+      set({
+        focusItemKey: key,
+        editItemKey: null,
+        selectedKeys: next,
+        selectionAnchorKey: key,
+      });
+    } else {
+      set({
+        focusItemKey: next[0] ?? key,
+        editItemKey: null,
+        ...emptySelection,
+      });
+    }
+  },
+
+  setSelectedKeys: (keys: FocusKey[]) =>
+    set(
+      keys.length > 1
+        ? { selectedKeys: keys, selectionAnchorKey: keys[0] }
+        : emptySelection,
+    ),
+
+  clearSelection: () => {
+    if (get().selectedKeys.length === 0) return;
+    set(emptySelection);
+  },
+
+  setIsDraggingSelection: (isDraggingSelection: boolean) =>
+    set({ isDraggingSelection }),
 }));

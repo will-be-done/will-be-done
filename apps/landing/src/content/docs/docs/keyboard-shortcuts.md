@@ -67,6 +67,45 @@ In a project section, `d`, `x`, and `Backspace` delete the task. In a daily list
 or Stash, they remove its appearance and keep the task in its project. See
 [deletion behavior](/docs/features/#remove-an-appearance-or-delete-a-task).
 
+## Copy, cut, and paste
+
+`Mod` is `Cmd` on macOS and `Ctrl` elsewhere. These act on the focused item or
+on every selected item.
+
+| Keys    | Action                       |
+| ------- | ---------------------------- |
+| `Mod+C` | Copy                         |
+| `Mod+X` | Cut                          |
+| `Mod+V` | Paste below the focused item |
+
+Pasting a copy creates new items with the same title, description, and
+checklist. Copies pasted into a daily list or Stash are also added to the
+original's project, next to the original. Pasting a cut moves the items instead,
+as dragging them would. With a project focused in the sidebar, pasting adds the
+items to the end of that project. Cut items stay dimmed until you paste them or
+press `Esc`. Copying also puts the titles on your system clipboard as plain
+text.
+
+## Selecting several items
+
+Select tasks, notes, and templates in projects, daily lists, and Stash to act
+on them together. `Mod` is `Cmd` on macOS and `Ctrl` elsewhere.
+
+| Keys                               | Action                                   |
+| ---------------------------------- | ---------------------------------------- |
+| `Shift+Click`                      | Select everything up to the clicked item |
+| `Mod+Click`                        | Add or remove an item from the selection |
+| `Shift+j`, `Shift+k`               | Extend the selection down or up          |
+| `Shift+ArrowDown`, `Shift+ArrowUp` | Extend the selection down or up          |
+| `Esc`                              | Clear the selection                      |
+
+With a selection, drag any selected item to move them all in their current
+order, or copy, cut, and paste them. `Space`, `1`–`3`, `m`, `s`, `t`, `r`,
+`Shift+S`, the `Ctrl` movement keys, `d`, `x`, `Backspace`, and
+`Ctrl+Backspace` act on every selected item, and so does the action menu of a
+selected item. Clicking an item without a
+modifier or moving with `j` and `k` clears the selection.
+
 ## Focused project
 
 | Keys                  | Action                    |
