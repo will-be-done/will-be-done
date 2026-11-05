@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   convertNoteToTask,
@@ -42,5 +42,5 @@ export function useNoteConversion(onItemIdChange?: (itemId: string) => void) {
     [dispatch, onItemIdChange],
   );
 
-  return { toNote, toTask };
+  return useMemo(() => ({ toNote, toTask }), [toNote, toTask]);
 }
