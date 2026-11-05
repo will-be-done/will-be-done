@@ -8694,7 +8694,7 @@ export const GetMindmap200NodesItemKind = {
 } as const;
 
 /**
- * Side of the central topic a main branch sits on
+ * Side of its root a main branch sits on
  */
 export type GetMindmap200NodesItemSide =
   (typeof GetMindmap200NodesItemSide)[keyof typeof GetMindmap200NodesItemSide];
@@ -8704,12 +8704,20 @@ export const GetMindmap200NodesItemSide = {
   right: "right",
 } as const;
 
+/**
+ * Set on floating topics only
+ */
+export type GetMindmap200NodesItemPosition = {
+  x: number;
+  y: number;
+} | null;
+
 export type GetMindmap200NodesItem = {
   type: GetMindmap200NodesItemType;
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for the central topic, whose ID is the mindmap's */
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: GetMindmap200NodesItemKind;
@@ -8717,8 +8725,10 @@ export type GetMindmap200NodesItem = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
-  /** Side of the central topic a main branch sits on */
+  /** Side of its root a main branch sits on */
   side: GetMindmap200NodesItemSide;
+  /** Set on floating topics only */
+  position: GetMindmap200NodesItemPosition;
   collapsed: boolean;
   /**
    * @minimum 0
@@ -9150,6 +9160,14 @@ export type CreateMindmapNodeBodyPlacement =
     };
 
 /**
+ * Creates a floating topic there instead of placing it under a parent
+ */
+export type CreateMindmapNodeBodyPosition = {
+  x: number;
+  y: number;
+};
+
+/**
  * Side for a main branch placed first or last; defaults to the side with fewer branches
  */
 export type CreateMindmapNodeBodySide =
@@ -9168,6 +9186,8 @@ export type CreateMindmapNodeBody = {
   parentId?: string;
   /** Position within an ordered collection */
   placement?: CreateMindmapNodeBodyPlacement;
+  /** Creates a floating topic there instead of placing it under a parent */
+  position?: CreateMindmapNodeBodyPosition;
   /** Side for a main branch placed first or last; defaults to the side with fewer branches */
   side?: CreateMindmapNodeBodySide;
   /**
@@ -9207,7 +9227,7 @@ export const CreateMindmapNode201NodeKind = {
 } as const;
 
 /**
- * Side of the central topic a main branch sits on
+ * Side of its root a main branch sits on
  */
 export type CreateMindmapNode201NodeSide =
   (typeof CreateMindmapNode201NodeSide)[keyof typeof CreateMindmapNode201NodeSide];
@@ -9217,12 +9237,20 @@ export const CreateMindmapNode201NodeSide = {
   right: "right",
 } as const;
 
+/**
+ * Set on floating topics only
+ */
+export type CreateMindmapNode201NodePosition = {
+  x: number;
+  y: number;
+} | null;
+
 export type CreateMindmapNode201Node = {
   type: CreateMindmapNode201NodeType;
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for the central topic, whose ID is the mindmap's */
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: CreateMindmapNode201NodeKind;
@@ -9230,8 +9258,10 @@ export type CreateMindmapNode201Node = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
-  /** Side of the central topic a main branch sits on */
+  /** Side of its root a main branch sits on */
   side: CreateMindmapNode201NodeSide;
+  /** Set on floating topics only */
+  position: CreateMindmapNode201NodePosition;
   collapsed: boolean;
   /**
    * @minimum 0
@@ -9365,7 +9395,7 @@ export type CreateMindmapNode500 = {
 };
 
 /**
- * Side of the central topic a main branch sits on
+ * Side of its root a main branch sits on
  */
 export type UpdateMindmapNodeBodySide =
   (typeof UpdateMindmapNodeBodySide)[keyof typeof UpdateMindmapNodeBodySide];
@@ -9382,7 +9412,7 @@ export type UpdateMindmapNodeBody = {
    */
   title?: string;
   collapsed?: boolean;
-  /** Side of the central topic a main branch sits on */
+  /** Side of its root a main branch sits on */
   side?: UpdateMindmapNodeBodySide;
 };
 
@@ -9406,7 +9436,7 @@ export const UpdateMindmapNode200NodeKind = {
 } as const;
 
 /**
- * Side of the central topic a main branch sits on
+ * Side of its root a main branch sits on
  */
 export type UpdateMindmapNode200NodeSide =
   (typeof UpdateMindmapNode200NodeSide)[keyof typeof UpdateMindmapNode200NodeSide];
@@ -9416,12 +9446,20 @@ export const UpdateMindmapNode200NodeSide = {
   right: "right",
 } as const;
 
+/**
+ * Set on floating topics only
+ */
+export type UpdateMindmapNode200NodePosition = {
+  x: number;
+  y: number;
+} | null;
+
 export type UpdateMindmapNode200Node = {
   type: UpdateMindmapNode200NodeType;
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for the central topic, whose ID is the mindmap's */
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: UpdateMindmapNode200NodeKind;
@@ -9429,8 +9467,10 @@ export type UpdateMindmapNode200Node = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
-  /** Side of the central topic a main branch sits on */
+  /** Side of its root a main branch sits on */
   side: UpdateMindmapNode200NodeSide;
+  /** Set on floating topics only */
+  position: UpdateMindmapNode200NodePosition;
   collapsed: boolean;
   /**
    * @minimum 0
@@ -9684,7 +9724,7 @@ export type DeleteMindmapNode500 = {
 };
 
 /**
- * Position within an ordered collection
+ * Defaults to last
  */
 export type MoveMindmapNodeBodyPlacement =
   | {
@@ -9711,7 +9751,15 @@ export type MoveMindmapNodeBodyPlacement =
     };
 
 /**
- * Side of the central topic a main branch sits on
+ * Floats the topic there, out of its parent
+ */
+export type MoveMindmapNodeBodyPosition = {
+  x: number;
+  y: number;
+};
+
+/**
+ * Side of its root a main branch sits on
  */
 export type MoveMindmapNodeBodySide =
   (typeof MoveMindmapNodeBodySide)[keyof typeof MoveMindmapNodeBodySide];
@@ -9726,10 +9774,12 @@ export type MoveMindmapNodeBody = {
    * New parent node; the central topic (the mindmap ID) for a main branch
    * @minLength 1
    */
-  parentId: string;
-  /** Position within an ordered collection */
-  placement: MoveMindmapNodeBodyPlacement;
-  /** Side of the central topic a main branch sits on */
+  parentId?: string;
+  /** Defaults to last */
+  placement?: MoveMindmapNodeBodyPlacement;
+  /** Floats the topic there, out of its parent */
+  position?: MoveMindmapNodeBodyPosition;
+  /** Side of its root a main branch sits on */
   side?: MoveMindmapNodeBodySide;
 };
 
@@ -9753,7 +9803,7 @@ export const MoveMindmapNode200NodeKind = {
 } as const;
 
 /**
- * Side of the central topic a main branch sits on
+ * Side of its root a main branch sits on
  */
 export type MoveMindmapNode200NodeSide =
   (typeof MoveMindmapNode200NodeSide)[keyof typeof MoveMindmapNode200NodeSide];
@@ -9763,12 +9813,20 @@ export const MoveMindmapNode200NodeSide = {
   right: "right",
 } as const;
 
+/**
+ * Set on floating topics only
+ */
+export type MoveMindmapNode200NodePosition = {
+  x: number;
+  y: number;
+} | null;
+
 export type MoveMindmapNode200Node = {
   type: MoveMindmapNode200NodeType;
   /** Mindmap node identifier */
   id: string;
   mindmapId: string;
-  /** Parent node, or null for the central topic, whose ID is the mindmap's */
+  /** Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic */
   parentId: string | null;
   /** A topic owns its title; a task or note node shows that item */
   kind: MoveMindmapNode200NodeKind;
@@ -9776,8 +9834,10 @@ export type MoveMindmapNode200Node = {
   noteId: string | null;
   /** Topic text, or the task's or note's title */
   title: string;
-  /** Side of the central topic a main branch sits on */
+  /** Side of its root a main branch sits on */
   side: MoveMindmapNode200NodeSide;
+  /** Set on floating topics only */
+  position: MoveMindmapNode200NodePosition;
   collapsed: boolean;
   /**
    * @minimum 0

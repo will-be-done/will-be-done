@@ -147,6 +147,7 @@ const shortcutGroups: ShortcutGroup[] = [
   },
   {
     title: "Mindmap",
+    column: "left",
     description:
       "Actions for the selected node; on a task or note, they add the same kind",
     shortcuts: [
@@ -180,6 +181,31 @@ const shortcutGroups: ShortcutGroup[] = [
       {
         bindings: [["D"], ["X"], ["Backspace"]],
         description: "Remove from mindmap",
+      },
+      { bindings: [["Shift", "Click"]], description: "Select a range" },
+      {
+        bindings: [[MOD_KEY, "Click"]],
+        description: "Add or remove from selection",
+      },
+      {
+        bindings: [
+          ["Shift", "H"],
+          ["Shift", "J"],
+          ["Shift", "K"],
+          ["Shift", "L"],
+        ],
+        description: "Extend selection",
+      },
+      {
+        bindings: [
+          [MOD_KEY, "C"],
+          [MOD_KEY, "X"],
+        ],
+        description: "Copy or cut topics",
+      },
+      {
+        bindings: [[MOD_KEY, "V"]],
+        description: "Paste topics, tasks, or notes under the topic",
       },
     ],
   },

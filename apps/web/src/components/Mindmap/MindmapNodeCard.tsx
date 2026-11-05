@@ -18,9 +18,12 @@ import { useFocusStore } from "@/store/focusSlice.ts";
 import { CheckboxComp, ChecklistItems } from "@/components/Checklist/Checklist";
 import { RichTextEditor } from "@/components/RichText/RichTextEditor";
 import { RichTextView } from "@/components/RichText/RichTextView";
+import { viewTextOffset } from "@/components/RichText/caret";
 import { useSavedRichText } from "@/components/RichText/useSavedRichText";
 import { setElementDragPreview } from "@/lib/dnd/dragPreview";
 import { TaskDatePicker } from "@/components/Task/TaskDatePicker.tsx";
+import { SelectionDatePicker } from "@/components/Selection/SelectionDatePicker.tsx";
+import { useClipboardStore } from "@/components/Selection/clipboard";
 import type { LaidOutNode } from "./mindmapLayout.ts";
 import {
   type CanvasNode,
@@ -51,7 +54,11 @@ export type MindmapNodeActions = {
   // A topic left empty after editing is discarded, like an empty new task.
   discardIfEmpty: (id: string, refocus: boolean) => void;
   register: (id: string, element: HTMLElement | null) => void;
+  // Ctrl/Cmd-click adds or removes; Shift-click selects a range.
   toggleSelected: (id: string) => void;
+  selectRangeTo: (id: string) => void;
+  scheduleSelection: (date: Date) => void;
+  unscheduleSelection: () => void;
   moveInTree: (id: string, direction: Direction) => void;
   moveToProject: (id: string) => void;
   schedule: (id: string) => void;
@@ -92,6 +99,8 @@ export function MindmapNodeCard({
     (s) => !s.isFocusDisabled && s.editItemKey === focusKey,
   );
   const [isStartEditing, setIsStartEditing] = useState(startEditing);
+  // Where a double-click opened the editor; other ways in put it at the end.
+  const [caretOffset, setCaretOffset] = useState<number>();
   const isEditing = isEditingInStore || isStartEditing;
   const isDropParent = useMindmapDrop((s) => {
     const intent = s.preview?.intent;
@@ -99,6 +108,12 @@ export function MindmapNodeCard({
   });
   const isSelected = useMindmapSelection((s) => s.ids.has(id));
   const isDatePickerOpen = useMindmapDatePicker((s) => s.nodeId === id);
+  const isDatePickerForSelection = useMindmapDatePicker((s) => s.forSelection);
+  const isCut = useClipboardStore(
+    (s) =>
+      s.clipboard?.mode === "cut" &&
+      !!s.clipboard.mindmap?.nodeIds.includes(id),
+  );
   const isMenuOpen = useMindmapMenu((s) => s.nodeId === id);
 
   const node = entry.kind === "node" ? entry.tree.node : entry.node;
@@ -106,6 +121,8 @@ export function MindmapNodeCard({
   const note = entry.kind === "node" ? entry.tree.note : undefined;
   const item = task ?? note;
   const hasChildren = entry.kind === "node" && entry.tree.children.length > 0;
+  // Like the center topic, a floating root stays a topic and never collapses.
+  const isFloating = entry.kind === "node" && entry.parentId === null;
   const isDone = task?.state === "done";
   const { data: scheduledAt } = useAsyncSelector({
     selector: dailyEntryDateOfTask,
@@ -174,6 +191,7 @@ export function MindmapNodeCard({
 
   const handleExit = () => {
     setIsStartEditing(false);
+    setCaretOffset(undefined);
     useFocusStore.getState().resetEdit();
     ref.current?.focus({ preventScroll: true });
     if (!item && entry.kind === "node" && isEmptyRef.current) {
@@ -183,6 +201,7 @@ export function MindmapNodeCard({
 
   const handleBlur = () => {
     setIsStartEditing(false);
+    setCaretOffset(undefined);
     useFocusStore.getState().resetEdit();
     if (!item && entry.kind === "node" && isEmptyRef.current) {
       actions.discardIfEmpty(id, false);
@@ -205,16 +224,24 @@ export function MindmapNodeCard({
       data-focusable-key={focusKey}
       tabIndex={0}
       onPointerDown={(e) => {
-        if (e.button === 0 && (e.shiftKey || e.metaKey || e.ctrlKey)) {
-          actions.toggleSelected(id);
-        }
+        if (e.button !== 0) return;
+        if (e.metaKey || e.ctrlKey) actions.toggleSelected(id);
+        else if (e.shiftKey) actions.selectRangeTo(id);
       }}
       onClick={(e) => {
         if (!(e.shiftKey || e.metaKey || e.ctrlKey)) {
           useMindmapSelection.getState().clear();
         }
       }}
-      onDoubleClick={() => useFocusStore.getState().editByKey(focusKey)}
+      // The second click would select a word before the editor opens.
+      onMouseDown={(e) => {
+        if (e.detail > 1 && !isEditing) e.preventDefault();
+      }}
+      onDoubleClick={(e) => {
+        if (isEditing) return;
+        setCaretOffset(viewTextOffset(e));
+        useFocusStore.getState().editByKey(focusKey);
+      }}
       className={cn(
         "group/node absolute left-0 top-0 w-max max-w-[280px] cursor-default outline-none hover:z-10",
         nodeShapeClass(layout.depth),
@@ -222,7 +249,7 @@ export function MindmapNodeCard({
         (isFocused || isEditing) && "z-10 ring-2 ring-accent",
         isSelected && "bg-focused-panel ring-2 ring-accent/70",
         isDropParent && "bg-focused-panel ring-2 ring-accent",
-        isMoving && "opacity-40",
+        (isMoving || isCut) && "opacity-40",
       )}
       style={{
         transform: `translate(${layout.x}px, ${layout.y}px)`,
@@ -253,6 +280,7 @@ export function MindmapNodeCard({
                 onBlur={handleBlur}
                 required={!!item}
                 autoFocus
+                caretOffset={caretOffset}
                 placeholder={placeholder}
                 ariaLabel={
                   entry.kind === "root" ? "Edit central topic" : "Edit topic"
@@ -284,7 +312,24 @@ export function MindmapNodeCard({
           scheduledAt={scheduledAt}
         />
       )}
-      {task && isDatePickerOpen && (
+      {isDatePickerOpen && isDatePickerForSelection && (
+        <SelectionDatePicker
+          open
+          onOpenChange={(open) => {
+            if (!open) useMindmapDatePicker.getState().setNodeId(null);
+          }}
+          onSelectDate={actions.scheduleSelection}
+          onClearDate={actions.unscheduleSelection}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            ref.current?.focus({ preventScroll: true });
+          }}
+          anchor={
+            <span className="pointer-events-none absolute inset-x-0 bottom-0" />
+          }
+        />
+      )}
+      {task && isDatePickerOpen && !isDatePickerForSelection && (
         <TaskDatePicker
           taskId={task.id}
           currentDate={scheduledAt}
@@ -302,10 +347,11 @@ export function MindmapNodeCard({
         />
       )}
 
-      {hasChildren && entry.kind === "node" && (
+      {hasChildren && entry.kind === "node" && !isFloating && (
         <button
           type="button"
           tabIndex={-1}
+          data-drag-preview-exclude
           aria-label={node.collapsed ? "Expand" : "Collapse"}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => actions.toggleCollapsed(id)}
@@ -323,6 +369,7 @@ export function MindmapNodeCard({
       {!isEditing && !isMoving && (
         // The bottom padding bridges the gap so hover survives the trip up.
         <div
+          data-drag-preview-exclude
           className={cn(
             "absolute bottom-full left-0 pb-1 transition-opacity",
             !isFocused &&
@@ -352,7 +399,7 @@ export function MindmapNodeCard({
             </button>
             {entry.kind === "node" && (
               <>
-                {item ? (
+                {isFloating ? null : item ? (
                   <button
                     type="button"
                     tabIndex={-1}
@@ -398,6 +445,7 @@ export function MindmapNodeCard({
                   tree={entry.tree}
                   actions={actions}
                   isScheduled={!!scheduledAt}
+                  isRoot={isFloating}
                   open={isMenuOpen}
                   onOpenChange={(open) =>
                     useMindmapMenu.getState().setNodeId(open ? id : null)

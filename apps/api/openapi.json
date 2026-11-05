@@ -14005,7 +14005,7 @@
                           "mindmapId": { "type": "string" },
                           "parentId": {
                             "anyOf": [{ "type": "string" }, { "type": "null" }],
-                            "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
+                            "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
                           },
                           "kind": {
                             "type": "string",
@@ -14025,7 +14025,23 @@
                           "side": {
                             "type": "string",
                             "enum": ["left", "right"],
-                            "description": "Side of the central topic a main branch sits on"
+                            "description": "Side of its root a main branch sits on"
+                          },
+                          "position": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "x": { "type": "number" },
+                                  "y": { "type": "number" }
+                                },
+                                "required": ["x", "y"],
+                                "additionalProperties": false,
+                                "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Set on floating topics only"
                           },
                           "collapsed": { "type": "boolean" },
                           "createdAt": {
@@ -14044,6 +14060,7 @@
                           "noteId",
                           "title",
                           "side",
+                          "position",
                           "collapsed",
                           "createdAt"
                         ],
@@ -14709,6 +14726,16 @@
                     ],
                     "description": "Position within an ordered collection"
                   },
+                  "position": {
+                    "description": "Creates a floating topic there instead of placing it under a parent",
+                    "type": "object",
+                    "properties": {
+                      "x": { "type": "number" },
+                      "y": { "type": "number" }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
+                  },
                   "side": {
                     "description": "Side for a main branch placed first or last; defaults to the side with fewer branches",
                     "type": "string",
@@ -14771,7 +14798,7 @@
                         "mindmapId": { "type": "string" },
                         "parentId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }],
-                          "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
+                          "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
                         },
                         "kind": {
                           "type": "string",
@@ -14791,7 +14818,23 @@
                         "side": {
                           "type": "string",
                           "enum": ["left", "right"],
-                          "description": "Side of the central topic a main branch sits on"
+                          "description": "Side of its root a main branch sits on"
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false,
+                              "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Set on floating topics only"
                         },
                         "collapsed": { "type": "boolean" },
                         "createdAt": {
@@ -14810,6 +14853,7 @@
                         "noteId",
                         "title",
                         "side",
+                        "position",
                         "collapsed",
                         "createdAt"
                       ],
@@ -15008,7 +15052,7 @@
                   "side": {
                     "type": "string",
                     "enum": ["left", "right"],
-                    "description": "Side of the central topic a main branch sits on"
+                    "description": "Side of its root a main branch sits on"
                   }
                 },
                 "additionalProperties": false
@@ -15052,7 +15096,7 @@
                         "mindmapId": { "type": "string" },
                         "parentId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }],
-                          "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
+                          "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
                         },
                         "kind": {
                           "type": "string",
@@ -15072,7 +15116,23 @@
                         "side": {
                           "type": "string",
                           "enum": ["left", "right"],
-                          "description": "Side of the central topic a main branch sits on"
+                          "description": "Side of its root a main branch sits on"
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false,
+                              "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Set on floating topics only"
                         },
                         "collapsed": { "type": "boolean" },
                         "createdAt": {
@@ -15091,6 +15151,7 @@
                         "noteId",
                         "title",
                         "side",
+                        "position",
                         "collapsed",
                         "createdAt"
                       ],
@@ -15469,11 +15530,12 @@
                 "type": "object",
                 "properties": {
                   "parentId": {
+                    "description": "New parent node; the central topic (the mindmap ID) for a main branch",
                     "type": "string",
-                    "minLength": 1,
-                    "description": "New parent node; the central topic (the mindmap ID) for a main branch"
+                    "minLength": 1
                   },
                   "placement": {
+                    "description": "Defaults to last",
                     "oneOf": [
                       {
                         "type": "object",
@@ -15517,16 +15579,24 @@
                         "required": ["kind", "anchorId"],
                         "additionalProperties": false
                       }
-                    ],
-                    "description": "Position within an ordered collection"
+                    ]
+                  },
+                  "position": {
+                    "description": "Floats the topic there, out of its parent",
+                    "type": "object",
+                    "properties": {
+                      "x": { "type": "number" },
+                      "y": { "type": "number" }
+                    },
+                    "required": ["x", "y"],
+                    "additionalProperties": false
                   },
                   "side": {
                     "type": "string",
                     "enum": ["left", "right"],
-                    "description": "Side of the central topic a main branch sits on"
+                    "description": "Side of its root a main branch sits on"
                   }
                 },
-                "required": ["parentId", "placement"],
                 "additionalProperties": false
               }
             }
@@ -15568,7 +15638,7 @@
                         "mindmapId": { "type": "string" },
                         "parentId": {
                           "anyOf": [{ "type": "string" }, { "type": "null" }],
-                          "description": "Parent node, or null for the central topic, whose ID is the mindmap's"
+                          "description": "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic"
                         },
                         "kind": {
                           "type": "string",
@@ -15588,7 +15658,23 @@
                         "side": {
                           "type": "string",
                           "enum": ["left", "right"],
-                          "description": "Side of the central topic a main branch sits on"
+                          "description": "Side of its root a main branch sits on"
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "x": { "type": "number" },
+                                "y": { "type": "number" }
+                              },
+                              "required": ["x", "y"],
+                              "additionalProperties": false,
+                              "description": "A floating root's center, in map units; the central topic sits at 0, 0"
+                            },
+                            { "type": "null" }
+                          ],
+                          "description": "Set on floating topics only"
                         },
                         "collapsed": { "type": "boolean" },
                         "createdAt": {
@@ -15607,6 +15693,7 @@
                         "noteId",
                         "title",
                         "side",
+                        "position",
                         "collapsed",
                         "createdAt"
                       ],

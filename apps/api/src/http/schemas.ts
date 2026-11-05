@@ -615,7 +615,14 @@ export const MindmapNodeParamsSchema = z.object({
 
 const MindmapNodeSideSchema = z
   .enum(["left", "right"])
-  .describe("Side of the central topic a main branch sits on");
+  .describe("Side of its root a main branch sits on");
+
+const MindmapPointSchema = z
+  .object({ x: z.number(), y: z.number() })
+  .strict()
+  .describe(
+    "A floating root's center, in map units; the central topic sits at 0, 0",
+  );
 
 export const MindmapSchema = z.object({
   type: z.literal("mindmap"),
@@ -636,7 +643,7 @@ export const MindmapNodeSchema = z.object({
     .string()
     .nullable()
     .describe(
-      "Parent node, or null for the central topic, whose ID is the mindmap's",
+      "Parent node, or null for a root: the central topic, whose ID is the mindmap's, or a floating topic",
     ),
   kind: z
     .enum(["topic", "task", "note"])
@@ -645,6 +652,9 @@ export const MindmapNodeSchema = z.object({
   noteId: z.string().nullable(),
   title: z.string().describe("Topic text, or the task's or note's title"),
   side: MindmapNodeSideSchema,
+  position: MindmapPointSchema.nullable().describe(
+    "Set on floating topics only",
+  ),
   collapsed: z.boolean(),
   createdAt: z.number().int().nonnegative(),
 });
@@ -688,6 +698,9 @@ export const CreateMindmapNodeBodySchema = z
         "Parent node; the central topic (the mindmap ID) or omitted for a main branch",
       ),
     placement: PlacementSchema.optional(),
+    position: MindmapPointSchema.optional().describe(
+      "Creates a floating topic there instead of placing it under a parent",
+    ),
     side: MindmapNodeSideSchema.optional().describe(
       "Side for a main branch placed first or last; defaults to the side with fewer branches",
     ),
@@ -713,6 +726,14 @@ export const CreateMindmapNodeBodySchema = z
       [body.title, body.taskId, body.noteId].filter((v) => v !== undefined)
         .length === 1,
     { message: "Provide exactly one of title, taskId, or noteId" },
+  )
+  .refine(
+    (body) =>
+      body.position === undefined ||
+      (body.title !== undefined &&
+        body.parentId === undefined &&
+        body.placement === undefined),
+    { message: "A position takes a title and no parentId or placement" },
   );
 
 export const UpdateMindmapNodeBodySchema = z
@@ -731,10 +752,20 @@ export const MoveMindmapNodeBodySchema = z
     parentId: z
       .string()
       .min(1)
+      .optional()
       .describe(
         "New parent node; the central topic (the mindmap ID) for a main branch",
       ),
-    placement: PlacementSchema,
+    placement: PlacementSchema.optional().describe("Defaults to last"),
+    position: MindmapPointSchema.optional().describe(
+      "Floats the topic there, out of its parent",
+    ),
     side: MindmapNodeSideSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (body) =>
+      (body.position === undefined) !== (body.parentId === undefined) &&
+      (body.position === undefined || body.placement === undefined),
+    { message: "Provide a parentId (and placement) or a position" },
+  );

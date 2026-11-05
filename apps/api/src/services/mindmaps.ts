@@ -50,9 +50,12 @@ export interface PublicMindmapNode {
   noteId: string | null;
   title: string;
   side: MindmapNodeSide;
+  position: Point | null;
   collapsed: boolean;
   createdAt: number;
 }
+
+type Point = { x: number; y: number };
 
 const toPublicMindmap = (mindmap: Mindmap): PublicMindmap => ({
   type: "mindmap",
@@ -75,6 +78,10 @@ const toPublicNode = (
   noteId: node.noteId ?? null,
   title: node.taskId || node.noteId ? (itemTitle ?? "") : node.title,
   side: node.side,
+  position:
+    node.parentId === null && !isMindmapRoot(node)
+      ? { x: node.x ?? 0, y: node.y ?? 0 }
+      : null,
   collapsed: node.collapsed,
   createdAt: node.createdAt,
 });
@@ -207,6 +214,10 @@ export async function getMindmap({
     }
   };
   visit(tree.branches, tree.root.id);
+  for (const floating of tree.floating) {
+    nodes.push(toPublicNode(floating.node, null, undefined));
+    visit(floating.children, floating.node.id);
+  }
 
   return { mindmap: toPublicMindmap(tree.mindmap), nodes };
 }
@@ -267,6 +278,7 @@ export async function createMindmapNode({
   mindmapId,
   parentId = mindmapId,
   placement = { kind: "last" },
+  position,
   side,
   title,
   taskId,
@@ -277,6 +289,7 @@ export async function createMindmapNode({
   mindmapId: string;
   parentId?: string;
   placement?: Placement;
+  position?: Point;
   side?: MindmapNodeSide;
   title?: string;
   taskId?: string;
@@ -303,13 +316,15 @@ export async function createMindmapNode({
     db,
     createMindmapNodeAction({
       mindmapId,
-      placement: await resolvePlacement({
-        db,
-        mindmapId,
-        parentId,
-        placement,
-        side,
-      }),
+      placement:
+        position ??
+        (await resolvePlacement({
+          db,
+          mindmapId,
+          parentId,
+          placement,
+          side,
+        })),
       ...(taskId !== undefined
         ? { taskId }
         : noteId !== undefined
@@ -362,14 +377,16 @@ export async function moveMindmapNode({
   userId,
   nodeId,
   parentId,
-  placement,
+  placement = { kind: "last" },
+  position,
   side,
 }: {
   spaceId: string;
   userId: string;
   nodeId: string;
-  parentId: string;
-  placement: Placement;
+  parentId?: string;
+  placement?: Placement;
+  position?: Point;
   side?: MindmapNodeSide;
 }): Promise<PublicMindmapNode> {
   const db = await getSpaceDatabase(spaceId, userId);
@@ -381,22 +398,27 @@ export async function moveMindmapNode({
     selector: mindmapNodes,
     args: { mindmapId: node.mindmapId },
   });
-  if (isMindmapNodeWithin(nodes, nodeId, parentId)) {
+  if (parentId !== undefined && isMindmapNodeWithin(nodes, nodeId, parentId)) {
     throw new ConflictError("A node cannot move into its own subtree");
+  }
+  if (position && (node.taskId || node.noteId)) {
+    throw new ConflictError("Only topics float");
   }
 
   const moved = await asyncDispatch(
     db,
     moveMindmapNodeAction({
       id: nodeId,
-      placement: await resolvePlacement({
-        db,
-        mindmapId: node.mindmapId,
-        parentId,
-        placement,
-        side,
-        movingId: nodeId,
-      }),
+      placement:
+        position ??
+        (await resolvePlacement({
+          db,
+          mindmapId: node.mindmapId,
+          parentId: parentId ?? node.mindmapId,
+          placement,
+          side,
+          movingId: nodeId,
+        })),
     }),
   );
   return publicNode(db, moved);

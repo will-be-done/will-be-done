@@ -9,16 +9,18 @@ import {
   deleteMindmap,
   inboxProjectId,
   mindmapDisplayTitle,
-  mindmapRootNode,
+  newMindmapRootNode,
+  updateMindmap,
   mindmapsWithTitles,
   mindmapTree,
 } from "@will-be-done/slices/space";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { NavBar } from "@/components/NavBar/NavBar";
 import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ItemDetails } from "@/components/ItemDetails/ItemDetails.tsx";
 import { WithStash } from "@/components/Stash/WithStash.tsx";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
 import {
   DropdownMenu,
@@ -63,8 +65,9 @@ export const MindmapPage = ({
     storedTree ??
     (creating && {
       mindmap: creating,
-      root: mindmapRootNode(creating),
+      root: newMindmapRootNode(creating),
       branches: [],
+      floating: [],
     });
   const { data: mindmaps = [] } = useAsyncSelector({
     selector: mindmapsWithTitles,
@@ -82,6 +85,18 @@ export const MindmapPage = ({
       replace: true,
     });
   }, [navigate, spaceId, mindmapId, projectId]);
+
+  const handleRename = async () => {
+    if (!tree) return;
+    const title = await promptDialog(
+      "Mindmap name",
+      mindmapDisplayTitle(tree.mindmap, tree.root),
+    );
+    if (!title?.trim()) return;
+    await dispatch(
+      updateMindmap({ id: mindmapId, mindmap: { title: title.trim() } }),
+    );
+  };
 
   const handleDelete = () => {
     if (!confirmDeleteMindmap()) return;
@@ -156,7 +171,7 @@ export const MindmapPage = ({
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={createAndOpen}
+                  onSelect={() => void createAndOpen()}
                   onPointerEnter={preload}
                   onFocus={preload}
                 >
@@ -174,6 +189,17 @@ export const MindmapPage = ({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            {tree && (
+              <button
+                type="button"
+                title="Rename mindmap"
+                aria-label="Rename mindmap"
+                onClick={() => void handleRename()}
+                className="-ml-3 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-content-tinted transition-colors hover:bg-white/5 hover:text-content [app-region:no-drag]"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            )}
 
             <div className="ml-auto flex items-center gap-3 [app-region:no-drag]">
               <TooltipProvider>

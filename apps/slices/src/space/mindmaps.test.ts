@@ -12,6 +12,7 @@ import {
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
+import { richTextMarkdownToPlainText } from "../common/richText";
 import { registeredSpaceSyncableTables } from "./syncMap";
 import { getSpaceBackup, loadSpaceBackup } from "./backup";
 import {
@@ -45,6 +46,9 @@ import {
   mindmapTree,
   moveMindmapNode,
   moveMindmapNodes,
+  pasteMindmapNodes,
+  placeMindmapItems,
+  type MindmapPlacement,
   type MindmapTreeNode,
   updateMindmap,
   updateMindmapNode,
@@ -74,7 +78,8 @@ const task = (id: string): Task => ({
   title: `Task ${id}`,
   state: "todo",
   projectSectionId: "section",
-  orderToken: id,
+  // A valid fractional key, so copies can be ordered after it.
+  orderToken: `a${id}`,
   lastToggledAt: 0,
   nature: "unknown",
   createdAt: 0,
@@ -87,7 +92,7 @@ const note = (id: string): Note => ({
   id,
   title: "Draft",
   projectSectionId: "section",
-  orderToken: id,
+  orderToken: `a${id}`,
   createdAt: 0,
 });
 
@@ -197,14 +202,17 @@ describe("buildMindmapTree", () => {
       node("gone", "a", { orderToken: "0", taskId: "missing" }),
       node("lifted", "gone"),
       node("kept", "a", { taskId: "t1" }),
+      node("under-loose", "loose"),
     ];
     const tasks = new Map([["t1", task("t1")]]);
 
-    const expected = "a(lifted kept) b(c(d)) loose orphan";
-    expect(shape(buildMindmapTree("map", nodes, { tasks }))).toBe(expected);
-    expect(
-      shape(buildMindmapTree("map", [...nodes].reverse(), { tasks })),
-    ).toBe(expected);
+    const picture = (rows: MindmapNode[]) => {
+      const { branches, floating } = buildMindmapTree("map", rows, { tasks });
+      return `${shape(branches)} | ${shape(floating)}`;
+    };
+    const expected = "a(lifted kept) b(c(d)) orphan | loose(under-loose)";
+    expect(picture(nodes)).toBe(expected);
+    expect(picture([...nodes].reverse())).toBe(expected);
   });
 
   // Concurrent conversions can merge into a node linking both.
@@ -213,11 +221,11 @@ describe("buildMindmapTree", () => {
     const [withTask] = buildMindmapTree("map", [both], {
       tasks: new Map([["t1", task("t1")]]),
       notes: new Map([["n1", note("n1")]]),
-    });
+    }).branches;
     expect(withTask).toMatchObject({ task: { id: "t1" } });
     const [noteOnly] = buildMindmapTree("map", [both], {
       notes: new Map([["n1", note("n1")]]),
-    });
+    }).branches;
     expect(noteOnly).toMatchObject({ task: undefined, note: { id: "n1" } });
   });
 });
@@ -229,7 +237,21 @@ describe("mindmaps", () => {
       selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!;
     const listed = () =>
       selectSync(db, { selector: mindmapsWithTitles, args: {} });
-    expect(tree().root).toMatchObject({ id: "map", parentId: null });
+    // The center topic starts as the name.
+    expect(tree().root).toMatchObject({
+      id: "map",
+      parentId: null,
+      title: "Plan",
+    });
+    const starred = syncDispatch(db, createMindmap({ title: "*Not* bold" }));
+    const starredRoot = selectSync(db, {
+      selector: mindmapTree,
+      args: { mindmapId: starred.id },
+    })!.root;
+    expect(richTextMarkdownToPlainText(starredRoot.title, "title")).toBe(
+      "*Not* bold",
+    );
+    syncDispatch(db, deleteMindmap({ id: starred.id }));
 
     syncDispatch(db, updateMindmap({ id: "map", mindmap: { title: "" } }));
     syncDispatch(
@@ -285,6 +307,67 @@ describe("mindmaps", () => {
     })!;
     expect(tree.root).toMatchObject({ id: "map", parentId: null });
     expect(shape(tree.branches)).toBe("topic");
+  });
+
+  test("floating roots keep their point, grow both sides and can join the tree", () => {
+    const db = createDB();
+    const tree = () =>
+      selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!;
+    const create = (id: string, placement: MindmapPlacement) =>
+      syncDispatch(db, createMindmapNode({ mindmapId: "map", id, placement }));
+    create("float", { x: 300, y: -120 });
+    create("one", { parentId: "float", position: "last" });
+    create("two", { parentId: "float", position: "last" });
+    create("topic", { parentId: "map", position: "last" });
+    expect(tree().floating).toMatchObject([
+      { node: { id: "float", parentId: null, x: 300, y: -120 } },
+    ]);
+    expect(tree().floating[0]!.children.map(({ node }) => node.side)).toEqual([
+      "right",
+      "left",
+    ]);
+
+    // Repositioning and floating a topic out of the tree.
+    syncDispatch(
+      db,
+      moveMindmapNodes({
+        ids: ["float", "topic"],
+        placement: { x: 10, y: 20 },
+      }),
+    );
+    expect(
+      tree().floating.map(({ node: { id, x, y } }) => `${id}@${x},${y}`),
+    ).toEqual(["topic@10,20", "float@10,76"]);
+    expect(shape(tree().branches)).toBe("");
+
+    // Joining the tree drops the point.
+    syncDispatch(
+      db,
+      moveMindmapNode({
+        id: "float",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    expect(tree().branches[0]!.node).not.toHaveProperty("x");
+    expect(shape(tree().branches)).toBe("float(one two)");
+
+    // Roots are topics.
+    expect(() =>
+      syncDispatch(db, convertMindmapNodeToTask({ id: "topic" })),
+    ).toThrow();
+    expect(() =>
+      syncDispatch(
+        db,
+        createMindmapNode({
+          mindmapId: "map",
+          taskId: "t1",
+          placement: { x: 0, y: 0 },
+        }),
+      ),
+    ).toThrow();
+
+    syncDispatch(db, deleteMindmapNodes({ ids: ["topic"] }));
+    expect(tree().floating).toEqual([]);
   });
 
   // The map row can sync before its root row.
@@ -420,6 +503,146 @@ describe("mindmaps", () => {
       }),
     );
     expect(treeShape(db)).toBe("a(c b child)");
+  });
+
+  test("pasting copies, moves, or rebuilds nodes from another map", () => {
+    const db = createDB();
+    const tree = (mindmapId = "map") =>
+      selectSync(db, { selector: mindmapTree, args: { mindmapId } })!;
+    const create = (attrs: Parameters<typeof createMindmapNode>[0]) =>
+      syncDispatch(db, createMindmapNode(attrs));
+    create({
+      mindmapId: "map",
+      id: "a",
+      title: "A",
+      placement: { parentId: "map", position: "last" },
+    });
+    create({
+      mindmapId: "map",
+      id: "t1-node",
+      taskId: "t1",
+      placement: { parentId: "a", position: "last" },
+    });
+    create({
+      mindmapId: "map",
+      id: "b",
+      title: "B",
+      placement: { parentId: "map", position: "last" },
+    });
+    const under = (parentId: string) =>
+      ({ parentId, position: "last" }) as const;
+
+    // A copy duplicates the topic and its task; the originals stay.
+    const [copied] = syncDispatch(
+      db,
+      pasteMindmapNodes({
+        mindmapId: "map",
+        ids: ["a", "t1-node"],
+        placement: under("b"),
+        mode: "copy",
+      }),
+    );
+    const b = tree().branches.find(({ node }) => node.id === "b")!;
+    expect(b.children).toMatchObject([
+      {
+        node: { id: copied!.id, title: "A" },
+        children: [{ task: { title: "Task t1" } }],
+      },
+    ]);
+    expect(b.children[0]!.children[0]!.task!.id).not.toBe("t1");
+    expect(shape(tree().branches)).toMatch(/^a\(t1-node\)/);
+
+    // A cut within the map moves the nodes themselves.
+    syncDispatch(
+      db,
+      pasteMindmapNodes({
+        mindmapId: "map",
+        ids: ["a"],
+        placement: under("b"),
+        mode: "cut",
+      }),
+    );
+    expect(tree().branches.map(({ node }) => node.id)).toEqual(["b"]);
+
+    // A cut into another map rebuilds there with the same task.
+    const other = syncDispatch(db, createMindmap({ title: "Other" }));
+    syncDispatch(
+      db,
+      pasteMindmapNodes({
+        mindmapId: other.id,
+        ids: ["a"],
+        placement: under(other.id),
+        mode: "cut",
+      }),
+    );
+    expect(tree(other.id).branches).toMatchObject([
+      { node: { title: "A" }, children: [{ task: { id: "t1" } }] },
+    ]);
+    expect(
+      selectSync(db, { selector: nodeRows, args: {} }).filter(
+        (row) => row.id === "a" || row.id === "t1-node",
+      ),
+    ).toEqual([]);
+  });
+
+  test("placed items keep their order, and one already on the map moves", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "topic",
+        title: "Topic",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        taskId: "t2",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    syncDispatch(
+      db,
+      placeMindmapItems({
+        mindmapId: "map",
+        items: [
+          { type: "task", id: "t1" },
+          { type: "note", id: "n1" },
+          { type: "task", id: "t2" },
+        ],
+        placement: { parentId: "topic", position: "last" },
+      }),
+    );
+    const topic = selectSync(db, {
+      selector: mindmapTree,
+      args: { mindmapId: "map" },
+    })!.branches[0]!;
+    expect(
+      topic.children.map((child) => (child.task ?? child.note)!.id),
+    ).toEqual(["t1", "n1", "t2"]);
+
+    // Placing under its own node skips the item instead of failing the rest.
+    const t1Node = topic.children[0]!.node.id;
+    syncDispatch(
+      db,
+      placeMindmapItems({
+        mindmapId: "map",
+        items: [
+          { type: "task", id: "t1" },
+          { type: "task", id: "t2" },
+        ],
+        placement: { parentId: t1Node, position: "last" },
+      }),
+    );
+    const t1 = selectSync(db, {
+      selector: mindmapTree,
+      args: { mindmapId: "map" },
+    })!.branches[0]!.children[0]!;
+    expect(t1.task!.id).toBe("t1");
+    expect(t1.children.map((child) => child.task!.id)).toEqual(["t2"]);
   });
 
   test("removing a node removes its subtree but keeps the tasks", () => {

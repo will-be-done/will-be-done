@@ -9,6 +9,7 @@ import { create } from "zustand";
 import type { FocusKey } from "@/store/focusSlice.ts";
 import type {
   LaidOutNode,
+  LayoutRoot,
   LayoutTree,
   MindmapLayout,
 } from "./mindmapLayout.ts";
@@ -22,14 +23,32 @@ export type CanvasNode =
       id: string;
       focusKey: FocusKey;
       tree: MindmapTreeNode;
-      parentId: string;
+      // null on a floating root.
+      parentId: string | null;
     };
 
 export type CanvasIndex = {
+  // The center topic.
   rootId: string;
+  // The center topic and the floating roots.
+  roots: ReadonlySet<string>;
   nodes: Map<string, CanvasNode>;
   byFocusKey: Map<FocusKey, string>;
 };
+
+export const isFloatingRoot = (entry: CanvasNode | undefined) =>
+  entry?.kind === "node" && entry.parentId === null;
+
+/** The center topic at the origin, then each floating root at its point. */
+export const layoutRootsOf = (tree: MindmapTree): LayoutRoot[] => [
+  { id: tree.mindmap.id, x: 0, y: 0, branches: tree.branches },
+  ...tree.floating.map(({ node, children }) => ({
+    id: node.id,
+    x: node.x ?? 0,
+    y: node.y ?? 0,
+    branches: children,
+  })),
+];
 
 export function indexMindmapTree(tree: MindmapTree): CanvasIndex {
   const rootId = tree.mindmap.id;
@@ -38,7 +57,7 @@ export function indexMindmapTree(tree: MindmapTree): CanvasIndex {
     [rootId, { kind: "root", id: rootId, focusKey: rootKey, node: tree.root }],
   ]);
   const byFocusKey = new Map<FocusKey, string>([[rootKey, rootId]]);
-  const visit = (trees: MindmapTreeNode[], parentId: string) => {
+  const visit = (trees: MindmapTreeNode[], parentId: string | null) => {
     for (const child of trees) {
       const focusKey = mindmapNodeFocusKey(child.node);
       nodes.set(child.node.id, {
@@ -53,7 +72,9 @@ export function indexMindmapTree(tree: MindmapTree): CanvasIndex {
     }
   };
   visit(tree.branches, rootId);
-  return { rootId, nodes, byFocusKey };
+  visit(tree.floating, null);
+  const roots = new Set([rootId, ...tree.floating.map(({ node }) => node.id)]);
+  return { rootId, roots, nodes, byFocusKey };
 }
 
 export const subtreeIds = (tree: MindmapTreeNode, ids = new Set<string>()) => {
@@ -67,8 +88,11 @@ export type Direction = "left" | "right" | "up" | "down";
 const sideOf = (index: CanvasIndex, entry: CanvasNode & { kind: "node" }) => {
   let branch = entry;
   for (;;) {
-    const parent = index.nodes.get(branch.parentId);
-    if (parent?.kind !== "node") return branch.tree.node.side;
+    const parent =
+      branch.parentId === null ? undefined : index.nodes.get(branch.parentId);
+    if (parent?.kind !== "node" || index.roots.has(parent.id)) {
+      return branch.tree.node.side;
+    }
     branch = parent;
   }
 };
@@ -84,9 +108,11 @@ export function treeMoveOf(
   direction: Direction,
 ): { placement: MindmapPlacement; newParentId?: string } | null {
   const entry = index.nodes.get(id);
-  if (entry?.kind !== "node") return null;
+  // Roots are placed, not moved in the tree.
+  if (entry?.kind !== "node" || entry.parentId === null) return null;
+  const { parentId } = entry;
   const side = sideOf(index, entry);
-  const isBranch = entry.parentId === index.rootId;
+  const isBranch = index.roots.has(parentId);
   const siblings = [...index.nodes.values()].filter(
     (other): other is CanvasNode & { kind: "node" } =>
       other.kind === "node" &&
@@ -116,12 +142,12 @@ export function treeMoveOf(
   return isBranch
     ? {
         placement: {
-          parentId: index.rootId,
+          parentId,
           position: "last",
           side: side === "left" ? "right" : "left",
         },
       }
-    : { placement: { siblingId: entry.parentId, edge: "after" } };
+    : { placement: { siblingId: parentId, edge: "after" } };
 }
 
 export type NodeKind = "topic" | "task" | "note";
@@ -130,16 +156,18 @@ export const nodeKind = (tree: MindmapTreeNode): NodeKind =>
 
 export type DropIntent =
   | { kind: "child" | "before" | "after"; nodeId: string }
-  | { kind: "branch"; side: MindmapNodeSide };
+  | { kind: "branch"; side: MindmapNodeSide }
+  // A floating root dropped on empty space moves there.
+  | { kind: "float" };
 
 export type DraggedItems =
   | { kind: "nodes"; ids: string[] }
-  | { kind: "item"; item: MindmapItem };
+  | { kind: "item"; item: MindmapItem; selectionKeys?: FocusKey[] };
 
 export type DropPreview = {
   intent: DropIntent;
   dragged: DraggedItems;
-  // Where a new main branch goes when dropped on the root.
+  // Where a new main branch goes when dropped on a root.
   side: MindmapNodeSide;
 };
 
@@ -159,10 +187,13 @@ export const useMindmapDrop = create<{
 // The task node whose date picker is open.
 export const useMindmapDatePicker = create<{
   nodeId: string | null;
-  setNodeId: (nodeId: string | null) => void;
+  // The picker schedules every task in the selection.
+  forSelection: boolean;
+  setNodeId: (nodeId: string | null, forSelection?: boolean) => void;
 }>((set) => ({
   nodeId: null,
-  setNodeId: (nodeId) => set({ nodeId }),
+  forSelection: false,
+  setNodeId: (nodeId, forSelection = false) => set({ nodeId, forSelection }),
 }));
 
 // The node whose "…" menu is open; the toolbar stays shown while it is.
@@ -178,20 +209,58 @@ const emptySelection: ReadonlySet<string> = new Set();
 
 export const useMindmapSelection = create<{
   ids: ReadonlySet<string>;
-  setIds: (ids: ReadonlySet<string>) => void;
+  // Where Shift-click ranges start while there is a selection; without one,
+  // they start at the focused node, as in lists.
+  anchorId: string | null;
+  setIds: (ids: ReadonlySet<string>, anchorId?: string | null) => void;
   clear: () => void;
 }>((set, get) => ({
   ids: emptySelection,
-  setIds: (ids) => {
+  anchorId: null,
+  setIds: (ids, anchorId = get().anchorId) => {
     const current = get().ids;
-    if (ids.size !== current.size || [...ids].some((id) => !current.has(id))) {
-      set({ ids: ids.size ? ids : emptySelection });
+    if (
+      ids.size !== current.size ||
+      [...ids].some((id) => !current.has(id)) ||
+      anchorId !== get().anchorId
+    ) {
+      set({ ids: ids.size ? ids : emptySelection, anchorId });
     }
   },
   clear: () => {
     if (get().ids.size) set({ ids: emptySelection });
   },
 }));
+
+/**
+ * Selectable nodes in reading order: each node, then its visible children,
+ * then its next sibling; right branches, then left, then floating roots.
+ */
+export function visibleNodeOrder(tree: MindmapTree): string[] {
+  const order: string[] = [];
+  const visit = (trees: readonly MindmapTreeNode[]) => {
+    for (const child of trees) {
+      order.push(child.node.id);
+      if (!child.node.collapsed) visit(child.children);
+    }
+  };
+  visit(tree.branches.filter(({ node }) => node.side === "right"));
+  visit(tree.branches.filter(({ node }) => node.side === "left"));
+  // Floating roots never collapse.
+  for (const root of tree.floating) {
+    order.push(root.node.id);
+    visit(root.children);
+  }
+  return order;
+}
+
+/** The nodes from `from` to `to` inclusive, in `order`. */
+export function rangeOf(order: readonly string[], from: string, to: string) {
+  const a = order.indexOf(from);
+  const b = order.indexOf(to);
+  if (a === -1 || b === -1) return b === -1 ? [] : [to];
+  return order.slice(Math.min(a, b), Math.max(a, b) + 1);
+}
 
 const ghostPrefix = "ghost:";
 export const ghostId = (id: string) => `${ghostPrefix}${id}`;
@@ -203,12 +272,27 @@ export const ghostIdsOf = (dragged: DraggedItems) =>
     ? dragged.ids.map(ghostId)
     : [ghostId(dragged.item.id)];
 
+/** `withDropGhosts` over every root; empty-space branches go to the center. */
+export function withDropGhostsOnRoots(
+  roots: readonly LayoutRoot[],
+  rootId: string,
+  preview: DropPreview,
+): LayoutRoot[] {
+  const { intent } = preview;
+  return roots.map((root) =>
+    intent.kind === "float" || (intent.kind === "branch" && root.id !== rootId)
+      ? root
+      : { ...root, branches: withDropGhosts(root.branches, root.id, preview) },
+  );
+}
+
 /** Inserts placeholder leaves where a drop would land, for a live preview. */
 export function withDropGhosts(
   branches: readonly LayoutTree[],
   rootId: string,
   { intent, dragged, side }: DropPreview,
 ): LayoutTree[] {
+  if (intent.kind === "float") return [...branches];
   const ghosts = (ghostSide: MindmapNodeSide): LayoutTree[] =>
     ghostIdsOf(dragged).map((id) => ({
       node: { id, side: ghostSide, collapsed: false },
@@ -262,12 +346,15 @@ export function dropIntentAt(
   layout: MindmapLayout,
   point: { x: number; y: number },
   {
-    rootId,
+    roots,
     excluded,
+    float = false,
   }: {
-    rootId: string;
+    roots: ReadonlySet<string>;
     // Dragged nodes and their subtrees.
     excluded: ReadonlySet<string>;
+    // Empty space moves the dragged floating root instead of adding a branch.
+    float?: boolean;
   },
 ): DropIntent | null {
   const { x, y } = point;
@@ -281,12 +368,16 @@ export function dropIntentAt(
     }
   }
 
-  if (!nearest || nearestDistance > nodeReach) {
-    return { kind: "branch", side: x < 0 ? "left" : "right" };
+  // A dragged floating root is placed freely, so it joins a node only when
+  // the pointer is on it.
+  if (!nearest || nearestDistance > (float ? 0 : nodeReach)) {
+    return float
+      ? { kind: "float" }
+      : { kind: "branch", side: x < 0 ? "left" : "right" };
   }
-  if (excluded.has(nearest.id)) return null;
+  if (excluded.has(nearest.id)) return float ? { kind: "float" } : null;
   const nodeId = nearest.id;
-  if (nodeId === rootId) return { kind: "child", nodeId };
+  if (roots.has(nodeId)) return { kind: "child", nodeId };
 
   const offset = (y - nearest.y) / nearest.height;
   return {
@@ -296,16 +387,16 @@ export function dropIntentAt(
 }
 
 export function placementOfIntent(
-  intent: DropIntent,
-  rootId: string,
+  intent: Exclude<DropIntent, { kind: "float" }>,
+  index: Pick<CanvasIndex, "rootId" | "roots">,
   side: MindmapNodeSide,
 ): MindmapPlacement {
   if (intent.kind === "branch") {
-    return { parentId: rootId, position: "last", side: intent.side };
+    return { parentId: index.rootId, position: "last", side: intent.side };
   }
   if (intent.kind === "child") {
-    return intent.nodeId === rootId
-      ? { parentId: rootId, position: "last", side }
+    return index.roots.has(intent.nodeId)
+      ? { parentId: intent.nodeId, position: "last", side }
       : { parentId: intent.nodeId, position: "last" };
   }
   return { siblingId: intent.nodeId, edge: intent.kind };

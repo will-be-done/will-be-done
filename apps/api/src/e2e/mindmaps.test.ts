@@ -200,6 +200,50 @@ test("covers every mindmap operation", async () => {
     200,
   ).data.task;
 
+  // A floating topic sits at its own point and takes main branches too.
+  const floating = expectResponseStatus(
+    await createMindmapNode(
+      space.id,
+      mindmap.id,
+      { title: "Ideas", position: { x: 400, y: -200 } },
+      options,
+    ),
+    201,
+  ).data.node;
+  expect(floating).toMatchObject({
+    parentId: null,
+    position: { x: 400, y: -200 },
+  });
+  const idea = expectResponseStatus(
+    await createMindmapNode(
+      space.id,
+      mindmap.id,
+      { title: "Idea", parentId: floating.id },
+      options,
+    ),
+    201,
+  ).data.node;
+  expect(
+    expectResponseStatus(
+      await moveMindmapNode(
+        space.id,
+        floating.id,
+        { position: { x: 500, y: 0 } },
+        options,
+      ),
+      200,
+    ).data.node.position,
+  ).toEqual({ x: 500, y: 0 });
+  expectResponseStatus(
+    await moveMindmapNode(
+      space.id,
+      taskNode.id,
+      { position: { x: 0, y: 300 } },
+      options,
+    ),
+    409,
+  );
+
   const fetched = await coverOperation(
     "getMindmap",
     getMindmap(space.id, mindmap.id, options),
@@ -213,6 +257,8 @@ test("covers every mindmap operation", async () => {
     ["Engineering", marketing.id],
     [task.title, engineering.id],
     ["Draft", marketing.id],
+    ["Ideas", null],
+    ["Idea", floating.id],
   ]);
   expect(fetched.data.mindmap.title).toBe("Launch plan");
   expect(fetched.data.nodes[4]).toMatchObject({
@@ -232,7 +278,7 @@ test("covers every mindmap operation", async () => {
       await getMindmap(space.id, mindmap.id, options),
       200,
     ).data.nodes.map(({ id }) => id),
-  ).toEqual([mindmap.id, marketing.id, noteNode.id]);
+  ).toEqual([mindmap.id, marketing.id, noteNode.id, floating.id, idea.id]);
   expectResponseStatus(await getTask(space.id, task.id, options), 200);
 
   await coverOperation(

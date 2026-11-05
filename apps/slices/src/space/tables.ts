@@ -275,8 +275,12 @@ export const mindmapNodesTable = defineTable("mindmap_nodes", {
   id: v.string(),
   mindmapId: v.string(),
   // null on a root. The center topic is the root whose ID is the map's, so
-  // main branches have the map ID as their parent.
+  // main branches have the map ID as their parent; other roots float.
   parentId: v.union(v.string(), v.null()),
+  // A floating root's center in map coordinates; the center topic sits at
+  // the origin. Separate fields, so concurrent drags can mix x and y.
+  x: v.optional(v.number()),
+  y: v.optional(v.number()),
   orderToken: v.string(),
   // Which side of the root a main branch sits on; ignored on deeper nodes.
   side: mindmapNodeSide,

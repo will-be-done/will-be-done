@@ -33,22 +33,29 @@ Every node, the central topic included, is a `mindmap_nodes` row:
 | `parentId`   | The parent node's ID, or `null` on a root.                 |
 | `orderToken` | Fractional key among siblings of the same parent.          |
 | `side`       | `left` or `right` of the root. Read on main branches only. |
+| `x`, `y`     | A floating root's center. Optional; set on floating roots. |
 | `taskId`     | Linked Task, or `null`.                                    |
 | `noteId`     | Linked Note. Optional; absent means no note.               |
 | `title(Doc)` | Topic text. Empty on task and note nodes.                  |
 | `collapsed`  | Children are hidden in the layout.                         |
 
 The central topic is the root whose ID is the map's (`isMindmapRoot`), so a
-main branch's `parentId` is the map ID. `createMindmap` writes it with the map.
+main branch's `parentId` is the map ID. `createMindmap` writes it with the map,
+titled with the map's name escaped as Markdown (`newMindmapRootNode`), so a
+name like `*draft*` stays literal. After that the two are edited separately.
 It stays a topic and stays in the center: moves, removal, conversion, and
 sibling placements skip or reject it, and it goes only with `deleteMindmap`.
 Its ID is fixed rather than random so a map can never have two, and so the
 tree can stand in an empty one (`mindmapRootNode`) while the row has not
 synced; `updateMindmapNode` on that stand-in writes the row.
 
-`parentId: null` leaves room for detached topics placed freely on the canvas.
-None are written yet; until they are, any parentless node other than the
-central topic shows as a main branch.
+Any other parentless node is a **floating root**: a topic placed anywhere on
+the canvas, centered on its `x`, `y` (map units; the central topic sits at the
+origin). It works like the central topic (it takes main branches on both
+sides, stays a topic, and never collapses) except that it can be moved and
+removed. `x` and `y` are separate fields, so concurrent drags can merge one
+device's `x` with the other's `y`; either result is a valid point. A floating
+root missing a coordinate sits at 0 on that axis.
 
 A node is exactly one kind:
 
@@ -56,8 +63,9 @@ A node is exactly one kind:
 - **task**: `taskId` set; it shows and edits the Task's title and state;
 - **note**: `noteId` set; it shows and edits the Note's title.
 
-Only structure is stored. Positions, sizes, branch colors, and depth are
-derived on the client and never synced.
+Only structure and floating roots' points are stored. Every other position,
+and sizes, branch colors, and depth, are derived on the client and never
+synced.
 
 `noteId` is optional rather than `string | null` because rows written before
 notes could join a map lack the field, and HyperDB validates rows on read. A
@@ -82,8 +90,10 @@ on read, never by writing fixes back, so every replica derives the same
 picture from the same rows:
 
 - the central topic is the tree's root and is left out of the branches;
-- a node whose parent is missing, belongs to another map, or is `null` is a
-  main branch;
+- other parentless nodes are floating roots (`floating`), shown even if a
+  concurrent conversion linked an item that is now gone;
+- a node whose parent is missing or belongs to another map is a main branch
+  of the central topic;
 - a parent cycle is broken at its smallest node ID, which becomes a main
   branch;
 - a task or note node whose item is gone is hidden, and its children take its
@@ -106,14 +116,16 @@ Every create and move takes a `MindmapPlacement`:
 - `{ parentId, position: "first" | "last", side? }`: under a node, or under
   the map ID for a main branch;
 - `{ siblingId, edge: "before" | "after" }`: next to a node, under the same
-  parent.
+  parent. A root has no siblings; this throws on one;
+- `{ x, y }`: a floating root there, topics only. Moving several stacks them
+  56 units apart; joining a tree drops `x` and `y`.
 
 `resolvePlacement` turns a placement into `parentId`, `side`, and order keys:
 
 - keys come from `generateNJitteredKeysBetween`, so a multi-node move gets
   consecutive keys in one step;
-- a main branch with no explicit side goes to the side with fewer branches,
-  right on a tie;
+- a main branch (under any root) with no explicit side goes to the side with
+  fewer branches, right on a tie;
 - a deeper node takes its parent's side; a sibling placement takes the
   sibling's side;
 - nodes being moved are excluded from the sibling list before keys are chosen.
@@ -203,6 +215,10 @@ lifts its children and restoring brings it back`.
 - `getMindmap` returns nodes depth-first from the repaired tree, so clients see
   what the apps show. The first node is the central topic: its ID is the
   mindmap's and its `parentId` is `null`; main branches name it as parent.
+  Floating roots follow, each before its subtree, with `parentId: null` and a
+  `position`.
+- `createMindmapNode` and `moveMindmapNode` take a `position` instead of a
+  parent to create or float a topic there; floating a task or note is a 409.
 - A mindmap's `title` is its plain-text name; the central topic's text is the
   root node's `title`.
 - Moving or deleting the central topic is a 409.
@@ -237,17 +253,20 @@ estimated layout lands off-center once real sizes arrive), centers and focuses
 it, then drops `itemId` from the URL with a replace so the same link works
 again.
 
-Creating a map must open it without a visible delay (`useCreateMindmap`):
+Creating a map asks for its name first (`promptDialog`; cancel or an empty
+name creates nothing). From the confirm on, opening it must show no visible
+delay (`useCreateMindmap`):
 
 - the route has a loader, and without a pending component the router keeps
   the old page until the loader and the route code are ready. The next map's
   ID is therefore chosen ahead of time, and hovering or focusing a "New
   mindmap" control preloads that map's route;
-- the click starts `createMindmap` with that ID and navigates in the same tick,
-  without awaiting the write;
+- the confirm starts `createMindmap` with that ID and navigates in the same
+  tick, without awaiting the write;
 - until the write commits, the page draws the map from the pending row in
-  `useCreatingMindmaps` (a new map is always empty), so it never shows "This
-  mindmap was deleted" for a map that is still being created.
+  `useCreatingMindmaps` and `newMindmapRootNode` (a new map holds only its
+  central topic), so it never shows "This mindmap was deleted" for a map that
+  is still being created.
 
 ### Layout
 
@@ -257,7 +276,13 @@ Creating a map must open it without a visible delay (`useCreateMindmap`):
 - every subtree stacks its visible children vertically, centered on the parent;
 - gaps: 64 from the root, 40 between levels, 8 between siblings, 20 between
   main branches;
-- collapsed nodes hide their children and report `hiddenCount`.
+- collapsed nodes hide their children and report `hiddenCount`;
+- `layoutMindmapRoots` lays out each root on its own around its point and
+  merges the results, so floating roots never push other nodes and may
+  overlap them.
+
+Double-clicking empty canvas creates a floating topic at the pointer and edits
+it; like any new topic, it is discarded if left empty.
 
 Node sizes come from a `ResizeObserver` store (`nodeSizes.ts`) read with
 `useSyncExternalStore`. Unmeasured nodes use an estimate; observations arrive
@@ -286,9 +311,9 @@ project. On the root, new nodes are topics.
 | Keys                      | Action                                         |
 | ------------------------- | ---------------------------------------------- |
 | `Tab`                     | Add a child, last; expands a collapsed parent. |
-| `Enter`, `o`              | Add a sibling below. On the root: a branch.    |
+| `Enter`, `o`              | Add a sibling below. On a root: a branch.      |
 | `Shift+O`                 | Add a sibling above.                           |
-| `i`, double-click         | Edit the title.                                |
+| `i`, double-click         | Edit the title, caret where clicked.           |
 | `h j k l`, arrows         | Move focus by on-screen position.              |
 | `Ctrl` + `h j k l`/arrows | Move the node in the tree (`treeMoveOf`).      |
 | `Space`                   | Toggle a task.                                 |
@@ -343,11 +368,46 @@ surviving ancestor.
 
 ### Selection
 
-`useMindmapSelection` holds the selected node IDs. Left-drag on empty canvas
-draws a marquee and selects intersecting non-root nodes; Shift/Meta/Ctrl makes
-it additive, and a modifier-click toggles one node. A plain click clears the
-selection. Dragging a selected node drags the whole selection; dragging an
+`useMindmapSelection` holds the selected node IDs. It is separate from the
+lists' selection in `useFocusStore`, whose keys follow DOM order and name list
+rows; map nodes are not `data-selectable`, so list selection never picks them
+up. Left-drag on empty canvas draws a marquee and selects intersecting
+non-root nodes; Shift/Meta/Ctrl makes it additive. Ctrl/Cmd-click adds or
+removes one node and makes it the anchor. Shift-click selects the range from
+the anchor (the focused node when nothing is selected) to the clicked node in
+`visibleNodeOrder`: each node, then its visible children, then its next
+sibling; right branches, then left, then floating roots. So a range between
+two siblings takes the siblings between them and their visible subtrees.
+Shift with a direction key adds the next node that way. A plain click clears
+the selection. Dragging a selected node drags the whole selection; dragging an
 unselected node clears it. The node toolbar shows on hover as well as focus.
+
+On a node in a selection, the item keys (`Space m s t r Shift+S`) act on every
+task or note in it through the lists' selection actions
+(`setListItemsTaskState`, `moveListItemsToProject`, `scheduleListItems`,
+`unscheduleListItems`, `stashListItems`); `s` opens `SelectionDatePicker`.
+
+### Clipboard
+
+Copy, cut, and paste share `useClipboardStore` with the lists. The canvas
+handles the events itself and marks them handled, so `GlobalListener` skips
+them; otherwise a task node's focus key would read as a list row and a paste
+would land in that task's project.
+
+- Copy and cut take the selection, or the focused node, with subtrees; the
+  central topic is skipped. The system clipboard gets an indented outline. The
+  store keeps the nodes (`mindmap`) and list keys of their tasks and notes
+  (`keys`), so a list can paste them as items.
+- Paste goes under the focused node (or the central topic) and selects what
+  arrived. Map nodes paste with `pasteMindmapNodes`: a cut within the map
+  moves the nodes, a cut from another map rebuilds them linked to the same
+  items and deletes the originals, and a copy rebuilds them with copies of
+  their tasks and notes (`insertItemCopies`, shared with list paste), since an
+  item appears once per map.
+- Items copied or cut in a list are placed on the map, linked, not copied
+  (`placeMindmapItems`); a cut leaves them in their list.
+- As in lists, a paste only applies while the system clipboard still holds the
+  copied text, and a cut cannot paste into itself.
 
 ### Drag and Drop
 
@@ -356,7 +416,11 @@ monitor clears the preview on any drop or cancel.
 
 Drag sources are mindmap nodes of the same map (`mindmapNodeDrag` data with
 node IDs) and model drags carrying a Task (tasks, daily entries, stash entries)
-or a Note. An item already on the map is treated as a drag of its node.
+or a Note. An item already on the map is treated as a drag of its node. An
+item dragged with a list multi-selection carries `selectionKeys`; the drop
+places every selected task and note in their list order (`placeMindmapItems`,
+which moves ones already on the map and skips any that would enter their own
+subtree), and the preview shows the dragged item alone.
 
 While dragging, the drop is previewed in place: `withDropGhosts` inserts
 dashed placeholder leaves where the items would land, the moving originals and
@@ -368,9 +432,19 @@ move the target, which flips the next pick under a still pointer. On the base
 layout:
 
 - the nearest node within 48 map units is the target; beyond that the drop
-  starts a main branch on the pointer's side;
+  starts a main branch of the central topic on the pointer's side;
 - a target inside the dragged subtrees refuses the drop;
-- the root always takes a child;
+- a root always takes a child, on the side of it the pointer is on;
+- a floating root dragged alone moves by the pointer's travel (`float`
+  intent) unless the pointer is on another node, which it then joins; the
+  48-unit reach does not apply, so it can be placed close to a branch. Only
+  the drop writes; the preview shows no ghost.
+
+The drag image (`setElementDragPreview`) clones the card into a normally
+positioned box of its on-screen size, scaled by the map's zoom, without
+`data-drag-preview-exclude` parts (the hover toolbar, the collapse button). A
+clone keeping the card's absolute position leaves the captured box empty.
+
 - the middle half of a node nests under it, the top and bottom quarters place
   before and after it.
 

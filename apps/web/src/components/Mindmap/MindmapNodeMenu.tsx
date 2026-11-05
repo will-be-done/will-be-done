@@ -39,6 +39,7 @@ export function MindmapNodeMenu({
   tree,
   actions,
   isScheduled,
+  isRoot,
   open,
   onOpenChange,
   onCloseAutoFocus,
@@ -48,6 +49,8 @@ export function MindmapNodeMenu({
   tree: MindmapTreeNode;
   actions: MindmapNodeActions;
   isScheduled: boolean;
+  // A floating root: a topic placed by dragging, with main branches.
+  isRoot: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCloseAutoFocus: (event: Event) => void;
@@ -152,7 +155,7 @@ export function MindmapNodeMenu({
             </>
           )}
           <DropdownMenuGroup>
-            {!item && (
+            {!item && !isRoot && (
               <>
                 <DropdownMenuItem onSelect={() => actions.convert(id, "task")}>
                   <ListTodo />
@@ -169,40 +172,58 @@ export function MindmapNodeMenu({
               Add child {label}
               <DropdownMenuShortcut>Tab</DropdownMenuShortcut>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => actions.addSibling(id, "after")}>
-              <Plus />
-              Add {label} after
-              <DropdownMenuShortcut>o</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => actions.addSibling(id, "before")}>
-              <Plus />
-              Add {label} before
-              <DropdownMenuShortcut>O</DropdownMenuShortcut>
-            </DropdownMenuItem>
+            {!isRoot && (
+              <>
+                <DropdownMenuItem
+                  onSelect={() => actions.addSibling(id, "after")}
+                >
+                  <Plus />
+                  Add {label} after
+                  <DropdownMenuShortcut>o</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => actions.addSibling(id, "before")}
+                >
+                  <Plus />
+                  Add {label} before
+                  <DropdownMenuShortcut>O</DropdownMenuShortcut>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={() => actions.moveInTree(id, "up")}>
-              <ArrowUp />
-              Move up
-              <DropdownMenuShortcut>^k</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => actions.moveInTree(id, "down")}>
-              <ArrowDown />
-              Move down
-              <DropdownMenuShortcut>^j</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => actions.moveInTree(id, "left")}>
-              <ArrowLeft />
-              Move left
-              <DropdownMenuShortcut>^h</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => actions.moveInTree(id, "right")}>
-              <ArrowRight />
-              Move right
-              <DropdownMenuShortcut>^l</DropdownMenuShortcut>
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
+          {!isRoot && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem onSelect={() => actions.moveInTree(id, "up")}>
+                  <ArrowUp />
+                  Move up
+                  <DropdownMenuShortcut>^k</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => actions.moveInTree(id, "down")}
+                >
+                  <ArrowDown />
+                  Move down
+                  <DropdownMenuShortcut>^j</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => actions.moveInTree(id, "left")}
+                >
+                  <ArrowLeft />
+                  Move left
+                  <DropdownMenuShortcut>^h</DropdownMenuShortcut>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => actions.moveInTree(id, "right")}
+                >
+                  <ArrowRight />
+                  Move right
+                  <DropdownMenuShortcut>^l</DropdownMenuShortcut>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => actions.remove(id)}>
             <X />

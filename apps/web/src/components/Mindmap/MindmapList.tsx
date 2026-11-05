@@ -114,7 +114,7 @@ export const MindmapList = () => {
             </h1>
             <button
               type="button"
-              onClick={createAndOpen}
+              onClick={() => void createAndOpen()}
               onPointerEnter={preload}
               onFocus={preload}
               className="flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-[12px] font-medium text-content-tinted transition-colors hover:bg-accent/10 hover:text-accent"

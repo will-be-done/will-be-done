@@ -7,9 +7,18 @@ export type LayoutTree = {
 
 export type Size = { width: number; height: number };
 
+// A root and its main branches, centered on (x, y).
+export type LayoutRoot = {
+  id: string;
+  x: number;
+  y: number;
+  branches: LayoutTree[];
+};
+
 export type LaidOutNode = Size & {
   id: string;
-  // Top-left corner in map coordinates; the root is centered on (0, 0).
+  // Top-left corner in map coordinates; the center topic is centered on
+  // (0, 0), floating roots on their own point.
   x: number;
   y: number;
   side: MindmapNodeSide | null;
@@ -46,6 +55,7 @@ export function layoutMindmap(
   rootId: string,
   branches: LayoutTree[],
   sizeOf: (id: string) => Size,
+  origin = { x: 0, y: 0 },
 ): MindmapLayout {
   const nodes = new Map<string, LaidOutNode>();
   const edges: LaidOutEdge[] = [];
@@ -131,8 +141,8 @@ export function layoutMindmap(
   nodes.set(rootId, {
     id: rootId,
     ...root,
-    x: -root.width / 2,
-    y: -root.height / 2,
+    x: origin.x - root.width / 2,
+    y: origin.y - root.height / 2,
     side: null,
     depth: 0,
     branch: -1,
@@ -143,8 +153,8 @@ export function layoutMindmap(
   for (const side of ["right", "left"] as const) {
     const sideBranches = branches.filter((tree) => tree.node.side === side);
     const direction = side === "right" ? 1 : -1;
-    const rootEdgeX = (direction * root.width) / 2;
-    let top = -stackHeight(sideBranches, branchGap) / 2;
+    const rootEdgeX = origin.x + (direction * root.width) / 2;
+    let top = origin.y - stackHeight(sideBranches, branchGap) / 2;
     for (const tree of sideBranches) {
       const height = subtreeHeight(tree);
       place(
@@ -154,11 +164,26 @@ export function layoutMindmap(
         top + height / 2,
         1,
         branches.indexOf(tree),
-        { id: rootId, x: rootEdgeX, y: 0 },
+        { id: rootId, x: rootEdgeX, y: origin.y },
       );
       top += height + branchGap;
     }
   }
 
+  return { nodes, edges };
+}
+
+/** Lays out every root on its own; floating roots do not push each other. */
+export function layoutMindmapRoots(
+  roots: readonly LayoutRoot[],
+  sizeOf: (id: string) => Size,
+): MindmapLayout {
+  const nodes = new Map<string, LaidOutNode>();
+  const edges: LaidOutEdge[] = [];
+  for (const root of roots) {
+    const layout = layoutMindmap(root.id, root.branches, sizeOf, root);
+    for (const [id, node] of layout.nodes) nodes.set(id, node);
+    edges.push(...layout.edges);
+  }
   return { nodes, edges };
 }

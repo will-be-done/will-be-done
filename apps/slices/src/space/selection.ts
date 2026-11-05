@@ -266,6 +266,64 @@ function* copiesOf(
   });
 }
 
+/**
+ * Inserts a copy of each item, with its checklist, right after the original
+ * in its section. Returns the copies by original ID.
+ */
+export function* insertItemCopies(
+  items: Item[],
+  // Copies differ from originals (a done task's copy is todo), so callers
+  // filter on the copy.
+  keep: (copy: Item) => boolean = () => true,
+): Generator<unknown, Map<string, Item>, unknown> {
+  const placed = (yield* copiesOf(items)).filter(({ copy }) => keep(copy));
+  const copies = placed.map(({ copy }) => copy);
+  if (copies.length === 0) return new Map();
+
+  const tasks = copies.filter(isTask);
+  const templates = copies.filter(isTaskTemplate);
+  const notes = copies.filter(isNote);
+  if (tasks.length > 0) yield* insert(tasksTable, tasks);
+  if (templates.length > 0) yield* insert(taskTemplatesTable, templates);
+  if (notes.length > 0) yield* insert(notesTable, notes);
+
+  const parents = placed.flatMap(({ original, copy }) =>
+    isChecklistParentType(original.type)
+      ? [
+          {
+            parentType: original.type,
+            parentId: original.id,
+            copyId: copy.id,
+          },
+        ]
+      : [],
+  );
+  if (parents.length > 0) {
+    const copyIds = new Map(
+      parents.map((parent) => [parent.parentId, parent.copyId]),
+    );
+    const checklist = yield* selectFrom(
+      checklistItemsTable,
+      "byParentOrder",
+    ).where((q) =>
+      parents.map((parent) =>
+        q.eq("parentType", parent.parentType).eq("parentId", parent.parentId),
+      ),
+    );
+    const now = Date.now();
+    const checklistCopies = checklist.flatMap((checklistItem) => {
+      const parentId = copyIds.get(checklistItem.parentId);
+      return parentId
+        ? [{ ...checklistItem, id: uuidv7(), parentId, createdAt: now }]
+        : [];
+    });
+    if (checklistCopies.length > 0) {
+      yield* insert(checklistItemsTable, checklistCopies);
+    }
+  }
+  return new Map(placed.map(({ original, copy }) => [original.id, copy]));
+}
+
 export const pasteListItemCopies = action({
   name: "pasteListItemCopies",
   args: {
@@ -278,53 +336,13 @@ export const pasteListItemCopies = action({
     const target = yield* appDropModelData({ id, modelType });
     if (!target) return [];
 
-    const placed = (yield* copiesOf(
-      yield* itemsOfListItems({ listItems }),
-    )).filter(({ copy }) => canDropModel(getDropModelData(copy), target));
-    const copies = placed.map(({ copy }) => copy);
+    const copies = [
+      ...(yield* insertItemCopies(
+        yield* itemsOfListItems({ listItems }),
+        (copy) => canDropModel(getDropModelData(copy), target),
+      )).values(),
+    ];
     if (copies.length === 0) return [];
-
-    const tasks = copies.filter(isTask);
-    const templates = copies.filter(isTaskTemplate);
-    const notes = copies.filter(isNote);
-    if (tasks.length > 0) yield* insert(tasksTable, tasks);
-    if (templates.length > 0) yield* insert(taskTemplatesTable, templates);
-    if (notes.length > 0) yield* insert(notesTable, notes);
-
-    const parents = placed.flatMap(({ original, copy }) =>
-      isChecklistParentType(original.type)
-        ? [
-            {
-              parentType: original.type,
-              parentId: original.id,
-              copyId: copy.id,
-            },
-          ]
-        : [],
-    );
-    if (parents.length > 0) {
-      const copyIds = new Map(
-        parents.map((parent) => [parent.parentId, parent.copyId]),
-      );
-      const checklist = yield* selectFrom(
-        checklistItemsTable,
-        "byParentOrder",
-      ).where((q) =>
-        parents.map((parent) =>
-          q.eq("parentType", parent.parentType).eq("parentId", parent.parentId),
-        ),
-      );
-      const now = Date.now();
-      const checklistCopies = checklist.flatMap((checklistItem) => {
-        const parentId = copyIds.get(checklistItem.parentId);
-        return parentId
-          ? [{ ...checklistItem, id: uuidv7(), parentId, createdAt: now }]
-          : [];
-      });
-      if (checklistCopies.length > 0) {
-        yield* insert(checklistItemsTable, checklistCopies);
-      }
-    }
 
     yield* appHandleDropMany({
       id,

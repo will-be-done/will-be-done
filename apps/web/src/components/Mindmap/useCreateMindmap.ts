@@ -8,10 +8,12 @@ import {
 } from "@will-be-done/slices/space";
 import { uuidv7 } from "uuidv7";
 import { create } from "zustand";
+import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 
-// Maps opened before their create commits. A new map is empty, so its page
-// draws it right away instead of waiting or reporting it deleted.
+// Maps opened before their create commits. A new map holds only its center
+// topic, so its page draws it right away instead of waiting or reporting it
+// deleted.
 export const useCreatingMindmaps = create<{
   mindmaps: ReadonlyMap<string, Mindmap>;
 }>(() => ({ mindmaps: new Map() }));
@@ -39,16 +41,19 @@ export const useCreateMindmap = () => {
 
   return {
     preload: () => void router.preloadRoute(target),
-    createAndOpen: () => {
+    // The name also starts the center topic.
+    createAndOpen: async () => {
+      const title = (await promptDialog("Mindmap name"))?.trim();
+      if (!title) return;
       setNextId(uuidv7());
       setCreating(nextId, {
         type: mindmapType,
         id: nextId,
-        title: "",
+        title,
         orderToken: "",
         createdAt: Date.now(),
       });
-      void dispatch(createMindmap({ id: nextId })).finally(() =>
+      void dispatch(createMindmap({ id: nextId, title })).finally(() =>
         setCreating(nextId, null),
       );
       void router.navigate(target);
