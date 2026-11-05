@@ -99,8 +99,8 @@ topic, or onto empty space to start a new branch on that side. Drag one of
 several selected tasks and notes to place them all. Drag topics to
 rearrange them. While you drag, a faded copy shows where the topic will land:
 drop on a topic to nest under it, or on its top or bottom edge to place it
-above or below. A task or note appears once per mindmap, so dropping it again
-moves it.
+above or below. A task or note can be on several topics at once, even on one
+mindmap: dropping or pasting it again adds another.
 
 Double-click empty space to start a floating topic there. It works like the
 central topic, with its own branches on both sides; drag it to move it, or onto

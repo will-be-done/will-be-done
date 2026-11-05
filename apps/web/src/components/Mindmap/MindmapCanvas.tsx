@@ -504,13 +504,19 @@ export function MindmapCanvas({
       }
       return ids;
     };
-    const selectedItems = (): ListItemRef[] =>
-      [...useMindmapSelection.getState().ids].flatMap((id) => {
+    // Each item once, though several selected nodes may show it.
+    const selectedItems = (): ListItemRef[] => {
+      const items = new Map<string, ListItemRef>();
+      for (const id of useMindmapSelection.getState().ids) {
         const entry = entryOf(id);
-        if (entry?.kind !== "node") return [];
-        const item = entry.tree.task ?? entry.tree.note;
-        return item ? [{ id: item.id, modelType: item.type }] : [];
-      });
+        const item =
+          entry?.kind === "node"
+            ? (entry.tree.task ?? entry.tree.note)
+            : undefined;
+        if (item) items.set(item.id, { id: item.id, modelType: item.type });
+      }
+      return [...items.values()];
+    };
     // The items an item key acts on when the node is in a selection.
     const selectedItemsWith = (id: string) => {
       const { ids } = useMindmapSelection.getState();
@@ -601,7 +607,14 @@ export function MindmapCanvas({
       },
       discardIfEmpty: (id, refocus) => {
         const entry = entryOf(id);
-        if (entry?.kind !== "node" || entry.tree.children.length > 0) return;
+        // A title may have synced in since editing began.
+        if (
+          entry?.kind !== "node" ||
+          entry.tree.children.length > 0 ||
+          entry.tree.node.title.trim()
+        ) {
+          return;
+        }
         const parentKey = parentKeyOf(id);
         void dispatch(deleteMindmapNodes({ ids: [id] }));
         if (refocus && parentKey) focusNode(parentKey);
@@ -859,17 +872,8 @@ export function MindmapCanvas({
       if (!source) return null;
       const { index } = latestRef.current;
       const nodes = [...index.nodes.values()];
-      // A list selection drops as a whole, even items already on the map.
-      if (source.kind === "item" && source.selectionKeys) return source;
-      if (source.kind === "item") {
-        const existing = nodes.find(
-          (entry) =>
-            entry.kind === "node" &&
-            (entry.tree.node.taskId ?? entry.tree.node.noteId) ===
-              source.item.id,
-        );
-        return existing ? { kind: "nodes", ids: [existing.id] } : source;
-      }
+      // An item gets a new node even when it is on the map already.
+      if (source.kind === "item") return source;
       const picked = new Set(source.nodeIds);
       const hasPickedAncestor = (parentId: string | null): boolean => {
         const parent =
@@ -1225,8 +1229,16 @@ export function MindmapCanvas({
       }
       return false;
     };
+    // A paste copies these nodes, so children added later stay out.
+    const nodeIds: string[] = [];
+    const collect = (tree: MindmapTreeNode) => {
+      nodeIds.push(tree.node.id);
+      tree.children.forEach(collect);
+    };
     for (const entry of entries) {
-      if (!isUnderPicked(entry)) outline(entry.tree, 0);
+      if (isUnderPicked(entry)) continue;
+      outline(entry.tree, 0);
+      collect(entry.tree);
     }
     const text = lines.join("\n");
 
@@ -1235,12 +1247,16 @@ export function MindmapCanvas({
     useClipboardStore.setState({
       clipboard: {
         mode,
-        keys: entries.flatMap(({ tree }) => {
-          const item = tree.task ?? tree.note;
-          return item ? [buildFocusKey(item.id, item.type)] : [];
-        }),
+        keys: [
+          ...new Set(
+            entries.flatMap(({ tree }) => {
+              const item = tree.task ?? tree.note;
+              return item ? [buildFocusKey(item.id, item.type)] : [];
+            }),
+          ),
+        ],
         text,
-        mindmap: { mindmapId, nodeIds: entries.map((entry) => entry.id) },
+        mindmap: { mindmapId, nodeIds },
       },
     });
   };
@@ -1263,7 +1279,6 @@ export function MindmapCanvas({
     const targetId = focusedId ?? mindmapId;
     const target = index.nodes.get(targetId);
     if (clipboard.mode === "cut") {
-      useClipboardStore.setState({ clipboard: null });
       // A cut cannot go into itself.
       const cutIds = new Set(
         clipboard.mindmap?.mindmapId === mindmapId
@@ -1277,6 +1292,7 @@ export function MindmapCanvas({
       ) {
         if (cutIds.has(at.id)) return;
       }
+      useClipboardStore.setState({ clipboard: null });
     }
     if (target?.kind === "node" && target.tree.node.collapsed) {
       void dispatch(
@@ -1371,7 +1387,12 @@ export function MindmapCanvas({
     if (e.metaKey || e.altKey) return;
 
     const selection = useMindmapSelection.getState().ids;
-    if (selection.size > 0 && (isRemoveKey(e.code) || e.code === "Escape")) {
+    // Ctrl+X cuts through the clipboard events instead.
+    if (
+      selection.size > 0 &&
+      !e.ctrlKey &&
+      (isRemoveKey(e.code) || e.code === "Escape")
+    ) {
       e.preventDefault();
       e.stopPropagation();
       if (e.code === "Escape") {

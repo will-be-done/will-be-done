@@ -9196,12 +9196,12 @@ export type CreateMindmapNodeBody = {
    */
   title?: string;
   /**
-   * Adds a task; a task already on the mindmap moves to the new place
+   * Adds a node for a task; a task can be on several nodes
    * @minLength 1
    */
   taskId?: string;
   /**
-   * Adds a note; a note already on the mindmap moves to the new place
+   * Adds a node for a note; a note can be on several nodes
    * @minLength 1
    */
   noteId?: string;

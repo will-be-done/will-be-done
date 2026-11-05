@@ -113,7 +113,15 @@ export function MindmapItemPlace({
       )}
       {project && scheduledAt && <span aria-hidden>·</span>}
       {scheduledAt && (
-        <span className="shrink-0">{format(scheduledAt, "MMM d")}</span>
+        <button
+          type="button"
+          tabIndex={-1}
+          title="Change date (s)"
+          className={`${placeButtonClass} shrink-0`}
+          onClick={() => actions.schedule(id)}
+        >
+          {format(scheduledAt, "MMM d")}
+        </button>
       )}
     </div>
   );

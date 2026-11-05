@@ -92,7 +92,7 @@ test("covers every mindmap operation", async () => {
     parentId: marketing.id,
   });
 
-  // A task appears once per mindmap; adding it again moves its node.
+  // A task can be on several nodes; adding it again adds another.
   const readded = expectResponseStatus(
     await createMindmapNode(
       space.id,
@@ -102,7 +102,8 @@ test("covers every mindmap operation", async () => {
     ),
     201,
   ).data.node;
-  expect(readded).toMatchObject({ id: taskNode.id, parentId: engineering.id });
+  expect(readded).toMatchObject({ taskId: task.id, parentId: engineering.id });
+  expect(readded.id).not.toBe(taskNode.id);
 
   const moved = await coverOperation(
     "moveMindmapNode",
@@ -254,6 +255,7 @@ test("covers every mindmap operation", async () => {
   ).toEqual([
     ["Ship it", null],
     ["Marketing", mindmap.id],
+    [task.title, marketing.id],
     ["Engineering", marketing.id],
     [task.title, engineering.id],
     ["Draft", marketing.id],
@@ -261,7 +263,13 @@ test("covers every mindmap operation", async () => {
     ["Idea", floating.id],
   ]);
   expect(fetched.data.mindmap.title).toBe("Launch plan");
-  expect(fetched.data.nodes[4]).toMatchObject({
+  expect(
+    expectResponseStatus(
+      await updateMindmap(space.id, mindmap.id, { title: "" }, options),
+      200,
+    ).data.mindmap.title,
+  ).toBe("");
+  expect(fetched.data.nodes[5]).toMatchObject({
     id: noteNode.id,
     kind: "task",
     taskId: draftTask.id,
@@ -278,7 +286,14 @@ test("covers every mindmap operation", async () => {
       await getMindmap(space.id, mindmap.id, options),
       200,
     ).data.nodes.map(({ id }) => id),
-  ).toEqual([mindmap.id, marketing.id, noteNode.id, floating.id, idea.id]);
+  ).toEqual([
+    mindmap.id,
+    marketing.id,
+    taskNode.id,
+    noteNode.id,
+    floating.id,
+    idea.id,
+  ]);
   expectResponseStatus(await getTask(space.id, task.id, options), 200);
 
   await coverOperation(

@@ -23,7 +23,6 @@ import {
   firstProjectSectionChild,
 } from "./projectSections";
 import { inboxProjectId } from "./projects";
-import { insertItemCopies } from "./selection";
 import { syncItemRichText } from "./richTextItems";
 import { taskById, tasksByIds } from "./tasks";
 import {
@@ -140,41 +139,10 @@ export function buildMindmapTree(
   > = new Map(),
 ): { branches: MindmapTreeNode[]; floating: MindmapTreeNode[] } {
   nodes = nodes.filter((node) => node.id !== mindmapId);
-  const byId = new Map(nodes.map((node) => [node.id, node]));
   const floating = nodes.filter(
     (node) => node.mindmapId === mindmapId && node.parentId === null,
   );
-  const parentOf = new Map<string, string>();
-  for (const node of nodes) {
-    if (node.mindmapId === mindmapId && node.parentId === null) continue;
-    parentOf.set(
-      node.id,
-      node.mindmapId === mindmapId &&
-        node.parentId !== null &&
-        byId.has(node.parentId)
-        ? node.parentId
-        : mindmapId,
-    );
-  }
-
-  const done = new Set<string>();
-  for (const node of nodes) {
-    const path: string[] = [];
-    const onPath = new Set<string>();
-    let current = node.id;
-    while (parentOf.has(current) && !done.has(current)) {
-      if (onPath.has(current)) {
-        const cycle = path.slice(path.indexOf(current));
-        const breaker = cycle.reduce((min, id) => (id < min ? id : min));
-        parentOf.set(breaker, mindmapId);
-        break;
-      }
-      onPath.add(current);
-      path.push(current);
-      current = parentOf.get(current)!;
-    }
-    for (const id of path) done.add(id);
-  }
+  const parentOf = mindmapParentsOf(mindmapId, nodes);
 
   const childrenOf = new Map<string, MindmapNode[]>();
   for (const node of nodes) {
@@ -218,19 +186,62 @@ export function buildMindmapTree(
   };
 }
 
-/** Whether `nodeId` is `ancestorId` or lies under it, following stored parents. */
+/**
+ * The parent each node shows under after the repair in `buildMindmapTree`.
+ * Floating roots and the center topic have none.
+ */
+export function mindmapParentsOf(
+  mindmapId: string,
+  nodes: readonly MindmapNode[],
+): Map<string, string> {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const parentOf = new Map<string, string>();
+  for (const node of nodes) {
+    if (node.id === mindmapId) continue;
+    if (node.mindmapId === mindmapId && node.parentId === null) continue;
+    parentOf.set(
+      node.id,
+      node.mindmapId === mindmapId &&
+        node.parentId !== null &&
+        byId.has(node.parentId)
+        ? node.parentId
+        : mindmapId,
+    );
+  }
+
+  const done = new Set<string>();
+  for (const node of nodes) {
+    const path: string[] = [];
+    const onPath = new Set<string>();
+    let current = node.id;
+    while (parentOf.has(current) && !done.has(current)) {
+      if (onPath.has(current)) {
+        const cycle = path.slice(path.indexOf(current));
+        const breaker = cycle.reduce((min, id) => (id < min ? id : min));
+        parentOf.set(breaker, mindmapId);
+        break;
+      }
+      onPath.add(current);
+      path.push(current);
+      current = parentOf.get(current)!;
+    }
+    for (const id of path) done.add(id);
+  }
+  return parentOf;
+}
+
+/** Whether `nodeId` is `ancestorId` or lies under it, as the tree shows them. */
 export function isMindmapNodeWithin(
-  nodes: readonly Pick<MindmapNode, "id" | "parentId">[],
+  parentOf: ReadonlyMap<string, string>,
   ancestorId: string,
   nodeId: string,
 ) {
-  const parentOf = new Map(nodes.map((node) => [node.id, node.parentId]));
-  const seen = new Set<string>();
-  let current: string | null | undefined = nodeId;
-  while (typeof current === "string" && !seen.has(current)) {
+  for (
+    let current: string | undefined = nodeId;
+    current !== undefined;
+    current = parentOf.get(current)
+  ) {
     if (current === ancestorId) return true;
-    seen.add(current);
-    current = parentOf.get(current);
   }
   return false;
 }
@@ -629,6 +640,7 @@ export const moveMindmapNodes = action({
     if (!first) return [];
     const { mindmapId } = first;
     const nodes = yield* mindmapNodes({ mindmapId });
+    const parentOf = mindmapParentsOf(mindmapId, nodes);
     // The center topic stays in the center.
     const selected = nodes.filter(
       (node) => ids.includes(node.id) && !isMindmapRoot(node),
@@ -649,12 +661,12 @@ export const moveMindmapNodes = action({
         !selected.some(
           (other) =>
             other.id !== node.id &&
-            isMindmapNodeWithin(nodes, other.id, node.id),
+            isMindmapNodeWithin(parentOf, other.id, node.id),
         ),
     );
     if (
       typeof target === "string" &&
-      roots.some((node) => isMindmapNodeWithin(nodes, node.id, target))
+      roots.some((node) => isMindmapNodeWithin(parentOf, node.id, target))
     ) {
       throw new Error("Cannot move a mindmap node into itself");
     }
@@ -719,18 +731,6 @@ export const createMindmapNode = action({
     if (noteId !== undefined && !(yield* noteById({ id: noteId }))) {
       throw new Error("Note not found");
     }
-    if (taskId !== undefined || noteId !== undefined) {
-      // An item appears once per map; dropping it again moves it.
-      const existing = (
-        taskId !== undefined
-          ? yield* mindmapNodesByTaskIds({ taskIds: [taskId] })
-          : yield* mindmapNodesByNoteIds({ noteIds: [noteId!] })
-      ).find((node) => node.mindmapId === mindmapId);
-      if (existing) {
-        return yield* moveMindmapNode({ id: existing.id, placement });
-      }
-    }
-
     if ("x" in placement && (taskId !== undefined || noteId !== undefined)) {
       throw new Error("Only topics float");
     }
@@ -796,9 +796,10 @@ export const deleteMindmapNodes = action({
     const toDelete = new Set<string>();
     for (const mindmapId of new Set(roots.map((node) => node.mindmapId))) {
       const nodes = yield* mindmapNodes({ mindmapId });
+      const parentOf = mindmapParentsOf(mindmapId, nodes);
       for (const node of nodes) {
         if (
-          roots.some((root) => isMindmapNodeWithin(nodes, root.id, node.id))
+          roots.some((root) => isMindmapNodeWithin(parentOf, root.id, node.id))
         ) {
           toDelete.add(node.id);
         }
@@ -813,7 +814,7 @@ const mindmapItemRef = v.object({
   id: v.string(),
 });
 
-/** Places tasks and notes in order; one already on the map moves there. */
+/** Places tasks and notes in order, each on a new node. */
 export const placeMindmapItems = action({
   name: "placeMindmapItems",
   args: {
@@ -829,26 +830,6 @@ export const placeMindmapItems = action({
     const placed: MindmapNode[] = [];
     let next = placement;
     for (const item of items) {
-      // One already on the map cannot move into its own subtree.
-      const nodes = yield* mindmapNodes({ mindmapId });
-      const existing = nodes.find(
-        (node) =>
-          (item.type === "task" ? node.taskId : node.noteId) === item.id,
-      );
-      const at = next;
-      const target =
-        "parentId" in at
-          ? at.parentId
-          : "siblingId" in at
-            ? nodes.find((node) => node.id === at.siblingId)?.parentId
-            : undefined;
-      if (
-        existing &&
-        typeof target === "string" &&
-        isMindmapNodeWithin(nodes, existing.id, target)
-      ) {
-        continue;
-      }
       const node = yield* createMindmapNode({
         mindmapId,
         placement: next,
@@ -863,15 +844,15 @@ export const placeMindmapItems = action({
 
 /**
  * Pastes nodes with their subtrees at one placement, in map order; the central
- * topic is skipped. A cut within the map moves the nodes. A cut from another
- * map rebuilds them here, linked to the same items, and removes the
- * originals. A copy rebuilds them with copies of their tasks and notes, since
- * an item appears once per map.
+ * topic is skipped. A cut within the map moves the nodes. Otherwise they are
+ * rebuilt here, linked to the same tasks and notes, and a cut removes the
+ * originals.
  */
 export const pasteMindmapNodes = action({
   name: "pasteMindmapNodes",
   args: {
     mindmapId: v.string(),
+    // Every copied node, not only subtree tops.
     ids: v.array(v.string()),
     placement: mindmapPlacement,
     mode: v.union(v.literal("copy"), v.literal("cut")),
@@ -896,6 +877,10 @@ export const pasteMindmapNodes = action({
       mapNodes.set(sourceId, yield* mindmapNodes({ mindmapId: sourceId }));
     }
     const nodesOf = (node: MindmapNode) => mapNodes.get(node.mindmapId)!;
+    const parents = new Map(
+      [...mapNodes].map(([id, nodes]) => [id, mindmapParentsOf(id, nodes)]),
+    );
+    const parentsOf = (node: MindmapNode) => parents.get(node.mindmapId)!;
     const orders = new Map(
       [...mapNodes].map(([id, nodes]) => [id, treeOrder(id, nodes)]),
     );
@@ -906,7 +891,7 @@ export const pasteMindmapNodes = action({
             (other) =>
               other.id !== node.id &&
               other.mindmapId === node.mindmapId &&
-              isMindmapNodeWithin(nodesOf(node), other.id, node.id),
+              isMindmapNodeWithin(parentsOf(node), other.id, node.id),
           ),
       )
       .sort(
@@ -932,7 +917,7 @@ export const pasteMindmapNodes = action({
 
     const childrenOf = (node: MindmapNode) =>
       nodesOf(node)
-        .filter((child) => child.parentId === node.id)
+        .filter((child) => parentsOf(node).get(child.id) === node.id)
         .sort(compareNodes);
     const subtree: MindmapNode[] = [];
     const collect = (node: MindmapNode) => {
@@ -941,39 +926,22 @@ export const pasteMindmapNodes = action({
     };
     roots.forEach(collect);
 
-    // Copied nodes link copies of their items; cut ones keep theirs.
-    const linked = new Map<string, string>();
-    if (mode === "copy") {
-      const taskIds = subtree.flatMap((node) =>
-        node.taskId ? [node.taskId] : [],
-      );
-      const noteIds = subtree.flatMap((node) =>
-        node.noteId ? [node.noteId] : [],
-      );
-      const items = [
-        ...(yield* tasksByIds({ ids: taskIds })),
-        ...(noteIds.length === 0
-          ? []
-          : ((yield* selectFrom(notesTable, "byId").where((q) =>
-              noteIds.map((id) => q.eq("id", id)),
-            )) as Note[])),
-      ];
-      for (const [originalId, copy] of yield* insertItemCopies(items)) {
-        linked.set(originalId, copy.id);
-      }
-    } else {
-      // An item already on this map stays where it is.
-      const onMap = new Set(
-        (yield* mindmapNodes({ mindmapId })).flatMap((node) =>
-          [node.taskId, node.noteId].filter((id) => typeof id === "string"),
-        ),
-      );
-      for (const node of subtree) {
-        for (const itemId of [node.taskId, node.noteId]) {
-          if (itemId && !onMap.has(itemId)) linked.set(itemId, itemId);
-        }
-      }
-    }
+    // Items still there; a node of a gone one is not rebuilt.
+    const taskIds = subtree.flatMap((node) =>
+      node.taskId ? [node.taskId] : [],
+    );
+    const noteIds = subtree.flatMap((node) =>
+      node.noteId ? [node.noteId] : [],
+    );
+    const live = new Set([
+      ...(yield* tasksByIds({ ids: taskIds })).map((task) => task.id),
+      ...(noteIds.length === 0
+        ? []
+        : ((yield* selectFrom(notesTable, "byId").where((q) =>
+            noteIds.map((id) => q.eq("id", id)),
+          )) as Note[])
+      ).map((note) => note.id),
+    ]);
 
     const { parentId, side, orderTokens, points } = yield* resolvePlacement(
       mindmapId,
@@ -981,6 +949,17 @@ export const pasteMindmapNodes = action({
       new Set(),
       roots.length,
     );
+    const isGone = (node: MindmapNode) =>
+      Boolean(node.taskId || node.noteId) &&
+      !(node.taskId && live.has(node.taskId)) &&
+      !(node.noteId && live.has(node.noteId));
+    // A copy takes only the nodes picked when copying, so pasting into the
+    // copied node does not grow with every paste. A cut moves whole subtrees.
+    const copied = new Set(ids);
+    const copiedChildrenOf = (node: MindmapNode) =>
+      childrenOf(node).filter(
+        (child) => mode === "cut" || copied.has(child.id) || isGone(child),
+      );
     const now = Date.now();
     const created: MindmapNode[] = [];
     const rebuild = (
@@ -989,11 +968,16 @@ export const pasteMindmapNodes = action({
       orderToken: string,
       point?: { x: number; y: number },
     ): MindmapNode[] => {
-      const itemId = source.taskId ?? source.noteId;
-      const linkedId = itemId ? linked.get(itemId) : undefined;
+      const taskId =
+        source.taskId && live.has(source.taskId) ? source.taskId : null;
+      const noteId =
+        !taskId && source.noteId && live.has(source.noteId)
+          ? source.noteId
+          : undefined;
+      const isItem = Boolean(source.taskId || source.noteId);
       // A gone item gives its place to its children, as in the tree.
-      if (itemId && !linkedId) {
-        return childrenOf(source).flatMap((child) =>
+      if (isGone(source)) {
+        return copiedChildrenOf(source).flatMap((child) =>
           rebuild(child, parent, child.orderToken),
         );
       }
@@ -1011,16 +995,14 @@ export const pasteMindmapNodes = action({
         parentId: parent,
         orderToken,
         side,
-        taskId: source.taskId ? (linkedId ?? null) : null,
-        ...(source.noteId && !source.taskId && linkedId
-          ? { noteId: linkedId }
-          : {}),
-        ...(!itemId && source.titleDoc ? { titleDoc: source.titleDoc } : {}),
+        taskId,
+        ...(noteId ? { noteId } : {}),
+        ...(!isItem && source.titleDoc ? { titleDoc: source.titleDoc } : {}),
         ...point,
         createdAt: now,
       };
       created.push(node);
-      for (const child of childrenOf(source)) {
+      for (const child of copiedChildrenOf(source)) {
         rebuild(child, node.id, child.orderToken);
       }
       return [node];

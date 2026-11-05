@@ -156,7 +156,7 @@ const shortcutGroups: ShortcutGroup[] = [
       { bindings: [["Shift", "O"]], description: "Add above" },
       { bindings: [["I"]], description: "Edit title" },
       {
-        bindings: [["H"], ["J"], ["K"], ["L"]],
+        bindings: [["H"], ["J"], ["K"], ["L"], ["←"], ["↓"], ["↑"], ["→"]],
         description: "Move between topics",
       },
       {
@@ -196,6 +196,7 @@ const shortcutGroups: ShortcutGroup[] = [
         ],
         description: "Extend selection",
       },
+      { bindings: [["Esc"]], description: "Clear selection" },
       {
         bindings: [
           [MOD_KEY, "C"],

@@ -51,7 +51,7 @@ function MindmapRow({ item: { mindmap, title } }: { item: MindmapListItem }) {
             if (e.key === "Enter") save();
             if (e.key === "Escape") setDraft(null);
           }}
-          className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[13px] text-content outline-none placeholder:text-content-tinted/50"
+          className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base sm:text-[13px] text-content outline-none placeholder:text-content-tinted/50"
         />
       ) : (
         <Link

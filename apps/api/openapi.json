@@ -14249,7 +14249,12 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": { "title": { "type": "string", "minLength": 1 } },
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Empty clears the name, so apps show the central topic's text"
+                  }
+                },
                 "required": ["title"],
                 "additionalProperties": false
               }
@@ -14747,12 +14752,12 @@
                     "minLength": 1
                   },
                   "taskId": {
-                    "description": "Adds a task; a task already on the mindmap moves to the new place",
+                    "description": "Adds a node for a task; a task can be on several nodes",
                     "type": "string",
                     "minLength": 1
                   },
                   "noteId": {
-                    "description": "Adds a note; a note already on the mindmap moves to the new place",
+                    "description": "Adds a node for a note; a note can be on several nodes",
                     "type": "string",
                     "minLength": 1
                   }

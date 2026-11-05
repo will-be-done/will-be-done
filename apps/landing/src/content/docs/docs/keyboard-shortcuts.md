@@ -137,8 +137,8 @@ modifier or moving with `j` and `k` clears the selection.
 | `.`                   | Collapse or expand the topic                        |
 | `d`, `x`, `Backspace` | Remove the topic and its subtopics from the mindmap |
 | `Shift+H/J/K/L`       | Add the next topic that way to the selection        |
-| `Ctrl+C`, `Ctrl+X`    | Copy or cut the selected topics                     |
-| `Ctrl+V`              | Paste under the topic                               |
+| `Mod+C`, `Mod+X`      | Copy or cut the selected topics                     |
+| `Mod+V`               | Paste under the topic                               |
 | `Escape`              | Clear the selection                                 |
 
 Arrow keys work like `h`, `j`, `k`, and `l`, with or without `Ctrl`. Moving a
@@ -152,10 +152,11 @@ selected, `d`, `x`, and `Backspace` remove all of them, and `Space`, `m`, `s`,
 `t`, `r`, and `Shift+S` apply to every task or note among them. Removing a task
 or note from a mindmap keeps it in its project.
 
-Copied topics paste with their subtopics, and a copy also copies their tasks
-and notes; a cut moves them, even to another mindmap. Tasks and notes copied
-from a list paste onto the mindmap as themselves, and topics copied from a
-mindmap paste into a list as copies of their tasks and notes.
+Copied topics paste with their subtopics, still showing the same tasks and
+notes; a cut moves them, even to another mindmap. Tasks and notes copied from a
+list paste onto the mindmap as themselves, as many times as you like, and
+topics copied from a mindmap paste into a list as copies of their tasks and
+notes.
 
 ## Text formatting
 

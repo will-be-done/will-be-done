@@ -6,11 +6,13 @@ import {
   deleteMindmapNodes,
   isMindmapNodeWithin,
   isMindmapRoot,
+  type Note,
   type Mindmap,
   mindmapById,
   type MindmapNode,
   mindmapNodeById,
   mindmapNodes,
+  mindmapParentsOf,
   mindmapRootNode,
   type MindmapNodeSide,
   type MindmapPlacement,
@@ -19,6 +21,7 @@ import {
   type MindmapTreeNode,
   moveMindmapNode as moveMindmapNodeAction,
   noteById,
+  type Task,
   taskById,
   updateMindmap as updateMindmapAction,
   updateMindmapNode as updateMindmapNodeAction,
@@ -64,38 +67,50 @@ const toPublicMindmap = (mindmap: Mindmap): PublicMindmap => ({
   createdAt: mindmap.createdAt,
 });
 
+// A node can link both a task and a note after concurrent conversions; it
+// shows whichever exists, task first, as the tree does.
 const toPublicNode = (
-  node: MindmapNode,
+  { node, task, note }: { node: MindmapNode; task?: Task; note?: Note },
   parentId: string | null,
-  itemTitle: string | undefined,
-): PublicMindmapNode => ({
-  type: "mindmapNode",
-  id: node.id,
-  mindmapId: node.mindmapId,
-  parentId,
-  kind: node.taskId ? "task" : node.noteId ? "note" : "topic",
-  taskId: node.taskId,
-  noteId: node.noteId ?? null,
-  title: node.taskId || node.noteId ? (itemTitle ?? "") : node.title,
-  side: node.side,
-  position:
-    node.parentId === null && !isMindmapRoot(node)
-      ? { x: node.x ?? 0, y: node.y ?? 0 }
-      : null,
-  collapsed: node.collapsed,
-  createdAt: node.createdAt,
-});
+): PublicMindmapNode => {
+  const kind =
+    task || (!note && node.taskId)
+      ? "task"
+      : note || node.noteId
+        ? "note"
+        : "topic";
+  return {
+    type: "mindmapNode",
+    id: node.id,
+    mindmapId: node.mindmapId,
+    parentId,
+    kind,
+    taskId: kind === "task" ? node.taskId : null,
+    noteId: kind === "note" ? (node.noteId ?? null) : null,
+    title: kind === "topic" ? node.title : ((task ?? note)?.title ?? ""),
+    side: node.side,
+    position:
+      node.parentId === null && !isMindmapRoot(node)
+        ? { x: node.x ?? 0, y: node.y ?? 0 }
+        : null,
+    collapsed: node.collapsed,
+    createdAt: node.createdAt,
+  };
+};
 
 async function publicNode(
   db: SpaceDatabase,
   node: MindmapNode,
 ): Promise<PublicMindmapNode> {
-  const item = node.taskId
-    ? await selectAsync(db, { selector: taskById, args: { id: node.taskId } })
-    : node.noteId
-      ? await selectAsync(db, { selector: noteById, args: { id: node.noteId } })
-      : undefined;
-  return toPublicNode(node, node.parentId, item?.title);
+  const [task, note] = await Promise.all([
+    node.taskId
+      ? selectAsync(db, { selector: taskById, args: { id: node.taskId } })
+      : undefined,
+    node.noteId
+      ? selectAsync(db, { selector: noteById, args: { id: node.noteId } })
+      : undefined,
+  ]);
+  return toPublicNode({ node, task, note }, node.parentId);
 }
 
 async function requireMindmap(db: SpaceDatabase, mindmapId: string) {
@@ -204,18 +219,16 @@ export async function getMindmap({
   // Depth-first from the center topic, so every parent precedes its children
   // and siblings keep their order. Nodes reflect the same conflict repair the
   // apps show.
-  const nodes: PublicMindmapNode[] = [toPublicNode(tree.root, null, undefined)];
+  const nodes: PublicMindmapNode[] = [toPublicNode({ node: tree.root }, null)];
   const visit = (trees: MindmapTreeNode[], parentId: string) => {
     for (const tree of trees) {
-      nodes.push(
-        toPublicNode(tree.node, parentId, (tree.task ?? tree.note)?.title),
-      );
+      nodes.push(toPublicNode(tree, parentId));
       visit(tree.children, tree.node.id);
     }
   };
   visit(tree.branches, tree.root.id);
   for (const floating of tree.floating) {
-    nodes.push(toPublicNode(floating.node, null, undefined));
+    nodes.push(toPublicNode(floating, null));
     visit(floating.children, floating.node.id);
   }
 
@@ -398,7 +411,14 @@ export async function moveMindmapNode({
     selector: mindmapNodes,
     args: { mindmapId: node.mindmapId },
   });
-  if (parentId !== undefined && isMindmapNodeWithin(nodes, nodeId, parentId)) {
+  if (
+    parentId !== undefined &&
+    isMindmapNodeWithin(
+      mindmapParentsOf(node.mindmapId, nodes),
+      nodeId,
+      parentId,
+    )
+  ) {
     throw new ConflictError("A node cannot move into its own subtree");
   }
   if (position && (node.taskId || node.noteId)) {

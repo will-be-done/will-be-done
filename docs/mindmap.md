@@ -103,7 +103,10 @@ picture from the same rows:
   gone.
 
 Siblings sort by `orderToken`, then by ID. The result must not depend on input
-row order. `buildMindmapTree repairs orphans, cycles and missing tasks the same
+row order. Writes that act on a subtree (move, remove, paste) follow the
+repaired parents (`mindmapParentsOf`), not the stored ones, so they act on the
+subtree the user sees: removing the displayed child of a stored cycle keeps
+its parent. `buildMindmapTree repairs orphans, cycles and missing tasks the same
 way in any order`, `a node linking a task and a note shows whichever exists,
 task first`, `the center topic cannot move, go away, convert or get siblings`
 and `a map without its root row shows an empty center topic that edits into a
@@ -141,9 +144,11 @@ Every create and move takes a `MindmapPlacement`:
 
 ## Tasks and Notes on Maps
 
-A Task or Note appears at most once per map. `createMindmapNode` with a
-`taskId` or `noteId` already on that map moves the existing node instead of
-adding a second one. It throws if both IDs are given or the item is missing.
+A Task or Note can be on any number of nodes, in one map or several; each
+node is a separate place for it, with its own children. `createMindmapNode`
+always adds a node. It throws if both IDs are given or the item is missing.
+Item hooks (`detachMindmapNodesOfItems`, `relinkMindmapNodes`, trash) act on
+all of an item's nodes, and `mindmapsOfItem` lists each map once.
 
 Removing a node, a subtree, or a whole map (`deleteMindmapNodes`,
 `deleteMindmap`) deletes only `mindmap_nodes` rows. Tasks and Notes stay in
@@ -192,7 +197,8 @@ lifts its children and restoring brings it back`.
   repair (above) is what makes concurrent results acceptable.
 - The web client preloads both tables by `byIds`.
 - Backups include `mindmaps` and `mindmapNodes`. Loading a backup skips nodes
-  whose map is missing or whose linked item is not live in the backup.
+  whose map is missing or that link items none of which are live in the
+  backup.
   `noteId` is optional in the backup schema for the same reason it is optional
   in the table.
 - Trash snapshots are validated on backup load: every stored node must link
@@ -334,8 +340,8 @@ while the menu is open (`useMindmapMenu`). It calls the same actions as the
 keys, plus two only it offers: converting a task to a note or back (the node
 keeps its place through `relinkMindmapNodes`) and deleting the item to the
 trash. Task and note nodes show "project · section · date"
-(`MindmapItemPlace`); the project opens the move dialog and the section a
-picker of that project's sections.
+(`MindmapItemPlace`); the project opens the move dialog, the section a
+picker of that project's sections, and the date the date picker, as `s` does.
 
 Item keys (`m s t r Shift+S e c`) reuse the project-list actions
 (`moveTaskToProject`/`moveNoteToProject`, `TaskDatePicker`, `scheduleTask`,
@@ -396,14 +402,15 @@ would land in that task's project.
 
 - Copy and cut take the selection, or the focused node, with subtrees; the
   central topic is skipped. The system clipboard gets an indented outline. The
-  store keeps the nodes (`mindmap`) and list keys of their tasks and notes
-  (`keys`), so a list can paste them as items.
+  store keeps every node in those subtrees (`mindmap`) and list keys of the
+  picked tasks and notes (`keys`), so a list can paste them as items.
 - Paste goes under the focused node (or the central topic) and selects what
   arrived. Map nodes paste with `pasteMindmapNodes`: a cut within the map
-  moves the nodes, a cut from another map rebuilds them linked to the same
-  items and deletes the originals, and a copy rebuilds them with copies of
-  their tasks and notes (`insertItemCopies`, shared with list paste), since an
-  item appears once per map.
+  moves the nodes; otherwise they are rebuilt linked to the same tasks and
+  notes, and a cut deletes the originals. A copy rebuilds only the nodes it
+  stored, so pasting into the copied node again does not also copy the
+  earlier paste; titles are read at paste time. A copy never duplicates
+  items.
 - Items copied or cut in a list are placed on the map, linked, not copied
   (`placeMindmapItems`); a cut leaves them in their list.
 - As in lists, a paste only applies while the system clipboard still holds the
@@ -416,11 +423,11 @@ monitor clears the preview on any drop or cancel.
 
 Drag sources are mindmap nodes of the same map (`mindmapNodeDrag` data with
 node IDs) and model drags carrying a Task (tasks, daily entries, stash entries)
-or a Note. An item already on the map is treated as a drag of its node. An
-item dragged with a list multi-selection carries `selectionKeys`; the drop
-places every selected task and note in their list order (`placeMindmapItems`,
-which moves ones already on the map and skips any that would enter their own
-subtree), and the preview shows the dragged item alone.
+or a Note. A dropped item always gets a new node, even when it is already on
+the map; moving an existing node is a drag of that node. An item dragged with
+a list multi-selection carries `selectionKeys`; the drop places every selected
+task and note in their list order (`placeMindmapItems`), and the preview shows
+the dragged item alone.
 
 While dragging, the drop is previewed in place: `withDropGhosts` inserts
 dashed placeholder leaves where the items would land, the moving originals and

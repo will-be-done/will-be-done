@@ -685,7 +685,12 @@ export const CreateMindmapBodySchema = z
   .strict();
 
 export const UpdateMindmapBodySchema = z
-  .object({ title: z.string().trim().min(1) })
+  .object({
+    title: z
+      .string()
+      .trim()
+      .describe("Empty clears the name, so apps show the central topic's text"),
+  })
   .strict();
 
 export const CreateMindmapNodeBodySchema = z
@@ -709,16 +714,12 @@ export const CreateMindmapNodeBodySchema = z
       .string()
       .min(1)
       .optional()
-      .describe(
-        "Adds a task; a task already on the mindmap moves to the new place",
-      ),
+      .describe("Adds a node for a task; a task can be on several nodes"),
     noteId: z
       .string()
       .min(1)
       .optional()
-      .describe(
-        "Adds a note; a note already on the mindmap moves to the new place",
-      ),
+      .describe("Adds a node for a note; a note can be on several nodes"),
   })
   .strict()
   .refine(

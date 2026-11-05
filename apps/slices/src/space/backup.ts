@@ -843,9 +843,9 @@ const getNewModels = action({
         continue;
       }
       // Its children then show as main branches, like any orphaned node.
-      const itemId = node.taskId ?? node.noteId;
-      if (itemId && !liveItemIds.has(itemId)) {
-        console.warn(`Item ${itemId} not found for mindmap node`);
+      const itemIds = [node.taskId, node.noteId].filter((id) => id);
+      if (itemIds.length > 0 && !itemIds.some((id) => liveItemIds.has(id!))) {
+        console.warn(`Items ${itemIds.join(", ")} not found for mindmap node`);
         continue;
       }
       mindmapNodes.push({ type: mindmapNodeType, ...node });

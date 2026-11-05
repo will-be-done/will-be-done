@@ -9,6 +9,7 @@ import {
   selectFrom,
   selectSync,
   syncDispatch,
+  v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
@@ -158,6 +159,15 @@ const deleteRootRow = action({
   args: {},
   handler: function* () {
     yield* deleteRows(mindmapNodesTable, ["map"]);
+  },
+});
+
+// Rows as sync can leave them, e.g. a parent cycle from concurrent moves.
+const insertNodes = action({
+  name: "mindmapTestInsertNodes",
+  args: { rows: v.array(v.pass<MindmapNode>()) },
+  handler: function* ({ rows }) {
+    yield* insert(mindmapNodesTable, rows);
   },
 });
 
@@ -389,7 +399,7 @@ describe("mindmaps", () => {
     ).toMatchObject({ title: "Center" });
   });
 
-  test("a task appears once per map and dropping it again moves it", () => {
+  test("a task can sit on several nodes of one map", () => {
     const db = createDB();
     syncDispatch(
       db,
@@ -418,9 +428,13 @@ describe("mindmaps", () => {
     );
 
     const rows = selectSync(db, { selector: nodeRows, args: {} });
-    expect(rows.filter((row) => row.taskId === "t1")).toMatchObject([
-      { parentId: "topic" },
-    ]);
+    expect(
+      rows
+        .filter((row) => row.taskId === "t1")
+        .map((row) => row.parentId)
+        .sort(),
+    ).toEqual(["map", "topic"]);
+    // The map is listed once for the task.
     expect(
       selectSync(db, { selector: mindmapsOfItem, args: { id: "t1" } }),
     ).toMatchObject([{ mindmap: { id: "map" } }]);
@@ -532,7 +546,7 @@ describe("mindmaps", () => {
     const under = (parentId: string) =>
       ({ parentId, position: "last" }) as const;
 
-    // A copy duplicates the topic and its task; the originals stay.
+    // A copy duplicates the topic, linked to the same task; the originals stay.
     const [copied] = syncDispatch(
       db,
       pasteMindmapNodes({
@@ -546,11 +560,39 @@ describe("mindmaps", () => {
     expect(b.children).toMatchObject([
       {
         node: { id: copied!.id, title: "A" },
-        children: [{ task: { title: "Task t1" } }],
+        children: [{ task: { id: "t1" } }],
       },
     ]);
-    expect(b.children[0]!.children[0]!.task!.id).not.toBe("t1");
+    expect(b.children[0]!.children[0]!.node.id).not.toBe("t1-node");
     expect(shape(tree().branches)).toMatch(/^a\(t1-node\)/);
+
+    // Pasting into the copied node again takes only what was copied.
+    const pasteIntoA = () =>
+      syncDispatch(
+        db,
+        pasteMindmapNodes({
+          mindmapId: "map",
+          ids: ["a", "t1-node"],
+          placement: under("a"),
+          mode: "copy",
+        }),
+      );
+    pasteIntoA();
+    pasteIntoA();
+    const a = tree().branches.find(({ node }) => node.id === "a")!;
+    expect(
+      a.children.map(({ node, children }) => [node.title, children.length]),
+    ).toEqual([
+      ["", 0],
+      ["A", 1],
+      ["A", 1],
+    ]);
+    syncDispatch(
+      db,
+      deleteMindmapNodes({
+        ids: a.children.slice(1).map(({ node }) => node.id),
+      }),
+    );
 
     // A cut within the map moves the nodes themselves.
     syncDispatch(
@@ -583,9 +625,27 @@ describe("mindmaps", () => {
         (row) => row.id === "a" || row.id === "t1-node",
       ),
     ).toEqual([]);
+
+    // A stored cycle copies as it shows, x(y).
+    syncDispatch(db, insertNodes({ rows: [node("y", "x"), node("x", "y")] }));
+    const [cycleCopy] = syncDispatch(
+      db,
+      pasteMindmapNodes({
+        mindmapId: "map",
+        ids: ["x", "y"],
+        placement: under("b"),
+        mode: "copy",
+      }),
+    );
+    expect(
+      tree()
+        .branches.find(({ node }) => node.id === "b")!
+        .children.filter(({ node }) => node.id === cycleCopy!.id)
+        .map(({ node, children }) => [node.title, children.length]),
+    ).toEqual([["x", 1]]);
   });
 
-  test("placed items keep their order, and one already on the map moves", () => {
+  test("placed items keep their order, each on a new node", () => {
     const db = createDB();
     syncDispatch(
       db,
@@ -623,26 +683,11 @@ describe("mindmaps", () => {
     expect(
       topic.children.map((child) => (child.task ?? child.note)!.id),
     ).toEqual(["t1", "n1", "t2"]);
-
-    // Placing under its own node skips the item instead of failing the rest.
-    const t1Node = topic.children[0]!.node.id;
-    syncDispatch(
-      db,
-      placeMindmapItems({
-        mindmapId: "map",
-        items: [
-          { type: "task", id: "t1" },
-          { type: "task", id: "t2" },
-        ],
-        placement: { parentId: t1Node, position: "last" },
-      }),
-    );
-    const t1 = selectSync(db, {
-      selector: mindmapTree,
-      args: { mindmapId: "map" },
-    })!.branches[0]!.children[0]!;
-    expect(t1.task!.id).toBe("t1");
-    expect(t1.children.map((child) => child.task!.id)).toEqual(["t2"]);
+    // The earlier t2 node stays where it was.
+    expect(
+      selectSync(db, { selector: mindmapTree, args: { mindmapId: "map" } })!
+        .branches[1]!.task,
+    ).toMatchObject({ id: "t2" });
   });
 
   test("removing a node removes its subtree but keeps the tasks", () => {
@@ -666,6 +711,12 @@ describe("mindmaps", () => {
 
     syncDispatch(db, deleteMindmapNodes({ ids: ["topic"] }));
     expect(selectSync(db, { selector: nodeRows, args: {} })).toEqual([]);
+
+    // A stored cycle shows as b(c); removing c keeps b.
+    syncDispatch(db, insertNodes({ rows: [node("c", "b"), node("b", "c")] }));
+    expect(treeShape(db)).toBe("b(c)");
+    syncDispatch(db, deleteMindmapNodes({ ids: ["c"] }));
+    expect(treeShape(db)).toBe("b");
     expect(
       selectSync(db, {
         selector: createSelector()({
@@ -952,11 +1003,18 @@ describe("mindmaps", () => {
         placement: { parentId: "topic", position: "last" },
       }),
     );
+    // Concurrent conversions: the Task is gone, the Note shows.
+    syncDispatch(
+      source,
+      insertNodes({
+        rows: [node("both", "topic", { taskId: "gone", noteId: "n1" })],
+      }),
+    );
     const backup = selectSync(source, { selector: getSpaceBackup, args: {} });
 
     const target = createDB("b0000000-0000-4000-8000-000000000002");
     syncDispatch(target, loadSpaceBackup({ backup }));
-    expect(treeShape(target)).toBe("topic(task-node note-node)");
+    expect(treeShape(target)).toBe("topic(task-node note-node both)");
 
     syncDispatch(target, deleteMindmap({ id: "map" }));
     expect(selectSync(target, { selector: nodeRows, args: {} })).toEqual([]);
