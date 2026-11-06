@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [web, api, slices]
+        package: [web, api, slices, cli]
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -68,7 +68,7 @@ jobs:
         run: pnpm -C apps/${{ matrix.package }} ts
 
       - name: Test @apps/${{ matrix.package }}
-        if: matrix.package == 'api' || matrix.package == 'slices'
+        if: matrix.package == 'api' || matrix.package == 'slices' || matrix.package == 'cli'
         run: pnpm -C apps/${{ matrix.package }} test
 
       - name: Check OpenAPI snapshot
@@ -88,6 +88,12 @@ jobs:
             git diff -- apps/api/src/generated
             exit 1
           fi
+
+      - name: Check generated CLI client
+        if: matrix.package == 'cli'
+        run: |
+          pnpm -C apps/cli client:generate
+          git diff --exit-code -- apps/cli/src/generated
 
   tursod:
     runs-on: blacksmith-4vcpu-ubuntu-2404

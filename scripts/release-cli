@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Bumps apps/cli/package.json, tags cli-v<version>, and pushes. The tag starts
+# .github/workflows/release-cli.yaml, which builds and publishes the binaries.
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CLI_PACKAGE_JSON="$ROOT_DIR/apps/cli/package.json"
+
+cd "$ROOT_DIR"
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Working tree is not clean. Commit or stash your changes before creating a release."
+  exit 1
+fi
+
+if [[ "$(git branch --show-current)" != "main" ]]; then
+  echo "Release the CLI from main."
+  exit 1
+fi
+
+CURRENT_VERSION="$(node -p "require('$CLI_PACKAGE_JSON').version")"
+VERSION="${1:-}"
+if [[ -z "$VERSION" ]]; then
+  read -r -p "CLI version to release (current $CURRENT_VERSION, x.y.z): " VERSION
+fi
+
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Version must match x.y.z"
+  exit 1
+fi
+
+TAG="cli-v$VERSION"
+
+if git rev-parse "$TAG" >/dev/null 2>&1 ||
+  git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+  echo "Tag $TAG already exists."
+  exit 1
+fi
+
+if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
+  node -e "
+const fs = require('fs');
+const [path, version] = process.argv.slice(1);
+const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+data.version = version;
+fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+" "$CLI_PACKAGE_JSON" "$VERSION"
+  git add "$CLI_PACKAGE_JSON"
+  git commit -m "chore(cli): release $TAG"
+fi
+
+git tag "$TAG"
+git push origin HEAD
+git push origin "$TAG"
+
+echo "Pushed $TAG. Follow the build: gh run list --workflow release-cli.yaml"

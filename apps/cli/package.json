@@ -1,0 +1,33 @@
+{
+  "name": "@will-be-done/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "wbd": "./src/main.ts"
+  },
+  "scripts": {
+    "dev": "bun src/main.ts",
+    "build": "bun build src/main.ts --compile --outfile dist/wbd",
+    "ts": "tsgo -b",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "bun test",
+    "client:generate": "openapigen --spec ../api/openapi.json --name WbdApi > src/generated/WbdApi.ts"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.1.2",
+    "effect": "4.1.2"
+  },
+  "devDependencies": {
+    "@effect/openapi-generator": "4.1.2",
+    "@eslint/js": "^9.39.1",
+    "@types/bun": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20260304.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-unused-imports": "^4.3.0",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.48.0"
+  }
+}
