@@ -36,6 +36,7 @@ import {
   convertMindmapNodeToNote,
   convertMindmapNodeToTask,
   convertMindmapNodeToTopic,
+  convertMindmapNodes,
   createMindmap,
   createMindmapNode,
   createMindmapNote,
@@ -1028,6 +1029,59 @@ describe("mindmaps", () => {
     expect(
       selectSync(db, { selector: noteById, args: { id: back.id } }),
     ).toBeDefined();
+  });
+
+  test("a selection converts to one kind, new items in map order", () => {
+    const db = createDB();
+    syncDispatch(db, createInboxIfNotExists({}));
+    for (const [id, attrs] of [
+      ["a", {}],
+      ["b", {}],
+      ["task-node", { taskId: "t1" }],
+      ["same-task", { taskId: "t1" }],
+      ["note-node", { noteId: "n1" }],
+    ] as const) {
+      syncDispatch(
+        db,
+        createMindmapNode({
+          mindmapId: "map",
+          id,
+          title: id,
+          ...attrs,
+          placement: { parentId: "map", position: "last" },
+        }),
+      );
+    }
+    const all = ["map", "a", "b", "task-node", "same-task", "note-node"];
+    const kinds = () =>
+      selectSync(db, {
+        selector: mindmapTree,
+        args: { mindmapId: "map" },
+      })!.branches.map((branch) =>
+        branch.task ? "task" : branch.note ? "note" : branch.node.title,
+      );
+
+    const notes = syncDispatch(
+      db,
+      convertMindmapNodes({ ids: all, to: "note", projectId: "project" }),
+    );
+    expect(notes.map((node) => node.id)).toEqual(all);
+    expect(kinds()).toEqual(["note", "note", "note", "note", "note"]);
+    const [a, b] = notes
+      .slice(1, 3)
+      .map((node) =>
+        selectSync(db, { selector: noteById, args: { id: node.noteId! } }),
+      );
+    expect(a).toMatchObject({ title: "a", projectSectionId: "section" });
+    expect(a!.orderToken < b!.orderToken).toBe(true);
+    // Both nodes of the converted task follow the one new note.
+    expect(notes[3]!.noteId).toBe(notes[4]!.noteId);
+
+    syncDispatch(db, convertMindmapNodes({ ids: all.slice(0, 3), to: "task" }));
+    expect(kinds()).toEqual(["task", "task", "note", "note", "note"]);
+
+    syncDispatch(db, convertMindmapNodes({ ids: all, to: "topic" }));
+    expect(kinds()).toEqual(["a", "b", "Task t1", "Task t1", "Draft"]);
   });
 
   test("trashing a task lifts its children and restoring brings it back", () => {

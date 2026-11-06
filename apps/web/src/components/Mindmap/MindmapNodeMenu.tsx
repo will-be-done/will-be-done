@@ -150,7 +150,9 @@ export function MindmapNodeMenu({
                   Edit description
                   <DropdownMenuShortcut>e</DropdownMenuShortcut>
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => actions.convertItem(id)}>
+                <DropdownMenuItem
+                  onSelect={() => actions.convert(id, task ? "note" : "task")}
+                >
                   {task ? <StickyNote /> : <SquareCheck />}
                   {task ? "Convert to note" : "Convert to task"}
                 </DropdownMenuItem>
