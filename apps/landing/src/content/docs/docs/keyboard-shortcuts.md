@@ -232,8 +232,19 @@ To open or focus the main window with Flatpak, run:
 flatpak run --command=will-be-done-show app.willbedone.WillBeDone
 ```
 
-## Reserved keys
+## Undo and redo
 
-Undo and redo are not implemented. Outside text fields, `u`, `Cmd+Z`,
-`Ctrl+Z`, `Ctrl+R`, `Cmd+Shift+Z`, and `Ctrl+Shift+Z` are reserved and do not
-undo or redo task actions.
+| Keys                                    | Action                |
+| --------------------------------------- | --------------------- |
+| `u`, `Cmd+Z`, `Ctrl+Z`                  | Undo your last change |
+| `Cmd+Shift+Z`, `Ctrl+Shift+Z`, `Ctrl+R` | Redo it               |
+
+These keys work outside text fields and cover changes to tasks, notes,
+templates, projects, sections, schedules, the Stash, checklists, mindmaps, and
+Trash. Inside a text field they undo your typing instead, so titles and
+descriptions are undone there.
+
+Each tab keeps its own history until you reload it. Changes synced from other
+devices or tabs are not undone. If a change you are undoing was edited
+elsewhere since, that step is skipped and the app tells you. Importing or
+restoring a backup cannot be undone and clears the history.

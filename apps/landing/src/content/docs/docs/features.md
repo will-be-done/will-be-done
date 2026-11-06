@@ -189,8 +189,9 @@ The delete action depends on where you use it:
 | Timeline or Today | Removes the scheduled appearance; the task remains in its project |
 | Stash             | Removes the Stash appearance; the task remains in its project     |
 
-Resetting a task's schedule also keeps the task. Undo and redo are not available
-yet. See [keyboard shortcuts](/docs/keyboard-shortcuts/) for the corresponding keys.
+Resetting a task's schedule also keeps the task. Press `u`, `Cmd+Z`, or `Ctrl+Z`
+to undo a delete or any other change; see
+[undo and redo](/docs/keyboard-shortcuts/#undo-and-redo).
 
 Open **Trash** at the bottom of the sidebar to restore a deleted task or delete
 it forever. Restoring returns the task to its section, checklist, schedule, and

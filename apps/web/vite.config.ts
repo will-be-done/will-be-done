@@ -78,6 +78,10 @@ const hyperdbAliases = useLocalHyperdbAliases
         replacement: path.resolve(hyperdbRoot, "src/hyperdb/tracing/index.ts"),
       },
       {
+        find: /^@will-be-done\/hyperdb\/undo$/,
+        replacement: path.resolve(hyperdbRoot, "src/hyperdb/undo/index.ts"),
+      },
+      {
         find: /^@will-be-done\/hyperdb\/react$/,
         replacement: path.resolve(hyperdbRoot, "src/react.ts"),
       },
