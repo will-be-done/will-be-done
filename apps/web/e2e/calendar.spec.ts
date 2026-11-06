@@ -31,11 +31,10 @@ async function dragBy(page: Page, from: { x: number; y: number }, dy: number) {
   await page.mouse.up();
 }
 
-test("opens calendar cards with Enter and Space only when the card is focused", async ({
-  page,
-}) => {
+test("drives the focused calendar card from the keyboard", async ({ page }) => {
   const spaceName = uniqueE2EName("Calendar Keyboard Space");
   const title = uniqueE2EName("Keyboard task");
+  const nextTitle = uniqueE2EName("Next task");
   const today = format(new Date(), "yyyy-MM-dd");
 
   await signupUser(page);
@@ -71,22 +70,16 @@ test("opens calendar cards with Enter and Space only when the card is focused", 
     }
     await expect(panel).toHaveAttribute("aria-hidden", "true");
 
-    for (const key of ["Enter", "Space"]) {
-      const child = card.locator("div").first();
-      await child.evaluate((el) => {
-        el.tabIndex = -1;
-      });
-      await child.focus();
-      await child.press(key);
-      await expect(panel).toHaveAttribute("aria-hidden", "true");
+    await card.press("Enter");
+    await expect(panel).toHaveAttribute("aria-hidden", "false");
+    await expect(panel).toContainText(title);
+    // The card stays focused while a button holds DOM focus; Enter belongs to
+    // the button.
+    await panelToggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(panel).toHaveAttribute("aria-hidden", "true");
 
-      await card.focus();
-      await card.press(key);
-      await expect(panel).toHaveAttribute("aria-hidden", "false");
-      await expect(panel).toContainText(title);
-      await panelToggle.click();
-      await expect(panel).toHaveAttribute("aria-hidden", "true");
-    }
+    // Space completes the task instead of scrolling the page.
     expect(
       await card.evaluate((el) =>
         el.dispatchEvent(
@@ -99,7 +92,24 @@ test("opens calendar cards with Enter and Space only when the card is focused", 
         ),
       ),
     ).toBe(false);
+    await expect(card.locator(".line-through")).toBeVisible();
+    await card.press("Space");
+    await expect(card.locator(".line-through")).toHaveCount(0);
   }
+
+  await page.getByRole("link", { name: "Week", exact: true }).click();
+  const card = block(page, title);
+  await card.focus();
+  await page.keyboard.press("o");
+  await expect(dialog.getByLabel("Time", { exact: true })).toHaveValue(
+    "10:30 AM",
+  );
+  await dialog.getByLabel("Task title").fill(nextTitle);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(block(page, nextTitle)).toBeFocused();
+  await page.keyboard.press("k");
+  await expect(card).toBeFocused();
 });
 
 test("redirects invalid calendar dates to today before rendering", async ({

@@ -14,6 +14,7 @@ import {
   updateTemplate,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
+import { buildFocusKey } from "@/store/focusSlice.ts";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavBar } from "@/components/NavBar/NavBar";
 import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
@@ -37,6 +38,7 @@ import {
 } from "./DayCells";
 import { TimeGridView } from "./TimeGridView";
 import { useExternalTaskDrop } from "./useExternalTaskDrop";
+import { focusCardOnceShown, useCalendarKeys } from "./useCalendarKeys";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
 import { WithStash } from "@/components/Stash/WithStash.tsx";
 import { openQuickAdd } from "@/components/QuickAdd/quickAddStore";
@@ -120,6 +122,11 @@ export const CalendarPage = ({
       date: parse(date, "yyyy-MM-dd", new Date()),
       time,
       location: "calendar",
+      onCreated: (entry) => {
+        if (entry) {
+          focusCardOnceShown(buildFocusKey(entry.id, entry.type), () => {});
+        }
+      },
     });
   }, []);
 
@@ -173,6 +180,7 @@ export const CalendarPage = ({
 
   const bodyRef = useRef<HTMLDivElement>(null);
   useExternalTaskDrop(bodyRef, onCommit);
+  useCalendarKeys({ view, days, eventsByDate, onCreate });
 
   return (
     <div className="flex h-full w-full">
@@ -243,7 +251,6 @@ export const CalendarPage = ({
         <WithStash reserveButton>
           <div
             ref={bodyRef}
-            data-focus-region-direction="row"
             className="flex min-h-0 flex-1 overflow-x-auto px-4 pb-4"
           >
             {/* Seven day columns stay readable; narrow windows scroll sideways. */}

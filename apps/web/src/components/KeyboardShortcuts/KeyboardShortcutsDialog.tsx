@@ -146,6 +146,44 @@ const shortcutGroups: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Calendar",
+    column: "left",
+    description: "Actions for the selected calendar task",
+    shortcuts: [
+      {
+        bindings: [["H"], ["J"], ["K"], ["L"], ["←"], ["↓"], ["↑"], ["→"]],
+        description: "Move between tasks and days",
+      },
+      {
+        bindings: [
+          ["Ctrl", "H"],
+          ["Ctrl", "L"],
+        ],
+        description: "Move to the previous or next day",
+      },
+      {
+        bindings: [
+          ["Ctrl", "J"],
+          ["Ctrl", "K"],
+        ],
+        description:
+          "Move 15 minutes later or earlier, or a week in month view",
+      },
+      { bindings: [["Enter"]], description: "Open task details" },
+      { bindings: [["Space"]], description: "Toggle task state" },
+      { bindings: [["1"], ["2"], ["3"]], description: "Set nature" },
+      { bindings: [["T"]], description: "Schedule for today" },
+      { bindings: [["Shift", "S"]], description: "Stash task" },
+      { bindings: [["O"]], description: "Add a task right after" },
+      { bindings: [["Shift", "O"]], description: "Add a task right before" },
+      {
+        bindings: [["D"], ["X"], ["Backspace"]],
+        description: "Remove from the day",
+      },
+      { bindings: [[MOD_KEY, "Backspace"]], description: "Delete task" },
+    ],
+  },
+  {
     title: "Mindmap",
     column: "left",
     description:

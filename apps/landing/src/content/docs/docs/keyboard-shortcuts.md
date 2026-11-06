@@ -114,6 +114,34 @@ modifier or moving with `j` and `k` clears the selection.
 | `j`, `k`              | Navigate between projects |
 | `d`, `x`, `Backspace` | Delete project            |
 
+## Calendar
+
+Click a task in the calendar to focus it.
+
+| Keys                              | Action                                                  |
+| --------------------------------- | ------------------------------------------------------- |
+| `h`, `j`, `k`, `l`                | Move to the task to the left, below, above, or right    |
+| `Ctrl+h`, `Ctrl+l`                | Move the task to the previous or next day               |
+| `Ctrl+j`, `Ctrl+k`                | Move a timed task 15 minutes later or earlier           |
+| `Enter`                           | Open task details                                       |
+| `e`                               | Edit description in task details                        |
+| `Space`                           | Toggle todo or done                                     |
+| `1`–`3`                           | Set the nature                                          |
+| `t`                               | Schedule for today                                      |
+| `Shift+S`                         | Move to Stash                                           |
+| `o`                               | Add a task starting when the task ends                  |
+| `Shift+O`                         | Add a task in the half hour before the task             |
+| `d`, `x`, `r`, `Backspace`        | Remove the task from its day and keep it in its project |
+| `Ctrl+Backspace`, `Cmd+Backspace` | Delete the task                                         |
+
+Arrow keys work like `h`, `j`, `k`, and `l`, with or without `Ctrl`. In the
+month and plan views, `j` and `k` continue into the week below or above, and
+`Ctrl+j` and `Ctrl+k` move the task a week later or earlier. Tasks only move
+within the dates on screen. Upcoming occurrences of a recurring task take
+`1`–`3`, and in the day and week views `Ctrl+j` and `Ctrl+k` change the
+template's time. On an untimed task, `o` and `Shift+O` add an untimed task on
+the same day.
+
 ## Mindmap
 
 | Keys                  | Action                                              |
