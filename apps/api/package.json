@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "WBD_DB_PATH=../../db bun --preload ./src/instrument.ts src/start.ts",
+    "dev": "NODE_ENV=development WBD_DB_PATH=../../db bun --preload ./src/instrument.ts src/start.ts",
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

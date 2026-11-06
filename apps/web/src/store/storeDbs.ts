@@ -7,6 +7,7 @@ import {
   SubscribableDB,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { hyperDBStrictOptions } from "@will-be-done/slices";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import { getDevtoolsEnabled } from "@/lib/devtools";
 import { openPersistentDriver } from "./persistentDriver";
@@ -62,9 +63,7 @@ export const createStoreDbs = async (
       new DB(persistentDriver, {
         traits: [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
         tracer,
-        runtimeRowsValidation: process.env.NODE_ENV === "development",
-        freezeArgs: process.env.NODE_ENV === "development",
-        freezeRows: process.env.NODE_ENV === "development",
+        ...hyperDBStrictOptions,
         dbName,
       });
 
@@ -91,6 +90,7 @@ export const createStoreDbs = async (
   const cacheDB = new DB(new BptreeInmemDriver(), {
     traits: [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
     tracer,
+    ...hyperDBStrictOptions,
     dbName: "hybrid-cache",
   });
   const syncSubDb = new SubscribableDB(new HybridDB(persistentDB, cacheDB));

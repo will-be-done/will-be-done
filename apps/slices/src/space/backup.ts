@@ -614,7 +614,9 @@ const getNewModels = action({
         type: taskType,
         id: taskBackup.id,
         title: taskBackup.title,
-        content: taskBackup.content,
+        ...(taskBackup.content === undefined
+          ? {}
+          : { content: taskBackup.content }),
         state: taskBackup.state,
         projectSectionId: taskBackup.projectSectionId,
         orderToken: taskBackup.orderToken,
@@ -672,7 +674,9 @@ const getNewModels = action({
         type: taskTemplateType,
         id: templateBackup.id,
         title: templateBackup.title,
-        content: templateBackup.content,
+        ...(templateBackup.content === undefined
+          ? {}
+          : { content: templateBackup.content }),
         orderToken: templateBackup.orderToken,
         repeatRule: templateBackup.repeatRule,
         repeatRuleDtStart:

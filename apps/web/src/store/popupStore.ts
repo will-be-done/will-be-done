@@ -12,6 +12,7 @@ import {
   migrateSyncV4Clocks,
   getLatestChangeCursor,
 } from "@will-be-done/slices/common";
+import { hyperDBStrictOptions } from "@will-be-done/slices";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import {
   createInboxIfNotExists,
@@ -50,6 +51,7 @@ export async function initPopupStore(spaceId: string) {
     const persistentDriver = await openPersistentDriver(dbName);
     const db = new DB(persistentDriver, {
       traits: [dbIdTrait("space", spaceId)],
+      ...hyperDBStrictOptions,
     });
 
     await execAsync(db.loadTables([spaceMigrationsTable]));

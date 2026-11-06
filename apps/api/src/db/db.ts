@@ -32,6 +32,7 @@ import {
   backupTierStateTable,
   backupFileTable,
 } from "../slices/backupSlice";
+import { hyperDBStrictOptions } from "@will-be-done/slices";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import fs from "fs";
 import {
@@ -103,7 +104,10 @@ const createLocalDB = (dbType: string, dbId: string) => {
     },
   });
 
-  return new DB(sqliteDriver, { traits: [dbIdTrait(dbType, dbId)] });
+  return new DB(sqliteDriver, {
+    traits: [dbIdTrait(dbType, dbId)],
+    ...hyperDBStrictOptions,
+  });
 };
 
 const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
@@ -116,7 +120,10 @@ const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
     console.log(`Loading Turso Cloud database "${name}"...`, url);
     const { driver, close } = await createTursoCloudSqlDriver(name, url);
     asyncDatabaseClosers.add(close);
-    db = new DB(driver, { traits: [dbIdTrait(dbType, dbId)] });
+    db = new DB(driver, {
+      traits: [dbIdTrait(dbType, dbId)],
+      ...hyperDBStrictOptions,
+    });
   } else {
     const name = `${dbType}-${dbId}`;
     console.log(`Loading tursod database "${name}" from the tursod service...`);
@@ -129,7 +136,10 @@ const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
       },
     );
     asyncDatabaseClosers.add(close);
-    db = new DB(driver, { traits: [dbIdTrait(dbType, dbId)] });
+    db = new DB(driver, {
+      traits: [dbIdTrait(dbType, dbId)],
+      ...hyperDBStrictOptions,
+    });
   }
 
   if (dbType === "space") {

@@ -160,9 +160,7 @@ const rowSchema = v.record(
   v.string(),
   primitiveValueSchema,
 ) as Validator<PrimitiveRow>;
-export const tableDefinitionArgSchema = v.object({
-  tableName: v.string(),
-});
+export const tableDefinitionArgSchema = v.pass<TableDefinition>();
 const changeSchema = v.object({
   id: v.string(),
   entityId: v.string(),
