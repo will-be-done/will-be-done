@@ -73,7 +73,8 @@ const useProjectsListSize = create<ProjectsListSize>()(
   persist(
     (set) => ({
       width: 320,
-      // A phone has no room for tasks beside the list.
+      // A phone has no room for tasks beside the list. Not saved, so each
+      // load starts from the screen it is on.
       collapsed: typeof window !== "undefined" && getIsMobile(),
       setCollapsed: (value: boolean) => set({ collapsed: value }),
       setWidth: (value: number) => {
@@ -88,6 +89,7 @@ const useProjectsListSize = create<ProjectsListSize>()(
     {
       name: "projects-list-size",
       storage: createJSONStorage(() => localStorage),
+      partialize: ({ width }) => ({ width }),
     },
   ),
 );
@@ -658,8 +660,11 @@ export const ProjectView = ({
                       ? e.target.closest("a[href]")
                       : null;
                   if (!link || !getIsMobile() || e.button !== 0) return;
-                  e.preventDefault();
-                  pickedHrefRef.current = link.getAttribute("href");
+                  // Mid-resize the width doesn't animate, so the link opens it.
+                  if (!isResizingProjectsList) {
+                    e.preventDefault();
+                    pickedHrefRef.current = link.getAttribute("href");
+                  }
                   setProjectsListCollapsed(true);
                 }}
               >

@@ -521,6 +521,21 @@ describe("mindmaps", () => {
       }),
     );
     expect(treeShape(db)).toBe("a(c b child)");
+
+    // An orphan shows as a main branch and keeps its on-screen place.
+    syncDispatch(
+      db,
+      insertNodes({ rows: [node("orphan", "gone", { orderToken: "0" })] }),
+    );
+    expect(treeShape(db)).toBe("orphan a(c b child)");
+    syncDispatch(
+      db,
+      moveMindmapNodes({
+        ids: ["a", "orphan"],
+        placement: { parentId: "map", position: "last", side: "right" },
+      }),
+    );
+    expect(treeShape(db)).toBe("orphan a(c b child)");
   });
 
   test("pasting copies, moves, or rebuilds nodes from another map", () => {

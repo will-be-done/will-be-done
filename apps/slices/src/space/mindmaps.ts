@@ -534,11 +534,17 @@ function* resolvePlacement(
   };
 }
 
-// Depth-first map order, so a moved selection keeps its on-screen order.
-function treeOrder(mindmapId: string, nodes: readonly MindmapNode[]) {
+// Depth-first map order over the repaired parents, so a moved selection keeps
+// its on-screen order.
+function treeOrder(
+  mindmapId: string,
+  nodes: readonly MindmapNode[],
+  parentOf: ReadonlyMap<string, string>,
+) {
   const children = new Map<string | null, MindmapNode[]>();
   for (const node of nodes) {
-    children.set(node.parentId, [...(children.get(node.parentId) ?? []), node]);
+    const parentId = parentOf.get(node.id) ?? null;
+    children.set(parentId, [...(children.get(parentId) ?? []), node]);
   }
   const order = new Map<string, number>();
   const visit = (parentId: string | null) => {
@@ -664,7 +670,7 @@ export const moveMindmapNodes = action({
       throw new Error("Cannot move a mindmap node into itself");
     }
 
-    const order = treeOrder(mindmapId, nodes);
+    const order = treeOrder(mindmapId, nodes, parentOf);
     roots.sort(
       (a, b) =>
         (order.get(a.id) ?? order.size) - (order.get(b.id) ?? order.size) ||
@@ -875,7 +881,10 @@ export const pasteMindmapNodes = action({
     );
     const parentsOf = (node: MindmapNode) => parents.get(node.mindmapId)!;
     const orders = new Map(
-      [...mapNodes].map(([id, nodes]) => [id, treeOrder(id, nodes)]),
+      [...mapNodes].map(([id, nodes]) => [
+        id,
+        treeOrder(id, nodes, parents.get(id)!),
+      ]),
     );
     const roots = picked
       .filter(
