@@ -1,4 +1,4 @@
-import { selectFrom, v, type TableDefinition } from "@will-be-done/hyperdb";
+import { selectFrom, v } from "@will-be-done/hyperdb";
 import { action } from "../builders";
 import { compareHlc } from "../common/hlc";
 import {
@@ -396,10 +396,7 @@ export const mergeSpaceChanges = action({
       input: resolvedInput,
       nextClock,
       clientId,
-      registeredSyncableTableNameMap: registeredSyncableTableNameMap as Record<
-        string,
-        TableDefinition
-      >,
+      registeredSyncableTableNameMap,
     });
 
     return resolutions;

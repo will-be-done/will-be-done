@@ -197,7 +197,9 @@ lifts its children and restoring brings it back`.
 - Both tables are registered space-syncable tables and merge with the generic
   per-field rules only. There is no mindmap-specific merge code; read-time
   repair (above) is what makes concurrent results acceptable.
-- The web client preloads both tables by `byIds`.
+- Unlike the other space tables, the web client does not preload these into
+  memory; HybridDB reads them from storage when a view first needs them. Their
+  selectors must stay bounded by an index (one map's nodes), never full scans.
 - Backups include `mindmaps` and `mindmapNodes`. Loading a backup skips nodes
   whose map is missing or that link items none of which are live in the
   backup.

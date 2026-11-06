@@ -112,9 +112,7 @@ export function assertUnreachable(x: never): never {
   throw new Error("Unreachable code reached: " + x);
 }
 
-const orderPositionPairArg = v.array(
-  v.union(v.object({ orderToken: v.string() }), v.null()),
-);
+const orderPositionPairArg = v.array(v.pass<OrderableItem | null>());
 
 export const orderPositionArg = v.union(
   v.literal("append"),

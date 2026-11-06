@@ -1,7 +1,6 @@
 import {
   asyncDispatch,
   execAsync,
-  externalStorageMergeTrait,
   type SubscribableDB,
 } from "@will-be-done/hyperdb";
 import {
@@ -46,7 +45,7 @@ export const createCrossTabChanges = ({
     const merge =
       syncConfig.dbType === "space" ? mergeSpaceChanges : mergeChanges;
     await asyncDispatch<unknown>(
-      syncSubDb.withTraits({ type: "skip-sync" }, externalStorageMergeTrait),
+      syncSubDb.withTraits({ type: "skip-sync" }),
       merge(mergeArgs),
     );
     await execAsync(syncSubDb.waitForPersistence());

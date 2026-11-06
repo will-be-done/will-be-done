@@ -556,6 +556,14 @@ function reloadPopupWindow(): void {
   }
 }
 
+type EditHistoryCommand = 'undo' | 'redo'
+
+// The page undoes app changes outside text fields and answers
+// 'native-edit-history' for everything else, including pages that predate it.
+function sendEditHistory(command: EditHistoryCommand): void {
+  BrowserWindow.getFocusedWindow()?.webContents.send('edit-history', command)
+}
+
 function buildMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
@@ -579,8 +587,16 @@ function buildMenu(): void {
     {
       label: 'Edit',
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
+        {
+          label: 'Undo',
+          accelerator: 'CmdOrCtrl+Z',
+          click: () => sendEditHistory('undo')
+        },
+        {
+          label: 'Redo',
+          accelerator: 'Shift+CmdOrCtrl+Z',
+          click: () => sendEditHistory('redo')
+        },
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
@@ -642,6 +658,11 @@ if (gotTheLock) {
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
+    })
+
+    ipcMain.on('native-edit-history', (event, command: unknown) => {
+      if (command === 'undo') event.sender.undo()
+      else if (command === 'redo') event.sender.redo()
     })
 
     // IPC: close/hide popup window

@@ -114,6 +114,7 @@ async function main() {
     {
       cwd: path.join(repoRoot, "apps", "api"),
       env: {
+        NODE_ENV: "development",
         PORT: apiPort,
         WBD_DB_ENGINE: "sqlite",
         WBD_DB_PATH: e2eDbPath,
