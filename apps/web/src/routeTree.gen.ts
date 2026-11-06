@@ -16,6 +16,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PopupRouteImport } from './routes/popup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as CliAuthRouteImport } from './routes/cli-auth'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
@@ -67,6 +68,11 @@ const LoginRoute = LoginRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CliAuthRoute = CliAuthRouteImport.update({
+  id: '/cli-auth',
+  path: '/cli-auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChangeEmailRoute = ChangeEmailRouteImport.update({
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/change-email': typeof ChangeEmailRoute
+  '/cli-auth': typeof CliAuthRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/popup': typeof PopupRoute
@@ -193,6 +200,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/change-email': typeof ChangeEmailRoute
+  '/cli-auth': typeof CliAuthRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/popup': typeof PopupRoute
@@ -217,6 +225,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/change-email': typeof ChangeEmailRoute
+  '/cli-auth': typeof CliAuthRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/popup': typeof PopupRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/change-email'
+    | '/cli-auth'
     | '/forgot-password'
     | '/login'
     | '/popup'
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/change-email'
+    | '/cli-auth'
     | '/forgot-password'
     | '/login'
     | '/popup'
@@ -293,6 +304,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/change-email'
+    | '/cli-auth'
     | '/forgot-password'
     | '/login'
     | '/popup'
@@ -320,6 +332,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
+  CliAuthRoute: typeof CliAuthRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   PopupRoute: typeof PopupRoute
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cli-auth': {
+      id: '/cli-auth'
+      path: '/cli-auth'
+      fullPath: '/cli-auth'
+      preLoaderRoute: typeof CliAuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/change-email': {
@@ -567,6 +587,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   ChangeEmailRoute: ChangeEmailRoute,
+  CliAuthRoute: CliAuthRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   PopupRoute: PopupRoute,

@@ -114,8 +114,9 @@ async function listReleases(limit: number): Promise<ReleaseListItem[]> {
     "tagName,name,publishedAt,isDraft,isPrerelease",
   ]);
 
+  // CLI releases (`cli-v*`) share the repository but are not app releases.
   return (JSON.parse(stdout) as ReleaseListItem[]).filter(
-    (release) => !release.isDraft,
+    (release) => !release.isDraft && !release.tagName.startsWith("cli-v"),
   );
 }
 

@@ -14,6 +14,7 @@ playwright-report/
 test-results/
 apps/tursod/
 **/routeTree.gen.ts
+apps/cli/src/generated/
 
 # Package manager and generated data
 pnpm-lock.yaml
