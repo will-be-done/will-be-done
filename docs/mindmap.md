@@ -298,6 +298,23 @@ The canvas is DOM node cards plus one SVG edge layer inside a CSS-transformed
 world. Pan: wheel, Shift+wheel horizontally, or middle-button drag. Zoom:
 Ctrl/Meta+wheel or the zoom buttons, clamped to 0.2–2.5.
 
+On touch the viewport is `touch-action: none` and pointer handlers take over:
+one finger pans (from anywhere, nodes included), two fingers pinch to zoom
+around the point first under them, a tap on empty space deselects, and a
+double tap there adds a floating topic. A second tap on a focused node's
+title edits it, since browsers do not reliably send `dblclick` for touch;
+native `dblclick` after a touch is ignored on the canvas so a double tap adds
+one topic. Where a browser supports touch drag and drop, its long press
+starts a node drag, which cancels the touch. Marquee selection is mouse-only.
+`e2e/mindmap.spec.ts` drives these with real touch events.
+
+On phones (`useIsMobile`) a focused node shows `MindmapMobileToolbar` at the
+bottom: add a child (a branch on roots), add below, edit, the item's
+full-screen details, the node menu, and remove. List items' `MobileTaskToolbar`
+skips map nodes (`isMindmapItemFocusKey`): its Delete trashes the item and moves
+focus by list order. The node menu stays on screen (`sticky="always"`) because
+the toolbar can open it for a node whose menu button is off-screen.
+
 ### Focus Keys
 
 - root: `(mindmapId, "mindmap")`;
@@ -413,8 +430,23 @@ would land in that task's project.
   items.
 - Items copied or cut in a list are placed on the map, linked, not copied
   (`placeMindmapItems`); a cut leaves them in their list.
-- As in lists, a paste only applies while the system clipboard still holds the
-  copied text, and a cut cannot paste into itself.
+- As in lists, a copy or cut pastes only while the system clipboard still
+  holds the copied text, and a cut cannot paste into itself.
+- Anything else pastes as new topics (`pasteMindmapOutline`), from outline
+  lines that `clipboardOutline` reads, first match wins:
+  - OPML in the plain text, nested by `outline` elements;
+  - HTML lists, when no plain-text line is indented. Apps such as Google Docs
+    drop the nesting from the plain text, and Google Docs keeps it only in
+    `aria-level`. Paragraphs and headings between lists are lines too, and a
+    list nests under the paragraph above it;
+  - the plain text (`parseMindmapOutline`): a line per topic, without list
+    markers, bullets, or checkboxes. Line text is title Markdown, as in a
+    pasted title; HTML and OPML text is plain and is escaped.
+
+  An indent only counts against the lines around it (`mindmapOutlineTree`), so
+  two-space, four-space, and tab outlines read the same. This is also how a
+  copy reaches another browser or device: as topics, without its task and
+  note links.
 
 ### Drag and Drop
 

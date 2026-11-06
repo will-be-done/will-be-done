@@ -321,7 +321,10 @@ const BoardView = ({
         />
       </ProjectsSplit>
 
-      <ItemDetails />
+      {/* Phones open details full screen instead. */}
+      <div className="hidden h-full sm:block">
+        <ItemDetails />
+      </div>
     </div>
   );
 };

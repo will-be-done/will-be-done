@@ -41,6 +41,7 @@ import {
   moveNoteToProject,
   moveTaskToProject,
   pasteMindmapNodes,
+  pasteMindmapOutline,
   placeMindmapItems,
   removeFromDailyList,
   scheduleListItems,
@@ -106,7 +107,9 @@ import {
   withDropGhostsOnRoots,
 } from "./mindmapModel.ts";
 import { mindmapDragSource } from "./mindmapDnd.ts";
+import { clipboardOutline } from "./clipboardOutline.ts";
 import { MindmapGhostCard } from "./MindmapGhostCard.tsx";
+import { MindmapMobileToolbar } from "./MindmapMobileToolbar.tsx";
 import { mindmapNodeFocusKey } from "./focusKeys.ts";
 import { createNodeSizeStore } from "./nodeSizes.ts";
 import {
@@ -115,6 +118,7 @@ import {
 } from "./MindmapNodeCard.tsx";
 
 type View = { x: number; y: number; zoom: number };
+type Point = { x: number; y: number };
 type Pending = { key: FocusKey; focus: boolean; center?: boolean };
 
 // Survives navigating between maps within a session.
@@ -123,6 +127,10 @@ const estimatedSize: Size = { width: 120, height: 32 };
 const minZoom = 0.2;
 const maxZoom = 2.5;
 const revealPadding = 48;
+// A touch that travels less than this is a tap.
+const tapSlop = 8;
+const doubleTapMs = 300;
+const doubleTapSlop = 24;
 const noIds: ReadonlySet<string> = new Set();
 
 const isRemoveKey = (code: string) =>
@@ -1063,8 +1071,140 @@ export function MindmapCanvas({
     | null
   >(null);
 
+  // A tap or click on empty space clears focus and the selection.
+  const deselect = () => {
+    useFocusStore.getState().resetFocus();
+    useMindmapSelection.getState().clear();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
+  // Touch: one finger pans, two pinch to zoom, a tap on empty space deselects
+  // and a double tap there starts a floating topic. Long-pressing a node
+  // starts the browser's drag, which cancels the touch.
+  const touchesRef = useRef(new Map<number, Point>());
+  const pinchRef = useRef<{ distance: number; mid: Point; view: View } | null>(
+    null,
+  );
+  const tapRef = useRef<{ start: Point; onCanvas: boolean } | null>(null);
+  const lastTapRef = useRef<{ at: number; point: Point } | null>(null);
+  const lastPointerTypeRef = useRef("");
+
+  const startPinch = () => {
+    const [a, b] = touchesRef.current.values();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    pinchRef.current =
+      a && b && rect
+        ? {
+            distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+            mid: {
+              x: (a.x + b.x) / 2 - rect.left,
+              y: (a.y + b.y) / 2 - rect.top,
+            },
+            view: viewRef.current,
+          }
+        : null;
+  };
+
+  const handleTouchDown = (e: React.PointerEvent) => {
+    const touches = touchesRef.current;
+    // A touch whose end was lost would otherwise count as a finger.
+    if (e.isPrimary) touches.clear();
+    if (e.target instanceof Element && isInputElement(e.target)) return;
+    const point = { x: e.clientX, y: e.clientY };
+    touches.set(e.pointerId, point);
+    tapRef.current =
+      touches.size === 1
+        ? {
+            start: point,
+            onCanvas: !(
+              e.target instanceof Element &&
+              e.target.closest("[data-mindmap-node], button")
+            ),
+          }
+        : null;
+    if (touches.size === 2) startPinch();
+  };
+
+  const handleTouchMove = (e: React.PointerEvent) => {
+    const touches = touchesRef.current;
+    const last = touches.get(e.pointerId);
+    if (!last) return;
+    const point = { x: e.clientX, y: e.clientY };
+    const tap = tapRef.current;
+    if (tap) {
+      if (Math.hypot(point.x - tap.start.x, point.y - tap.start.y) < tapSlop) {
+        return;
+      }
+      tapRef.current = null;
+    }
+    touches.set(e.pointerId, point);
+
+    const pinch = pinchRef.current;
+    if (!pinch) {
+      const view = viewRef.current;
+      applyView({
+        ...view,
+        x: view.x + point.x - last.x,
+        y: view.y + point.y - last.y,
+      });
+      return;
+    }
+    const [a, b] = touches.values();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!a || !b || !rect) return;
+    const zoom = Math.min(
+      maxZoom,
+      Math.max(
+        minZoom,
+        (pinch.view.zoom * Math.hypot(a.x - b.x, a.y - b.y)) / pinch.distance,
+      ),
+    );
+    const mid = {
+      x: (a.x + b.x) / 2 - rect.left,
+      y: (a.y + b.y) / 2 - rect.top,
+    };
+    // The map point first under the fingers stays under them.
+    applyView({
+      zoom,
+      x: mid.x - ((pinch.mid.x - pinch.view.x) / pinch.view.zoom) * zoom,
+      y: mid.y - ((pinch.mid.y - pinch.view.y) / pinch.view.zoom) * zoom,
+    });
+  };
+
+  const handleTouchUp = (e: React.PointerEvent) => {
+    const touches = touchesRef.current;
+    if (!touches.delete(e.pointerId)) return;
+    // The fingers left keep panning or pinching from where they are.
+    if (touches.size >= 2) startPinch();
+    else pinchRef.current = null;
+    const tap = tapRef.current;
+    tapRef.current = null;
+    if (!tap?.onCanvas || e.type !== "pointerup") return;
+
+    const last = lastTapRef.current;
+    if (
+      last &&
+      e.timeStamp - last.at < doubleTapMs &&
+      Math.hypot(e.clientX - last.point.x, e.clientY - last.point.y) <
+        doubleTapSlop
+    ) {
+      lastTapRef.current = null;
+      addFloatingTopic(e);
+      return;
+    }
+    lastTapRef.current = { at: e.timeStamp, point: tap.start };
+    deselect();
+  };
+
   // Dragging empty space selects with a rectangle; the middle button pans.
   const handlePointerDown = (e: React.PointerEvent) => {
+    lastPointerTypeRef.current = e.pointerType;
+    if (e.pointerType === "touch") {
+      handleTouchDown(e);
+      return;
+    }
     if (e.button === 1) {
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -1096,6 +1236,10 @@ export function MindmapCanvas({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType === "touch") {
+      handleTouchMove(e);
+      return;
+    }
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== e.pointerId) return;
     if (gesture.kind === "pan") {
@@ -1153,21 +1297,22 @@ export function MindmapCanvas({
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType === "touch") {
+      handleTouchUp(e);
+      return;
+    }
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== e.pointerId) return;
     gestureRef.current = null;
     if (gesture.kind !== "marquee") return;
     if (marqueeRef.current) marqueeRef.current.style.display = "none";
-    useFocusStore.getState().resetFocus();
-    if (gesture.moved) {
-      // Keys reach the canvas handler only from inside the viewport.
-      viewportRef.current?.focus({ preventScroll: true });
+    if (!gesture.moved) {
+      deselect();
       return;
     }
-    useMindmapSelection.getState().clear();
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
+    useFocusStore.getState().resetFocus();
+    // Keys reach the canvas handler only from inside the viewport.
+    viewportRef.current?.focus({ preventScroll: true });
   };
 
   const movingEntry = movingItemNodeId
@@ -1262,23 +1407,23 @@ export function MindmapCanvas({
   };
 
   // Pastes under the focused node, or the central topic, and selects what
-  // was pasted. Items copied in a list are placed on the map, not copied.
+  // was pasted. Items copied in a list are placed on the map, not copied;
+  // anything else pastes as an outline of new topics.
   const handlePaste = (e: React.ClipboardEvent) => {
     const focusedId = clipboardTarget(e);
-    const { clipboard } = useClipboardStore.getState();
-    if (focusedId === null || !clipboard) return;
+    if (focusedId === null) return;
+    const text = e.clipboardData.getData("text/plain");
     const normalize = (text: string) => text.replace(/\r\n/g, "\n");
-    if (
-      normalize(e.clipboardData.getData("text/plain")) !==
-      normalize(clipboard.text)
-    ) {
-      return;
-    }
+    const stored = useClipboardStore.getState().clipboard;
+    const clipboard =
+      stored && normalize(text) === normalize(stored.text) ? stored : null;
+    const lines = clipboard ? [] : clipboardOutline(e.clipboardData);
+    if (!clipboard && lines.length === 0) return;
     e.preventDefault();
 
     const targetId = focusedId ?? mindmapId;
     const target = index.nodes.get(targetId);
-    if (clipboard.mode === "cut") {
+    if (clipboard?.mode === "cut") {
       // A cut cannot go into itself.
       const cutIds = new Set(
         clipboard.mindmap?.mindmapId === mindmapId
@@ -1303,7 +1448,11 @@ export function MindmapCanvas({
     const placement = { parentId: targetId, position: "last" } as const;
     void (async () => {
       let pasted: MindmapNode[];
-      if (clipboard.mindmap) {
+      if (!clipboard) {
+        pasted = await dispatch(
+          pasteMindmapOutline({ mindmapId, lines, placement }),
+        );
+      } else if (clipboard.mindmap) {
         pasted = await dispatch(
           pasteMindmapNodes({
             mindmapId,
@@ -1348,16 +1497,9 @@ export function MindmapCanvas({
     })();
   };
 
-  // Double-clicking empty space starts a floating topic there.
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  const addFloatingTopic = (at: { clientX: number; clientY: number }) => {
     const rect = viewportRef.current?.getBoundingClientRect();
-    if (
-      !rect ||
-      (e.target instanceof Element &&
-        e.target.closest("[data-mindmap-node], button"))
-    ) {
-      return;
-    }
+    if (!rect) return;
     const view = viewRef.current;
     void (async () => {
       editNode(
@@ -1365,13 +1507,26 @@ export function MindmapCanvas({
           createMindmapNode({
             mindmapId,
             placement: {
-              x: (e.clientX - rect.left - view.x) / view.zoom,
-              y: (e.clientY - rect.top - view.y) / view.zoom,
+              x: (at.clientX - rect.left - view.x) / view.zoom,
+              y: (at.clientY - rect.top - view.y) / view.zoom,
             },
           }),
         ),
       );
     })();
+  };
+
+  // Double-clicking empty space starts a floating topic there. Touch double
+  // taps are handled as taps, whether or not the browser also sends this.
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (
+      lastPointerTypeRef.current === "touch" ||
+      (e.target instanceof Element &&
+        e.target.closest("[data-mindmap-node], button"))
+    ) {
+      return;
+    }
+    addFloatingTopic(e);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1491,7 +1646,7 @@ export function MindmapCanvas({
     <div
       ref={viewportRef}
       tabIndex={-1}
-      className="relative min-h-0 flex-1 overflow-hidden outline-none"
+      className="relative min-h-0 flex-1 touch-none overflow-hidden outline-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1596,6 +1751,8 @@ export function MindmapCanvas({
           }}
         />
       )}
+
+      <MindmapMobileToolbar index={index} actions={actions} />
 
       <div
         ref={marqueeRef}

@@ -56,6 +56,7 @@ export function MindmapGhostCard({
     <div
       ref={setRef}
       aria-hidden
+      data-drop-ghost
       className={cn(
         "pointer-events-none absolute left-0 top-0 w-max max-w-[280px] border-dashed text-content opacity-70",
         nodeShapeClass(layout.depth),

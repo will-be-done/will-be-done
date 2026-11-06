@@ -110,9 +110,16 @@ Drag across empty space to select several topics, `Shift`-click to select every
 topic from the selected one to the clicked one, or `Ctrl`-click (`Cmd` on
 macOS) to add or remove one. Copy, cut, and paste work
 on topics, and tasks or notes copied from any list paste onto the mindmap.
+Pasting other text adds a topic for each line, nested as it was: an outline
+copied from MindNode or another outliner, a Markdown list, bulleted lists from
+Google Docs or Notion, or OPML.
 Drag any selected topic to move them together, or press `Backspace` to remove
 them. Scroll to pan, `Ctrl`-scroll to zoom, or drag with the middle mouse
-button to pan.
+button to pan. On a touch screen, drag with one finger to pan and pinch to
+zoom; tap a topic to select it, tap it again to edit, and double-tap empty
+space to start a floating topic. On a phone, the bar at the bottom adds topics,
+edits, removes, opens a task or note's details full screen, and opens **More**
+for the rest of a topic's actions.
 
 Task and note topics stay linked to their item: renaming or completing one
 changes it everywhere, and selecting one opens it in the details panel, which

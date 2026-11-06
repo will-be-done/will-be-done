@@ -516,6 +516,16 @@ export const richTextNodesToMarkdown = (
     .replace(/^(\d+)\\([.)])/, "$1$2");
 };
 
+/** Plain text as markdown that reads back as the same text. */
+export const plainTextToRichTextMarkdown = (
+  text: string,
+  kind: RichTextKind,
+): string =>
+  richTextNodesToMarkdown(
+    [{ type: "paragraph", content: text ? [{ type: "text", text }] : [] }],
+    kind,
+  );
+
 export const normalizeRichTextMarkdown = (
   markdown: string,
   kind: RichTextKind,

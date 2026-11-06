@@ -140,11 +140,13 @@ export const MindmapPage = ({
         selectedProjectId={selectedProjectId}
         selectedDate={today}
       >
-        <header className="flex h-14 shrink-0 items-start gap-4 pr-4">
+        {/* The name moves to its own line rather than shrinking, so a phone
+            shows it whole. */}
+        <header className="flex min-h-14 shrink-0 flex-wrap items-start gap-x-2 pr-4 pb-2">
           <div className="[app-region:no-drag]">
             <NavBar spaceId={spaceId} />
           </div>
-          <div className="mt-2 flex h-8 min-w-0 flex-1 items-center gap-4">
+          <div className="mt-2 flex h-8 min-w-fit flex-1 items-center gap-4 pl-1.5">
             <DropdownMenu>
               <DropdownMenuTrigger className="flex min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-lg font-semibold text-content outline-none hover:bg-white/5 [app-region:no-drag]">
                 <span className="truncate">
@@ -235,7 +237,10 @@ export const MindmapPage = ({
         </WithStash>
       </ProjectsSplit>
 
-      <ItemDetails />
+      {/* Phones open details full screen instead. */}
+      <div className="hidden h-full sm:block">
+        <ItemDetails />
+      </div>
     </div>
   );
 };

@@ -13,8 +13,9 @@ import {
 import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
 import {
+  normalizeRichTextMarkdown,
+  plainTextToRichTextMarkdown,
   richTextMarkdownToPlainText,
-  richTextNodesToMarkdown,
 } from "../common/richText";
 import { noteById } from "./notes";
 import {
@@ -88,15 +89,7 @@ export const newMindmapRootNode = (
   mindmap: Pick<Mindmap, "id" | "title" | "createdAt">,
 ): MindmapNode => ({
   ...mindmapRootNode(mindmap),
-  title: richTextNodesToMarkdown(
-    [
-      {
-        type: "paragraph",
-        content: mindmap.title ? [{ type: "text", text: mindmap.title }] : [],
-      },
-    ],
-    "title",
-  ),
+  title: plainTextToRichTextMarkdown(mindmap.title, "title"),
 });
 
 /** A map without a name goes by its center topic. */
@@ -1014,6 +1007,109 @@ export const pasteMindmapNodes = action({
     if (mode === "cut") {
       yield* deleteMindmapNodes({ ids: roots.map((node) => node.id) });
     }
+    return pasted;
+  },
+});
+
+/**
+ * A pasted line: a title in title markdown, and an indent that only counts
+ * against the lines around it.
+ */
+export type MindmapOutlineLine = { title: string; indent: number };
+export type MindmapOutline = { title: string; children: MindmapOutline[] };
+
+/**
+ * Reads text as an outline: a topic per line, indented by leading whitespace
+ * (a tab counts four), without list markers or checkboxes. Line text is title
+ * markdown, as when pasted into a title.
+ */
+export function parseMindmapOutline(text: string): MindmapOutlineLine[] {
+  return text.split(/\r?\n/).flatMap((line) => {
+    const lead = /^\s*/.exec(line)![0];
+    const title = normalizeRichTextMarkdown(
+      line
+        .slice(lead.length)
+        .replace(/^(?:[-*+•◦▪‣]|\d+[.)])(?:\s+\[[ xX]\])?(?:\s+|$)/, "")
+        .trim(),
+      "title",
+    );
+    return title ? [{ title, indent: lead.replace(/\t/g, "    ").length }] : [];
+  });
+}
+
+/** Nests each line under the closest line above it with a smaller indent. */
+export function mindmapOutlineTree(
+  lines: readonly MindmapOutlineLine[],
+): MindmapOutline[] {
+  const tops: MindmapOutline[] = [];
+  const open: { indent: number; children: MindmapOutline[] }[] = [];
+  for (const { title, indent } of lines) {
+    while (open.length > 0 && open.at(-1)!.indent >= indent) open.pop();
+    const item: MindmapOutline = { title, children: [] };
+    (open.at(-1)?.children ?? tops).push(item);
+    open.push({ indent, children: item.children });
+  }
+  return tops;
+}
+
+/** Pastes outline lines as new topics; returns the top ones. */
+export const pasteMindmapOutline = action({
+  name: "pasteMindmapOutline",
+  args: {
+    mindmapId: v.string(),
+    lines: v.array(v.object({ title: v.string(), indent: v.number() })),
+    placement: mindmapPlacement,
+  },
+  handler: function* pasteMindmapOutline({
+    mindmapId,
+    lines,
+    placement,
+  }): Generator<unknown, MindmapNode[], unknown> {
+    if (!(yield* mindmapById({ id: mindmapId }))) {
+      throw new Error("Mindmap not found");
+    }
+    const outline = mindmapOutlineTree(lines);
+    if (outline.length === 0) return [];
+    const { parentId, side, orderTokens, points } = yield* resolvePlacement(
+      mindmapId,
+      placement,
+      new Set(),
+      outline.length,
+    );
+    const now = Date.now();
+    const created: MindmapNode[] = [];
+    const build = (
+      items: MindmapOutline[],
+      parent: string | null,
+      tokens: string[],
+      at?: { x: number; y: number }[],
+    ): MindmapNode[] =>
+      items.map((item, index) => {
+        const node: MindmapNode = {
+          type: mindmapNodeType,
+          id: uuidv7(),
+          mindmapId,
+          parentId: parent,
+          ...at?.[index],
+          side,
+          orderToken: tokens[index]!,
+          taskId: null,
+          title: item.title,
+          collapsed: false,
+          createdAt: now,
+        };
+        created.push(node);
+        build(
+          item.children,
+          node.id,
+          item.children.length > 0
+            ? generateNJitteredKeysBetween(null, null, item.children.length)
+            : [],
+        );
+        return node;
+      });
+    const pasted = build(outline, parentId, orderTokens, points);
+    yield* insert(mindmapNodesTable, created);
     return pasted;
   },
 });

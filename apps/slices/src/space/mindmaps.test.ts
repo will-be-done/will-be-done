@@ -47,7 +47,11 @@ import {
   mindmapTree,
   moveMindmapNode,
   moveMindmapNodes,
+  type MindmapOutline,
+  mindmapOutlineTree,
+  parseMindmapOutline,
   pasteMindmapNodes,
+  pasteMindmapOutline,
   placeMindmapItems,
   type MindmapPlacement,
   type MindmapTreeNode,
@@ -643,6 +647,80 @@ describe("mindmaps", () => {
         .children.filter(({ node }) => node.id === cycleCopy!.id)
         .map(({ node, children }) => [node.title, children.length]),
     ).toEqual([["x", 1]]);
+  });
+
+  test.each([
+    [
+      "a markdown list",
+      "* node 1\n* node 2\n  * node 3\n  * node 4\n    * node 5",
+      "node 1 node 2(node 3 node 4(node 5))",
+    ],
+    ["the outline a copy writes", "A\n  B\n    C\n  D\nE", "A(B(C) D) E"],
+    [
+      "mixed markers, tabs, checkboxes and blank lines",
+      "- a\r\n\t+ [x] b\r\n\r\n\t\t1. c\r\n- [ ] d\r\n-\r\n   ",
+      "a(b(c)) d",
+    ],
+    ["a dedent between levels", "a\n    b\n  c", "a(b c)"],
+    ["a first line deeper than the rest", "  a\nb", "a b"],
+    ["bullet characters", "• a\n\t◦ b\n\t\t▪ c", "a(b(c))"],
+    ["inline markdown", "- **bold** and `code`", "**bold** and `code`"],
+  ])("pasted text reads as an outline: %s", (_, text, expected) => {
+    const show = (items: MindmapOutline[]): string =>
+      items
+        .map(({ title, children }) =>
+          children.length ? `${title}(${show(children)})` : title,
+        )
+        .join(" ");
+    expect(show(mindmapOutlineTree(parseMindmapOutline(text)))).toBe(expected);
+  });
+
+  test("a pasted outline becomes topics under the target", () => {
+    const db = createDB();
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "a",
+        title: "A",
+        placement: { parentId: "map", position: "last" },
+      }),
+    );
+    syncDispatch(
+      db,
+      createMindmapNode({
+        mindmapId: "map",
+        id: "left",
+        title: "Left",
+        placement: { parentId: "map", position: "last", side: "left" },
+      }),
+    );
+    const pasted = syncDispatch(
+      db,
+      pasteMindmapOutline({
+        mindmapId: "map",
+        lines: parseMindmapOutline("* one\n* two\n  * three\n  * four"),
+        placement: { parentId: "left", position: "last" },
+      }),
+    );
+    expect(pasted.map((node) => node.title)).toEqual(["one", "two"]);
+    const left = selectSync(db, {
+      selector: mindmapTree,
+      args: { mindmapId: "map" },
+    })!.branches.find(({ node }) => node.id === "left")!;
+    const titles = (trees: MindmapTreeNode[]): unknown[] =>
+      trees.map(({ node, children }) =>
+        children.length ? [node.title, titles(children)] : node.title,
+      );
+    expect(titles(left.children)).toEqual(["one", ["two", ["three", "four"]]]);
+    // Topics take their branch's side, as typed ones do.
+    expect(
+      new Set(
+        selectSync(db, { selector: nodeRows, args: {} })
+          .filter((row) => row.id !== "a")
+          .map((row) => row.side),
+      ),
+    ).toEqual(new Set(["left"]));
   });
 
   test("placed items keep their order, each on a new node", () => {

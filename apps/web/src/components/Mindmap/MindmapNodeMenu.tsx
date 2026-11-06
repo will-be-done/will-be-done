@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { MindmapTreeNode } from "@will-be-done/slices/space";
+import { useIsMobile } from "@/hooks/use-mobile.ts";
 import type { MindmapNodeActions } from "./MindmapNodeCard.tsx";
 
 // The node's actions, as the "…" menu of a task in a list. Items mirror the
@@ -60,6 +61,7 @@ export function MindmapNodeMenu({
   const item = task ?? note;
   const label = task ? "task" : note ? "note" : "topic";
   const isDone = task?.state === "done";
+  const isMobile = useIsMobile();
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
@@ -78,6 +80,12 @@ export function MindmapNodeMenu({
         <DropdownMenuContent
           align="start"
           sideOffset={6}
+          // The mobile toolbar opens it for a node that may be off-screen, and
+          // covers the bottom of the screen.
+          sticky="always"
+          collisionPadding={
+            isMobile ? { top: 8, right: 8, bottom: 80, left: 8 } : 8
+          }
           className="min-w-52 bg-task-dropdown shadow-2xl ring-0 backdrop-blur-none"
           onCloseAutoFocus={onCloseAutoFocus}
         >

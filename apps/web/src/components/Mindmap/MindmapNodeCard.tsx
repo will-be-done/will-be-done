@@ -102,6 +102,8 @@ export function MindmapNodeCard({
   // Where a double-click opened the editor; other ways in put it at the end.
   const [caretOffset, setCaretOffset] = useState<number>();
   const isEditing = isEditingInStore || isStartEditing;
+  // Touch has no reliable double tap, so tapping a focused title edits it.
+  const editOnTapRef = useRef(false);
   const isDropParent = useMindmapDrop((s) => {
     const intent = s.preview?.intent;
     return intent?.kind === "child" && intent.nodeId === id;
@@ -268,7 +270,24 @@ export function MindmapNodeCard({
         {note && (
           <StickyNote className="mt-0.5 size-3.5 shrink-0 text-content-tinted" />
         )}
-        <div className={cn("min-w-0 flex-1", isDone && "line-through")}>
+        <div
+          className={cn("min-w-0 flex-1", isDone && "line-through")}
+          onPointerDown={(e) => {
+            editOnTapRef.current =
+              e.pointerType === "touch" && isFocused && !isEditing;
+          }}
+          onClick={(e) => {
+            if (
+              !editOnTapRef.current ||
+              (e.target instanceof Element && e.target.closest("a"))
+            ) {
+              return;
+            }
+            editOnTapRef.current = false;
+            setCaretOffset(viewTextOffset(e));
+            useFocusStore.getState().editByKey(focusKey);
+          }}
+        >
           {isEditing ? (
             <div data-task-title-input className="min-w-12">
               <RichTextEditor

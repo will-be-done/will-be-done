@@ -1,6 +1,5 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { create } from "zustand";
-import { useUnmount } from "@/utils.ts";
 
 type GlobalCallback<E = unknown> = (e: E) => void;
 
@@ -24,27 +23,29 @@ export const useEventTypes = create<EventsStore>((set) => ({
     }),
 }));
 
+// Registers in an effect: adding an event type updates the store, which must
+// not happen while rendering, or React warns about updating the provider.
 export const useGlobalListener = <K extends keyof WindowEventMap>(
   key: K,
   cb: GlobalCallback<WindowEventMap[K]>,
 ) => {
-  const addEvent = useEventTypes((st) => st.addEvent);
-  const callbacks = useEventTypes((st) => st.callbacks);
-  // eslint-disable-next-line react-hooks/purity
-  const id = useMemo(() => Math.random().toString(36).slice(2), []);
-
-  let cbMap = callbacks.get(key);
-  if (!cbMap) {
-    cbMap = new Map<string, GlobalCallback>();
-    callbacks.set(key, cbMap);
-  }
-  addEvent(key);
+  const cbRef = useRef(cb);
+  useLayoutEffect(() => {
+    cbRef.current = cb;
+  });
 
   useEffect(() => {
-    cbMap.set(id, cb as GlobalCallback);
-  }, [cb, cbMap, id]);
-
-  useUnmount(() => {
-    cbMap.delete(id);
-  });
+    const { callbacks, addEvent } = useEventTypes.getState();
+    let cbMap = callbacks.get(key);
+    if (!cbMap) {
+      cbMap = new Map<string, GlobalCallback>();
+      callbacks.set(key, cbMap);
+    }
+    const id = Math.random().toString(36).slice(2);
+    cbMap.set(id, (e) => cbRef.current(e as WindowEventMap[K]));
+    addEvent(key);
+    return () => {
+      cbMap.delete(id);
+    };
+  }, [key]);
 };

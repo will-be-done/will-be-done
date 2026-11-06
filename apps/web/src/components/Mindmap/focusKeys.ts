@@ -5,7 +5,7 @@ import {
   noteType,
   taskType,
 } from "@will-be-done/slices/space";
-import { buildFocusKey } from "@/store/focusSlice.ts";
+import { buildFocusKey, type FocusKey } from "@/store/focusSlice.ts";
 
 export const mindmapRootFocusKey = (mindmapId: string) =>
   buildFocusKey(mindmapId, mindmapType);
@@ -20,3 +20,9 @@ export const mindmapNodeFocusKey = (
     : node.noteId
       ? buildFocusKey(node.noteId, noteType, node.id)
       : buildFocusKey(node.id, mindmapNodeType);
+
+/** A task or note shown on a map, as opposed to in a list. */
+export const isMindmapItemFocusKey = (key: FocusKey) => {
+  const [type, , nodeId] = key.split("^^");
+  return (type === taskType || type === noteType) && nodeId !== undefined;
+};
