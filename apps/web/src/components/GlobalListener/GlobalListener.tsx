@@ -4,12 +4,16 @@ import { isInputElement } from "@/utils/isInputElement.ts";
 import { getModelDropTarget, isModelDNDData } from "@/lib/dnd/models";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { appHandleDrop } from "@will-be-done/slices/space";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
+import type { SubscribableDB } from "@will-be-done/hyperdb";
+import { replayHistory } from "@/store/undo";
 import {
+  buildFocusKey,
   FocusKey,
   focusElementByKey,
   useFocusStore,
 } from "@/store/focusSlice.ts";
+import { isApple } from "@/components/RichText/keys";
 import {
   getDraggedSelectionKeys,
   useSelectionActions,
@@ -26,8 +30,37 @@ import {
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcuts/KeyboardShortcutsDialog";
 import { QuickAddDialog } from "@/components/QuickAdd/QuickAddDialog";
 
+const hasEditHistoryMenu = () => !!window.desktopApi?.onEditHistory;
+
+const isRendered = (key: FocusKey) =>
+  !!document.querySelector(`[data-focusable-key="${CSS.escape(key)}"]`);
+
+// Focus the first replayed row on screen, so a restored item is visible.
+const replayAndFocus = async (
+  db: SubscribableDB,
+  direction: "undo" | "redo",
+) => {
+  const event = await replayHistory(db, direction);
+  if (!event) return;
+
+  const keys = event.changes.flatMap(({ id, before, after }) => {
+    const type = (direction === "undo" ? before : after)?.type;
+    return typeof type === "string" ? [buildFocusKey(id, type)] : [];
+  });
+  // Let the views render the replayed rows first.
+  setTimeout(() => {
+    const focus = useFocusStore.getState();
+    const key = keys.find(isRendered);
+    if (key) focus.focusByKey(key);
+    else if (focus.focusItemKey && !isRendered(focus.focusItemKey)) {
+      focus.resetFocus();
+    }
+  }, 0);
+};
+
 export function GlobalListener() {
   const dispatch = useAsyncDispatch();
+  const db = useDB();
   const selection = useSelectionActions();
 
   useEffect(() => {
@@ -50,14 +83,18 @@ export function GlobalListener() {
         return;
       }
 
+      // The macOS desktop Edit menu owns these and calls onEditHistory.
+      if (e.code === "KeyZ" && e.metaKey && isApple && hasEditHistoryMenu()) {
+        return;
+      }
+
       // Handle undo (cmd+z/ctrl+z)
       if (
         ((e.metaKey || e.ctrlKey) && e.code === "KeyZ" && !e.shiftKey) ||
         e.code === "KeyU"
       ) {
         e.preventDefault();
-        // TODO: return undo support
-        // undoManager.undo();
+        void replayAndFocus(db, "undo");
         return;
       }
 
@@ -67,7 +104,7 @@ export function GlobalListener() {
         (e.code === "KeyR" && e.ctrlKey)
       ) {
         e.preventDefault();
-        // TODO: return undo support
+        void replayAndFocus(db, "redo");
         return;
       }
 
@@ -93,7 +130,7 @@ export function GlobalListener() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [db]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -189,6 +226,22 @@ export function GlobalListener() {
       window.removeEventListener("focus", handleFocus);
     };
   }, []);
+
+  useEffect(
+    () =>
+      window.desktopApi?.onEditHistory?.((direction) => {
+        const active = document.activeElement;
+        if (
+          useFocusStore.getState().isFocusDisabled ||
+          (active && isInputElement(active))
+        ) {
+          return false;
+        }
+        void replayAndFocus(db, direction);
+        return true;
+      }),
+    [db],
+  );
 
   useEffect(() => {
     const handleCopy = (e: ClipboardEvent) => copyItems(e, "copy");
