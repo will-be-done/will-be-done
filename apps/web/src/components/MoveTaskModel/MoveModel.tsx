@@ -22,10 +22,13 @@ export const MoveModal = ({
   setIsOpen,
   handleMove,
   exceptProjectId,
+  keepsFocus = false,
 }: {
   setIsOpen: (val: boolean) => void;
   handleMove: (projectId: string) => void;
   exceptProjectId?: string;
+  // The moved item stays where it is shown, as on a mindmap.
+  keepsFocus?: boolean;
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -54,6 +57,7 @@ export const MoveModal = ({
     // Project items disappear when moved; daily and stash entries stay in place.
     // A selection moves its own focus out of the moved items.
     const isProjectItem =
+      !keepsFocus &&
       !hasMultiSelection() &&
       (focusedType === taskType ||
         focusedType === taskTemplateType ||

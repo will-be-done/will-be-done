@@ -60,18 +60,43 @@ const createElementDragPreview = ({
   const preview = source.cloneNode(true) as HTMLElement;
 
   syncClonedFormControls(source, preview);
+  for (const element of preview.querySelectorAll(
+    "[data-drag-preview-exclude]",
+  )) {
+    element.remove();
+  }
   preview.setAttribute("aria-hidden", "true");
+  // A source drawn scaled (a zoomed map) keeps its layout size and is scaled
+  // the same way, so its text wraps as on screen. The computed size is the
+  // unscaled, unrounded one; offsetWidth rounds and can wrap the last word.
+  const style = getComputedStyle(source);
+  const width = parseFloat(style.width) || rect.width;
+  const height = parseFloat(style.height) || rect.height;
+  const scale = rect.width / width;
   Object.assign(preview.style, {
+    // An absolutely placed source would leave the captured box empty.
+    position: "relative",
+    left: "0",
+    top: "0",
     boxSizing: "border-box",
-    width: `${rect.width}px`,
-    minWidth: `${rect.width}px`,
-    height: `${rect.height}px`,
+    width: `${width}px`,
+    minWidth: `${width}px`,
+    height: `${height}px`,
     margin: "0",
     pointerEvents: "none",
-    transform: "none",
+    // Sub-pixel rounding alone would blur the image.
+    transform: Math.abs(scale - 1) < 0.01 ? "none" : `scale(${scale})`,
+    transformOrigin: "0 0",
   });
 
-  return preview;
+  const frame = document.createElement("div");
+  Object.assign(frame.style, {
+    position: "relative",
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  });
+  frame.appendChild(preview);
+  return frame;
 };
 
 // Marks a preview that stands for several dragged items.
@@ -106,7 +131,7 @@ export const setElementDragPreview = ({
     render: ({ container }) => {
       container.style.padding = `${previewPadding}px`;
       const preview = createElementDragPreview({ source, rect });
-      // The cloned card is positioned, so the badge pins to its corner.
+      // The frame is positioned, so the badge pins to the card's corner.
       if (count && count > 1) preview.appendChild(createCountBadge(count));
       container.appendChild(preview);
       return () => preview.remove();

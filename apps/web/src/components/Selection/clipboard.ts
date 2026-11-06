@@ -9,8 +9,11 @@ import { hasMultiSelection } from "./useSelectionActions";
 
 export type ItemClipboard = {
   mode: "copy" | "cut";
+  // List keys of the copied tasks and notes, for pasting into lists.
   keys: FocusKey[];
   text: string;
+  // Set when the copy came from mindmap nodes, which paste with structure.
+  mindmap?: { mindmapId: string; nodeIds: string[] };
 };
 
 export const useClipboardStore = create<{ clipboard: ItemClipboard | null }>(

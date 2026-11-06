@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { differenceInCalendarDays } from "date-fns";
+import { isMindmapItemFocusKey } from "@/components/Mindmap/focusKeys.ts";
 
 const isListItemType = (type: string): type is ListItemType =>
   type === taskType ||
@@ -37,7 +38,12 @@ export const MobileTaskToolbar = () => {
   const focusKey = useFocusStore((s) => s.focusItemKey);
 
   const parsed = focusKey ? parseColumnKey(focusKey) : null;
-  const isItemFocused = parsed != null && isListItemType(parsed.type);
+  // Map nodes have their own toolbar.
+  const isItemFocused =
+    !!focusKey &&
+    !isMindmapItemFocusKey(focusKey) &&
+    parsed != null &&
+    isListItemType(parsed.type);
   const visible = isMobile && isItemFocused;
 
   const handleDelete = () => {
@@ -114,49 +120,62 @@ export const MobileTaskToolbar = () => {
   };
 
   return (
-    <div
-      className={cn(
-        "fixed bottom-0 inset-x-0 z-[1060] transition-transform duration-200 ease-out",
-        visible ? "translate-y-0" : "translate-y-full",
-      )}
-    >
-      {/* Hairline top border */}
-      <div
-        style={{
-          height: "1px",
-          background:
-            "linear-gradient(90deg, transparent 0%, oklch(100% 0 0 / 0.12) 20%, oklch(100% 0 0 / 0.12) 80%, transparent 100%)",
-        }}
+    <MobileToolbar visible={visible}>
+      <ToolbarButton
+        icon={<Trash2 size={18} />}
+        label="Delete"
+        onPress={handleDelete}
+        destructive
       />
-
-      {/* Toolbar body */}
-      <div
-        className="flex items-center"
-        style={{
-          background: "oklch(18% 0.03 260 / 0.96)",
-          backdropFilter: "blur(24px) saturate(1.4)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.4)",
-          paddingBottom: "max(8px, env(safe-area-inset-bottom))",
-        }}
-      >
-        <ToolbarButton
-          icon={<Trash2 size={18} />}
-          label="Delete"
-          onPress={handleDelete}
-          destructive
-        />
-        <Divider />
-        <ToolbarButton
-          icon={<Info size={18} />}
-          label="Task details"
-          onPress={handleDetails}
-        />
-      </div>
-    </div>
+      <Divider />
+      <ToolbarButton
+        icon={<Info size={18} />}
+        label="Task details"
+        onPress={handleDetails}
+      />
+    </MobileToolbar>
   );
 };
 
-const Divider = () => (
+/** A bar of large buttons along the bottom of the screen. */
+export const MobileToolbar = ({
+  visible,
+  children,
+}: {
+  visible: boolean;
+  children: React.ReactNode;
+}) => (
+  <div
+    className={cn(
+      "fixed bottom-0 inset-x-0 z-[1060] transition-transform duration-200 ease-out",
+      visible ? "translate-y-0" : "translate-y-full",
+    )}
+  >
+    {/* Hairline top border */}
+    <div
+      style={{
+        height: "1px",
+        background:
+          "linear-gradient(90deg, transparent 0%, oklch(100% 0 0 / 0.12) 20%, oklch(100% 0 0 / 0.12) 80%, transparent 100%)",
+      }}
+    />
+
+    {/* Toolbar body */}
+    <div
+      className="flex items-center"
+      style={{
+        background: "oklch(18% 0.03 260 / 0.96)",
+        backdropFilter: "blur(24px) saturate(1.4)",
+        WebkitBackdropFilter: "blur(24px) saturate(1.4)",
+        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+      }}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+export const Divider = () => (
   <div
     style={{
       width: "1px",
@@ -167,7 +186,7 @@ const Divider = () => (
   />
 );
 
-const ToolbarButton = ({
+export const ToolbarButton = ({
   icon,
   label,
   onPress,

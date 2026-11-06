@@ -146,6 +146,71 @@ const shortcutGroups: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Mindmap",
+    column: "left",
+    description:
+      "Actions for the selected node; on a task or note, they add the same kind",
+    shortcuts: [
+      { bindings: [["Tab"]], description: "Add child" },
+      { bindings: [["Enter"], ["O"]], description: "Add below" },
+      { bindings: [["Shift", "O"]], description: "Add above" },
+      { bindings: [["I"]], description: "Edit title" },
+      {
+        bindings: [["H"], ["J"], ["K"], ["L"], ["←"], ["↓"], ["↑"], ["→"]],
+        description: "Move between topics",
+      },
+      {
+        bindings: [
+          ["Ctrl", "H"],
+          ["Ctrl", "J"],
+          ["Ctrl", "K"],
+          ["Ctrl", "L"],
+        ],
+        description: "Move topic up, down, in or out",
+      },
+      { bindings: [["Space"]], description: "Toggle task state" },
+      { bindings: [["M"]], description: "Move task or note to a project" },
+      { bindings: [["S"]], description: "Schedule date" },
+      { bindings: [["T"]], description: "Schedule for today" },
+      { bindings: [["R"]], description: "Reset schedule" },
+      { bindings: [["Shift", "S"]], description: "Stash task" },
+      { bindings: [["E"]], description: "Edit description" },
+      { bindings: [["C"]], description: "Add checklist item" },
+      { bindings: [["A"]], description: "Open action menu" },
+      { bindings: [["."]], description: "Collapse or expand" },
+      {
+        bindings: [["D"], ["X"], ["Backspace"]],
+        description: "Remove from mindmap",
+      },
+      { bindings: [["Shift", "Click"]], description: "Select a range" },
+      {
+        bindings: [[MOD_KEY, "Click"]],
+        description: "Add or remove from selection",
+      },
+      {
+        bindings: [
+          ["Shift", "H"],
+          ["Shift", "J"],
+          ["Shift", "K"],
+          ["Shift", "L"],
+        ],
+        description: "Extend selection",
+      },
+      { bindings: [["Esc"]], description: "Clear selection" },
+      {
+        bindings: [
+          [MOD_KEY, "C"],
+          [MOD_KEY, "X"],
+        ],
+        description: "Copy or cut topics",
+      },
+      {
+        bindings: [[MOD_KEY, "V"]],
+        description: "Paste topics, tasks, or notes under the topic",
+      },
+    ],
+  },
+  {
     title: "Text formatting",
     column: "left",
     description: "In titles, descriptions, and checklist items",

@@ -7,13 +7,21 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useSpaceSettingsStore } from "@/components/SpaceSettings/spaceSettingsStore.ts";
 import { SpaceSettingsModal } from "@/components/SpaceSettings/SpaceSettingsModal.tsx";
+import { useMindmapsEnabled } from "@/components/Mindmap/mindmapsSetting.ts";
+
+// The view switcher's four tabs need this much; three fit the minimum width.
+const WIDTH_WITH_MAPS_TAB = 272;
 
 export const LayoutWithSidebar = ({
   children,
 }: {
   children: React.ReactNode;
 }) => {
-  const sidebarWidth = useSidebarStore((s) => s.width);
+  const storedWidth = useSidebarStore((s) => s.width);
+  const mindmapsEnabled = useMindmapsEnabled((s) => s.enabled);
+  const sidebarWidth = mindmapsEnabled
+    ? Math.max(storedWidth, WIDTH_WITH_MAPS_TAB)
+    : storedWidth;
   const setSidebarWidth = useSidebarStore((s) => s.setWidth);
   const { open, spaceName, closeSettings } = useSpaceSettingsStore();
 

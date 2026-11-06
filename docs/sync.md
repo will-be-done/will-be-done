@@ -360,6 +360,12 @@ must never expose a partially applied logical sync response.
   the other.
 - Entry conflicts such as multiple daily/stash entries for one task are
   resolved deterministically before the generic merge.
+- Mindmap nodes merge with the generic rules only. Concurrent moves, deletes
+  and conversions can leave a node whose parent is gone, a parent cycle, a
+  node whose Task or Note is gone, a node linking both (it shows the Task), or
+  a map whose central-topic node has not arrived (an empty one stands in);
+  `buildMindmapTree` repairs these deterministically on read instead of
+  writing fixes back, so every replica shows the same tree.
 - DailyLists are deterministic, ensure-only date scaffolding. They are not
   user-deletable, and replacement imports preserve existing DailyLists while
   upserting the canonical lists contained in the backup. Backup omission must

@@ -294,7 +294,7 @@ const BoardView = ({
   return (
     <div className="flex h-full w-full">
       <ProjectsSplit
-        topClassName="overflow-y-auto pt-10"
+        topClassName="overflow-y-auto pt-10 max-sm:pt-24"
         projectLink={ProjectLink}
         selectedProjectId={selectedProjectId}
         selectedDate={selectedDate}
@@ -321,7 +321,10 @@ const BoardView = ({
         />
       </ProjectsSplit>
 
-      <ItemDetails />
+      {/* Phones open details full screen instead. */}
+      <div className="hidden h-full sm:block">
+        <ItemDetails />
+      </div>
     </div>
   );
 };

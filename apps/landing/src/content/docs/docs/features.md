@@ -79,6 +79,58 @@ all-day row. Drag a block to change its day or time, or drag its bottom edge to
 change its duration. Drag a task from a project section onto the calendar to
 schedule it. Set or clear the time and duration from the task details panel.
 
+## Mindmaps
+
+A mindmap lays out ideas around a central topic, and its branches can hold
+tasks and notes from any project. Mindmaps are off by default: turn on
+**Mindmaps** in Settings → General to show **maps** in the view switcher, then
+create a mindmap and name it. The name also becomes its central topic; after
+that, renaming the mindmap (the pencil next to its name, or the mindmaps list)
+leaves the topic as it is. Delete one from the list or its name's menu.
+Links to a mindmap open even while the setting is off.
+
+Select a topic and press `Tab` to add a subtopic, or `Enter` to add a topic
+below it. On a task or note, the same keys add another task or note. New tasks
+and notes go to the project shown in the panel below the map, or the inbox.
+Turn a topic into a task or a note with the buttons above it. Stash is on the
+left edge of the map, as on the timeline.
+Drag a task or note from the project panel onto a topic to place it under that
+topic, or onto empty space to start a new branch on that side. Drag one of
+several selected tasks and notes to place them all. Drag topics to
+rearrange them. While you drag, a faded copy shows where the topic will land:
+drop on a topic to nest under it, or on its top or bottom edge to place it
+above or below. A task or note can be on several topics at once, even on one
+mindmap: dropping or pasting it again adds another.
+
+Double-click empty space to start a floating topic there. It works like the
+central topic, with its own branches on both sides; drag it to move it, or onto
+another topic to attach it there.
+
+Drag across empty space to select several topics, `Shift`-click to select every
+topic from the selected one to the clicked one, or `Ctrl`-click (`Cmd` on
+macOS) to add or remove one. Copy, cut, and paste work
+on topics, and tasks or notes copied from any list paste onto the mindmap.
+Pasting other text adds a topic for each line, nested as it was: an outline
+copied from MindNode or another outliner, a Markdown list, bulleted lists from
+Google Docs or Notion, or OPML.
+Drag any selected topic to move them together, or press `Backspace` to remove
+them. Scroll to pan, `Ctrl`-scroll to zoom, or drag with the middle mouse
+button to pan. On a touch screen, drag with one finger to pan and pinch to
+zoom; tap a topic to select it, tap it again to edit, and double-tap empty
+space to start a floating topic. On a phone, the bar at the bottom adds topics,
+edits, removes, opens a task or note's details full screen, and opens **More**
+for the rest of a topic's actions.
+
+Task and note topics stay linked to their item: renaming or completing one
+changes it everywhere, and selecting one opens it in the details panel, which
+lists the mindmaps it appears on; click one to jump to its topic. Task and
+note topics show their project and section: click either to move it. A task topic shows its checklist, and `c` adds an
+item. Hover a topic and open **…**, or press `a`, for the
+same actions a task has in a list. Converting a task to a note, or back, keeps
+its place on the map. Removing a topic, or deleting a whole mindmap, keeps its
+tasks and notes in their projects. Deleting a task or note removes it from its
+mindmaps, and restoring it from the trash puts it back.
+
 ## Stash
 
 Stash keeps tasks handy when you know you will need them soon but are not sure

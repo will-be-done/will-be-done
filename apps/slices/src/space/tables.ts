@@ -248,6 +248,63 @@ export function isChecklistParentType(
   return modelType === taskType || modelType === taskTemplateType;
 }
 
+export const mindmapType = "mindmap";
+// The map's name, plain text; its center topic is the root node.
+export const mindmapsTable = defineTable("mindmaps", {
+  type: v.literal(mindmapType),
+  id: v.string(),
+  title: v.string(),
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byOrderToken", ["orderToken"]);
+registerSpaceSyncableTable(mindmapsTable, mindmapType);
+
+export type Mindmap = ExtractSchema<typeof mindmapsTable>;
+export const isMindmap = isObjectType<Mindmap>(mindmapType);
+
+export const mindmapNodeType = "mindmapNode";
+export const mindmapNodeSide = v.union(v.literal("left"), v.literal("right"));
+// Only structure syncs; positions are derived by the client layout. Concurrent
+// moves can still leave orphans or cycles, which mindmapTree repairs on read.
+export const mindmapNodesTable = defineTable("mindmap_nodes", {
+  type: v.literal(mindmapNodeType),
+  id: v.string(),
+  mindmapId: v.string(),
+  // null on a root. The center topic is the root whose ID is the map's, so
+  // main branches have the map ID as their parent; other roots float.
+  parentId: v.union(v.string(), v.null()),
+  // A floating root's center in map coordinates; the center topic sits at
+  // the origin. Separate fields, so concurrent drags can mix x and y.
+  x: v.optional(v.number()),
+  y: v.optional(v.number()),
+  orderToken: v.string(),
+  // Which side of the root a main branch sits on; ignored on deeper nodes.
+  side: mindmapNodeSide,
+  // A task or note node shows and edits its Task or Note; a topic node, with
+  // neither set, owns its title. noteId is optional so rows written before
+  // notes could join a map stay valid.
+  taskId: v.union(v.string(), v.null()),
+  noteId: v.optional(v.string()),
+  title: v.string(),
+  titleDoc: v.optional(v.string()),
+  collapsed: v.boolean(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byMindmapParentOrder", ["mindmapId", "parentId", "orderToken"])
+  .index("byTaskId", ["taskId"])
+  .index("byNoteId", ["noteId"]);
+registerSpaceSyncableTable(mindmapNodesTable, mindmapNodeType);
+registerRichTextFields(mindmapNodesTable.tableName, [
+  { docField: "titleDoc", textField: "title", kind: "title" },
+]);
+
+export type MindmapNode = ExtractSchema<typeof mindmapNodesTable>;
+export type MindmapNodeSide = MindmapNode["side"];
+export const isMindmapNode = isObjectType<MindmapNode>(mindmapNodeType);
+
 export const trashedTaskType = "trashedTask";
 // A deleted Task's or Note's snapshot, keyed by its ID. Restoring re-inserts
 // the snapshot rows, which revives their tombstoned IDs.
@@ -268,9 +325,14 @@ export const taskTrashSnapshot = v.object({
   checklistItems: v.array(checklistItemsTable.v()),
   dailyEntry: v.union(dailyEntriesTable.v(), v.null()),
   stashEntry: v.union(stashEntriesTable.v(), v.null()),
+  // Absent in snapshots taken before mindmaps existed.
+  mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
 });
 export type TaskTrashSnapshot = Infer<typeof taskTrashSnapshot>;
-export const noteTrashSnapshot = v.object({ note: notesTable.v() });
+export const noteTrashSnapshot = v.object({
+  note: notesTable.v(),
+  mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
+});
 export type NoteTrashSnapshot = Infer<typeof noteTrashSnapshot>;
 export const trashSnapshot = v.union(taskTrashSnapshot, noteTrashSnapshot);
 export type TrashSnapshot = Infer<typeof trashSnapshot>;
@@ -341,7 +403,9 @@ export type AnyTable =
   | typeof projectSectionsTable
   | typeof stashEntriesTable
   | typeof checklistItemsTable
-  | typeof trashedTasksTable;
+  | typeof trashedTasksTable
+  | typeof mindmapsTable
+  | typeof mindmapNodesTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),
