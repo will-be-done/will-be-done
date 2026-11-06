@@ -25,15 +25,17 @@ export const ResizableDivider = ({
   const isHorizontal = orientation === "horizontal";
 
   const resizeHandleClassName = cn(
-    "absolute z-20 border-0 bg-transparent p-0 transition-all ease-linear after:absolute after:bg-ring after:transition-colors after:ease-linear hover:after:bg-content-tinted/50",
+    "absolute z-20 touch-none border-0 bg-transparent p-0 transition-all ease-linear after:absolute after:bg-ring after:transition-colors after:ease-linear hover:after:bg-content-tinted/50",
     isHorizontal
-      ? "left-0 right-0 top-0 h-4 -translate-y-1/2 cursor-row-resize after:left-0 after:right-0 after:top-1/2 after:h-[2px] after:-translate-y-1/2"
-      : "inset-y-0 left-0 w-4 -translate-x-1/2 cursor-col-resize after:inset-y-0 after:left-1/2 after:w-[2px] after:-translate-x-1/2",
+      ? "left-0 right-0 top-0 h-4 pointer-coarse:h-8 -translate-y-1/2 cursor-row-resize after:left-0 after:right-0 after:top-1/2 after:h-[2px] after:-translate-y-1/2"
+      : "inset-y-0 left-0 w-4 pointer-coarse:w-8 -translate-x-1/2 cursor-col-resize after:inset-y-0 after:left-1/2 after:w-[2px] after:-translate-x-1/2",
     className,
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  // Pointer events, so a finger resizes as a mouse does.
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
 
@@ -45,7 +47,8 @@ export const ResizableDivider = ({
       const pointerOffset = pointerPosition - handlePosition;
       let startPosition = handlePosition;
 
-      const onMouseMove = (moveEvent: MouseEvent) => {
+      const onPointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== e.pointerId) return;
         const pointerPosition = isHorizontal
           ? moveEvent.clientY
           : moveEvent.clientX;
@@ -57,19 +60,22 @@ export const ResizableDivider = ({
         startPosition = position;
       };
 
-      const onMouseUp = () => {
+      const onPointerUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== e.pointerId) return;
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("pointercancel", onPointerUp);
         onResizeEnd?.();
       };
 
       document.body.style.cursor = isHorizontal ? "row-resize" : "col-resize";
       document.body.style.userSelect = "none";
       onResizeStart?.();
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
     },
     [isHorizontal, onResize, onResizeEnd, onResizePosition, onResizeStart],
   );
@@ -82,7 +88,7 @@ export const ResizableDivider = ({
         aria-label="Resize"
         title="Resize"
         className={resizeHandleClassName}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -94,10 +100,12 @@ export const ResizableDivider = ({
   return (
     <div className="absolute left-0 right-0 top-0 z-30 h-0 w-full">
       {onHideClick && (
-        <div className="absolute left-0 right-0 top-0 z-30 flex -translate-y-full justify-center">
+        // Only the button takes input, so the resize handle stays reachable.
+        <div className="pointer-events-none absolute left-0 right-0 top-0 z-30 flex -translate-y-full justify-center">
           <button
             type="button"
-            className="w-6 h-3 bg-surface-elevated border border-ring border-b-0 rounded-t-md flex justify-center items-center cursor-pointer transition-colors"
+            aria-label={isHidden ? "Show panel" : "Hide panel"}
+            className="pointer-events-auto w-6 h-3 pointer-coarse:w-12 pointer-coarse:h-5 bg-surface-elevated border border-ring border-b-0 rounded-t-md flex justify-center items-center cursor-pointer transition-colors"
             onClick={onHideClick}
           >
             <svg
@@ -125,7 +133,7 @@ export const ResizableDivider = ({
         aria-label="Resize"
         title="Resize"
         className={resizeHandleClassName}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();

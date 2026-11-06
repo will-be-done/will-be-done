@@ -114,6 +114,50 @@ modifier or moving with `j` and `k` clears the selection.
 | `j`, `k`              | Navigate between projects |
 | `d`, `x`, `Backspace` | Delete project            |
 
+## Mindmap
+
+| Keys                  | Action                                              |
+| --------------------- | --------------------------------------------------- |
+| `Tab`                 | Add a subtopic                                      |
+| `Enter`, `o`          | Add a topic below                                   |
+| `Shift+O`             | Add a topic above                                   |
+| `i`                   | Edit the title                                      |
+| `h`, `j`, `k`, `l`    | Move to the parent, a neighbor, or a child          |
+| `Ctrl+J`, `Ctrl+K`    | Move the topic down or up among its siblings        |
+| `Ctrl+H`, `Ctrl+L`    | Move the topic toward or away from the center       |
+| `Space`               | Toggle a task todo or done                          |
+| `m`                   | Move a task or note to another project              |
+| `s`                   | Schedule a task for a date                          |
+| `t`                   | Schedule a task for today                           |
+| `r`                   | Reset a task's schedule                             |
+| `Shift+S`             | Stash a task                                        |
+| `e`                   | Edit a task's or note's description                 |
+| `c`                   | Add a checklist item to a task                      |
+| `a`                   | Open the action menu                                |
+| `.`                   | Collapse or expand the topic                        |
+| `d`, `x`, `Backspace` | Remove the topic and its subtopics from the mindmap |
+| `Shift+H/J/K/L`       | Add the next topic that way to the selection        |
+| `Mod+C`, `Mod+X`      | Copy or cut the selected topics                     |
+| `Mod+V`               | Paste under the topic                               |
+| `Escape`              | Clear the selection                                 |
+
+Arrow keys work like `h`, `j`, `k`, and `l`, with or without `Ctrl`. Moving a
+topic away from the center nests it under the topic above it; moving it toward
+the center places it after its parent, or moves a main branch to the other
+side.
+
+On a task or note, `Tab`, `Enter`, and `o` add another task or note instead of
+a topic; it goes to the project shown below the map. With several topics
+selected, `d`, `x`, and `Backspace` remove all of them, and `Space`, `m`, `s`,
+`t`, `r`, and `Shift+S` apply to every task or note among them. Removing a task
+or note from a mindmap keeps it in its project.
+
+Copied topics paste with their subtopics, still showing the same tasks and
+notes; a cut moves them, even to another mindmap. Tasks and notes copied from a
+list paste onto the mindmap as themselves, as many times as you like, and
+topics copied from a mindmap paste into a list as copies of their tasks and
+notes.
+
 ## Text formatting
 
 These work while editing a title, a description, or a checklist item. `Mod` is

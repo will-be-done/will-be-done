@@ -41,6 +41,8 @@ import {
   isActiveDropTarget,
   type DndModelData,
 } from "@/lib/dnd/models";
+import { CalendarDays, GanttChart, Network } from "lucide-react";
+import { useMindmapsEnabled } from "@/components/Mindmap/mindmapsSetting.ts";
 
 const CalendarIcon = () => (
   <svg
@@ -237,6 +239,75 @@ const TrashNavItem = () => {
   );
 };
 
+const ViewNavItem = ({
+  to,
+  label,
+  icon,
+}: {
+  to:
+    | "/spaces/$spaceId/timeline"
+    | "/spaces/$spaceId/calendar"
+    | "/spaces/$spaceId/mindmaps";
+  label: string;
+  icon: React.ReactNode;
+}) => {
+  const spaceId = Route.useParams().spaceId;
+  const closeMobile = useCloseMobileOnNav();
+  const path = to.slice(to.lastIndexOf("/"));
+  const isActive = useRouterState({
+    select: (s) => s.matches.some((m) => (m.pathname as string).includes(path)),
+  });
+
+  return (
+    <Link
+      to={to}
+      params={{ spaceId }}
+      onClick={closeMobile}
+      className={cn(
+        "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[12px] font-medium ring-1 transition-colors",
+        isActive
+          ? "bg-accent/10 ring-accent/30 text-accent"
+          : "ring-ring/40 text-content-tinted hover:text-content hover:bg-surface hover:ring-ring",
+      )}
+    >
+      {icon}
+      {label}
+    </Link>
+  );
+};
+
+// The other views, for phones, which have no view switcher in the header.
+const ViewNavItems = () => {
+  const mindmapsEnabled = useMindmapsEnabled((s) => s.enabled);
+
+  return (
+    <div
+      className={cn(
+        "mt-1.5 grid gap-1.5 sm:hidden desktop-macos:hidden",
+        mindmapsEnabled ? "grid-cols-3" : "grid-cols-2",
+      )}
+    >
+      <ViewNavItem
+        to="/spaces/$spaceId/timeline"
+        label="Timeline"
+        icon={<GanttChart className="size-3.5 shrink-0" />}
+      />
+      <ViewNavItem
+        to="/spaces/$spaceId/calendar"
+        label="Calendar"
+        icon={<CalendarDays className="size-3.5 shrink-0" />}
+      />
+      {mindmapsEnabled && (
+        <ViewNavItem
+          to="/spaces/$spaceId/mindmaps"
+          label="Maps"
+          icon={<Network className="size-3.5 shrink-0" />}
+        />
+      )}
+    </div>
+  );
+};
+
 const NavStrip = () => {
   const spaceId = Route.useParams().spaceId;
 
@@ -293,6 +364,7 @@ export const AppSidebar = () => {
             />
           )}
         </div>
+        <ViewNavItems />
 
         {/* Divider + Projects label */}
         <div className="px-1 pt-3 pb-2">

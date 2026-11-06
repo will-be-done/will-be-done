@@ -3,7 +3,7 @@ import * as React from "react";
 const MOBILE_BREAKPOINT = 640;
 const MOBILE_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
 
-const getIsMobile = () => window.matchMedia(MOBILE_QUERY).matches;
+export const getIsMobile = () => window.matchMedia(MOBILE_QUERY).matches;
 
 const subscribeToMobileChanges = (onChange: () => void) => {
   const mql = window.matchMedia(MOBILE_QUERY);

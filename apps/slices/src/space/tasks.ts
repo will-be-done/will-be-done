@@ -27,6 +27,7 @@ import {
   stashEntriesByTaskIds,
 } from "./stashEntries";
 import { firstProjectSectionChild } from "./projectSections";
+import { detachMindmapNodesOfItems, mindmapNodesByTaskIds } from "./mindmaps";
 import { projectSectionItemSiblings } from "./projectSectionItems";
 import { updateTemplate } from "./taskTemplates";
 import { updateNote } from "./notes";
@@ -210,6 +211,7 @@ export const deleteTasks = action({
     yield* deleteRows(tasksTable, ids);
     yield* deleteDailyEntriesByTaskIds({ taskIds: ids });
     yield* deleteStashEntriesByTaskIds({ taskIds: ids });
+    yield* detachMindmapNodesOfItems({ ids });
   },
 });
 
@@ -233,6 +235,7 @@ export const trashTasks = action({
     const stashEntries = new Map(
       (yield* stashEntriesByTaskIds({ taskIds })).map((e) => [e.taskId, e]),
     );
+    const mindmapNodes = yield* mindmapNodesByTaskIds({ taskIds });
     const trashedAt = Date.now();
 
     const trashed = tasks.map(
@@ -247,6 +250,7 @@ export const trashTasks = action({
           ),
           dailyEntry: dailyEntries.get(task.id) ?? null,
           stashEntry: stashEntries.get(task.id) ?? null,
+          mindmapNodes: mindmapNodes.filter((node) => node.taskId === task.id),
         } satisfies TrashSnapshot),
       }),
     );

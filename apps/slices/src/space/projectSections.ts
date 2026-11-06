@@ -43,6 +43,8 @@ import {
   isProjectSection,
   taskTemplatesTable,
   notesTable,
+  Note,
+  noteType,
 } from "./tables";
 
 export const defaultProjectSection: ProjectSection = {
@@ -340,6 +342,43 @@ export const createTaskInSection = action({
         projectSectionId: projectSectionId,
       },
     });
+  },
+});
+
+export const createNoteInSection = action({
+  name: "createNoteInSection",
+  args: {
+    projectSectionId: v.string(),
+    position: orderPositionArg,
+    noteAttrs: v.optional(v.partial(notesTable.v())),
+  },
+  handler: function* createNoteInSection({
+    projectSectionId,
+    position,
+    noteAttrs,
+  }): Generator<unknown, Note, unknown> {
+    const orderToken = yield* generateOrderTokenPositioned(
+      projectSectionId,
+      {
+        firstChild: (projectSectionId) =>
+          firstProjectSectionItem({ projectSectionId }),
+        lastChild: (projectSectionId) =>
+          lastProjectSectionItem({ projectSectionId }),
+      },
+      normalizeOrderPosition(position),
+    );
+
+    const note: Note = {
+      type: noteType,
+      id: uuidv7(),
+      title: "",
+      createdAt: Date.now(),
+      ...noteAttrs,
+      orderToken,
+      projectSectionId,
+    };
+    yield* insert(notesTable, [note]);
+    return note;
   },
 });
 

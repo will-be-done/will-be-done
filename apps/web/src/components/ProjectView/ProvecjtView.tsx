@@ -52,21 +52,31 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
 import { startOfDay } from "date-fns";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { getIsMobile } from "@/hooks/use-mobile.ts";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { ProjectIcon } from "@/components/ui/emoji";
 
-const MIN_PROJECTS_LIST_WIDTH = 240;
+const MIN_PROJECTS_LIST_WIDTH = 160;
 const MAX_PROJECTS_LIST_WIDTH = 520;
 
 type ProjectsListSize = {
   width: number;
+  // Folded to a rail showing the selected project.
+  collapsed: boolean;
   setWidth: (value: number) => void;
+  setCollapsed: (value: boolean) => void;
 };
 
 const useProjectsListSize = create<ProjectsListSize>()(
   persist(
     (set) => ({
       width: 320,
+      // A phone has no room for tasks beside the list. Not saved, so each
+      // load starts from the screen it is on.
+      collapsed: typeof window !== "undefined" && getIsMobile(),
+      setCollapsed: (value: boolean) => set({ collapsed: value }),
       setWidth: (value: number) => {
         set({
           width: Math.max(
@@ -79,6 +89,7 @@ const useProjectsListSize = create<ProjectsListSize>()(
     {
       name: "projects-list-size",
       storage: createJSONStorage(() => localStorage),
+      partialize: ({ width }) => ({ width }),
     },
   ),
 );
@@ -514,6 +525,14 @@ export const ProjectView = ({
   const projectsListWidth = useProjectsListSize((s) => s.width);
   const openProject = useOpenProject();
   const setProjectsListWidth = useProjectsListSize((s) => s.setWidth);
+  const isProjectsListCollapsed = useProjectsListSize((s) => s.collapsed);
+  const setProjectsListCollapsed = useProjectsListSize((s) => s.setCollapsed);
+  const [isResizingProjectsList, setIsResizingProjectsList] = useState(false);
+  // On a phone, picking a project folds the list first and opens the project
+  // when the slide ends: the slide needs the main thread on every frame, and
+  // rendering the project's tasks would stall it.
+  const navigate = useNavigate();
+  const pickedHrefRef = useRef<string | null>(null);
   const { data: project } = useAsyncSelector({
     selector: selectedProject,
     args: { selectedProjectId },
@@ -571,50 +590,118 @@ export const ProjectView = ({
       </div>
       <div
         ref={projectsListRef}
-        data-focus-column
-        className="relative h-full bg-surface-elevated ml-auto flex flex-col shrink-0 ring-1 ring-ring"
-        style={{ width: `${projectsListWidth}px` }}
+        className={cn(
+          "relative ml-auto h-full shrink-0 bg-surface-elevated ring-1 ring-ring",
+          !isResizingProjectsList &&
+            "transition-[width] duration-200 ease-linear",
+        )}
+        onTransitionEnd={(e) => {
+          const href = pickedHrefRef.current;
+          if (e.target !== e.currentTarget || !href) return;
+          pickedHrefRef.current = null;
+          void navigate({ href });
+        }}
+        // The tasks beside it keep some room on narrow screens.
+        style={{
+          width: isProjectsListCollapsed ? "2.5rem" : `${projectsListWidth}px`,
+          maxWidth: "calc(100% - 3rem)",
+        }}
       >
-        <ResizableDivider
-          orientation="vertical"
-          onResizePosition={handleProjectsListResize}
-          className="left-0 top-0 "
-        />
-        <div className="flex justify-center text-content-tinted my-3 mx-3 text-[13px] font-medium">
-          Projects
-        </div>
-        <div className="h-full overflow-y-auto flex flex-col gap-1 px-3 py-2 text-sm overflow-x-hidden text-ellipsis">
-          <ProjectItem
-            projectLink={projectLink}
-            project={inboxProject.project}
-            notDoneTasksCount={inboxProject.notDoneCount}
-            overdueTasksCount={inboxProject.overdueCount}
-            isSelected={
-              selectedProjectId === "inbox" ||
-              selectedProjectId === inboxProject.project.id
-            }
+        {!isProjectsListCollapsed && (
+          <ResizableDivider
+            orientation="vertical"
+            onResizePosition={handleProjectsListResize}
+            onResizeStart={() => setIsResizingProjectsList(true)}
+            onResizeEnd={() => setIsResizingProjectsList(false)}
+            className="left-0 top-0 "
           />
-          {projectsWithoutInbox.map(
-            ({ project, notDoneCount, overdueCount }) => (
-              <ProjectItem
-                projectLink={projectLink}
-                key={project.id}
-                project={project}
-                notDoneTasksCount={notDoneCount}
-                overdueTasksCount={overdueCount}
-                isSelected={selectedProjectId === project.id}
-              />
-            ),
+        )}
+        {/* Clips the list, pinned to the right edge, while the width animates. */}
+        <div className="absolute inset-0 overflow-hidden">
+          {isProjectsListCollapsed ? (
+            <button
+              type="button"
+              aria-label="Show projects"
+              title="Show projects"
+              onClick={() => setProjectsListCollapsed(false)}
+              className="flex h-full w-full cursor-pointer flex-col items-center gap-3 pt-3 text-content-tinted transition-colors hover:text-content"
+            >
+              <ChevronLeft className="size-4 shrink-0" />
+              <span className="shrink-0 text-base">
+                <ProjectIcon icon={project.icon} />
+              </span>
+              <span className="min-h-0 truncate text-[13px] font-medium [writing-mode:vertical-rl]">
+                {project.title}
+              </span>
+            </button>
+          ) : (
+            <div
+              data-focus-column
+              className="absolute inset-y-0 right-0 flex w-full min-w-40 flex-col"
+            >
+              <div className="relative flex justify-center text-content-tinted my-3 mx-3 text-[13px] font-medium">
+                <button
+                  type="button"
+                  aria-label="Hide projects"
+                  title="Hide projects"
+                  onClick={() => setProjectsListCollapsed(true)}
+                  className="absolute left-0 top-1/2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-panel-hover hover:text-content pointer-coarse:size-8"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+                Projects
+              </div>
+              <div
+                className="h-full overflow-y-auto flex flex-col gap-1 px-3 py-2 text-sm overflow-x-hidden text-ellipsis"
+                // Runs before the link's own click, which skips a prevented one.
+                onClickCapture={(e) => {
+                  const link =
+                    e.target instanceof Element
+                      ? e.target.closest("a[href]")
+                      : null;
+                  if (!link || !getIsMobile() || e.button !== 0) return;
+                  // Mid-resize the width doesn't animate, so the link opens it.
+                  if (!isResizingProjectsList) {
+                    e.preventDefault();
+                    pickedHrefRef.current = link.getAttribute("href");
+                  }
+                  setProjectsListCollapsed(true);
+                }}
+              >
+                <ProjectItem
+                  projectLink={projectLink}
+                  project={inboxProject.project}
+                  notDoneTasksCount={inboxProject.notDoneCount}
+                  overdueTasksCount={inboxProject.overdueCount}
+                  isSelected={
+                    selectedProjectId === "inbox" ||
+                    selectedProjectId === inboxProject.project.id
+                  }
+                />
+                {projectsWithoutInbox.map(
+                  ({ project, notDoneCount, overdueCount }) => (
+                    <ProjectItem
+                      projectLink={projectLink}
+                      key={project.id}
+                      project={project}
+                      notDoneTasksCount={notDoneCount}
+                      overdueTasksCount={overdueCount}
+                      isSelected={selectedProjectId === project.id}
+                    />
+                  ),
+                )}
+              </div>
+              <div className="flex text-center items-center justify-center pb-3 pt-2 border-t border-ring">
+                <button
+                  type="button"
+                  onClick={() => void handleAddProjectClick()}
+                  className="cursor-pointer text-[13px] text-content-tinted hover:text-accent transition-colors"
+                >
+                  + Add Project
+                </button>
+              </div>
+            </div>
           )}
-        </div>
-        <div className="flex text-center items-center justify-center pb-3 pt-2 border-t border-ring">
-          <button
-            type="button"
-            onClick={() => void handleAddProjectClick()}
-            className="cursor-pointer text-[13px] text-content-tinted hover:text-accent transition-colors"
-          >
-            + Add Project
-          </button>
         </div>
       </div>
     </div>

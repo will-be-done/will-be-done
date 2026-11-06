@@ -94,6 +94,12 @@ The consistency, recovery, echo-suppression, and idempotency rules in that docum
 mandatory invariants. A sync change must update the document and its regression tests when it
 changes protocol state or behavior; it must not introduce a path that bypasses those invariants.
 
+# Mindmaps
+
+Before changing mindmap schema, tree repair, placement, Task or Note links, the v1 mindmap API,
+or the canvas interaction model, read @docs/mindmap.md. Update it in the same change whenever
+mindmap behavior changes.
+
 # Query Performance
 
 For API handlers, request hooks, and user-triggered actions:

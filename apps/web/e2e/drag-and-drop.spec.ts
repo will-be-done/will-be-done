@@ -170,7 +170,8 @@ test("captures the whole focused task border and preserves the cursor position",
   const capture = page.getByTestId("captured-drag-preview");
   await expect(capture).toBeVisible();
   const geometry = await capture.evaluate((container) => {
-    const card = container.firstElementChild as HTMLElement;
+    // The card sits in a frame sized to the card as drawn on screen.
+    const card = container.firstElementChild!.firstElementChild as HTMLElement;
     const outer = container.getBoundingClientRect();
     const inner = card.getBoundingClientRect();
     return {
