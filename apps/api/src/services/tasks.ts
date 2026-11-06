@@ -1,10 +1,5 @@
-import {
-  asyncDispatch,
-  createAction,
-  selectAsync,
-  upsert,
-  v,
-} from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync, upsert, v } from "@will-be-done/hyperdb";
+import { action } from "../builders";
 import {
   createTaskInSection,
   dailyEntriesByTaskIds,
@@ -59,7 +54,6 @@ export interface TaskSchedule {
 
 type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
 
-const action = createAction();
 const replaceTask = action({
   name: "replaceApiTask",
   args: {

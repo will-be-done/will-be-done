@@ -6,6 +6,7 @@ import {
   selectAsync,
   SubscribableDB,
 } from "@will-be-done/hyperdb";
+import { hyperDBStrictOptions } from "@will-be-done/slices";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import { getDevtoolsEnabled } from "@/lib/devtools";
 import { openPersistentDriver } from "./persistentDriver";
@@ -61,9 +62,7 @@ export const createStoreDbs = async (
       new DB(persistentDriver, {
         traits: [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
         tracer,
-        runtimeRowsValidation: process.env.NODE_ENV === "development",
-        freezeArgs: process.env.NODE_ENV === "development",
-        freezeRows: process.env.NODE_ENV === "development",
+        ...hyperDBStrictOptions,
         dbName,
       });
 

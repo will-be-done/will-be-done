@@ -1,9 +1,5 @@
-import {
-  asyncDispatch,
-  createAction,
-  selectAsync,
-  upsert,
-} from "@will-be-done/hyperdb";
+import { asyncDispatch, selectAsync, upsert } from "@will-be-done/hyperdb";
+import { action } from "../builders";
 import {
   createTaskFromTemplate,
   createTaskTemplate,
@@ -33,7 +29,6 @@ export interface TaskTemplateUpdates {
   durationMinutes?: number | null;
 }
 
-const action = createAction();
 const replaceTaskTemplate = action({
   name: "replaceApiTaskTemplate",
   args: { template: taskTemplatesTable.v() },
