@@ -29,23 +29,18 @@ ARG VITE_POSTHOG_HOST=https://eu.i.posthog.com
 ARG VITE_POSTHOG_UI_HOST=https://eu.posthog.com
 RUN pnpm exec vite build
 WORKDIR /app
+# Bun follows symlinks with statx, which kernels older than 4.11 (e.g. Synology
+# DSM) lack, so ship the API with a flat, symlink-free production node_modules.
+RUN pnpm --filter @will-be-done/api deploy --prod \
+  --config.inject-workspace-packages=true --config.node-linker=hoisted /prod/api
 
 # Stage 2: Create Bun runtime image
 FROM oven/bun:1.3.14-alpine AS runner
 WORKDIR /app
 
-# Copy the API files
-COPY --from=builder /app/apps/slices /app/apps/slices
-COPY --from=builder /app/apps/api /app/apps/api
+COPY --from=builder /prod/api /app/apps/api
 # Copy the built static files to the public directory
 COPY --from=builder /app/apps/web/dist /app/apps/api/public
-
-# Copy package files and install production dependencies for API
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
-COPY --from=builder /app/node_modules /app/node_modules
-COPY --from=builder /app/apps/api/node_modules /app/apps/api/node_modules
-COPY --from=builder /app/apps/slices/node_modules /app/apps/slices/node_modules
 
 # Create default storage directory
 RUN mkdir -p /var/lib/will-be-done/db
