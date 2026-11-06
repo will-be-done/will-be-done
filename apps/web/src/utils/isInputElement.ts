@@ -11,7 +11,8 @@ export const isInputElement = (activeElement: Element) => {
       : false) ||
     activeElement.closest("label") ||
     activeElement.closest("[role='textbox']") ||
-    activeElement.closest("[role='button']") ||
+    // Focusable task cards take the task shortcuts.
+    activeElement.closest("[role='button']:not([data-focusable-key])") ||
     activeElement.closest("[role='combobox']") ||
     activeElement.closest("[role='slider']") ||
     activeElement.closest("[role='checkbox']") ||

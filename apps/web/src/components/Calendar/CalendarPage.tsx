@@ -14,7 +14,7 @@ import {
   updateTemplate,
 } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { buildFocusKey } from "@/store/focusSlice.ts";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavBar } from "@/components/NavBar/NavBar";
 import { SyncIndicator } from "@/components/Sidebar/SyncIndicator";
@@ -38,7 +38,7 @@ import {
 } from "./DayCells";
 import { TimeGridView } from "./TimeGridView";
 import { useExternalTaskDrop } from "./useExternalTaskDrop";
-import { useCalendarKeys } from "./useCalendarKeys";
+import { focusCardOnceShown, useCalendarKeys } from "./useCalendarKeys";
 import { ProjectsSplit } from "@/components/ProjectView/ProjectsSplit.tsx";
 import { WithStash } from "@/components/Stash/WithStash.tsx";
 import { openQuickAdd } from "@/components/QuickAdd/quickAddStore";
@@ -122,13 +122,9 @@ export const CalendarPage = ({
       date: parse(date, "yyyy-MM-dd", new Date()),
       time,
       location: "calendar",
-      // The card isn't rendered yet, so only the store takes focus; the
-      // calendar's keys work from there.
       onCreated: (entry) => {
         if (entry) {
-          useFocusStore
-            .getState()
-            .focusByKey(buildFocusKey(entry.id, entry.type), true);
+          focusCardOnceShown(buildFocusKey(entry.id, entry.type), () => {});
         }
       },
     });

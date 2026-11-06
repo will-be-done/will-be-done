@@ -16,7 +16,7 @@ import {
   updateTemplate,
 } from "@will-be-done/slices/space";
 import {
-  focusElementByKey,
+  type FocusKey,
   parseColumnKey,
   useFocusStore,
 } from "@/store/focusSlice.ts";
@@ -62,6 +62,18 @@ const removeKeys = new Set(["Backspace", "Delete", "KeyD", "KeyX", "KeyR"]);
 
 const shiftDate = (date: string, days: number) =>
   getDMY(addDays(parse(date, "yyyy-MM-dd", new Date()), days));
+
+// Runs after the card renders in its day. A full month cell hides it behind
+// "+N more", where it can't take focus. Plain focus() scrolls only when the
+// card is off-screen, so a card under the pointer stays put.
+export const focusCardOnceShown = (key: FocusKey, onHidden: () => void) =>
+  setTimeout(() => {
+    const card = document.querySelector<HTMLElement>(
+      `[data-focusable-key="${key}"]`,
+    );
+    if (card) card.focus();
+    else onHidden();
+  }, 0);
 
 // Keys for the focused calendar card, like the ones a focused task has in a
 // list. Real events are daily entries; projected ones are template
@@ -133,19 +145,7 @@ export function useCalendarKeys({
         if (event.isProjected || !dates.includes(date)) return;
         void dispatch(
           scheduleTask({ taskId: event.taskId, date, position: "append" }),
-        ).then(() =>
-          // The card remounts in its new day and drops DOM focus. A full month
-          // cell hides it behind "+N more".
-          setTimeout(() => {
-            if (
-              document.querySelector(`[data-focusable-key="${event.focusKey}"]`)
-            ) {
-              focusElementByKey(event.focusKey);
-            } else {
-              useFocusStore.getState().resetFocus();
-            }
-          }, 0),
-        );
+        ).then(() => focusCardOnceShown(event.focusKey, focus.resetFocus));
       };
 
       const run = (command: () => void) => {
@@ -153,6 +153,15 @@ export function useCalendarKeys({
         e.stopPropagation();
         command();
       };
+
+      // A focused button, like "+N more", keeps its own activation keys.
+      if (
+        (e.code === "Enter" || e.code === "Space") &&
+        e.target instanceof Element &&
+        e.target.closest("button")
+      ) {
+        return;
+      }
 
       const direction = directionKeys[e.code];
       if (e.ctrlKey || e.metaKey) {
@@ -237,8 +246,15 @@ export function useCalendarKeys({
       if (e.code === "KeyT") {
         return run(() => {
           const today = getDMY(new Date());
-          if (!dates.includes(today)) focusPast();
-          void dispatch(scheduleListItems({ listItems, date: today }));
+          const isTodayShown = dates.includes(today);
+          if (!isTodayShown) focusPast();
+          void dispatch(scheduleListItems({ listItems, date: today })).then(
+            () => {
+              if (isTodayShown) {
+                focusCardOnceShown(event.focusKey, focus.resetFocus);
+              }
+            },
+          );
         });
       }
     };

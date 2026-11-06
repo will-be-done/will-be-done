@@ -312,6 +312,7 @@ const TimedBlock = ({
 
   return (
     <div
+      role="button"
       tabIndex={0}
       data-focusable-key={event.focusKey}
       title={event.title}
