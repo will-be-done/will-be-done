@@ -163,7 +163,11 @@ can be deleted:
   item with the topic's title and clear the node's own title; only topics
   convert;
 - `convertMindmapNodeToTopic` unlinks a task or note node into a topic with the
-  item's current title; the item stays.
+  item's current title; the item stays;
+- `convertMindmapNodes` makes every node of a selection one kind, through the
+  actions above and the Task <-> Note conversions below. It skips roots, goes
+  backwards so prepended items keep map order, and re-reads each node because
+  converting an item relinks every node showing it.
 
 Item lifecycle hooks keep maps consistent; any new path that deletes or
 replaces a Task or Note must go through them:
@@ -399,8 +403,9 @@ non-root nodes; Shift/Meta/Ctrl makes it additive. Ctrl/Cmd-click adds or
 removes one node and makes it the anchor. Shift-click selects the range from
 the anchor (the focused node when nothing is selected) to the clicked node in
 `visibleNodeOrder`: each node, then its visible children, then its next
-sibling; right branches, then left, then floating roots. So a range between
-two siblings takes the siblings between them and their visible subtrees.
+sibling; right branches, then left, then floating roots, each right then
+left. So a range between two siblings takes the siblings between them and
+their visible subtrees.
 Shift with a direction key adds the next node that way. A plain click clears
 the selection. Dragging a selected node drags the whole selection; dragging an
 unselected node clears it. The node toolbar shows on hover as well as focus.
@@ -408,7 +413,12 @@ unselected node clears it. The node toolbar shows on hover as well as focus.
 On a node in a selection, the item keys (`Space m s t r Shift+S`) act on every
 task or note in it through the lists' selection actions
 (`setListItemsTaskState`, `moveListItemsToProject`, `scheduleListItems`,
-`unscheduleListItems`, `stashListItems`); `s` opens `SelectionDatePicker`.
+`unscheduleListItems`, `stashListItems`); `s` opens `SelectionDatePicker`. So do
+the node's toolbar, "…" menu, and place pickers: conversions apply to every
+selected node (`convertMindmapNodes`), and a section pick moves every selected
+item to that section. A plain click clears the selection, except a click on a
+selected node's controls or the menus they open, which would otherwise clear it
+before the action reads it.
 
 ### Clipboard
 

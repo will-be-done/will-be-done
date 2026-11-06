@@ -45,9 +45,8 @@ export type MindmapNodeActions = {
   addSibling: (id: string, edge: "before" | "after") => void;
   remove: (id: string) => void;
   removeNodes: (ids: string[]) => void;
+  // Acts on the selection the node is in; task and note nodes keep their place.
   convert: (id: string, to: NodeKind) => void;
-  // Task <-> Note; the node keeps its place.
-  convertItem: (id: string) => void;
   trashItem: (id: string) => void;
   toggleCollapsed: (id: string) => void;
   toggleTask: (id: string) => void;
@@ -61,6 +60,7 @@ export type MindmapNodeActions = {
   unscheduleSelection: () => void;
   moveInTree: (id: string, direction: Direction) => void;
   moveToProject: (id: string) => void;
+  moveToSection: (id: string, projectSectionId: string) => void;
   schedule: (id: string) => void;
   scheduleToday: (id: string) => void;
   resetSchedule: (id: string) => void;
@@ -231,9 +231,14 @@ export function MindmapNodeCard({
         else if (e.shiftKey) actions.selectRangeTo(id);
       }}
       onClick={(e) => {
-        if (!(e.shiftKey || e.metaKey || e.ctrlKey)) {
-          useMindmapSelection.getState().clear();
-        }
+        if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+        // The node's controls and their portaled menus act on its selection.
+        const fromControl =
+          !(e.target instanceof Element) ||
+          !e.currentTarget.contains(e.target) ||
+          !!e.target.closest("button");
+        if (fromControl && useMindmapSelection.getState().ids.has(id)) return;
+        useMindmapSelection.getState().clear();
       }}
       // The second click would select a word before the editor opens.
       onMouseDown={(e) => {

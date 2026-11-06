@@ -217,6 +217,36 @@ test("drops tasks onto topics and moves topics by dragging", async ({
   expect(await outlineOf(page, "A")).toBe("A\n  Ship it\n  B");
 });
 
+test("a node's toolbar and menu act on its selection", async ({ page }) => {
+  await openNewMindmap(page, "Plan");
+  await pasteUnder(page, "Plan", { "text/plain": "A\nB\nC" });
+  await node(page, "A").click();
+  await node(page, "B").click({ modifiers: ["ControlOrMeta"] });
+
+  await node(page, "A").hover();
+  await node(page, "A").getByTitle("Convert to task").click();
+  for (const [title, count] of [
+    ["A", 1],
+    ["B", 1],
+    ["C", 0],
+  ] as const) {
+    await expect(node(page, title).getByRole("checkbox")).toHaveCount(count);
+  }
+
+  await node(page, "B").hover();
+  await node(page, "B").getByRole("button", { name: "Node actions" }).click();
+  await page.getByRole("menuitem", { name: "Schedule today" }).click();
+  const today = new Date().toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+  for (const title of ["A", "B"]) {
+    await expect(node(page, title).getByTitle("Change date (s)")).toHaveText(
+      today,
+    );
+  }
+});
+
 test("copies, cuts and pastes between lists and the map", async ({ page }) => {
   await openNewMindmap(page, "Plan", ["Ship it"]);
   await pasteUnder(page, "Plan", { "text/plain": "X\n  Y\nB" });
