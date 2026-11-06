@@ -70,9 +70,14 @@ export function ItemDetails() {
     isEditingAnyField,
   } = useItemDetailsEditing(itemId);
 
-  // Escape closes panel (not while editing title)
+  // Escape closes panel (not while editing title, or closing a dialog)
   useGlobalListener("keydown", (e: KeyboardEvent) => {
-    if (e.key === "Escape" && isVisible && !isEditingAnyField) {
+    if (
+      e.key === "Escape" &&
+      isVisible &&
+      !isEditingAnyField &&
+      !useFocusStore.getState().isFocusDisabled
+    ) {
       useFocusStore.getState().resetFocus();
       return;
     }

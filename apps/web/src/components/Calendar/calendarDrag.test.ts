@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FocusKey } from "@/store/focusSlice.ts";
 import type { CalendarEvent } from "./calendarModel";
 import {
   type CalendarDrag,
@@ -10,7 +11,7 @@ import {
 const event = (key: string): CalendarEvent => ({
   key,
   taskId: key,
-  focusKey: key,
+  focusKey: key as FocusKey,
   date: "2026-10-28",
   title: key,
   nature: undefined,

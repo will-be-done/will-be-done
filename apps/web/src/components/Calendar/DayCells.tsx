@@ -1,7 +1,11 @@
 import { format, isSameMonth } from "date-fns";
 import { getDMY } from "@will-be-done/slices/space";
 import { cn } from "@/lib/utils.ts";
-import { type CalendarEvent } from "./calendarModel";
+import {
+  type CalendarEvent,
+  monthChipLimit,
+  shownDayEvents,
+} from "./calendarModel";
 import { type DragCommit, useIsDropTarget } from "./calendarDrag";
 import { CalendarCard } from "./CalendarCard";
 
@@ -52,7 +56,6 @@ const DayCell = ({
   return (
     <div
       data-calendar-date={date}
-      data-focus-column
       onClick={(e) => {
         if (e.target === e.currentTarget) onCreate(date, null);
       }}
@@ -67,8 +70,6 @@ const DayCell = ({
     </div>
   );
 };
-
-const monthChipLimit = 3;
 
 export const MonthCell = ({
   day,
@@ -85,7 +86,7 @@ export const MonthCell = ({
 }) => {
   const date = getDMY(day);
   const overflows = events.length > monthChipLimit;
-  const shown = overflows ? events.slice(0, monthChipLimit - 1) : events;
+  const shown = shownDayEvents("month", events);
 
   return (
     <DayCell date={date} isToday={date === today} onCreate={actions.onCreate}>

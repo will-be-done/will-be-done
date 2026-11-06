@@ -186,7 +186,6 @@ const UntimedCell = ({
     <div
       data-calendar-date={date}
       data-calendar-untimed
-      data-focus-column
       onClick={(e) => {
         if (e.target === e.currentTarget) actions.onCreate(date, null);
       }}
@@ -250,7 +249,6 @@ const GridColumn = ({
     <div
       data-calendar-date={date}
       data-calendar-grid
-      data-focus-column
       onClick={handleClick}
       className={cn(
         "relative border-l border-white/5",
@@ -314,18 +312,10 @@ const TimedBlock = ({
 
   return (
     <div
-      role="button"
       tabIndex={0}
       data-focusable-key={event.focusKey}
       title={event.title}
       onClick={() => useItemDetailsOpen.getState().setOpen(true)}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          useItemDetailsOpen.getState().setOpen(true);
-        }
-      }}
       onPointerDown={(e) =>
         startCalendarDrag(e, event, "move", actions.onCommit)
       }

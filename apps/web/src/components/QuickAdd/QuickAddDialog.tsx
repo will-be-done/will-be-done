@@ -38,7 +38,12 @@ import {
   type TaskCreationLocation,
   captureWebAnalytics,
 } from "@/lib/analytics";
-import { closeQuickAdd, openQuickAdd, useQuickAdd } from "./quickAddStore";
+import {
+  closeQuickAdd,
+  openQuickAdd,
+  type QuickAddRequest,
+  useQuickAdd,
+} from "./quickAddStore";
 import { cn } from "@/lib/utils";
 import { useFocusStore } from "@/store/focusSlice";
 import { TimeInput } from "@/components/Task/TaskTimeInputs";
@@ -118,6 +123,7 @@ export function QuickAddDialog() {
           defaultDate={request.date ?? defaults.date}
           defaultTime={request.time ?? null}
           location={request.location}
+          onCreated={request.onCreated}
           onDone={closeQuickAdd}
         />
       )}
@@ -130,12 +136,14 @@ function QuickAddForm({
   defaultDate,
   defaultTime,
   location,
+  onCreated,
   onDone,
 }: {
   defaultProjectId: string;
   defaultDate: Date | undefined;
   defaultTime: string | null;
   location: TaskCreationLocation | undefined;
+  onCreated: QuickAddRequest["onCreated"];
   onDone: () => void;
 }) {
   const dispatch = useAsyncDispatch();
@@ -171,23 +179,23 @@ function QuickAddForm({
 
     onDone();
     void (async () => {
-      await dispatch(
+      const entry = await dispatch(
         (function* () {
           const task = yield* createProjectTask({
             projectId: project.id,
             position: "prepend",
             taskAttrs: { title: trimmed, projectSectionId: section.id },
           });
-          if (date) {
-            yield* scheduleTask({
-              taskId: task.id,
-              date: getDMY(date),
-              position: "append",
-              ...(time ? { time } : {}),
-            });
-          }
+          if (!date) return undefined;
+          return yield* scheduleTask({
+            taskId: task.id,
+            date: getDMY(date),
+            position: "append",
+            ...(time ? { time } : {}),
+          });
         })(),
       );
+      onCreated?.(entry);
       captureWebAnalytics({
         name: "task_created",
         properties: {
