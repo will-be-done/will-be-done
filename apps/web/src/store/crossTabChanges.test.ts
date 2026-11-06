@@ -5,8 +5,8 @@ import {
   DB,
   defineTable,
   execAsync,
+  HybridDB,
   type Op,
-  PreloadedHybridDB,
   selectAsync,
   selectFrom,
   SubscribableDB,
@@ -40,7 +40,7 @@ vi.mock("broadcast-channel", () => ({
 const crossTabItemsTable = defineTable("cross_tab_test_items", {
   id: v.string(),
   title: v.string(),
-});
+}).index("byIds", ["id"]);
 const action = createAction();
 const selector = createSelector();
 const crossTabState = selector({
@@ -66,17 +66,26 @@ describe("cross-tab changes", () => {
       addEventListener: vi.fn(),
       visibilityState: "visible",
     });
-    const primary = new DB(new BptreeInmemDriver());
-    const runtime = new PreloadedHybridDB(primary);
+    const primaryDriver = new BptreeInmemDriver();
+    const runtime = new HybridDB(
+      new DB(primaryDriver),
+      new DB(new BptreeInmemDriver()),
+    );
     const db = new SubscribableDB(runtime);
     await execAsync(db.loadTables([crossTabItemsTable, changesTable]));
+    await execAsync(
+      db.preloadTables([
+        { table: crossTabItemsTable, scanIndex: "byIds" },
+        { table: changesTable, scanIndex: "byUpdatedAtId" },
+      ]),
+    );
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const begin = primary.beginTx.bind(primary);
-    vi.spyOn(primary, "beginTx").mockImplementation(function* (mode) {
-      const tx = yield* begin(mode);
+    const begin = primaryDriver.beginTx.bind(primaryDriver);
+    vi.spyOn(primaryDriver, "beginTx").mockImplementation(function* () {
+      const tx = yield* begin();
       const commit = tx.commit.bind(tx);
       tx.commit = function* () {
         yield { type: "unwrap", data: gate };
@@ -139,124 +148,138 @@ describe("cross-tab changes", () => {
     expect(onPersisted).toHaveBeenCalledOnce();
   });
 
-  it("publishes an externally persisted row without creating a local echo", async () => {
-    vi.stubGlobal("window", { addEventListener: vi.fn() });
-    vi.stubGlobal("document", {
-      addEventListener: vi.fn(),
-      visibilityState: "visible",
-    });
+  // The web runtime keeps changes resident and loads mindmap tables on demand.
+  it.each([{ itemsResidency: "preloaded" }, { itemsResidency: "on demand" }])(
+    "publishes an externally persisted $itemsResidency row without creating a local echo",
+    async ({ itemsResidency }) => {
+      vi.stubGlobal("window", { addEventListener: vi.fn() });
+      vi.stubGlobal("document", {
+        addEventListener: vi.fn(),
+        visibilityState: "visible",
+      });
 
-    const driver = new BptreeInmemDriver();
-    const senderDB = new DB(driver);
-    const receiverPersistentDB = new DB(driver);
-    await execAsync(senderDB.loadTables([crossTabItemsTable, changesTable]));
-    await execAsync(
-      receiverPersistentDB.loadTables([crossTabItemsTable, changesTable]),
-    );
+      const driver = new BptreeInmemDriver();
+      const senderDB = new DB(driver);
+      const receiverPersistentDB = new DB(driver);
+      await execAsync(senderDB.loadTables([crossTabItemsTable, changesTable]));
+      await execAsync(
+        receiverPersistentDB.loadTables([crossTabItemsTable, changesTable]),
+      );
 
-    const receiverDB = new SubscribableDB(
-      new PreloadedHybridDB(receiverPersistentDB),
-    );
-    await execAsync(receiverDB.loadTables([crossTabItemsTable, changesTable]));
+      const receiverDB = new SubscribableDB(
+        new HybridDB(receiverPersistentDB, new DB(new BptreeInmemDriver())),
+      );
+      await execAsync(
+        receiverDB.loadTables([crossTabItemsTable, changesTable]),
+      );
+      await execAsync(
+        receiverDB.preloadTables([
+          { table: changesTable, scanIndex: "byUpdatedAtId" },
+          ...(itemsResidency === "preloaded"
+            ? [{ table: crossTabItemsTable, scanIndex: "byIds" } as const]
+            : []),
+        ]),
+      );
 
-    const nextClock = createHlcClock("receiver", undefined, {
-      wallTime: () => 1_700_000_000_100,
-      monotonicTime: () => 0,
-    });
-    registerSyncChangeHooks({
-      syncSubDb: receiverDB,
-      syncableDBTables: [crossTabItemsTable],
-      clientId: "receiver",
-      nextClock,
-    });
+      const nextClock = createHlcClock("receiver", undefined, {
+        wallTime: () => 1_700_000_000_100,
+        monotonicTime: () => 0,
+      });
+      registerSyncChangeHooks({
+        syncSubDb: receiverDB,
+        syncableDBTables: [crossTabItemsTable],
+        clientId: "receiver",
+        nextClock,
+      });
 
-    const syncConfig = {
-      dbId: "cross-tab-test",
-      dbType: "user",
-      persistDBTables: [crossTabItemsTable, changesTable],
-      syncableDBTables: [crossTabItemsTable],
-      tableNameMap: { [crossTabItemsTable.tableName]: crossTabItemsTable },
-      afterInit: () => {},
-    } satisfies SyncConfig;
-    const publications: Op[][] = [];
-    const onApplied = vi.fn(() => {
-      expect(publications).not.toHaveLength(0);
-    });
-    const crossTabChanges = createCrossTabChanges({
-      clientId: "receiver",
-      syncSubDb: receiverDB,
-      syncConfig,
-      nextClock,
-      onApplied,
-    });
-    const postChanges = vi.spyOn(crossTabChanges, "postChanges");
-    createLocalPersistQueue({
-      syncSubDb: receiverDB,
-      postChanges: crossTabChanges.postChanges,
-      onPersisted: vi.fn(),
-    }).start();
+      const syncConfig = {
+        dbId: "cross-tab-test",
+        dbType: "user",
+        persistDBTables: [crossTabItemsTable, changesTable],
+        syncableDBTables: [crossTabItemsTable],
+        tableNameMap: { [crossTabItemsTable.tableName]: crossTabItemsTable },
+        afterInit: () => {},
+      } satisfies SyncConfig;
+      const publications: Op[][] = [];
+      const onApplied = vi.fn(() => {
+        expect(publications).not.toHaveLength(0);
+      });
+      const crossTabChanges = createCrossTabChanges({
+        clientId: "receiver",
+        syncSubDb: receiverDB,
+        syncConfig,
+        nextClock,
+        onApplied,
+      });
+      const postChanges = vi.spyOn(crossTabChanges, "postChanges");
+      createLocalPersistQueue({
+        syncSubDb: receiverDB,
+        postChanges: crossTabChanges.postChanges,
+        onPersisted: vi.fn(),
+      }).start();
 
-    receiverDB.subscribe((ops) => publications.push(ops));
+      receiverDB.subscribe((ops) => publications.push(ops));
 
-    const incomingClock = formatHlc({
-      physical: 1_700_000_000_000,
-      logical: 1,
-      actorId: "sender",
-    });
-    const row = { id: "shared", title: "From sender" };
-    const change: Change = {
-      id: `${crossTabItemsTable.tableName}:${row.id}`,
-      entityId: row.id,
-      tableName: crossTabItemsTable.tableName,
-      createdAt: incomingClock,
-      updatedAt: incomingClock,
-      deletedAt: null,
-      clientId: "sender",
-      changes: { id: incomingClock, title: incomingClock },
-    };
-    const changeset = [
-      {
+      const incomingClock = formatHlc({
+        physical: 1_700_000_000_000,
+        logical: 1,
+        actorId: "sender",
+      });
+      const row = { id: "shared", title: "From sender" };
+      const change: Change = {
+        id: `${crossTabItemsTable.tableName}:${row.id}`,
+        entityId: row.id,
         tableName: crossTabItemsTable.tableName,
-        data: [{ row, change }],
-      },
-    ] satisfies ChangesetArrayType;
-
-    await asyncDispatch(
-      senderDB,
-      action({
-        name: "persistCrossTabTestChange",
-        args: {},
-        handler: function* () {
-          yield* upsert(crossTabItemsTable, [row]);
-          yield* upsert(changesTable, [change]);
+        createdAt: incomingClock,
+        updatedAt: incomingClock,
+        deletedAt: null,
+        clientId: "sender",
+        changes: { id: incomingClock, title: incomingClock },
+      };
+      const changeset = [
+        {
+          tableName: crossTabItemsTable.tableName,
+          data: [{ row, change }],
         },
-      })({}),
-    );
+      ] satisfies ChangesetArrayType;
 
-    await crossTabChanges.applyChanges({ changeset });
+      await asyncDispatch(
+        senderDB,
+        action({
+          name: "persistCrossTabTestChange",
+          args: {},
+          handler: function* () {
+            yield* upsert(crossTabItemsTable, [row]);
+            yield* upsert(changesTable, [change]);
+          },
+        })({}),
+      );
 
-    const state = await selectAsync(receiverDB, {
-      selector: crossTabState,
-      args: { id: row.id },
-    });
-    expect(state.row).toEqual(row);
-    expect(state.changes).toEqual([
-      expect.objectContaining({
-        ...change,
-        updatedAt: expect.any(String),
-      }),
-    ]);
-    expect(
-      publications
-        .flat()
-        .some(
-          (op) =>
-            op.table === crossTabItemsTable &&
-            "newValue" in op &&
-            op.newValue.id === row.id,
-        ),
-    ).toBe(true);
-    expect(postChanges).not.toHaveBeenCalled();
-    expect(onApplied).toHaveBeenCalledOnce();
-  });
+      await crossTabChanges.applyChanges({ changeset });
+
+      const state = await selectAsync(receiverDB, {
+        selector: crossTabState,
+        args: { id: row.id },
+      });
+      expect(state.row).toEqual(row);
+      expect(state.changes).toEqual([
+        expect.objectContaining({
+          ...change,
+          updatedAt: expect.any(String),
+        }),
+      ]);
+      expect(
+        publications
+          .flat()
+          .some(
+            (op) =>
+              op.table === crossTabItemsTable &&
+              "newValue" in op &&
+              op.newValue.id === row.id,
+          ),
+      ).toBe(true);
+      expect(postChanges).not.toHaveBeenCalled();
+      expect(onApplied).toHaveBeenCalledOnce();
+    },
+  );
 });

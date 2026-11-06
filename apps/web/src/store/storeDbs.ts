@@ -2,10 +2,11 @@ import {
   asyncDispatch,
   DB,
   execAsync,
-  PreloadedHybridDB,
+  HybridDB,
   selectAsync,
   SubscribableDB,
 } from "@will-be-done/hyperdb";
+import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import { getDevtoolsEnabled } from "@/lib/devtools";
 import { openPersistentDriver } from "./persistentDriver";
@@ -87,10 +88,12 @@ export const createStoreDbs = async (
     return db;
   });
 
-  const preloadedDB = new PreloadedHybridDB(persistentDB, {
-    preloadConcurrency: "whole",
+  const cacheDB = new DB(new BptreeInmemDriver(), {
+    traits: [dbIdTrait(syncConfig.dbType, syncConfig.dbId)],
+    tracer,
+    dbName: "hybrid-cache",
   });
-  const syncSubDb = new SubscribableDB(preloadedDB);
+  const syncSubDb = new SubscribableDB(new HybridDB(persistentDB, cacheDB));
   await execAsync(syncSubDb.loadTables(syncConfig.persistDBTables));
 
   // const canPreloadChanges = syncConfig.persistDBTables.includes(changesTable);

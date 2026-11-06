@@ -120,11 +120,9 @@ atomic memory commits before persistence completes. The publication queue
 waits for runtime durability before broadcasting or waking sync, and sync
 operations wait for durability before advancing transport or acknowledging a
 download. A receiving tab merges
-them with both `skip-sync` and HyperDB's `externalStorageMergeTrait`: the first
-prevents a duplicate local change-log entry, while the second lets the
-preloaded snapshot emit normal insert/upsert/delete invalidations and treats
-the already-persisted insert as an idempotent primary upsert. The broadcast is
-not authoritative and does not replace persisted sync state.
+them with `skip-sync`, which prevents a duplicate local change-log entry (see
+Cross-window visibility). The broadcast is not authoritative and does not
+replace persisted sync state.
 
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
@@ -207,11 +205,14 @@ incoming clocks and runs the normal idempotent merge with `skip-sync`, so this
 coordination path cannot create another local change record or an upload echo.
 
 The persistent write may already be visible to the receiving runtime before
-the merge starts. A receiving preloaded runtime applies the merge with explicit
-external-storage semantics: it compares against its preloaded snapshot, uses
-idempotent persistence for an insert the sender may already have stored, and
-publishes the merge's normal transaction operations to reactive subscribers.
-The accompanying `skip-sync` trait still prevents those cache-coherence writes
+the merge starts. The web runtime is a `HybridDB` that keeps `changes` and
+every domain table except the mindmap tables resident in memory
+([`configs.ts`](../apps/web/src/store/configs.ts)). The merge therefore diffs
+against the receiver's in-memory changes, not the sender's stored ones, and
+HybridDB persists inserts as idempotent upserts. A mindmap row is read from
+storage on demand, so the merge can see the sender's row unchanged; whenever
+it writes a Change record, it also upserts that Change's row so subscribers
+receive the row operation. The `skip-sync` trait still prevents those writes
 from producing a second local change record or upload echo.
 
 After a cross-tab merge completes, the receiving tab wakes the ordinary sync

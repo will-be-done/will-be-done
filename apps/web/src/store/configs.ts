@@ -12,22 +12,24 @@ import {
   projectSectionsTable,
   projectSectionTaskStatsTable,
   projectsTable,
+  notesTable,
   purgeExpiredTrash,
   registeredSpaceSyncableTableNameMap,
   registeredSpaceSyncableTables,
   scheduledTodoTasksTable,
   spaceMigrationsTable,
   stashEntriesTable,
-  mindmapNodesTable,
-  mindmapsTable,
   dailyEntriesTable,
+  taskTemplatesTable,
   tasksTable,
   trashedTasks,
+  trashedTasksTable,
 } from "@will-be-done/slices/space";
 import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import {
   registeredUserSyncableTableNameMap,
   registeredUserSyncableTables,
+  spacesTable,
 } from "@will-be-done/slices/user";
 import type { SyncConfig } from "./syncTypes";
 import { generateDemoBackup } from "@/lib/demoData";
@@ -37,6 +39,23 @@ import { clientSyncV4Tables } from "./syncV4Tables";
 
 const demoDbId = "e89b6c8f-1d6c-4bf4-9d27-478339773fc9";
 export const spaceDbType = "space";
+
+// Mindmap tables stay out so they load on demand when a mindmap is opened.
+const spacePreloadedTables = [
+  { table: changesTable, scanIndex: "byUpdatedAtId" },
+  { table: tasksTable, scanIndex: "byIds" },
+  { table: taskTemplatesTable, scanIndex: "byIds" },
+  { table: notesTable, scanIndex: "byIds" },
+  { table: trashedTasksTable, scanIndex: "byIds" },
+  { table: dailyListsTable, scanIndex: "byIds" },
+  { table: dailyEntriesTable, scanIndex: "byIds" },
+  { table: projectsTable, scanIndex: "byIds" },
+  { table: projectSectionsTable, scanIndex: "byIds" },
+  { table: stashEntriesTable, scanIndex: "byIds" },
+  { table: projectSectionTaskStatsTable, scanIndex: "byIds" },
+  { table: scheduledTodoTasksTable, scanIndex: "byIds" },
+  { table: checklistItemsTable, scanIndex: "byIds" },
+] as const;
 
 export const spaceDBConfig = (dbId: string) => {
   return {
@@ -59,22 +78,7 @@ export const spaceDBConfig = (dbId: string) => {
     afterInit: async (db: SubscribableDB) => {
       await asyncDispatch(db, createInboxIfNotExists({}));
 
-      await execAsync(
-        db.preloadTables([
-          { table: changesTable, scanIndex: "byUpdatedAtId" },
-          { table: tasksTable, scanIndex: "byIds" },
-          { table: dailyListsTable, scanIndex: "byIds" },
-          { table: dailyEntriesTable, scanIndex: "byIds" },
-          { table: projectsTable, scanIndex: "byIds" },
-          { table: projectSectionsTable, scanIndex: "byIds" },
-          { table: stashEntriesTable, scanIndex: "byIds" },
-          { table: mindmapsTable, scanIndex: "byIds" },
-          { table: mindmapNodesTable, scanIndex: "byIds" },
-          { table: projectSectionTaskStatsTable, scanIndex: "byIds" },
-          { table: scheduledTodoTasksTable, scanIndex: "byIds" },
-          { table: checklistItemsTable, scanIndex: "byIds" },
-        ]),
-      );
+      await execAsync(db.preloadTables(spacePreloadedTables));
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
       await asyncDispatch(db, migrateScheduledTodoTasks({}));
 
@@ -111,18 +115,7 @@ export const demoSpaceDBConfig = () => {
         );
       }
 
-      await execAsync(
-        db.preloadTables([
-          { table: projectsTable, scanIndex: "byIds" },
-          { table: projectSectionsTable, scanIndex: "byIds" },
-          { table: dailyEntriesTable, scanIndex: "byIds" },
-          { table: stashEntriesTable, scanIndex: "byIds" },
-          { table: mindmapsTable, scanIndex: "byIds" },
-          { table: mindmapNodesTable, scanIndex: "byIds" },
-          { table: projectSectionTaskStatsTable, scanIndex: "byIds" },
-          { table: scheduledTodoTasksTable, scanIndex: "byIds" },
-        ]),
-      );
+      await execAsync(db.preloadTables(spacePreloadedTables));
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
       await asyncDispatch(db, migrateScheduledTodoTasks({}));
 
@@ -152,6 +145,13 @@ export const userDBConfig = (dbId: string) => {
     ],
     syncableDBTables: registeredUserSyncableTables,
     tableNameMap: registeredUserSyncableTableNameMap,
-    afterInit: () => {},
+    afterInit: async (db: SubscribableDB) => {
+      await execAsync(
+        db.preloadTables([
+          { table: changesTable, scanIndex: "byUpdatedAtId" },
+          { table: spacesTable, scanIndex: "byIds" },
+        ]),
+      );
+    },
   } satisfies SyncConfig;
 };

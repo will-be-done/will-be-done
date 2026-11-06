@@ -1002,6 +1002,57 @@ describe("first-creator-wins merge", () => {
     expect(change!.clientId).toBe("remote");
   });
 
+  it("republishes an already stored row when its change record is new", () => {
+    // A cross-tab merge can read a row the sender already persisted while the
+    // receiver's resident changes table has no record of it yet.
+    resetClock();
+    const db = new SubscribableDB(createDB());
+    const entityId = "entity-already-stored";
+    const storedRow = {
+      type: "task",
+      id: entityId,
+      title: "remote-title",
+      orderToken: "a",
+      createdAt: 100,
+    };
+    syncDispatch(
+      db,
+      action({
+        name: "storeRowWithoutChange",
+        args: {},
+        handler: function* () {
+          yield* insert(testTable, [storedRow]);
+        },
+      })({}),
+    );
+    const published: Row[] = [];
+    const unsubscribe = db.subscribe((operations) => {
+      for (const op of operations) {
+        if (op.table === testTable && "newValue" in op) {
+          published.push(op.newValue);
+        }
+      }
+    });
+
+    syncDispatch(
+      db,
+      mergeChanges({
+        input: makeIncomingCreate(
+          entityId,
+          storedRow.title,
+          "0000000015-0001-remote",
+        ),
+        nextClock: makeClockFn("0000000020")(),
+        clientId: "local",
+        registeredSyncableTableNameMap: registeredTables,
+      }),
+    );
+    unsubscribe();
+
+    expect(published).toEqual([storedRow]);
+    expect(getChange(db, entityId)?.clientId).toBe("remote");
+  });
+
   it("merges repeated records for one entity against the planned state", () => {
     resetClock();
     const db = createDB();
