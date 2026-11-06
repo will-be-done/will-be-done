@@ -29,6 +29,7 @@ export function GeneralSection() {
       <SettingSwitch
         icon={<Network className="h-4 w-4" />}
         title="Mindmaps"
+        label="Show mindmaps"
         description="Show maps in the view switcher. Links to mindmaps open either way."
         checked={mindmapsEnabled}
         onChange={() => setMindmapsEnabled(!mindmapsEnabled)}
@@ -36,6 +37,7 @@ export function GeneralSection() {
       <SettingSwitch
         icon={<Database className="h-4 w-4" />}
         title="IndexedDB storage"
+        label="Use IndexedDB storage"
         description="Use the IndexedDB HyperDB driver for every local database instead of wa-sqlite."
         checked={indexedDBEnabled}
         onChange={toggleIndexedDB}
@@ -43,6 +45,7 @@ export function GeneralSection() {
       <SettingSwitch
         icon={<Bug className="h-4 w-4" />}
         title="HyperDB Devtool"
+        label="Enable HyperDB Devtool"
         description="Render the HyperDB debugging panel from the app root."
         checked={devtoolsEnabled}
         onChange={() => setDevtoolsEnabled(!devtoolsEnabled)}
@@ -54,12 +57,14 @@ export function GeneralSection() {
 function SettingSwitch({
   icon,
   title,
+  label,
   description,
   checked,
   onChange,
 }: {
   icon: React.ReactNode;
   title: string;
+  label: string;
   description: string;
   checked: boolean;
   onChange: () => void;
@@ -83,7 +88,7 @@ function SettingSwitch({
           type="button"
           role="switch"
           aria-checked={checked}
-          aria-label={title}
+          aria-label={label}
           onClick={onChange}
           className={cn(
             "mt-1 inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full px-0.5 outline-none ring-1 transition-colors focus-visible:ring-2 focus-visible:ring-accent/50",

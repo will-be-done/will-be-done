@@ -8864,7 +8864,7 @@ export type GetMindmap500 = {
 };
 
 export type UpdateMindmapBody = {
-  /** @minLength 1 */
+  /** Empty clears the name, so apps show the central topic's text */
   title: string;
 };
 
