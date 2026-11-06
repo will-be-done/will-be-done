@@ -235,15 +235,16 @@ export const useMindmapSelection = create<{
 }));
 
 /**
- * Selectable nodes in reading order: each node, then its visible children,
- * then its next sibling; right branches, then left, then floating roots.
+ * Nodes in reading order: each node, then its children, then its next
+ * sibling; right branches, then left, then floating roots. Collapsed children
+ * count only in the full order.
  */
-export function visibleNodeOrder(tree: MindmapTree): string[] {
+function nodeOrder(tree: MindmapTree, visibleOnly: boolean): string[] {
   const order: string[] = [];
   const visit = (trees: readonly MindmapTreeNode[]) => {
     for (const child of trees) {
       order.push(child.node.id);
-      if (!child.node.collapsed) visit(child.children);
+      if (!(visibleOnly && child.node.collapsed)) visit(child.children);
     }
   };
   visit(tree.branches.filter(({ node }) => node.side === "right"));
@@ -255,6 +256,12 @@ export function visibleNodeOrder(tree: MindmapTree): string[] {
   }
   return order;
 }
+
+/** What a range selection spans. */
+export const visibleNodeOrder = (tree: MindmapTree) => nodeOrder(tree, true);
+
+/** The order a selection acts in; it can keep nodes a collapse hid. */
+export const mapNodeOrder = (tree: MindmapTree) => nodeOrder(tree, false);
 
 /** The nodes from `from` to `to` inclusive, in `order`. */
 export function rangeOf(order: readonly string[], from: string, to: string) {

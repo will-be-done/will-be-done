@@ -15,6 +15,7 @@ import {
   indexMindmapTree,
   rangeOf,
   treeMoveOf,
+  mapNodeOrder,
   visibleNodeOrder,
   withDropGhosts,
   withDropGhostsOnRoots,
@@ -286,7 +287,7 @@ describe("range selection", () => {
     createdAt: 0,
   } as const;
   // parent(n1(n1a) n2 n3), hidden(h1) collapsed, left l, floating f(f1).
-  const order = visibleNodeOrder({
+  const tree = {
     mindmap,
     root: mindmapRootNode(mindmap),
     branches: [
@@ -300,9 +301,10 @@ describe("range selection", () => {
         node: { ...topic("f").node, parentId: null },
       },
     ],
-  });
+  };
+  const order = visibleNodeOrder(tree);
 
-  test("follows reading order, skipping collapsed children", () => {
+  test("follows reading order; only the full order enters collapsed nodes", () => {
     expect(order).toEqual([
       "parent",
       "n1",
@@ -314,6 +316,8 @@ describe("range selection", () => {
       "f",
       "f1",
     ]);
+    // A selection can keep a node its parent's collapse hid.
+    expect(mapNodeOrder(tree).slice(5, 7)).toEqual(["hidden", "h1"]);
   });
 
   test("selects everything between two siblings, either way round", () => {

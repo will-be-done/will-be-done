@@ -41,6 +41,7 @@ import {
 import type { MindmapLayout } from "./mindmapLayout.ts";
 import {
   type CanvasIndex,
+  mapNodeOrder,
   type NodeKind,
   nodeKind,
   rangeOf,
@@ -155,12 +156,9 @@ export function useMindmapActions({
     const selectedNodesWith = (id: string) => {
       const { ids } = useMindmapSelection.getState();
       if (ids.size < 2 || !ids.has(id)) return null;
-      const order = visibleNodeOrder(latestRef.current.tree);
-      const rank = (nodeId: string) => {
-        const index = order.indexOf(nodeId);
-        return index === -1 ? order.length : index;
-      };
-      return [...ids].sort((a, b) => rank(a) - rank(b));
+      return mapNodeOrder(latestRef.current.tree).filter((nodeId) =>
+        ids.has(nodeId),
+      );
     };
     // Whether any of the nodes' tasks has data a note cannot keep.
     const losesNoteData = async (ids: string[]) => {
