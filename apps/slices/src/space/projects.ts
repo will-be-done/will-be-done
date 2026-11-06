@@ -321,7 +321,10 @@ export const createProject = action({
   }): Generator<unknown, Project, unknown> {
     const orderToken = yield* generateOrderTokenPositioned(
       "all-projects-list",
-      { firstChild: firstProjectChild, lastChild: lastProjectChild },
+      {
+        firstChild: () => firstProjectChild({}),
+        lastChild: () => lastProjectChild({}),
+      },
       normalizeOrderPosition(position),
     );
 

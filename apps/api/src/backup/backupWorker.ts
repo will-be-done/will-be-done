@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { SqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
 import { DB, execSync } from "@will-be-done/hyperdb";
+import { hyperDBStrictOptions } from "@will-be-done/slices";
 import path from "path";
 import fs from "fs";
 import {
@@ -59,7 +60,7 @@ function createMainDB(dbsPath: string): DB {
     },
   });
 
-  const db = new DB(sqliteDriver);
+  const db = new DB(sqliteDriver, hyperDBStrictOptions);
 
   // Load required tables
   execSync(

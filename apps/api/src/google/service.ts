@@ -34,6 +34,12 @@ export interface GoogleSession {
   userId: string;
   tokenId: string;
 }
+// Callers pass wider objects (e.g. with `password`); actions reject unknown args.
+const proofArgs = ({ id, secret, completion }: GoogleProof) => ({
+  id,
+  secret,
+  completion,
+});
 
 async function confirmPassword(
   db: DB,
@@ -183,14 +189,15 @@ export function createGoogleService(
     poll: (proof: GoogleProof) =>
       selectAsync(db, {
         selector: readFlowStatus,
-        args: { ...proof, now: now() },
+        args: { ...proofArgs(proof), now: now() },
       }),
-    cancel: (proof: GoogleProof) => asyncDispatch(db, cancelFlow(proof)),
+    cancel: ({ id, secret }: GoogleProof) =>
+      asyncDispatch(db, cancelFlow({ id, secret })),
     async completeSignIn(proof: GoogleProof) {
       const result = await asyncDispatch(
         db,
         completeGoogleFlow({
-          ...proof,
+          ...proofArgs(proof),
           intent: "signin",
           now: now(),
           emailConfig,
@@ -221,8 +228,9 @@ export function createGoogleService(
       await asyncDispatch(
         db,
         completeGoogleFlow({
-          ...proof,
-          ...session,
+          ...proofArgs(proof),
+          userId: session.userId,
+          tokenId: session.tokenId,
           intent: "link",
           expectedPassword,
           now: now(),

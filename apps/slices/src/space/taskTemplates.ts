@@ -580,7 +580,7 @@ export const createTaskTemplateFromTask = action({
       id: newId,
       type: taskTemplateType,
       title: task.title,
-      content: task.content,
+      ...(task.content === undefined ? {} : { content: task.content }),
       orderToken: task.orderToken,
       createdAt: task.createdAt,
       repeatRule: defaultRule,
