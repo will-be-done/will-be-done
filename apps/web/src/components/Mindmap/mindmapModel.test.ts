@@ -286,7 +286,8 @@ describe("range selection", () => {
     orderToken: "a",
     createdAt: 0,
   } as const;
-  // parent(n1(n1a) n2 n3), hidden(h1) collapsed, left l, floating f(f1).
+  // parent(n1(n1a) n2 n3), hidden(h1) collapsed, left l, floating f with a
+  // left fl stored before its right f1.
   const tree = {
     mindmap,
     root: mindmapRootNode(mindmap),
@@ -297,7 +298,7 @@ describe("range selection", () => {
     ],
     floating: [
       {
-        ...topic("f", [topic("f1")]),
+        ...topic("f", [topic("fl", [], { side: "left" }), topic("f1")]),
         node: { ...topic("f").node, parentId: null },
       },
     ],
@@ -315,6 +316,7 @@ describe("range selection", () => {
       "l",
       "f",
       "f1",
+      "fl",
     ]);
     // A selection can keep a node its parent's collapse hid.
     expect(mapNodeOrder(tree).slice(5, 7)).toEqual(["hidden", "h1"]);

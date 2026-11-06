@@ -236,7 +236,8 @@ export const useMindmapSelection = create<{
 
 /**
  * Nodes in reading order: each node, then its children, then its next
- * sibling; right branches, then left, then floating roots. Collapsed children
+ * sibling; right branches, then left, then floating roots, each right then
+ * left. Collapsed children
  * count only in the full order.
  */
 function nodeOrder(tree: MindmapTree, visibleOnly: boolean): string[] {
@@ -247,12 +248,15 @@ function nodeOrder(tree: MindmapTree, visibleOnly: boolean): string[] {
       if (!(visibleOnly && child.node.collapsed)) visit(child.children);
     }
   };
-  visit(tree.branches.filter(({ node }) => node.side === "right"));
-  visit(tree.branches.filter(({ node }) => node.side === "left"));
+  const visitBranches = (branches: readonly MindmapTreeNode[]) => {
+    visit(branches.filter(({ node }) => node.side === "right"));
+    visit(branches.filter(({ node }) => node.side === "left"));
+  };
+  visitBranches(tree.branches);
   // Floating roots never collapse.
   for (const root of tree.floating) {
     order.push(root.node.id);
-    visit(root.children);
+    visitBranches(root.children);
   }
   return order;
 }
