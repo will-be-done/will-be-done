@@ -254,8 +254,6 @@ export const mindmapsTable = defineTable("mindmaps", {
   type: v.literal(mindmapType),
   id: v.string(),
   title: v.string(),
-  // Unused; rows from when the map row held the center topic carry it.
-  titleDoc: v.optional(v.string()),
   orderToken: v.string(),
   createdAt: v.number(),
 })

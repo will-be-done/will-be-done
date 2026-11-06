@@ -36,6 +36,8 @@ export type CanvasIndex = {
   byFocusKey: Map<FocusKey, string>;
 };
 
+export const noIds: ReadonlySet<string> = new Set();
+
 export const isFloatingRoot = (entry: CanvasNode | undefined) =>
   entry?.kind === "node" && entry.parentId === null;
 

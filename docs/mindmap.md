@@ -21,9 +21,7 @@ Code lives in:
 A mindmap is a tree drawn around a central topic. The `mindmaps` row holds
 only the map's name (`title`, plain text, last write wins) and list order.
 Lists show the central topic's plain text while the name is empty
-(`mindmapDisplayTitle`). `titleDoc` on `mindmaps` is unused; rows from before
-the central topic moved to a node carry it, and HyperDB rejects rows with
-fields the schema lacks.
+(`mindmapDisplayTitle`).
 
 Every node, the central topic included, is a `mindmap_nodes` row:
 
