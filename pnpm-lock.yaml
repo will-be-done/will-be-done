@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@will-be-done/hyperdb': file:../../../will-be-done/hyperdb/packages/hyperdb
   '@types/react': 19.2.17
   '@types/react-dom': 19.2.3
   react: 19.2.7
@@ -73,8 +74,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       '@will-be-done/hyperdb':
-        specifier: ^0.8.0
-        version: 0.8.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: file:../../../../../will-be-done/hyperdb/packages/hyperdb
+        version: file:../../../will-be-done/hyperdb/packages/hyperdb(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -265,8 +266,8 @@ importers:
   apps/slices:
     dependencies:
       '@will-be-done/hyperdb':
-        specifier: ^0.8.0
-        version: 0.8.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: file:../../../../../will-be-done/hyperdb/packages/hyperdb
+        version: file:../../../will-be-done/hyperdb/packages/hyperdb(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       date-fns:
         specifier: ^4.1.0
         version: 4.4.0
@@ -455,8 +456,8 @@ importers:
         specifier: workspace:*
         version: link:../api
       '@will-be-done/hyperdb':
-        specifier: ^0.8.0
-        version: 0.8.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: file:../../../../../will-be-done/hyperdb/packages/hyperdb
+        version: file:../../../will-be-done/hyperdb/packages/hyperdb(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/hyperdb-devtool':
         specifier: 0.4.9
         version: 0.4.9(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -3803,6 +3804,7 @@ packages:
   '@smithy/core@3.26.0':
     resolution: {integrity: sha512-mLUktFAn+Pa2agl1J7VgtYNFWCX8/b4GMJSK1hCu4YCvtBfM6F8Os3EP4ry+DFFlXOf3wyvlgXhuUdFoy52D3g==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.4.2':
     resolution: {integrity: sha512-18UMDMyrAbDcpmL1gLUA7ww0fRTcdCrSjSJOi2Sbld+tVjwD/pW+OAwjlScFLR7vvBnhZrIPQ7kVuTf1mnJLug==}
@@ -4562,8 +4564,8 @@ packages:
       react: 19.2.7
       react-dom: 19.2.7
 
-  '@will-be-done/hyperdb@0.8.0':
-    resolution: {integrity: sha512-rPZD+PkyXR70qIikjnSDhXcN2swtmmSQpJYDJqaYyS84SOVVK7mM6SUc9x8QtttfAdDPMyuyXgpAmP5xMZucfA==}
+  '@will-be-done/hyperdb@file:../../../will-be-done/hyperdb/packages/hyperdb':
+    resolution: {directory: ../../../will-be-done/hyperdb/packages/hyperdb, type: directory}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
@@ -13391,14 +13393,14 @@ snapshots:
 
   '@will-be-done/hyperdb-devtool@0.4.9(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@will-be-done/hyperdb': 0.8.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@will-be-done/hyperdb': file:../../../will-be-done/hyperdb/packages/hyperdb(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       goober: 2.1.19(csstype@3.2.3)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
     transitivePeerDependencies:
       - csstype
 
-  '@will-be-done/hyperdb@0.8.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@will-be-done/hyperdb@file:../../../will-be-done/hyperdb/packages/hyperdb(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)

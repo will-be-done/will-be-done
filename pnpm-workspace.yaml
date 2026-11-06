@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 overrides:
+  "@will-be-done/hyperdb": "file:../../../will-be-done/hyperdb/packages/hyperdb"
   "@types/react": "19.2.17"
   "@types/react-dom": "19.2.3"
   react: "19.2.7"
