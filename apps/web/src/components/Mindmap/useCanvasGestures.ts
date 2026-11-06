@@ -75,6 +75,9 @@ export function useCanvasGestures({
   );
   const tapRef = useRef<{ start: Point; onCanvas: boolean } | null>(null);
   const lastTapRef = useRef<{ at: number; point: Point } | null>(null);
+  // The new topic can mount under the finger before the browser's emulated
+  // mousedown, which would focus its card and discard the empty topic.
+  const cancelTouchEndRef = useRef(false);
   const lastPointerTypeRef = useRef("");
 
   const startPinch = () => {
@@ -97,6 +100,7 @@ export function useCanvasGestures({
     const touches = touchesRef.current;
     // A touch whose end was lost would otherwise count as a finger.
     if (e.isPrimary) touches.clear();
+    cancelTouchEndRef.current = false;
     if (e.target instanceof Element && isInputElement(e.target)) return;
     const point = { x: e.clientX, y: e.clientY };
     touches.set(e.pointerId, point);
@@ -177,11 +181,18 @@ export function useCanvasGestures({
         doubleTapSlop
     ) {
       lastTapRef.current = null;
+      cancelTouchEndRef.current = true;
       addFloatingTopic(e);
       return;
     }
     lastTapRef.current = { at: e.timeStamp, point: tap.start };
     deselect();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!cancelTouchEndRef.current) return;
+    cancelTouchEndRef.current = false;
+    e.preventDefault();
   };
 
   // Dragging empty space selects with a rectangle; the middle button pans.
@@ -338,6 +349,7 @@ export function useCanvasGestures({
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
     onPointerCancel: handlePointerUp,
+    onTouchEnd: handleTouchEnd,
     onDoubleClick: handleDoubleClick,
   };
 }

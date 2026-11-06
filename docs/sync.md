@@ -127,7 +127,9 @@ replace persisted sync state.
 The client snapshots local and WebSocket wake-up versions before each sync
 session. A notification that arrives while that session is running therefore
 remains pending and starts another session instead of being lost between the
-session and the next wait.
+session and the next wait. A space session rejected with 404 also wakes when the
+same tab's user database next syncs, because a newly created space reaches the
+server only through that user sync.
 
 The sidebar sync indicator reports the current stage, completed transport
 batches, and the last successful sync time. A session succeeds only after

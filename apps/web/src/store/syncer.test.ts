@@ -263,6 +263,50 @@ describe("sync status", () => {
     await stop(syncer, run);
   });
 
+  it("retries a space the server did not know yet once the user database syncs", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    let spaceOnServer = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/space/") && !spaceOnServer) {
+          return jsonResponse({ error: "Space not found" }, 404);
+        }
+        if (url.endsWith("/sessions")) {
+          return jsonResponse(sessionResponse("upload-1"));
+        }
+        if (url.includes("/user/")) spaceOnServer = true;
+        return jsonResponse({
+          acceptedClientCursor: null,
+          serverRevision: 0,
+          download: { type: "inline", changesets: [] },
+        });
+      }),
+    );
+    const { syncer: spaceSyncer } = createSyncer({
+      ...config,
+      dbId: "space-1",
+      dbType: "space",
+    });
+    const spaceRun = spaceSyncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() =>
+      expect(spaceSyncer.status.get().phase).toBe("error"),
+    );
+
+    const { syncer: userSyncer } = createSyncer();
+    const userRun = userSyncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await vi.waitFor(() =>
+      expect(spaceSyncer.status.get().phase).toBe("synced"),
+    );
+    await stop(userSyncer, userRun);
+    await stop(spaceSyncer, spaceRun);
+  });
+
   it("tracks staged download batches and waits for acknowledgement before success", async () => {
     vi.useFakeTimers();
     const { syncer } = createSyncer();

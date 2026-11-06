@@ -81,6 +81,10 @@ test("supports a keyboard-only planning loop", async ({ page }) => {
 
   await page.getByRole("link", { name: "timeline" }).click();
   await expect(page).toHaveURL(/\/spaces\/[^/]+\/timeline\/\d{4}-\d{2}-\d{2}/);
+  // The URL changes before the lazy route renders the board that handles Z.
+  await expect(
+    page.locator('[data-column-model-type="dailyList"]').first(),
+  ).toBeVisible();
   await expect(stashPanel(page)).toHaveAttribute("aria-hidden", "false");
   await stashTaskItem(page, belowTitle).click();
   await page.keyboard.press("KeyV");

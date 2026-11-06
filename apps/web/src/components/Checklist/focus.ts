@@ -12,8 +12,14 @@ export const focusChecklistItem = (
     const editor = item?.querySelector<HTMLElement>("[contenteditable]");
 
     if (!editor) {
-      item?.dispatchEvent(new CustomEvent("checklist-item-edit"));
-      if (attempts > 0) {
+      // An accepted request mounts an autofocused editor; asking again after
+      // the user has blurred it would reopen it.
+      const accepted =
+        item !== null &&
+        !item.dispatchEvent(
+          new CustomEvent("checklist-item-edit", { cancelable: true }),
+        );
+      if (!accepted && attempts > 0) {
         focusChecklistItem(itemId, { ...options, attempts: attempts - 1 });
       }
       return;

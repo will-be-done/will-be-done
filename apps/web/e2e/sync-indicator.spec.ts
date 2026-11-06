@@ -75,6 +75,8 @@ test("shows sync stages, last success, offline recovery, and shared tab status",
   );
   await createTodayTask(page, uniqueE2EName("Interrupted sync task"));
   await expect(indicator).toHaveAccessibleName("Sync status: Sync interrupted");
+  // Radix ignores a hover that lands while the dismissed tooltip still animates out.
+  await expect(tooltip).toBeHidden();
   await indicator.hover();
   await expect(tooltip).toContainText(
     "The server could not complete sync (503).",
