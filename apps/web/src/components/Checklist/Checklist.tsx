@@ -237,7 +237,10 @@ const ChecklistItemComp = ({
     const rowElement = rowRef.current;
     if (!rowElement) return;
 
-    const handleEditRequest = () => setIsEditing(true);
+    const handleEditRequest = (event: Event) => {
+      event.preventDefault();
+      setIsEditing(true);
+    };
     rowElement.addEventListener("checklist-item-edit", handleEditRequest);
 
     return () => {

@@ -46,6 +46,9 @@ const SYNC_POLL_INTERVAL_MS = 60000;
 const SYNC_UPLOAD_TIMEOUT_MS = 30 * 60_000;
 const SYNC_SESSION_STALE_MS = 24 * 60 * 60 * 1000;
 
+// A space created moments ago reaches the server with the next user sync.
+const completedUserSyncs = new State(0);
+
 type SyncStatusMessage =
   | { type: "request-status" }
   | { type: "request-sync" }
@@ -215,6 +218,8 @@ export class Syncer {
       // that arrives while syncV4 is running remains a pending wake-up.
       const wsVersion = this.wsNotification.get();
       const forceSyncVersion = this.forceSyncNotification.get();
+      const userSyncVersion = completedUserSyncs.get();
+      let spaceMissingOnServer = false;
       if (this.runId !== myRunId) {
         syncerLog("runId !== myRunId, stopping syncer loop");
         this.cleanupWebSocket();
@@ -232,6 +237,9 @@ export class Syncer {
           progress: null,
           ...(completed ? { lastSyncedAt: Date.now() } : {}),
         });
+        if (completed && this.syncConfig.dbType === "user") {
+          completedUserSyncs.modify((version) => version + 1);
+        }
       } catch (e) {
         if (isUnsupportedSyncVersionError(e)) {
           this.stopForRequiredUpdate();
@@ -250,9 +258,17 @@ export class Syncer {
                 : "Sync could not finish. It will retry automatically.",
         });
         console.error(e);
+        spaceMissingOnServer =
+          this.syncConfig.dbType === "space" &&
+          e instanceof SyncRequestError &&
+          e.status === 404;
       }
 
-      await this.waitForNextSyncTrigger(wsVersion, forceSyncVersion);
+      await this.waitForNextSyncTrigger(
+        wsVersion,
+        forceSyncVersion,
+        spaceMissingOnServer ? userSyncVersion : undefined,
+      );
     }
   }
 
@@ -568,11 +584,13 @@ export class Syncer {
   private async waitForNextSyncTrigger(
     wsVersion: number,
     forceSyncVersion: number,
+    userSyncVersion?: number,
   ) {
     return new Promise<"timeout" | "ws" | "local">((resolve) => {
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let unsubscribeWs = () => {};
       let unsubscribeForceSync = () => {};
+      let unsubscribeUserSync = () => {};
       let settled = false;
 
       const finish = (reason: "timeout" | "ws" | "local") => {
@@ -585,6 +603,7 @@ export class Syncer {
         }
         unsubscribeWs();
         unsubscribeForceSync();
+        unsubscribeUserSync();
         resolve(reason);
       };
 
@@ -599,9 +618,20 @@ export class Syncer {
         }
       });
 
+      if (userSyncVersion !== undefined) {
+        unsubscribeUserSync = completedUserSyncs.subscribe((version) => {
+          if (version > userSyncVersion) finish("local");
+        });
+      }
+
       if (this.wsNotification.get() > wsVersion) {
         finish("ws");
       } else if (this.forceSyncNotification.get() > forceSyncVersion) {
+        finish("local");
+      } else if (
+        userSyncVersion !== undefined &&
+        completedUserSyncs.get() > userSyncVersion
+      ) {
         finish("local");
       }
 

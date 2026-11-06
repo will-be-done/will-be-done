@@ -1,13 +1,8 @@
 import { useState } from "react";
-import {
-  useAsyncDispatch,
-  useAsyncSelector,
-} from "@will-be-done/hyperdb/react";
+import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import {
   type MindmapTreeNode,
   projectSectionsByProjectId,
-  updateNote,
-  updateTask,
 } from "@will-be-done/slices/space";
 import { format } from "date-fns";
 import { Check } from "lucide-react";
@@ -35,23 +30,14 @@ export function MindmapItemPlace({
   actions: MindmapNodeActions;
   scheduledAt: Date | undefined;
 }) {
-  const dispatch = useAsyncDispatch();
   const [isPickingSection, setIsPickingSection] = useState(false);
-  const { task, note, project, section } = tree;
+  const { project, section } = tree;
   const { data: sections = [] } = useAsyncSelector({
     selector: projectSectionsByProjectId,
     args: { projectId: project?.id ?? "" },
     enabled: isPickingSection && !!project,
   });
   if (!project && !scheduledAt) return null;
-
-  const moveToSection = (projectSectionId: string) => {
-    if (task) {
-      void dispatch(updateTask({ id: task.id, task: { projectSectionId } }));
-    } else if (note) {
-      void dispatch(updateNote({ id: note.id, note: { projectSectionId } }));
-    }
-  };
 
   return (
     <div
@@ -96,7 +82,7 @@ export function MindmapItemPlace({
                 {sections.map((option) => (
                   <DropdownMenuItem
                     key={option.id}
-                    onSelect={() => moveToSection(option.id)}
+                    onSelect={() => actions.moveToSection(id, option.id)}
                   >
                     <Check
                       className={

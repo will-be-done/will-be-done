@@ -160,9 +160,7 @@ const rowSchema = v.record(
   v.string(),
   primitiveValueSchema,
 ) as Validator<PrimitiveRow>;
-export const tableDefinitionArgSchema = v.object({
-  tableName: v.string(),
-});
+export const tableDefinitionArgSchema = v.pass<TableDefinition>();
 const changeSchema = v.object({
   id: v.string(),
   entityId: v.string(),
@@ -762,20 +760,8 @@ export const mergeChanges = action({
       for (const entityId of touchedEntityIds) {
         const originalRow = originalRowsMap.get(entityId);
         const finalRow = currentRowsMap.get(entityId);
-        if (originalRow !== undefined && finalRow === undefined) {
-          toDeleteRows.push(entityId);
-        } else if (originalRow === undefined && finalRow !== undefined) {
-          toInsertRows.push(finalRow);
-        } else if (
-          originalRow !== undefined &&
-          finalRow !== undefined &&
-          !isEqual(originalRow, finalRow)
-        ) {
-          toUpdateRows.push(finalRow);
-        }
-
         const finalChange = currentChangesMap.get(entityId);
-        if (
+        const changeWritten =
           finalChange !== undefined &&
           !isSameMergedState(
             originalChangesMap.get(entityId),
@@ -783,9 +769,21 @@ export const mergeChanges = action({
             finalChange,
             finalRow ?? { id: entityId },
             isDeletedChange(finalChange),
-          )
+          );
+        if (changeWritten) changesToUpsert.push(finalChange);
+
+        if (originalRow !== undefined && finalRow === undefined) {
+          toDeleteRows.push(entityId);
+        } else if (originalRow === undefined && finalRow !== undefined) {
+          toInsertRows.push(finalRow);
+        } else if (
+          originalRow !== undefined &&
+          finalRow !== undefined &&
+          // A row read from storage another tab already wrote is unchanged
+          // here, but subscribers still need its op alongside the new change.
+          (changeWritten || !isEqual(originalRow, finalRow))
         ) {
-          changesToUpsert.push(finalChange);
+          toUpdateRows.push(finalRow);
         }
       }
 

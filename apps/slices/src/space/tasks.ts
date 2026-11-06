@@ -501,7 +501,9 @@ export const createTaskFromTemplate = action({
       lastToggledAt: Date.now(),
       nature: taskTemplate.nature ?? "unknown",
       createdAt: taskTemplate.createdAt,
-      content: taskTemplate.content,
+      ...(taskTemplate.content === undefined
+        ? {}
+        : { content: taskTemplate.content }),
       templateId: null,
       templateDate: null,
       ...(taskTemplate.durationMinutes == null

@@ -1,10 +1,12 @@
 import { useState, useRef } from "react";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
 import { getSpaceBackup, loadSpaceBackup } from "@will-be-done/slices/space";
 import { Download, Upload, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
+import { restoreSpaceBackup } from "@/store/undo";
 
 export function BackupSection() {
+  const db = useDB();
   const dispatch = useAsyncDispatch();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -48,7 +50,7 @@ export function BackupSection() {
         const parsed = JSON.parse(text) as Parameters<
           typeof loadSpaceBackup
         >[0]["backup"];
-        await dispatch(loadSpaceBackup({ backup: parsed }));
+        await restoreSpaceBackup(db, parsed);
         setImportSuccess(true);
       } catch {
         setImportError(

@@ -3,13 +3,13 @@ import {
   dropTargetForElements,
   type ElementDropTargetEventBasePayload,
 } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { useAsyncSelector } from "@will-be-done/hyperdb/react";
+import { useAsyncSelector, useDB } from "@will-be-done/hyperdb/react";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import {
   createProject,
-  loadSpaceBackup,
   projectsWithTaskStats,
 } from "@will-be-done/slices/space";
+import { restoreSpaceBackup } from "@/store/undo";
 import { SidebarProjectItem } from "./SidebarProjectItem.tsx";
 import { SpaceBlock } from "./SpaceBlock.tsx";
 import {
@@ -407,7 +407,7 @@ export const AppSidebar = () => {
 };
 
 const GenerateTestDataButton = () => {
-  const dispatch = useAsyncDispatch();
+  const db = useDB();
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState("5");
   const [sections, setSections] = useState("3");
@@ -421,7 +421,7 @@ const GenerateTestDataButton = () => {
     const l = parseInt(todo, 10) || 0;
 
     const backup = generateTestBackup(n, m, k, l);
-    void dispatch(loadSpaceBackup({ backup: backup }));
+    void restoreSpaceBackup(db, backup);
     setOpen(false);
   };
 

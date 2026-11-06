@@ -2,11 +2,8 @@ import { type RefObject, useMemo, useState } from "react";
 import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   appHandleDrop,
-  convertMindmapNodeToNote,
-  convertMindmapNodeToTask,
-  convertMindmapNodeToTopic,
-  convertNoteToTask,
-  convertTaskToNote,
+  appHandleDropMany,
+  convertMindmapNodes,
   createItem as createChecklistItem,
   createMindmapNode,
   createMindmapNote,
@@ -18,6 +15,7 @@ import {
   type MindmapPlacement,
   type MindmapTree,
   moveMindmapNodes,
+  projectSectionType,
   removeFromDailyList,
   scheduleListItems,
   scheduleTask,
@@ -43,6 +41,7 @@ import {
 import type { MindmapLayout } from "./mindmapLayout.ts";
 import {
   type CanvasIndex,
+  mapNodeOrder,
   type NodeKind,
   nodeKind,
   rangeOf,
@@ -153,6 +152,30 @@ export function useMindmapActions({
       const { ids } = useMindmapSelection.getState();
       return ids.size > 1 && ids.has(id) ? selectedItems() : null;
     };
+    // The selected nodes in map order when the node is in a selection.
+    const selectedNodesWith = (id: string) => {
+      const { ids } = useMindmapSelection.getState();
+      if (ids.size < 2 || !ids.has(id)) return null;
+      return mapNodeOrder(latestRef.current.tree).filter((nodeId) =>
+        ids.has(nodeId),
+      );
+    };
+    // Whether any of the nodes' tasks has data a note cannot keep.
+    const losesNoteData = async (ids: string[]) => {
+      for (const id of ids) {
+        const task = taskOf(id);
+        if (
+          task &&
+          (await select({
+            selector: taskHasNoteIncompatibleData,
+            args: { taskId: task.id },
+          }))
+        ) {
+          return true;
+        }
+      }
+      return false;
+    };
     const latestTask = (taskId: string) => {
       for (const entry of latestRef.current.index.nodes.values()) {
         if (entry.kind === "node" && entry.tree.task?.id === taskId) {
@@ -251,27 +274,24 @@ export function useMindmapActions({
         if (refocus && parentKey) focusNode(parentKey);
       },
       convert: (id, to) => {
-        if (entryOf(id)?.kind !== "node") return;
+        const ids = selectedNodesWith(id) ?? [id];
         void (async () => {
-          if (to === "topic") {
-            focusNode(
-              mindmapNodeFocusKey(
-                await dispatch(convertMindmapNodeToTopic({ id })),
-              ),
-            );
-          } else if (to === "task") {
-            const task = await dispatch(
-              convertMindmapNodeToTask({ id, projectId }),
-            );
-            focusNode(mindmapNodeFocusKey({ id, taskId: task.id }));
-          } else {
-            const note = await dispatch(
-              convertMindmapNodeToNote({ id, projectId }),
-            );
-            focusNode(
-              mindmapNodeFocusKey({ id, taskId: null, noteId: note.id }),
-            );
+          if (
+            to === "note" &&
+            (await losesNoteData(ids)) &&
+            !window.confirm(
+              ids.length > 1
+                ? "Convert to notes? Schedules, stash entries and checklists of the tasks will be removed."
+                : "Convert to note? Its schedule, stash entry and checklist will be removed.",
+            )
+          ) {
+            return;
           }
+          const nodes = await dispatch(
+            convertMindmapNodes({ ids, to, projectId }),
+          );
+          const node = nodes.find((n) => n.id === id);
+          if (node) focusNode(mindmapNodeFocusKey(node), ids.length > 1);
         })();
       },
       toggleCollapsed: (id) => {
@@ -322,6 +342,24 @@ export function useMindmapActions({
         const items = selectedItemsWith(id);
         if (items) setMoving({ nodeId: id, items });
         else if (itemOf(id)) setMoving({ nodeId: id, items: null });
+      },
+      moveToSection: (id, projectSectionId) => {
+        const drops = new Map<string, ListItemRef>();
+        for (const nodeId of selectedNodesWith(id) ?? [id]) {
+          const item = itemOf(nodeId);
+          if (item && item.projectSectionId !== projectSectionId) {
+            drops.set(item.id, { id: item.id, modelType: item.type });
+          }
+        }
+        if (drops.size === 0) return;
+        void dispatch(
+          appHandleDropMany({
+            id: projectSectionId,
+            modelType: projectSectionType,
+            drops: [...drops.values()],
+            edge: "bottom",
+          }),
+        );
       },
       schedule: (id) => {
         if (selectedItemsWith(id)) {
@@ -421,38 +459,6 @@ export function useMindmapActions({
         if (!item) return;
         useItemDetailsOpen.getState().setOpen(true);
         useItemDetailsEditRequest.getState().editDescription(item.id);
-      },
-      convertItem: (id) => {
-        const entry = entryOf(id);
-        if (entry?.kind !== "node") return;
-        const { task, note } = entry.tree;
-        void (async () => {
-          if (task) {
-            const losesData = await select({
-              selector: taskHasNoteIncompatibleData,
-              args: { taskId: task.id },
-            });
-            if (
-              losesData &&
-              !window.confirm(
-                "Convert to note? Its schedule, stash entry and checklist will be removed.",
-              )
-            ) {
-              return;
-            }
-            const created = await dispatch(
-              convertTaskToNote({ taskId: task.id }),
-            );
-            focusNode(
-              mindmapNodeFocusKey({ id, taskId: null, noteId: created.id }),
-            );
-          } else if (note) {
-            const created = await dispatch(
-              convertNoteToTask({ noteId: note.id }),
-            );
-            focusNode(mindmapNodeFocusKey({ id, taskId: created.id }));
-          }
-        })();
       },
       trashItem: (id) => {
         const entry = entryOf(id);

@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "WBD_DB_PATH=../../db bun --preload ./src/instrument.ts src/start.ts",
+    "dev": "NODE_ENV=development WBD_DB_PATH=../../db bun --preload ./src/instrument.ts src/start.ts",
     "ts": "tsgo -b",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -45,7 +45,7 @@
     "@trpc/server": "^11.7.2",
     "@tursodatabase/api": "^2.0.5",
     "@tursodatabase/serverless": "^1.4.0",
-    "@will-be-done/hyperdb": "^0.8.0",
+    "@will-be-done/hyperdb": "^0.9.0",
     "@will-be-done/slices": "workspace:*",
     "await-lock": "^3.0.0",
     "date-fns": "^4.1.0",

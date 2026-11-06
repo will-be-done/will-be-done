@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
-import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
-import { loadSpaceBackup, parseTickTickCSV } from "@will-be-done/slices/space";
+import { useDB } from "@will-be-done/hyperdb/react";
+import { parseTickTickCSV } from "@will-be-done/slices/space";
+import { restoreSpaceBackup } from "@/store/undo";
 import { Upload, Download, AlertTriangle, CheckCircle } from "lucide-react";
 import { trpcClient } from "@/lib/trpc";
 import { captureWebAnalytics } from "@/lib/analytics";
 
 export function ImportSection() {
-  const dispatch = useAsyncDispatch();
+  const db = useDB();
   const tickTickInputRef = useRef<HTMLInputElement>(null);
   const [tickTickImporting, setTickTickImporting] = useState(false);
   const [tickTickError, setTickTickError] = useState<string | null>(null);
@@ -41,7 +42,7 @@ export function ImportSection() {
       try {
         const text = await file.text();
         const backup = parseTickTickCSV(text);
-        await dispatch(loadSpaceBackup({ backup: backup }));
+        await restoreSpaceBackup(db, backup);
         captureWebAnalytics({
           name: "import_completed",
           properties: {
@@ -86,7 +87,7 @@ export function ImportSection() {
         const backup = await trpcClient.importTodoist.mutate({
           apiToken: todoistToken.trim(),
         });
-        await dispatch(loadSpaceBackup({ backup: backup }));
+        await restoreSpaceBackup(db, backup);
         captureWebAnalytics({
           name: "import_completed",
           properties: {

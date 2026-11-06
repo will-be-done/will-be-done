@@ -17,6 +17,7 @@ interface DesktopAPI {
   resetServerUrl(): Promise<void>
   closePopup(): void
   onPopupShow(callback: () => void): () => void
+  onEditHistory(handler: (command: 'undo' | 'redo') => boolean): () => void
 }
 
 declare global {

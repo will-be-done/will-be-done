@@ -17,7 +17,7 @@ import {
   plainTextToRichTextMarkdown,
   richTextMarkdownToPlainText,
 } from "../common/richText";
-import { noteById } from "./notes";
+import { convertNoteToTask, convertTaskToNote, noteById } from "./notes";
 import {
   createNoteInSection,
   createTaskInSection,
@@ -1250,6 +1250,53 @@ export const convertMindmapNodeToTopic = action({
     };
     yield* upsert(mindmapNodesTable, [next]);
     return next;
+  },
+});
+
+/**
+ * Makes each node, in map order, the given kind: topics become new items,
+ * tasks and notes convert into each other or unlink into topics. Roots and
+ * nodes already of that kind stay. Returns the nodes as they end up.
+ */
+export const convertMindmapNodes = action({
+  name: "convertMindmapNodes",
+  args: {
+    ids: v.array(v.string()),
+    to: v.union(v.literal("topic"), v.literal("task"), v.literal("note")),
+    projectId: newItemProjectId,
+  },
+  handler: function* convertMindmapNodes({ ids, to, projectId }) {
+    // New items are prepended, so going backwards keeps them in map order.
+    for (const id of [...ids].reverse()) {
+      // Re-read: converting an item relinks every node showing it.
+      const node = yield* mindmapNodeById({ id });
+      if (!node || node.parentId === null) continue;
+      // Which item the node shows, as `buildMindmapTree` decides.
+      const task = node.taskId ? yield* taskById({ id: node.taskId }) : null;
+      const note =
+        !task && node.noteId ? yield* noteById({ id: node.noteId }) : null;
+      if (task || note) {
+        if (to === "topic") yield* convertMindmapNodeToTopic({ id });
+        else if (task && to === "note") {
+          yield* convertTaskToNote({ taskId: task.id });
+        } else if (note && to === "task") {
+          yield* convertNoteToTask({ noteId: note.id });
+        }
+      } else if (node.taskId || node.noteId) {
+        // A node whose item is gone is hidden, not a topic.
+        continue;
+      } else if (to === "task") {
+        yield* convertMindmapNodeToTask({ id, projectId });
+      } else if (to === "note") {
+        yield* convertMindmapNodeToNote({ id, projectId });
+      }
+    }
+    const nodes: MindmapNode[] = [];
+    for (const id of ids) {
+      const node = yield* mindmapNodeById({ id });
+      if (node) nodes.push(node);
+    }
+    return nodes;
   },
 });
 
