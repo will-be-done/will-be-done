@@ -1,4 +1,5 @@
 import { insert, selectFrom, v } from "@will-be-done/hyperdb";
+import { withoutUndo } from "@will-be-done/hyperdb/undo";
 import { action, selector } from "../builders";
 import { getDMY, orderPositionArg } from "./utils";
 import { appById, appCanDrop } from "./app";
@@ -305,7 +306,8 @@ export const createDailyListIfNotPresent = action({
       return existing;
     }
 
-    return yield* createDailyList({ dailyList: { date } });
+    // Views create lists just by showing a date; undo must not remove them.
+    return yield* withoutUndo(() => createDailyList({ dailyList: { date } }));
   },
 });
 

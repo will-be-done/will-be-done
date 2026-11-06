@@ -1,5 +1,5 @@
 // Tiptap binds formatting to "Mod", which is Cmd on Apple platforms.
-const isApple = /Mac|iPhone|iPad|iPod/.test(
+export const isApple = /Mac|iPhone|iPad|iPod/.test(
   navigator.platform || navigator.userAgent,
 );
 

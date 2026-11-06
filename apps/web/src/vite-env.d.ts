@@ -20,6 +20,8 @@ interface DesktopAPI {
   resetServerUrl(): Promise<void>;
   closePopup(): void;
   onPopupShow(callback: () => void): () => void;
+  // Absent in desktop builds that predate app undo.
+  onEditHistory?(handler: (command: "undo" | "redo") => boolean): () => void;
 }
 
 declare global {

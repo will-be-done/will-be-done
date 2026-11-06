@@ -35,7 +35,19 @@ import type { SyncConfig } from "./syncTypes";
 import { generateDemoBackup } from "@/lib/demoData";
 import { execAsync } from "@will-be-done/hyperdb";
 import { SubscribableDB } from "@will-be-done/hyperdb";
+import { withoutUndo } from "@will-be-done/hyperdb/undo";
 import { clientSyncV4Tables } from "./syncV4Tables";
+import { installUndo } from "./undo";
+
+// Background upkeep is not the user's edit, so it stays out of undo history.
+const runSpaceMaintenance = (db: SubscribableDB) =>
+  withoutUndo(db, (scopedDb) => {
+    void asyncDispatch(
+      scopedDb,
+      generateTasksFromTemplates({ toDate: Date.now() }),
+    );
+    void asyncDispatch(scopedDb, purgeExpiredTrash({ now: Date.now() }));
+  });
 
 const demoDbId = "e89b6c8f-1d6c-4bf4-9d27-478339773fc9";
 export const spaceDbType = "space";
@@ -82,13 +94,8 @@ export const spaceDBConfig = (dbId: string) => {
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
       await asyncDispatch(db, migrateScheduledTodoTasks({}));
 
-      const runMaintenance = () => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-        void asyncDispatch(db, purgeExpiredTrash({ now: Date.now() }));
-      };
+      installUndo(db);
+      const runMaintenance = () => runSpaceMaintenance(db);
       // To make load faster
       setTimeout(runMaintenance, 2000);
       setInterval(runMaintenance, 60 * 1000);
@@ -119,13 +126,8 @@ export const demoSpaceDBConfig = () => {
       await asyncDispatch(db, migrateProjectSectionTaskStats({}));
       await asyncDispatch(db, migrateScheduledTodoTasks({}));
 
-      const runMaintenance = () => {
-        void asyncDispatch(
-          db,
-          generateTasksFromTemplates({ toDate: Date.now() }),
-        );
-        void asyncDispatch(db, purgeExpiredTrash({ now: Date.now() }));
-      };
+      installUndo(db);
+      const runMaintenance = () => runSpaceMaintenance(db);
       // To make load faster
       setTimeout(runMaintenance);
       setInterval(runMaintenance, 60 * 1000);

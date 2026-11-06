@@ -4,6 +4,7 @@ import {
   type Infer,
   v,
 } from "@will-be-done/hyperdb";
+import { undoIgnore } from "@will-be-done/hyperdb/undo";
 import { registerSpaceSyncableTable } from "./syncMap";
 import { registerRichTextFields } from "../common/changes";
 import { isObjectType } from "..";
@@ -17,11 +18,13 @@ export const taskType = "task";
 export const tasksTable = defineTable("tasks", {
   type: v.literal(taskType),
   id: v.string(),
-  title: v.string(),
-  content: v.optional(v.string()),
+  // The editor undoes rich text itself, and Yjs docs only merge forward, so
+  // app undo leaves these fields alone.
+  title: v.string().with(undoIgnore()),
+  content: v.optional(v.string()).with(undoIgnore()),
   // Base64 Yjs states; once present they own title/content (see richText.ts).
-  titleDoc: v.optional(v.string()),
-  contentDoc: v.optional(v.string()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
   state: v.union(v.literal("todo"), v.literal("done")),
   projectSectionId: v.string(),
   orderToken: v.string(),
@@ -59,10 +62,10 @@ export const taskTemplateType = "template";
 export const taskTemplatesTable = defineTable("task_templates", {
   type: v.literal(taskTemplateType),
   id: v.string(),
-  title: v.string(),
-  content: v.optional(v.string()),
-  titleDoc: v.optional(v.string()),
-  contentDoc: v.optional(v.string()),
+  title: v.string().with(undoIgnore()),
+  content: v.optional(v.string()).with(undoIgnore()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
   orderToken: v.string(),
   repeatRule: v.string(),
   repeatRuleDtStart: v.number(),
@@ -88,10 +91,10 @@ export const noteType = "note";
 export const notesTable = defineTable("notes", {
   type: v.literal(noteType),
   id: v.string(),
-  title: v.string(),
-  content: v.optional(v.string()),
-  titleDoc: v.optional(v.string()),
-  contentDoc: v.optional(v.string()),
+  title: v.string().with(undoIgnore()),
+  content: v.optional(v.string()).with(undoIgnore()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
   projectSectionId: v.string(),
   orderToken: v.string(),
   createdAt: v.number(),
@@ -227,8 +230,8 @@ export const checklistItemsTable = defineTable("checklist_items", {
   parentType: checklistParentType,
   orderToken: v.string(),
   state: v.union(v.literal("todo"), v.literal("done")),
-  content: v.string(),
-  contentDoc: v.optional(v.string()),
+  content: v.string().with(undoIgnore()),
+  contentDoc: v.optional(v.string()).with(undoIgnore()),
   createdAt: v.number(),
   checkedAt: v.union(v.number(), v.null()),
 })
@@ -287,8 +290,8 @@ export const mindmapNodesTable = defineTable("mindmap_nodes", {
   // notes could join a map stay valid.
   taskId: v.union(v.string(), v.null()),
   noteId: v.optional(v.string()),
-  title: v.string(),
-  titleDoc: v.optional(v.string()),
+  title: v.string().with(undoIgnore()),
+  titleDoc: v.optional(v.string()).with(undoIgnore()),
   collapsed: v.boolean(),
   createdAt: v.number(),
 })
