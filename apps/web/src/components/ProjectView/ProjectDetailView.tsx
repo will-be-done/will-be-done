@@ -25,6 +25,7 @@ import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { Stash } from "@/components/Stash/Stash.tsx";
 import { useStashDesktopOffset } from "@/components/Stash/useStashDesktopOffset.ts";
 import { ProjectIcon } from "@/components/ui/emoji";
+import { useUndoToast } from "@/store/undo";
 
 const DeleteIcon = () => (
   <svg
@@ -61,6 +62,7 @@ function useIsSmallScreen() {
 
 const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
   const scrollRestorationId = useMemo(
     () => `project-view-scroll-${projectId}`,
     [projectId],
@@ -72,12 +74,7 @@ const ProjectDetailContent = ({ projectId }: { projectId: string }) => {
 
   const handleDeleteClick = () => {
     if (!project) return;
-    const shouldDelete = confirm(
-      "Are you sure you want to delete this project?",
-    );
-    if (shouldDelete) {
-      void dispatch(deleteProjects({ ids: [project.id] }));
-    }
+    void deleteWithUndo(() => dispatch(deleteProjects({ ids: [project.id] })));
   };
 
   const handleTitleClick = async () => {

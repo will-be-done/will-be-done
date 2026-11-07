@@ -26,9 +26,9 @@ stashed, or given a checklist.
 
 Select **Convert to note** in a task's dropdown menu or task details to turn it
 into a note in the same place. Converting removes the task's schedule, Stash
-appearance, and checklist, and asks first when it has any. Select **Convert to
-task** on a note to turn it back into a todo task. With a note focused, press
-`o` or `Shift+O` to add another note below or above it.
+appearance, and checklist; select **Undo** in the popup to get them back.
+Select **Convert to task** on a note to turn it back into a todo task. With a
+note focused, press `o` or `Shift+O` to add another note below or above it.
 
 ## Text formatting
 
@@ -189,8 +189,9 @@ The delete action depends on where you use it:
 | Timeline or Today | Removes the scheduled appearance; the task remains in its project |
 | Stash             | Removes the Stash appearance; the task remains in its project     |
 
-Resetting a task's schedule also keeps the task. Press `u`, `Cmd+Z`, or `Ctrl+Z`
-to undo a delete or any other change; see
+Resetting a task's schedule also keeps the task. After a delete, a popup in the
+corner offers **Undo** for a few seconds. Press `u`, `Cmd+Z`, or `Ctrl+Z` to
+undo a delete or any other change at any time; see
 [undo and redo](/docs/keyboard-shortcuts/#undo-and-redo).
 
 Open **Trash** at the bottom of the sidebar to restore a deleted task or delete

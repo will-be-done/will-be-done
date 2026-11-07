@@ -1,5 +1,5 @@
 import { type RefObject, useMemo, useState } from "react";
-import { useAsyncDispatch, useSelectAsync } from "@will-be-done/hyperdb/react";
+import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import {
   appHandleDrop,
   appHandleDropMany,
@@ -23,7 +23,6 @@ import {
   stashListItems,
   STASH_ID,
   stashType,
-  taskHasNoteIncompatibleData,
   taskType,
   toggleTaskState,
   trashNotes,
@@ -34,6 +33,7 @@ import {
 import { type FocusKey, useFocusStore } from "@/store/focusSlice.ts";
 import { focusChecklistItem } from "@/components/Checklist/focus";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { useUndoToast } from "@/store/undo";
 import {
   useItemDetailsEditRequest,
   useItemDetailsOpen,
@@ -80,7 +80,7 @@ export function useMindmapActions({
   editNode: (node: MindmapNode) => void;
 }) {
   const dispatch = useAsyncDispatch();
-  const select = useSelectAsync();
+  const withUndo = useUndoToast();
 
   // The node whose item is being moved to another project, with the items of
   // the selection it belongs to.
@@ -161,21 +161,6 @@ export function useMindmapActions({
       );
     };
     // Whether any of the nodes' tasks has data a note cannot keep.
-    const losesNoteData = async (ids: string[]) => {
-      for (const id of ids) {
-        const task = taskOf(id);
-        if (
-          task &&
-          (await select({
-            selector: taskHasNoteIncompatibleData,
-            args: { taskId: task.id },
-          }))
-        ) {
-          return true;
-        }
-      }
-      return false;
-    };
     const latestTask = (taskId: string) => {
       for (const entry of latestRef.current.index.nodes.values()) {
         if (entry.kind === "node" && entry.tree.task?.id === taskId) {
@@ -200,7 +185,7 @@ export function useMindmapActions({
         // A removed floating root falls back to the center topic.
         survivor = entryOf(survivor.parentId ?? mindmapId);
       }
-      void dispatch(deleteMindmapNodes({ ids: [...removed] }));
+      void withUndo(() => dispatch(deleteMindmapNodes({ ids: [...removed] })));
       if (survivor) focusNode(survivor.focusKey);
       else useMindmapSelection.getState().clear();
     };
@@ -276,19 +261,8 @@ export function useMindmapActions({
       convert: (id, to) => {
         const ids = selectedNodesWith(id) ?? [id];
         void (async () => {
-          if (
-            to === "note" &&
-            (await losesNoteData(ids)) &&
-            !window.confirm(
-              ids.length > 1
-                ? "Convert to notes? Schedules, stash entries and checklists of the tasks will be removed."
-                : "Convert to note? Its schedule, stash entry and checklist will be removed.",
-            )
-          ) {
-            return;
-          }
-          const nodes = await dispatch(
-            convertMindmapNodes({ ids, to, projectId }),
+          const nodes = await withUndo(() =>
+            dispatch(convertMindmapNodes({ ids, to, projectId })),
           );
           const node = nodes.find((n) => n.id === id);
           if (node) focusNode(mindmapNodeFocusKey(node), ids.length > 1);
@@ -465,13 +439,16 @@ export function useMindmapActions({
         if (entry?.kind !== "node") return;
         const { task, note } = entry.tree;
         const parentKey = parentKeyOf(id);
-        if (task) void dispatch(trashTasks({ ids: [task.id] }));
-        else if (note) void dispatch(trashNotes({ ids: [note.id] }));
-        else return;
+        if (task) {
+          void withUndo(() => dispatch(trashTasks({ ids: [task.id] })));
+        } else if (note) {
+          void withUndo(() => dispatch(trashNotes({ ids: [note.id] })));
+        } else return;
         if (parentKey) focusNode(parentKey);
       },
     };
   }, [
+    withUndo,
     dispatch,
     editNode,
     focusNode,
@@ -479,7 +456,6 @@ export function useMindmapActions({
     mindmapId,
     projectId,
     register,
-    select,
   ]);
 
   return { actions, moving, setMoving };

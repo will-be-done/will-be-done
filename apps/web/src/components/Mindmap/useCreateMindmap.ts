@@ -63,8 +63,3 @@ export const useCreateMindmap = () => {
 
 export const mindmapTitle = (title: string) =>
   title.trim() || "Untitled mindmap";
-
-export const confirmDeleteMindmap = () =>
-  confirm(
-    "Delete this mindmap? Its topics are removed; tasks stay in their projects.",
-  );

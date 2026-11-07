@@ -57,6 +57,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
 import { ProjectIcon } from "@/components/ui/emoji";
+import { useUndoToast } from "@/store/undo";
 
 const MIN_PROJECTS_LIST_WIDTH = 160;
 const MAX_PROJECTS_LIST_WIDTH = 520;
@@ -177,6 +178,7 @@ const ProjectItem = function ProjectItemComp({
   );
 
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
 
   useGlobalListener("mousedown", (e: MouseEvent) => {
     const { isFocusDisabled } = useFocusStore.getState();
@@ -214,7 +216,9 @@ const ProjectItem = function ProjectItemComp({
 
       const [upKey, downKey] = getDOMSiblings(focusItemKey);
 
-      void dispatch(deleteProjects({ ids: [project.id] }));
+      void deleteWithUndo(() =>
+        dispatch(deleteProjects({ ids: [project.id] })),
+      );
 
       if (downKey) {
         useFocusStore.getState().focusByKey(downKey);
@@ -345,12 +349,7 @@ const ProjectItem = function ProjectItemComp({
 
   const handleDeleteClick = () => {
     if (!project) return;
-    const shouldDelete = confirm(
-      "Are you sure you want to delete this project?",
-    );
-    if (shouldDelete) {
-      void dispatch(deleteProjects({ ids: [project.id] }));
-    }
+    void deleteWithUndo(() => dispatch(deleteProjects({ ids: [project.id] })));
   };
 
   if (!project) return null;

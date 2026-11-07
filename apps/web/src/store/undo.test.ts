@@ -13,7 +13,14 @@ import {
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { isUndoReplay } from "@will-be-done/hyperdb/undo";
 import {
+  checklistItemById,
+  convertTaskToNote,
+  createItem,
+  createProjectSection,
+  createTaskInSection,
   dailyListsTable,
+  deleteItems,
+  deleteProjects,
   projectById,
   projectsTable,
   registeredSpaceSyncableTables,
@@ -21,10 +28,17 @@ import {
   type Project,
 } from "@will-be-done/slices/space";
 import { dbIdTrait } from "@will-be-done/slices/traits";
-import { describe, expect, it, vi } from "vitest";
-import { installUndo, replayHistory } from "./undo";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { toast } from "sonner";
+import { withUndoToast, installUndo, replayHistory } from "./undo";
 
-vi.mock("sonner", () => ({ toast: vi.fn() }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(
+    vi.fn(() => "toast-id"),
+    { dismiss: vi.fn() },
+  ),
+}));
 
 const action = createAction();
 const saveProject = action({
@@ -120,5 +134,101 @@ describe("replayHistory", () => {
 
     await replayHistory(db, "undo");
     expect(await title("project-2")).toBe(undefined);
+  });
+});
+
+const toastText = (call: number) => {
+  const [title] = vi.mocked(toast).mock.calls[call] ?? [];
+  return renderToStaticMarkup(typeof title === "function" ? title() : title);
+};
+
+describe("withUndoToast", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("offers undo only while the delete is the latest step", async () => {
+    const { db, save } = await setup();
+    await save("First");
+    await asyncDispatch(
+      db,
+      createProjectSection({
+        sectionDraft: { projectId: project.id, title: "Column" },
+        position: "append",
+      }),
+    );
+    const remove = (id: string) =>
+      withUndoToast(db, () => asyncDispatch(db, deleteProjects({ ids: [id] })));
+
+    await remove(project.id);
+    expect(toastText(0)).toContain(
+      renderToStaticMarkup('Project "First" was deleted'),
+    );
+
+    await remove("missing");
+    expect(toast).toHaveBeenCalledTimes(1);
+    expect(toast.dismiss).not.toHaveBeenCalled();
+
+    await save("Other", "project-2");
+    expect(toast.dismiss).toHaveBeenCalledWith("toast-id");
+  });
+
+  const setupTask = async () => {
+    const { db, save } = await setup();
+    await save("First");
+    const section = await asyncDispatch(
+      db,
+      createProjectSection({
+        sectionDraft: { projectId: project.id, title: "Column" },
+        position: "append",
+      }),
+    );
+    const task = await asyncDispatch(
+      db,
+      createTaskInSection({
+        projectSectionId: section.id,
+        position: "append",
+        taskAttrs: { title: "Buy milk" },
+      }),
+    );
+    return { db, task };
+  };
+
+  it("names a task replaced by a note as converted, not deleted", async () => {
+    const { db, task } = await setupTask();
+
+    await withUndoToast(db, () =>
+      asyncDispatch(db, convertTaskToNote({ taskId: task.id })),
+    );
+
+    expect(toastText(0)).toContain(
+      renderToStaticMarkup('Task "Buy milk" was converted to a note'),
+    );
+  });
+
+  it("names a deleted checklist item, and undo restores its text", async () => {
+    const { db, task } = await setupTask();
+    const item = await asyncDispatch(
+      db,
+      createItem({
+        item: {
+          parentId: task.id,
+          parentType: "task",
+          content: "Call **Bob**",
+        },
+      }),
+    );
+
+    await withUndoToast(db, () =>
+      asyncDispatch(db, deleteItems({ ids: [item.id] })),
+    );
+    expect(toastText(0)).toContain(
+      renderToStaticMarkup('Checklist item "Call Bob" was deleted'),
+    );
+
+    await replayHistory(db, "undo");
+    const restored = await selectAsync(db, {
+      selector: checklistItemById,
+      args: { id: item.id },
+    });
+    expect(restored?.content).toBe("Call **Bob**");
   });
 });
