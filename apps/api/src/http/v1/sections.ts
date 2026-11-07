@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { Effect } from "effect";
 import { z } from "zod";
 import { authenticateRequest } from "../../services/authentication";
 import {
@@ -9,7 +10,7 @@ import {
   moveProjectSection,
   updateProjectSection,
 } from "../../services/sections";
-import { sendError as sendSectionError, unauthorized } from "../errors";
+import { runRoute, unauthorized } from "../errors";
 import {
   SectionParamsSchema,
   CreateProjectSectionBodySchema,
@@ -46,21 +47,19 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const sections = await listProjectSections({
-          spaceId: request.params.spaceId,
-          projectId: request.params.projectId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ sections });
-      } catch (error) {
-        return sendSectionError(
-          request,
-          reply,
-          error,
-          "Failed to list project sections",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list project sections",
+        Effect.gen(function* () {
+          const sections = yield* listProjectSections({
+            spaceId: request.params.spaceId,
+            projectId: request.params.projectId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ sections });
+        }),
+      );
     },
   );
 
@@ -88,22 +87,20 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
     async (request, reply) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
-      try {
-        const section = await createProjectSection({
-          spaceId: request.params.spaceId,
-          projectId: request.params.projectId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(201).send({ section });
-      } catch (error) {
-        return sendSectionError(
-          request,
-          reply,
-          error,
-          "Failed to create project section",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create project section",
+        Effect.gen(function* () {
+          const section = yield* createProjectSection({
+            spaceId: request.params.spaceId,
+            projectId: request.params.projectId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(201).send({ section });
+        }),
+      );
     },
   );
 
@@ -129,21 +126,19 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
     async (request, reply) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
-      try {
-        const section = await getProjectSection({
-          spaceId: request.params.spaceId,
-          sectionId: request.params.sectionId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ section });
-      } catch (error) {
-        return sendSectionError(
-          request,
-          reply,
-          error,
-          "Failed to get project section",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to get project section",
+        Effect.gen(function* () {
+          const section = yield* getProjectSection({
+            spaceId: request.params.spaceId,
+            sectionId: request.params.sectionId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ section });
+        }),
+      );
     },
   );
 
@@ -171,22 +166,20 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
     async (request, reply) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
-      try {
-        const section = await updateProjectSection({
-          spaceId: request.params.spaceId,
-          sectionId: request.params.sectionId,
-          userId: user.id,
-          updates: request.body,
-        });
-        return reply.code(200).send({ section });
-      } catch (error) {
-        return sendSectionError(
-          request,
-          reply,
-          error,
-          "Failed to update project section",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to update project section",
+        Effect.gen(function* () {
+          const section = yield* updateProjectSection({
+            spaceId: request.params.spaceId,
+            sectionId: request.params.sectionId,
+            userId: user.id,
+            updates: request.body,
+          });
+          return reply.code(200).send({ section });
+        }),
+      );
     },
   );
 
@@ -213,21 +206,19 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
     async (request, reply) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
-      try {
-        await deleteProjectSection({
-          spaceId: request.params.spaceId,
-          sectionId: request.params.sectionId,
-          userId: user.id,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return sendSectionError(
-          request,
-          reply,
-          error,
-          "Failed to delete project section",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to delete project section",
+        Effect.gen(function* () {
+          yield* deleteProjectSection({
+            spaceId: request.params.spaceId,
+            sectionId: request.params.sectionId,
+            userId: user.id,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -255,22 +246,20 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
     async (request, reply) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
-      try {
-        const section = await moveProjectSection({
-          spaceId: request.params.spaceId,
-          sectionId: request.params.sectionId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(200).send({ section });
-      } catch (error) {
-        return sendSectionError(
-          request,
-          reply,
-          error,
-          "Failed to move project section",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to move project section",
+        Effect.gen(function* () {
+          const section = yield* moveProjectSection({
+            spaceId: request.params.spaceId,
+            sectionId: request.params.sectionId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(200).send({ section });
+        }),
+      );
     },
   );
 };

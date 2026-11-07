@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { z } from "zod";
 import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
@@ -24,10 +25,8 @@ import { State } from "./utils/State";
 import type { CaptchaConfig } from "./captcha/types";
 import { verifyCaptchaTokenWithTimeout } from "./captcha/verifyCaptchaToken";
 import { importFromTodoist } from "./todoist/importTodoist";
-import {
-  DatabaseAccessDeniedError,
-  ensureDatabaseAccessOrCreate,
-} from "./services/databaseAccess";
+import { ensureDatabaseAccessOrCreate } from "./services/databaseAccess";
+import { Databases } from "./services/databases";
 import { assertSupportedSyncVersion } from "./syncVersion";
 import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
 
@@ -57,20 +56,20 @@ export function createAppRouter({
   accountEmail,
   google,
 }: AppRouterDependencies) {
-  const checkDatabaseAccess = async (
+  const checkDatabaseAccess = (
     dbId: string,
     dbType: "user" | "space",
     userId: string,
-  ) => {
-    try {
-      await ensureDatabaseAccessOrCreate({ dbId, dbType, userId }, mainDB);
-    } catch (error) {
-      if (error instanceof DatabaseAccessDeniedError) {
-        throw new TRPCError({ code: "FORBIDDEN", message: error.message });
-      }
-      throw error;
-    }
-  };
+  ) =>
+    ensureDatabaseAccessOrCreate({ dbId, dbType, userId }).pipe(
+      Effect.catchTag("DatabaseAccessDeniedError", (error) =>
+        Effect.die(
+          new TRPCError({ code: "FORBIDDEN", message: error.message }),
+        ),
+      ),
+      Effect.provideService(Databases, Databases.make(mainDB)),
+      Effect.runPromise,
+    );
 
   return router({
     google: googleRouter(mainDB, google, analytics),

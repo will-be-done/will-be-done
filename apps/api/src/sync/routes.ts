@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import type { DB } from "@will-be-done/hyperdb";
 import type { FastifyPluginAsync } from "fastify";
 import { ZodError } from "zod";
@@ -5,6 +6,7 @@ import { dbConfigByType } from "../db/configs";
 import { getHyperDB } from "../db/db";
 import { authenticateRequest } from "../services/authentication";
 import { ensureDatabaseAccessOrCreate } from "../services/databaseAccess";
+import { Databases } from "../services/databases";
 import {
   SyncClockSkewError,
   SyncClientCursorAdvancedError,
@@ -39,7 +41,11 @@ const prepare = async (
   }
   const user = await authenticateRequest(request, undefined, mainDB);
   if (!user) return null;
-  await ensureDatabaseAccessOrCreate({ ...params, userId: user.id }, mainDB);
+  await Effect.runPromise(
+    ensureDatabaseAccessOrCreate({ ...params, userId: user.id }).pipe(
+      Effect.provideService(Databases, Databases.make(mainDB)),
+    ),
+  );
   const config = dbConfigByType(params.dbType, params.dbId);
   const hyper = await getHyperDB(config);
   return createServerSyncV4({

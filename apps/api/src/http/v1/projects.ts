@@ -1,9 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import type { FastifyReply, FastifyRequest } from "fastify";
+import { Effect } from "effect";
 import { z } from "zod";
 import { authenticateRequest } from "../../services/authentication";
-import { DatabaseAccessDeniedError } from "../../services/databaseAccess";
-import { ConflictError, ResourceNotFoundError } from "../../services/errors";
 import {
   createSpaceProject,
   deleteSpaceProject,
@@ -22,7 +20,7 @@ import {
   ProjectResponseSchema,
   UpdateProjectBodySchema,
 } from "../schemas";
-import { unauthorized } from "../errors";
+import { runRoute, unauthorized } from "../errors";
 
 export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
   server.get(
@@ -55,20 +53,18 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
         });
       }
 
-      try {
-        const projects = await listSpaceProjects({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ projects });
-      } catch (error) {
-        return sendProjectError(
-          request,
-          reply,
-          error,
-          "Failed to list projects",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list projects",
+        Effect.gen(function* () {
+          const projects = yield* listSpaceProjects({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ projects });
+        }),
+      );
     },
   );
 
@@ -100,21 +96,19 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
           message: "A valid bearer token is required",
         });
       }
-      try {
-        const project = await createSpaceProject({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(201).send({ project });
-      } catch (error) {
-        return sendProjectError(
-          request,
-          reply,
-          error,
-          "Failed to create project",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create project",
+        Effect.gen(function* () {
+          const project = yield* createSpaceProject({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(201).send({ project });
+        }),
+      );
     },
   );
 
@@ -141,16 +135,19 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const project = await getSpaceProject({
-          spaceId: request.params.spaceId,
-          projectId: request.params.projectId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ project });
-      } catch (error) {
-        return sendProjectError(request, reply, error, "Failed to get project");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to get project",
+        Effect.gen(function* () {
+          const project = yield* getSpaceProject({
+            spaceId: request.params.spaceId,
+            projectId: request.params.projectId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ project });
+        }),
+      );
     },
   );
 
@@ -183,22 +180,20 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
           message: "A valid bearer token is required",
         });
       }
-      try {
-        const project = await updateSpaceProject({
-          spaceId: request.params.spaceId,
-          projectId: request.params.projectId,
-          userId: user.id,
-          updates: request.body,
-        });
-        return reply.code(200).send({ project });
-      } catch (error) {
-        return sendProjectError(
-          request,
-          reply,
-          error,
-          "Failed to update project",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to update project",
+        Effect.gen(function* () {
+          const project = yield* updateSpaceProject({
+            spaceId: request.params.spaceId,
+            projectId: request.params.projectId,
+            userId: user.id,
+            updates: request.body,
+          });
+          return reply.code(200).send({ project });
+        }),
+      );
     },
   );
 
@@ -230,21 +225,19 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
           message: "A valid bearer token is required",
         });
       }
-      try {
-        await deleteSpaceProject({
-          spaceId: request.params.spaceId,
-          projectId: request.params.projectId,
-          userId: user.id,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return sendProjectError(
-          request,
-          reply,
-          error,
-          "Failed to delete project",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to delete project",
+        Effect.gen(function* () {
+          yield* deleteSpaceProject({
+            spaceId: request.params.spaceId,
+            projectId: request.params.projectId,
+            userId: user.id,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -277,47 +270,20 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
           message: "A valid bearer token is required",
         });
       }
-      try {
-        const project = await moveSpaceProject({
-          spaceId: request.params.spaceId,
-          projectId: request.params.projectId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(200).send({ project });
-      } catch (error) {
-        return sendProjectError(
-          request,
-          reply,
-          error,
-          "Failed to move project",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to move project",
+        Effect.gen(function* () {
+          const project = yield* moveSpaceProject({
+            spaceId: request.params.spaceId,
+            projectId: request.params.projectId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(200).send({ project });
+        }),
+      );
     },
   );
 };
-
-function sendProjectError(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  error: unknown,
-  fallbackMessage: string,
-) {
-  if (error instanceof DatabaseAccessDeniedError) {
-    return reply.code(403).send({
-      code: "FORBIDDEN",
-      message: "You do not have access to this space",
-    });
-  }
-  if (error instanceof ResourceNotFoundError) {
-    return reply.code(404).send({ code: "NOT_FOUND", message: error.message });
-  }
-  if (error instanceof ConflictError) {
-    return reply.code(409).send({ code: "CONFLICT", message: error.message });
-  }
-  request.log.error(error, fallbackMessage);
-  return reply.code(500).send({
-    code: "INTERNAL_SERVER_ERROR",
-    message: fallbackMessage,
-  });
-}

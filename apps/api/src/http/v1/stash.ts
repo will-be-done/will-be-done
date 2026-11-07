@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { Effect } from "effect";
 import { z } from "zod";
 import { authenticateBearerToken } from "../../services/authentication";
 import {
@@ -7,7 +8,7 @@ import {
   putTaskInStash,
   removeTaskFromStash,
 } from "../../services/stash";
-import { sendError as sendStashError, unauthorized } from "../errors";
+import { runRoute, unauthorized } from "../errors";
 import {
   CreateStashTaskBodySchema,
   ErrorResponseSchema,
@@ -46,21 +47,19 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const tasks = await listStashTasks({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          state: request.query.state,
-        });
-        return reply.code(200).send({ tasks });
-      } catch (error) {
-        return sendStashError(
-          request,
-          reply,
-          error,
-          "Failed to list stash tasks",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list stash tasks",
+        Effect.gen(function* () {
+          const tasks = yield* listStashTasks({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            state: request.query.state,
+          });
+          return reply.code(200).send({ tasks });
+        }),
+      );
     },
   );
 
@@ -91,21 +90,19 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const task = await createStashTask({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(201).send({ task });
-      } catch (error) {
-        return sendStashError(
-          request,
-          reply,
-          error,
-          "Failed to create stash task",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create stash task",
+        Effect.gen(function* () {
+          const task = yield* createStashTask({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(201).send({ task });
+        }),
+      );
     },
   );
 
@@ -136,22 +133,20 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const task = await putTaskInStash({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-          placement: request.body.placement,
-        });
-        return reply.code(200).send({ task });
-      } catch (error) {
-        return sendStashError(
-          request,
-          reply,
-          error,
-          "Failed to add task to stash",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to add task to stash",
+        Effect.gen(function* () {
+          const task = yield* putTaskInStash({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+            placement: request.body.placement,
+          });
+          return reply.code(200).send({ task });
+        }),
+      );
     },
   );
 
@@ -180,21 +175,19 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        await removeTaskFromStash({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return sendStashError(
-          request,
-          reply,
-          error,
-          "Failed to remove task from stash",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to remove task from stash",
+        Effect.gen(function* () {
+          yield* removeTaskFromStash({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 };

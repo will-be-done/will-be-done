@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import type { FastifyRequest } from "fastify";
+import { Cause, Clock, Effect } from "effect";
 import { z } from "zod";
-import { asyncDispatch } from "@will-be-done/hyperdb";
 import { generateTasksForTemplate } from "@will-be-done/slices/space";
 import { authenticateRequest } from "../../services/authentication";
 import {
@@ -13,7 +14,8 @@ import {
   updateTaskTemplate,
 } from "../../services/taskTemplates";
 import { getSpaceDatabase } from "../../services/databaseAccess";
-import { sendError as handleError, unauthorized } from "../errors";
+import { dispatch } from "../../services/hyperdb";
+import { runRoute, unauthorized } from "../errors";
 import {
   ConvertTaskToTemplateBodySchema,
   CreateTaskTemplateBodySchema,
@@ -26,6 +28,35 @@ import {
   TaskTemplateResponseSchema,
   UpdateTaskTemplateBodySchema,
 } from "../schemas";
+
+// A template is saved even when generating its first tasks fails.
+const generateTemplateTasks = (
+  request: FastifyRequest,
+  {
+    spaceId,
+    userId,
+    templateId,
+  }: { spaceId: string; userId: string; templateId: string },
+) =>
+  Effect.gen(function* () {
+    const db = yield* getSpaceDatabase(spaceId, userId);
+    yield* dispatch(
+      db,
+      generateTasksForTemplate({
+        templateId,
+        toDate: yield* Clock.currentTimeMillis,
+      }),
+    );
+  }).pipe(
+    Effect.catchCause((cause) =>
+      Effect.sync(() =>
+        request.log.error(
+          Cause.squash(cause),
+          "Failed to generate recurring tasks",
+        ),
+      ),
+    ),
+  );
 
 export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
   server.post(
@@ -53,33 +84,25 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const template = await createSectionTaskTemplate({
-          spaceId: request.params.spaceId,
-          sectionId: request.params.sectionId,
-          userId: user.id,
-          ...request.body,
-        });
-        try {
-          await asyncDispatch(
-            await getSpaceDatabase(request.params.spaceId, user.id),
-            generateTasksForTemplate({
-              templateId: template.id,
-              toDate: Date.now(),
-            }),
-          );
-        } catch (error) {
-          request.log.error(error, "Failed to generate recurring tasks");
-        }
-        return reply.code(201).send({ template });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to create task template",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create task template",
+        Effect.gen(function* () {
+          const template = yield* createSectionTaskTemplate({
+            spaceId: request.params.spaceId,
+            sectionId: request.params.sectionId,
+            userId: user.id,
+            ...request.body,
+          });
+          yield* generateTemplateTasks(request, {
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            templateId: template.id,
+          });
+          return reply.code(201).send({ template });
+        }),
+      );
     },
   );
 
@@ -106,21 +129,19 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const template = await getTaskTemplate({
-          spaceId: request.params.spaceId,
-          templateId: request.params.templateId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ template });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to get task template",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to get task template",
+        Effect.gen(function* () {
+          const template = yield* getTaskTemplate({
+            spaceId: request.params.spaceId,
+            templateId: request.params.templateId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ template });
+        }),
+      );
     },
   );
 
@@ -148,33 +169,25 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const template = await updateTaskTemplate({
-          spaceId: request.params.spaceId,
-          templateId: request.params.templateId,
-          userId: user.id,
-          updates: request.body,
-        });
-        try {
-          await asyncDispatch(
-            await getSpaceDatabase(request.params.spaceId, user.id),
-            generateTasksForTemplate({
-              templateId: template.id,
-              toDate: Date.now(),
-            }),
-          );
-        } catch (error) {
-          request.log.error(error, "Failed to generate recurring tasks");
-        }
-        return reply.code(200).send({ template });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to update task template",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to update task template",
+        Effect.gen(function* () {
+          const template = yield* updateTaskTemplate({
+            spaceId: request.params.spaceId,
+            templateId: request.params.templateId,
+            userId: user.id,
+            updates: request.body,
+          });
+          yield* generateTemplateTasks(request, {
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            templateId: template.id,
+          });
+          return reply.code(200).send({ template });
+        }),
+      );
     },
   );
 
@@ -201,21 +214,19 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        await deleteTaskTemplate({
-          spaceId: request.params.spaceId,
-          templateId: request.params.templateId,
-          userId: user.id,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to delete task template",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to delete task template",
+        Effect.gen(function* () {
+          yield* deleteTaskTemplate({
+            spaceId: request.params.spaceId,
+            templateId: request.params.templateId,
+            userId: user.id,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -244,22 +255,20 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const template = await moveTaskTemplate({
-          spaceId: request.params.spaceId,
-          templateId: request.params.templateId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(200).send({ template });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to move task template",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to move task template",
+        Effect.gen(function* () {
+          const template = yield* moveTaskTemplate({
+            spaceId: request.params.spaceId,
+            templateId: request.params.templateId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(200).send({ template });
+        }),
+      );
     },
   );
 
@@ -287,22 +296,20 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const template = await convertTaskToTemplate({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-          updates: request.body,
-        });
-        return reply.code(200).send({ template });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to convert task to template",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to convert task to template",
+        Effect.gen(function* () {
+          const template = yield* convertTaskToTemplate({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+            updates: request.body,
+          });
+          return reply.code(200).send({ template });
+        }),
+      );
     },
   );
 
@@ -329,21 +336,19 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const task = await convertTaskTemplateToTask({
-          spaceId: request.params.spaceId,
-          templateId: request.params.templateId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ task });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to convert task template to task",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to convert task template to task",
+        Effect.gen(function* () {
+          const task = yield* convertTaskTemplateToTask({
+            spaceId: request.params.spaceId,
+            templateId: request.params.templateId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ task });
+        }),
+      );
     },
   );
 };

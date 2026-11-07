@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
   createAction,
   DB,
@@ -6,6 +6,7 @@ import {
   insert,
   selectSync,
   syncDispatch,
+  type HyperDB,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
@@ -13,11 +14,11 @@ import {
   projectsTable,
   type Project,
 } from "@will-be-done/slices/space";
-import * as databases from "../db/db";
 import { dbsTable, getDbById, getDbByIdOrCreate } from "../slices/dbSlice";
-import { DatabaseAccessDeniedError } from "./databaseAccess";
 import { spacesTable, spacesTableType } from "@will-be-done/slices/user";
-import { ResourceNotFoundError } from "./errors";
+import { Effect, Layer } from "effect";
+import { Databases } from "./databases";
+import { DatabaseAccessDeniedError, ResourceNotFoundError } from "./errors";
 import { listSpaceProjects } from "./projects";
 
 const action = createAction();
@@ -65,11 +66,17 @@ const seedSpaceMembership = action({
   },
 });
 
-describe("listSpaceProjects", () => {
-  afterEach(() => {
-    mock.restore();
+function runner(mainDB: HyperDB, userDB: HyperDB, spaceDB: HyperDB) {
+  const layer = Layer.succeed(Databases, {
+    main: Effect.succeed(mainDB),
+    user: () => Effect.succeed(userDB),
+    space: () => Effect.succeed(spaceDB),
   });
+  return <A, E>(effect: Effect.Effect<A, E, Databases>) =>
+    Effect.runPromise(effect.pipe(Effect.provide(layer)));
+}
 
+describe("listSpaceProjects", () => {
   test("returns public project fields in display order and enforces ownership", async () => {
     const mainDB = new DB(new BptreeInmemDriver());
     const userDB = new DB(new BptreeInmemDriver());
@@ -88,18 +95,13 @@ describe("listSpaceProjects", () => {
     execSync(spaceDB.loadTables([projectsTable]));
     syncDispatch(spaceDB, seedProjects({}));
 
-    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
-      config.dbType === "user"
-        ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
-        : ({
-            db: spaceDB,
-          } as unknown as ReturnType<typeof databases.getHyperDB>),
+    const run = runner(mainDB, userDB, spaceDB);
+    const projects = await run(
+      listSpaceProjects({
+        spaceId: "space-1",
+        userId: "user-1",
+      }),
     );
-    const projects = await listSpaceProjects({
-      spaceId: "space-1",
-      userId: "user-1",
-    });
 
     expect(projects).toEqual([
       {
@@ -119,7 +121,7 @@ describe("listSpaceProjects", () => {
     ]);
 
     expect(
-      listSpaceProjects({ spaceId: "space-1", userId: "another-user" }),
+      run(listSpaceProjects({ spaceId: "space-1", userId: "another-user" })),
     ).rejects.toThrow(DatabaseAccessDeniedError);
   });
 
@@ -133,17 +135,10 @@ describe("listSpaceProjects", () => {
     execSync(spaceDB.loadTables([projectsTable]));
     syncDispatch(spaceDB, seedProjects({}));
 
-    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
-      config.dbType === "user"
-        ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
-        : ({ db: spaceDB } as unknown as ReturnType<
-            typeof databases.getHyperDB
-          >),
-    );
+    const run = runner(mainDB, userDB, spaceDB);
 
     expect(
-      await listSpaceProjects({ spaceId: "space-1", userId: "user-1" }),
+      await run(listSpaceProjects({ spaceId: "space-1", userId: "user-1" })),
     ).toHaveLength(2);
     expect(
       selectSync(mainDB, {
@@ -161,20 +156,15 @@ describe("listSpaceProjects", () => {
     execSync(userDB.loadTables([spacesTable]));
     execSync(spaceDB.loadTables([projectsTable]));
 
-    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
-      config.dbType === "user"
-        ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
-        : ({
-            db: spaceDB,
-          } as unknown as ReturnType<typeof databases.getHyperDB>),
-    );
+    const run = runner(mainDB, userDB, spaceDB);
 
     expect(
-      listSpaceProjects({
-        spaceId: "unknown-space",
-        userId: "user-1",
-      }),
+      run(
+        listSpaceProjects({
+          spaceId: "unknown-space",
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 });

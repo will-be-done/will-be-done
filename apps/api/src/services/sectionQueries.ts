@@ -1,32 +1,34 @@
-import { selectAsync } from "@will-be-done/hyperdb";
+import type { HyperDB } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import {
   projectSectionById,
   projectSectionItems,
-  type Item,
 } from "@will-be-done/slices/space";
-import { getSpaceDatabase } from "./databaseAccess";
 import { ResourceNotFoundError } from "./errors";
+import { select } from "./hyperdb";
 
-type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
-
-export async function requireSection(db: SpaceDatabase, sectionId: string) {
-  const section = await selectAsync(db, {
+export const requireSection = Effect.fnUntraced(function* (
+  db: HyperDB,
+  sectionId: string,
+) {
+  const section = yield* select(db, {
     selector: projectSectionById,
     args: { id: sectionId },
   });
-  if (!section) throw new ResourceNotFoundError("Project section");
+  if (!section) {
+    return yield* new ResourceNotFoundError({ resource: "Project section" });
+  }
   return section;
-}
+});
 
-export async function itemsInSection(
-  db: SpaceDatabase,
+export const itemsInSection = (
+  db: HyperDB,
   sectionId: string,
   excludedId?: string,
-): Promise<Item[]> {
-  return (
-    await selectAsync(db, {
-      selector: projectSectionItems,
-      args: { projectSectionId: sectionId },
-    })
-  ).filter((item) => item.id !== excludedId);
-}
+) =>
+  select(db, {
+    selector: projectSectionItems,
+    args: { projectSectionId: sectionId },
+  }).pipe(
+    Effect.map((items) => items.filter((item) => item.id !== excludedId)),
+  );

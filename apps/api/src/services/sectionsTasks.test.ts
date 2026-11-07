@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import { Effect, Layer } from "effect";
 import {
   createAction,
   DB,
@@ -40,7 +41,6 @@ import {
   type Task,
   type TaskTemplate,
 } from "@will-be-done/slices/space";
-import * as databases from "../db/db";
 import { dbsTable, getDbByIdOrCreate } from "../slices/dbSlice";
 import {
   createProjectSection,
@@ -51,11 +51,8 @@ import {
   getProjectSection,
 } from "./sections";
 import { listSectionItems } from "./items";
-import {
-  ConflictError,
-  InvalidPlacementError,
-  ResourceNotFoundError,
-} from "./errors";
+import { Databases } from "./databases";
+import { ConflictError, ResourceNotFoundError } from "./errors";
 import {
   createSectionTask,
   deleteTask,
@@ -304,27 +301,28 @@ function setUpDatabases() {
   );
   syncDispatch(spaceDB, seedDomain({}));
 
-  spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
-  spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
-    config.dbType === "user"
-      ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
-      : ({ db: spaceDB } as unknown as ReturnType<typeof databases.getHyperDB>),
-  );
-  return { spaceDB };
+  const layer = Layer.succeed(Databases, {
+    main: Effect.succeed(mainDB),
+    user: () => Effect.succeed(userDB),
+    space: () => Effect.succeed(spaceDB),
+  });
+  const run = <A, E>(effect: Effect.Effect<A, E, Databases>) =>
+    Effect.runPromise(effect.pipe(Effect.provide(layer)));
+  return { spaceDB, run };
 }
 
 describe("section and task services", () => {
-  afterEach(() => mock.restore());
-
   test("lists project sections in display order without order tokens", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
     expect(
-      await listProjectSections({
-        spaceId: "space-1",
-        projectId: "project-1",
-        userId: "user-1",
-      }),
+      await run(
+        listProjectSections({
+          spaceId: "space-1",
+          projectId: "project-1",
+          userId: "user-1",
+        }),
+      ),
     ).toEqual([
       {
         id: "section-1",
@@ -341,43 +339,51 @@ describe("section and task services", () => {
     ]);
 
     expect(
-      listProjectSections({
-        spaceId: "space-1",
-        projectId: "missing",
-        userId: "user-1",
-      }),
+      run(
+        listProjectSections({
+          spaceId: "space-1",
+          projectId: "missing",
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 
   test("gets individual projects and sections", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
     expect(
-      await getSpaceProject({
-        spaceId: "space-1",
-        projectId: "project-1",
-        userId: "user-1",
-      }),
+      await run(
+        getSpaceProject({
+          spaceId: "space-1",
+          projectId: "project-1",
+          userId: "user-1",
+        }),
+      ),
     ).toMatchObject({ id: "project-1", title: "Project" });
     expect(
-      await getProjectSection({
-        spaceId: "space-1",
-        sectionId: "section-2",
-        userId: "user-1",
-      }),
+      await run(
+        getProjectSection({
+          spaceId: "space-1",
+          sectionId: "section-2",
+          userId: "user-1",
+        }),
+      ),
     ).toMatchObject({ id: "section-2", projectId: "project-1" });
   });
 
   test("lists todo tasks and templates as items, or done tasks only", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
     expect(
       (
-        await listSectionItems({
-          spaceId: "space-1",
-          sectionId: "section-1",
-          userId: "user-1",
-        })
+        await run(
+          listSectionItems({
+            spaceId: "space-1",
+            sectionId: "section-1",
+            userId: "user-1",
+          }),
+        )
       ).map((item) => [item.type, item.id]),
     ).toEqual([
       ["task", "task-a"],
@@ -387,12 +393,14 @@ describe("section and task services", () => {
 
     expect(
       (
-        await listSectionItems({
-          spaceId: "space-1",
-          sectionId: "section-1",
-          userId: "user-1",
-          taskState: "done",
-        })
+        await run(
+          listSectionItems({
+            spaceId: "space-1",
+            sectionId: "section-1",
+            userId: "user-1",
+            taskState: "done",
+          }),
+        )
       ).map((item) => [item.type, item.id]),
     ).toEqual([
       ["task", "done-new"],
@@ -401,272 +409,333 @@ describe("section and task services", () => {
   });
 
   test("creates and moves tasks using ID-based placement", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
-    const created = await createSectionTask({
-      spaceId: "space-1",
-      sectionId: "section-1",
-      userId: "user-1",
-      title: "B",
-      placement: { kind: "after", anchorId: "task-a" },
-    });
+    const created = await run(
+      createSectionTask({
+        spaceId: "space-1",
+        sectionId: "section-1",
+        userId: "user-1",
+        title: "B",
+        placement: { kind: "after", anchorId: "task-a" },
+      }),
+    );
     expect(created).not.toHaveProperty("orderToken");
     expect(
       (
-        await listSectionItems({
-          spaceId: "space-1",
-          sectionId: "section-1",
-          userId: "user-1",
-        })
+        await run(
+          listSectionItems({
+            spaceId: "space-1",
+            sectionId: "section-1",
+            userId: "user-1",
+          }),
+        )
       )
         .filter((item) => item.type === "task")
         .map((item) => item.title),
     ).toEqual(["A", "B", "C"]);
 
-    const moved = await moveTask({
-      spaceId: "space-1",
-      taskId: created.id,
-      userId: "user-1",
-      projectSectionId: "section-2",
-      placement: { kind: "first" },
-    });
+    const moved = await run(
+      moveTask({
+        spaceId: "space-1",
+        taskId: created.id,
+        userId: "user-1",
+        projectSectionId: "section-2",
+        placement: { kind: "first" },
+      }),
+    );
     expect(moved.projectSectionId).toBe("section-2");
     expect(
       (
-        await listSectionItems({
-          spaceId: "space-1",
-          sectionId: "section-2",
-          userId: "user-1",
-        })
+        await run(
+          listSectionItems({
+            spaceId: "space-1",
+            sectionId: "section-2",
+            userId: "user-1",
+          }),
+        )
       ).map((item) => item.id),
     ).toEqual([created.id]);
   });
 
   test("rejects anchors outside the destination section", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
     expect(
-      createSectionTask({
-        spaceId: "space-1",
-        sectionId: "section-2",
-        userId: "user-1",
-        title: "Invalid",
-        placement: { kind: "after", anchorId: "task-a" },
-      }),
-    ).rejects.toThrow(InvalidPlacementError);
+      run(
+        createSectionTask({
+          spaceId: "space-1",
+          sectionId: "section-2",
+          userId: "user-1",
+          title: "Invalid",
+          placement: { kind: "after", anchorId: "task-a" },
+        }),
+      ),
+    ).rejects.toThrow(ConflictError);
   });
 
   test("updates task state and deletes the task", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
-    const updated = await updateTask({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      updates: { state: "done", title: "Finished" },
-    });
+    const updated = await run(
+      updateTask({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        updates: { state: "done", title: "Finished" },
+      }),
+    );
     expect(updated).toMatchObject({ state: "done", title: "Finished" });
 
-    await updateTask({
-      spaceId: "space-1",
-      taskId: "task-c",
-      userId: "user-1",
-      updates: { content: "Description", nature: "red" },
-    });
-    const cleared = await updateTask({
-      spaceId: "space-1",
-      taskId: "task-c",
-      userId: "user-1",
-      updates: { content: null, nature: null },
-    });
+    await run(
+      updateTask({
+        spaceId: "space-1",
+        taskId: "task-c",
+        userId: "user-1",
+        updates: { content: "Description", nature: "red" },
+      }),
+    );
+    const cleared = await run(
+      updateTask({
+        spaceId: "space-1",
+        taskId: "task-c",
+        userId: "user-1",
+        updates: { content: null, nature: null },
+      }),
+    );
     expect(cleared).not.toHaveProperty("content");
     expect(cleared.nature).toBe("unknown");
 
-    await deleteTask({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-    });
-    expect(
-      getTask({
+    await run(
+      deleteTask({
         spaceId: "space-1",
         taskId: "task-a",
         userId: "user-1",
       }),
+    );
+    expect(
+      run(
+        getTask({
+          spaceId: "space-1",
+          taskId: "task-a",
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 
   test("creates, updates, repositions, and deletes projects", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
-    const created = await createSpaceProject({
-      spaceId: "space-1",
-      userId: "user-1",
-      title: "New project",
-      placement: { kind: "first" },
-    });
+    const created = await run(
+      createSpaceProject({
+        spaceId: "space-1",
+        userId: "user-1",
+        title: "New project",
+        placement: { kind: "first" },
+      }),
+    );
     expect(
-      (await listSpaceProjects({ spaceId: "space-1", userId: "user-1" }))[0].id,
+      (
+        await run(listSpaceProjects({ spaceId: "space-1", userId: "user-1" }))
+      )[0].id,
     ).toBe(created.id);
 
-    const updated = await updateSpaceProject({
-      spaceId: "space-1",
-      projectId: created.id,
-      userId: "user-1",
-      updates: { title: "Renamed" },
-    });
+    const updated = await run(
+      updateSpaceProject({
+        spaceId: "space-1",
+        projectId: created.id,
+        userId: "user-1",
+        updates: { title: "Renamed" },
+      }),
+    );
     expect(updated.title).toBe("Renamed");
-    await moveSpaceProject({
-      spaceId: "space-1",
-      projectId: created.id,
-      userId: "user-1",
-      placement: { kind: "last" },
-    });
+    await run(
+      moveSpaceProject({
+        spaceId: "space-1",
+        projectId: created.id,
+        userId: "user-1",
+        placement: { kind: "last" },
+      }),
+    );
     expect(
-      (await listSpaceProjects({ spaceId: "space-1", userId: "user-1" })).at(-1)
-        ?.id,
+      (
+        await run(listSpaceProjects({ spaceId: "space-1", userId: "user-1" }))
+      ).at(-1)?.id,
     ).toBe(created.id);
 
-    await deleteSpaceProject({
-      spaceId: "space-1",
-      projectId: created.id,
-      userId: "user-1",
-    });
+    await run(
+      deleteSpaceProject({
+        spaceId: "space-1",
+        projectId: created.id,
+        userId: "user-1",
+      }),
+    );
     expect(
-      (await listSpaceProjects({ spaceId: "space-1", userId: "user-1" })).some(
-        (project) => project.id === created.id,
-      ),
+      (
+        await run(listSpaceProjects({ spaceId: "space-1", userId: "user-1" }))
+      ).some((project) => project.id === created.id),
     ).toBe(false);
   });
 
   test("creates, updates, repositions, and deletes sections", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
-    const created = await createProjectSection({
-      spaceId: "space-1",
-      projectId: "project-1",
-      userId: "user-1",
-      title: "Middle",
-      placement: { kind: "before", anchorId: "section-2" },
-    });
+    const created = await run(
+      createProjectSection({
+        spaceId: "space-1",
+        projectId: "project-1",
+        userId: "user-1",
+        title: "Middle",
+        placement: { kind: "before", anchorId: "section-2" },
+      }),
+    );
     expect(
       (
-        await listProjectSections({
-          spaceId: "space-1",
-          projectId: "project-1",
-          userId: "user-1",
-        })
+        await run(
+          listProjectSections({
+            spaceId: "space-1",
+            projectId: "project-1",
+            userId: "user-1",
+          }),
+        )
       ).map((section) => section.id),
     ).toEqual(["section-1", created.id, "section-2"]);
 
-    const updated = await updateProjectSection({
-      spaceId: "space-1",
-      sectionId: created.id,
-      userId: "user-1",
-      updates: { title: "First now" },
-    });
+    const updated = await run(
+      updateProjectSection({
+        spaceId: "space-1",
+        sectionId: created.id,
+        userId: "user-1",
+        updates: { title: "First now" },
+      }),
+    );
     expect(updated.title).toBe("First now");
-    const destination = await createSpaceProject({
-      spaceId: "space-1",
-      userId: "user-1",
-      title: "Destination",
-    });
-    await moveProjectSection({
-      spaceId: "space-1",
-      sectionId: created.id,
-      userId: "user-1",
-      projectId: destination.id,
-      placement: { kind: "first" },
-    });
+    const destination = await run(
+      createSpaceProject({
+        spaceId: "space-1",
+        userId: "user-1",
+        title: "Destination",
+      }),
+    );
+    await run(
+      moveProjectSection({
+        spaceId: "space-1",
+        sectionId: created.id,
+        userId: "user-1",
+        projectId: destination.id,
+        placement: { kind: "first" },
+      }),
+    );
     expect(
       (
-        await listProjectSections({
-          spaceId: "space-1",
-          projectId: destination.id,
-          userId: "user-1",
-        })
+        await run(
+          listProjectSections({
+            spaceId: "space-1",
+            projectId: destination.id,
+            userId: "user-1",
+          }),
+        )
       )[0].id,
     ).toBe(created.id);
 
-    await deleteProjectSection({
-      spaceId: "space-1",
-      sectionId: created.id,
-      userId: "user-1",
-    });
+    await run(
+      deleteProjectSection({
+        spaceId: "space-1",
+        sectionId: created.id,
+        userId: "user-1",
+      }),
+    );
     expect(
       (
-        await listProjectSections({
-          spaceId: "space-1",
-          projectId: "project-1",
-          userId: "user-1",
-        })
+        await run(
+          listProjectSections({
+            spaceId: "space-1",
+            projectId: "project-1",
+            userId: "user-1",
+          }),
+        )
       ).some((section) => section.id === created.id),
     ).toBe(false);
-    await deleteSpaceProject({
-      spaceId: "space-1",
-      projectId: destination.id,
-      userId: "user-1",
-    });
+    await run(
+      deleteSpaceProject({
+        spaceId: "space-1",
+        projectId: destination.id,
+        userId: "user-1",
+      }),
+    );
   });
 
   test("rejects creating, moving, or deleting inbox sections", async () => {
-    const { spaceDB } = setUpDatabases();
+    const { spaceDB, run } = setUpDatabases();
     syncDispatch(spaceDB, seedInboxProject({}));
 
     expect(
-      createProjectSection({
-        spaceId: "space-1",
-        projectId: "inbox-project",
-        userId: "user-1",
-        title: "Invalid",
-      }),
+      run(
+        createProjectSection({
+          spaceId: "space-1",
+          projectId: "inbox-project",
+          userId: "user-1",
+          title: "Invalid",
+        }),
+      ),
     ).rejects.toThrow(ConflictError);
 
     expect(
-      moveProjectSection({
-        spaceId: "space-1",
-        sectionId: "section-1",
-        userId: "user-1",
-        projectId: "inbox-project",
-        placement: { kind: "last" },
-      }),
+      run(
+        moveProjectSection({
+          spaceId: "space-1",
+          sectionId: "section-1",
+          userId: "user-1",
+          projectId: "inbox-project",
+          placement: { kind: "last" },
+        }),
+      ),
     ).rejects.toThrow(ConflictError);
 
     expect(
-      moveProjectSection({
-        spaceId: "space-1",
-        sectionId: "inbox-section",
-        userId: "user-1",
-        projectId: "project-1",
-        placement: { kind: "last" },
-      }),
+      run(
+        moveProjectSection({
+          spaceId: "space-1",
+          sectionId: "inbox-section",
+          userId: "user-1",
+          projectId: "project-1",
+          placement: { kind: "last" },
+        }),
+      ),
     ).rejects.toThrow(ConflictError);
 
     expect(
-      deleteProjectSection({
-        spaceId: "space-1",
-        sectionId: "inbox-section",
-        userId: "user-1",
-      }),
+      run(
+        deleteProjectSection({
+          spaceId: "space-1",
+          sectionId: "inbox-section",
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ConflictError);
   });
 
   test("schedules, positions, and reschedules a task", async () => {
-    const { spaceDB } = setUpDatabases();
+    const { spaceDB, run } = setUpDatabases();
 
-    await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-c",
-      userId: "user-1",
-      date: "2026-07-22",
-    });
-    const scheduled = await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      date: "2026-07-22",
-      placement: { kind: "before", anchorId: "task-c" },
-    });
+    await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-c",
+        userId: "user-1",
+        date: "2026-07-22",
+      }),
+    );
+    const scheduled = await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        date: "2026-07-22",
+        placement: { kind: "before", anchorId: "task-c" },
+      }),
+    );
     expect(scheduled).toMatchObject({
       task: { id: "task-a", scheduledDate: "2026-07-22" },
       date: "2026-07-22",
@@ -674,11 +743,13 @@ describe("section and task services", () => {
     });
     expect(
       (
-        await getTask({
-          spaceId: "space-1",
-          taskId: "task-a",
-          userId: "user-1",
-        })
+        await run(
+          getTask({
+            spaceId: "space-1",
+            taskId: "task-a",
+            userId: "user-1",
+          }),
+        )
       ).scheduledDate,
     ).toBe("2026-07-22");
 
@@ -695,44 +766,54 @@ describe("section and task services", () => {
     ).toEqual(["task-a", "task-c"]);
     expect(
       (
-        await listDailyListItems({
-          spaceId: "space-1",
-          userId: "user-1",
-          date: "2026-07-22",
-        })
+        await run(
+          listDailyListItems({
+            spaceId: "space-1",
+            userId: "user-1",
+            date: "2026-07-22",
+          }),
+        )
       ).map((item) => item.id),
     ).toEqual(["task-a", "task-c"]);
 
-    await scheduleTask({
-      spaceId: "space-1",
-      taskId: "done-new",
-      userId: "user-1",
-      date: "2026-07-22",
-    });
+    await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "done-new",
+        userId: "user-1",
+        date: "2026-07-22",
+      }),
+    );
     expect(
       (
-        await listDailyListItems({
-          spaceId: "space-1",
-          userId: "user-1",
-          date: "2026-07-22",
-          state: "done",
-        })
+        await run(
+          listDailyListItems({
+            spaceId: "space-1",
+            userId: "user-1",
+            date: "2026-07-22",
+            state: "done",
+          }),
+        )
       ).map((item) => item.id),
     ).toEqual(["done-new"]);
     expect(
-      await listDailyListItems({
-        spaceId: "space-1",
-        userId: "user-1",
-        date: "2026-07-24",
-      }),
+      await run(
+        listDailyListItems({
+          spaceId: "space-1",
+          userId: "user-1",
+          date: "2026-07-24",
+        }),
+      ),
     ).toEqual([]);
 
-    const rescheduled = await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      date: "2026-07-23",
-    });
+    const rescheduled = await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        date: "2026-07-23",
+      }),
+    );
     expect(rescheduled.previousDate).toBe("2026-07-22");
     expect(
       selectSync(spaceDB, {
@@ -741,73 +822,89 @@ describe("section and task services", () => {
       }).map((entry) => entry.taskId),
     ).toEqual(["task-c", "done-new"]);
 
-    const clearedDate = await clearTaskSchedule({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-    });
-    const alreadyClearDate = await clearTaskSchedule({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-    });
+    const clearedDate = await run(
+      clearTaskSchedule({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+      }),
+    );
+    const alreadyClearDate = await run(
+      clearTaskSchedule({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+      }),
+    );
     expect(clearedDate).toBe("2026-07-23");
     expect(alreadyClearDate).toBeNull();
     expect(
       (
-        await getTask({
-          spaceId: "space-1",
-          taskId: "task-a",
-          userId: "user-1",
-        })
+        await run(
+          getTask({
+            spaceId: "space-1",
+            taskId: "task-a",
+            userId: "user-1",
+          }),
+        )
       ).scheduledDate,
     ).toBeNull();
   });
 
   test("paginates tasks and lists daily-list ranges", async () => {
-    setUpDatabases();
-    await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      date: "2026-08-01",
-    });
-    await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-c",
-      userId: "user-1",
-      date: "2026-08-05",
-    });
+    const { run } = setUpDatabases();
+    await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        date: "2026-08-01",
+      }),
+    );
+    await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-c",
+        userId: "user-1",
+        date: "2026-08-05",
+      }),
+    );
 
-    const firstPage = await listSpaceTasks({
-      spaceId: "space-1",
-      userId: "user-1",
-      limit: 1,
-    });
+    const firstPage = await run(
+      listSpaceTasks({
+        spaceId: "space-1",
+        userId: "user-1",
+        limit: 1,
+      }),
+    );
     expect(firstPage.tasks).toHaveLength(1);
     expect(firstPage.tasks[0]).toMatchObject({
       id: "task-c",
       scheduledDate: "2026-08-05",
     });
     expect(firstPage.nextCursor).not.toBeNull();
-    const secondPage = await listSpaceTasks({
-      spaceId: "space-1",
-      userId: "user-1",
-      cursor: firstPage.nextCursor!,
-      limit: 1,
-    });
+    const secondPage = await run(
+      listSpaceTasks({
+        spaceId: "space-1",
+        userId: "user-1",
+        cursor: firstPage.nextCursor!,
+        limit: 1,
+      }),
+    );
     expect(secondPage.tasks[0]).toMatchObject({
       id: "task-a",
       scheduledDate: "2026-08-01",
     });
 
-    const firstDailyListsPage = await listDailyListsInRange({
-      spaceId: "space-1",
-      userId: "user-1",
-      from: "2026-08-01",
-      to: "2026-08-05",
-      limit: 1,
-    });
+    const firstDailyListsPage = await run(
+      listDailyListsInRange({
+        spaceId: "space-1",
+        userId: "user-1",
+        from: "2026-08-01",
+        to: "2026-08-05",
+        limit: 1,
+      }),
+    );
     expect(firstDailyListsPage.dailyLists.map(({ date }) => date)).toEqual([
       "2026-08-01",
     ]);
@@ -816,14 +913,16 @@ describe("section and task services", () => {
     );
     expect(firstDailyListsPage.nextCursor).not.toBeNull();
 
-    const secondDailyListsPage = await listDailyListsInRange({
-      spaceId: "space-1",
-      userId: "user-1",
-      from: "2026-08-01",
-      to: "2026-08-05",
-      cursor: firstDailyListsPage.nextCursor!,
-      limit: 1,
-    });
+    const secondDailyListsPage = await run(
+      listDailyListsInRange({
+        spaceId: "space-1",
+        userId: "user-1",
+        from: "2026-08-01",
+        to: "2026-08-05",
+        cursor: firstDailyListsPage.nextCursor!,
+        limit: 1,
+      }),
+    );
     expect(secondDailyListsPage.dailyLists.map(({ date }) => date)).toEqual([
       "2026-08-05",
     ]);
@@ -831,11 +930,13 @@ describe("section and task services", () => {
 
     expect(
       (
-        await listSectionItems({
-          spaceId: "space-1",
-          sectionId: "section-1",
-          userId: "user-1",
-        })
+        await run(
+          listSectionItems({
+            spaceId: "space-1",
+            sectionId: "section-1",
+            userId: "user-1",
+          }),
+        )
       )
         .filter((item) => item.type === "task")
         .map((task) => [task.id, task.scheduledDate]),
@@ -846,65 +947,77 @@ describe("section and task services", () => {
   });
 
   test("lists overdue and upcoming tasks from the scheduled index", async () => {
-    const { spaceDB } = setUpDatabases();
-    await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      date: "2026-08-01",
-    });
-    await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-c",
-      userId: "user-1",
-      date: "2026-08-05",
-    });
+    const { spaceDB, run } = setUpDatabases();
+    await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        date: "2026-08-01",
+      }),
+    );
+    await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-c",
+        userId: "user-1",
+        date: "2026-08-05",
+      }),
+    );
     syncDispatch(spaceDB, rebuildScheduledTodoTasks({}));
 
-    const firstOverduePage = await listScheduledTasks({
-      spaceId: "space-1",
-      userId: "user-1",
-      scope: "overdue",
-      relativeTo: "2026-08-06",
-      limit: 1,
-    });
+    const firstOverduePage = await run(
+      listScheduledTasks({
+        spaceId: "space-1",
+        userId: "user-1",
+        scope: "overdue",
+        relativeTo: "2026-08-06",
+        limit: 1,
+      }),
+    );
     expect(firstOverduePage.tasks.map((task) => task.id)).toEqual(["task-a"]);
     expect(firstOverduePage.nextCursor).not.toBeNull();
     expect(
       (
-        await listScheduledTasks({
-          spaceId: "space-1",
-          userId: "user-1",
-          scope: "overdue",
-          relativeTo: "2026-08-06",
-          cursor: firstOverduePage.nextCursor!,
-          limit: 1,
-        })
+        await run(
+          listScheduledTasks({
+            spaceId: "space-1",
+            userId: "user-1",
+            scope: "overdue",
+            relativeTo: "2026-08-06",
+            cursor: firstOverduePage.nextCursor!,
+            limit: 1,
+          }),
+        )
       ).tasks.map((task) => task.id),
     ).toEqual(["task-c"]);
     expect(
       (
-        await listScheduledTasks({
-          spaceId: "space-1",
-          userId: "user-1",
-          scope: "upcoming",
-          relativeTo: "2026-08-03",
-          to: "2026-08-06",
-          limit: 50,
-        })
+        await run(
+          listScheduledTasks({
+            spaceId: "space-1",
+            userId: "user-1",
+            scope: "upcoming",
+            relativeTo: "2026-08-03",
+            to: "2026-08-06",
+            limit: 50,
+          }),
+        )
       ).tasks.map((task) => task.id),
     ).toEqual(["task-c"]);
   });
 
   test("keeps live scheduled tasks reachable across a same-date missing task", async () => {
-    const { spaceDB } = setUpDatabases();
+    const { spaceDB, run } = setUpDatabases();
     for (const taskId of ["task-a", "task-c"]) {
-      await scheduleTask({
-        spaceId: "space-1",
-        taskId,
-        userId: "user-1",
-        date: "2026-08-01",
-      });
+      await run(
+        scheduleTask({
+          spaceId: "space-1",
+          taskId,
+          userId: "user-1",
+          date: "2026-08-01",
+        }),
+      );
     }
     syncDispatch(spaceDB, rebuildScheduledTodoTasks({}));
     syncDispatch(spaceDB, seedMissingScheduledTask({}));
@@ -912,14 +1025,16 @@ describe("section and task services", () => {
     const reachedTaskIds: string[] = [];
     let cursor: string | undefined;
     do {
-      const page = await listScheduledTasks({
-        spaceId: "space-1",
-        userId: "user-1",
-        scope: "overdue",
-        relativeTo: "2026-08-02",
-        cursor,
-        limit: 1,
-      });
+      const page = await run(
+        listScheduledTasks({
+          spaceId: "space-1",
+          userId: "user-1",
+          scope: "overdue",
+          relativeTo: "2026-08-02",
+          cursor,
+          limit: 1,
+        }),
+      );
       reachedTaskIds.push(...page.tasks.map((task) => task.id));
       cursor = page.nextCursor ?? undefined;
     } while (cursor);
@@ -928,65 +1043,77 @@ describe("section and task services", () => {
   });
 
   test("lists, adds, repositions, and removes stash tasks", async () => {
-    const { spaceDB } = setUpDatabases();
-    await scheduleTask({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      date: "2026-08-05",
-    });
+    const { spaceDB, run } = setUpDatabases();
+    await run(
+      scheduleTask({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        date: "2026-08-05",
+      }),
+    );
 
     expect(
       (
-        await putTaskInStash({
-          spaceId: "space-1",
-          taskId: "task-a",
-          userId: "user-1",
-        })
+        await run(
+          putTaskInStash({
+            spaceId: "space-1",
+            taskId: "task-a",
+            userId: "user-1",
+          }),
+        )
       ).scheduledDate,
     ).toBe("2026-08-05");
-    await putTaskInStash({
-      spaceId: "space-1",
-      taskId: "task-c",
-      userId: "user-1",
-    });
+    await run(
+      putTaskInStash({
+        spaceId: "space-1",
+        taskId: "task-c",
+        userId: "user-1",
+      }),
+    );
     expect(
-      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+      (await run(listStashTasks({ spaceId: "space-1", userId: "user-1" }))).map(
         (task) => task.id,
       ),
     ).toEqual(["task-c", "task-a"]);
 
-    await putTaskInStash({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-    });
+    await run(
+      putTaskInStash({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+      }),
+    );
     expect(
-      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+      (await run(listStashTasks({ spaceId: "space-1", userId: "user-1" }))).map(
         (task) => task.id,
       ),
     ).toEqual(["task-c", "task-a"]);
 
-    await putTaskInStash({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      placement: { kind: "first" },
-    });
+    await run(
+      putTaskInStash({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        placement: { kind: "first" },
+      }),
+    );
     expect(
-      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+      (await run(listStashTasks({ spaceId: "space-1", userId: "user-1" }))).map(
         (task) => task.id,
       ),
     ).toEqual(["task-a", "task-c"]);
 
-    await putTaskInStash({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      placement: { kind: "after", anchorId: "task-c" },
-    });
+    await run(
+      putTaskInStash({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        placement: { kind: "after", anchorId: "task-c" },
+      }),
+    );
     expect(
-      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+      (await run(listStashTasks({ spaceId: "space-1", userId: "user-1" }))).map(
         (task) => task.id,
       ),
     ).toEqual(["task-c", "task-a"]);
@@ -995,42 +1122,50 @@ describe("section and task services", () => {
       selector: stashEntryByTaskId,
       args: { taskId: "task-a" },
     });
-    await removeTaskFromStash({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-    });
-    await putTaskInStash({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      placement: { kind: "after", anchorId: "task-c" },
-    });
+    await run(
+      removeTaskFromStash({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+      }),
+    );
+    await run(
+      putTaskInStash({
+        spaceId: "space-1",
+        taskId: "task-a",
+        userId: "user-1",
+        placement: { kind: "after", anchorId: "task-c" },
+      }),
+    );
     const replacementEntry = selectSync(spaceDB, {
       selector: stashEntryByTaskId,
       args: { taskId: "task-a" },
     });
     expect(replacementEntry?.id).not.toBe(originalEntry?.id);
     expect(
-      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+      (await run(listStashTasks({ spaceId: "space-1", userId: "user-1" }))).map(
         (task) => task.id,
       ),
     ).toEqual(["task-c", "task-a"]);
 
     expect(
-      putTaskInStash({
-        spaceId: "space-1",
-        taskId: "task-a",
-        userId: "user-1",
-        placement: { kind: "after", anchorId: "missing" },
-      }),
-    ).rejects.toThrow(InvalidPlacementError);
+      run(
+        putTaskInStash({
+          spaceId: "space-1",
+          taskId: "task-a",
+          userId: "user-1",
+          placement: { kind: "after", anchorId: "missing" },
+        }),
+      ),
+    ).rejects.toThrow(ConflictError);
     expect(
-      putTaskInStash({
-        spaceId: "space-1",
-        taskId: "done-old",
-        userId: "user-1",
-      }),
+      run(
+        putTaskInStash({
+          spaceId: "space-1",
+          taskId: "done-old",
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ConflictError);
 
     syncDispatch(
@@ -1043,50 +1178,60 @@ describe("section and task services", () => {
     );
     expect(
       (
-        await listStashTasks({
-          spaceId: "space-1",
-          userId: "user-1",
-          state: "done",
-        })
+        await run(
+          listStashTasks({
+            spaceId: "space-1",
+            userId: "user-1",
+            state: "done",
+          }),
+        )
       ).map((task) => task.id),
     ).toEqual(["done-new", "done-old"]);
 
-    await removeTaskFromStash({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-    });
-    expect(
-      await getTask({
-        spaceId: "space-1",
-        taskId: "task-a",
-        userId: "user-1",
-      }),
-    ).toMatchObject({ id: "task-a", scheduledDate: "2026-08-05" });
-    expect(
+    await run(
       removeTaskFromStash({
         spaceId: "space-1",
         taskId: "task-a",
         userId: "user-1",
       }),
+    );
+    expect(
+      await run(
+        getTask({
+          spaceId: "space-1",
+          taskId: "task-a",
+          userId: "user-1",
+        }),
+      ),
+    ).toMatchObject({ id: "task-a", scheduledDate: "2026-08-05" });
+    expect(
+      run(
+        removeTaskFromStash({
+          spaceId: "space-1",
+          taskId: "task-a",
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 
   test("creates a stash task in the inbox", async () => {
-    const { spaceDB } = setUpDatabases();
+    const { spaceDB, run } = setUpDatabases();
     syncDispatch(spaceDB, createInboxIfNotExists({}));
     const expectedSectionId = selectSync(spaceDB, {
       selector: inboxProjectSectionId,
       args: {},
     });
 
-    const task = await createStashTask({
-      spaceId: "space-1",
-      userId: "user-1",
-      title: "Stashed",
-      content: "Details",
-      nature: "red",
-    });
+    const task = await run(
+      createStashTask({
+        spaceId: "space-1",
+        userId: "user-1",
+        title: "Stashed",
+        content: "Details",
+        nature: "red",
+      }),
+    );
 
     expect(task).toMatchObject({
       title: "Stashed",
@@ -1096,206 +1241,250 @@ describe("section and task services", () => {
       scheduledDate: null,
     });
     expect(
-      (await listStashTasks({ spaceId: "space-1", userId: "user-1" })).map(
+      (await run(listStashTasks({ spaceId: "space-1", userId: "user-1" }))).map(
         (item) => item.id,
       ),
     ).toEqual([task.id]);
   });
 
   test("creates, updates, moves, and deletes task templates", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
-    const created = await createSectionTaskTemplate({
-      spaceId: "space-1",
-      sectionId: "section-1",
-      userId: "user-1",
-      title: "Recurring",
-      repeatRule: "FREQ=WEEKLY;INTERVAL=1",
-      content: "Notes",
-      nature: "green",
-      placement: { kind: "after", anchorId: "task-a" },
-    });
+    const created = await run(
+      createSectionTaskTemplate({
+        spaceId: "space-1",
+        sectionId: "section-1",
+        userId: "user-1",
+        title: "Recurring",
+        repeatRule: "FREQ=WEEKLY;INTERVAL=1",
+        content: "Notes",
+        nature: "green",
+        placement: { kind: "after", anchorId: "task-a" },
+      }),
+    );
     expect(
       (
-        await listSectionItems({
-          spaceId: "space-1",
-          sectionId: "section-1",
-          userId: "user-1",
-        })
+        await run(
+          listSectionItems({
+            spaceId: "space-1",
+            sectionId: "section-1",
+            userId: "user-1",
+          }),
+        )
       ).map((item) => item.id),
     ).toEqual(["task-a", created.id, "template-b", "task-c"]);
 
-    const updated = await updateTaskTemplate({
-      spaceId: "space-1",
-      templateId: created.id,
-      userId: "user-1",
-      updates: { title: "Renamed", content: null, nature: null },
-    });
+    const updated = await run(
+      updateTaskTemplate({
+        spaceId: "space-1",
+        templateId: created.id,
+        userId: "user-1",
+        updates: { title: "Renamed", content: null, nature: null },
+      }),
+    );
     expect(updated.title).toBe("Renamed");
     expect(updated).not.toHaveProperty("content");
     expect(updated.nature).toBe("unknown");
 
     expect(
       (
-        await moveTaskTemplate({
-          spaceId: "space-1",
-          templateId: created.id,
-          userId: "user-1",
-          projectSectionId: "section-2",
-          placement: { kind: "first" },
-        })
+        await run(
+          moveTaskTemplate({
+            spaceId: "space-1",
+            templateId: created.id,
+            userId: "user-1",
+            projectSectionId: "section-2",
+            placement: { kind: "first" },
+          }),
+        )
       ).projectSectionId,
     ).toBe("section-2");
     expect(
       (
-        await getTaskTemplate({
-          spaceId: "space-1",
-          templateId: created.id,
-          userId: "user-1",
-        })
+        await run(
+          getTaskTemplate({
+            spaceId: "space-1",
+            templateId: created.id,
+            userId: "user-1",
+          }),
+        )
       ).id,
     ).toBe(created.id);
 
-    await deleteTaskTemplate({
-      spaceId: "space-1",
-      templateId: created.id,
-      userId: "user-1",
-    });
-    expect(
-      getTaskTemplate({
+    await run(
+      deleteTaskTemplate({
         spaceId: "space-1",
         templateId: created.id,
         userId: "user-1",
       }),
+    );
+    expect(
+      run(
+        getTaskTemplate({
+          spaceId: "space-1",
+          templateId: created.id,
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 
   test("converts between tasks and templates", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
-    const template = await convertTaskToTemplate({
-      spaceId: "space-1",
-      taskId: "task-a",
-      userId: "user-1",
-      updates: { repeatRule: "FREQ=DAILY;INTERVAL=1" },
-    });
-    expect(template.title).toBe("A");
-    expect(
-      getTask({
+    const template = await run(
+      convertTaskToTemplate({
         spaceId: "space-1",
         taskId: "task-a",
         userId: "user-1",
+        updates: { repeatRule: "FREQ=DAILY;INTERVAL=1" },
       }),
+    );
+    expect(template.title).toBe("A");
+    expect(
+      run(
+        getTask({
+          spaceId: "space-1",
+          taskId: "task-a",
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
 
-    const task = await convertTaskTemplateToTask({
-      spaceId: "space-1",
-      templateId: template.id,
-      userId: "user-1",
-    });
-    expect(task).toMatchObject({ title: "A", scheduledDate: null });
-    expect(
-      getTaskTemplate({
+    const task = await run(
+      convertTaskTemplateToTask({
         spaceId: "space-1",
         templateId: template.id,
         userId: "user-1",
       }),
+    );
+    expect(task).toMatchObject({ title: "A", scheduledDate: null });
+    expect(
+      run(
+        getTaskTemplate({
+          spaceId: "space-1",
+          templateId: template.id,
+          userId: "user-1",
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 
   test("manages and repositions checklist items for tasks and templates", async () => {
-    setUpDatabases();
+    const { run } = setUpDatabases();
 
-    const first = await createChecklistItem({
-      spaceId: "space-1",
-      userId: "user-1",
-      parentType: "task",
-      parentId: "task-a",
-      content: "First",
-    });
-    const second = await createChecklistItem({
-      spaceId: "space-1",
-      userId: "user-1",
-      parentType: "task",
-      parentId: "task-a",
-      content: "Second",
-    });
+    const first = await run(
+      createChecklistItem({
+        spaceId: "space-1",
+        userId: "user-1",
+        parentType: "task",
+        parentId: "task-a",
+        content: "First",
+      }),
+    );
+    const second = await run(
+      createChecklistItem({
+        spaceId: "space-1",
+        userId: "user-1",
+        parentType: "task",
+        parentId: "task-a",
+        content: "Second",
+      }),
+    );
 
-    await moveChecklistItem({
-      spaceId: "space-1",
-      userId: "user-1",
-      checklistItemId: second.id,
-      parentType: "task",
-      parentId: "task-a",
-      placement: { kind: "before", anchorId: first.id },
-    });
+    await run(
+      moveChecklistItem({
+        spaceId: "space-1",
+        userId: "user-1",
+        checklistItemId: second.id,
+        parentType: "task",
+        parentId: "task-a",
+        placement: { kind: "before", anchorId: first.id },
+      }),
+    );
     expect(
       (
-        await listChecklistItems({
-          spaceId: "space-1",
-          userId: "user-1",
-          parentType: "task",
-          parentId: "task-a",
-        })
+        await run(
+          listChecklistItems({
+            spaceId: "space-1",
+            userId: "user-1",
+            parentType: "task",
+            parentId: "task-a",
+          }),
+        )
       ).map((item) => item.id),
     ).toEqual([second.id, first.id]);
 
-    const updated = await updateChecklistItem({
-      spaceId: "space-1",
-      userId: "user-1",
-      checklistItemId: first.id,
-      updates: { content: "Finished", state: "done" },
-    });
+    const updated = await run(
+      updateChecklistItem({
+        spaceId: "space-1",
+        userId: "user-1",
+        checklistItemId: first.id,
+        updates: { content: "Finished", state: "done" },
+      }),
+    );
     expect(updated).toMatchObject({ content: "Finished", state: "done" });
     expect(updated.checkedAt).not.toBeNull();
 
-    const reset = await updateChecklistItem({
-      spaceId: "space-1",
-      userId: "user-1",
-      checklistItemId: first.id,
-      updates: { state: "todo" },
-    });
+    const reset = await run(
+      updateChecklistItem({
+        spaceId: "space-1",
+        userId: "user-1",
+        checklistItemId: first.id,
+        updates: { state: "todo" },
+      }),
+    );
     expect(reset).toMatchObject({ state: "todo", checkedAt: null });
 
-    await moveChecklistItem({
-      spaceId: "space-1",
-      userId: "user-1",
-      checklistItemId: first.id,
-      parentType: "template",
-      parentId: "template-b",
-      placement: { kind: "last" },
-    });
+    await run(
+      moveChecklistItem({
+        spaceId: "space-1",
+        userId: "user-1",
+        checklistItemId: first.id,
+        parentType: "template",
+        parentId: "template-b",
+        placement: { kind: "last" },
+      }),
+    );
     expect(
       (
-        await listChecklistItems({
-          spaceId: "space-1",
-          userId: "user-1",
-          parentType: "template",
-          parentId: "template-b",
-        })
+        await run(
+          listChecklistItems({
+            spaceId: "space-1",
+            userId: "user-1",
+            parentType: "template",
+            parentId: "template-b",
+          }),
+        )
       ).map((item) => item.id),
     ).toEqual([first.id]);
     expect(
       (
-        await getChecklistItem({
-          spaceId: "space-1",
-          userId: "user-1",
-          checklistItemId: first.id,
-        })
+        await run(
+          getChecklistItem({
+            spaceId: "space-1",
+            userId: "user-1",
+            checklistItemId: first.id,
+          }),
+        )
       ).parentType,
     ).toBe("template");
 
-    await deleteChecklistItem({
-      spaceId: "space-1",
-      userId: "user-1",
-      checklistItemId: first.id,
-    });
-    expect(
-      getChecklistItem({
+    await run(
+      deleteChecklistItem({
         spaceId: "space-1",
         userId: "user-1",
         checklistItemId: first.id,
       }),
+    );
+    expect(
+      run(
+        getChecklistItem({
+          spaceId: "space-1",
+          userId: "user-1",
+          checklistItemId: first.id,
+        }),
+      ),
     ).rejects.toThrow(ResourceNotFoundError);
   });
 });

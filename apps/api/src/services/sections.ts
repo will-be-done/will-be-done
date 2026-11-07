@@ -1,19 +1,21 @@
-import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import {
   createProjectSection as createProjectSectionAction,
   deleteProjectSections,
   projectById,
-  projectSectionById,
   projectSectionsByProjectId,
   updateProjectSection as updateProjectSectionAction,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
-import { ConflictError, ResourceNotFoundError } from "./errors";
+import { ConflictError } from "./errors";
+import { dispatch, select } from "./hyperdb";
 import {
   resolveCreatePosition,
   resolveOrderToken,
   type Placement,
 } from "./placement";
+import { requireProject } from "./projects";
+import { requireSection } from "./sectionQueries";
 
 export interface PublicProjectSection {
   id: string;
@@ -31,7 +33,12 @@ function toPublicProjectSection({
   return { id, projectId, title, createdAt };
 }
 
-export async function listProjectSections({
+const inboxCannotContainSections = () =>
+  new ConflictError({
+    message: "Inbox project cannot contain project sections",
+  });
+
+export const listProjectSections = Effect.fn("listProjectSections")(function* ({
   spaceId,
   projectId,
   userId,
@@ -39,23 +46,18 @@ export async function listProjectSections({
   spaceId: string;
   projectId: string;
   userId: string;
-}): Promise<PublicProjectSection[]> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const project = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireProject(db, projectId);
+
+  const sections = yield* select(db, {
+    selector: projectSectionsByProjectId,
+    args: { projectId },
   });
-  if (!project) throw new ResourceNotFoundError("Project");
+  return sections.map(toPublicProjectSection);
+});
 
-  return (
-    await selectAsync(db, {
-      selector: projectSectionsByProjectId,
-      args: { projectId },
-    })
-  ).map(toPublicProjectSection);
-}
-
-export async function getProjectSection({
+export const getProjectSection = Effect.fn("getProjectSection")(function* ({
   spaceId,
   sectionId,
   userId,
@@ -63,94 +65,81 @@ export async function getProjectSection({
   spaceId: string;
   sectionId: string;
   userId: string;
-}): Promise<PublicProjectSection> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const section = await selectAsync(db, {
-    selector: projectSectionById,
-    args: { id: sectionId },
-  });
-  if (!section) throw new ResourceNotFoundError("Project section");
-  return toPublicProjectSection(section);
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  return toPublicProjectSection(yield* requireSection(db, sectionId));
+});
 
-export async function createProjectSection({
-  spaceId,
-  projectId,
-  userId,
-  title,
-  placement = { kind: "last" },
-}: {
-  spaceId: string;
-  projectId: string;
-  userId: string;
-  title: string;
-  placement?: Placement;
-}): Promise<PublicProjectSection> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const project = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!project) throw new ResourceNotFoundError("Project");
-  if (project.isInbox) {
-    throw new ConflictError("Inbox project cannot contain project sections");
-  }
+export const createProjectSection = Effect.fn("createProjectSection")(
+  function* ({
+    spaceId,
+    projectId,
+    userId,
+    title,
+    placement = { kind: "last" },
+  }: {
+    spaceId: string;
+    projectId: string;
+    userId: string;
+    title: string;
+    placement?: Placement;
+  }) {
+    const db = yield* getSpaceDatabase(spaceId, userId);
+    const project = yield* requireProject(db, projectId);
+    if (project.isInbox) return yield* inboxCannotContainSections();
 
-  const sections =
-    placement.kind === "before" || placement.kind === "after"
-      ? await selectAsync(db, {
-          selector: projectSectionsByProjectId,
-          args: { projectId },
-        })
-      : [];
-  return toPublicProjectSection(
-    await asyncDispatch(
+    const sections =
+      placement.kind === "before" || placement.kind === "after"
+        ? yield* select(db, {
+            selector: projectSectionsByProjectId,
+            args: { projectId },
+          })
+        : [];
+    return toPublicProjectSection(
+      yield* dispatch(
+        db,
+        createProjectSectionAction({
+          sectionDraft: { projectId, title },
+          position: yield* resolveCreatePosition({
+            entities: sections,
+            placement,
+          }),
+        }),
+      ),
+    );
+  },
+);
+
+export const updateProjectSection = Effect.fn("updateProjectSection")(
+  function* ({
+    spaceId,
+    sectionId,
+    userId,
+    updates,
+  }: {
+    spaceId: string;
+    sectionId: string;
+    userId: string;
+    updates: { title?: string };
+  }) {
+    const db = yield* getSpaceDatabase(spaceId, userId);
+    yield* requireSection(db, sectionId);
+
+    yield* dispatch(
       db,
-      createProjectSectionAction({
-        sectionDraft: { projectId, title },
-        position: resolveCreatePosition({ entities: sections, placement }),
+      updateProjectSectionAction({
+        projectSectionId: sectionId,
+        section: {
+          ...(updates.title === undefined ? {} : { title: updates.title }),
+        },
       }),
-    ),
-  );
-}
+    );
 
-export async function updateProjectSection({
-  spaceId,
-  sectionId,
-  userId,
-  updates,
-}: {
-  spaceId: string;
-  sectionId: string;
-  userId: string;
-  updates: { title?: string };
-}): Promise<PublicProjectSection> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: projectSectionById,
-    args: { id: sectionId },
-  });
-  if (!current) throw new ResourceNotFoundError("Project section");
+    return toPublicProjectSection(yield* requireSection(db, sectionId));
+  },
+);
 
-  await asyncDispatch(
-    db,
-    updateProjectSectionAction({
-      projectSectionId: sectionId,
-      section: {
-        ...(updates.title === undefined ? {} : { title: updates.title }),
-      },
-    }),
-  );
-
-  const updated = await selectAsync(db, {
-    selector: projectSectionById,
-    args: { id: sectionId },
-  });
-  if (!updated) throw new ResourceNotFoundError("Project section");
-  return toPublicProjectSection(updated);
-}
-
-export async function moveProjectSection({
+export const moveProjectSection = Effect.fn("moveProjectSection")(function* ({
   spaceId,
   sectionId,
   userId,
@@ -162,74 +151,59 @@ export async function moveProjectSection({
   userId: string;
   projectId: string;
   placement: Placement;
-}): Promise<PublicProjectSection> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: projectSectionById,
-    args: { id: sectionId },
-  });
-  if (!current) throw new ResourceNotFoundError("Project section");
-  const currentProject = await selectAsync(db, {
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const current = yield* requireSection(db, sectionId);
+  const currentProject = yield* select(db, {
     selector: projectById,
     args: { id: current.projectId },
   });
   if (currentProject?.isInbox) {
-    throw new ConflictError("Inbox section cannot be moved");
+    return yield* new ConflictError({
+      message: "Inbox section cannot be moved",
+    });
   }
-  const destinationProject = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!destinationProject) throw new ResourceNotFoundError("Project");
-  if (destinationProject.isInbox) {
-    throw new ConflictError("Inbox project cannot contain project sections");
-  }
+  const destinationProject = yield* requireProject(db, projectId);
+  if (destinationProject.isInbox) return yield* inboxCannotContainSections();
 
-  const sections = (
-    await selectAsync(db, {
-      selector: projectSectionsByProjectId,
-      args: { projectId },
-    })
-  ).filter((section) => section.id !== sectionId);
-  await asyncDispatch(
+  const sections = (yield* select(db, {
+    selector: projectSectionsByProjectId,
+    args: { projectId },
+  })).filter((section) => section.id !== sectionId);
+  yield* dispatch(
     db,
     updateProjectSectionAction({
       projectSectionId: sectionId,
       section: {
         projectId,
-        orderToken: resolveOrderToken({ entities: sections, placement }),
+        orderToken: yield* resolveOrderToken({ entities: sections, placement }),
       },
     }),
   );
-  const updated = await selectAsync(db, {
-    selector: projectSectionById,
-    args: { id: sectionId },
-  });
-  if (!updated) throw new ResourceNotFoundError("Project section");
-  return toPublicProjectSection(updated);
-}
+  return toPublicProjectSection(yield* requireSection(db, sectionId));
+});
 
-export async function deleteProjectSection({
-  spaceId,
-  sectionId,
-  userId,
-}: {
-  spaceId: string;
-  sectionId: string;
-  userId: string;
-}): Promise<void> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const section = await selectAsync(db, {
-    selector: projectSectionById,
-    args: { id: sectionId },
-  });
-  if (!section) throw new ResourceNotFoundError("Project section");
-  const project = await selectAsync(db, {
-    selector: projectById,
-    args: { id: section.projectId },
-  });
-  if (project?.isInbox) {
-    throw new ConflictError("Inbox section cannot be deleted");
-  }
-  await asyncDispatch(db, deleteProjectSections({ ids: [sectionId] }));
-}
+export const deleteProjectSection = Effect.fn("deleteProjectSection")(
+  function* ({
+    spaceId,
+    sectionId,
+    userId,
+  }: {
+    spaceId: string;
+    sectionId: string;
+    userId: string;
+  }) {
+    const db = yield* getSpaceDatabase(spaceId, userId);
+    const section = yield* requireSection(db, sectionId);
+    const project = yield* select(db, {
+      selector: projectById,
+      args: { id: section.projectId },
+    });
+    if (project?.isInbox) {
+      return yield* new ConflictError({
+        message: "Inbox section cannot be deleted",
+      });
+    }
+    yield* dispatch(db, deleteProjectSections({ ids: [sectionId] }));
+  },
+);

@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { Effect } from "effect";
 import { z } from "zod";
 import { authenticateBearerToken } from "../../services/authentication";
 import {
@@ -12,7 +13,7 @@ import {
   updateMindmap,
   updateMindmapNode,
 } from "../../services/mindmaps";
-import { sendError, unauthorized } from "../errors";
+import { runRoute, unauthorized } from "../errors";
 import {
   CreateMindmapBodySchema,
   CreateMindmapNodeBodySchema,
@@ -59,15 +60,18 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const mindmaps = await listMindmaps({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ mindmaps });
-      } catch (error) {
-        return sendError(request, reply, error, "Failed to list mindmaps");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list mindmaps",
+        Effect.gen(function* () {
+          const mindmaps = yield* listMindmaps({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ mindmaps });
+        }),
+      );
     },
   );
 
@@ -87,16 +91,19 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const mindmap = await createMindmap({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          title: request.body.title,
-        });
-        return reply.code(201).send({ mindmap });
-      } catch (error) {
-        return sendError(request, reply, error, "Failed to create mindmap");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create mindmap",
+        Effect.gen(function* () {
+          const mindmap = yield* createMindmap({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            title: request.body.title,
+          });
+          return reply.code(201).send({ mindmap });
+        }),
+      );
     },
   );
 
@@ -115,16 +122,19 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const result = await getMindmap({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          mindmapId: request.params.mindmapId,
-        });
-        return reply.code(200).send(result);
-      } catch (error) {
-        return sendError(request, reply, error, "Failed to get mindmap");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to get mindmap",
+        Effect.gen(function* () {
+          const result = yield* getMindmap({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            mindmapId: request.params.mindmapId,
+          });
+          return reply.code(200).send(result);
+        }),
+      );
     },
   );
 
@@ -144,17 +154,20 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const mindmap = await updateMindmap({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          mindmapId: request.params.mindmapId,
-          title: request.body.title,
-        });
-        return reply.code(200).send({ mindmap });
-      } catch (error) {
-        return sendError(request, reply, error, "Failed to update mindmap");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to update mindmap",
+        Effect.gen(function* () {
+          const mindmap = yield* updateMindmap({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            mindmapId: request.params.mindmapId,
+            title: request.body.title,
+          });
+          return reply.code(200).send({ mindmap });
+        }),
+      );
     },
   );
 
@@ -175,16 +188,19 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        await deleteMindmap({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          mindmapId: request.params.mindmapId,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return sendError(request, reply, error, "Failed to delete mindmap");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to delete mindmap",
+        Effect.gen(function* () {
+          yield* deleteMindmap({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            mindmapId: request.params.mindmapId,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -204,17 +220,20 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const node = await createMindmapNode({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          mindmapId: request.params.mindmapId,
-          ...request.body,
-        });
-        return reply.code(201).send({ node });
-      } catch (error) {
-        return sendError(request, reply, error, "Failed to add mindmap node");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to add mindmap node",
+        Effect.gen(function* () {
+          const node = yield* createMindmapNode({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            mindmapId: request.params.mindmapId,
+            ...request.body,
+          });
+          return reply.code(201).send({ node });
+        }),
+      );
     },
   );
 
@@ -234,22 +253,20 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const node = await updateMindmapNode({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          nodeId: request.params.nodeId,
-          ...request.body,
-        });
-        return reply.code(200).send({ node });
-      } catch (error) {
-        return sendError(
-          request,
-          reply,
-          error,
-          "Failed to update mindmap node",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to update mindmap node",
+        Effect.gen(function* () {
+          const node = yield* updateMindmapNode({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            nodeId: request.params.nodeId,
+            ...request.body,
+          });
+          return reply.code(200).send({ node });
+        }),
+      );
     },
   );
 
@@ -269,17 +286,20 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        const node = await moveMindmapNode({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          nodeId: request.params.nodeId,
-          ...request.body,
-        });
-        return reply.code(200).send({ node });
-      } catch (error) {
-        return sendError(request, reply, error, "Failed to move mindmap node");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to move mindmap node",
+        Effect.gen(function* () {
+          const node = yield* moveMindmapNode({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            nodeId: request.params.nodeId,
+            ...request.body,
+          });
+          return reply.code(200).send({ node });
+        }),
+      );
     },
   );
 
@@ -299,21 +319,19 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateBearerToken(request.headers.authorization);
       if (!user) return unauthorized(reply);
 
-      try {
-        await deleteMindmapNode({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          nodeId: request.params.nodeId,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return sendError(
-          request,
-          reply,
-          error,
-          "Failed to remove mindmap node",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to remove mindmap node",
+        Effect.gen(function* () {
+          yield* deleteMindmapNode({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            nodeId: request.params.nodeId,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 };

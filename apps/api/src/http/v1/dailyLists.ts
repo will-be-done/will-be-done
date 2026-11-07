@@ -1,7 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { Effect } from "effect";
 import { authenticateRequest } from "../../services/authentication";
-import { DatabaseAccessDeniedError } from "../../services/databaseAccess";
-import { BadRequestError, ResourceNotFoundError } from "../../services/errors";
 import {
   listDailyListItems,
   listDailyListsInRange,
@@ -15,7 +14,7 @@ import {
   ErrorResponseSchema,
   SpaceParamsSchema,
 } from "../schemas";
-import { unauthorized } from "../errors";
+import { runRoute, unauthorized } from "../errors";
 
 export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
   server.get(
@@ -44,36 +43,19 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const result = await listDailyListsInRange({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          ...request.query,
-        });
-        return reply.code(200).send(result);
-      } catch (error) {
-        if (error instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ code: "BAD_REQUEST", message: error.message });
-        }
-        if (error instanceof DatabaseAccessDeniedError) {
-          return reply.code(403).send({
-            code: "FORBIDDEN",
-            message: "You do not have access to this space",
+      return runRoute(
+        request,
+        reply,
+        "Failed to list daily lists",
+        Effect.gen(function* () {
+          const result = yield* listDailyListsInRange({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            ...request.query,
           });
-        }
-        if (error instanceof ResourceNotFoundError) {
-          return reply
-            .code(404)
-            .send({ code: "NOT_FOUND", message: error.message });
-        }
-        request.log.error(error, "Failed to list daily lists");
-        return reply.code(500).send({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to list daily lists",
-        });
-      }
+          return reply.code(200).send(result);
+        }),
+      );
     },
   );
 
@@ -103,32 +85,20 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const items = await listDailyListItems({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          date: request.params.date,
-          state: request.query.state,
-        });
-        return reply.code(200).send({ items });
-      } catch (error) {
-        if (error instanceof DatabaseAccessDeniedError) {
-          return reply.code(403).send({
-            code: "FORBIDDEN",
-            message: "You do not have access to this space",
+      return runRoute(
+        request,
+        reply,
+        "Failed to list daily-list items",
+        Effect.gen(function* () {
+          const items = yield* listDailyListItems({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            date: request.params.date,
+            state: request.query.state,
           });
-        }
-        if (error instanceof ResourceNotFoundError) {
-          return reply
-            .code(404)
-            .send({ code: "NOT_FOUND", message: error.message });
-        }
-        request.log.error(error, "Failed to list daily-list items");
-        return reply.code(500).send({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to list daily-list items",
-        });
-      }
+          return reply.code(200).send({ items });
+        }),
+      );
     },
   );
 };

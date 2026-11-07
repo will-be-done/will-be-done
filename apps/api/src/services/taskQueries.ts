@@ -1,6 +1,7 @@
-import { selectAsync } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import { tasksPageByCreatedAt } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
+import { select } from "./hyperdb";
 import { decodeNumericCursor, encodeNumericCursor } from "./pagination";
 import { getTaskSchedules, toPublicTask, type PublicTask } from "./tasks";
 
@@ -9,7 +10,7 @@ export interface TaskSearchResult {
   nextCursor: string | null;
 }
 
-export async function listSpaceTasks({
+export const listSpaceTasks = Effect.fn("listSpaceTasks")(function* ({
   spaceId,
   userId,
   cursor,
@@ -19,10 +20,10 @@ export async function listSpaceTasks({
   userId: string;
   cursor?: string;
   limit: number;
-}): Promise<TaskSearchResult> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const decodedCursor = cursor ? decodeNumericCursor(cursor) : null;
-  const tasks = await selectAsync(db, {
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const decodedCursor = cursor ? yield* decodeNumericCursor(cursor) : null;
+  const tasks = yield* select(db, {
     selector: tasksPageByCreatedAt,
     args: {
       cursorCreatedAt: decodedCursor?.sort ?? null,
@@ -31,12 +32,12 @@ export async function listSpaceTasks({
     },
   });
   const page = tasks.slice(0, limit);
-  const scheduleByTaskId = await getTaskSchedules(
+  const scheduleByTaskId = yield* getTaskSchedules(
     db,
     page.map((task) => task.id),
   );
   const last = page.at(-1);
-  return {
+  const result: TaskSearchResult = {
     tasks: page.map((task) =>
       toPublicTask(task, scheduleByTaskId.get(task.id) ?? null),
     ),
@@ -45,4 +46,5 @@ export async function listSpaceTasks({
         ? encodeNumericCursor({ sort: last.createdAt, id: last.id })
         : null,
   };
-}
+  return result;
+});

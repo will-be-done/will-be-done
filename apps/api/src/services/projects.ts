@@ -1,4 +1,5 @@
-import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
+import type { HyperDB } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import {
   allProjects,
   createProject as createProjectAction,
@@ -8,6 +9,7 @@ import {
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import { ConflictError, ResourceNotFoundError } from "./errors";
+import { dispatch, select } from "./hyperdb";
 import {
   resolveCreatePosition,
   resolveOrderToken,
@@ -32,20 +34,32 @@ function toPublicProject({
   return { id, title, icon, isInbox, createdAt };
 }
 
-export async function listSpaceProjects({
+export const requireProject = Effect.fnUntraced(function* (
+  db: HyperDB,
+  projectId: string,
+) {
+  const project = yield* select(db, {
+    selector: projectById,
+    args: { id: projectId },
+  });
+  if (!project)
+    return yield* new ResourceNotFoundError({ resource: "Project" });
+  return project;
+});
+
+export const listSpaceProjects = Effect.fn("listSpaceProjects")(function* ({
   spaceId,
   userId,
 }: {
   spaceId: string;
   userId: string;
-}): Promise<PublicProject[]> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const projects = await selectAsync(db, { selector: allProjects, args: {} });
-
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const projects = yield* select(db, { selector: allProjects, args: {} });
   return projects.map(toPublicProject);
-}
+});
 
-export async function getSpaceProject({
+export const getSpaceProject = Effect.fn("getSpaceProject")(function* ({
   spaceId,
   projectId,
   userId,
@@ -53,17 +67,12 @@ export async function getSpaceProject({
   spaceId: string;
   projectId: string;
   userId: string;
-}): Promise<PublicProject> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const project = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!project) throw new ResourceNotFoundError("Project");
-  return toPublicProject(project);
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  return toPublicProject(yield* requireProject(db, projectId));
+});
 
-export async function createSpaceProject({
+export const createSpaceProject = Effect.fn("createSpaceProject")(function* ({
   spaceId,
   userId,
   title,
@@ -75,23 +84,23 @@ export async function createSpaceProject({
   title: string;
   icon?: string;
   placement?: Placement;
-}): Promise<PublicProject> {
-  const db = await getSpaceDatabase(spaceId, userId);
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
   const projects =
     placement.kind === "before" || placement.kind === "after"
-      ? await selectAsync(db, { selector: allProjects, args: {} })
+      ? yield* select(db, { selector: allProjects, args: {} })
       : [];
-  const project = await asyncDispatch(
+  const project = yield* dispatch(
     db,
     createProjectAction({
       project: { title, icon },
-      position: resolveCreatePosition({ entities: projects, placement }),
+      position: yield* resolveCreatePosition({ entities: projects, placement }),
     }),
   );
   return toPublicProject(project);
-}
+});
 
-export async function updateSpaceProject({
+export const updateSpaceProject = Effect.fn("updateSpaceProject")(function* ({
   spaceId,
   projectId,
   userId,
@@ -101,15 +110,11 @@ export async function updateSpaceProject({
   projectId: string;
   userId: string;
   updates: { title?: string; icon?: string };
-}): Promise<PublicProject> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!current) throw new ResourceNotFoundError("Project");
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireProject(db, projectId);
 
-  await asyncDispatch(
+  yield* dispatch(
     db,
     updateProjectAction({
       id: projectId,
@@ -120,15 +125,10 @@ export async function updateSpaceProject({
     }),
   );
 
-  const updated = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!updated) throw new ResourceNotFoundError("Project");
-  return toPublicProject(updated);
-}
+  return toPublicProject(yield* requireProject(db, projectId));
+});
 
-export async function moveSpaceProject({
+export const moveSpaceProject = Effect.fn("moveSpaceProject")(function* ({
   spaceId,
   projectId,
   userId,
@@ -138,34 +138,26 @@ export async function moveSpaceProject({
   projectId: string;
   userId: string;
   placement: Placement;
-}): Promise<PublicProject> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!current) throw new ResourceNotFoundError("Project");
-  const projects = (
-    await selectAsync(db, { selector: allProjects, args: {} })
-  ).filter((project) => project.id !== projectId);
-  await asyncDispatch(
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireProject(db, projectId);
+  const projects = (yield* select(db, {
+    selector: allProjects,
+    args: {},
+  })).filter((project) => project.id !== projectId);
+  yield* dispatch(
     db,
     updateProjectAction({
       id: projectId,
       project: {
-        orderToken: resolveOrderToken({ entities: projects, placement }),
+        orderToken: yield* resolveOrderToken({ entities: projects, placement }),
       },
     }),
   );
-  const updated = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!updated) throw new ResourceNotFoundError("Project");
-  return toPublicProject(updated);
-}
+  return toPublicProject(yield* requireProject(db, projectId));
+});
 
-export async function deleteSpaceProject({
+export const deleteSpaceProject = Effect.fn("deleteSpaceProject")(function* ({
   spaceId,
   projectId,
   userId,
@@ -173,14 +165,13 @@ export async function deleteSpaceProject({
   spaceId: string;
   projectId: string;
   userId: string;
-}): Promise<void> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const project = await selectAsync(db, {
-    selector: projectById,
-    args: { id: projectId },
-  });
-  if (!project) throw new ResourceNotFoundError("Project");
-  if (project.isInbox)
-    throw new ConflictError("Inbox project cannot be deleted");
-  await asyncDispatch(db, deleteProjects({ ids: [projectId] }));
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const project = yield* requireProject(db, projectId);
+  if (project.isInbox) {
+    return yield* new ConflictError({
+      message: "Inbox project cannot be deleted",
+    });
+  }
+  yield* dispatch(db, deleteProjects({ ids: [projectId] }));
+});

@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { Effect } from "effect";
 import { z } from "zod";
 import { authenticateRequest } from "../../services/authentication";
 import {
@@ -9,7 +10,7 @@ import {
   moveNote,
   updateNote,
 } from "../../services/notes";
-import { sendError as handleError, unauthorized } from "../errors";
+import { runRoute, unauthorized } from "../errors";
 import {
   ErrorResponseSchema,
   MoveNoteBodySchema,
@@ -44,16 +45,19 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const note = await getNote({
-          spaceId: request.params.spaceId,
-          noteId: request.params.noteId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ note });
-      } catch (error) {
-        return handleError(request, reply, error, "Failed to get note");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to get note",
+        Effect.gen(function* () {
+          const note = yield* getNote({
+            spaceId: request.params.spaceId,
+            noteId: request.params.noteId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ note });
+        }),
+      );
     },
   );
 
@@ -81,17 +85,20 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const note = await updateNote({
-          spaceId: request.params.spaceId,
-          noteId: request.params.noteId,
-          userId: user.id,
-          updates: request.body,
-        });
-        return reply.code(200).send({ note });
-      } catch (error) {
-        return handleError(request, reply, error, "Failed to update note");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to update note",
+        Effect.gen(function* () {
+          const note = yield* updateNote({
+            spaceId: request.params.spaceId,
+            noteId: request.params.noteId,
+            userId: user.id,
+            updates: request.body,
+          });
+          return reply.code(200).send({ note });
+        }),
+      );
     },
   );
 
@@ -118,16 +125,19 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        await deleteNote({
-          spaceId: request.params.spaceId,
-          noteId: request.params.noteId,
-          userId: user.id,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return handleError(request, reply, error, "Failed to delete note");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to delete note",
+        Effect.gen(function* () {
+          yield* deleteNote({
+            spaceId: request.params.spaceId,
+            noteId: request.params.noteId,
+            userId: user.id,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -156,17 +166,20 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const note = await moveNote({
-          spaceId: request.params.spaceId,
-          noteId: request.params.noteId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(200).send({ note });
-      } catch (error) {
-        return handleError(request, reply, error, "Failed to move note");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to move note",
+        Effect.gen(function* () {
+          const note = yield* moveNote({
+            spaceId: request.params.spaceId,
+            noteId: request.params.noteId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(200).send({ note });
+        }),
+      );
     },
   );
 
@@ -193,21 +206,19 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const note = await convertTaskToNote({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ note });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to convert task to note",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to convert task to note",
+        Effect.gen(function* () {
+          const note = yield* convertTaskToNote({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ note });
+        }),
+      );
     },
   );
 
@@ -234,21 +245,19 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       const user = await authenticateRequest(request);
       if (!user) return unauthorized(reply);
 
-      try {
-        const task = await convertNoteToTask({
-          spaceId: request.params.spaceId,
-          noteId: request.params.noteId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ task });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to convert note to task",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to convert note to task",
+        Effect.gen(function* () {
+          const task = yield* convertNoteToTask({
+            spaceId: request.params.spaceId,
+            noteId: request.params.noteId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ task });
+        }),
+      );
     },
   );
 };

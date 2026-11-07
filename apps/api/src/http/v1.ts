@@ -11,8 +11,9 @@ import { stashRoutes } from "./v1/stash";
 import { mindmapRoutes } from "./v1/mindmaps";
 import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
-import { sendError } from "./errors";
-import { asyncDispatch } from "@will-be-done/hyperdb";
+import { dispatch } from "../services/hyperdb";
+import { runRoute } from "./errors";
+import { Cause, Clock, Effect } from "effect";
 import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
 import { getEnvConfig } from "../env";
 import {
@@ -68,25 +69,31 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
       return;
     }
 
-    let db;
-    try {
-      db = await getSpaceDatabase(spaceId, user.id);
-    } catch (error) {
-      return sendError(request, reply, error, "Failed to prepare space data");
-    }
-
-    try {
-      await asyncDispatch(
-        db,
-        generateSpaceTasksIfDue({
-          toDate: Date.now(),
-          intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
-          force: false,
-        }),
-      );
-    } catch (error) {
-      request.log.error(error, "Failed to generate recurring tasks");
-    }
+    return runRoute(
+      request,
+      reply,
+      "Failed to prepare space data",
+      Effect.gen(function* () {
+        const db = yield* getSpaceDatabase(spaceId, user.id);
+        yield* dispatch(
+          db,
+          generateSpaceTasksIfDue({
+            toDate: yield* Clock.currentTimeMillis,
+            intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
+            force: false,
+          }),
+        ).pipe(
+          Effect.catchCause((cause) =>
+            Effect.sync(() =>
+              request.log.error(
+                Cause.squash(cause),
+                "Failed to generate recurring tasks",
+              ),
+            ),
+          ),
+        );
+      }),
+    );
   });
 
   server.addHook("onResponse", async (request, reply) => {

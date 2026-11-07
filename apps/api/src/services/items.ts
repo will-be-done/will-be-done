@@ -1,13 +1,13 @@
-import { selectAsync } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import {
-  projectSectionById,
   projectSectionItems,
   projectSectionTasksByState,
   type Note,
   type TaskTemplate,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
-import { ResourceNotFoundError } from "./errors";
+import { select } from "./hyperdb";
+import { requireSection } from "./sectionQueries";
 import { getTaskSchedules, toPublicTask, type PublicTask } from "./tasks";
 
 export interface PublicTaskTemplate {
@@ -66,7 +66,7 @@ export function toPublicTaskTemplate(
   };
 }
 
-export async function listSectionItems({
+export const listSectionItems = Effect.fn("listSectionItems")(function* ({
   spaceId,
   sectionId,
   userId,
@@ -76,21 +76,16 @@ export async function listSectionItems({
   sectionId: string;
   userId: string;
   taskState?: "todo" | "done";
-}): Promise<PublicItem[]> {
-  const db = await getSpaceDatabase(spaceId, userId);
-
-  const section = await selectAsync(db, {
-    selector: projectSectionById,
-    args: { id: sectionId },
-  });
-  if (!section) throw new ResourceNotFoundError("Project section");
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireSection(db, sectionId);
 
   if (taskState === "done") {
-    const tasks = await selectAsync(db, {
+    const tasks = yield* select(db, {
       selector: projectSectionTasksByState,
       args: { projectSectionId: sectionId, state: "done" },
     });
-    const schedules = await getTaskSchedules(
+    const schedules = yield* getTaskSchedules(
       db,
       tasks.map((task) => task.id),
     );
@@ -99,11 +94,11 @@ export async function listSectionItems({
     );
   }
 
-  const items = await selectAsync(db, {
+  const items = yield* select(db, {
     selector: projectSectionItems,
     args: { projectSectionId: sectionId },
   });
-  const schedules = await getTaskSchedules(
+  const schedules = yield* getTaskSchedules(
     db,
     items.flatMap((item) => (item.type === "task" ? [item.id] : [])),
   );
@@ -114,4 +109,4 @@ export async function listSectionItems({
     if (item.type === "note") return toPublicNote(item);
     return toPublicTaskTemplate(item);
   });
-}
+});
