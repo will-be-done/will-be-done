@@ -1,6 +1,7 @@
 import { asyncDispatch, execAsync, type HyperDB } from "@will-be-done/hyperdb";
 import {
   Cause,
+  Clock,
   type Context,
   Effect,
   Exit,
@@ -10,6 +11,7 @@ import {
   type Scope,
   Stream,
 } from "effect";
+import { Digest } from "effect/crypto";
 import { HttpClient, HttpClientRequest } from "effect/http";
 import {
   CURRENT_SYNC_VERSION,
@@ -71,6 +73,7 @@ type SyncStatusMessage =
   | { type: "status"; status: SyncStatus };
 
 export type SyncerServices =
+  | Digest.Digest
   | HttpClient.HttpClient
   | AuthSession
   | ServerChanges
@@ -78,14 +81,12 @@ export type SyncerServices =
   | PageEvents;
 
 const sha256 = (value: string) =>
-  Effect.promise(async () => {
-    const digest = await crypto.subtle.digest(
-      "SHA-256",
+  Effect.gen(function* () {
+    const digest = yield* Digest.Digest;
+    return yield* digest.digestHex(
+      Digest.sha256,
       new TextEncoder().encode(value),
     );
-    return [...new Uint8Array(digest)]
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
   });
 
 export class Syncer {
@@ -288,7 +289,9 @@ export class Syncer {
           this.setStatus({
             phase: !completed || hasPendingWake ? "waiting" : "synced",
             progress: null,
-            ...(completed ? { lastSyncedAt: Date.now() } : {}),
+            ...(completed
+              ? { lastSyncedAt: yield* Clock.currentTimeMillis }
+              : {}),
           });
           if (completed && this.syncConfig.dbType === "user") {
             completedUserSyncs.modify((version) => version + 1);
@@ -372,7 +375,8 @@ export class Syncer {
       yield* this.dispatch(
         this.syncDB.withTraits({ type: "skip-sync" }),
         cleanupStaleSyncV4Transfers({
-          createdBefore: Date.now() - SYNC_SESSION_STALE_MS,
+          createdBefore:
+            (yield* Clock.currentTimeMillis) - SYNC_SESSION_STALE_MS,
         }),
       );
       const pending = yield* this.dispatch(
@@ -437,7 +441,7 @@ export class Syncer {
             uploadId,
             after: session.uploadFromCursor,
             registeredSyncableTableNameMap: this.syncConfig.tableNameMap,
-            now: Date.now(),
+            now: yield* Clock.currentTimeMillis,
           }),
         );
       }
@@ -534,7 +538,7 @@ export class Syncer {
             serverRevision: commit.serverRevision,
             acceptedClientCursor: commit.acceptedClientCursor,
             chunks: [payload],
-            now: Date.now(),
+            now: yield* Clock.currentTimeMillis,
           }),
         );
       } else {
@@ -551,7 +555,7 @@ export class Syncer {
             serverRevision: commit.serverRevision,
             acceptedClientCursor: commit.acceptedClientCursor,
             chunkCount: stagedDownload.chunkCount,
-            now: Date.now(),
+            now: yield* Clock.currentTimeMillis,
           }),
         );
         for (

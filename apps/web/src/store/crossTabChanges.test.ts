@@ -199,7 +199,7 @@ describe("cross-tab changes", () => {
         persistDBTables: [crossTabItemsTable, changesTable],
         syncableDBTables: [crossTabItemsTable],
         tableNameMap: { [crossTabItemsTable.tableName]: crossTabItemsTable },
-        afterInit: () => {},
+        afterInit: () => Effect.void,
       } satisfies SyncConfig;
       const publications: Op[][] = [];
       const onApplied = vi.fn(() => {

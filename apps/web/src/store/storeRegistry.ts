@@ -71,7 +71,7 @@ const startStore = (
       clientId,
       nextClock,
     });
-    yield* Effect.promise(async () => syncConfig.beforeInit?.(syncSubDb));
+    if (syncConfig.beforeInit) yield* syncConfig.beforeInit(syncSubDb);
 
     const syncer = yield* Syncer.make(
       syncSubDb,
@@ -101,7 +101,7 @@ const startStore = (
       );
     }
 
-    yield* Effect.promise(async () => syncConfig.afterInit(syncSubDb));
+    yield* syncConfig.afterInit(syncSubDb);
 
     return syncSubDb;
   });
