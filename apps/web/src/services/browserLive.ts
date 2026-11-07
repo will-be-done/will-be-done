@@ -57,7 +57,7 @@ export const ServerChangesLive = Layer.succeed(ServerChanges, {
 const openChannel = <A>(name: string) =>
   Effect.acquireRelease(
     Effect.sync(() => new BroadcastChannel<A>(name)),
-    (channel) => Effect.promise(() => channel.close()),
+    (channel) => Effect.tryPromise(() => channel.close()).pipe(Effect.ignore),
   );
 
 const listenTo = <A>(
@@ -83,7 +83,7 @@ export const TabChannelsLive = Layer.succeed(TabChannels, {
       const channel = yield* openChannel<unknown>(name);
       const elector = yield* Effect.acquireRelease(
         Effect.sync(() => createLeaderElection(channel)),
-        (elector) => Effect.promise(() => elector.die()),
+        (elector) => Effect.tryPromise(() => elector.die()).pipe(Effect.ignore),
       );
       return {
         isLeader: () => elector.isLeader,

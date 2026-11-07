@@ -36,7 +36,7 @@ export class StoreStorage extends Context.Service<
       dbName: string,
       syncConfig: SyncConfig,
       prepare: (persistentDB: HyperDB) => Effect.Effect<void, DatabaseError>,
-    ) => Effect.Effect<SubscribableDB>;
+    ) => Effect.Effect<SubscribableDB, DatabaseError>;
   }
 >()("@will-be-done/web/StoreStorage") {}
 

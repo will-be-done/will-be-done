@@ -106,7 +106,7 @@ export const makeTestTabs = (): TestTabs => {
           const leader: boolean = tabs.nextIsLeader;
           return {
             isLeader: () => leader,
-            awaitLeadership: Effect.void,
+            awaitLeadership: leader ? Effect.void : Effect.never,
             onDuplicate: () => Effect.void,
           };
         }),

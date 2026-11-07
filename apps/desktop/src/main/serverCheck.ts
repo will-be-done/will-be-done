@@ -40,19 +40,29 @@ export function isHttpUrl(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://')
 }
 
-function normalizeServerUrl(url: string): string {
-  const normalized = new URL(url.trim())
-  if (!isHttpUrl(normalized.toString())) {
-    throw new Error('Server URL must use http:// or https://')
-  }
-  if (normalized.username || normalized.password) {
-    throw new Error('Server URL must not include a username or password')
-  }
+const normalizeServerUrl = (input: string): Effect.Effect<string, InvalidServerUrl> =>
+  Effect.gen(function* () {
+    const normalized = yield* Effect.try({
+      try: () => new URL(input),
+      catch: () => new InvalidServerUrl({ input, reason: 'Server URL is not a valid URL' })
+    })
+    if (normalized.protocol !== 'http:' && normalized.protocol !== 'https:') {
+      return yield* new InvalidServerUrl({
+        input,
+        reason: 'Server URL must use http:// or https://'
+      })
+    }
+    if (normalized.username || normalized.password) {
+      return yield* new InvalidServerUrl({
+        input,
+        reason: 'Server URL must not include a username or password'
+      })
+    }
 
-  normalized.search = ''
-  normalized.hash = ''
-  return normalized.toString().replace(/\/$/, '')
-}
+    normalized.search = ''
+    normalized.hash = ''
+    return normalized.toString().replace(/\/$/, '')
+  })
 
 function getServerCheckUrl(serverUrl: string): string {
   return new URL(`/${SERVER_CHECK_FILE}`, `${serverUrl}/`).toString()
@@ -86,14 +96,7 @@ const verifyServer = (
   timeoutMs: number
 ): Effect.Effect<string, ServerCheckError, HttpClient.HttpClient> =>
   Effect.gen(function* () {
-    const serverUrl = yield* Effect.try({
-      try: () => normalizeServerUrl(input),
-      catch: (error) =>
-        new InvalidServerUrl({
-          input,
-          reason: error instanceof Error ? error.message : 'Failed to verify the configured server.'
-        })
-    })
+    const serverUrl = yield* normalizeServerUrl(input)
     yield* fetchCheckFile(serverUrl).pipe(
       Effect.timeoutOrElse({
         duration: timeoutMs,
