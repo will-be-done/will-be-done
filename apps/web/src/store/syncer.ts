@@ -6,6 +6,7 @@ import {
   Exit,
   Fiber,
   Match,
+  Queue,
   type Scope,
   Stream,
 } from "effect";
@@ -76,18 +77,6 @@ export type SyncerServices =
   | TabChannels
   | PageEvents;
 
-const waitForVersionAfter = (state: State<number>, version: number) =>
-  Effect.callback<void>((resume) => {
-    const unsubscribe = state.subscribe((current, unsubscribeNow) => {
-      if (current > version) {
-        unsubscribeNow();
-        // Resuming synchronously would run the loop inside the waker's stack.
-        queueMicrotask(() => resume(Effect.void));
-      }
-    }, true);
-    return Effect.sync(unsubscribe);
-  });
-
 const sha256 = (value: string) =>
   Effect.promise(async () => {
     const digest = await crypto.subtle.digest(
@@ -105,8 +94,9 @@ export class Syncer {
   private terminal = false;
   private applySyncV4Download: ReturnType<typeof createApplySyncV4Download>;
 
-  private wsNotification = new State<number>(0);
-  private forceSyncNotification = new State<number>(0);
+  // A wake-up that arrives during a session stays queued, so the next session
+  // starts as soon as this one ends.
+  private wakes = Effect.runSync(Queue.sliding<void>(1));
 
   private constructor(
     private syncDB: HyperDB,
@@ -206,7 +196,7 @@ export class Syncer {
     if (this.status.get().phase === "synced") {
       this.setStatus({ phase: "waiting", progress: null });
     }
-    this.forceSyncNotification.modify((version) => version + 1);
+    Queue.offerUnsafe(this.wakes, undefined);
     if (!this.leadership.isLeader()) {
       this.statusChannel.post({ type: "request-sync" });
     }
@@ -260,7 +250,7 @@ export class Syncer {
               if (this.status.get().phase === "synced") {
                 this.setStatus({ phase: "waiting", progress: null });
               }
-              this.wsNotification.modify((version) => version + 1);
+              Queue.offerUnsafe(this.wakes, undefined);
             }),
           ),
         ),
@@ -268,9 +258,7 @@ export class Syncer {
       Failed: ({ cause }) =>
         Effect.logError("Server change subscription failed", cause).pipe(
           Effect.tap(
-            Effect.sync(() =>
-              this.wsNotification.modify((version) => version + 1),
-            ),
+            Effect.sync(() => Queue.offerUnsafe(this.wakes, undefined)),
           ),
         ),
     }),
@@ -288,10 +276,6 @@ export class Syncer {
       yield* Effect.sleep(SYNC_START_DELAY_MS);
 
       while (true) {
-        // Snapshot before the session so a local write or server notification
-        // that arrives while syncV4 is running remains a pending wake-up.
-        const wsVersion = this.wsNotification.get();
-        const forceSyncVersion = this.forceSyncNotification.get();
         const userSyncVersion = completedUserSyncs.get();
         let spaceMissingOnServer = false;
 
@@ -300,9 +284,7 @@ export class Syncer {
         const session = yield* Effect.exit(this.syncV4());
         if (Exit.isSuccess(session)) {
           const completed = session.value;
-          const hasPendingWake =
-            this.wsNotification.get() > wsVersion ||
-            this.forceSyncNotification.get() > forceSyncVersion;
+          const hasPendingWake = Queue.sizeUnsafe(this.wakes) > 0;
           this.setStatus({
             phase: !completed || hasPendingWake ? "waiting" : "synced",
             progress: null,
@@ -327,8 +309,6 @@ export class Syncer {
         }
 
         yield* this.waitForNextSyncTrigger(
-          wsVersion,
-          forceSyncVersion,
           spaceMissingOnServer ? userSyncVersion : undefined,
         );
       }
@@ -663,17 +643,12 @@ export class Syncer {
     });
   }
 
-  private waitForNextSyncTrigger(
-    wsVersion: number,
-    forceSyncVersion: number,
-    userSyncVersion?: number,
-  ) {
-    const triggers = [
-      waitForVersionAfter(this.wsNotification, wsVersion),
-      waitForVersionAfter(this.forceSyncNotification, forceSyncVersion),
-    ];
+  private waitForNextSyncTrigger(userSyncVersion?: number) {
+    const triggers: Effect.Effect<unknown>[] = [Queue.take(this.wakes)];
     if (userSyncVersion !== undefined) {
-      triggers.push(waitForVersionAfter(completedUserSyncs, userSyncVersion));
+      triggers.push(
+        completedUserSyncs.waitFor((version) => version > userSyncVersion),
+      );
     }
     if (process.env.NODE_ENV !== "development") {
       triggers.push(Effect.sleep(SYNC_POLL_INTERVAL_MS));

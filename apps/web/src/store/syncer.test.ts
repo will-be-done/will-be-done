@@ -154,13 +154,7 @@ const deferred = <T = void>() => {
 };
 
 const statusReached = (syncer: Syncer, phase: SyncStatus["phase"]) =>
-  new Promise<SyncStatus>((resolve) => {
-    syncer.status.subscribe((status, unsubscribe) => {
-      if (status.phase !== phase) return;
-      unsubscribe();
-      resolve(status);
-    }, true);
-  });
+  Effect.runPromise(syncer.status.waitFor((status) => status.phase === phase));
 
 const aborted = (signal: AbortSignal) =>
   new Promise<void>((resolve) => {
