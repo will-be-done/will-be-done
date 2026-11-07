@@ -16,9 +16,11 @@ const StoreStorageLive = Layer.succeed(StoreStorage, {
     Effect.promise(() => resolvePersistentDriverKind(dbName)),
   clientId: getClientId,
   open: (dbName, syncConfig, prepare) =>
-    Effect.promise(() => createStoreDbs(dbName, syncConfig, prepare)).pipe(
-      Effect.map(({ syncSubDb }) => syncSubDb),
-    ),
+    Effect.promise(() =>
+      createStoreDbs(dbName, syncConfig, (persistentDB) =>
+        Effect.runPromise(prepare(persistentDB)),
+      ),
+    ).pipe(Effect.map(({ syncSubDb }) => syncSubDb)),
 });
 
 const stores = makeStoreRegistry(Layer.mergeAll(BrowserLive, StoreStorageLive));

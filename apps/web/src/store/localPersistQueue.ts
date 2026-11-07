@@ -1,9 +1,4 @@
-import {
-  execAsync,
-  execMaybeAsync,
-  type Op,
-  type SubscribableDB,
-} from "@will-be-done/hyperdb";
+import type { Op } from "@will-be-done/hyperdb";
 import {
   changesTable,
   type Change,
@@ -13,11 +8,11 @@ import {
 } from "@will-be-done/slices/common";
 import { Effect, Fiber, type Scope } from "effect";
 import { PageEvents } from "@/services/browser";
+import { Database, type DatabaseError } from "./database";
 import { flushPendingDrafts } from "./pendingDraftFlushes.ts";
 import type { ChangePersistedEvent } from "./syncTypes";
 
 type CreateLocalPersistQueueArgs = {
-  syncSubDb: SubscribableDB;
   postChanges: (event: ChangePersistedEvent) => void;
   onPersisted: () => void;
 };
@@ -87,26 +82,32 @@ const createChangesetFromOps = (ops: Op[]): ChangesetArrayType => {
 
 // Closing the scope stops publishing local writes and flushing on page hide.
 export const makeLocalPersistQueue = ({
-  syncSubDb,
   postChanges,
   onPersisted,
 }: CreateLocalPersistQueueArgs): Effect.Effect<
-  { readonly drain: () => Promise<void> },
+  { readonly drain: Effect.Effect<void, DatabaseError> },
   never,
-  PageEvents | Scope.Scope
+  PageEvents | Database | Scope.Scope
 > =>
   Effect.gen(function* () {
     const page = yield* PageEvents;
+    const database = yield* Database;
     const runFork = Effect.runForkWith(yield* Effect.context<never>());
     const publications = new Set<Fiber.Fiber<void>>();
 
-    const drain = async () => {
+    const drain = Effect.gen(function* () {
       flushPendingDrafts();
-      await execAsync(syncSubDb.waitForPersistence());
-      await Effect.runPromise(Fiber.awaitAll(publications));
-    };
+      yield* database.waitForPersistence;
+      yield* Fiber.awaitAll(publications);
+    });
     const drainBestEffort = () => {
-      void drain();
+      runFork(
+        drain.pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError("Flushing local changes failed", cause),
+          ),
+        ),
+      );
     };
 
     yield* page.listen("window", "beforeunload", drainBestEffort, {
@@ -126,7 +127,7 @@ export const makeLocalPersistQueue = ({
 
     yield* Effect.acquireRelease(
       Effect.sync(() =>
-        syncSubDb.subscribe((ops, traits) => {
+        database.hyperDB.subscribe((ops, traits) => {
           if (traits.some((t) => t.type === "skip-sync")) {
             return;
           }
@@ -138,22 +139,20 @@ export const makeLocalPersistQueue = ({
             postChanges({ changeset });
             onPersisted();
           };
-          const persisted = execMaybeAsync(syncSubDb.waitForPersistence());
-          if (!(persisted instanceof Promise)) {
-            publish();
-            return;
-          }
           // Other tabs and the syncer must only see changes that are durable.
+          // When nothing is waiting to be written this publishes synchronously.
           const publication = runFork(
-            Effect.promise(() => persisted).pipe(
+            database.waitForPersistence.pipe(
               Effect.andThen(Effect.sync(publish)),
               Effect.catchCause((cause) =>
                 Effect.logError("Publishing local changes failed", cause),
               ),
             ),
           );
-          publications.add(publication);
-          publication.addObserver(() => publications.delete(publication));
+          if (publication.pollUnsafe() === undefined) {
+            publications.add(publication);
+            publication.addObserver(() => publications.delete(publication));
+          }
         }),
       ),
       (unsubscribe) => Effect.sync(unsubscribe),

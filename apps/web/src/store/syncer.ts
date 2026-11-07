@@ -1,4 +1,3 @@
-import { asyncDispatch, execAsync, type HyperDB } from "@will-be-done/hyperdb";
 import {
   Cause,
   Clock,
@@ -54,6 +53,7 @@ import {
   SyncTimeoutError,
   type SyncError,
 } from "./syncErrors";
+import { Database } from "./database";
 import type { SyncConfig } from "./syncTypes";
 import { initialSyncStatus, type SyncStatus } from "./syncStatus";
 import { markSyncUpdateRequired, syncChannelName } from "./syncCompatibility";
@@ -73,6 +73,7 @@ type SyncStatusMessage =
   | { type: "status"; status: SyncStatus };
 
 export type SyncerServices =
+  | Database
   | Digest.Digest
   | HttpClient.HttpClient
   | AuthSession
@@ -100,7 +101,6 @@ export class Syncer {
   private wakes = Effect.runSync(Queue.sliding<void>(1));
 
   private constructor(
-    private syncDB: HyperDB,
     private clientId: string,
     private syncConfig: SyncConfig,
     private nextClock: HlcClock,
@@ -114,7 +114,6 @@ export class Syncer {
   // Closing the scope stops the loop and releases the tab channels and page
   // listeners.
   static make(
-    syncDB: HyperDB,
     clientId: string,
     syncConfig: SyncConfig,
     nextClock: HlcClock,
@@ -130,7 +129,6 @@ export class Syncer {
         syncChannelName("status", clientId),
       );
       const syncer = new Syncer(
-        syncDB,
         clientId,
         syncConfig,
         nextClock,
@@ -319,16 +317,24 @@ export class Syncer {
   }
 
   // A started local transaction runs to completion even if the loop stops.
-  private dispatch<T>(db: HyperDB, action: Generator<unknown, T, unknown>) {
-    return Effect.tryPromise({
-      try: async () => {
-        const result = await asyncDispatch(db, action);
-        if (this.syncDB.waitForPersistence)
-          await execAsync(this.syncDB.waitForPersistence());
-        return result;
-      },
-      catch: (cause) => new SyncStorageError({ cause }),
-    }).pipe(Effect.uninterruptible);
+  // Durable before it returns; a started write is never cut short.
+  private dispatch<T>(
+    action: Generator<unknown, T, unknown>,
+    options?: { readonly skipSync?: boolean },
+  ) {
+    return Effect.gen(function* () {
+      const database = yield* Database;
+      const result = yield* database.dispatch(action, options);
+      yield* database.waitForPersistence;
+      return result;
+    }).pipe(
+      Effect.uninterruptible,
+      Effect.mapError((error) => new SyncStorageError({ cause: error.cause })),
+    );
+  }
+
+  private dispatchSkipSync<T>(action: Generator<unknown, T, unknown>) {
+    return this.dispatch(action, { skipSync: true });
   }
 
   private syncRequest<T>(
@@ -372,17 +378,13 @@ export class Syncer {
   private syncV4() {
     return Effect.gen({ self: this }, function* () {
       const baseUrl = this.syncV4BaseUrl();
-      yield* this.dispatch(
-        this.syncDB.withTraits({ type: "skip-sync" }),
+      yield* this.dispatchSkipSync(
         cleanupStaleSyncV4Transfers({
           createdBefore:
             (yield* Clock.currentTimeMillis) - SYNC_SESSION_STALE_MS,
         }),
       );
-      const pending = yield* this.dispatch(
-        this.syncDB,
-        getPendingSyncV4Upload({}),
-      );
+      const pending = yield* this.dispatch(getPendingSyncV4Upload({}));
       const resumingUpload = pending !== undefined;
       let uploadId: string;
       let snapshot: {
@@ -404,10 +406,7 @@ export class Syncer {
           chunkCount: pending.chunkCount,
         };
       } else {
-        const state = yield* this.dispatch(
-          this.syncDB.withTraits({ type: "skip-sync" }),
-          getSyncV4HandshakeState({}),
-        );
+        const state = yield* this.dispatchSkipSync(getSyncV4HandshakeState({}));
         const session = yield* this.syncRequest<SyncSessionResponse>(
           "sync-v4-session",
           HttpClientRequest.bodyJsonUnsafe(
@@ -427,16 +426,14 @@ export class Syncer {
         );
         this.nextClock.calibrate(session.serverTimeMs);
         uploadId = session.uploadId;
-        yield* this.dispatch(
-          this.syncDB.withTraits({ type: "skip-sync" }),
+        yield* this.dispatchSkipSync(
           recordSyncV4Handshake({
             acceptedClientCursor: session.uploadFromCursor,
             acknowledgedServerRevision: session.serverAcknowledgedRevision,
           }),
         );
         this.setStatus({ phase: "preparing" });
-        snapshot = yield* this.dispatch(
-          this.syncDB.withTraits({ type: "skip-sync" }),
+        snapshot = yield* this.dispatchSkipSync(
           freezeSyncV4Upload({
             uploadId,
             after: session.uploadFromCursor,
@@ -454,8 +451,7 @@ export class Syncer {
           Effect.catchIf(
             (error) => shouldRestartFrozenUpload(resumingUpload, error),
             () =>
-              this.dispatch(
-                this.syncDB.withTraits({ type: "skip-sync" }),
+              this.dispatchSkipSync(
                 discardSyncV4Transfer({ uploadId, downloadId: "" }),
               ).pipe(
                 Effect.tap(Effect.sync(() => this.forceSync())),
@@ -471,7 +467,6 @@ export class Syncer {
       const chunkChecksums: string[] = [];
       for (let sequence = 0; sequence < snapshot.chunkCount; sequence += 1) {
         const localChunk = yield* this.dispatch(
-          this.syncDB,
           getSyncV4UploadChunk({ uploadId, sequence }),
         );
         if (!localChunk) {
@@ -531,8 +526,7 @@ export class Syncer {
             ),
           ),
         );
-        yield* this.dispatch(
-          this.syncDB.withTraits({ type: "skip-sync" }),
+        yield* this.dispatchSkipSync(
           stageSyncV4Download({
             downloadId: localDownloadId,
             serverRevision: commit.serverRevision,
@@ -548,8 +542,7 @@ export class Syncer {
         this.setStatus({
           progress: { completed: 0, total: stagedDownload.chunkCount },
         });
-        yield* this.dispatch(
-          this.syncDB.withTraits({ type: "skip-sync" }),
+        yield* this.dispatchSkipSync(
           beginSyncV4Download({
             downloadId: localDownloadId,
             serverRevision: commit.serverRevision,
@@ -586,8 +579,7 @@ export class Syncer {
               ),
             ),
           );
-          yield* this.dispatch(
-            this.syncDB.withTraits({ type: "skip-sync" }),
+          yield* this.dispatchSkipSync(
             stageSyncV4DownloadChunk({
               downloadId: localDownloadId,
               sequence,
@@ -611,8 +603,7 @@ export class Syncer {
         }
       }
       this.setStatus({ phase: "applying", progress: null });
-      const applied = yield* this.dispatch(
-        this.syncDB.withTraits({ type: "skip-sync" }),
+      const applied = yield* this.dispatchSkipSync(
         this.applySyncV4Download({
           downloadId: localDownloadId,
           uploadId,
@@ -621,8 +612,7 @@ export class Syncer {
         }),
       );
       if (!applied) {
-        yield* this.dispatch(
-          this.syncDB.withTraits({ type: "skip-sync" }),
+        yield* this.dispatchSkipSync(
           discardSyncV4Transfer({
             uploadId,
             downloadId: localDownloadId,
