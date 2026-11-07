@@ -13,6 +13,7 @@ import {
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { Effect, Exit, Layer, Scope } from "effect";
+import { Digest } from "effect/crypto";
 import {
   makeTestLogger,
   makeTestPage,
@@ -73,6 +74,7 @@ const testServices = () =>
     env.logger.layer,
     testAuthSession(),
     testHttpClient(() => env.fetch),
+    Digest.layerWebCrypto,
   );
 
 // Builds a component with the test services, kept alive until the test ends.
@@ -103,7 +105,7 @@ const config: SyncConfig = {
   persistDBTables: [],
   syncableDBTables: [],
   tableNameMap: {},
-  afterInit: () => {},
+  afterInit: () => Effect.void,
 };
 
 const createSyncer = (syncConfig = config) => {

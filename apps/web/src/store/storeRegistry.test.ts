@@ -2,6 +2,7 @@ import { DB, execSync, SubscribableDB } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { changesTable, syncStateTable } from "@will-be-done/slices/common";
 import { Effect, Layer } from "effect";
+import { Digest } from "effect/crypto";
 import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 import { BackupDatabase } from "@/services/browser";
@@ -43,6 +44,7 @@ const setup = () => {
       // The sync loop may start; its requests never answer.
       testHttpClient(() => () => new Promise<Response>(() => {})),
       Layer.succeed(BackupDatabase, new IDBFactory()),
+      Digest.layerWebCrypto,
     ),
   );
   return { registry, tabs, page, opened };
@@ -50,7 +52,7 @@ const setup = () => {
 
 const userConfig = (
   dbId: string,
-  afterInit: SyncConfig["afterInit"] = async () => {},
+  afterInit: SyncConfig["afterInit"] = () => Effect.void,
 ): SyncConfig => ({
   dbId,
   dbType: "user",
@@ -67,8 +69,8 @@ describe("store registry", () => {
       "user-1",
       vi
         .fn<SyncConfig["afterInit"]>()
-        .mockRejectedValueOnce(new Error("preload failed"))
-        .mockResolvedValue(undefined),
+        .mockReturnValueOnce(Effect.die(new Error("preload failed")))
+        .mockReturnValue(Effect.void),
     );
 
     await expect(registry.init(config)).rejects.toThrow("preload failed");
