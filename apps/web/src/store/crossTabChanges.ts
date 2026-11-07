@@ -1,49 +1,42 @@
 import {
-  asyncDispatch,
-  execAsync,
-  type SubscribableDB,
-} from "@will-be-done/hyperdb";
-import {
   mergeChanges,
   observedChangeClocks,
   type HlcClock,
 } from "@will-be-done/slices/common";
 import { mergeSpaceChanges } from "@will-be-done/slices/space";
-import { Data, Effect, type Scope } from "effect";
+import { Effect, type Scope } from "effect";
 import { TabChannels } from "@/services/browser";
+import { Database, type DatabaseError } from "./database";
 import type { ChangePersistedEvent, SyncConfig } from "./syncTypes";
 import { syncChannelName } from "./syncCompatibility";
 
-class CrossTabMergeError extends Data.TaggedError("CrossTabMergeError")<{
-  readonly cause: unknown;
-}> {}
-
 type CreateCrossTabChangesArgs = {
   clientId: string;
-  syncSubDb: SubscribableDB;
   syncConfig: SyncConfig;
   nextClock: HlcClock;
   onApplied: () => void;
 };
 
 export type CrossTabChanges = {
-  readonly applyChanges: (data: ChangePersistedEvent) => Promise<void>;
+  readonly applyChanges: (
+    data: ChangePersistedEvent,
+  ) => Effect.Effect<void, DatabaseError>;
   readonly postChanges: (data: ChangePersistedEvent) => void;
 };
 
 // Closing the scope stops listening for other tabs' changes.
 export const makeCrossTabChanges = ({
   clientId,
-  syncSubDb,
   syncConfig,
   nextClock,
   onApplied,
 }: CreateCrossTabChangesArgs): Effect.Effect<
   CrossTabChanges,
   never,
-  TabChannels | Scope.Scope
+  TabChannels | Database | Scope.Scope
 > =>
   Effect.gen(function* () {
+    const database = yield* Database;
     const channel = yield* (yield* TabChannels).channel<ChangePersistedEvent>(
       syncChannelName("changes", clientId),
     );
@@ -64,16 +57,8 @@ export const makeCrossTabChanges = ({
         };
         const merge =
           syncConfig.dbType === "space" ? mergeSpaceChanges : mergeChanges;
-        yield* Effect.tryPromise({
-          try: async () => {
-            await asyncDispatch<unknown>(
-              syncSubDb.withTraits({ type: "skip-sync" }),
-              merge(mergeArgs),
-            );
-            await execAsync(syncSubDb.waitForPersistence());
-          },
-          catch: (cause) => new CrossTabMergeError({ cause }),
-        });
+        yield* database.dispatch<unknown>(merge(mergeArgs), { skipSync: true });
+        yield* database.waitForPersistence;
         // A status-channel wake-up can finish before this asynchronous merge.
         // Wake again only once the incoming changes are visible to sync reads.
         onApplied();
@@ -91,7 +76,7 @@ export const makeCrossTabChanges = ({
     });
 
     return {
-      applyChanges: (data) => Effect.runPromise(mergeIncoming(data)),
+      applyChanges: mergeIncoming,
       postChanges: (data) => channel.post(data),
     };
   });

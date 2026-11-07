@@ -4,7 +4,7 @@ import { changesTable, syncStateTable } from "@will-be-done/slices/common";
 import { Effect, Layer } from "effect";
 import { Digest } from "effect/crypto";
 import { IDBFactory } from "fake-indexeddb";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BackupDatabase } from "@/services/browser";
 import {
   makeTestLogger,
@@ -52,7 +52,7 @@ const setup = () => {
 
 const userConfig = (
   dbId: string,
-  afterInit: SyncConfig["afterInit"] = () => Effect.void,
+  afterInit: SyncConfig["afterInit"] = Effect.void,
 ): SyncConfig => ({
   dbId,
   dbType: "user",
@@ -65,12 +65,14 @@ const userConfig = (
 describe("store registry", () => {
   it("tears down a failed startup so a retry runs a single sync loop", async () => {
     const { registry, tabs, page } = setup();
+    let attempts = 0;
     const config = userConfig(
       "user-1",
-      vi
-        .fn<SyncConfig["afterInit"]>()
-        .mockReturnValueOnce(Effect.die(new Error("preload failed")))
-        .mockReturnValue(Effect.void),
+      Effect.suspend(() =>
+        attempts++ === 0
+          ? Effect.die(new Error("preload failed"))
+          : Effect.void,
+      ),
     );
 
     await expect(registry.init(config)).rejects.toThrow("preload failed");

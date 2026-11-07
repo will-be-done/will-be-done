@@ -1,9 +1,8 @@
+import type { HyperDB, SubscribableDB } from "@will-be-done/hyperdb";
 import {
-  asyncDispatch,
-  type DB,
-  type SubscribableDB,
-} from "@will-be-done/hyperdb";
-import { migrateSyncV4Clocks } from "@will-be-done/slices/common";
+  getLatestPersistedClock,
+  migrateSyncV4Clocks,
+} from "@will-be-done/slices/common";
 import { getSpaceBackup } from "@will-be-done/slices/space";
 import {
   Context,
@@ -17,11 +16,12 @@ import {
 import type { BackupDatabase } from "@/services/browser";
 import { makeAutoBackup } from "./autoBackup";
 import { makeCrossTabChanges } from "./crossTabChanges";
+import { Database, type DatabaseError } from "./database";
 import { makeLocalPersistQueue } from "./localPersistQueue";
 import type { PersistentDriverKind } from "./persistentDriver";
 import { resetEmptyPersistedSyncCursor } from "./syncActions";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
-import { getDbName, initClock, observePersistedClock } from "./syncClock";
+import { getDbName, initClock } from "./syncClock";
 import { Syncer, type SyncerServices } from "./syncer";
 import { syncStatusByDB } from "./syncStatus";
 import type { SyncConfig } from "./syncTypes";
@@ -36,12 +36,16 @@ export class StoreStorage extends Context.Service<
     readonly open: (
       dbName: string,
       syncConfig: SyncConfig,
-      prepare: (persistentDB: DB) => Promise<void>,
+      prepare: (persistentDB: HyperDB) => Effect.Effect<void, DatabaseError>,
     ) => Effect.Effect<SubscribableDB>;
   }
 >()("@will-be-done/web/StoreStorage") {}
 
-export type StoreServices = StoreStorage | SyncerServices | BackupDatabase;
+// Database is provided per store by startStore, not by the app layer.
+export type StoreServices =
+  | StoreStorage
+  | Exclude<SyncerServices, Database>
+  | BackupDatabase;
 
 const startStore = (
   syncConfig: SyncConfig,
@@ -52,18 +56,17 @@ const startStore = (
     const storage = yield* StoreStorage;
     const clientId = storage.clientId(dbName, driverKind);
     const nextClock = initClock(clientId);
-    const syncSubDb = yield* storage.open(
-      dbName,
-      syncConfig,
-      async (persistentDB) => {
-        await asyncDispatch(
-          persistentDB.withTraits({ type: "skip-sync" }),
-          migrateSyncV4Clocks({}),
-        );
-        await observePersistedClock(persistentDB, nextClock);
-        await asyncDispatch(persistentDB, resetEmptyPersistedSyncCursor({}));
-      },
+    const syncSubDb = yield* storage.open(dbName, syncConfig, (persistentDB) =>
+      Effect.gen(function* () {
+        const persistent = Database.make(persistentDB);
+        yield* persistent.dispatch(migrateSyncV4Clocks({}), { skipSync: true });
+        nextClock.observe([
+          yield* persistent.dispatch(getLatestPersistedClock({})),
+        ]);
+        yield* persistent.dispatch(resetEmptyPersistedSyncCursor({}));
+      }),
     );
+    const database = Database.make(syncSubDb);
 
     registerSyncChangeHooks({
       syncSubDb,
@@ -71,37 +74,32 @@ const startStore = (
       clientId,
       nextClock,
     });
-    if (syncConfig.beforeInit) yield* syncConfig.beforeInit(syncSubDb);
+    yield* Effect.gen(function* () {
+      if (syncConfig.beforeInit) yield* syncConfig.beforeInit;
 
-    const syncer = yield* Syncer.make(
-      syncSubDb,
-      clientId,
-      syncConfig,
-      nextClock,
-    );
-    const crossTabChanges = yield* makeCrossTabChanges({
-      clientId,
-      syncSubDb,
-      syncConfig,
-      nextClock,
-      onApplied: () => syncer.forceSync(),
-    });
-    yield* makeLocalPersistQueue({
-      syncSubDb,
-      postChanges: crossTabChanges.postChanges,
-      onPersisted: () => syncer.forceSync(),
-    });
+      const syncer = yield* Syncer.make(clientId, syncConfig, nextClock);
+      const crossTabChanges = yield* makeCrossTabChanges({
+        clientId,
+        syncConfig,
+        nextClock,
+        onApplied: () => syncer.forceSync(),
+      });
+      yield* makeLocalPersistQueue({
+        postChanges: crossTabChanges.postChanges,
+        onPersisted: () => syncer.forceSync(),
+      });
 
-    if (!syncConfig.disableSync) {
-      syncStatusByDB.set(syncSubDb, syncer.status);
-      syncer.startLoop();
-      yield* makeAutoBackup(
-        dbName,
-        Effect.promise(() => asyncDispatch(syncSubDb, getSpaceBackup({}))),
-      );
-    }
+      if (!syncConfig.disableSync) {
+        syncStatusByDB.set(syncSubDb, syncer.status);
+        syncer.startLoop();
+        yield* makeAutoBackup(
+          dbName,
+          database.dispatch(getSpaceBackup({})).pipe(Effect.orDie),
+        );
+      }
 
-    yield* syncConfig.afterInit(syncSubDb);
+      yield* syncConfig.afterInit;
+    }).pipe(Effect.provideService(Database, database));
 
     return syncSubDb;
   });

@@ -26,13 +26,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PageEvents, TabChannels } from "@/services/browser";
 import { makeTestLogger, makeTestPage, makeTestTabs } from "@/services/testing";
 import { makeCrossTabChanges } from "./crossTabChanges";
+import { Database } from "./database";
 import { makeLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 import type { SyncConfig } from "./syncTypes";
 
 const scopes: Scope.Closeable[] = [];
 const inScope = <A>(
-  effect: Effect.Effect<A, never, TabChannels | PageEvents | Scope.Scope>,
+  db: SubscribableDB,
+  effect: Effect.Effect<
+    A,
+    never,
+    TabChannels | PageEvents | Database | Scope.Scope
+  >,
 ) => {
   const scope = Scope.makeUnsafe();
   scopes.push(scope);
@@ -44,6 +50,7 @@ const inScope = <A>(
           makeTestTabs().layer,
           makeTestPage().layer,
           makeTestLogger().layer,
+          Database.layer(db),
         ),
       ),
     ),
@@ -106,7 +113,8 @@ describe("cross-tab changes", () => {
     const postChanges = vi.fn();
     const onPersisted = vi.fn();
     const queue = inScope(
-      makeLocalPersistQueue({ syncSubDb: db, postChanges, onPersisted }),
+      db,
+      makeLocalPersistQueue({ postChanges, onPersisted }),
     );
     const clock = createHlcClock("sender")();
     const row = { id: "local", title: "Visible before persistence" };
@@ -146,7 +154,7 @@ describe("cross-tab changes", () => {
       release();
       await execAsync(runtime.waitForPersistence());
     }
-    await queue.drain();
+    await Effect.runPromise(queue.drain);
     expect(postChanges).toHaveBeenCalledExactlyOnceWith({
       changeset: [
         { tableName: crossTabItemsTable.tableName, data: [{ row, change }] },
@@ -199,16 +207,16 @@ describe("cross-tab changes", () => {
         persistDBTables: [crossTabItemsTable, changesTable],
         syncableDBTables: [crossTabItemsTable],
         tableNameMap: { [crossTabItemsTable.tableName]: crossTabItemsTable },
-        afterInit: () => Effect.void,
+        afterInit: Effect.void,
       } satisfies SyncConfig;
       const publications: Op[][] = [];
       const onApplied = vi.fn(() => {
         expect(publications).not.toHaveLength(0);
       });
       const crossTabChanges = inScope(
+        receiverDB,
         makeCrossTabChanges({
           clientId: "receiver",
-          syncSubDb: receiverDB,
           syncConfig,
           nextClock,
           onApplied,
@@ -216,8 +224,8 @@ describe("cross-tab changes", () => {
       );
       const postChanges = vi.spyOn(crossTabChanges, "postChanges");
       inScope(
+        receiverDB,
         makeLocalPersistQueue({
-          syncSubDb: receiverDB,
           postChanges: crossTabChanges.postChanges,
           onPersisted: vi.fn(),
         }),
@@ -260,7 +268,7 @@ describe("cross-tab changes", () => {
         })({}),
       );
 
-      await crossTabChanges.applyChanges({ changeset });
+      await Effect.runPromise(crossTabChanges.applyChanges({ changeset }));
 
       const state = await selectAsync(receiverDB, {
         selector: crossTabState,

@@ -81,7 +81,7 @@ describe("store database startup", () => {
       persistDBTables: [startupItemsTable],
       syncableDBTables: [startupItemsTable],
       tableNameMap: { [startupItemsTable.tableName]: startupItemsTable },
-      afterInit: () => Effect.void,
+      afterInit: Effect.void,
     } satisfies SyncConfig;
 
     const { persistentDB, syncSubDb } = await createStoreDbs(

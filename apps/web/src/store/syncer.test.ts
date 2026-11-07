@@ -12,7 +12,7 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { Effect, Exit, Layer, Scope } from "effect";
+import { type Context, Effect, Exit, Layer, Scope } from "effect";
 import { Digest } from "effect/crypto";
 import {
   makeTestLogger,
@@ -32,6 +32,7 @@ import {
   type ClientCursor,
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
+import { Database } from "./database";
 import { Syncer, type SyncerServices } from "./syncer";
 import { freezeSyncV4Upload, getPendingSyncV4Upload } from "./syncActions";
 import {
@@ -77,14 +78,19 @@ const testServices = () =>
     Digest.layerWebCrypto,
   );
 
-// Builds a component with the test services, kept alive until the test ends.
+// Builds a component on `db` with the test services, kept alive until the
+// test ends.
 const inScope = <A>(
+  db: SubscribableDB,
   effect: Effect.Effect<A, never, SyncerServices | Scope.Scope>,
 ) => {
   const scope = Scope.makeUnsafe();
   scopes.push(scope);
   return Effect.runSync(
-    effect.pipe(Scope.provide(scope), Effect.provide(testServices())),
+    effect.pipe(
+      Scope.provide(scope),
+      Effect.provide(Layer.mergeAll(testServices(), Database.layer(db))),
+    ),
   );
 };
 
@@ -92,7 +98,12 @@ const runSyncV4 = (syncer: Syncer) =>
   Effect.runPromise(
     (syncer as unknown as SyncerTestAccess)
       .syncV4()
-      .pipe(Effect.provide(testServices())),
+      .pipe(
+        Effect.provide(
+          (syncer as unknown as { services: Context.Context<SyncerServices> })
+            .services,
+        ),
+      ),
   );
 
 type SyncerTestAccess = {
@@ -105,7 +116,7 @@ const config: SyncConfig = {
   persistDBTables: [],
   syncableDBTables: [],
   tableNameMap: {},
-  afterInit: () => Effect.void,
+  afterInit: Effect.void,
 };
 
 const createSyncer = (syncConfig = config) => {
@@ -121,7 +132,7 @@ const createSyncer = (syncConfig = config) => {
   const nextClock = createHlcClock("client-1");
   return {
     db,
-    syncer: inScope(Syncer.make(db, "client-1", syncConfig, nextClock)),
+    syncer: inScope(db, Syncer.make("client-1", syncConfig, nextClock)),
   };
 };
 
@@ -566,7 +577,8 @@ describe("sync status", () => {
     };
     const leaderClock = createHlcClock("client-1/leader");
     const leader = inScope(
-      Syncer.make(leaderDB, "client-1", syncConfig, leaderClock),
+      leaderDB,
+      Syncer.make("client-1", syncConfig, leaderClock),
     );
     registerSyncChangeHooks({
       syncSubDb: leaderDB,
@@ -575,9 +587,9 @@ describe("sync status", () => {
       nextClock: leaderClock,
     });
     inScope(
+      leaderDB,
       makeCrossTabChanges({
         clientId: "client-1",
-        syncSubDb: leaderDB,
         syncConfig,
         nextClock: leaderClock,
         onApplied: () => leader.forceSync(),
@@ -630,7 +642,8 @@ describe("sync status", () => {
       env.tabs.nextIsLeader = false;
       const followerClock = createHlcClock("client-1/follower");
       const follower = inScope(
-        Syncer.make(followerDB, "client-1", syncConfig, followerClock),
+        followerDB,
+        Syncer.make("client-1", syncConfig, followerClock),
       );
       registerSyncChangeHooks({
         syncSubDb: followerDB,
@@ -639,17 +652,17 @@ describe("sync status", () => {
         nextClock: followerClock,
       });
       const followerChanges = inScope(
+        followerDB,
         makeCrossTabChanges({
           clientId: "client-1",
-          syncSubDb: followerDB,
           syncConfig,
           nextClock: followerClock,
           onApplied: () => follower.forceSync(),
         }),
       );
       inScope(
+        followerDB,
         makeLocalPersistQueue({
-          syncSubDb: followerDB,
           postChanges: followerChanges.postChanges,
           onPersisted: () => follower.forceSync(),
         }),
