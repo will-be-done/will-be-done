@@ -156,13 +156,28 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   });
 
-const deferred = () => {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
+const deferred = <T = void>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
     resolve = done;
   });
   return { promise, resolve };
 };
+
+const statusReached = (syncer: Syncer, phase: SyncStatus["phase"]) =>
+  new Promise<SyncStatus>((resolve) => {
+    syncer.status.subscribe((status, unsubscribe) => {
+      if (status.phase !== phase) return;
+      unsubscribe();
+      resolve(status);
+    }, true);
+  });
+
+const aborted = (signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    if (signal.aborted) resolve();
+    else signal.addEventListener("abort", () => resolve(), { once: true });
+  });
 
 beforeEach(() => {
   subscription.handlers = undefined;
@@ -374,19 +389,19 @@ describe("sync status", () => {
     vi.useFakeTimers();
     const { syncer } = createSyncer();
     const commit = deferred();
-    let commitSignal: AbortSignal | null | undefined;
+    const commitStarted = deferred<AbortSignal>();
     stubSuccessfulSync((init) => {
-      commitSignal = init?.signal;
+      commitStarted.resolve(init!.signal!);
       return commit.promise;
     });
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
-    await vi.waitFor(() => expect(commitSignal).toBeDefined());
+    const commitSignal = await commitStarted.promise;
     subscription.handlers?.onError({
       data: { syncVersion: { code: "SYNC_VERSION_UNSUPPORTED" } },
     });
     expect(syncer.status.get().phase).toBe("update-required");
-    await vi.waitFor(() => expect(commitSignal?.aborted).toBe(true));
+    await aborted(commitSignal);
     commit.resolve();
     await run;
     expect(syncer.status.get()).toMatchObject({
@@ -399,6 +414,7 @@ describe("sync status", () => {
     vi.useFakeTimers();
     const { syncer } = createSyncer();
     const events: string[] = [];
+    const firstCommit = deferred();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request, init: RequestInit) => {
@@ -411,6 +427,7 @@ describe("sync status", () => {
           init.signal?.addEventListener("abort", () =>
             events.push("first commit aborted"),
           );
+          firstCommit.resolve();
           return new Promise<Response>(() => {});
         }
         return jsonResponse({
@@ -423,11 +440,12 @@ describe("sync status", () => {
 
     const first = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
-    await vi.waitFor(() => expect(events).toEqual(["session", "commit"]));
+    await firstCommit.promise;
     const second = syncer.run();
     await first;
+    const synced = statusReached(syncer, "synced");
     await vi.advanceTimersByTimeAsync(2_000);
-    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
+    await synced;
     // The frozen upload is resumed rather than started again.
     expect(events).toEqual([
       "session",
@@ -438,29 +456,79 @@ describe("sync status", () => {
     await stop(syncer, second);
   });
 
-  it("times out and aborts a hung request, then reports a retryable error", async () => {
+  it("waits for a local transaction to finish when handoffs arrive back to back", async () => {
     vi.useFakeTimers();
-    vi.spyOn(console, "error").mockImplementation(() => {});
     const { syncer } = createSyncer();
-    let signal: AbortSignal | null | undefined;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((_input: string | URL | Request, init: RequestInit) => {
-        signal = init.signal;
-        return new Promise<Response>(() => {});
-      }),
-    );
-    const run = syncer.run();
+    const access = syncer as unknown as SyncerTestAccess;
+    const transaction = deferred();
+    const nextSession = deferred();
+    let sessions = 0;
+    vi.spyOn(access, "syncV4").mockImplementation(() => {
+      sessions += 1;
+      if (sessions === 1) {
+        return Effect.promise(() => transaction.promise).pipe(
+          Effect.as(true),
+          Effect.uninterruptible,
+        );
+      }
+      nextSession.resolve();
+      return Effect.never;
+    });
+
+    const first = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
-    expect(syncer.status.get().phase).toBe("connecting");
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
-    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("error"));
-    expect(syncer.status.get().error).toBe(
-      "Sync could not finish. It will retry automatically.",
-    );
-    expect(signal?.aborted).toBe(true);
-    await stop(syncer, run);
+    expect(sessions).toBe(1);
+    void syncer.run();
+    const last = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    // The middle loop's wait must not be cut short while the first one is
+    // still committing its transaction.
+    expect(sessions).toBe(1);
+
+    transaction.resolve();
+    await first;
+    await vi.advanceTimersByTimeAsync(2_000);
+    await nextSession.promise;
+    expect(sessions).toBe(2);
+    await stop(syncer, last);
   });
+
+  it.each([
+    [
+      "before the response headers arrive",
+      () => new Promise<Response>(() => {}),
+    ],
+    [
+      "while the response body is still downloading",
+      async () =>
+        new Response(new ReadableStream({ pull: () => new Promise(() => {}) })),
+    ],
+  ])(
+    "times out and aborts a request that stalls %s, then reports a retryable error",
+    async (_stage, respond) => {
+      vi.useFakeTimers();
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { syncer } = createSyncer();
+      let signal: AbortSignal | null | undefined;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((_input: string | URL | Request, init: RequestInit) => {
+          signal = init.signal;
+          return respond();
+        }),
+      );
+      const run = syncer.run();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(syncer.status.get().phase).toBe("connecting");
+      const failed = statusReached(syncer, "error");
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      expect((await failed).error).toBe(
+        "Sync could not finish. It will retry automatically.",
+      );
+      expect(signal?.aborted).toBe(true);
+      await stop(syncer, run);
+    },
+  );
 
   it("does not report a deferred or discarded transfer as a successful sync", async () => {
     vi.useFakeTimers();
@@ -883,9 +951,10 @@ describe("sync v4 request recovery", () => {
       }),
     );
 
+    const synced = statusReached(syncer, "synced");
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
-    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
+    await synced;
     await syncer.stop();
     await run;
 

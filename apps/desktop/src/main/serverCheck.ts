@@ -44,7 +44,11 @@ function normalizeServerUrl(url: string): string {
   if (!isHttpUrl(normalized.toString())) {
     throw new Error('Server URL must use http:// or https://')
   }
+  if (normalized.username || normalized.password) {
+    throw new Error('Server URL must not include a username or password')
+  }
 
+  normalized.search = ''
   normalized.hash = ''
   return normalized.toString().replace(/\/$/, '')
 }

@@ -57,6 +57,15 @@ const cancelRemoteFlow = (flow: Flow | undefined) => {
     .catch(() => {});
 };
 
+// Waits for an in-flight begin request so its flow is cancelled too.
+export const cancelActiveFlow = (current: ActiveFlow) => {
+  current.channel?.close();
+  current.popup?.close();
+  return Effect.runPromise(
+    current.fiber ? Fiber.interrupt(current.fiber) : Effect.void,
+  ).then(() => cancelRemoteFlow(current.flow));
+};
+
 export const runGoogleFlow = (
   intent: "signin" | "link",
   desktop: Window["desktopApi"],
@@ -178,14 +187,7 @@ export function useGoogleFlow(
   const cancel = useCallback(() => {
     const current = active.current;
     active.current = null;
-    current?.channel?.close();
-    current?.popup?.close();
-    if (current) {
-      // Waits for an in-flight begin request so its flow is cancelled too.
-      void Effect.runPromise(
-        current.fiber ? Fiber.interrupt(current.fiber) : Effect.void,
-      ).then(() => cancelRemoteFlow(current.flow));
-    }
+    if (current) void cancelActiveFlow(current);
     setBusy(false);
     setReadyEmail(null);
   }, []);

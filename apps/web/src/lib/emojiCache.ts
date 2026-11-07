@@ -21,32 +21,38 @@ const retryDelayMs = (response: Response) => {
   return Number.isFinite(delay) ? Math.max(1_000, delay) : 60_000;
 };
 
+const tryEmoji = <A>(run: () => Promise<A>) =>
+  Effect.tryPromise({
+    try: run,
+    catch: (cause) =>
+      new EmojiCacheError({
+        message: cause instanceof Error ? cause.message : String(cause),
+        cause,
+      }),
+  });
+
 // Downloads every emoji the service worker does not have yet, so all of them
-// work offline. Rate limits pause all workers; other failures resume next load.
+// work offline. Rate limits pause all workers. Any other failure stops new
+// downloads, lets those in flight finish, and leaves the rest for next load.
 const cacheMissingEmoji = Effect.gen(function* () {
   let retryAt = 0;
+  let failure: EmojiCacheError | undefined;
   const fetchEmoji = (url: URL | string) =>
     Effect.gen(function* () {
       for (let attempt = 0; ; attempt++) {
         while (Date.now() < retryAt) {
           yield* Effect.sleep(retryAt - Date.now());
         }
-        const response = yield* Effect.tryPromise({
-          try: () => fetch(url, { priority: "low" }),
-          catch: (cause) =>
-            new EmojiCacheError({
-              message: cause instanceof Error ? cause.message : String(cause),
-              cause,
-            }),
-        });
+        if (failure) return yield* failure;
+        const response = yield* tryEmoji(() => fetch(url, { priority: "low" }));
         if (response.ok) return response;
+        yield* Effect.ignore(tryEmoji(async () => response.body?.cancel()));
         if (response.status !== 429 || attempt === MAX_RETRIES) {
           return yield* new EmojiCacheError({
             message: `Failed to cache ${url}: ${response.status}`,
           });
         }
         retryAt = Math.max(retryAt, Date.now() + retryDelayMs(response));
-        yield* Effect.promise(async () => response.body?.cancel());
       }
     });
 
@@ -55,14 +61,14 @@ const cacheMissingEmoji = Effect.gen(function* () {
     [
       fetchEmoji(new URL("index.json", base)).pipe(
         Effect.flatMap((response) =>
-          Effect.promise(() => response.json() as Promise<string[]>),
+          tryEmoji(() => response.json() as Promise<string[]>),
         ),
       ),
-      Effect.promise(() => caches.open(EMOJI_CACHE)),
+      tryEmoji(() => caches.open(EMOJI_CACHE)),
     ],
     { concurrency: "unbounded" },
   );
-  const keys = yield* Effect.promise(() => cache.keys());
+  const keys = yield* tryEmoji(() => cache.keys());
   const cached = new Set(keys.map((request) => request.url));
   const missing = names
     .map((name) => new URL(`${name}.webp`, base).href)
@@ -71,13 +77,21 @@ const cacheMissingEmoji = Effect.gen(function* () {
   yield* Effect.forEach(
     missing,
     (url) =>
-      fetchEmoji(url).pipe(
-        Effect.flatMap((response) =>
-          Effect.promise(() => cache.put(url, response)),
-        ),
-      ),
+      failure
+        ? Effect.void
+        : fetchEmoji(url).pipe(
+            Effect.flatMap((response) =>
+              tryEmoji(() => cache.put(url, response)),
+            ),
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                failure ??= error;
+              }),
+            ),
+          ),
     { concurrency: CONCURRENCY, discard: true },
   );
+  if (failure) return yield* failure;
 });
 
 export const cacheAllEmoji = () => Effect.runPromise(cacheMissingEmoji);

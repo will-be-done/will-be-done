@@ -26,10 +26,9 @@ const serve = (status: number, body: string): RequestListener => {
 test('accepts a server that serves the check file and normalizes its URL', async () => {
   const origin = await listening
   respond = serve(200, JSON.stringify({ nonce: SERVER_CHECK_NONCE }))
-  assert.deepEqual(await checkServerUrl(`  ${origin}/#settings `), {
-    ok: true,
-    serverUrl: origin
-  })
+  for (const input of [`  ${origin}/#settings `, `${origin}/?ref=docs`]) {
+    assert.deepEqual(await checkServerUrl(input), { ok: true, serverUrl: origin })
+  }
 })
 
 test('explains why a reachable server is not a Will Be Done server', async () => {
@@ -102,11 +101,16 @@ test('times out a server that never answers and reports it as offline', async ()
   server.closeAllConnections()
 })
 
-test('rejects addresses that are not http or https URLs', async () => {
+test('rejects addresses that are not plain http or https URLs', async () => {
   assert.deepEqual(await checkServerUrl(' ftp://example.com '), {
     ok: false,
     serverUrl: 'ftp://example.com',
     error: 'Server URL must use http:// or https://'
+  })
+  assert.deepEqual(await checkServerUrl('https://user:secret@example.com'), {
+    ok: false,
+    serverUrl: 'https://user:secret@example.com',
+    error: 'Server URL must not include a username or password'
   })
   const unparsable = await checkServerUrl('not a url')
   assert.equal(unparsable.ok, false)

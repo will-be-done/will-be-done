@@ -93,6 +93,48 @@ describe("offline emoji cache", () => {
     expect(stored.size).toBe(2);
   });
 
+  it("closes the body of a failed response it does not retry", async () => {
+    const { fetch } = setup(["one"]);
+    let cancelled = 0;
+    fetch.mockImplementation(async (url) =>
+      String(url).endsWith("index.json")
+        ? Response.json(["one"])
+        : new Response(
+            new ReadableStream({
+              pull: () => new Promise(() => {}),
+              cancel: () => void cancelled++,
+            }),
+            { status: 500 },
+          ),
+    );
+    await expect(cacheAllEmoji()).rejects.toThrow(": 500");
+    expect(cancelled).toBe(1);
+  });
+
+  it("lets downloads in flight finish when another one fails", async () => {
+    const { base, stored, fetch } = setup(["one", "two"]);
+    let releaseOne!: () => void;
+    const oneReleased = new Promise<void>((resolve) => (releaseOne = resolve));
+    let markTwoFailed!: () => void;
+    const twoFailed = new Promise<void>((resolve) => (markTwoFailed = resolve));
+    fetch.mockImplementation(async (url) => {
+      const href = String(url);
+      if (href.endsWith("index.json")) return Response.json(["one", "two"]);
+      if (href.endsWith("one.webp")) {
+        await oneReleased;
+        return new Response("emoji");
+      }
+      markTwoFailed();
+      throw new TypeError("Offline");
+    });
+
+    const result = cacheAllEmoji();
+    await twoFailed;
+    releaseOne();
+    await expect(result).rejects.toThrow("Offline");
+    expect([...stored.keys()]).toEqual([`${base}one.webp`]);
+  });
+
   it.each([null, "invalid"])(
     "uses a fallback delay for Retry-After %s and stops after repeated rate limits",
     async (retryAfter) => {
