@@ -42,7 +42,6 @@ import {
   type DndModelData,
 } from "@/lib/dnd/models";
 import { CalendarDays, GanttChart, Network } from "lucide-react";
-import { useMindmapsEnabled } from "@/components/Mindmap/mindmapsSetting.ts";
 
 const CalendarIcon = () => (
   <svg
@@ -278,15 +277,8 @@ const ViewNavItem = ({
 
 // The other views, for phones, which have no view switcher in the header.
 const ViewNavItems = () => {
-  const mindmapsEnabled = useMindmapsEnabled((s) => s.enabled);
-
   return (
-    <div
-      className={cn(
-        "mt-1.5 grid gap-1.5 sm:hidden desktop-macos:hidden",
-        mindmapsEnabled ? "grid-cols-3" : "grid-cols-2",
-      )}
-    >
+    <div className="mt-1.5 grid grid-cols-3 gap-1.5 sm:hidden desktop-macos:hidden">
       <ViewNavItem
         to="/spaces/$spaceId/timeline"
         label="Timeline"
@@ -297,13 +289,11 @@ const ViewNavItems = () => {
         label="Calendar"
         icon={<CalendarDays className="size-3.5 shrink-0" />}
       />
-      {mindmapsEnabled && (
-        <ViewNavItem
-          to="/spaces/$spaceId/mindmaps"
-          label="Maps"
-          icon={<Network className="size-3.5 shrink-0" />}
-        />
-      )}
+      <ViewNavItem
+        to="/spaces/$spaceId/mindmaps"
+        label="Maps"
+        icon={<Network className="size-3.5 shrink-0" />}
+      />
     </div>
   );
 };

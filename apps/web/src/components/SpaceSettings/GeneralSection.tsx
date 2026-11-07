@@ -1,4 +1,4 @@
-import { Bug, Database, Network } from "lucide-react";
+import { Bug, Database } from "lucide-react";
 import { setDevtoolsEnabled, useDevtoolsEnabled } from "@/lib/devtools";
 import { cn } from "@/lib/utils";
 import { Route } from "@/routes/spaces.$spaceId";
@@ -8,7 +8,6 @@ import {
 } from "@/store/persistentDriver";
 import { getDbName } from "@/store/syncClock";
 import { spaceDbType } from "@/store/configs";
-import { useMindmapsEnabled } from "@/components/Mindmap/mindmapsSetting.ts";
 
 export function GeneralSection() {
   const { spaceId } = Route.useParams();
@@ -16,8 +15,6 @@ export function GeneralSection() {
   const dbName = getDbName({ dbType: spaceDbType, dbId: spaceId });
   const persistentDriverKind = usePersistentDriverKind(dbName);
   const indexedDBEnabled = persistentDriverKind === "indexeddb";
-  const mindmapsEnabled = useMindmapsEnabled((s) => s.enabled);
-  const setMindmapsEnabled = useMindmapsEnabled((s) => s.setEnabled);
 
   const toggleIndexedDB = () => {
     setPersistentDriverKind(indexedDBEnabled ? "wa-sqlite" : "indexeddb");
@@ -26,14 +23,6 @@ export function GeneralSection() {
 
   return (
     <div className="flex flex-col gap-3 px-5 py-5">
-      <SettingSwitch
-        icon={<Network className="h-4 w-4" />}
-        title="Mindmaps"
-        label="Show mindmaps"
-        description="Show maps in the view switcher. Links to mindmaps open either way."
-        checked={mindmapsEnabled}
-        onChange={() => setMindmapsEnabled(!mindmapsEnabled)}
-      />
       <SettingSwitch
         icon={<Database className="h-4 w-4" />}
         title="IndexedDB storage"
