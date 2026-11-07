@@ -35,6 +35,7 @@ import invariant from "tiny-invariant";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { ProjectIcon } from "@/components/ui/emoji";
+import { useUndoToast } from "@/store/undo";
 
 const ArrowUp = () => (
   <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -80,6 +81,7 @@ const SectionSection = ({
   projectId: string;
 }) => {
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
   const columnRef = useRef<HTMLDivElement>(null);
   const [isDndOver, setIsDndOver] = useState(false);
   const [isPlaceholderFocused, setIsPlaceholderFocused] = useState(false);
@@ -166,10 +168,9 @@ const SectionSection = ({
   };
 
   const handleDelete = () => {
-    if (!section) return;
-    if (confirm(`Delete section "${section.title}"?`)) {
-      void dispatch(deleteProjectSections({ ids: [projectSectionId] }));
-    }
+    void deleteWithUndo(() =>
+      dispatch(deleteProjectSections({ ids: [projectSectionId] })),
+    );
   };
 
   if (!section) return null;

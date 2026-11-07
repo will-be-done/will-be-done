@@ -50,9 +50,10 @@ Local storage is per machine. Several server instances need S3 storage.
 
 ## Transfers
 
-`AttachmentTransfers` keeps every file of a space on the device. One tab per
-space holds a Web Lock and moves bytes; other tabs follow its status over a
-`BroadcastChannel`. It reconciles rows against the local store at startup and
+`makeAttachmentTransfers` (`apps/web/src/store/attachments/transfers.ts`) runs
+in each space store's scope and keeps every file of the space on the device.
+The tab that wins the `TabChannels` leader election moves bytes; other tabs
+follow its status over a tab channel. It reconciles rows against the local store at startup and
 after each completed sync:
 
 - A missing file downloads. A 404 means the adding device has not uploaded yet;

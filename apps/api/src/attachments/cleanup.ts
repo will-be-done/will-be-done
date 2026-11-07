@@ -1,3 +1,4 @@
+import { Effect, Schedule } from "effect";
 import { selectAsync, type HyperDB } from "@will-be-done/hyperdb";
 import { attachmentRowStates } from "@will-be-done/slices/space";
 import { spaceDBConfig } from "../db/configs";
@@ -69,13 +70,12 @@ export async function sweepAttachments(
   }
 }
 
-export function startAttachmentCleanup(storage: AttachmentStorage) {
-  const run = () => void sweepAttachments(storage, Date.now());
-  const timer = setInterval(run, DAY_MS);
-  // Spread restarts of several instances across the first hour.
-  const first = setTimeout(run, Math.random() * 60 * 60 * 1000);
-  return () => {
-    clearInterval(timer);
-    clearTimeout(first);
-  };
-}
+// Spreads restarts of several instances across the first hour.
+export const attachmentCleanup = (storage: AttachmentStorage) =>
+  Effect.tryPromise(() => sweepAttachments(storage, Date.now())).pipe(
+    Effect.catchCause((cause) =>
+      Effect.logError("[Attachments] Cleanup failed", cause),
+    ),
+    Effect.repeat(Schedule.spaced(DAY_MS)),
+    Effect.delay(Math.random() * 60 * 60 * 1000),
+  );

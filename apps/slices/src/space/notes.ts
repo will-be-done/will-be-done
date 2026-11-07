@@ -8,8 +8,6 @@ import {
 import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
 import { appById, appCanDrop } from "./app";
-import { dailyEntryByTaskId } from "./dailyEntries";
-import { stashEntryByTaskId } from "./stashEntries";
 import {
   projectSectionItemById,
   projectSectionItemSiblings,
@@ -32,7 +30,6 @@ import {
 } from "./attachments";
 import { generateKeyPositionedBetween } from "./utils";
 import {
-  checklistItemsTable,
   isDailyEntry,
   isNote,
   isTask,
@@ -95,23 +92,6 @@ export const allNotes = selector({
   args: {},
   handler: function* allNotes() {
     return yield* selectFrom(notesTable, "byProjectSectionIdOrder");
-  },
-});
-
-// Converting drops these, so the UI asks before converting.
-export const taskHasNoteIncompatibleData = selector({
-  name: "taskHasNoteIncompatibleData",
-  args: { taskId: v.string() },
-  handler: function* taskHasNoteIncompatibleData({ taskId }) {
-    const checklistItems = yield* selectFrom(
-      checklistItemsTable,
-      "byParentOrder",
-    )
-      .where((q) => q.eq("parentType", taskType).eq("parentId", taskId))
-      .limit(1);
-    if (checklistItems.length > 0) return true;
-    if (yield* dailyEntryByTaskId({ taskId })) return true;
-    return !!(yield* stashEntryByTaskId({ taskId }));
   },
 });
 

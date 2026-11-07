@@ -26,9 +26,9 @@ stashed, or given a checklist.
 
 Select **Convert to note** in a task's dropdown menu or task details to turn it
 into a note in the same place. Converting removes the task's schedule, Stash
-appearance, and checklist, and asks first when it has any. Select **Convert to
-task** on a note to turn it back into a todo task. With a note focused, press
-`o` or `Shift+O` to add another note below or above it.
+appearance, and checklist; select **Undo** in the popup to get them back.
+Select **Convert to task** on a note to turn it back into a todo task. With a
+note focused, press `o` or `Shift+O` to add another note below or above it.
 
 ## Text formatting
 
@@ -82,12 +82,10 @@ schedule it. Set or clear the time and duration from the task details panel.
 ## Mindmaps
 
 A mindmap lays out ideas around a central topic, and its branches can hold
-tasks and notes from any project. Mindmaps are off by default: turn on
-**Mindmaps** in Settings → General to show **maps** in the view switcher, then
+tasks and notes from any project. Open **maps** in the view switcher, then
 create a mindmap and name it. The name also becomes its central topic; after
 that, renaming the mindmap (the pencil next to its name, or the mindmaps list)
 leaves the topic as it is. Delete one from the list or its name's menu.
-Links to a mindmap open even while the setting is off.
 
 Select a topic and press `Tab` to add a subtopic, or `Enter` to add a topic
 below it. On a task or note, the same keys add another task or note. New tasks
@@ -211,8 +209,9 @@ The delete action depends on where you use it:
 | Timeline or Today | Removes the scheduled appearance; the task remains in its project |
 | Stash             | Removes the Stash appearance; the task remains in its project     |
 
-Resetting a task's schedule also keeps the task. Press `u`, `Cmd+Z`, or `Ctrl+Z`
-to undo a delete or any other change; see
+Resetting a task's schedule also keeps the task. After a delete, a popup in the
+corner offers **Undo** for a few seconds. Press `u`, `Cmd+Z`, or `Ctrl+Z` to
+undo a delete or any other change at any time; see
 [undo and redo](/docs/keyboard-shortcuts/#undo-and-redo).
 
 Open **Trash** at the bottom of the sidebar to restore a deleted task or delete

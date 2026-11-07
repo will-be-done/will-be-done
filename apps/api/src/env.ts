@@ -1,156 +1,98 @@
 import "dotenv/config";
-import { z } from "zod";
+import { Context, Effect, Layer, Schema } from "effect";
 
-const EnvConfigSchema = z.object({
-  WBD_GOOGLE_CLIENT_ID: z.string().optional(),
-  WBD_GOOGLE_CLIENT_SECRET: z.string().optional(),
-  WBD_GOOGLE_PUBLIC_APP_URL: z.string().optional(),
-  WBD_EMAIL_RESEND_API_KEY: z.string().optional(),
-  WBD_EMAIL_FROM: z.string().optional(),
-  WBD_EMAIL_PUBLIC_APP_URL: z.string().optional(),
-  WBD_STORAGE_PATH: z.string().default("/var/lib/will-be-done"),
-  WBD_DB_PATH: z.string().optional(),
-  WBD_DB_ENGINE: z.enum(["sqlite", "turso-cloud", "tursod"]).default("sqlite"),
-  WBD_TURSO_ORG: z.string().optional(),
-  WBD_TURSO_PLATFORM_TOKEN: z.string().optional(),
-  WBD_TURSO_GROUP: z.string().default("default"),
-  WBD_TURSO_DATABASE_PREFIX: z.string().default("wbd"),
-  WBD_TURSOD_URL: z.url().optional(),
-  WBD_TURSOD_AUTH_TOKEN: z.string().trim().min(1).optional(),
-  WBD_TURSOD_REQUEST_TIMEOUT_MS: z.coerce
-    .number()
-    .int()
-    .min(100)
-    .default(30_000),
-  WBD_INSTANCE_ID: z.string().trim().min(1).optional(),
-  WBD_SYNC_NOTIFICATIONS_BACKEND: z.enum(["memory", "redis"]).default("memory"),
-  WBD_REDIS_URL: z.string().trim().min(1).optional(),
-  WBD_RATE_LIMIT_ENABLED: z
-    .enum(["true", "false"])
-    .default("true")
-    .transform((value) => value === "true"),
-  WBD_RATE_LIMIT_BACKEND: z.enum(["memory", "redis"]).default("memory"),
-  WBD_RATE_LIMIT_GLOBAL_MAX: z.coerce.number().int().positive().default(300),
-  WBD_RATE_LIMIT_NAMESPACE: z
-    .string()
-    .trim()
-    .min(1)
-    .default("wbd:rate-limit:v1:"),
-  WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: z
-    .string()
-    .trim()
-    .min(1)
-    .default("wbd:sync:v1"),
-  WBD_TASK_GENERATION_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .min(1_000)
-    .default(60_000),
-  WBD_POSTHOG_KEY: z.string().trim().min(1).optional(),
-  WBD_POSTHOG_HOST: z.url().default("https://eu.i.posthog.com"),
+const optionalString = Schema.optional(Schema.String);
+const nonEmptyTrimmed = Schema.Trim.check(Schema.isMinLength(1));
+const optionalNonEmptyTrimmed = Schema.optional(nonEmptyTrimmed);
+const url = Schema.String.check(
+  Schema.makeFilter((value) => URL.canParse(value) || "Expected a URL"),
+);
+const withDefault = <S extends Schema.Top & { readonly Encoded: string }>(
+  schema: S,
+  value: string,
+) => schema.pipe(Schema.withDecodingDefaultKey(Effect.succeed(value)));
+const intFromString = (minimum: number) =>
+  Schema.NumberFromString.check(
+    Schema.isInt(),
+    Schema.isGreaterThanOrEqualTo(minimum),
+  );
+const literals = <const L extends ReadonlyArray<string>>(values: L) =>
+  Schema.Literals(values);
+
+const EnvConfigSchema = Schema.Struct({
+  WBD_GOOGLE_CLIENT_ID: optionalString,
+  WBD_GOOGLE_CLIENT_SECRET: optionalString,
+  WBD_GOOGLE_PUBLIC_APP_URL: optionalString,
+  WBD_EMAIL_RESEND_API_KEY: optionalString,
+  WBD_EMAIL_FROM: optionalString,
+  WBD_EMAIL_PUBLIC_APP_URL: optionalString,
+  WBD_STORAGE_PATH: withDefault(Schema.String, "/var/lib/will-be-done"),
+  WBD_DB_PATH: optionalString,
+  WBD_DB_ENGINE: withDefault(
+    literals(["sqlite", "turso-cloud", "tursod"]),
+    "sqlite",
+  ),
+  WBD_TURSO_ORG: optionalString,
+  WBD_TURSO_PLATFORM_TOKEN: optionalString,
+  WBD_TURSO_GROUP: withDefault(Schema.String, "default"),
+  WBD_TURSO_DATABASE_PREFIX: withDefault(Schema.String, "wbd"),
+  WBD_TURSOD_URL: Schema.optional(url),
+  WBD_TURSOD_AUTH_TOKEN: optionalNonEmptyTrimmed,
+  WBD_TURSOD_REQUEST_TIMEOUT_MS: withDefault(intFromString(100), "30000"),
+  WBD_INSTANCE_ID: optionalNonEmptyTrimmed,
+  WBD_SYNC_NOTIFICATIONS_BACKEND: withDefault(
+    literals(["memory", "redis"]),
+    "memory",
+  ),
+  WBD_REDIS_URL: optionalNonEmptyTrimmed,
+  WBD_RATE_LIMIT_ENABLED: withDefault(literals(["true", "false"]), "true"),
+  WBD_RATE_LIMIT_BACKEND: withDefault(literals(["memory", "redis"]), "memory"),
+  WBD_RATE_LIMIT_GLOBAL_MAX: withDefault(intFromString(1), "300"),
+  WBD_RATE_LIMIT_NAMESPACE: withDefault(nonEmptyTrimmed, "wbd:rate-limit:v1:"),
+  WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: withDefault(
+    nonEmptyTrimmed,
+    "wbd:sync:v1",
+  ),
+  WBD_TASK_GENERATION_INTERVAL_MS: withDefault(intFromString(1_000), "60000"),
+  WBD_POSTHOG_KEY: optionalNonEmptyTrimmed,
+  WBD_POSTHOG_HOST: withDefault(url, "https://eu.i.posthog.com"),
+  PORT: withDefault(intFromString(0), "3000"),
 });
 
-let envConfig:
-  | {
-      WBD_GOOGLE_CLIENT_ID?: string;
-      WBD_GOOGLE_CLIENT_SECRET?: string;
-      WBD_GOOGLE_PUBLIC_APP_URL?: string;
-      WBD_EMAIL_RESEND_API_KEY?: string;
-      WBD_EMAIL_FROM?: string;
-      WBD_EMAIL_PUBLIC_APP_URL?: string;
-      WBD_STORAGE_PATH: string;
-      WBD_DB_PATH: string;
-      WBD_DB_ENGINE: "sqlite" | "turso-cloud" | "tursod";
-      WBD_TURSO_ORG?: string;
-      WBD_TURSO_PLATFORM_TOKEN?: string;
-      WBD_TURSO_GROUP: string;
-      WBD_TURSO_DATABASE_PREFIX: string;
-      WBD_TURSOD_URL?: string;
-      WBD_TURSOD_AUTH_TOKEN?: string;
-      WBD_TURSOD_REQUEST_TIMEOUT_MS: number;
-      WBD_INSTANCE_ID?: string;
-      WBD_SYNC_NOTIFICATIONS_BACKEND: "memory" | "redis";
-      WBD_REDIS_URL?: string;
-      WBD_RATE_LIMIT_ENABLED: boolean;
-      WBD_RATE_LIMIT_BACKEND: "memory" | "redis";
-      WBD_RATE_LIMIT_GLOBAL_MAX: number;
-      WBD_RATE_LIMIT_NAMESPACE: string;
-      WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX: string;
-      WBD_TASK_GENERATION_INTERVAL_MS: number;
-      WBD_POSTHOG_KEY?: string;
-      WBD_POSTHOG_HOST: string;
-    }
-  | undefined;
+const requireVariables = (
+  label: string,
+  variables: Record<string, string | undefined>,
+) => {
+  const missing = Object.entries(variables)
+    .filter(([, value]) => !value?.trim())
+    .map(([name]) => name);
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required ${label} environment variables: ${missing.join(", ")}`,
+    );
+  }
+};
 
-export function getEnvConfig() {
-  if (envConfig) return envConfig;
-
-  const parsed = EnvConfigSchema.parse({
-    WBD_GOOGLE_CLIENT_ID: process.env.WBD_GOOGLE_CLIENT_ID,
-    WBD_GOOGLE_CLIENT_SECRET: process.env.WBD_GOOGLE_CLIENT_SECRET,
-    WBD_GOOGLE_PUBLIC_APP_URL: process.env.WBD_GOOGLE_PUBLIC_APP_URL,
-    WBD_EMAIL_RESEND_API_KEY: process.env.WBD_EMAIL_RESEND_API_KEY,
-    WBD_EMAIL_FROM: process.env.WBD_EMAIL_FROM,
-    WBD_EMAIL_PUBLIC_APP_URL: process.env.WBD_EMAIL_PUBLIC_APP_URL,
-    WBD_STORAGE_PATH: process.env.WBD_STORAGE_PATH,
-    WBD_DB_PATH: process.env.WBD_DB_PATH,
-    WBD_DB_ENGINE: process.env.WBD_DB_ENGINE,
-    WBD_TURSO_ORG: process.env.WBD_TURSO_ORG,
-    WBD_TURSO_PLATFORM_TOKEN: process.env.WBD_TURSO_PLATFORM_TOKEN,
-    WBD_TURSO_GROUP: process.env.WBD_TURSO_GROUP,
-    WBD_TURSO_DATABASE_PREFIX: process.env.WBD_TURSO_DATABASE_PREFIX,
-    WBD_TURSOD_URL: process.env.WBD_TURSOD_URL,
-    WBD_TURSOD_AUTH_TOKEN: process.env.WBD_TURSOD_AUTH_TOKEN,
-    WBD_TURSOD_REQUEST_TIMEOUT_MS: process.env.WBD_TURSOD_REQUEST_TIMEOUT_MS,
-    WBD_INSTANCE_ID: process.env.WBD_INSTANCE_ID,
-    WBD_SYNC_NOTIFICATIONS_BACKEND: process.env.WBD_SYNC_NOTIFICATIONS_BACKEND,
-    WBD_REDIS_URL: process.env.WBD_REDIS_URL,
-    WBD_RATE_LIMIT_ENABLED: process.env.WBD_RATE_LIMIT_ENABLED,
-    WBD_RATE_LIMIT_BACKEND: process.env.WBD_RATE_LIMIT_BACKEND,
-    WBD_RATE_LIMIT_GLOBAL_MAX: process.env.WBD_RATE_LIMIT_GLOBAL_MAX,
-    WBD_RATE_LIMIT_NAMESPACE: process.env.WBD_RATE_LIMIT_NAMESPACE,
-    WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
-      process.env.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
-    WBD_TASK_GENERATION_INTERVAL_MS:
-      process.env.WBD_TASK_GENERATION_INTERVAL_MS,
-    WBD_POSTHOG_KEY: process.env.WBD_POSTHOG_KEY,
-    WBD_POSTHOG_HOST: process.env.WBD_POSTHOG_HOST,
-  });
+export const parseEnvConfig = (env: NodeJS.ProcessEnv) => {
+  const parsed = Schema.decodeUnknownSync(EnvConfigSchema)(env);
 
   if (parsed.WBD_DB_ENGINE === "turso-cloud") {
-    const missing = [
-      ["WBD_TURSO_ORG", parsed.WBD_TURSO_ORG],
-      ["WBD_TURSO_PLATFORM_TOKEN", parsed.WBD_TURSO_PLATFORM_TOKEN],
-    ]
-      .filter(([, value]) => !value?.trim())
-      .map(([name]) => name);
-
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing required Turso environment variables: ${missing.join(", ")}`,
-      );
-    }
+    requireVariables("Turso", {
+      WBD_TURSO_ORG: parsed.WBD_TURSO_ORG,
+      WBD_TURSO_PLATFORM_TOKEN: parsed.WBD_TURSO_PLATFORM_TOKEN,
+    });
   }
-
   if (parsed.WBD_DB_ENGINE === "tursod") {
-    const missing = [
-      ["WBD_TURSOD_URL", parsed.WBD_TURSOD_URL],
-      ["WBD_TURSOD_AUTH_TOKEN", parsed.WBD_TURSOD_AUTH_TOKEN],
-    ]
-      .filter(([, value]) => !value?.trim())
-      .map(([name]) => name);
-
-    if (missing.length > 0) {
-      throw new Error(
-        `Missing required tursod environment variables: ${missing.join(", ")}`,
-      );
-    }
+    requireVariables("tursod", {
+      WBD_TURSOD_URL: parsed.WBD_TURSOD_URL,
+      WBD_TURSOD_AUTH_TOKEN: parsed.WBD_TURSOD_AUTH_TOKEN,
+    });
   }
 
+  const rateLimitEnabled = parsed.WBD_RATE_LIMIT_ENABLED === "true";
   if (
     (parsed.WBD_SYNC_NOTIFICATIONS_BACKEND === "redis" ||
-      (parsed.WBD_RATE_LIMIT_ENABLED &&
-        parsed.WBD_RATE_LIMIT_BACKEND === "redis")) &&
+      (rateLimitEnabled && parsed.WBD_RATE_LIMIT_BACKEND === "redis")) &&
     !parsed.WBD_REDIS_URL
   ) {
     throw new Error(
@@ -158,36 +100,24 @@ export function getEnvConfig() {
     );
   }
 
-  envConfig = {
-    WBD_GOOGLE_CLIENT_ID: parsed.WBD_GOOGLE_CLIENT_ID,
-    WBD_GOOGLE_CLIENT_SECRET: parsed.WBD_GOOGLE_CLIENT_SECRET,
-    WBD_GOOGLE_PUBLIC_APP_URL: parsed.WBD_GOOGLE_PUBLIC_APP_URL,
-    WBD_EMAIL_RESEND_API_KEY: parsed.WBD_EMAIL_RESEND_API_KEY,
-    WBD_EMAIL_FROM: parsed.WBD_EMAIL_FROM,
-    WBD_EMAIL_PUBLIC_APP_URL: parsed.WBD_EMAIL_PUBLIC_APP_URL,
-    WBD_STORAGE_PATH: parsed.WBD_STORAGE_PATH,
+  return {
+    ...parsed,
     WBD_DB_PATH: parsed.WBD_DB_PATH ?? `${parsed.WBD_STORAGE_PATH}/db`,
-    WBD_DB_ENGINE: parsed.WBD_DB_ENGINE,
-    WBD_TURSO_ORG: parsed.WBD_TURSO_ORG,
-    WBD_TURSO_PLATFORM_TOKEN: parsed.WBD_TURSO_PLATFORM_TOKEN,
-    WBD_TURSO_GROUP: parsed.WBD_TURSO_GROUP,
-    WBD_TURSO_DATABASE_PREFIX: parsed.WBD_TURSO_DATABASE_PREFIX,
-    WBD_TURSOD_URL: parsed.WBD_TURSOD_URL,
-    WBD_TURSOD_AUTH_TOKEN: parsed.WBD_TURSOD_AUTH_TOKEN,
-    WBD_TURSOD_REQUEST_TIMEOUT_MS: parsed.WBD_TURSOD_REQUEST_TIMEOUT_MS,
-    WBD_INSTANCE_ID: parsed.WBD_INSTANCE_ID,
-    WBD_SYNC_NOTIFICATIONS_BACKEND: parsed.WBD_SYNC_NOTIFICATIONS_BACKEND,
-    WBD_REDIS_URL: parsed.WBD_REDIS_URL,
-    WBD_RATE_LIMIT_ENABLED: parsed.WBD_RATE_LIMIT_ENABLED,
-    WBD_RATE_LIMIT_BACKEND: parsed.WBD_RATE_LIMIT_BACKEND,
-    WBD_RATE_LIMIT_GLOBAL_MAX: parsed.WBD_RATE_LIMIT_GLOBAL_MAX,
-    WBD_RATE_LIMIT_NAMESPACE: parsed.WBD_RATE_LIMIT_NAMESPACE,
-    WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX:
-      parsed.WBD_SYNC_NOTIFICATIONS_CHANNEL_PREFIX,
-    WBD_TASK_GENERATION_INTERVAL_MS: parsed.WBD_TASK_GENERATION_INTERVAL_MS,
-    WBD_POSTHOG_KEY: parsed.WBD_POSTHOG_KEY,
-    WBD_POSTHOG_HOST: parsed.WBD_POSTHOG_HOST,
+    WBD_RATE_LIMIT_ENABLED: rateLimitEnabled,
   };
+};
 
+export type EnvConfig = ReturnType<typeof parseEnvConfig>;
+
+let envConfig: EnvConfig | undefined;
+
+export function getEnvConfig(): EnvConfig {
+  envConfig ??= parseEnvConfig(process.env);
   return envConfig;
+}
+
+export class AppEnv extends Context.Service<AppEnv, EnvConfig>()(
+  "@will-be-done/api/AppEnv",
+) {
+  static readonly layer = Layer.effect(AppEnv, Effect.try(getEnvConfig));
 }

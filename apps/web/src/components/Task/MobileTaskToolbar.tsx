@@ -21,6 +21,7 @@ import { Route as SpaceRoute } from "@/routes/spaces.$spaceId.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { differenceInCalendarDays } from "date-fns";
 import { isMindmapItemFocusKey } from "@/components/Mindmap/focusKeys.ts";
+import { useUndoToast } from "@/store/undo";
 
 const isListItemType = (type: string): type is ListItemType =>
   type === taskType ||
@@ -32,6 +33,7 @@ const isListItemType = (type: string): type is ListItemType =>
 export const MobileTaskToolbar = () => {
   const isMobile = useIsMobile();
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
   const select = useSelectAsync();
   const navigate = useNavigate();
   const { spaceId } = SpaceRoute.useParams();
@@ -49,7 +51,6 @@ export const MobileTaskToolbar = () => {
   const handleDelete = () => {
     if (!focusKey || !parsed) return;
     if (!isListItemType(parsed.type)) return;
-    if (!confirm("Delete this task?")) return;
     const { id, type: modelType } = parsed;
     const [upKey, downKey] = getDOMSiblings(focusKey as string);
     void (async () => {
@@ -65,7 +66,7 @@ export const MobileTaskToolbar = () => {
             })
           : undefined;
 
-      await dispatch(appDeleteModel({ id, modelType }));
+      await deleteWithUndo(() => dispatch(appDeleteModel({ id, modelType })));
       if (modelType === taskType && item && isTask(item)) {
         captureWebAnalytics({
           name: "task_deleted",

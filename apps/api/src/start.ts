@@ -1,222 +1,33 @@
-import {
-  createAccountEmailService,
-  createEmailWorker,
-  createResendSender,
-} from "./email/service";
-import { createAppRouter } from "./appRouter";
-import { startAttachmentCleanup } from "./attachments/cleanup";
-import { getAttachmentStorage } from "./attachments/storage";
-import { getBackupConfig } from "./backup/types";
-import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
-import { getCaptchaConfig } from "./captcha/types";
-import { closeDatabases, getMainHyperDB } from "./db/db";
-import { getEnvConfig } from "./env";
-import { parseGoogleConfig } from "./google/config";
-import { createGoogleService } from "./google/service";
-import { parseEmailConfig } from "./email/config";
+import { BunRuntime } from "@effect/platform-bun";
+import { Cause, Effect, Exit, Layer } from "effect";
+import { AppLive } from "./app";
 import { captureException, closeSentry } from "./instrument";
-import { createServer } from "./server";
-import { getServerInstanceId } from "./serverInstance";
-import { subscriptionManager } from "./subscriptionManager";
-import {
-  createBackendAnalytics,
-  noopBackendAnalytics,
-  type BackendAnalytics,
-} from "./analytics";
 
-let emailWorker: ReturnType<typeof createEmailWorker> | undefined;
-let analytics: BackendAnalytics = noopBackendAnalytics;
-const start = async () => {
-  try {
-    const env = getEnvConfig();
-    const emailConfig = parseEmailConfig(env);
-    const googleConfig = parseGoogleConfig(env);
-    await subscriptionManager.initialize();
-    console.log(
-      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
-    );
-    const backupConfig = getBackupConfig();
-    if (backupConfig?.WBD_BACKUP_S3_ENABLED && env.WBD_DB_ENGINE !== "sqlite") {
-      throw new Error(
-        `The local SQLite S3 backup worker cannot run with WBD_DB_ENGINE=${env.WBD_DB_ENGINE}. Disable WBD_BACKUP_S3_ENABLED or use a backup system designed for that engine.`,
-      );
-    }
+// runMain interrupts on SIGINT and SIGTERM; SIGQUIT stops the app the same way.
+const sigquit = Effect.callback<void>((resume) => {
+  const onSignal = () => resume(Effect.void);
+  process.once("SIGQUIT", onSignal);
+  return Effect.sync(() => process.off("SIGQUIT", onSignal));
+});
 
-    // Fails fast on incomplete attachment storage configuration.
-    const attachmentStorage = getAttachmentStorage();
-    const mainDB = await getMainHyperDB();
-    analytics = createBackendAnalytics(env);
-    const accountEmail = emailConfig
-      ? createAccountEmailService(mainDB, emailConfig)
-      : undefined;
-    if (emailConfig)
-      emailWorker = createEmailWorker(
-        mainDB,
-        createResendSender(emailConfig.apiKey),
-      );
-    const google = googleConfig
-      ? createGoogleService(mainDB, googleConfig, {
-          analytics,
-          emailConfig: emailConfig ?? undefined,
-        })
-      : undefined;
-    const appRouter = createAppRouter({
-      google,
-      mainDB,
-      captchaConfig: getCaptchaConfig(),
-      accountEmail,
-      analytics,
-    });
-    const server = createServer({
-      google,
-      appRouter,
-      mainDB,
-      rateLimit: {
-        enabled: env.WBD_RATE_LIMIT_ENABLED,
-        backend: env.WBD_RATE_LIMIT_BACKEND,
-        redisUrl: env.WBD_REDIS_URL,
-        namespace: env.WBD_RATE_LIMIT_NAMESPACE,
-        globalOverride: { max: env.WBD_RATE_LIMIT_GLOBAL_MAX },
-      },
-      analytics,
-    });
+const main = Layer.launch(AppLive).pipe(
+  Effect.onInterrupt(() =>
+    Effect.sync(() => console.log("Shutting down gracefully...")),
+  ),
+  Effect.raceFirst(sigquit),
+  Effect.tapCause((cause) =>
+    Effect.sync(() => {
+      if (!Cause.hasInterruptsOnly(cause))
+        captureException(Cause.squash(cause));
+    }),
+  ),
+  Effect.ensuring(Effect.promise(closeSentry)),
+);
 
-    server.addHook("onReady", async () => {
-      emailWorker?.start();
-    });
-    server.addHook("onClose", async () => {
-      await emailWorker?.stop();
-    });
-    console.log("Starting server...");
-    const port = parseInt(process.env.PORT || "3000", 10);
-    await server.listen({ port, host: "0.0.0.0" });
-    console.log("Server started");
-    const stopAttachmentCleanup = startAttachmentCleanup(attachmentStorage);
-
-    let backupWorker: Worker | null = null;
-    if (backupConfig?.WBD_BACKUP_S3_ENABLED) {
-      try {
-        console.log("[Backup] S3 backup system enabled, spawning worker...");
-        const dbsPath = getEnvConfig().WBD_DB_PATH;
-
-        backupWorker = new Worker(
-          new URL("./backup/backupWorker.ts", import.meta.url).href,
-        );
-
-        backupWorker.onmessage = (event: MessageEvent<WorkerResponse>) => {
-          const response = event.data;
-          switch (response.type) {
-            case "initialized":
-              console.log("[Backup] Worker initialized successfully");
-              break;
-            case "shutdown-complete":
-              console.log("[Backup] Worker shutdown complete");
-              break;
-            case "error":
-              console.error("[Backup] Worker error:", response.message);
-              break;
-          }
-        };
-
-        backupWorker.onerror = (error) => {
-          captureException(error);
-          console.error("[Backup] Worker error:", error);
-        };
-
-        backupWorker.postMessage({
-          type: "init",
-          config: backupConfig,
-          dbsPath,
-        } satisfies WorkerMessage);
-      } catch (error) {
-        captureException(error);
-        console.error("[Backup] Failed to initialize backup worker");
-        if (error instanceof Error) {
-          console.error("[Backup] Error name:", error.name);
-          console.error("[Backup] Error message:", error.message);
-          console.error("[Backup] Error stack:", error.stack);
-        } else {
-          console.error("[Backup] Error value:", String(error));
-        }
-      }
-    } else {
-      console.log("[Backup] S3 backup system disabled");
-    }
-
-    const signals = ["SIGINT", "SIGTERM", "SIGQUIT"];
-    for (const signal of signals) {
-      process.on(signal, () => {
-        void (async () => {
-          server.log.info(
-            `${signal} signal received, shutting down gracefully...`,
-          );
-
-          try {
-            stopAttachmentCleanup();
-            if (backupWorker) {
-              const shutdownPromise = new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                  reject(new Error("Backup worker shutdown timeout"));
-                }, 10000);
-
-                const originalOnMessage = backupWorker!.onmessage;
-                backupWorker!.onmessage = (
-                  event: MessageEvent<WorkerResponse>,
-                ) => {
-                  if (event.data.type === "shutdown-complete") {
-                    clearTimeout(timeout);
-                    resolve();
-                  } else if (event.data.type === "error") {
-                    clearTimeout(timeout);
-                    reject(new Error(event.data.message));
-                  }
-
-                  if (originalOnMessage) {
-                    originalOnMessage.call(backupWorker, event);
-                  }
-                };
-              });
-
-              backupWorker.postMessage({
-                type: "shutdown",
-              } satisfies WorkerMessage);
-              await shutdownPromise;
-              backupWorker.terminate();
-            }
-
-            await server.close();
-            await subscriptionManager.close();
-            await closeDatabases();
-            await closeSentry();
-            server.log.info("Server closed successfully");
-            process.exit(0);
-          } catch (error) {
-            captureException(error);
-            await closeSentry();
-            server.log.error(`Error during graceful shutdown: ${error}`);
-            process.exit(1);
-          }
-        })();
-      });
-    }
-  } catch (error) {
-    captureException(error);
-    console.error(error);
-    try {
-      await subscriptionManager.close();
-    } catch (cleanupError) {
-      console.error("Failed to close subscription manager", cleanupError);
-    }
-    await emailWorker?.stop();
-    try {
-      await closeDatabases();
-    } catch (cleanupError) {
-      console.error("Failed to close databases", cleanupError);
-    }
-    await closeSentry();
-    await analytics.shutdown();
-    process.exit(1);
-  }
-};
-
-void start();
+BunRuntime.runMain(main, {
+  // A stopped server always ends the process, even if a library left a handle open.
+  teardown: (exit) =>
+    process.exit(
+      Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause) ? 1 : 0,
+    ),
+});

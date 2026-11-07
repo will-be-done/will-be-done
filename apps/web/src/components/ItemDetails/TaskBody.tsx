@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
 import { useAsyncSelector } from "@will-be-done/hyperdb/react";
 import { buildFocusKey, useFocusStore } from "@/store/focusSlice.ts";
+import { useUndoToast } from "@/store/undo";
 import {
   createTaskTemplateFromTask,
   dailyEntryByTaskId,
@@ -63,6 +64,7 @@ export function TaskBody({
   onItemIdChange?: (itemId: string) => void;
 }) {
   const dispatch = useAsyncDispatch();
+  const withUndo = useUndoToast();
   const taskId = task.id;
   const openProject = useOpenProject();
   const noteConversion = useNoteConversion(onItemIdChange);
@@ -114,16 +116,13 @@ export function TaskBody({
     [dispatch, taskId],
   );
 
+  const { templateId } = task;
   const handleRemoveRepeat = useCallback(() => {
-    if (!task.templateId) return;
-    if (
-      window.confirm(
-        "Remove repeat template? This will unlink all generated tasks.",
-      )
-    ) {
-      void dispatch(deleteTemplates({ taskTemplateIds: [task.templateId] }));
-    }
-  }, [task.templateId, dispatch]);
+    if (!templateId) return;
+    void withUndo(() =>
+      dispatch(deleteTemplates({ taskTemplateIds: [templateId] })),
+    );
+  }, [templateId, dispatch, withUndo]);
 
   const handleToggleState = useCallback(() => {
     void (async () => {

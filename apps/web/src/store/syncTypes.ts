@@ -1,4 +1,5 @@
-import { SubscribableDB } from "@will-be-done/hyperdb";
+import type { Effect, Scope } from "effect";
+import type { Database, DatabaseError } from "./database";
 import { TableDefinition } from "@will-be-done/hyperdb";
 import type { ChangesetArrayType } from "@will-be-done/slices/common";
 
@@ -8,8 +9,9 @@ export interface SyncConfig {
   persistDBTables: TableDefinition[];
   syncableDBTables: TableDefinition[];
   tableNameMap: Record<string, TableDefinition>;
-  beforeInit?: (db: SubscribableDB) => void | Promise<void>;
-  afterInit: (db: SubscribableDB) => void | Promise<void>;
+  // Run in the store's scope: work forked there stops with the store.
+  beforeInit?: Effect.Effect<void, DatabaseError, Database | Scope.Scope>;
+  afterInit: Effect.Effect<void, DatabaseError, Database | Scope.Scope>;
   disableSync?: boolean;
 }
 

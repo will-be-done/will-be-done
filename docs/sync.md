@@ -149,6 +149,11 @@ cursor and do not acknowledge data. They never bypass persistence, staging,
 or atomic apply. Status and last successful sync times live in memory and reset
 when the app starts a new session.
 
+A tab runs at most one sync loop. Leader handoff and required app updates stop
+the running loop before another starts: in-flight requests are aborted, while a
+local transaction that already started completes. An aborted request is
+therefore just a lost response, which the idempotency invariant covers.
+
 ## Persisted State
 
 ### Materialized change log

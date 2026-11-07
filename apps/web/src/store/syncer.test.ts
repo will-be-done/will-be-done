@@ -12,6 +12,17 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { type Context, Effect, Exit, Layer, Scope } from "effect";
+import { Digest } from "effect/crypto";
+import {
+  makeTestLogger,
+  makeTestPage,
+  makeTestServerChanges,
+  makeTestTabs,
+  requestText,
+  testAuthSession,
+  testHttpClient,
+} from "@/services/testing";
 import {
   changesTable,
   createHlcClock,
@@ -21,91 +32,83 @@ import {
   type ClientCursor,
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
-import { Syncer } from "./syncer";
+import { Database } from "./database";
+import { Syncer, type SyncerServices } from "./syncer";
 import { freezeSyncV4Upload, getPendingSyncV4Upload } from "./syncActions";
 import {
-  shouldRestartExpiredUpload,
   shouldRestartFrozenUpload,
-  SyncRequestError,
-} from "./syncRequestError";
+  SyncHttpError,
+  SyncNetworkError,
+} from "./syncErrors";
 import type { SyncConfig } from "./syncTypes";
 import { clientSyncV4Tables } from "./syncV4Tables";
 import type { SyncStatus } from "./syncStatus";
-import { createCrossTabChanges } from "./crossTabChanges";
-import { createLocalPersistQueue } from "./localPersistQueue";
+import { makeCrossTabChanges } from "./crossTabChanges";
+import { makeLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
+import { waitForPromise } from "./hyperdbTesting";
 
-const subscription = vi.hoisted(() => ({
-  handlers: undefined as
-    | { onData: () => void; onError: (error: unknown) => void }
-    | undefined,
-}));
+type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
-const statusBus = vi.hoisted(() => ({
-  nextIsLeader: true,
-  delayChanges: false,
-  delayedChanges: [] as (() => void)[],
-  channels: [] as {
-    name: string;
-    onmessage?: (message: unknown) => void;
-  }[],
-}));
+const unexpectedRequest: Fetch = async (input) => {
+  throw new Error(`Unexpected sync request: ${input}`);
+};
 
-vi.mock("@/lib/trpc.ts", () => ({
-  trpcClient: {
-    onChangesAvailable: {
-      subscribe: vi.fn(
-        (
-          _input: unknown,
-          handlers: { onData: () => void; onError: (error: unknown) => void },
-        ) => {
-          subscription.handlers = handlers;
-          return { unsubscribe: vi.fn() };
-        },
+const makeEnv = () => ({
+  tabs: makeTestTabs(),
+  page: makeTestPage(),
+  serverChanges: makeTestServerChanges(),
+  logger: makeTestLogger(),
+  fetch: unexpectedRequest,
+});
+let env = makeEnv();
+const scopes: Scope.Closeable[] = [];
+
+const stubFetch = (fetch: Fetch) => {
+  env.fetch = fetch;
+};
+
+const testServices = () =>
+  Layer.mergeAll(
+    env.tabs.layer,
+    env.page.layer,
+    env.serverChanges.layer,
+    env.logger.layer,
+    testAuthSession(),
+    testHttpClient(() => env.fetch),
+    Digest.layerWebCrypto,
+  );
+
+// Builds a component on `db` with the test services, kept alive until the
+// test ends.
+const inScope = <A>(
+  db: SubscribableDB,
+  effect: Effect.Effect<A, never, SyncerServices | Scope.Scope>,
+) => {
+  const scope = Scope.makeUnsafe();
+  scopes.push(scope);
+  return Effect.runSync(
+    effect.pipe(
+      Scope.provide(scope),
+      Effect.provide(Layer.mergeAll(testServices(), Database.layer(db))),
+    ),
+  );
+};
+
+const runSyncV4 = (syncer: Syncer) =>
+  Effect.runPromise(
+    (syncer as unknown as SyncerTestAccess)
+      .syncV4()
+      .pipe(
+        Effect.provide(
+          (syncer as unknown as { services: Context.Context<SyncerServices> })
+            .services,
+        ),
       ),
-    },
-  },
-}));
-
-vi.mock("@/lib/auth", () => ({
-  authUtils: { getToken: () => null },
-}));
-
-vi.mock("@/lib/devtools", () => ({
-  getDevtoolsEnabled: () => false,
-}));
-
-vi.mock("broadcast-channel", () => ({
-  BroadcastChannel: class {
-    onmessage?: (message: unknown) => void;
-    constructor(readonly name: string) {
-      statusBus.channels.push(this);
-    }
-    postMessage(message: unknown) {
-      for (const channel of statusBus.channels) {
-        if (channel !== this && channel.name === this.name) {
-          const deliver = () => channel.onmessage?.(message);
-          if (statusBus.delayChanges && this.name.startsWith("changes-")) {
-            statusBus.delayedChanges.push(deliver);
-          } else {
-            deliver();
-          }
-        }
-      }
-      return Promise.resolve();
-    }
-    close() {}
-  },
-  createLeaderElection: () => ({
-    isLeader: statusBus.nextIsLeader,
-    awaitLeadership: async () => {},
-    onduplicate: undefined,
-  }),
-}));
+  );
 
 type SyncerTestAccess = {
-  runId: number;
-  syncV4: () => Promise<boolean>;
+  syncV4: () => Effect.Effect<boolean, unknown, SyncerServices>;
 };
 
 const config: SyncConfig = {
@@ -114,7 +117,7 @@ const config: SyncConfig = {
   persistDBTables: [],
   syncableDBTables: [],
   tableNameMap: {},
-  afterInit: () => {},
+  afterInit: Effect.void,
 };
 
 const createSyncer = (syncConfig = config) => {
@@ -130,7 +133,7 @@ const createSyncer = (syncConfig = config) => {
   const nextClock = createHlcClock("client-1");
   return {
     db,
-    syncer: new Syncer(db, "client-1", syncConfig, nextClock),
+    syncer: inScope(db, Syncer.make("client-1", syncConfig, nextClock)),
   };
 };
 
@@ -156,46 +159,42 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   });
 
-const deferred = () => {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
+const deferred = <T = void>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
     resolve = done;
   });
   return { promise, resolve };
 };
 
+const statusReached = (syncer: Syncer, phase: SyncStatus["phase"]) =>
+  Effect.runPromise(syncer.status.waitFor((status) => status.phase === phase));
+
+const aborted = (signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    if (signal.aborted) resolve();
+    else signal.addEventListener("abort", () => resolve(), { once: true });
+  });
+
 beforeEach(() => {
-  subscription.handlers = undefined;
-  statusBus.channels = [];
-  statusBus.nextIsLeader = true;
-  statusBus.delayChanges = false;
-  statusBus.delayedChanges = [];
-  vi.stubGlobal("document", {
-    visibilityState: "visible",
-    addEventListener: vi.fn(),
-  });
-  vi.stubGlobal("window", {
-    addEventListener: vi.fn(),
-    setTimeout: globalThis.setTimeout,
-    clearTimeout: globalThis.clearTimeout,
-  });
+  env = makeEnv();
 });
 
-describe("sync status", () => {
-  const stop = async (syncer: Syncer, run: Promise<void>) => {
-    (syncer as unknown as SyncerTestAccess).runId += 1;
-    syncer.forceSync();
-    await run;
-  };
+const stop = async (syncer: Syncer, run: Promise<void>) => {
+  await syncer.stop();
+  await run;
+};
 
-  const stubSuccessfulSync = (beforeCommit?: () => Promise<void>) => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | URL | Request) => {
+describe("sync status", () => {
+  const stubSuccessfulSync = (
+    beforeCommit?: (init?: RequestInit) => Promise<void>,
+  ) => {
+    stubFetch(
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         if (String(input).endsWith("/sessions")) {
           return jsonResponse(sessionResponse("upload-1"));
         }
-        await beforeCommit?.();
+        await beforeCommit?.(init);
         return jsonResponse({
           acceptedClientCursor: null,
           serverRevision: 0,
@@ -237,7 +236,6 @@ describe("sync status", () => {
 
   it("keeps the last successful time through a connection failure and recovers", async () => {
     vi.useFakeTimers();
-    vi.spyOn(console, "error").mockImplementation(() => {});
     const { syncer } = createSyncer();
     stubSuccessfulSync();
     const run = syncer.run();
@@ -245,10 +243,7 @@ describe("sync status", () => {
     await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
     const lastSyncedAt = syncer.status.get().lastSyncedAt;
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
-    );
+    stubFetch(vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     syncer.forceSync();
     await vi.waitFor(() => expect(syncer.status.get().phase).toBe("error"));
     expect(syncer.status.get()).toMatchObject({
@@ -265,10 +260,8 @@ describe("sync status", () => {
 
   it("retries a space the server did not know yet once the user database syncs", async () => {
     vi.useFakeTimers();
-    vi.spyOn(console, "error").mockImplementation(() => {});
     let spaceOnServer = false;
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         if (url.includes("/space/") && !spaceOnServer) {
@@ -324,8 +317,7 @@ describe("sync status", () => {
     };
     const checksum = await sha256("[]");
     const manifest = await sha256(`${checksum}\n${checksum}`);
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         if (url.endsWith("/sessions"))
@@ -369,17 +361,21 @@ describe("sync status", () => {
     await stop(syncer, run);
   });
 
-  it("keeps update-required status when an in-flight session finishes", async () => {
+  it("aborts the in-flight session and keeps update-required status", async () => {
     vi.useFakeTimers();
     const { syncer } = createSyncer();
     const commit = deferred();
-    stubSuccessfulSync(() => commit.promise);
+    const commitStarted = deferred<AbortSignal>();
+    stubSuccessfulSync((init) => {
+      commitStarted.resolve(init!.signal!);
+      return commit.promise;
+    });
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
-    subscription.handlers?.onError({
-      data: { syncVersion: { code: "SYNC_VERSION_UNSUPPORTED" } },
-    });
+    const commitSignal = await commitStarted.promise;
+    env.serverChanges.emit({ _tag: "UpdateRequired" });
     expect(syncer.status.get().phase).toBe("update-required");
+    await aborted(commitSignal);
     commit.resolve();
     await run;
     expect(syncer.status.get()).toMatchObject({
@@ -388,13 +384,145 @@ describe("sync status", () => {
     });
   });
 
+  it("stops the previous loop before a leader handoff starts the next one", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    const events: string[] = [];
+    const firstCommit = deferred();
+    stubFetch(
+      vi.fn(async (input: string | URL | Request, init: RequestInit) => {
+        if (String(input).endsWith("/sessions")) {
+          events.push("session");
+          return jsonResponse(sessionResponse("upload-1"));
+        }
+        events.push("commit");
+        if (events.length === 2) {
+          init.signal?.addEventListener("abort", () =>
+            events.push("first commit aborted"),
+          );
+          firstCommit.resolve();
+          return new Promise<Response>(() => {});
+        }
+        return jsonResponse({
+          acceptedClientCursor: null,
+          serverRevision: 0,
+          download: { type: "inline", changesets: [] },
+        });
+      }),
+    );
+
+    const first = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await firstCommit.promise;
+    const second = syncer.run();
+    await first;
+    const synced = statusReached(syncer, "synced");
+    await vi.advanceTimersByTimeAsync(2_000);
+    await synced;
+    // The frozen upload is resumed rather than started again.
+    expect(events).toEqual([
+      "session",
+      "commit",
+      "first commit aborted",
+      "commit",
+    ]);
+    await stop(syncer, second);
+  });
+
+  it.each([
+    [
+      "two handoffs arrive back to back",
+      (syncer: Syncer) => {
+        void syncer.run();
+        return syncer.run();
+      },
+    ],
+    [
+      "a loop starts while stop() is still waiting",
+      (syncer: Syncer) => {
+        void syncer.stop();
+        return syncer.run();
+      },
+    ],
+  ])(
+    "waits for a local transaction to finish when %s",
+    async (_case, restart) => {
+      vi.useFakeTimers();
+      const { syncer } = createSyncer();
+      const access = syncer as unknown as SyncerTestAccess;
+      const transaction = deferred();
+      const nextSession = deferred();
+      let sessions = 0;
+      vi.spyOn(access, "syncV4").mockImplementation(() => {
+        sessions += 1;
+        if (sessions === 1) {
+          return Effect.promise(() => transaction.promise).pipe(
+            Effect.as(true),
+            Effect.uninterruptible,
+          );
+        }
+        nextSession.resolve();
+        return Effect.never;
+      });
+
+      const first = syncer.run();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(sessions).toBe(1);
+      const last = restart(syncer);
+      await vi.advanceTimersByTimeAsync(2_000);
+      // The new loop must not start while the first one is still committing.
+      expect(sessions).toBe(1);
+
+      transaction.resolve();
+      await first;
+      await vi.advanceTimersByTimeAsync(2_000);
+      await nextSession.promise;
+      expect(sessions).toBe(2);
+      await stop(syncer, last);
+    },
+  );
+
+  it.each([
+    [
+      "before the response headers arrive",
+      () => new Promise<Response>(() => {}),
+    ],
+    [
+      "while the response body is still downloading",
+      async () =>
+        new Response(new ReadableStream({ pull: () => new Promise(() => {}) })),
+    ],
+  ])(
+    "times out and aborts a request that stalls %s, then reports a retryable error",
+    async (_stage, respond) => {
+      vi.useFakeTimers();
+      const { syncer } = createSyncer();
+      let signal: AbortSignal | null | undefined;
+      stubFetch(
+        vi.fn((_input: string | URL | Request, init: RequestInit) => {
+          signal = init.signal;
+          return respond();
+        }),
+      );
+      const run = syncer.run();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(syncer.status.get().phase).toBe("connecting");
+      const failed = statusReached(syncer, "error");
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      expect((await failed).error).toBe(
+        "Sync could not finish. It will retry automatically.",
+      );
+      expect(signal?.aborted).toBe(true);
+      await stop(syncer, run);
+    },
+  );
+
   it("does not report a deferred or discarded transfer as a successful sync", async () => {
     vi.useFakeTimers();
     const { syncer } = createSyncer();
-    vi.spyOn(
-      syncer as unknown as { syncV4: () => Promise<boolean> },
-      "syncV4",
-    ).mockResolvedValue(false);
+    vi.spyOn(syncer as unknown as SyncerTestAccess, "syncV4").mockReturnValue(
+      Effect.succeed(false),
+    );
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
     expect(syncer.status.get()).toMatchObject({
@@ -412,7 +540,7 @@ describe("sync status", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     await vi.waitFor(() => expect(leader.status.get().phase).toBe("synced"));
 
-    statusBus.nextIsLeader = false;
+    env.tabs.nextIsLeader = false;
     const { syncer: follower } = createSyncer();
     expect(follower.status.get()).toEqual(leader.status.get());
     const commit = deferred();
@@ -449,28 +577,32 @@ describe("sync status", () => {
       tableNameMap: { [items.tableName]: items },
     };
     const leaderClock = createHlcClock("client-1/leader");
-    const leader = new Syncer(leaderDB, "client-1", syncConfig, leaderClock);
+    const leader = inScope(
+      leaderDB,
+      Syncer.make("client-1", syncConfig, leaderClock),
+    );
     registerSyncChangeHooks({
       syncSubDb: leaderDB,
       syncableDBTables: [items],
       clientId: "client-1",
       nextClock: leaderClock,
     });
-    createCrossTabChanges({
-      clientId: "client-1",
-      syncSubDb: leaderDB,
-      syncConfig,
-      nextClock: leaderClock,
-      onApplied: () => leader.forceSync(),
-    });
+    inScope(
+      leaderDB,
+      makeCrossTabChanges({
+        clientId: "client-1",
+        syncConfig,
+        nextClock: leaderClock,
+        onApplied: () => leader.forceSync(),
+      }),
+    );
 
     let sessions = 0;
     let acceptedCursor: ClientCursor | null = null;
     const uploaded: ChangesetArrayType = [];
     const committed: ChangesetArrayType = [];
     const commitGate = deferred();
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request, init: RequestInit) => {
         const url = String(input);
         if (url.endsWith("/sessions")) {
@@ -481,12 +613,14 @@ describe("sync status", () => {
           });
         }
         if (url.includes("/chunks/")) {
-          const { payload } = JSON.parse(String(init.body));
+          const { payload } = JSON.parse(await requestText(init));
           uploaded.push(...(JSON.parse(payload) as ChangesetArrayType));
           return jsonResponse({});
         }
         if (url.endsWith("/commit")) {
-          const { changeCount, throughCursor } = JSON.parse(String(init.body));
+          const { changeCount, throughCursor } = JSON.parse(
+            await requestText(init),
+          );
           if (changeCount > 0) {
             await commitGate.promise;
             committed.push(...uploaded);
@@ -506,13 +640,11 @@ describe("sync status", () => {
     try {
       await vi.advanceTimersByTimeAsync(2_000);
       await vi.waitFor(() => expect(leader.status.get().phase).toBe("synced"));
-      statusBus.nextIsLeader = false;
+      env.tabs.nextIsLeader = false;
       const followerClock = createHlcClock("client-1/follower");
-      const follower = new Syncer(
+      const follower = inScope(
         followerDB,
-        "client-1",
-        syncConfig,
-        followerClock,
+        Syncer.make("client-1", syncConfig, followerClock),
       );
       registerSyncChangeHooks({
         syncSubDb: followerDB,
@@ -520,20 +652,24 @@ describe("sync status", () => {
         clientId: "client-1",
         nextClock: followerClock,
       });
-      const followerChanges = createCrossTabChanges({
-        clientId: "client-1",
-        syncSubDb: followerDB,
-        syncConfig,
-        nextClock: followerClock,
-        onApplied: () => follower.forceSync(),
-      });
-      createLocalPersistQueue({
-        syncSubDb: followerDB,
-        postChanges: followerChanges.postChanges,
-        onPersisted: () => follower.forceSync(),
-      }).start();
+      const followerChanges = inScope(
+        followerDB,
+        makeCrossTabChanges({
+          clientId: "client-1",
+          syncConfig,
+          nextClock: followerClock,
+          onApplied: () => follower.forceSync(),
+        }),
+      );
+      inScope(
+        followerDB,
+        makeLocalPersistQueue({
+          postChanges: followerChanges.postChanges,
+          onPersisted: () => follower.forceSync(),
+        }),
+      );
 
-      statusBus.delayChanges = true;
+      env.tabs.holdChanges = true;
       const row = { id: "follower-write", title: "Must reach the server" };
       await asyncDispatch(
         followerDB,
@@ -549,12 +685,12 @@ describe("sync status", () => {
       await vi.waitFor(() => expect(leader.status.get().phase).toBe("synced"));
       expect(follower.status.get().phase).toBe("synced");
       expect(uploaded).toEqual([]);
-      expect(statusBus.delayedChanges).toHaveLength(1);
+      expect(env.tabs.held).toHaveLength(1);
 
       // The status-channel wake-up has already finished an empty session.
       // Only delivery and completion of the changes-channel merge can wake it now.
-      statusBus.delayChanges = false;
-      statusBus.delayedChanges.splice(0).forEach((deliver) => deliver());
+      env.tabs.holdChanges = false;
+      env.tabs.releaseChanges();
       await vi.waitFor(() => expect(uploaded).toHaveLength(1));
       expect(uploaded[0].data).toEqual([expect.objectContaining({ row })]);
       expect(committed).toEqual([]);
@@ -573,13 +709,35 @@ describe("sync status", () => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  for (const scope of scopes.splice(0)) {
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+  }
   vi.useRealTimers();
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
 });
 
 describe("sync v4 request recovery", () => {
+  it("keeps the HTTP status when the error body cannot be read", async () => {
+    const { syncer } = createSyncer();
+    stubFetch(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start: (controller) =>
+              controller.error(new Error("connection reset")),
+          }),
+          { status: 401 },
+        ),
+    );
+
+    await expect(runSyncV4(syncer)).rejects.toMatchObject({
+      _tag: "SyncHttpError",
+      status: 401,
+      body: "",
+    });
+  });
+
   it("waits for durable download apply before acknowledging the server", async () => {
     const { db, syncer } = createSyncer();
     const blocked = deferred();
@@ -593,12 +751,11 @@ describe("sync v4 request recovery", () => {
       )[0];
       if (state?.lastServerAppliedRevision === 7) {
         blocked.resolve();
-        yield { type: "unwrap", data: durable.promise };
+        yield* waitForPromise(durable.promise);
       }
     });
     const ack = vi.fn();
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         if (url.endsWith("/sessions"))
@@ -623,7 +780,7 @@ describe("sync v4 request recovery", () => {
         throw new Error(`Unexpected sync request: ${url}`);
       }),
     );
-    const running = (syncer as unknown as SyncerTestAccess).syncV4();
+    const running = runSyncV4(syncer);
     try {
       expect(
         await Promise.race([
@@ -651,7 +808,6 @@ describe("sync v4 request recovery", () => {
       tableNameMap: { [items.tableName]: items },
     };
     const { db, syncer } = createSyncer(syncConfig);
-    const access = syncer as unknown as SyncerTestAccess;
     registerSyncChangeHooks({
       syncSubDb: db,
       syncableDBTables: [items],
@@ -681,8 +837,7 @@ describe("sync v4 request recovery", () => {
 
     const uploaded: ChangesetArrayType = [];
     const requests: string[] = [];
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request, init: RequestInit) => {
         const url = String(input);
         requests.push(url);
@@ -690,12 +845,12 @@ describe("sync v4 request recovery", () => {
           return jsonResponse(sessionResponse("fresh-upload"));
         }
         if (url.includes("/chunks/")) {
-          const { payload } = JSON.parse(String(init.body));
+          const { payload } = JSON.parse(await requestText(init));
           uploaded.push(...(JSON.parse(payload) as ChangesetArrayType));
           return jsonResponse({});
         }
         if (url.endsWith("/commit")) {
-          const { throughCursor } = JSON.parse(String(init.body));
+          const { throughCursor } = JSON.parse(await requestText(init));
           return jsonResponse({
             acceptedClientCursor: throughCursor,
             serverRevision: 0,
@@ -707,11 +862,11 @@ describe("sync v4 request recovery", () => {
     );
     const wake = vi.spyOn(syncer, "forceSync");
 
-    expect(await access.syncV4()).toBe(false);
+    expect(await runSyncV4(syncer)).toBe(false);
     expect(wake).toHaveBeenCalledOnce();
     expect(await asyncDispatch(db, getPendingSyncV4Upload({}))).toBeUndefined();
 
-    expect(await access.syncV4()).toBe(true);
+    expect(await runSyncV4(syncer)).toBe(true);
     expect(requests.filter((url) => url.endsWith("/sessions"))).toHaveLength(1);
     expect(uploaded).toEqual([
       { tableName: items.tableName, data: [expect.objectContaining({ row })] },
@@ -720,27 +875,29 @@ describe("sync v4 request recovery", () => {
 
   it("restarts only a resumed upload that received an actual 404", () => {
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         true,
-        new SyncRequestError(404, '{"error":"expired"}'),
+        new SyncHttpError({ status: 404, body: '{"error":"expired"}' }),
       ),
     ).toBe(true);
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         true,
-        new Error("upstream text happened to contain (404)"),
+        new SyncNetworkError({
+          cause: new Error("upstream text happened to contain (404)"),
+        }),
       ),
     ).toBe(false);
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         true,
-        new SyncRequestError(409, '{"error":"conflict"}'),
+        new SyncHttpError({ status: 409, body: '{"error":"conflict"}' }),
       ),
     ).toBe(false);
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         false,
-        new SyncRequestError(404, '{"error":"expired"}'),
+        new SyncHttpError({ status: 404, body: '{"error":"expired"}' }),
       ),
     ).toBe(false);
   });
@@ -749,31 +906,35 @@ describe("sync v4 request recovery", () => {
     expect(
       shouldRestartFrozenUpload(
         false,
-        new SyncRequestError(
-          409,
-          '{"error":"advanced","code":"SYNC_CLIENT_CURSOR_ADVANCED"}',
-        ),
+        new SyncHttpError({
+          status: 409,
+          body: '{"error":"advanced","code":"SYNC_CLIENT_CURSOR_ADVANCED"}',
+        }),
       ),
     ).toBe(true);
     expect(
       shouldRestartFrozenUpload(
         true,
-        new SyncRequestError(409, '{"error":"checksum conflict"}'),
+        new SyncHttpError({
+          status: 409,
+          body: '{"error":"checksum conflict"}',
+        }),
       ),
     ).toBe(false);
     expect(
-      shouldRestartFrozenUpload(true, new SyncRequestError(409, "not json")),
+      shouldRestartFrozenUpload(
+        true,
+        new SyncHttpError({ status: 409, body: "not json" }),
+      ),
     ).toBe(false);
   });
 
   it("discards a cursor-advanced upload and succeeds after a fresh handshake", async () => {
     vi.useFakeTimers();
     const { db, syncer } = createSyncer();
-    const access = syncer as unknown as SyncerTestAccess;
     const requests: string[] = [];
     let handshakes = 0;
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         requests.push(url);
@@ -791,8 +952,6 @@ describe("sync v4 request recovery", () => {
           );
         }
         if (url.endsWith("/upload-2/commit")) {
-          syncer.forceSync();
-          access.runId += 1;
           return jsonResponse({
             acceptedClientCursor: null,
             serverRevision: 0,
@@ -803,8 +962,11 @@ describe("sync v4 request recovery", () => {
       }),
     );
 
+    const synced = statusReached(syncer, "synced");
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
+    await synced;
+    await syncer.stop();
     await run;
 
     expect(handshakes).toBe(2);
@@ -825,15 +987,13 @@ describe("syncer notification baseline", () => {
     const phases: string[] = [];
     syncer.status.subscribe((status) => phases.push(status.phase));
     let sessions = 0;
-    vi.spyOn(access, "syncV4").mockImplementation(async () => {
+    vi.spyOn(access, "syncV4").mockImplementation(() => {
       sessions += 1;
       if (sessions === 1) {
-        await firstSession.promise;
-        return true;
+        return Effect.promise(() => firstSession.promise).pipe(Effect.as(true));
       }
-      syncer.forceSync();
-      access.runId += 1;
-      return true;
+      void syncer.stop();
+      return Effect.never;
     });
 
     const run = syncer.run();
@@ -851,9 +1011,30 @@ describe("syncer notification baseline", () => {
     await run;
   };
 
+  it("does not rerun for a notification the session already covered", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    let sessions = 0;
+    vi.spyOn(
+      syncer as unknown as SyncerTestAccess,
+      "syncV4",
+    ).mockImplementation(() => {
+      sessions += 1;
+      return Effect.succeed(true);
+    });
+
+    const run = syncer.run();
+    syncer.forceSync();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(sessions).toBe(1);
+    expect(syncer.status.get().phase).toBe("synced");
+    await stop(syncer, run);
+  });
+
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
     await verifyPendingNotificationStartsNextSession(() => {
-      subscription.handlers?.onData();
+      env.serverChanges.emit({ _tag: "ChangesAvailable" });
     });
   });
 

@@ -13,11 +13,8 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { NavBar } from "@/components/NavBar/NavBar";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
-import {
-  confirmDeleteMindmap,
-  mindmapTitle,
-  useCreateMindmap,
-} from "./useCreateMindmap.ts";
+import { useUndoToast } from "@/store/undo";
+import { mindmapTitle, useCreateMindmap } from "./useCreateMindmap.ts";
 
 const rowButtonClass =
   "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-content-tinted transition-colors hover:bg-white/10 hover:text-content";
@@ -25,6 +22,7 @@ const rowButtonClass =
 function MindmapRow({ item: { mindmap, title } }: { item: MindmapListItem }) {
   const { spaceId } = Route.useParams();
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
   const [draft, setDraft] = useState<string | null>(null);
   const save = () => {
     if (draft === null) return;
@@ -79,11 +77,11 @@ function MindmapRow({ item: { mindmap, title } }: { item: MindmapListItem }) {
             title="Delete"
             aria-label="Delete mindmap"
             className={rowButtonClass}
-            onClick={() => {
-              if (confirmDeleteMindmap()) {
-                void dispatch(deleteMindmap({ id: mindmap.id }));
-              }
-            }}
+            onClick={() =>
+              void deleteWithUndo(() =>
+                dispatch(deleteMindmap({ id: mindmap.id })),
+              )
+            }
           >
             <Trash2 className="size-3.5" />
           </button>

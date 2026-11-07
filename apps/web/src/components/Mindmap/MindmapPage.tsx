@@ -31,8 +31,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Route } from "@/routes/spaces.$spaceId.tsx";
 import { MindmapCanvas } from "./MindmapCanvas.tsx";
+import { useUndoToast } from "@/store/undo";
 import {
-  confirmDeleteMindmap,
   mindmapTitle,
   useCreateMindmap,
   useCreatingMindmaps,
@@ -49,6 +49,7 @@ export const MindmapPage = ({
 }) => {
   const { spaceId } = Route.useParams();
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
   const navigate = useNavigate();
   const { createAndOpen, preload } = useCreateMindmap();
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -99,10 +100,9 @@ export const MindmapPage = ({
   };
 
   const handleDelete = () => {
-    if (!confirmDeleteMindmap()) return;
     void (async () => {
       await navigate({ to: "/spaces/$spaceId/mindmaps", params: { spaceId } });
-      await dispatch(deleteMindmap({ id: mindmapId }));
+      await deleteWithUndo(() => dispatch(deleteMindmap({ id: mindmapId })));
     })();
   };
 

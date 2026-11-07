@@ -1,6 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils.ts";
-import { useMindmapsEnabled } from "@/components/Mindmap/mindmapsSetting.ts";
 
 const linkClass = (isActive: boolean) =>
   cn(
@@ -29,7 +28,6 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
       s.matches.some((m) => (m.pathname as string).includes("/calendar")),
   });
 
-  const mindmapsEnabled = useMindmapsEnabled((s) => s.enabled);
   const isMindmapsActive = useRouterState({
     select: (s) =>
       s.matches.some((m) => (m.pathname as string).includes("/mindmaps")),
@@ -58,15 +56,13 @@ export const SpaceNavLinks = ({ spaceId }: { spaceId: string }) => {
       >
         calendar
       </Link>
-      {mindmapsEnabled && (
-        <Link
-          to="/spaces/$spaceId/mindmaps"
-          params={{ spaceId }}
-          className={linkClass(isMindmapsActive)}
-        >
-          maps
-        </Link>
-      )}
+      <Link
+        to="/spaces/$spaceId/mindmaps"
+        params={{ spaceId }}
+        className={linkClass(isMindmapsActive)}
+      >
+        maps
+      </Link>
     </div>
   );
 };

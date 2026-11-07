@@ -3,6 +3,7 @@ import {
   DB,
   execSync,
   insert,
+  SubscribableDB,
   syncDispatch,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
@@ -11,12 +12,20 @@ import {
   attachmentType,
   type Attachment,
 } from "@will-be-done/slices/space";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Effect, Exit, Layer, Scope } from "effect";
+import { Digest } from "effect/crypto";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  makeTestLogger,
+  makeTestPage,
+  makeTestTabs,
+  testAuthSession,
+  testHttpClient,
+} from "@/services/testing";
 import { State } from "@/utils/State";
+import { Database } from "../database";
 import { initialSyncStatus, type SyncStatus } from "../syncStatus";
-import { AttachmentTransfers } from "./transfers";
-
-vi.mock("@/lib/auth", () => ({ authUtils: { getToken: () => "token" } }));
+import { makeAttachmentTransfers } from "./transfers";
 
 const file = (id: string): Attachment => ({
   type: attachmentType,
@@ -81,22 +90,15 @@ class FakeStore {
   }
 }
 
+const scopes: Scope.Closeable[] = [];
+
+afterEach(async () => {
+  for (const scope of scopes.splice(0)) {
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+  }
+});
+
 describe("attachment transfers", () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("window", new EventTarget());
-    vi.stubGlobal("navigator", {
-      locks: { request: (_name: string, hold: () => unknown) => hold() },
-    });
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it("downloads missing files, uploads pending ones, and drops deleted ones", async () => {
     const db = new DB(new BptreeInmemDriver());
     execSync(db.loadTables([attachmentsTable]));
@@ -107,21 +109,47 @@ describe("attachment transfers", () => {
     await store.put("unsynced", new Blob(["new"]), { uploaded: false });
 
     const syncStatus = new State<SyncStatus>(initialSyncStatus);
-    let uploadAttempts = 0;
-    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
-      if (init?.method === "PUT") {
-        // The row reaches the server with the next sync.
-        uploadAttempts++;
-        return new Response(null, { status: uploadAttempts === 1 ? 404 : 204 });
-      }
-      expect(url).toBe("/api/v1/spaces/space/attachments/remote/content");
-      return new Response("remote", { status: 200 });
-    });
-    const transfers = new AttachmentTransfers(db, "db", "space", true, store);
+    const uploads: RequestInit[] = [];
+    const logger = makeTestLogger();
+    const scope = Scope.makeUnsafe();
+    scopes.push(scope);
 
     const deleted = store.done("delete:deleted");
     const downloaded = store.done("put:remote");
-    transfers.start(syncStatus);
+    await Effect.runPromise(
+      makeAttachmentTransfers({
+        dbName: "db",
+        spaceId: "space",
+        syncEnabled: true,
+        syncStatus,
+        store,
+      }).pipe(
+        Scope.provide(scope),
+        Effect.provide(
+          Layer.mergeAll(
+            Database.layer(new SubscribableDB(db)),
+            makeTestTabs().layer,
+            makeTestPage().layer,
+            testAuthSession(":", "token"),
+            testHttpClient(() => async (url, init) => {
+              if (init.method === "PUT") {
+                uploads.push(init);
+                // The row reaches the server with the next sync.
+                return new Response(null, {
+                  status: uploads.length === 1 ? 404 : 204,
+                });
+              }
+              expect(url).toBe(
+                "http://localhost/api/v1/spaces/space/attachments/remote/content",
+              );
+              return new Response("remote", { status: 200 });
+            }),
+            Digest.layerWebCrypto,
+            logger.layer,
+          ),
+        ),
+      ),
+    );
     await Promise.all([deleted, downloaded]);
 
     expect(await store.blobs.get("remote")?.text()).toBe("remote");
@@ -133,13 +161,11 @@ describe("attachment transfers", () => {
     syncStatus.set({ ...initialSyncStatus, phase: "synced" });
     await uploaded;
 
-    expect(uploadAttempts).toBe(2);
+    expect(uploads).toHaveLength(2);
     expect(store.pending.has("local")).toBe(false);
-    const [, init] = fetchMock.mock.calls.find(
-      ([, request]) => (request as RequestInit | undefined)?.method === "PUT",
-    )!;
-    expect((init as RequestInit).headers).toMatchObject({
-      Authorization: "Bearer token",
-    });
+    expect(new Headers(uploads[1]!.headers).get("authorization")).toBe(
+      "Bearer token",
+    );
+    expect(logger.errors()).toEqual([]);
   });
 });

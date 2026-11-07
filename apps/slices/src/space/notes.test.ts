@@ -11,7 +11,6 @@ import {
   convertTaskToNote,
   createNoteNextToSectionItem,
   noteById,
-  taskHasNoteIncompatibleData,
 } from "./notes";
 import {
   createProjectSection,
@@ -114,42 +113,6 @@ describe("notes", () => {
     ).toEqual([]);
     expect(selectSync(db, { selector: trashedTasks, args: {} })).toEqual([]);
   });
-
-  it.each(["none", "schedule", "stash", "checklist"] as const)(
-    "reports whether converting drops data when the task has %s",
-    (kind) => {
-      const { db, sectionId } = createDB();
-      const task = addTask(db, sectionId, "task-1");
-      if (kind === "schedule") {
-        const dailyList = syncDispatch(
-          db,
-          createDailyList({ dailyList: { date: "2026-11-02" } }),
-        );
-        syncDispatch(
-          db,
-          addToDailyList({
-            taskId: task.id,
-            dailyListId: dailyList.id,
-            position: "append",
-          }),
-        );
-      } else if (kind === "stash") {
-        syncDispatch(db, addToStash({ taskId: task.id, position: "append" }));
-      } else if (kind === "checklist") {
-        syncDispatch(
-          db,
-          createItem({ item: { parentId: task.id, parentType: "task" } }),
-        );
-      }
-
-      expect(
-        selectSync(db, {
-          selector: taskHasNoteIncompatibleData,
-          args: { taskId: task.id },
-        }),
-      ).toBe(kind !== "none");
-    },
-  );
 
   it("converts a done task to a note that shows in its section", () => {
     const { db, sectionId } = createDB();

@@ -5,10 +5,8 @@ import { getModelDropTarget, isModelDNDData } from "@/lib/dnd/models";
 import { extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { appHandleDrop } from "@will-be-done/slices/space";
 import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
-import type { SubscribableDB } from "@will-be-done/hyperdb";
-import { replayHistory } from "@/store/undo";
+import { replayAndFocus } from "@/store/undo";
 import {
-  buildFocusKey,
   FocusKey,
   focusElementByKey,
   useFocusStore,
@@ -31,32 +29,6 @@ import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcuts/Keyboard
 import { QuickAddDialog } from "@/components/QuickAdd/QuickAddDialog";
 
 const hasEditHistoryMenu = () => !!window.desktopApi?.onEditHistory;
-
-const isRendered = (key: FocusKey) =>
-  !!document.querySelector(`[data-focusable-key="${CSS.escape(key)}"]`);
-
-// Focus the first replayed row on screen, so a restored item is visible.
-const replayAndFocus = async (
-  db: SubscribableDB,
-  direction: "undo" | "redo",
-) => {
-  const event = await replayHistory(db, direction);
-  if (!event) return;
-
-  const keys = event.changes.flatMap(({ id, before, after }) => {
-    const type = (direction === "undo" ? before : after)?.type;
-    return typeof type === "string" ? [buildFocusKey(id, type)] : [];
-  });
-  // Let the views render the replayed rows first.
-  setTimeout(() => {
-    const focus = useFocusStore.getState();
-    const key = keys.find(isRendered);
-    if (key) focus.focusByKey(key);
-    else if (focus.focusItemKey && !isRendered(focus.focusItemKey)) {
-      focus.resetFocus();
-    }
-  }, 0);
-};
 
 export function GlobalListener() {
   const dispatch = useAsyncDispatch();

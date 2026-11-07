@@ -5,6 +5,8 @@ import {
   selectFrom,
   upsert,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import {
@@ -124,7 +126,7 @@ export const projectOfProjectSection = selector({
   args: { projectSectionId: v.string() },
   handler: function* projectOfProjectSection({
     projectSectionId,
-  }): Generator<unknown, Project | undefined, unknown> {
+  }): SelectorGenerator<Project | undefined> {
     const section = yield* projectSectionById({ id: projectSectionId });
     if (!section) return undefined;
 
@@ -137,7 +139,7 @@ export const projectOfProjectSectionOrDefault = selector({
   args: { projectSectionId: v.string() },
   handler: function* projectOfProjectSectionOrDefault({
     projectSectionId,
-  }): Generator<unknown, Project, unknown> {
+  }): SelectorGenerator<Project> {
     const section = yield* projectSectionById({ id: projectSectionId });
     if (!section) return defaultProject;
 
@@ -175,7 +177,7 @@ export const updateProjectSection = action({
   handler: function* updateProjectSection({
     projectSectionId,
     section,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const sectionInState = yield* projectSectionById({ id: projectSectionId });
     if (!sectionInState) throw new Error("Section not found");
 
@@ -227,9 +229,7 @@ export const projectSectionSiblings = selector({
 export const moveLeft = action({
   name: "moveLeft",
   args: { projectSectionId: v.string() },
-  handler: function* moveLeft({
-    projectSectionId,
-  }): Generator<unknown, void, unknown> {
+  handler: function* moveLeft({ projectSectionId }): ActionGenerator<void> {
     const [up] = yield* projectSectionSiblings({ projectSectionId });
     const [up2] = up
       ? yield* projectSectionSiblings({ projectSectionId: up?.id })
@@ -252,9 +252,7 @@ export const moveLeft = action({
 export const moveRight = action({
   name: "moveRight",
   args: { projectSectionId: v.string() },
-  handler: function* moveRight({
-    projectSectionId,
-  }): Generator<unknown, void, unknown> {
+  handler: function* moveRight({ projectSectionId }): ActionGenerator<void> {
     const [_up, down] = yield* projectSectionSiblings({ projectSectionId });
     const [_up2, down2] = down
       ? yield* projectSectionSiblings({ projectSectionId: down?.id })
@@ -286,7 +284,7 @@ export const createProjectSection = action({
   handler: function* createProjectSection({
     sectionDraft,
     position,
-  }): Generator<unknown, ProjectSection, unknown> {
+  }): ActionGenerator<ProjectSection> {
     const orderToken = yield* generateOrderTokenPositioned(
       sectionDraft.projectId,
       {
@@ -324,7 +322,7 @@ export const createTaskInSection = action({
     projectSectionId,
     position,
     taskAttrs,
-  }): Generator<unknown, Task, unknown> {
+  }): ActionGenerator<Task> {
     const orderToken = yield* generateOrderTokenPositioned(
       projectSectionId,
       {
@@ -357,7 +355,7 @@ export const createNoteInSection = action({
     projectSectionId,
     position,
     noteAttrs,
-  }): Generator<unknown, Note, unknown> {
+  }): ActionGenerator<Note> {
     const orderToken = yield* generateOrderTokenPositioned(
       projectSectionId,
       {
@@ -387,9 +385,7 @@ export const createNoteInSection = action({
 export const deleteProjectSections = action({
   name: "deleteProjectSections",
   args: { ids: v.array(v.string()) },
-  handler: function* deleteProjectSections({
-    ids,
-  }): Generator<unknown, void, unknown> {
+  handler: function* deleteProjectSections({ ids }): ActionGenerator<void> {
     const idsToDelete: string[] = [];
 
     for (const projectSectionId of ids) {
@@ -448,7 +444,7 @@ export const projectSectionHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const dropItem = yield* appById({
       id: dropId,
       modelType: dropModelType,
@@ -550,7 +546,7 @@ export const projectSectionCanDrop = selector({
     _projectSectionId,
     dropId,
     dropModelType,
-  }): Generator<unknown, boolean, unknown> {
+  }): SelectorGenerator<boolean> {
     // App drops unwrap stash entries before calling the item handler.
     if (dropModelType === "stashEntry") return false;
 

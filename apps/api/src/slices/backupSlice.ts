@@ -4,6 +4,7 @@ import {
   selectFrom,
   upsert,
   v,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { uuidv7 } from "uuidv7";
@@ -317,9 +318,7 @@ export const deleteBackup = action({
 export const deleteBackupWithFiles = action({
   name: "deleteBackupWithFiles",
   args: { id: v.string() },
-  handler: function* deleteBackupWithFiles({
-    id,
-  }): Generator<unknown, void, unknown> {
+  handler: function* deleteBackupWithFiles({ id }): ActionGenerator<void> {
     const files = yield* getBackupFiles({ backupId: id });
 
     const fileIds = files.map((f) => f.id);

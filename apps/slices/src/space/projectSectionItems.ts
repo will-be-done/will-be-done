@@ -1,4 +1,4 @@
-import { selectFrom, v } from "@will-be-done/hyperdb";
+import { selectFrom, v, type SelectorGenerator } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { dailyDateFormat, generateKeyPositionedBetween } from "./utils";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -49,7 +49,7 @@ export const firstProjectSectionItem = selector({
   args: { projectSectionId: v.string() },
   handler: function* firstProjectSectionItem({
     projectSectionId,
-  }): Generator<unknown, Item, unknown> {
+  }): SelectorGenerator<Item> {
     const ids = yield* projectSectionItemIds({ projectSectionId });
     if (ids.length === 0) return defaultTask;
 
@@ -62,7 +62,7 @@ export const lastProjectSectionItem = selector({
   args: { projectSectionId: v.string() },
   handler: function* lastProjectSectionItem({
     projectSectionId,
-  }): Generator<unknown, Item, unknown> {
+  }): SelectorGenerator<Item> {
     const ids = yield* projectSectionItemIds({ projectSectionId });
     if (ids.length === 0) return defaultTask;
 
@@ -119,7 +119,7 @@ export const projectSectionItemsForDisplay = selector({
   handler: function* projectSectionItemsForDisplay({
     items,
     listItems,
-  }): Generator<unknown, ItemForDisplay[], unknown> {
+  }): SelectorGenerator<ItemForDisplay[]> {
     const projectSectionIds = [
       ...new Set(items.map((item) => item.projectSectionId)),
     ];
@@ -283,7 +283,7 @@ export const projectSectionItemById = selector({
   args: { id: v.string() },
   handler: function* projectSectionItemById({
     id,
-  }): Generator<unknown, Item | undefined, unknown> {
+  }): SelectorGenerator<Item | undefined> {
     const task = yield* taskById({ id });
     if (task) return task;
 
@@ -302,7 +302,7 @@ export const projectSectionItemByIdOrDefault = selector({
   args: { id: v.string() },
   handler: function* projectSectionItemByIdOrDefault({
     id,
-  }): Generator<unknown, Item, unknown> {
+  }): SelectorGenerator<Item> {
     return (yield* projectSectionItemById({ id })) || defaultTask;
   },
 });
@@ -312,7 +312,7 @@ export const projectSectionItemSiblings = selector({
   args: { itemId: v.string() },
   handler: function* projectSectionItemSiblings({
     itemId,
-  }): Generator<unknown, [Item | undefined, Item | undefined], unknown> {
+  }): SelectorGenerator<[Item | undefined, Item | undefined]> {
     const item = yield* projectSectionItemByIdOrDefault({ id: itemId });
     if (!item) return [undefined, undefined];
 

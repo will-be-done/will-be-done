@@ -1,4 +1,10 @@
-import { insert, selectFrom, v } from "@will-be-done/hyperdb";
+import {
+  insert,
+  selectFrom,
+  v,
+  type SelectorGenerator,
+  type ActionGenerator,
+} from "@will-be-done/hyperdb";
 import { withoutUndo } from "@will-be-done/hyperdb/undo";
 import { action, selector } from "../builders";
 import { getDMY, orderPositionArg } from "./utils";
@@ -138,7 +144,7 @@ export const dailyListChildrenIds = selector({
   args: { dailyListId: v.string() },
   handler: function* dailyListChildrenIds({
     dailyListId,
-  }): Generator<unknown, string[], unknown> {
+  }): SelectorGenerator<string[]> {
     return yield* dailyEntryChildrenIds({ dailyListId });
   },
 });
@@ -148,7 +154,7 @@ export const dailyListDoneChildrenIds = selector({
   args: { dailyListId: v.string() },
   handler: function* dailyListDoneChildrenIds({
     dailyListId,
-  }): Generator<unknown, string[], unknown> {
+  }): SelectorGenerator<string[]> {
     return yield* doneDailyEntryChildrenIds({ dailyListId });
   },
 });
@@ -227,7 +233,7 @@ export const firstDailyListChild = selector({
   args: { dailyListId: v.string() },
   handler: function* firstDailyListChild({
     dailyListId,
-  }): Generator<unknown, Task | undefined, unknown> {
+  }): SelectorGenerator<Task | undefined> {
     return yield* firstDailyEntryChild({ dailyListId });
   },
 });
@@ -237,7 +243,7 @@ export const lastDailyListChild = selector({
   args: { dailyListId: v.string() },
   handler: function* lastDailyListChild({
     dailyListId,
-  }): Generator<unknown, Task | undefined, unknown> {
+  }): SelectorGenerator<Task | undefined> {
     return yield* lastDailyEntryChild({ dailyListId });
   },
 });
@@ -253,7 +259,7 @@ export const dailyListCanDrop = selector({
     _dailyListId,
     dropId,
     dropModelType,
-  }): Generator<unknown, boolean, unknown> {
+  }): SelectorGenerator<boolean> {
     return yield* appCanDrop({
       id: _dailyListId,
       modelType: dailyListType,
@@ -347,7 +353,7 @@ export const createTaskInList = action({
     projectId,
     listPosition,
     sectionPosition,
-  }): Generator<unknown, Task, unknown> {
+  }): ActionGenerator<Task> {
     const task = yield* createProjectTask({
       projectId,
       position: sectionPosition,
@@ -376,7 +382,7 @@ export const dailyListHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const drop = yield* appById({
       id: dropId,
       modelType: dropModelType,

@@ -957,7 +957,7 @@ const getNewModels = action({
   },
 });
 
-export const loadSpaceBackup = selector({
+export const loadSpaceBackup = action({
   name: "loadSpaceBackup",
   args: { backup: backupInputSchema },
   handler: function* loadSpaceBackup({ backup }) {

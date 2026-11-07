@@ -5,6 +5,8 @@ import {
   selectFrom,
   upsert as upsertRows,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -139,9 +141,7 @@ export const stashTasksByState = selector({
   args: {
     state: v.union(v.literal("todo"), v.literal("done")),
   },
-  handler: function* stashTasksByState({
-    state,
-  }): Generator<unknown, Task[], unknown> {
+  handler: function* stashTasksByState({ state }): SelectorGenerator<Task[]> {
     const entries = yield* allStashEntriesOrdered({});
     if (entries.length === 0) return [];
 
@@ -169,11 +169,7 @@ export const stashTasksByState = selector({
 export const stashEntryChildrenIds = selector({
   name: "stashEntryChildrenIds",
   args: {},
-  handler: function* stashEntryChildrenIds(): Generator<
-    unknown,
-    string[],
-    unknown
-  > {
+  handler: function* stashEntryChildrenIds(): SelectorGenerator<string[]> {
     return (yield* stashTasksByState({ state: "todo" })).map((task) => task.id);
   },
 });
@@ -181,10 +177,8 @@ export const stashEntryChildrenIds = selector({
 export const stashEntryChildrenForDisplay = selector({
   name: "stashEntryChildrenForDisplay",
   args: {},
-  handler: function* stashEntryChildrenForDisplay(): Generator<
-    unknown,
-    ItemForDisplay[],
-    unknown
+  handler: function* stashEntryChildrenForDisplay(): SelectorGenerator<
+    ItemForDisplay[]
   > {
     const entries = yield* allStashEntriesOrdered({});
     const taskIds = entries.map((entry) => entry.taskId);
@@ -213,11 +207,7 @@ export const stashEntryChildrenForDisplay = selector({
 export const doneStashEntryChildrenIds = selector({
   name: "doneStashEntryChildrenIds",
   args: {},
-  handler: function* doneStashEntryChildrenIds(): Generator<
-    unknown,
-    string[],
-    unknown
-  > {
+  handler: function* doneStashEntryChildrenIds(): SelectorGenerator<string[]> {
     return (yield* stashTasksByState({ state: "done" })).map((task) => task.id);
   },
 });
@@ -225,10 +215,8 @@ export const doneStashEntryChildrenIds = selector({
 export const doneStashEntryChildrenForDisplay = selector({
   name: "doneStashEntryChildrenForDisplay",
   args: {},
-  handler: function* doneStashEntryChildrenForDisplay(): Generator<
-    unknown,
-    ItemForDisplay[],
-    unknown
+  handler: function* doneStashEntryChildrenForDisplay(): SelectorGenerator<
+    ItemForDisplay[]
   > {
     const entries = yield* allStashEntriesOrdered({});
     const taskIds = entries.map((entry) => entry.taskId);
@@ -267,10 +255,8 @@ export const doneStashEntryChildrenForDisplay = selector({
 export const firstStashEntryChild = selector({
   name: "firstStashEntryChild",
   args: {},
-  handler: function* firstStashEntryChild(): Generator<
-    unknown,
-    Task | undefined,
-    unknown
+  handler: function* firstStashEntryChild(): SelectorGenerator<
+    Task | undefined
   > {
     const ids = yield* stashEntryChildrenIds({});
     const firstChildId = ids[0];
@@ -284,10 +270,8 @@ export const firstStashEntryChild = selector({
 export const lastStashEntryChild = selector({
   name: "lastStashEntryChild",
   args: {},
-  handler: function* lastStashEntryChild(): Generator<
-    unknown,
-    Task | undefined,
-    unknown
+  handler: function* lastStashEntryChild(): SelectorGenerator<
+    Task | undefined
   > {
     const ids = yield* stashEntryChildrenIds({});
     const lastChildId = ids[ids.length - 1];
@@ -364,7 +348,7 @@ export const stashEntryCanDrop = selector({
     entryId,
     dropId,
     dropModelType,
-  }): Generator<unknown, boolean, unknown> {
+  }): SelectorGenerator<boolean> {
     return yield* appCanDrop({
       id: entryId,
       modelType: stashEntryType,
@@ -388,7 +372,7 @@ export const stashEntryHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const canDropResult = yield* stashEntryCanDrop({
       entryId,
       dropId,
@@ -498,10 +482,7 @@ export const updateStashEntry = action({
     id: v.string(),
     entry: v.partial(stashEntriesTable.v()),
   },
-  handler: function* updateStashEntry({
-    id,
-    entry,
-  }): Generator<unknown, void, unknown> {
+  handler: function* updateStashEntry({ id, entry }): ActionGenerator<void> {
     const entryInState = yield* stashEntryById({ id });
     if (!entryInState) throw new Error("Stash entry not found");
     if (entry.taskId !== undefined && entry.taskId !== entryInState.taskId) {
@@ -596,10 +577,7 @@ export const addToStash = action({
     taskId: v.string(),
     position: orderPositionArg,
   },
-  handler: function* addToStash({
-    taskId,
-    position,
-  }): Generator<unknown, void, unknown> {
+  handler: function* addToStash({ taskId, position }): ActionGenerator<void> {
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 
@@ -664,7 +642,7 @@ const stashColumnCanDrop = selector({
     _stashId,
     dropId,
     dropModelType,
-  }): Generator<unknown, boolean, unknown> {
+  }): SelectorGenerator<boolean> {
     return yield* appCanDrop({
       id: _stashId,
       modelType: stashType,
@@ -688,7 +666,7 @@ const stashColumnHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const drop = yield* appById({ id: dropId, modelType: dropModelType });
     if (!drop) return;
 
@@ -747,7 +725,7 @@ export const createTaskInStash = action({
     position,
     sectionPosition,
     taskAttrs,
-  }): Generator<unknown, Task, unknown> {
+  }): ActionGenerator<Task> {
     const task = yield* createProjectTask({
       projectId,
       position: sectionPosition,

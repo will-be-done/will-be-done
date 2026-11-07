@@ -10,7 +10,8 @@
     "./space": "./src/space/index.ts",
     "./user": "./src/user/index.ts",
     "./common": "./src/common/index.ts",
-    "./traits": "./src/traits/index.ts"
+    "./traits": "./src/traits/index.ts",
+    "./desktop": "./src/desktop.ts"
   },
   "scripts": {
     "ts": "tsgo -b",
@@ -19,7 +20,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@will-be-done/hyperdb": "^0.9.0",
+    "@will-be-done/hyperdb": "^0.10.0",
     "date-fns": "^4.1.0",
     "es-toolkit": "^1.42.0",
     "fractional-indexing-jittered": "^1.0.0",

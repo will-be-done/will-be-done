@@ -19,14 +19,6 @@ const node = (page: Page, title: string) =>
 async function openNewMindmap(page: Page, name: string, tasks: string[] = []) {
   const spaceName = uniqueE2EName("E2E Mindmap Space");
   await signupUser(page);
-  // The maps view shows in the navigation once enabled, read on load.
-  await page.evaluate(() =>
-    localStorage.setItem(
-      "mindmaps-enabled",
-      JSON.stringify({ state: { enabled: true }, version: 0 }),
-    ),
-  );
-  await page.reload();
   await createSpace(page, spaceName);
   await openSpace(page, spaceName);
   for (const task of tasks) await createTodayTask(page, task);
