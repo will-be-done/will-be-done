@@ -5,6 +5,7 @@ import { spacesTable } from "@will-be-done/slices/user";
 import { Effect, Layer } from "effect";
 import { dbsTable, getDbById } from "../slices/dbSlice";
 import { Databases } from "./databases";
+import { testDatabases } from "./testing";
 import {
   createUserSpace,
   deleteUserSpace,
@@ -18,11 +19,10 @@ function setUpDatabases(space: (spaceId: string) => Effect.Effect<HyperDB>) {
   const mainDB = new DB(new BptreeInmemDriver());
   execSync(userDB.loadTables([spacesTable]));
   execSync(mainDB.loadTables([dbsTable]));
-  const layer = Layer.succeed(Databases, {
-    main: Effect.succeed(mainDB),
-    user: () => Effect.succeed(userDB),
-    space,
-  });
+  const layer = Layer.succeed(
+    Databases,
+    testDatabases({ main: mainDB, user: () => Effect.succeed(userDB), space }),
+  );
   const run = <A, E>(effect: Effect.Effect<A, E, Databases>) =>
     Effect.runPromise(effect.pipe(Effect.provide(layer)));
   return { mainDB, run };

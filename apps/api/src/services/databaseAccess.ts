@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { getSpaceById } from "@will-be-done/slices/user";
 import { getDbById, getDbByIdOrCreate } from "../slices/dbSlice";
-import { Databases } from "./databases";
+import { Databases, spaceDatabase, userDatabase } from "./databases";
 import { DatabaseAccessDeniedError, ResourceNotFoundError } from "./errors";
 import { dispatch, select } from "./hyperdb";
 
@@ -25,8 +25,7 @@ export const ensureDatabaseAccessOrCreate = Effect.fn(
     return;
   }
 
-  const databases = yield* Databases;
-  const space = yield* select(yield* databases.user(userId), {
+  const space = yield* select(yield* userDatabase(userId), {
     selector: getSpaceById,
     args: { id: dbId },
   });
@@ -34,7 +33,7 @@ export const ensureDatabaseAccessOrCreate = Effect.fn(
     return yield* new ResourceNotFoundError({ resource: "Space" });
   }
 
-  const mainDB = yield* databases.main;
+  const mainDB = yield* (yield* Databases).main;
   const existing = yield* select(mainDB, {
     selector: getDbById,
     args: { id: dbId, type: dbType },
@@ -62,5 +61,5 @@ export const getSpaceDatabase = Effect.fn("getSpaceDatabase")(function* (
     dbType: "space",
     userId,
   });
-  return yield* (yield* Databases).space(spaceId);
+  return yield* spaceDatabase(spaceId);
 });

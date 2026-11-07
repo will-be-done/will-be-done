@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   createUserSpace,
   deleteUserSpace,
@@ -9,7 +9,7 @@ import {
   listUserSpaces,
   updateUserSpace,
 } from "../../services/spaces";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   CreateSpaceBodySchema,
   CreateSpaceResponseSchema,
@@ -39,20 +39,12 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
-
       return runRoute(
         request,
         reply,
         "Failed to list spaces",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const spaces = yield* listUserSpaces({ userId: user.id });
           return reply.code(200).send({ spaces });
         }),
@@ -78,20 +70,12 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
-
       return runRoute(
         request,
         reply,
         "Failed to create space",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const space = yield* createUserSpace({
             userId: user.id,
             name: request.body.name,
@@ -122,14 +106,12 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to get space",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const space = yield* getUserSpace({
             userId: user.id,
             spaceId: request.params.spaceId,
@@ -164,20 +146,12 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
-
       return runRoute(
         request,
         reply,
         "Failed to delete space",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const deleted = yield* deleteUserSpace({
             userId: user.id,
             spaceId: request.params.spaceId,
@@ -214,9 +188,6 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       const { name } = request.body;
       if (name === undefined) {
         return reply.code(400).send({
@@ -230,6 +201,7 @@ export const spaceRoutes: FastifyPluginAsyncZod = async (server) => {
         reply,
         "Failed to update space",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const space = yield* updateUserSpace({
             userId: user.id,
             spaceId: request.params.spaceId,

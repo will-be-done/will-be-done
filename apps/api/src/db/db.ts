@@ -6,6 +6,7 @@ import {
   execAsync,
   SubscribableDB,
   TableDefinition,
+  type HyperDB,
 } from "@will-be-done/hyperdb";
 import path from "path";
 import { getEnvConfig } from "../env";
@@ -187,17 +188,23 @@ export const getMainHyperDB = async () => {
   }
 };
 
-type HyperDBCacheEntry = {
+export type OpenedDatabase = {
   dbConfig: DBConfig;
-  db: SubscribableDB;
+  db: HyperDB;
   nextClock: HlcClock;
   clientId: string;
 };
 
-const dbs = new Map<string, HyperDBCacheEntry>();
-const dbPromises = new Map<string, Promise<HyperDBCacheEntry>>();
+export type LoadedDatabase = {
+  database: string;
+  dbType: DBConfig["dbType"];
+  db: HyperDB;
+};
 
-export const getLoadedHyperDBs = () =>
+const dbs = new Map<string, OpenedDatabase>();
+const dbPromises = new Map<string, Promise<OpenedDatabase>>();
+
+export const getLoadedHyperDBs = (): LoadedDatabase[] =>
   [...dbs.entries()].map(([database, entry]) => ({
     database,
     dbType: entry.dbConfig.dbType,

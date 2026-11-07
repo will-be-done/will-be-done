@@ -25,6 +25,9 @@ import { createContext } from "./trpc";
 import { v1Routes } from "./http/v1";
 import { syncV4Routes } from "./sync/routes";
 import type { DB } from "@will-be-done/hyperdb";
+import { Context } from "effect";
+import { Databases } from "./services/databases";
+import "./runtime";
 import { setupSentryErrorHandler } from "./instrument";
 import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
 
@@ -34,6 +37,7 @@ export interface CreateServerOptions {
   serveFrontend?: boolean;
   rateLimit?: RateLimitConfig;
   mainDB?: DB;
+  databases?: Databases["Service"];
   analytics?: BackendAnalytics;
   google?: GoogleService;
 }
@@ -44,6 +48,7 @@ export function createServer({
   serveFrontend = true,
   rateLimit = { backend: "memory" },
   mainDB,
+  databases = Databases.make(mainDB),
   analytics = noopBackendAnalytics,
   google,
 }: CreateServerOptions) {
@@ -56,6 +61,7 @@ export function createServer({
     trustProxy: ["loopback", "linklocal", "uniquelocal"],
   });
 
+  server.decorate("services", Context.make(Databases, databases));
   setupSentryErrorHandler(server);
 
   server.setValidatorCompiler(validatorCompiler);
@@ -129,10 +135,7 @@ export function createServer({
     prefix: "/api/v1",
     analytics,
   });
-  server.register(syncV4Routes, {
-    prefix: "/api/sync/v4",
-    mainDB,
-  });
+  server.register(syncV4Routes, { prefix: "/api/sync/v4" });
 
   server.register(async (trpcServer) => {
     const appRateLimiter = rateLimitEnabled
@@ -145,7 +148,11 @@ export function createServer({
       trpcOptions: {
         router: appRouter,
         createContext: (options) =>
-          createContext({ ...options, rateLimiter: appRateLimiter, mainDB }),
+          createContext({
+            ...options,
+            rateLimiter: appRateLimiter,
+            services: server.services,
+          }),
       } satisfies FastifyTRPCPluginOptions<AppRouter>["trpcOptions"],
     });
   });

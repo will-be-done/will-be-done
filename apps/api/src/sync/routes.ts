@@ -1,24 +1,18 @@
-import { Effect } from "effect";
-import type { DB } from "@will-be-done/hyperdb";
-import type { FastifyPluginAsync } from "fastify";
-import { ZodError } from "zod";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
+import { Cause, Effect, Option } from "effect";
 import { dbConfigByType } from "../db/configs";
-import { getHyperDB } from "../db/db";
-import { authenticateRequest } from "../services/authentication";
+import { runRequest, type RequestServices } from "../runtime";
+import { requireUser } from "../services/authentication";
 import { ensureDatabaseAccessOrCreate } from "../services/databaseAccess";
 import { Databases } from "../services/databases";
-import {
-  SyncClockSkewError,
-  SyncClientCursorAdvancedError,
-  SyncConflictError,
-  SyncInvalidRequestError,
-  SyncSessionNotFoundError,
-} from "./errors";
+import type { ServiceError } from "../services/errors";
+import { SyncInvalidRequestError, type SyncError } from "./errors";
 import { runSyncMaintenance } from "./maintenance";
 import {
   createServerSyncV4,
   SYNC_V4_CHUNK_BODY_LIMIT,
   SYNC_V4_SMALL_BODY_LIMIT,
+  type ServerSyncV4,
 } from "./serverSyncV4";
 
 type DatabaseParams = { dbType: "user" | "space"; dbId: string };
@@ -31,23 +25,19 @@ type DownloadParams = DatabaseParams & {
 
 const SYNC_MAINTENANCE_INTERVAL_MS = 15 * 60 * 1000;
 
-const prepare = async (
-  request: Parameters<typeof authenticateRequest>[0],
+const prepare = Effect.fn("sync.prepare")(function* (
+  request: FastifyRequest,
   params: DatabaseParams,
-  mainDB?: DB,
-) => {
+) {
   if (params.dbType !== "user" && params.dbType !== "space") {
-    throw new SyncInvalidRequestError("Invalid database type");
+    return yield* new SyncInvalidRequestError({
+      message: "Invalid database type",
+    });
   }
-  const user = await authenticateRequest(request, undefined, mainDB);
-  if (!user) return null;
-  await Effect.runPromise(
-    ensureDatabaseAccessOrCreate({ ...params, userId: user.id }).pipe(
-      Effect.provideService(Databases, Databases.make(mainDB)),
-    ),
-  );
+  const user = yield* requireUser(request);
+  yield* ensureDatabaseAccessOrCreate({ ...params, userId: user.id });
   const config = dbConfigByType(params.dbType, params.dbId);
-  const hyper = await getHyperDB(config);
+  const hyper = yield* Databases.use((databases) => databases.open(config));
   return createServerSyncV4({
     db: hyper.db,
     dbConfig: config,
@@ -55,12 +45,60 @@ const prepare = async (
     serverClientId: hyper.clientId,
     userId: user.id,
   });
+});
+
+const sendSyncError = (
+  reply: FastifyReply,
+  error: SyncError | ServiceError,
+) => {
+  switch (error._tag) {
+    case "UnauthorizedError":
+      return reply.code(401).send({ error: "Unauthorized" });
+    case "BadRequestError":
+    case "SyncInvalidRequestError":
+      return reply.code(400).send({ error: error.message });
+    case "DatabaseAccessDeniedError":
+      return reply.code(403).send({ error: "Forbidden" });
+    case "ResourceNotFoundError":
+    case "SyncSessionNotFoundError":
+      return reply.code(404).send({ error: error.message });
+    case "SyncClientCursorAdvancedError":
+      return reply.code(409).send({ error: error.message, code: error.code });
+    case "ConflictError":
+    case "SyncConflictError":
+      return reply.code(409).send({ error: error.message });
+    case "SyncClockSkewError":
+      return reply.code(422).send({
+        error: error.message,
+        code: error.code,
+        observedClock: error.observedClock,
+        serverTimeMs: error.serverTimeMs,
+        maxFutureSkewMs: error.maxFutureSkewMs,
+      });
+  }
 };
 
-export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
-  server,
-  options,
-) => {
+const runSyncRoute = <A, E extends SyncError | ServiceError>(
+  request: FastifyRequest<{ Params: DatabaseParams }>,
+  reply: FastifyReply,
+  handle: (sync: ServerSyncV4) => Effect.Effect<A, E, RequestServices>,
+) =>
+  runRequest(
+    request,
+    prepare(request, request.params).pipe(
+      Effect.flatMap(handle),
+      Effect.catchCause((cause: Cause.Cause<SyncError | ServiceError>) =>
+        Effect.sync(() => {
+          const error = Cause.findErrorOption(cause);
+          if (Option.isSome(error)) return sendSyncError(reply, error.value);
+          request.log.error(Cause.squash(cause), "Sync v4 request failed");
+          return reply.code(500).send({ error: "Internal server error" });
+        }),
+      ),
+    ),
+  );
+
+export const syncV4Routes: FastifyPluginAsync = async (server) => {
   let maintenanceRunning = false;
   const maintain = async () => {
     if (maintenanceRunning) return;
@@ -86,45 +124,12 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     if (maintenanceInterval) clearInterval(maintenanceInterval);
   });
 
+  // Errors raised before the handler runs, such as body parsing.
   server.setErrorHandler((error, request, reply) => {
     if ((error as { code?: string }).code === "FST_ERR_CTP_BODY_TOO_LARGE") {
       return reply.code(413).send({ error: "Sync request body is too large" });
     }
-    if (error instanceof ZodError) {
-      return reply.code(400).send({ error: "Invalid sync request" });
-    }
-    if (error instanceof SyncInvalidRequestError) {
-      return reply.code(400).send({ error: error.message });
-    }
-    const knownError =
-      error instanceof Error ? error : new Error(String(error));
-    if (knownError.name === "DatabaseAccessDeniedError") {
-      return reply.code(403).send({ error: "Forbidden" });
-    }
-    if (knownError.name === "ResourceNotFoundError") {
-      return reply.code(404).send({ error: knownError.message });
-    }
-    if (knownError instanceof SyncSessionNotFoundError) {
-      return reply.code(404).send({ error: knownError.message });
-    }
-    if (knownError instanceof SyncClientCursorAdvancedError) {
-      return reply
-        .code(409)
-        .send({ error: knownError.message, code: knownError.code });
-    }
-    if (knownError instanceof SyncConflictError) {
-      return reply.code(409).send({ error: knownError.message });
-    }
-    if (knownError instanceof SyncClockSkewError) {
-      return reply.code(422).send({
-        error: knownError.message,
-        code: knownError.code,
-        observedClock: knownError.observedClock,
-        serverTimeMs: knownError.serverTimeMs,
-        maxFutureSkewMs: knownError.maxFutureSkewMs,
-      });
-    }
-    request.log.error(knownError, "Sync v4 request failed");
+    request.log.error(error, "Sync v4 request failed");
     return reply.code(500).send({ error: "Internal server error" });
   });
 
@@ -132,9 +137,9 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     "/:dbType/:dbId/sessions",
     { bodyLimit: SYNC_V4_SMALL_BODY_LIMIT },
     async (request, reply) => {
-      const sync = await prepare(request, request.params, options.mainDB);
-      if (!sync) return reply.code(401).send({ error: "Unauthorized" });
-      return await sync.createSession(request.body);
+      return runSyncRoute(request, reply, (sync) =>
+        sync.createSession(request.body),
+      );
     },
   );
 
@@ -142,12 +147,12 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     "/:dbType/:dbId/sessions/:uploadId/chunks/:sequence",
     { bodyLimit: SYNC_V4_CHUNK_BODY_LIMIT },
     async (request, reply) => {
-      const sync = await prepare(request, request.params, options.mainDB);
-      if (!sync) return reply.code(401).send({ error: "Unauthorized" });
-      return await sync.putChunk(
-        request.params.uploadId,
-        request.params.sequence,
-        request.body,
+      return runSyncRoute(request, reply, (sync) =>
+        sync.putChunk(
+          request.params.uploadId,
+          request.params.sequence,
+          request.body,
+        ),
       );
     },
   );
@@ -156,20 +161,20 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     "/:dbType/:dbId/sessions/:uploadId/commit",
     { bodyLimit: SYNC_V4_SMALL_BODY_LIMIT },
     async (request, reply) => {
-      const sync = await prepare(request, request.params, options.mainDB);
-      if (!sync) return reply.code(401).send({ error: "Unauthorized" });
-      return await sync.commit(request.params.uploadId, request.body);
+      return runSyncRoute(request, reply, (sync) =>
+        sync.commit(request.params.uploadId, request.body),
+      );
     },
   );
 
   server.get<{ Params: DownloadParams }>(
     "/:dbType/:dbId/downloads/:downloadId/chunks/:sequence",
     async (request, reply) => {
-      const sync = await prepare(request, request.params, options.mainDB);
-      if (!sync) return reply.code(401).send({ error: "Unauthorized" });
-      return await sync.readDownloadChunk(
-        request.params.downloadId,
-        request.params.sequence,
+      return runSyncRoute(request, reply, (sync) =>
+        sync.readDownloadChunk(
+          request.params.downloadId,
+          request.params.sequence,
+        ),
       );
     },
   );
@@ -178,9 +183,9 @@ export const syncV4Routes: FastifyPluginAsync<{ mainDB?: DB }> = async (
     "/:dbType/:dbId/downloads/:downloadId/ack",
     { bodyLimit: SYNC_V4_SMALL_BODY_LIMIT },
     async (request, reply) => {
-      const sync = await prepare(request, request.params, options.mainDB);
-      if (!sync) return reply.code(401).send({ error: "Unauthorized" });
-      return await sync.acknowledgeDownload(request.params.downloadId);
+      return runSyncRoute(request, reply, (sync) =>
+        sync.acknowledgeDownload(request.params.downloadId),
+      );
     },
   );
 };

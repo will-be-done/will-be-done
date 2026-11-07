@@ -18,6 +18,7 @@ import { dbsTable, getDbById, getDbByIdOrCreate } from "../slices/dbSlice";
 import { spacesTable, spacesTableType } from "@will-be-done/slices/user";
 import { Effect, Layer } from "effect";
 import { Databases } from "./databases";
+import { testDatabases } from "./testing";
 import { DatabaseAccessDeniedError, ResourceNotFoundError } from "./errors";
 import { listSpaceProjects } from "./projects";
 
@@ -67,11 +68,14 @@ const seedSpaceMembership = action({
 });
 
 function runner(mainDB: HyperDB, userDB: HyperDB, spaceDB: HyperDB) {
-  const layer = Layer.succeed(Databases, {
-    main: Effect.succeed(mainDB),
-    user: () => Effect.succeed(userDB),
-    space: () => Effect.succeed(spaceDB),
-  });
+  const layer = Layer.succeed(
+    Databases,
+    testDatabases({
+      main: mainDB,
+      user: () => Effect.succeed(userDB),
+      space: () => Effect.succeed(spaceDB),
+    }),
+  );
   return <A, E>(effect: Effect.Effect<A, E, Databases>) =>
     Effect.runPromise(effect.pipe(Effect.provide(layer)));
 }

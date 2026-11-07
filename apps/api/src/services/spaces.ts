@@ -8,7 +8,7 @@ import {
 } from "@will-be-done/slices/user";
 import { deleteDb } from "../slices/dbSlice";
 import { getSpaceDatabase } from "./databaseAccess";
-import { Databases } from "./databases";
+import { Databases, userDatabase } from "./databases";
 import { dispatch, select } from "./hyperdb";
 
 export interface PublicSpace {
@@ -26,9 +26,6 @@ function toPublicSpace({
 }: PublicSpace): PublicSpace {
   return { id, name, createdAt, updatedAt };
 }
-
-const userDatabase = (userId: string) =>
-  Databases.use((databases) => databases.user(userId));
 
 export const listUserSpaces = Effect.fn("listUserSpaces")(function* ({
   userId,
@@ -64,7 +61,7 @@ export const createUserSpace = Effect.fn("createUserSpace")(function* ({
   name: string;
 }) {
   const databases = yield* Databases;
-  const userDB = yield* databases.user(userId);
+  const userDB = yield* userDatabase(userId);
   const space = yield* dispatch(userDB, createSpace({ name }));
 
   const rollback = Effect.all(
@@ -103,7 +100,7 @@ export const deleteUserSpace = Effect.fn("deleteUserSpace")(function* ({
   spaceId: string;
 }) {
   const databases = yield* Databases;
-  const userDB = yield* databases.user(userId);
+  const userDB = yield* userDatabase(userId);
   const space = yield* select(userDB, {
     selector: getSpaceById,
     args: { id: spaceId },

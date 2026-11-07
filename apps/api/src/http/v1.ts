@@ -9,8 +9,8 @@ import { noteRoutes } from "./v1/notes";
 import { checklistItemRoutes } from "./v1/checklistItems";
 import { stashRoutes } from "./v1/stash";
 import { mindmapRoutes } from "./v1/mindmaps";
-import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
+import { Databases } from "../services/databases";
 import { dispatch } from "../services/hyperdb";
 import { runRoute } from "./errors";
 import { Cause, Clock, Effect } from "effect";
@@ -21,7 +21,10 @@ import {
   noopBackendAnalytics,
   type BackendAnalytics,
 } from "../analytics";
-import { getAuthenticatedRequestUser } from "../services/authentication";
+import {
+  authenticateBearerToken,
+  getAuthenticatedRequestUser,
+} from "../services/authentication";
 
 interface V1RoutesOptions {
   analytics?: BackendAnalytics;
@@ -57,9 +60,6 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
     const spaceId = (request.params as { spaceId?: unknown }).spaceId;
     if (typeof spaceId !== "string") return;
 
-    const user = await authenticateBearerToken(request.headers.authorization);
-    if (!user) return;
-
     if (
       request.method === "PATCH" &&
       request.routeOptions.url?.endsWith(
@@ -74,6 +74,11 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
       reply,
       "Failed to prepare space data",
       Effect.gen(function* () {
+        const user = yield* authenticateBearerToken(
+          request.headers.authorization,
+          yield* (yield* Databases).main,
+        );
+        if (!user) return;
         const db = yield* getSpaceDatabase(spaceId, user.id);
         yield* dispatch(
           db,

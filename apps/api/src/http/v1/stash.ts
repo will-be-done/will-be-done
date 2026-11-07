@@ -1,14 +1,14 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateBearerToken } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   createStashTask,
   listStashTasks,
   putTaskInStash,
   removeTaskFromStash,
 } from "../../services/stash";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   CreateStashTaskBodySchema,
   ErrorResponseSchema,
@@ -44,14 +44,12 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list stash tasks",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const tasks = yield* listStashTasks({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -87,14 +85,12 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to create stash task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* createStashTask({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -130,14 +126,12 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to add task to stash",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* putTaskInStash({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -172,14 +166,12 @@ export const stashRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to remove task from stash",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* removeTaskFromStash({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,

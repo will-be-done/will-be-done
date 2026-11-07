@@ -28,7 +28,17 @@ export class DatabaseAccessDeniedError extends Schema.TaggedError<DatabaseAccess
   }
 }
 
+export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
+  "UnauthorizedError",
+  {},
+) {
+  override get message() {
+    return "A valid bearer token is required";
+  }
+}
+
 export type ServiceError =
+  | UnauthorizedError
   | ResourceNotFoundError
   | BadRequestError
   | ConflictError

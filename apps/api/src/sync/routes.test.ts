@@ -17,7 +17,8 @@ import {
 } from "@will-be-done/slices/common";
 import { createAppRouter } from "../appRouter";
 import { userDBConfig } from "../db/configs";
-import * as databases from "../db/db";
+import { testDatabases } from "../services/testing";
+import { Effect } from "effect";
 import { createServer } from "../server";
 import { register, tokensTable, usersTable } from "../slices/authSlice";
 import { dbsTable } from "../slices/dbSlice";
@@ -56,18 +57,14 @@ describe("sync v4 routes", () => {
     const userDB = new DB(new BptreeInmemDriver());
     execSync(userDB.loadTables(config.persistDBTables));
 
-    spyOn(databases, "getHyperDB").mockResolvedValue({
-      db: userDB,
-      dbConfig: config,
-      nextClock: Object.assign(() => "", { observe: () => {} }),
-      clientId: "server",
-    } as never);
-
     const server = createServer({
       appRouter: createAppRouter({ mainDB, captchaConfig: null }),
       logger: false,
       serveFrontend: false,
-      mainDB,
+      databases: testDatabases({
+        main: mainDB,
+        user: () => Effect.succeed(userDB),
+      }),
     });
 
     try {

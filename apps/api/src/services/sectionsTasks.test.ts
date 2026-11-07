@@ -52,6 +52,7 @@ import {
 } from "./sections";
 import { listSectionItems } from "./items";
 import { Databases } from "./databases";
+import { testDatabases } from "./testing";
 import { ConflictError, ResourceNotFoundError } from "./errors";
 import {
   createSectionTask,
@@ -301,11 +302,14 @@ function setUpDatabases() {
   );
   syncDispatch(spaceDB, seedDomain({}));
 
-  const layer = Layer.succeed(Databases, {
-    main: Effect.succeed(mainDB),
-    user: () => Effect.succeed(userDB),
-    space: () => Effect.succeed(spaceDB),
-  });
+  const layer = Layer.succeed(
+    Databases,
+    testDatabases({
+      main: mainDB,
+      user: () => Effect.succeed(userDB),
+      space: () => Effect.succeed(spaceDB),
+    }),
+  );
   const run = <A, E>(effect: Effect.Effect<A, E, Databases>) =>
     Effect.runPromise(effect.pipe(Effect.provide(layer)));
   return { spaceDB, run };

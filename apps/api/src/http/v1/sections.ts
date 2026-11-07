@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   createProjectSection,
   deleteProjectSection,
@@ -10,7 +10,7 @@ import {
   moveProjectSection,
   updateProjectSection,
 } from "../../services/sections";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   SectionParamsSchema,
   CreateProjectSectionBodySchema,
@@ -44,14 +44,12 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list project sections",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const sections = yield* listProjectSections({
             spaceId: request.params.spaceId,
             projectId: request.params.projectId,
@@ -85,13 +83,12 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to create project section",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const section = yield* createProjectSection({
             spaceId: request.params.spaceId,
             projectId: request.params.projectId,
@@ -124,13 +121,12 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to get project section",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const section = yield* getProjectSection({
             spaceId: request.params.spaceId,
             sectionId: request.params.sectionId,
@@ -164,13 +160,12 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to update project section",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const section = yield* updateProjectSection({
             spaceId: request.params.spaceId,
             sectionId: request.params.sectionId,
@@ -204,13 +199,12 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to delete project section",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* deleteProjectSection({
             spaceId: request.params.spaceId,
             sectionId: request.params.sectionId,
@@ -244,13 +238,12 @@ export const sectionRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to move project section",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const section = yield* moveProjectSection({
             spaceId: request.params.spaceId,
             sectionId: request.params.sectionId,

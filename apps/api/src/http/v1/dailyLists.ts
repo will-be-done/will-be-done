@@ -1,6 +1,6 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   listDailyListItems,
   listDailyListsInRange,
@@ -14,7 +14,7 @@ import {
   ErrorResponseSchema,
   SpaceParamsSchema,
 } from "../schemas";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 
 export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
   server.get(
@@ -40,14 +40,12 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list daily lists",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const result = yield* listDailyListsInRange({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -82,14 +80,12 @@ export const dailyListRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list daily-list items",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const items = yield* listDailyListItems({
             spaceId: request.params.spaceId,
             userId: user.id,

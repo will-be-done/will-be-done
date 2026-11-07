@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   createSpaceProject,
   deleteSpaceProject,
@@ -20,7 +20,7 @@ import {
   ProjectResponseSchema,
   UpdateProjectBodySchema,
 } from "../schemas";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 
 export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
   server.get(
@@ -44,20 +44,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
-
       return runRoute(
         request,
         reply,
         "Failed to list projects",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const projects = yield* listSpaceProjects({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -89,18 +81,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
       return runRoute(
         request,
         reply,
         "Failed to create project",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const project = yield* createSpaceProject({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -132,14 +118,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to get project",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const project = yield* getSpaceProject({
             spaceId: request.params.spaceId,
             projectId: request.params.projectId,
@@ -173,18 +157,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
       return runRoute(
         request,
         reply,
         "Failed to update project",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const project = yield* updateSpaceProject({
             spaceId: request.params.spaceId,
             projectId: request.params.projectId,
@@ -218,18 +196,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
       return runRoute(
         request,
         reply,
         "Failed to delete project",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* deleteSpaceProject({
             spaceId: request.params.spaceId,
             projectId: request.params.projectId,
@@ -263,18 +235,12 @@ export const projectRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) {
-        return reply.code(401).send({
-          code: "UNAUTHORIZED",
-          message: "A valid bearer token is required",
-        });
-      }
       return runRoute(
         request,
         reply,
         "Failed to move project",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const project = yield* moveSpaceProject({
             spaceId: request.params.spaceId,
             projectId: request.params.projectId,

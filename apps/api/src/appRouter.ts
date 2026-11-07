@@ -1,12 +1,13 @@
-import { Effect } from "effect";
+import { Context, Effect } from "effect";
 import { z } from "zod";
-import { asyncDispatch, type DB } from "@will-be-done/hyperdb";
+import type { DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
 import {
   enforceRateLimit,
   protectedProcedure,
   publicProcedure,
   router,
+  toTRPCError,
 } from "./trpc";
 import {
   generateToken,
@@ -27,6 +28,9 @@ import { verifyCaptchaTokenWithTimeout } from "./captcha/verifyCaptchaToken";
 import { importFromTodoist } from "./todoist/importTodoist";
 import { ensureDatabaseAccessOrCreate } from "./services/databaseAccess";
 import { Databases } from "./services/databases";
+import { ResourceNotFoundError, UnauthorizedError } from "./services/errors";
+import type { ServiceError } from "./services/errors";
+import { dispatch } from "./services/hyperdb";
 import { assertSupportedSyncVersion } from "./syncVersion";
 import { noopBackendAnalytics, type BackendAnalytics } from "./analytics";
 
@@ -56,20 +60,10 @@ export function createAppRouter({
   accountEmail,
   google,
 }: AppRouterDependencies) {
-  const checkDatabaseAccess = (
-    dbId: string,
-    dbType: "user" | "space",
-    userId: string,
-  ) =>
-    ensureDatabaseAccessOrCreate({ dbId, dbType, userId }).pipe(
-      Effect.catchTag("DatabaseAccessDeniedError", (error) =>
-        Effect.die(
-          new TRPCError({ code: "FORBIDDEN", message: error.message }),
-        ),
-      ),
-      Effect.provideService(Databases, Databases.make(mainDB)),
-      Effect.runPromise,
-    );
+  const services = Context.make(Databases, Databases.make(mainDB));
+  const run = <A, E extends ServiceError>(
+    effect: Effect.Effect<A, E, Databases>,
+  ) => Effect.runPromiseWith(services)(toTRPCError(effect));
 
   return router({
     google: googleRouter(mainDB, google, analytics),
@@ -77,20 +71,24 @@ export function createAppRouter({
       emailEnabled: accountEmail?.enabled ?? false,
       googleEnabled: Boolean(google),
     })),
-    getAccount: protectedProcedure.query(async ({ ctx }) => {
-      const user = await asyncDispatch(
-        mainDB,
-        getUserById({ id: ctx.user.id }),
-      );
-      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
-      return {
-        id: user.id,
-        email: user.email,
-        emailVerifiedAt: user.emailVerifiedAt ?? null,
-        hasPassword: Boolean(user.password),
-        googleEmail: user.googleEmail ?? null,
-      };
-    }),
+    getAccount: protectedProcedure.query(({ ctx }) =>
+      run(
+        Effect.gen(function* () {
+          const user = yield* dispatch(
+            mainDB,
+            getUserById({ id: ctx.user.id }),
+          );
+          if (!user) return yield* new UnauthorizedError();
+          return {
+            id: user.id,
+            email: user.email,
+            emailVerifiedAt: user.emailVerifiedAt ?? null,
+            hasPassword: Boolean(user.password),
+            googleEmail: user.googleEmail ?? null,
+          };
+        }),
+      ),
+    ),
     requestEmailVerification: protectedProcedure
       .use(enforceRateLimit("accountEmailSend"))
       .mutation(({ ctx }) =>
@@ -154,10 +152,12 @@ export function createAppRouter({
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
 
-        await checkDatabaseAccess(
-          opts.input.dbId,
-          opts.input.dbType,
-          opts.ctx.user.id,
+        await run(
+          ensureDatabaseAccessOrCreate({
+            dbId: opts.input.dbId,
+            dbType: opts.input.dbType,
+            userId: opts.ctx.user.id,
+          }),
         );
 
         const state = new State<NotificationData[]>([]);
@@ -199,67 +199,67 @@ export function createAppRouter({
         }
       }),
 
-    listTokens: protectedProcedure.query(async (opts) => {
-      if (!opts.ctx.user) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
+    listTokens: protectedProcedure.query(({ ctx }) =>
+      run(
+        dispatch(mainDB, getTokensByUserId({ userId: ctx.user.id })).pipe(
+          Effect.map((tokens) =>
+            tokens.map(
+              ({
+                id,
+                createdAt,
+                lastUsedAt,
+                lastUsedIp,
+                lastUsedUserAgent,
+              }) => ({
+                id,
+                createdAt,
+                ...(lastUsedAt !== undefined ? { lastUsedAt } : {}),
+                ...(lastUsedIp !== undefined ? { lastUsedIp } : {}),
+                ...(lastUsedUserAgent !== undefined
+                  ? { lastUsedUserAgent }
+                  : {}),
+              }),
+            ),
+          ),
+        ),
+      ),
+    ),
 
-      return (
-        await asyncDispatch(
-          mainDB,
-          getTokensByUserId({ userId: opts.ctx.user.id }),
-        )
-      ).map(({ id, createdAt, lastUsedAt, lastUsedIp, lastUsedUserAgent }) => ({
-        id,
-        createdAt,
-        ...(lastUsedAt !== undefined ? { lastUsedAt } : {}),
-        ...(lastUsedIp !== undefined ? { lastUsedIp } : {}),
-        ...(lastUsedUserAgent !== undefined ? { lastUsedUserAgent } : {}),
-      }));
-    }),
-
-    createToken: protectedProcedure.mutation(async (opts) => {
-      if (!opts.ctx.user) {
-        throw new TRPCError({ code: "UNAUTHORIZED" });
-      }
-
-      const created = await asyncDispatch(
-        mainDB,
-        generateToken({
-          userId: opts.ctx.user.id,
-          authorizedByToken: opts.ctx.tokenId,
+    createToken: protectedProcedure.mutation(({ ctx }) =>
+      run(
+        Effect.gen(function* () {
+          const created = yield* dispatch(
+            mainDB,
+            generateToken({
+              userId: ctx.user.id,
+              authorizedByToken: ctx.tokenId,
+            }),
+          );
+          analytics.capture({
+            name: "api_token_created",
+            distinctId: ctx.user.id,
+          });
+          return { id: created.token, createdAt: created.createdAt };
         }),
-      );
-      analytics.capture({
-        name: "api_token_created",
-        distinctId: opts.ctx.user.id,
-      });
-      return { id: created.token, createdAt: created.createdAt };
-    }),
+      ),
+    ),
 
     deleteToken: protectedProcedure
       .input(z.object({ tokenId: z.string() }))
-      .mutation(async (opts) => {
-        if (!opts.ctx.user) {
-          throw new TRPCError({ code: "UNAUTHORIZED" });
-        }
-
-        const deleted = await asyncDispatch(
-          mainDB,
-          revokeToken({
-            tokenId: opts.input.tokenId,
-            userId: opts.ctx.user.id,
+      .mutation(({ ctx, input }) =>
+        run(
+          Effect.gen(function* () {
+            const deleted = yield* dispatch(
+              mainDB,
+              revokeToken({ tokenId: input.tokenId, userId: ctx.user.id }),
+            );
+            if (!deleted) {
+              return yield* new ResourceNotFoundError({ resource: "Token" });
+            }
+            return { success: true };
           }),
-        );
-        if (!deleted) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Token not found",
-          });
-        }
-
-        return { success: true };
-      }),
+        ),
+      ),
 
     getCaptchaConfig: publicProcedure.query(() => ({
       enabled: captchaConfig !== null,
@@ -343,7 +343,7 @@ export function createAppRouter({
         const result = await runStage("database transaction", () =>
           accountEmail?.enabled
             ? accountEmail.register(email, hashedPassword)
-            : asyncDispatch(mainDB, register({ email, hashedPassword })),
+            : run(dispatch(mainDB, register({ email, hashedPassword }))),
         );
         console.log(
           `[Register ${requestId}] request completed in ${Math.round(performance.now() - requestStartedAt)}ms`,
@@ -372,31 +372,39 @@ export function createAppRouter({
         }),
       )
       .use(enforceRateLimit("login"))
-      .mutation(async (opts) => {
-        const { email, password } = opts.input;
-        const user =
-          (await asyncDispatch(mainDB, getUserByEmail({ email }))) ??
-          (await asyncDispatch(mainDB, getUserByNormalizedEmail({ email })));
-        if (!user?.password) {
-          throw new Error("Invalid credentials");
-        }
+      .mutation(({ input: { email, password } }) =>
+        run(
+          Effect.gen(function* () {
+            const user =
+              (yield* dispatch(mainDB, getUserByEmail({ email }))) ??
+              (yield* dispatch(mainDB, getUserByNormalizedEmail({ email })));
+            const hashedPassword = user?.password;
+            if (
+              !user ||
+              !hashedPassword ||
+              !(yield* Effect.promise(() =>
+                Bun.password.verify(password, hashedPassword),
+              ))
+            ) {
+              return yield* Effect.die(new Error("Invalid credentials"));
+            }
 
-        const isValid = await Bun.password.verify(password, user.password);
-        if (!isValid) {
-          throw new Error("Invalid credentials");
-        }
-
-        const result = await asyncDispatch(
-          mainDB,
-          generateToken({ userId: user.id, expectedPassword: user.password }),
-        );
-        analytics.capture({
-          name: "login_succeeded",
-          distinctId: user.id,
-          properties: { auth_method: "password" },
-        });
-        return result;
-      }),
+            const result = yield* dispatch(
+              mainDB,
+              generateToken({
+                userId: user.id,
+                expectedPassword: hashedPassword,
+              }),
+            );
+            analytics.capture({
+              name: "login_succeeded",
+              distinctId: user.id,
+              properties: { auth_method: "password" },
+            });
+            return result;
+          }),
+        ),
+      ),
   });
 }
 

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateBearerToken } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   createMindmap,
   createMindmapNode,
@@ -13,7 +13,7 @@ import {
   updateMindmap,
   updateMindmapNode,
 } from "../../services/mindmaps";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   CreateMindmapBodySchema,
   CreateMindmapNodeBodySchema,
@@ -57,14 +57,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list mindmaps",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const mindmaps = yield* listMindmaps({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -88,14 +86,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to create mindmap",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const mindmap = yield* createMindmap({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -119,14 +115,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to get mindmap",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const result = yield* getMindmap({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -151,14 +145,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to update mindmap",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const mindmap = yield* updateMindmap({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -185,14 +177,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to delete mindmap",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* deleteMindmap({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -217,14 +207,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to add mindmap node",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const node = yield* createMindmapNode({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -250,14 +238,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to update mindmap node",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const node = yield* updateMindmapNode({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -283,14 +269,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to move mindmap node",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const node = yield* moveMindmapNode({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -316,14 +300,12 @@ export const mindmapRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateBearerToken(request.headers.authorization);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to remove mindmap node",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* deleteMindmapNode({
             spaceId: request.params.spaceId,
             userId: user.id,

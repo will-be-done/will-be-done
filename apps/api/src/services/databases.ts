@@ -1,14 +1,21 @@
 import type { HyperDB } from "@will-be-done/hyperdb";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 import { spaceDBConfig, userDBConfig } from "../db/configs";
-import { getHyperDB, getMainHyperDB } from "../db/db";
+import {
+  getHyperDB,
+  getLoadedHyperDBs,
+  getMainHyperDB,
+  type DBConfig,
+  type LoadedDatabase,
+  type OpenedDatabase,
+} from "../db/db";
 
 export class Databases extends Context.Service<
   Databases,
   {
     readonly main: Effect.Effect<HyperDB>;
-    readonly user: (userId: string) => Effect.Effect<HyperDB>;
-    readonly space: (spaceId: string) => Effect.Effect<HyperDB>;
+    readonly open: (config: DBConfig) => Effect.Effect<OpenedDatabase>;
+    readonly loaded: Effect.Effect<readonly LoadedDatabase[]>;
   }
 >()("@will-be-done/api/Databases") {
   // The databases stay open for the process; MainDatabase closes them.
@@ -16,15 +23,17 @@ export class Databases extends Context.Service<
     main: mainDB
       ? Effect.succeed(mainDB)
       : Effect.promise(() => getMainHyperDB()),
-    user: (userId) =>
-      Effect.promise(() => getHyperDB(userDBConfig(userId))).pipe(
-        Effect.map(({ db }) => db),
-      ),
-    space: (spaceId) =>
-      Effect.promise(() => getHyperDB(spaceDBConfig(spaceId))).pipe(
-        Effect.map(({ db }) => db),
-      ),
+    open: (config) => Effect.promise(() => getHyperDB(config)),
+    loaded: Effect.sync(getLoadedHyperDBs),
   });
-
-  static readonly layer = Layer.succeed(Databases, Databases.make());
 }
+
+export const userDatabase = (userId: string) =>
+  Databases.use((databases) => databases.open(userDBConfig(userId))).pipe(
+    Effect.map(({ db }): HyperDB => db),
+  );
+
+export const spaceDatabase = (spaceId: string) =>
+  Databases.use((databases) => databases.open(spaceDBConfig(spaceId))).pipe(
+    Effect.map(({ db }): HyperDB => db),
+  );

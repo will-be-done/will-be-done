@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import { listSectionItems } from "../../services/items";
 import {
   createSectionTask,
@@ -14,7 +14,7 @@ import { clearTaskSchedule, scheduleTask } from "../../services/scheduling";
 import { listSpaceTasks } from "../../services/taskQueries";
 import { listScheduledTasks } from "../../services/scheduledTasks";
 import { getDMY } from "@will-be-done/slices/space";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   SectionTasksParamsSchema,
   CreateTaskBodySchema,
@@ -74,14 +74,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list tasks",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           return reply.code(200).send(
             yield* listSpaceTasks({
               spaceId: request.params.spaceId,
@@ -117,14 +115,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list scheduled tasks",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           return reply.code(200).send(
             yield* listScheduledTasks({
               spaceId: request.params.spaceId,
@@ -164,14 +160,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to list items",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const items = yield* listSectionItems({
             spaceId: request.params.spaceId,
             sectionId: request.params.sectionId,
@@ -206,14 +200,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to create task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* createSectionTask({
             spaceId: request.params.spaceId,
             sectionId: request.params.sectionId,
@@ -246,14 +238,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to get task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* getTask({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -287,14 +277,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to update task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* updateTask({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -329,14 +317,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to delete task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* deleteTask({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -381,14 +367,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to clear task schedule",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const previousDate = yield* clearTaskSchedule({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -434,14 +418,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to schedule task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const { previousDate, ...response } = yield* scheduleTask({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -497,14 +479,12 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to move task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* moveTask({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,

@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   convertNoteToTask,
   convertTaskToNote,
@@ -10,7 +10,7 @@ import {
   moveNote,
   updateNote,
 } from "../../services/notes";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   ErrorResponseSchema,
   MoveNoteBodySchema,
@@ -42,14 +42,12 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to get note",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const note = yield* getNote({
             spaceId: request.params.spaceId,
             noteId: request.params.noteId,
@@ -82,14 +80,12 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to update note",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const note = yield* updateNote({
             spaceId: request.params.spaceId,
             noteId: request.params.noteId,
@@ -122,14 +118,12 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to delete note",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* deleteNote({
             spaceId: request.params.spaceId,
             noteId: request.params.noteId,
@@ -163,14 +157,12 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to move note",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const note = yield* moveNote({
             spaceId: request.params.spaceId,
             noteId: request.params.noteId,
@@ -203,14 +195,12 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to convert task to note",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const note = yield* convertTaskToNote({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -242,14 +232,12 @@ export const noteRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to convert note to task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* convertNoteToTask({
             spaceId: request.params.spaceId,
             noteId: request.params.noteId,

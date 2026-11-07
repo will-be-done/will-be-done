@@ -1,11 +1,13 @@
-import type { DB } from "@will-be-done/hyperdb";
-import { initTRPC, TRPCError } from "@trpc/server";
+import { initTRPC, TRPCError, type TRPC_ERROR_CODE_KEY } from "@trpc/server";
 import { UnsupportedSyncVersionError } from "@will-be-done/slices/common";
+import { Effect, type Context as EffectContext } from "effect";
 import type { FastifyRequest, FastifyReply } from "fastify";
+import type { RequestServices } from "./runtime";
 import {
   authenticateRequest,
   type AuthenticatedUser,
 } from "./services/authentication";
+import type { ServiceError } from "./services/errors";
 import type { AppRateLimiter, RateLimitPolicy } from "./rateLimit";
 
 /**
@@ -30,19 +32,23 @@ export async function createContext({
   req,
   res,
   rateLimiter,
-  mainDB,
+  services,
 }: {
   req: FastifyRequest;
   res: FastifyReply;
   rateLimiter?: AppRateLimiter;
-  mainDB?: DB;
+  // WebSocket contexts get the raw request, which has no `server`.
+  services: EffectContext.Context<RequestServices>;
 }): Promise<Context> {
+  const authenticate = (authHeader: string) =>
+    Effect.runPromiseWith(services)(authenticateRequest(req, authHeader));
+
   const buildContext = (
     user: AuthenticatedUser | null,
     authHeader?: string,
   ): Context => ({
     ...(authHeader && req.headers.upgrade?.toLowerCase() === "websocket"
-      ? { revalidateUser: () => authenticateRequest(req, authHeader, mainDB) }
+      ? { revalidateUser: () => authenticate(authHeader) }
       : {}),
     user,
     ...(user && authHeader
@@ -79,7 +85,7 @@ export async function createContext({
   // First try Authorization header (HTTP requests)
   if (req.headers.authorization) {
     return buildContext(
-      await authenticateRequest(req, req.headers.authorization, mainDB),
+      await authenticate(req.headers.authorization),
       req.headers.authorization,
     );
   }
@@ -89,13 +95,35 @@ export async function createContext({
   const token = url.searchParams.get("token");
   if (token) {
     return buildContext(
-      await authenticateRequest(req, `Bearer ${token}`, mainDB),
+      await authenticate(`Bearer ${token}`),
       `Bearer ${token}`,
     );
   }
 
   return buildContext(null);
 }
+
+const trpcErrorCodes = {
+  UnauthorizedError: "UNAUTHORIZED",
+  DatabaseAccessDeniedError: "FORBIDDEN",
+  BadRequestError: "BAD_REQUEST",
+  ResourceNotFoundError: "NOT_FOUND",
+  ConflictError: "CONFLICT",
+} satisfies Record<ServiceError["_tag"], TRPC_ERROR_CODE_KEY>;
+
+export const toTRPCError = <A, E extends ServiceError, R>(
+  effect: Effect.Effect<A, E, R>,
+) =>
+  effect.pipe(
+    Effect.mapError(
+      (error) =>
+        new TRPCError({
+          code: trpcErrorCodes[error._tag],
+          message: error.message,
+          cause: error,
+        }),
+    ),
+  );
 
 /**
  * Initialization of tRPC backend

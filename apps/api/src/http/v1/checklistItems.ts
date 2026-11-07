@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   createChecklistItem,
   deleteChecklistItem,
@@ -10,7 +10,7 @@ import {
   moveChecklistItem,
   updateChecklistItem,
 } from "../../services/checklistItems";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   ChecklistItemParamsSchema,
   ChecklistItemResponseSchema,
@@ -51,13 +51,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to list checklist items",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const checklistItems = yield* listChecklistItems({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -92,13 +91,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to create checklist item",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const checklistItem = yield* createChecklistItem({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -132,13 +130,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to list checklist items",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const checklistItems = yield* listChecklistItems({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -173,13 +170,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to create checklist item",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const checklistItem = yield* createChecklistItem({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -213,13 +209,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to get checklist item",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const checklistItem = yield* getChecklistItem({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -252,13 +247,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to update checklist item",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const previous = yield* getChecklistItem({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -306,13 +300,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to delete checklist item",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* deleteChecklistItem({
             spaceId: request.params.spaceId,
             userId: user.id,
@@ -346,13 +339,12 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
       return runRoute(
         request,
         reply,
         "Failed to move checklist item",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const checklistItem = yield* moveChecklistItem({
             spaceId: request.params.spaceId,
             userId: user.id,

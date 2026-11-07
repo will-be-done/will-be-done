@@ -26,6 +26,7 @@ import {
   register,
   revokeToken,
 } from "../slices/authSlice";
+import { Effect } from "effect";
 import { authenticateBearerToken } from "../services/authentication";
 import { action } from "../builders";
 import { accountEmailTables, emailChallengesTable } from "../email/tables";
@@ -209,7 +210,9 @@ describe("Google accounts", () => {
     expect(user.emailVerifiedAt).toBeString();
     expect(user.email).toBe("person@gmail.com");
     expect(
-      await authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      ),
     ).toMatchObject({ id: user.id });
     await rejects(f.google.completeSignIn(flow));
     await rejects(
@@ -343,7 +346,9 @@ describe("Google accounts", () => {
     await asyncDispatch(f.db, setChallenge({}));
     await f.publicCaller.resetPassword({ token, password });
     expect(
-      await authenticateBearerToken(`Bearer ${account.token}`, f.db),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${account.token}`, f.db),
+      ),
     ).toBeNull();
     const login = await f.publicCaller.login({
       email: "external@example.com",
@@ -687,7 +692,9 @@ describe("Google accounts", () => {
     });
     const result = await client.google.completeSignIn.mutate(flow);
     expect(
-      await authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      ),
     ).toMatchObject({ id: result.userId });
   });
 
@@ -924,7 +931,9 @@ describe("Google accounts", () => {
           } else {
             const result = await f.google.completeSignIn(proof);
             expect(
-              await authenticateBearerToken(`Bearer ${result.token}`, f.db),
+              await Effect.runPromise(
+                authenticateBearerToken(`Bearer ${result.token}`, f.db),
+              ),
             ).toMatchObject({ id: result.userId });
           }
         });

@@ -20,6 +20,7 @@ import { createServer } from "../server";
 import { action } from "../builders";
 import { generateToken, getUserById } from "../slices/authSlice";
 import { tokensTable, usersTable } from "../slices/tables";
+import { Effect } from "effect";
 import { authenticateBearerToken } from "../services/authentication";
 import {
   claimEmailJob,
@@ -254,7 +255,9 @@ for (const engine of ["memory", "sqlite"])
           .emailVerifiedAt,
       ).toBeString();
       expect(
-        await authenticateBearerToken(`Bearer ${account.token}`, db),
+        await Effect.runPromise(
+          authenticateBearerToken(`Bearer ${account.token}`, db),
+        ),
       ).toMatchObject({ id: account.userId });
     });
 
@@ -421,7 +424,9 @@ for (const engine of ["memory", "sqlite"])
       const { db, service, worker, messages } = await fixture(engine);
       const account = await service.register("new@example.com", "old-hash");
       expect(
-        await authenticateBearerToken(`Bearer ${account.token}`, db),
+        await Effect.runPromise(
+          authenticateBearerToken(`Bearer ${account.token}`, db),
+        ),
       ).toMatchObject({ id: account.userId });
       expect(
         (await asyncDispatch(db, getUserById({ id: account.userId })))
@@ -553,10 +558,14 @@ for (const engine of ["memory", "sqlite"])
       ]);
       expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
       expect(
-        await authenticateBearerToken(`Bearer ${account.token}`, db),
+        await Effect.runPromise(
+          authenticateBearerToken(`Bearer ${account.token}`, db),
+        ),
       ).toBeNull();
       expect(
-        await authenticateBearerToken(`Bearer ${apiToken.token}`, db),
+        await Effect.runPromise(
+          authenticateBearerToken(`Bearer ${apiToken.token}`, db),
+        ),
       ).toBeNull();
       const user = (await asyncDispatch(
         db,
@@ -1200,7 +1209,9 @@ describe("real Fastify account endpoints", () => {
       registered.body as { result: { data: { userId: string; token: string } } }
     ).result.data;
     expect(
-      await authenticateBearerToken(`Bearer ${session.token}`, db),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${session.token}`, db),
+      ),
     ).not.toBeNull();
     await worker.runOnce();
     const verification = linkToken(messages[0]);
@@ -1415,7 +1426,8 @@ test("revoked sessions cannot receive further subscription notifications", async
     accountEmail: service,
   }).createCaller({
     user: { id: user.userId, email: "notify@example.com" },
-    revalidateUser: () => authenticateBearerToken(`Bearer ${user.token}`, db),
+    revalidateUser: () =>
+      Effect.runPromise(authenticateBearerToken(`Bearer ${user.token}`, db)),
   });
   const stream = await caller.onChangesAvailable({
     dbId: user.userId,

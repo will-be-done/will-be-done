@@ -1,17 +1,14 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { Cause, Effect, Option } from "effect";
-import { Databases } from "../services/databases";
 import type { ServiceError } from "../services/errors";
-
-export function unauthorized(reply: FastifyReply) {
-  return reply.code(401).send({
-    code: "UNAUTHORIZED",
-    message: "A valid bearer token is required",
-  });
-}
+import { runRequest, type RequestServices } from "../runtime";
 
 function sendServiceError(reply: FastifyReply, error: ServiceError) {
   switch (error._tag) {
+    case "UnauthorizedError":
+      return reply
+        .code(401)
+        .send({ code: "UNAUTHORIZED", message: error.message });
     case "DatabaseAccessDeniedError":
       return reply.code(403).send({
         code: "FORBIDDEN",
@@ -51,13 +48,14 @@ export function runRoute<A>(
   request: FastifyRequest,
   reply: FastifyReply,
   fallbackMessage: string,
-  handle: Effect.Effect<A, ServiceError, Databases>,
+  handle: Effect.Effect<A, ServiceError, RequestServices>,
 ) {
-  return handle.pipe(
-    Effect.catchCause((cause) =>
-      Effect.sync(() => sendFailure(request, reply, cause, fallbackMessage)),
+  return runRequest(
+    request,
+    handle.pipe(
+      Effect.catchCause((cause) =>
+        Effect.sync(() => sendFailure(request, reply, cause, fallbackMessage)),
+      ),
     ),
-    Effect.provide(Databases.layer),
-    Effect.runPromise,
   );
 }

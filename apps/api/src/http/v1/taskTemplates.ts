@@ -3,7 +3,7 @@ import type { FastifyRequest } from "fastify";
 import { Cause, Clock, Effect } from "effect";
 import { z } from "zod";
 import { generateTasksForTemplate } from "@will-be-done/slices/space";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   convertTaskTemplateToTask,
   convertTaskToTemplate,
@@ -15,7 +15,7 @@ import {
 } from "../../services/taskTemplates";
 import { getSpaceDatabase } from "../../services/databaseAccess";
 import { dispatch } from "../../services/hyperdb";
-import { runRoute, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   ConvertTaskToTemplateBodySchema,
   CreateTaskTemplateBodySchema,
@@ -81,14 +81,12 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to create task template",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const template = yield* createSectionTaskTemplate({
             spaceId: request.params.spaceId,
             sectionId: request.params.sectionId,
@@ -126,14 +124,12 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to get task template",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const template = yield* getTaskTemplate({
             spaceId: request.params.spaceId,
             templateId: request.params.templateId,
@@ -166,14 +162,12 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to update task template",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const template = yield* updateTaskTemplate({
             spaceId: request.params.spaceId,
             templateId: request.params.templateId,
@@ -211,14 +205,12 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to delete task template",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           yield* deleteTaskTemplate({
             spaceId: request.params.spaceId,
             templateId: request.params.templateId,
@@ -252,14 +244,12 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to move task template",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const template = yield* moveTaskTemplate({
             spaceId: request.params.spaceId,
             templateId: request.params.templateId,
@@ -293,14 +283,12 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to convert task to template",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const template = yield* convertTaskToTemplate({
             spaceId: request.params.spaceId,
             taskId: request.params.taskId,
@@ -333,14 +321,12 @@ export const taskTemplateRoutes: FastifyPluginAsyncZod = async (server) => {
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
       return runRoute(
         request,
         reply,
         "Failed to convert task template to task",
         Effect.gen(function* () {
+          const user = yield* requireUser(request);
           const task = yield* convertTaskTemplateToTask({
             spaceId: request.params.spaceId,
             templateId: request.params.templateId,

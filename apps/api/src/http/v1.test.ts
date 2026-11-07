@@ -20,7 +20,8 @@ import {
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import { spacesTable, spacesTableType } from "@will-be-done/slices/user";
 import { createAppRouter } from "../appRouter";
-import * as databases from "../db/db";
+import { testDatabases } from "../services/testing";
+import { Effect } from "effect";
 import { createServer } from "../server";
 import { register, tokensTable, usersTable } from "../slices/authSlice";
 import { dbsTable } from "../slices/dbSlice";
@@ -98,14 +99,6 @@ describe("v1 recurring-task preparation", () => {
     syncDispatch(spaceDB, seedTemplate({}));
 
     spyOn(Date, "now").mockReturnValue(now);
-    spyOn(databases, "getMainHyperDB").mockImplementation(async () => mainDB);
-    spyOn(databases, "getHyperDB").mockImplementation(async (config) =>
-      config.dbType === "user"
-        ? ({ db: userDB } as unknown as ReturnType<typeof databases.getHyperDB>)
-        : ({ db: spaceDB } as unknown as ReturnType<
-            typeof databases.getHyperDB
-          >),
-    );
     const analyticsEvents: BackendAnalyticsEvent[] = [];
     const analytics = {
       capture: (event: BackendAnalyticsEvent) => analyticsEvents.push(event),
@@ -120,6 +113,11 @@ describe("v1 recurring-task preparation", () => {
       }),
       logger: false,
       serveFrontend: false,
+      databases: testDatabases({
+        main: mainDB,
+        user: () => Effect.succeed(userDB),
+        space: () => Effect.succeed(spaceDB),
+      }),
       analytics,
     });
     try {
