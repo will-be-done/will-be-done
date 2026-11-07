@@ -7,7 +7,6 @@ import { ensureDatabaseAccessOrCreate } from "../services/databaseAccess";
 import { Databases } from "../services/databases";
 import type { ServiceError } from "../services/errors";
 import { SyncInvalidRequestError, type SyncError } from "./errors";
-import { runSyncMaintenance } from "./maintenance";
 import {
   createServerSyncV4,
   SYNC_V4_CHUNK_BODY_LIMIT,
@@ -22,8 +21,6 @@ type DownloadParams = DatabaseParams & {
   downloadId: string;
   sequence?: string;
 };
-
-const SYNC_MAINTENANCE_INTERVAL_MS = 15 * 60 * 1000;
 
 const prepare = Effect.fn("sync.prepare")(function* (
   request: FastifyRequest,
@@ -99,31 +96,6 @@ const runSyncRoute = <A, E extends SyncError | ServiceError>(
   );
 
 export const syncV4Routes: FastifyPluginAsync = async (server) => {
-  let maintenanceRunning = false;
-  const maintain = async () => {
-    if (maintenanceRunning) return;
-    maintenanceRunning = true;
-    try {
-      await runSyncMaintenance(server.log);
-    } catch (error) {
-      server.log.error({ err: error }, "Sync v4 maintenance failed");
-    } finally {
-      maintenanceRunning = false;
-    }
-  };
-  let maintenanceInterval: ReturnType<typeof setInterval> | undefined;
-  server.addHook("onReady", async () => {
-    await maintain();
-    maintenanceInterval = setInterval(
-      () => void maintain(),
-      SYNC_MAINTENANCE_INTERVAL_MS,
-    );
-    maintenanceInterval.unref?.();
-  });
-  server.addHook("onClose", async () => {
-    if (maintenanceInterval) clearInterval(maintenanceInterval);
-  });
-
   // Errors raised before the handler runs, such as body parsing.
   server.setErrorHandler((error, request, reply) => {
     if ((error as { code?: string }).code === "FST_ERR_CTP_BODY_TOO_LARGE") {

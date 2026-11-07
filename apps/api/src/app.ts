@@ -1,5 +1,6 @@
 import type { DB } from "@will-be-done/hyperdb";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Schedule } from "effect";
+import type { FastifyBaseLogger } from "fastify";
 import { createBackendAnalytics, type BackendAnalytics } from "./analytics";
 import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
@@ -18,6 +19,8 @@ import { createGoogleService } from "./google/service";
 import { captureException } from "./instrument";
 import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
+import { Databases } from "./services/databases";
+import { runSyncMaintenance } from "./sync/maintenance";
 import { subscriptionManager } from "./subscriptionManager";
 
 const BACKUP_WORKER_SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -62,6 +65,11 @@ export class MainDatabase extends Context.Service<MainDatabase, DB>()(
     ),
   );
 }
+
+const DatabasesLive = Layer.effect(
+  Databases,
+  MainDatabase.use((mainDB) => Effect.succeed(Databases.make(mainDB))),
+);
 
 export class Analytics extends Context.Service<Analytics, BackendAnalytics>()(
   "@will-be-done/api/Analytics",
@@ -117,13 +125,14 @@ export class Google extends Context.Service<
 
 export class ApiServer extends Context.Service<
   ApiServer,
-  { readonly url: string }
+  { readonly url: string; readonly logger: FastifyBaseLogger }
 >()("@will-be-done/api/ApiServer") {
   static readonly layer = Layer.effect(
     ApiServer,
     Effect.gen(function* () {
       const env = yield* AppEnv;
       const mainDB = yield* MainDatabase;
+      const databases = yield* Databases;
       const analytics = yield* Analytics;
       const accountEmail = yield* AccountEmail;
       const google = yield* Google;
@@ -138,7 +147,7 @@ export class ApiServer extends Context.Service<
               accountEmail: accountEmail?.service,
               analytics,
             }),
-            mainDB,
+            databases,
             rateLimit: {
               enabled: env.WBD_RATE_LIMIT_ENABLED,
               backend: env.WBD_RATE_LIMIT_BACKEND,
@@ -156,10 +165,20 @@ export class ApiServer extends Context.Service<
         server.listen({ port: env.PORT, host: "0.0.0.0" }),
       );
       console.log("Server started");
-      return { url };
+      return { url, logger: server.log };
     }),
   );
 }
+
+const SyncMaintenanceLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const { logger } = yield* ApiServer;
+    yield* runSyncMaintenance(logger).pipe(
+      Effect.repeat(Schedule.spaced("15 minutes")),
+      Effect.forkScoped,
+    );
+  }),
+);
 
 // Sends queued account emails only while the server accepts requests.
 const EmailWorkerLive = Layer.effectDiscard(
@@ -256,10 +275,15 @@ const BackupWorkerLive = Layer.effectDiscard(
   }),
 );
 
-export const AppLive = Layer.mergeAll(EmailWorkerLive, BackupWorkerLive).pipe(
+export const AppLive = Layer.mergeAll(
+  EmailWorkerLive,
+  BackupWorkerLive,
+  SyncMaintenanceLive,
+).pipe(
   Layer.provideMerge(ApiServer.layer),
   Layer.provideMerge(Layer.mergeAll(AccountEmail.layer, Google.layer)),
   Layer.provideMerge(Analytics.layer),
+  Layer.provideMerge(DatabasesLive),
   Layer.provideMerge(MainDatabase.layer),
   Layer.provideMerge(SyncNotificationsLive),
   Layer.provideMerge(BackupEngineCheck),

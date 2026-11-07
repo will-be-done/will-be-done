@@ -1,7 +1,7 @@
 import type { HyperDB } from "@will-be-done/hyperdb";
 import { createHlcClock } from "@will-be-done/slices/common";
 import { Effect } from "effect";
-import type { DBConfig } from "../db/db";
+import type { DBConfig, LoadedDatabase } from "../db/db";
 import type { Databases } from "./databases";
 
 type OpenDatabase = (dbId: string) => Effect.Effect<HyperDB>;
@@ -13,12 +13,16 @@ export const testDatabases = ({
   main,
   user = unexpectedDatabase,
   space = unexpectedDatabase,
+  loaded = [],
 }: {
-  main: HyperDB;
+  main?: HyperDB;
   user?: OpenDatabase;
   space?: OpenDatabase;
+  loaded?: readonly LoadedDatabase[];
 }): Databases["Service"] => ({
-  main: Effect.succeed(main),
+  main: main
+    ? Effect.succeed(main)
+    : Effect.die(new Error("Unexpected main database open")),
   open: (config: DBConfig) =>
     (config.dbType === "user" ? user : space)(config.dbId).pipe(
       Effect.map((db) => ({
@@ -28,5 +32,5 @@ export const testDatabases = ({
         clientId: "server",
       })),
     ),
-  loaded: Effect.succeed([]),
+  loaded: Effect.succeed(loaded),
 });
