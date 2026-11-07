@@ -45,6 +45,7 @@ import {
 } from "./syncActions";
 import {
   shouldRestartFrozenUpload,
+  syncFailureDetail,
   syncFailureMessage,
   SyncHttpError,
   SyncNetworkError,
@@ -173,8 +174,11 @@ export class Syncer {
         this.syncLoop(),
       ).pipe(
         Effect.tapCause((cause) =>
-          Cause.hasInterruptsOnly(cause) ? Effect.void : Effect.logError(cause),
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.void
+            : Effect.logError("Sync loop stopped", cause),
         ),
+        Effect.annotateLogs(this.logAnnotations()),
         Effect.provide(this.services),
       ),
     );
@@ -216,10 +220,15 @@ export class Syncer {
     if (this.terminal || !this.loop) return;
     Effect.runSync(
       Effect.logDebug("another tab also leads; restarting the sync loop").pipe(
+        Effect.annotateLogs(this.logAnnotations()),
         Effect.provide(this.services),
       ),
     );
     void this.run();
+  }
+
+  private logAnnotations() {
+    return { sync: `${this.syncConfig.dbType}:${this.syncConfig.dbId}` };
   }
 
   private broadcastStatus() {
@@ -265,7 +274,13 @@ export class Syncer {
 
   private syncLoop() {
     return Effect.gen({ self: this }, function* () {
-      yield* this.leadership.awaitLeadership;
+      if (!this.leadership.isLeader()) {
+        yield* Effect.logInfo(
+          "Waiting to lead sync; until then this tab shows the leading tab's status and errors are logged there",
+        );
+        yield* this.leadership.awaitLeadership;
+      }
+      yield* Effect.logInfo("This tab leads sync");
       const serverChanges = yield* ServerChanges;
       yield* serverChanges
         .watch({ dbId: this.syncConfig.dbId, dbType: this.syncConfig.dbType })
@@ -291,6 +306,9 @@ export class Syncer {
               ? { lastSyncedAt: yield* Clock.currentTimeMillis }
               : {}),
           });
+          yield* Effect.logDebug(
+            completed ? "sync session finished" : "sync session paused",
+          );
           if (completed && this.syncConfig.dbType === "user") {
             completedUserSyncs.modify((version) => version + 1);
           }
@@ -300,7 +318,10 @@ export class Syncer {
             progress: null,
             error: syncFailureMessage(session.cause),
           });
-          yield* Effect.logError(session.cause);
+          yield* Effect.logError(
+            `Sync session failed: ${syncFailureDetail(session.cause)}`,
+            session.cause,
+          );
           const error = Cause.findErrorOption(session.cause);
           spaceMissingOnServer =
             this.syncConfig.dbType === "space" &&
@@ -345,8 +366,12 @@ export class Syncer {
     return Effect.gen(function* () {
       const client = yield* HttpClient.HttpClient;
       const token = yield* (yield* AuthSession).token;
+      const startedAt = yield* Clock.currentTimeMillis;
       const response = yield* client.execute(
         token ? HttpClientRequest.bearerToken(request, token) : request,
+      );
+      yield* Effect.logDebug(
+        `${name} ${request.method} ${request.url} -> ${response.status} in ${(yield* Clock.currentTimeMillis) - startedAt}ms`,
       );
       if (response.status < 200 || response.status >= 300) {
         return yield* new SyncHttpError({

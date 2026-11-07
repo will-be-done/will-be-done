@@ -1,6 +1,6 @@
 import { CURRENT_SYNC_VERSION } from "@will-be-done/slices/common";
 import { BroadcastChannel, createLeaderElection } from "broadcast-channel";
-import { Effect, Layer, Queue, References, Stream } from "effect";
+import { Cause, Effect, Layer, Logger, Queue, References, Stream } from "effect";
 import { Digest } from "effect/crypto";
 import { FetchHttpClient } from "effect/http";
 import { authUtils } from "@/lib/auth";
@@ -121,6 +121,26 @@ const LoggingLive = Layer.effect(
   ),
 );
 
+// Effect's default logger prints errors with console.log as one string. This
+// keeps errors on console.error and passes the failure object, so devtools
+// shows its stack and cause chain.
+const consoleLogger = Logger.make(
+  ({ logLevel, message, cause, fiber, date }) => {
+    const annotations = fiber.getRef(References.CurrentLogAnnotations);
+    const args: unknown[] = [
+      `${date.toISOString()} ${logLevel.toUpperCase()}`,
+      ...(Array.isArray(message) ? message : [message]),
+    ];
+    if (Object.keys(annotations).length > 0) args.push(annotations);
+    if (cause.reasons.length > 0) args.push(Cause.squash(cause));
+    if (logLevel === "Error" || logLevel === "Fatal") console.error(...args);
+    else if (logLevel === "Warn") console.warn(...args);
+    else console.log(...args);
+  },
+);
+
+const ConsoleLoggerLive = Logger.layer([consoleLogger]);
+
 export const BackupDatabaseLive = Layer.sync(BackupDatabase, () => indexedDB);
 
 export const BrowserLive = Layer.mergeAll(
@@ -132,4 +152,5 @@ export const BrowserLive = Layer.mergeAll(
   FetchHttpClient.layer,
   Digest.layerWebCrypto,
   LoggingLive,
+  ConsoleLoggerLive,
 );

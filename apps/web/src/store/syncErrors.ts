@@ -52,6 +52,27 @@ export const syncFailureMessage = (cause: Cause.Cause<SyncError>) =>
     onSome: syncErrorMessage,
   });
 
+const errorText = (cause: unknown) =>
+  cause instanceof Error ? cause.message : String(cause);
+
+const syncErrorDetail = Match.type<SyncError>().pipe(
+  Match.tagsExhaustive({
+    SyncHttpError: ({ status, body }) =>
+      `server responded ${status}: ${body.slice(0, 500)}`,
+    SyncNetworkError: ({ cause }) => `network error: ${errorText(cause)}`,
+    SyncTimeoutError: ({ request, timeoutMs }) =>
+      `${request} timed out after ${timeoutMs}ms`,
+    SyncProtocolError: ({ reason }) => `unexpected response: ${reason}`,
+    SyncStorageError: ({ cause }) => `local database error: ${errorText(cause)}`,
+  }),
+);
+
+export const syncFailureDetail = (cause: Cause.Cause<SyncError>) =>
+  Option.match(Cause.findErrorOption(cause), {
+    onNone: () => "unexpected defect",
+    onSome: syncErrorDetail,
+  });
+
 const responseCode = (body: string) => {
   try {
     const parsed = JSON.parse(body) as { code?: unknown };
