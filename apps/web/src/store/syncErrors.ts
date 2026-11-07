@@ -63,7 +63,8 @@ const syncErrorDetail = Match.type<SyncError>().pipe(
     SyncTimeoutError: ({ request, timeoutMs }) =>
       `${request} timed out after ${timeoutMs}ms`,
     SyncProtocolError: ({ reason }) => `unexpected response: ${reason}`,
-    SyncStorageError: ({ cause }) => `local database error: ${errorText(cause)}`,
+    SyncStorageError: ({ cause }) =>
+      `local database error: ${errorText(cause)}`,
   }),
 );
 
