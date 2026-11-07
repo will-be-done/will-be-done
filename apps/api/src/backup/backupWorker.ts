@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { SqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
 import { DB, execSync } from "@will-be-done/hyperdb";
+import { Effect, Fiber } from "effect";
 import { hyperDBStrictOptions } from "@will-be-done/slices";
 import path from "path";
 import fs from "fs";
@@ -12,7 +13,7 @@ import {
 import { usersTable, tokensTable } from "../slices/authSlice";
 import { dbsTable } from "../slices/dbSlice";
 import { BackupManager } from "./BackupManager";
-import { BackupScheduler } from "./BackupScheduler";
+import { runBackupScheduler } from "./BackupScheduler";
 import type { BackupConfig } from "./types";
 
 // Message types for worker communication
@@ -78,7 +79,7 @@ function createMainDB(dbsPath: string): DB {
 }
 
 // Worker state
-let backupScheduler: BackupScheduler | null = null;
+let backupScheduler: Fiber.Fiber<unknown> | null = null;
 
 // Handle messages from main thread
 declare const self: Worker;
@@ -109,8 +110,10 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
           "[BackupWorker] Skipping bucket verification (will verify on first upload)",
         );
 
-        backupScheduler = new BackupScheduler(mainDB, backupManager, config);
-        backupScheduler.start();
+        console.log("[BackupScheduler] Checking backups every 15 minutes");
+        backupScheduler = Effect.runFork(
+          runBackupScheduler(mainDB, backupManager, config),
+        );
 
         console.log("[BackupWorker] Backup worker initialized successfully");
 
@@ -130,7 +133,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         console.log("[BackupWorker] Shutting down...");
 
         if (backupScheduler) {
-          await backupScheduler.stop();
+          await Effect.runPromise(Fiber.interrupt(backupScheduler));
           backupScheduler = null;
         }
 

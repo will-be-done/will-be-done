@@ -1,4 +1,5 @@
-import { asyncDispatch, selectAsync, upsert, v } from "@will-be-done/hyperdb";
+import { upsert, v, type HyperDB } from "@will-be-done/hyperdb";
+import { Clock, Effect } from "effect";
 import { action } from "../builders";
 import {
   createTaskInSection,
@@ -15,11 +16,8 @@ import {
   type Task,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
-import {
-  ConflictError,
-  InvalidPlacementError,
-  ResourceNotFoundError,
-} from "./errors";
+import { ConflictError, ResourceNotFoundError } from "./errors";
+import { dispatch, select } from "./hyperdb";
 import {
   resolveCreatePosition,
   resolveOrderToken,
@@ -52,8 +50,6 @@ export interface TaskSchedule {
   time: string | null;
 }
 
-type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
-
 const replaceTask = action({
   name: "replaceApiTask",
   args: {
@@ -68,35 +64,35 @@ const replaceTask = action({
   },
 });
 
-export async function getTaskSchedule(
-  db: SpaceDatabase,
+export const getTaskSchedule = Effect.fnUntraced(function* (
+  db: HyperDB,
   taskId: string,
-): Promise<TaskSchedule | null> {
-  const entry = await selectAsync(db, {
+) {
+  const entry = yield* select(db, {
     selector: dailyEntryByTaskId,
     args: { taskId },
   });
   if (!entry) return null;
 
-  const dailyList = await selectAsync(db, {
+  const dailyList = yield* select(db, {
     selector: dailyListById,
     args: { id: entry.dailyListId },
   });
   return dailyList ? { date: dailyList.date, time: entry.time ?? null } : null;
-}
+});
 
-export async function getTaskSchedules(
-  db: SpaceDatabase,
+export const getTaskSchedules = Effect.fnUntraced(function* (
+  db: HyperDB,
   taskIds: string[],
-): Promise<Map<string, TaskSchedule | null>> {
+): Effect.fn.Return<Map<string, TaskSchedule | null>> {
   if (taskIds.length === 0) return new Map();
 
-  const entries = await selectAsync(db, {
+  const entries = yield* select(db, {
     selector: dailyEntriesByTaskIds,
     args: { taskIds },
   });
   const dailyListIds = [...new Set(entries.map((entry) => entry.dailyListId))];
-  const dailyLists = await selectAsync(db, {
+  const dailyLists = yield* select(db, {
     selector: dailyListsByIds,
     args: { ids: dailyListIds },
   });
@@ -115,7 +111,7 @@ export async function getTaskSchedules(
       ];
     }),
   );
-}
+});
 
 export function toPublicTask(
   task: Task,
@@ -137,7 +133,16 @@ export function toPublicTask(
   };
 }
 
-export async function getTask({
+export const requireTask = Effect.fnUntraced(function* (
+  db: HyperDB,
+  taskId: string,
+) {
+  const task = yield* select(db, { selector: taskById, args: { id: taskId } });
+  if (!task) return yield* new ResourceNotFoundError({ resource: "Task" });
+  return task;
+});
+
+export const getTask = Effect.fn("getTask")(function* ({
   spaceId,
   taskId,
   userId,
@@ -145,17 +150,13 @@ export async function getTask({
   spaceId: string;
   taskId: string;
   userId: string;
-}): Promise<PublicTask> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const task = await selectAsync(db, {
-    selector: taskById,
-    args: { id: taskId },
-  });
-  if (!task) throw new ResourceNotFoundError("Task");
-  return toPublicTask(task, await getTaskSchedule(db, task.id));
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const task = yield* requireTask(db, taskId);
+  return toPublicTask(task, yield* getTaskSchedule(db, task.id));
+});
 
-export async function createSectionTask({
+export const createSectionTask = Effect.fn("createSectionTask")(function* ({
   spaceId,
   sectionId,
   userId,
@@ -173,18 +174,18 @@ export async function createSectionTask({
   nature?: PublicTaskNature;
   durationMinutes?: number;
   placement?: Placement;
-}): Promise<PublicTask> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  await requireSection(db, sectionId);
-  const position = resolveCreatePosition({
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireSection(db, sectionId);
+  const position = yield* resolveCreatePosition({
     entities:
       placement.kind === "before" || placement.kind === "after"
-        ? await itemsInSection(db, sectionId)
+        ? yield* itemsInSection(db, sectionId)
         : [],
     placement,
   });
 
-  const task = await asyncDispatch(
+  const task = yield* dispatch(
     db,
     createTaskInSection({
       projectSectionId: sectionId,
@@ -198,9 +199,9 @@ export async function createSectionTask({
     }),
   );
   return toPublicTask(task, null);
-}
+});
 
-export async function updateTask({
+export const updateTask = Effect.fn("updateTask")(function* ({
   spaceId,
   taskId,
   userId,
@@ -217,18 +218,16 @@ export async function updateTask({
     scheduledTime?: string | null;
     durationMinutes?: number | null;
   };
-}): Promise<PublicTask> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: taskById,
-    args: { id: taskId },
-  });
-  if (!current) throw new ResourceNotFoundError("Task");
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const current = yield* requireTask(db, taskId);
   if (
     updates.scheduledTime !== undefined &&
-    !(await getTaskSchedule(db, taskId))
+    !(yield* getTaskSchedule(db, taskId))
   ) {
-    throw new ConflictError("Unscheduled tasks cannot have a time");
+    return yield* new ConflictError({
+      message: "Unscheduled tasks cannot have a time",
+    });
   }
 
   const proposed: Task = {
@@ -243,22 +242,22 @@ export async function updateTask({
       ? {}
       : { durationMinutes: updates.durationMinutes }),
     ...(updates.state !== undefined && updates.state !== current.state
-      ? { lastToggledAt: Date.now() }
+      ? { lastToggledAt: yield* Clock.currentTimeMillis }
       : {}),
   };
   if (updates.content === null) delete proposed.content;
   if (updates.nature === null) delete proposed.nature;
   const next = syncItemRichText(current, proposed);
 
-  await asyncDispatch(
+  yield* dispatch(
     db,
     replaceTask({ task: next, scheduledTime: updates.scheduledTime }),
   );
 
-  return toPublicTask(next, await getTaskSchedule(db, taskId));
-}
+  return toPublicTask(next, yield* getTaskSchedule(db, taskId));
+});
 
-export async function moveTask({
+export const moveTask = Effect.fn("moveTask")(function* ({
   spaceId,
   taskId,
   userId,
@@ -270,35 +269,33 @@ export async function moveTask({
   userId: string;
   projectSectionId: string;
   placement: Placement;
-}): Promise<PublicTask> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: taskById,
-    args: { id: taskId },
-  });
-  if (!current) throw new ResourceNotFoundError("Task");
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const current = yield* requireTask(db, taskId);
   if (current.state === "done") {
-    throw new InvalidPlacementError("Completed tasks cannot be moved");
+    return yield* new ConflictError({
+      message: "Completed tasks cannot be moved",
+    });
   }
-  await requireSection(db, projectSectionId);
+  yield* requireSection(db, projectSectionId);
 
-  await asyncDispatch(
+  yield* dispatch(
     db,
     updateTaskAction({
       id: taskId,
       task: {
         projectSectionId,
-        orderToken: resolveOrderToken({
-          entities: await itemsInSection(db, projectSectionId, taskId),
+        orderToken: yield* resolveOrderToken({
+          entities: yield* itemsInSection(db, projectSectionId, taskId),
           placement,
         }),
       },
     }),
   );
-  return getTask({ spaceId, taskId, userId });
-}
+  return yield* getTask({ spaceId, taskId, userId });
+});
 
-export async function deleteTask({
+export const deleteTask = Effect.fn("deleteTask")(function* ({
   spaceId,
   taskId,
   userId,
@@ -306,13 +303,9 @@ export async function deleteTask({
   spaceId: string;
   taskId: string;
   userId: string;
-}): Promise<Task> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const task = await selectAsync(db, {
-    selector: taskById,
-    args: { id: taskId },
-  });
-  if (!task) throw new ResourceNotFoundError("Task");
-  await asyncDispatch(db, trashTasks({ ids: [taskId] }));
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const task = yield* requireTask(db, taskId);
+  yield* dispatch(db, trashTasks({ ids: [taskId] }));
   return task;
-}
+});

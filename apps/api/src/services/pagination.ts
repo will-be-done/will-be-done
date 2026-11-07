@@ -1,57 +1,37 @@
+import { Effect, Schema } from "effect";
 import { BadRequestError } from "./errors";
 
-export interface NumericCursor {
-  sort: number;
-  id: string;
-}
+const NumericCursor = Schema.Struct({
+  sort: Schema.Finite,
+  id: Schema.NonEmptyString,
+});
+export type NumericCursor = typeof NumericCursor.Type;
 
-export interface StringCursor {
-  sort: string;
-  id: string;
-}
+const StringCursor = Schema.Struct({
+  sort: Schema.NonEmptyString,
+  id: Schema.NonEmptyString,
+});
+export type StringCursor = typeof StringCursor.Type;
 
-export function encodeNumericCursor(cursor: NumericCursor): string {
-  return Buffer.from(JSON.stringify(cursor)).toString("base64url");
-}
+const encodeCursor = (cursor: NumericCursor | StringCursor): string =>
+  Buffer.from(JSON.stringify({ sort: cursor.sort, id: cursor.id })).toString(
+    "base64url",
+  );
 
-export function decodeNumericCursor(cursor: string): NumericCursor {
-  try {
-    const parsed = JSON.parse(
+const cursorDecoder =
+  <S extends typeof NumericCursor | typeof StringCursor>(schema: S) =>
+  (cursor: string): Effect.Effect<S["Type"], BadRequestError> =>
+    Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(
       Buffer.from(cursor, "base64url").toString("utf8"),
-    ) as Partial<NumericCursor>;
-    if (
-      typeof parsed.sort !== "number" ||
-      !Number.isFinite(parsed.sort) ||
-      typeof parsed.id !== "string" ||
-      parsed.id.length === 0
-    ) {
-      throw new Error("Invalid cursor payload");
-    }
-    return { sort: parsed.sort, id: parsed.id };
-  } catch {
-    throw new BadRequestError("Invalid pagination cursor");
-  }
-}
+    ).pipe(
+      Effect.mapError(
+        () => new BadRequestError({ message: "Invalid pagination cursor" }),
+      ),
+    );
 
-export function encodeStringCursor(cursor: StringCursor): string {
-  return Buffer.from(JSON.stringify(cursor)).toString("base64url");
-}
-
-export function decodeStringCursor(cursor: string): StringCursor {
-  try {
-    const parsed = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf8"),
-    ) as Partial<StringCursor>;
-    if (
-      typeof parsed.sort !== "string" ||
-      parsed.sort.length === 0 ||
-      typeof parsed.id !== "string" ||
-      parsed.id.length === 0
-    ) {
-      throw new Error("Invalid cursor payload");
-    }
-    return { sort: parsed.sort, id: parsed.id };
-  } catch {
-    throw new BadRequestError("Invalid pagination cursor");
-  }
-}
+export const encodeNumericCursor: (cursor: NumericCursor) => string =
+  encodeCursor;
+export const decodeNumericCursor = cursorDecoder(NumericCursor);
+export const encodeStringCursor: (cursor: StringCursor) => string =
+  encodeCursor;
+export const decodeStringCursor = cursorDecoder(StringCursor);

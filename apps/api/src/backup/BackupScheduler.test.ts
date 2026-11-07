@@ -2,8 +2,9 @@ import { describe, test, expect, beforeEach, mock } from "bun:test";
 import { Database } from "bun:sqlite";
 import { SqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
 import { DB, syncDispatch, execSync } from "@will-be-done/hyperdb";
-import { BackupScheduler } from "./BackupScheduler";
-import type { BackupManager } from "./BackupManager";
+import { Effect, Fiber } from "effect";
+import { TestClock } from "effect/testing";
+import { checkAndRunBackups, runBackupScheduler } from "./BackupScheduler";
 import type { BackupConfig } from "./types";
 import {
   backupStateTable,
@@ -31,8 +32,13 @@ type MockFn = ReturnType<typeof mock>;
 
 describe("BackupScheduler", () => {
   let db: DB;
-  let mockBackupManager: BackupManager;
   let performBackupMock: MockFn;
+  const backupManager = {
+    performBackup: (tiers: string[]) =>
+      performBackupMock(tiers) as Promise<void>,
+  };
+  const check = () =>
+    Effect.runPromise(checkAndRunBackups(db, backupManager, mockConfig));
 
   beforeEach(() => {
     // Create a fresh in-memory database for each test
@@ -77,20 +83,12 @@ describe("BackupScheduler", () => {
       db.loadTables([backupStateTable, backupTierStateTable, backupFileTable]),
     );
 
-    // Create a mock backup manager
     performBackupMock = mock(async () => {});
-    mockBackupManager = {
-      performBackup: performBackupMock,
-    } as unknown as BackupManager;
   });
 
   describe("getDueTiers logic", () => {
     test("triggers backup when no tier states exist", async () => {
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      // Manually trigger check (we can't easily test setInterval)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (scheduler as any).checkAndRunBackups();
+      await check();
 
       // Should have been called with all tiers
       expect(performBackupMock).toHaveBeenCalledTimes(1);
@@ -157,10 +155,7 @@ describe("BackupScheduler", () => {
         }),
       );
 
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (scheduler as any).checkAndRunBackups();
+      await check();
 
       // Should have been called (at least hourly should be due)
       expect(performBackupMock).toHaveBeenCalled();
@@ -234,10 +229,7 @@ describe("BackupScheduler", () => {
         }),
       );
 
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (scheduler as any).checkAndRunBackups();
+      await check();
 
       // Should NOT have been called
       expect(performBackupMock).not.toHaveBeenCalled();
@@ -256,10 +248,7 @@ describe("BackupScheduler", () => {
         }),
       );
 
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (scheduler as any).checkAndRunBackups();
+      await check();
 
       // Should be called, but hourly should not be in the list
       if (performBackupMock.mock.calls.length > 0) {
@@ -269,76 +258,65 @@ describe("BackupScheduler", () => {
     });
   });
 
-  describe("start and stop", () => {
-    test("start sets up interval", () => {
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      void scheduler.start();
-
-      // Verify interval is set (private property)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((scheduler as any).intervalId).not.toBeNull();
-
-      void scheduler.stop();
+  describe("scheduling", () => {
+    test("checks on start and again every 15 minutes", async () => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            runBackupScheduler(db, backupManager, mockConfig),
+          );
+          yield* TestClock.adjust("1 millis");
+          expect(performBackupMock).toHaveBeenCalledTimes(1);
+          yield* TestClock.adjust("15 minutes");
+          expect(performBackupMock).toHaveBeenCalledTimes(2);
+          yield* Fiber.interrupt(fiber);
+        }).pipe(Effect.provide(TestClock.layer())),
+      );
     });
 
-    test("stop clears interval", () => {
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      void scheduler.start();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((scheduler as any).intervalId).not.toBeNull();
-
-      void scheduler.stop();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((scheduler as any).intervalId).toBeNull();
-    });
-
-    test("calls checkAndRunBackups on start", async () => {
-      // This test verifies that start() calls checkAndRunBackups initially
-      // We can't easily verify the setInterval callback without waiting
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      void scheduler.start();
-
-      // Give it a moment to execute the initial check
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      // Should have been called at least once (the initial check on startup)
-      expect(performBackupMock).toHaveBeenCalled();
-
-      void scheduler.stop();
-    });
-
-    test("does not overlap backup checks", async () => {
+    test("does not start a check while one is running", async () => {
       let releaseBackup = () => {};
-      const backupGate = new Promise<void>((resolve) => {
-        releaseBackup = resolve;
-      });
-      performBackupMock.mockImplementation(() => backupGate);
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const firstCheck = (scheduler as any).runCheck() as Promise<void>;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const secondCheck = (scheduler as any).runCheck() as Promise<void>;
-
-      expect(performBackupMock).toHaveBeenCalledTimes(1);
-      releaseBackup();
-      await Promise.all([firstCheck, secondCheck]);
+      performBackupMock.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseBackup = resolve;
+          }),
+      );
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            runBackupScheduler(db, backupManager, mockConfig),
+          );
+          yield* TestClock.adjust("1 hour");
+          expect(performBackupMock).toHaveBeenCalledTimes(1);
+          releaseBackup();
+          yield* TestClock.adjust("15 minutes");
+          expect(performBackupMock).toHaveBeenCalledTimes(2);
+          releaseBackup();
+          yield* Fiber.interrupt(fiber);
+        }).pipe(Effect.provide(TestClock.layer())),
+      );
     });
 
     test("waits for an active backup check before stopping", async () => {
-      let releaseBackup = () => {};
-      const backupGate = new Promise<void>((resolve) => {
-        releaseBackup = resolve;
+      let started = () => {};
+      const backupStarted = new Promise<void>((resolve) => {
+        started = resolve;
       });
-      performBackupMock.mockImplementation(() => backupGate);
-      const scheduler = new BackupScheduler(db, mockBackupManager, mockConfig);
-      scheduler.start();
+      let releaseBackup = () => {};
+      performBackupMock.mockImplementation(() => {
+        started();
+        return new Promise<void>((resolve) => {
+          releaseBackup = resolve;
+        });
+      });
+      const fiber = Effect.runFork(
+        runBackupScheduler(db, backupManager, mockConfig),
+      );
+      await backupStarted;
 
       let stopped = false;
-      const stopPromise = scheduler.stop().then(() => {
+      const stopPromise = Effect.runPromise(Fiber.interrupt(fiber)).then(() => {
         stopped = true;
       });
       await Promise.resolve();
@@ -363,17 +341,7 @@ describe("BackupScheduler", () => {
           throw new Error("Backup failed");
         });
 
-        const scheduler = new BackupScheduler(
-          db,
-          mockBackupManager,
-          mockConfig,
-        );
-
-        // Should not throw - error should be caught and logged
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = (scheduler as any).checkAndRunBackups() as Promise<void>;
-        // eslint-disable-next-line @typescript-eslint/await-thenable
-        await expect(result).resolves.toBeUndefined();
+        expect(await check()).toBeUndefined();
 
         // Verify error was logged
         expect(consoleErrorMock).toHaveBeenCalledWith(

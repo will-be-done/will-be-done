@@ -1,47 +1,56 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { verifyCaptchaTokenWithTimeout } from "./verifyCaptchaToken";
+import { describe, expect, test } from "bun:test";
+import { Effect, Exit, Layer } from "effect";
+import { FetchHttpClient } from "effect/http";
+import { verifyCaptchaToken } from "./verifyCaptchaToken";
 
-const originalFetch = globalThis.fetch;
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+const verify = (fetch: typeof globalThis.fetch, timeout = 1_000) =>
+  Effect.runPromiseExit(
+    verifyCaptchaToken("token", "secret", timeout).pipe(
+      Effect.provide(
+        FetchHttpClient.layer.pipe(
+          Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetch)),
+        ),
+      ),
+    ),
+  );
 
 describe("CAPTCHA verification", () => {
-  test("passes an abort signal to Cloudflare and preserves a timely response", async () => {
-    globalThis.fetch = (async (_input, init) => {
-      expect(init?.signal).toBeInstanceOf(AbortSignal);
+  test("posts the token to Cloudflare and returns its verdict", async () => {
+    const requests: unknown[] = [];
+    const fetch = (async (input, init) => {
+      requests.push({
+        url: String(input),
+        body: await new Response(init?.body).json(),
+      });
       return Response.json({ success: true, "error-codes": [] });
-    }) as typeof fetch;
+    }) as typeof globalThis.fetch;
 
-    expect(await verifyCaptchaTokenWithTimeout("token", "secret", 1_000)).toBe(
-      true,
-    );
+    expect(await verify(fetch)).toEqual(Exit.succeed(true));
+    expect(requests).toEqual([
+      {
+        url: "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        body: { secret: "secret", response: "token" },
+      },
+    ]);
   });
 
-  test("treats an aborted verification as a failed CAPTCHA", async () => {
-    globalThis.fetch = ((_input, init) =>
+  test("treats a timed-out verification as a failed CAPTCHA", async () => {
+    const fetch = ((_input, init) =>
       new Promise((_resolve, reject) => {
         init?.signal?.addEventListener("abort", () => {
           reject(new DOMException("Aborted", "AbortError"));
         });
-      })) as typeof fetch;
+      })) as typeof globalThis.fetch;
 
-    expect(await verifyCaptchaTokenWithTimeout("token", "secret", 1)).toBe(
-      false,
-    );
+    expect(await verify(fetch, 1)).toEqual(Exit.succeed(false));
   });
 
-  test("rethrows a non-abort fetch failure", async () => {
-    const failure = new Error("fetch failed");
-    globalThis.fetch = (async (_input, _init): Promise<Response> => {
-      throw failure;
-    }) as typeof fetch;
+  test("fails on a transport error", async () => {
+    const fetch = (async (_input, _init): Promise<Response> => {
+      throw new Error("fetch failed");
+    }) as typeof globalThis.fetch;
 
-    // Bun's matcher is thenable at runtime, despite its current type declaration.
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    await expect(
-      verifyCaptchaTokenWithTimeout("token", "secret", 1_000),
-    ).rejects.toBe(failure);
+    const exit = await verify(fetch);
+    expect(Exit.isFailure(exit)).toBe(true);
   });
 });

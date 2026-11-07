@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import { listSectionItems } from "../../services/items";
 import {
   createSectionTask,
@@ -13,7 +14,7 @@ import { clearTaskSchedule, scheduleTask } from "../../services/scheduling";
 import { listSpaceTasks } from "../../services/taskQueries";
 import { listScheduledTasks } from "../../services/scheduledTasks";
 import { getDMY } from "@will-be-done/slices/space";
-import { sendError as handleTaskError, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   SectionTasksParamsSchema,
   CreateTaskBodySchema,
@@ -73,20 +74,21 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        return reply.code(200).send(
-          await listSpaceTasks({
-            spaceId: request.params.spaceId,
-            userId: user.id,
-            ...request.query,
-          }),
-        );
-      } catch (error) {
-        return handleTaskError(request, reply, error, "Failed to list tasks");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list tasks",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          return reply.code(200).send(
+            yield* listSpaceTasks({
+              spaceId: request.params.spaceId,
+              userId: user.id,
+              ...request.query,
+            }),
+          );
+        }),
+      );
     },
   );
 
@@ -113,29 +115,25 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        return reply.code(200).send(
-          await listScheduledTasks({
-            spaceId: request.params.spaceId,
-            userId: user.id,
-            scope: request.query.scope,
-            relativeTo: request.query.relativeTo ?? getDMY(new Date()),
-            to: request.query.to,
-            cursor: request.query.cursor,
-            limit: request.query.limit,
-          }),
-        );
-      } catch (error) {
-        return handleTaskError(
-          request,
-          reply,
-          error,
-          "Failed to list scheduled tasks",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list scheduled tasks",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          return reply.code(200).send(
+            yield* listScheduledTasks({
+              spaceId: request.params.spaceId,
+              userId: user.id,
+              scope: request.query.scope,
+              relativeTo: request.query.relativeTo ?? getDMY(new Date()),
+              to: request.query.to,
+              cursor: request.query.cursor,
+              limit: request.query.limit,
+            }),
+          );
+        }),
+      );
     },
   );
 
@@ -162,20 +160,21 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const items = await listSectionItems({
-          spaceId: request.params.spaceId,
-          sectionId: request.params.sectionId,
-          userId: user.id,
-          taskState: request.query.taskState,
-        });
-        return reply.code(200).send({ items });
-      } catch (error) {
-        return handleTaskError(request, reply, error, "Failed to list items");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list items",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const items = yield* listSectionItems({
+            spaceId: request.params.spaceId,
+            sectionId: request.params.sectionId,
+            userId: user.id,
+            taskState: request.query.taskState,
+          });
+          return reply.code(200).send({ items });
+        }),
+      );
     },
   );
 
@@ -201,20 +200,21 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const task = await createSectionTask({
-          spaceId: request.params.spaceId,
-          sectionId: request.params.sectionId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(201).send({ task });
-      } catch (error) {
-        return handleTaskError(request, reply, error, "Failed to create task");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create task",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const task = yield* createSectionTask({
+            spaceId: request.params.spaceId,
+            sectionId: request.params.sectionId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(201).send({ task });
+        }),
+      );
     },
   );
 
@@ -238,19 +238,20 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const task = await getTask({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-        });
-        return reply.code(200).send({ task });
-      } catch (error) {
-        return handleTaskError(request, reply, error, "Failed to get task");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to get task",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const task = yield* getTask({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+          });
+          return reply.code(200).send({ task });
+        }),
+      );
     },
   );
 
@@ -276,20 +277,21 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const task = await updateTask({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-          updates: request.body,
-        });
-        return reply.code(200).send({ task });
-      } catch (error) {
-        return handleTaskError(request, reply, error, "Failed to update task");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to update task",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const task = yield* updateTask({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+            updates: request.body,
+          });
+          return reply.code(200).send({ task });
+        }),
+      );
     },
   );
 
@@ -315,31 +317,33 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const task = await deleteTask({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-        });
-        analytics.capture({
-          name: "task_deleted",
-          distinctId: user.id,
-          properties: {
-            age_hours: Math.max(
-              0,
-              Math.round(((Date.now() - task.createdAt) / 3_600_000) * 10) / 10,
-            ),
-            deletion_method: "api",
-            previous_state: task.state,
-          },
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return handleTaskError(request, reply, error, "Failed to delete task");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to delete task",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const task = yield* deleteTask({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+          });
+          analytics.capture({
+            name: "task_deleted",
+            distinctId: user.id,
+            properties: {
+              age_hours: Math.max(
+                0,
+                Math.round(((Date.now() - task.createdAt) / 3_600_000) * 10) /
+                  10,
+              ),
+              deletion_method: "api",
+              previous_state: task.state,
+            },
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -363,34 +367,30 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const previousDate = await clearTaskSchedule({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-        });
-        if (previousDate) {
-          analytics.capture({
-            name: "task_unscheduled",
-            distinctId: user.id,
-            properties: {
-              previous_days_ahead: daysAhead(previousDate),
-              unscheduling_method: "api",
-            },
+      return runRoute(
+        request,
+        reply,
+        "Failed to clear task schedule",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const previousDate = yield* clearTaskSchedule({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
           });
-        }
-        return reply.code(204).send(null);
-      } catch (error) {
-        return handleTaskError(
-          request,
-          reply,
-          error,
-          "Failed to clear task schedule",
-        );
-      }
+          if (previousDate) {
+            analytics.capture({
+              name: "task_unscheduled",
+              distinctId: user.id,
+              properties: {
+                previous_days_ahead: daysAhead(previousDate),
+                unscheduling_method: "api",
+              },
+            });
+          }
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -418,46 +418,42 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const { previousDate, ...response } = await scheduleTask({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-          ...request.body,
-        });
-        const nextDaysAhead = daysAhead(response.date);
-        if (previousDate) {
-          analytics.capture({
-            name: "task_rescheduled",
-            distinctId: user.id,
-            properties: {
-              days_ahead: nextDaysAhead,
-              previous_days_ahead: daysAhead(previousDate),
-              scheduling_method: "api",
-            },
+      return runRoute(
+        request,
+        reply,
+        "Failed to schedule task",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const { previousDate, ...response } = yield* scheduleTask({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+            ...request.body,
           });
-        } else {
-          analytics.capture({
-            name: "task_scheduled",
-            distinctId: user.id,
-            properties: {
-              days_ahead: nextDaysAhead,
-              scheduling_method: "api",
-            },
-          });
-        }
-        return reply.code(200).send(response);
-      } catch (error) {
-        return handleTaskError(
-          request,
-          reply,
-          error,
-          "Failed to schedule task",
-        );
-      }
+          const nextDaysAhead = daysAhead(response.date);
+          if (previousDate) {
+            analytics.capture({
+              name: "task_rescheduled",
+              distinctId: user.id,
+              properties: {
+                days_ahead: nextDaysAhead,
+                previous_days_ahead: daysAhead(previousDate),
+                scheduling_method: "api",
+              },
+            });
+          } else {
+            analytics.capture({
+              name: "task_scheduled",
+              distinctId: user.id,
+              properties: {
+                days_ahead: nextDaysAhead,
+                scheduling_method: "api",
+              },
+            });
+          }
+          return reply.code(200).send(response);
+        }),
+      );
     },
   );
 
@@ -483,20 +479,21 @@ export const taskRoutes: FastifyPluginAsyncZod<TaskRoutesOptions> = async (
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-
-      try {
-        const task = await moveTask({
-          spaceId: request.params.spaceId,
-          taskId: request.params.taskId,
-          userId: user.id,
-          ...request.body,
-        });
-        return reply.code(200).send({ task });
-      } catch (error) {
-        return handleTaskError(request, reply, error, "Failed to move task");
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to move task",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const task = yield* moveTask({
+            spaceId: request.params.spaceId,
+            taskId: request.params.taskId,
+            userId: user.id,
+            ...request.body,
+          });
+          return reply.code(200).send({ task });
+        }),
+      );
     },
   );
 };

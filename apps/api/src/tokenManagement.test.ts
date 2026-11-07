@@ -1,10 +1,11 @@
-import { describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { DB, execSync, syncDispatch } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { TRPCError } from "@trpc/server";
 import { createAppRouter } from "./appRouter";
-import * as databases from "./db/db";
+import { testDatabases, testServices } from "./services/testing";
 import { createServer } from "./server";
+import { Effect } from "effect";
 import { authenticateBearerToken } from "./services/authentication";
 import {
   getTokenById,
@@ -25,7 +26,10 @@ function setUp() {
     mainDB,
     register({ email: "second@example.com", hashedPassword: "hashed" }),
   );
-  const appRouter = createAppRouter({ mainDB, captchaConfig: null });
+  const appRouter = createAppRouter({
+    ...testServices(mainDB),
+    captchaConfig: null,
+  });
 
   return {
     first,
@@ -88,11 +92,13 @@ describe("token management", () => {
     );
 
     expect(
-      await authenticateBearerToken(`Bearer ${registered.token}`, mainDB, {
-        usedAt: "2026-07-26T12:00:00.000Z",
-        ip: "203.0.113.10",
-        userAgent: "WillBeDoneTest/1.0",
-      }),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${registered.token}`, mainDB, {
+          usedAt: "2026-07-26T12:00:00.000Z",
+          ip: "203.0.113.10",
+          userAgent: "WillBeDoneTest/1.0",
+        }),
+      ),
     ).toMatchObject({ id: registered.userId });
     expect(
       syncDispatch(mainDB, getTokenById({ id: registered.token })),
@@ -103,7 +109,7 @@ describe("token management", () => {
     });
 
     const caller = createAppRouter({
-      mainDB,
+      ...testServices(mainDB),
       captchaConfig: null,
     }).createCaller({
       user: { id: registered.userId, email: "usage@example.com" },
@@ -125,13 +131,14 @@ describe("token management", () => {
       mainDB,
       register({ email: "proxy@example.com", hashedPassword: "hashed" }),
     );
-    const getMainDbSpy = spyOn(databases, "getMainHyperDB").mockImplementation(
-      async () => mainDB,
-    );
     const server = createServer({
-      appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+      appRouter: createAppRouter({
+        ...testServices(mainDB),
+        captchaConfig: null,
+      }),
       logger: false,
       serveFrontend: false,
+      databases: testDatabases({ main: mainDB }),
     });
 
     try {
@@ -165,7 +172,6 @@ describe("token management", () => {
       ).toMatchObject({ lastUsedIp: "198.51.100.8" });
     } finally {
       await server.close();
-      getMainDbSpy.mockRestore();
     }
   });
 });

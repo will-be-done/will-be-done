@@ -6,6 +6,7 @@ import {
   execAsync,
   SubscribableDB,
   TableDefinition,
+  type HyperDB,
 } from "@will-be-done/hyperdb";
 import path from "path";
 import { getEnvConfig } from "../env";
@@ -43,7 +44,6 @@ import {
   migrateScheduledTodoTasks,
   spaceStorageMigrationTables,
 } from "@will-be-done/slices/space";
-import { subscriptionManager } from "../subscriptionManager";
 import {
   createTursoCloudSqlDriver,
   getOrCreateTursoCloudDatabase,
@@ -60,10 +60,9 @@ export interface DBConfig {
   syncTableNamesInDependencyOrder: string[];
 }
 
-const sqliteDatabases = new Set<Database>();
-const asyncDatabaseClosers = new Set<() => Promise<void>>();
+type Closers = Set<() => Promise<void> | void>;
 
-const createLocalDB = (dbType: string, dbId: string) => {
+const createLocalDB = (dbType: string, dbId: string, closers: Closers) => {
   const dbName = dbType + "-" + dbId;
 
   const dbDir = getEnvConfig().WBD_DB_PATH;
@@ -72,7 +71,7 @@ const createLocalDB = (dbType: string, dbId: string) => {
   const dbPath = path.join(dbDir, dbName + ".sqlite");
   console.log("Loading database...", dbPath);
   const sqliteDB = new Database(dbPath, { strict: true });
-  sqliteDatabases.add(sqliteDB);
+  closers.add(() => sqliteDB.close());
 
   sqliteDB.run("PRAGMA journal_mode=WAL;");
   sqliteDB.run("PRAGMA synchronous=NORMAL;");
@@ -110,16 +109,20 @@ const createLocalDB = (dbType: string, dbId: string) => {
   });
 };
 
-const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
+const getDB = async (
+  dbType: "main" | "user" | "space",
+  dbId: string,
+  closers: Closers,
+) => {
   let db: DB;
   const env = getEnvConfig();
   if (env.WBD_DB_ENGINE === "sqlite") {
-    db = createLocalDB(dbType, dbId);
+    db = createLocalDB(dbType, dbId, closers);
   } else if (env.WBD_DB_ENGINE === "turso-cloud") {
     const { name, url } = await getOrCreateTursoCloudDatabase(dbType, dbId);
     console.log(`Loading Turso Cloud database "${name}"...`, url);
     const { driver, close } = await createTursoCloudSqlDriver(name, url);
-    asyncDatabaseClosers.add(close);
+    closers.add(close);
     db = new DB(driver, {
       traits: [dbIdTrait(dbType, dbId)],
       ...hyperDBStrictOptions,
@@ -135,7 +138,7 @@ const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
         requestTimeoutMs: env.WBD_TURSOD_REQUEST_TIMEOUT_MS,
       },
     );
-    asyncDatabaseClosers.add(close);
+    closers.add(close);
     db = new DB(driver, {
       traits: [dbIdTrait(dbType, dbId)],
       ...hyperDBStrictOptions,
@@ -150,79 +153,49 @@ const getDB = async (dbType: "main" | "user" | "space", dbId: string) => {
   return db;
 };
 
-let mainDB: DB | undefined = undefined;
-let mainDBPromise: Promise<DB> | undefined;
-export const getMainHyperDB = async () => {
-  if (mainDB) {
-    return mainDB;
+const openMainDB = async (closers: Closers) => {
+  const db = await getDB("main", "main", closers);
+  await execAsync(
+    db.loadTables([
+      ...accountEmailTables,
+      googleFlowsTable,
+      usersTable,
+      tokensTable,
+      dbsTable,
+      backupStateTable,
+      backupTierStateTable,
+      backupFileTable,
+    ]),
+  );
+  let after = await asyncDispatch(db, backfillUserEmails({}));
+  while (after !== null) {
+    after = await asyncDispatch(db, backfillUserEmails({ after }));
   }
-  if (mainDBPromise) return mainDBPromise;
-
-  mainDBPromise = (async () => {
-    const db = await getDB("main", "main");
-    await execAsync(
-      db.loadTables([
-        ...accountEmailTables,
-        googleFlowsTable,
-        usersTable,
-        tokensTable,
-        dbsTable,
-        backupStateTable,
-        backupTierStateTable,
-        backupFileTable,
-      ]),
-    );
-    let after = await asyncDispatch(db, backfillUserEmails({}));
-    while (after !== null) {
-      after = await asyncDispatch(db, backfillUserEmails({ after }));
-    }
-    mainDB = db;
-    return db;
-  })();
-
-  try {
-    return await mainDBPromise;
-  } finally {
-    if (!mainDB) mainDBPromise = undefined;
-  }
+  return db;
 };
 
-type HyperDBCacheEntry = {
+export type OpenedDatabase = {
   dbConfig: DBConfig;
-  db: SubscribableDB;
+  db: HyperDB;
   nextClock: HlcClock;
   clientId: string;
 };
 
-const dbs = new Map<string, HyperDBCacheEntry>();
-const dbPromises = new Map<string, Promise<HyperDBCacheEntry>>();
+export type LoadedDatabase = {
+  database: string;
+  dbType: DBConfig["dbType"];
+  db: HyperDB;
+};
 
-export const getLoadedHyperDBs = () =>
-  [...dbs.entries()].map(([database, entry]) => ({
-    database,
-    dbType: entry.dbConfig.dbType,
-    db: entry.db,
-  }));
-
-export async function closeDatabases() {
-  dbs.clear();
-  dbPromises.clear();
-  mainDB = undefined;
-  mainDBPromise = undefined;
-
-  for (const sqliteDB of sqliteDatabases) {
-    sqliteDB.close();
-  }
-  sqliteDatabases.clear();
-
-  const closers = [...asyncDatabaseClosers];
-  asyncDatabaseClosers.clear();
-  await Promise.allSettled(closers.map((close) => close()));
-}
+export type NotifyChanges = (
+  dbId: string,
+  dbType: DBConfig["dbType"],
+) => Promise<void>;
 
 export function installSyncNotificationHook(
   db: SubscribableDB,
   dbConfig: Pick<DBConfig, "dbId" | "dbType" | "tableNameMap">,
+  notify: NotifyChanges,
 ) {
   let notificationQueued = false;
   db.afterChange(function* notifySubscribers(_db, table, _traits, ops) {
@@ -237,14 +210,12 @@ export function installSyncNotificationHook(
     notificationQueued = true;
     queueMicrotask(() => {
       notificationQueued = false;
-      void subscriptionManager
-        .notifyChangesAvailable(dbConfig.dbId, dbConfig.dbType)
-        .catch((error) => {
-          console.error(
-            `[Sync notifications] Failed to publish changes for ${dbConfig.dbType} database "${dbConfig.dbId}":`,
-            error,
-          );
-        });
+      void notify(dbConfig.dbId, dbConfig.dbType).catch((error) => {
+        console.error(
+          `[Sync notifications] Failed to publish changes for ${dbConfig.dbType} database "${dbConfig.dbId}":`,
+          error,
+        );
+      });
     });
 
     yield* noop();
@@ -260,128 +231,170 @@ export function installServerChangeFeedHook(db: SubscribableDB) {
   });
 }
 
-export const getHyperDB = async (dbConfig: DBConfig) => {
+const openSyncedDB = async (
+  dbConfig: DBConfig,
+  closers: Closers,
+  notify: NotifyChanges,
+): Promise<OpenedDatabase> => {
   const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
-  const db = dbs.get(dbName);
-  if (db) {
-    return db;
+  const clientId = createServerClientId(dbName);
+  const nextClock = createHlcClock(clientId);
+  const hyperDB = new SubscribableDB(
+    await getDB(dbConfig.dbType, dbConfig.dbId, closers),
+  );
+  const isSyncableTable = (table: TableDefinition) =>
+    dbConfig.tableNameMap[table.tableName] !== undefined;
+
+  if (dbConfig.dbType === "space") {
+    installProjectTaskStatsHooks(hyperDB);
   }
-  const existingPromise = dbPromises.get(dbName);
-  if (existingPromise) return existingPromise;
 
-  const dbPromise = (async () => {
-    const clientId = createServerClientId(dbName);
-    const nextClock = createHlcClock(clientId);
-    const hyperDB = new SubscribableDB(
-      await getDB(dbConfig.dbType, dbConfig.dbId),
-    );
-    const isSyncableTable = (table: TableDefinition) =>
-      dbConfig.tableNameMap[table.tableName] !== undefined;
+  installSyncNotificationHook(hyperDB, dbConfig, notify);
 
-    if (dbConfig.dbType === "space") {
-      installProjectTaskStatsHooks(hyperDB);
+  hyperDB.afterInsert(function* (_db, table, traits, ops) {
+    if (!isSyncableTable(table)) return;
+    if (traits.some((t) => t.type === "skip-sync")) return;
+
+    const latest = yield* getLatestChangeCursor({});
+    nextClock.observe([latest?.clock]);
+    for (const op of ops) {
+      yield* insertChangeFromInsert({
+        tableDef: op.table,
+        row: op.newValue as PrimitiveRow,
+        clientId,
+        nextClock: nextClock(),
+      });
     }
 
-    installSyncNotificationHook(hyperDB, dbConfig);
+    yield* noop();
+  });
 
-    hyperDB.afterInsert(function* (_db, table, traits, ops) {
-      if (!isSyncableTable(table)) return;
-      if (traits.some((t) => t.type === "skip-sync")) return;
+  hyperDB.afterUpsert(function* (_db, table, traits, ops) {
+    if (!isSyncableTable(table)) return;
+    if (traits.some((t) => t.type === "skip-sync")) return;
 
-      const latest = yield* getLatestChangeCursor({});
-      nextClock.observe([latest?.clock]);
-      for (const op of ops) {
+    const latest = yield* getLatestChangeCursor({});
+    nextClock.observe([latest?.clock]);
+    for (const op of ops) {
+      if (!op.oldValue) {
         yield* insertChangeFromInsert({
           tableDef: op.table,
           row: op.newValue as PrimitiveRow,
           clientId,
           nextClock: nextClock(),
         });
+        continue;
       }
 
-      yield* noop();
-    });
-
-    hyperDB.afterUpsert(function* (_db, table, traits, ops) {
-      if (!isSyncableTable(table)) return;
-      if (traits.some((t) => t.type === "skip-sync")) return;
-
-      const latest = yield* getLatestChangeCursor({});
-      nextClock.observe([latest?.clock]);
-      for (const op of ops) {
-        if (!op.oldValue) {
-          yield* insertChangeFromInsert({
-            tableDef: op.table,
-            row: op.newValue as PrimitiveRow,
-            clientId,
-            nextClock: nextClock(),
-          });
-          continue;
-        }
-
-        yield* insertChangeFromUpdate({
-          tableDef: op.table,
-          oldRow: op.oldValue as PrimitiveRow,
-          newRow: op.newValue as PrimitiveRow,
-          clientId,
-          nextClock: nextClock(),
-        });
-      }
-
-      yield* noop();
-    });
-
-    hyperDB.afterDelete(function* (_db, table, traits, ops) {
-      if (!isSyncableTable(table)) return;
-      if (traits.some((t) => t.type === "skip-sync")) return;
-
-      const latest = yield* getLatestChangeCursor({});
-      nextClock.observe([latest?.clock]);
-      for (const op of ops) {
-        yield* insertChangeFromDelete({
-          tableDef: op.table,
-          row: op.oldValue as PrimitiveRow,
-          clientId,
-          nextClock: nextClock(),
-        });
-      }
-
-      yield* noop();
-    });
-
-    await execAsync(hyperDB.loadTables(dbConfig.persistDBTables));
-    await asyncDispatch(
-      hyperDB.withTraits({ type: "skip-sync" }),
-      initializeServerSyncFeed({}),
-    );
-    const persistedClock = await asyncDispatch(
-      hyperDB.withTraits({ type: "skip-sync" }),
-      migrateSyncV4Clocks({}),
-    );
-    const latest = await asyncDispatch(hyperDB, getLatestChangeCursor({}));
-    nextClock.observe([persistedClock, latest?.clock]);
-
-    // Clock migration rewrites materialized metadata but is not a new domain
-    // change. Install the feed hook only after that one-time rewrite so
-    // `skip-sync` can retain its narrow meaning: suppress local change
-    // generation while still publishing explicit canonical Change writes.
-    installServerChangeFeedHook(hyperDB);
-
-    if (dbConfig.dbType === "space") {
-      await asyncDispatch(hyperDB, migrateProjectSectionTaskStats({}));
-      await asyncDispatch(hyperDB, migrateScheduledTodoTasks({}));
-      await asyncDispatch(hyperDB, createInboxIfNotExists({}));
+      yield* insertChangeFromUpdate({
+        tableDef: op.table,
+        oldRow: op.oldValue as PrimitiveRow,
+        newRow: op.newValue as PrimitiveRow,
+        clientId,
+        nextClock: nextClock(),
+      });
     }
 
-    const result = { db: hyperDB, dbConfig, nextClock, clientId };
-    dbs.set(dbName, result);
-    return result;
-  })();
+    yield* noop();
+  });
 
-  dbPromises.set(dbName, dbPromise);
-  try {
-    return await dbPromise;
-  } finally {
-    dbPromises.delete(dbName);
+  hyperDB.afterDelete(function* (_db, table, traits, ops) {
+    if (!isSyncableTable(table)) return;
+    if (traits.some((t) => t.type === "skip-sync")) return;
+
+    const latest = yield* getLatestChangeCursor({});
+    nextClock.observe([latest?.clock]);
+    for (const op of ops) {
+      yield* insertChangeFromDelete({
+        tableDef: op.table,
+        row: op.oldValue as PrimitiveRow,
+        clientId,
+        nextClock: nextClock(),
+      });
+    }
+
+    yield* noop();
+  });
+
+  await execAsync(hyperDB.loadTables(dbConfig.persistDBTables));
+  await asyncDispatch(
+    hyperDB.withTraits({ type: "skip-sync" }),
+    initializeServerSyncFeed({}),
+  );
+  const persistedClock = await asyncDispatch(
+    hyperDB.withTraits({ type: "skip-sync" }),
+    migrateSyncV4Clocks({}),
+  );
+  const latest = await asyncDispatch(hyperDB, getLatestChangeCursor({}));
+  nextClock.observe([persistedClock, latest?.clock]);
+
+  // Clock migration rewrites materialized metadata but is not a new domain
+  // change. Install the feed hook only after that one-time rewrite so
+  // `skip-sync` can retain its narrow meaning: suppress local change
+  // generation while still publishing explicit canonical Change writes.
+  installServerChangeFeedHook(hyperDB);
+
+  if (dbConfig.dbType === "space") {
+    await asyncDispatch(hyperDB, migrateProjectSectionTaskStats({}));
+    await asyncDispatch(hyperDB, migrateScheduledTodoTasks({}));
+    await asyncDispatch(hyperDB, createInboxIfNotExists({}));
   }
+
+  return { db: hyperDB, dbConfig, nextClock, clientId };
 };
+
+export const createDatabaseRegistry = (notify: NotifyChanges) => {
+  const closers: Closers = new Set();
+  const opening = new Map<string, Promise<OpenedDatabase>>();
+  const opened = new Map<string, OpenedDatabase>();
+  let main: Promise<DB> | undefined;
+  let closed = false;
+
+  const assertOpen = () => {
+    if (closed) throw new Error("Databases are closed");
+  };
+
+  // Failed opens are forgotten so the next request retries them.
+  return {
+    main: async () => {
+      assertOpen();
+      main ??= openMainDB(closers).catch((error: unknown) => {
+        main = undefined;
+        throw error;
+      });
+      return main;
+    },
+    open: async (dbConfig: DBConfig) => {
+      assertOpen();
+      const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
+      const existing = opened.get(dbName) ?? opening.get(dbName);
+      if (existing) return existing;
+      const promise = openSyncedDB(dbConfig, closers, notify);
+      opening.set(dbName, promise);
+      try {
+        const database = await promise;
+        opened.set(dbName, database);
+        return database;
+      } finally {
+        opening.delete(dbName);
+      }
+    },
+    loaded: (): LoadedDatabase[] =>
+      [...opened.entries()].map(([database, entry]) => ({
+        database,
+        dbType: entry.dbConfig.dbType,
+        db: entry.db,
+      })),
+    close: async () => {
+      closed = true;
+      main = undefined;
+      opening.clear();
+      opened.clear();
+      const pending = [...closers];
+      closers.clear();
+      await Promise.allSettled(pending.map(async (close) => close()));
+    },
+  };
+};
+
+export type DatabaseRegistry = ReturnType<typeof createDatabaseRegistry>;

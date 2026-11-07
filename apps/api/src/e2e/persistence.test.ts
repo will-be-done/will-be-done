@@ -4,13 +4,13 @@ import { expect, test } from "bun:test";
 import { selectAsync } from "@will-be-done/hyperdb";
 import { taskById } from "@will-be-done/slices/space";
 import { spaceDBConfig } from "../db/configs";
-import { getHyperDB } from "../db/db";
 import { createSectionTask, getTask } from "../generated/v1-client";
 import {
   createAuthorization,
   createSectionFixture,
   expectResponseStatus,
   restartTestServer,
+  openDatabase,
 } from "./harness";
 
 const databasePath = process.env.WBD_API_E2E_DB_PATH;
@@ -33,7 +33,7 @@ test("persists generated-client mutations in the real database across restart", 
   ).data.task;
 
   const storedTask = await selectAsync(
-    (await getHyperDB(spaceDBConfig(space.id))).db,
+    (await openDatabase(spaceDBConfig(space.id))).db,
     {
       selector: taskById,
       args: { id: task.id },

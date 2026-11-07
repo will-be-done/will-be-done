@@ -4,6 +4,7 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import type { BackendAnalyticsEvent } from "./analytics";
 import { createAppRouter } from "./appRouter";
 import { tokensTable, usersTable } from "./slices/authSlice";
+import { testServices } from "./services/testing";
 
 describe("app router analytics", () => {
   test("captures successful signup, login, and API token creation", async () => {
@@ -12,7 +13,7 @@ describe("app router analytics", () => {
 
     const events: BackendAnalyticsEvent[] = [];
     const appRouter = createAppRouter({
-      mainDB,
+      ...testServices(mainDB),
       captchaConfig: null,
       analytics: {
         capture: (event) => events.push(event),

@@ -7,94 +7,93 @@ import type {
 } from "@doist/todoist-api-typescript";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
+import { Clock, Effect, Option, Result, Schema, Stream } from "effect";
 import type { Backup } from "@will-be-done/slices/space";
 
 // ---------------------------------------------------------------------------
 // Pagination helpers
 // ---------------------------------------------------------------------------
 
-async function fetchAllTasks(api: TodoistApi): Promise<TodoistTask[]> {
-  const all: TodoistTask[] = [];
-  let cursor: string | null | undefined = undefined;
-  do {
-    const res = await api.getTasks({ cursor, limit: 200 });
-    all.push(...res.results);
-    cursor = res.nextCursor;
-  } while (cursor);
-  return all;
-}
+export class TodoistRequestError extends Schema.TaggedError<TodoistRequestError>()(
+  "TodoistRequestError",
+  { cause: Schema.Defect() },
+) {}
 
-async function fetchAllCompletedTasks(api: TodoistApi): Promise<TodoistTask[]> {
-  const all: TodoistTask[] = [];
+const request = <A>(call: () => Promise<A>) =>
+  Effect.tryPromise({
+    try: call,
+    catch: (cause) => new TodoistRequestError({ cause }),
+  });
 
-  // The Todoist API limits the date range for completed tasks queries,
-  // so we fetch in 3-month chunks going backwards from now.
-  const now = new Date();
+const fetchAll = <A>(
+  page: (
+    cursor: string | undefined,
+  ) => Promise<{ results: A[]; nextCursor: string | null }>,
+) =>
+  Stream.paginate(undefined as string | undefined, (cursor) =>
+    request(() => page(cursor)).pipe(
+      Effect.map(
+        ({ results, nextCursor }) =>
+          [results, Option.fromNullishOr(nextCursor)] as const,
+      ),
+    ),
+  ).pipe(Stream.runCollect);
+
+// The Todoist API limits the date range for completed tasks queries,
+// so we fetch in 3-month chunks going backwards from now.
+export type TodoistClient = Pick<
+  TodoistApi,
+  | "getProjects"
+  | "getSections"
+  | "getTasks"
+  | "getCompletedTasksByCompletionDate"
+>;
+
+const fetchAllCompletedTasks = Effect.fn("fetchAllCompletedTasks")(function* (
+  api: TodoistClient,
+) {
+  const all: TodoistTask[] = [];
+  const now = new Date(yield* Clock.currentTimeMillis);
   const MONTHS_PER_CHUNK = 3;
   const MAX_YEARS_BACK = 15;
   const totalChunks = (MAX_YEARS_BACK * 12) / MONTHS_PER_CHUNK;
 
-  try {
-    for (let i = 0; i < totalChunks; i++) {
-      const until = new Date(now);
-      until.setMonth(until.getMonth() - i * MONTHS_PER_CHUNK);
+  for (let i = 0; i < totalChunks; i++) {
+    const until = new Date(now);
+    until.setMonth(until.getMonth() - i * MONTHS_PER_CHUNK);
 
-      const since = new Date(now);
-      since.setMonth(since.getMonth() - (i + 1) * MONTHS_PER_CHUNK);
+    const since = new Date(now);
+    since.setMonth(since.getMonth() - (i + 1) * MONTHS_PER_CHUNK);
 
-      const sinceStr = since.toISOString().replace("Z", "");
-      const untilStr = until.toISOString().replace("Z", "");
+    const sinceStr = since.toISOString().replace("Z", "");
+    const untilStr = until.toISOString().replace("Z", "");
 
-      let cursor: string | null | undefined = undefined;
-      let chunkCount = 0;
-      do {
-        const res = await api.getCompletedTasksByCompletionDate({
+    const chunk = yield* fetchAll((cursor) =>
+      api
+        .getCompletedTasksByCompletionDate({
           since: sinceStr,
           until: untilStr,
           cursor,
           limit: 200,
-        });
-        all.push(...res.items);
-        chunkCount += res.items.length;
-        cursor = res.nextCursor;
-      } while (cursor);
-
-      // If an older chunk returned nothing, stop going further back
-      if (chunkCount === 0 && i > 0) break;
+        })
+        .then(({ items, nextCursor }) => ({ results: items, nextCursor })),
+    ).pipe(Effect.result);
+    if (Result.isFailure(chunk)) {
+      // Completed tasks API may require Todoist Premium — gracefully skip
+      const { cause } = chunk.failure;
+      console.warn(
+        "Could not fetch completed tasks (may require Todoist Premium):",
+        cause instanceof Error ? cause.message : cause,
+      );
+      break;
     }
-  } catch (e) {
-    // Completed tasks API may require Todoist Premium — gracefully skip
-    console.warn(
-      "Could not fetch completed tasks (may require Todoist Premium):",
-      e instanceof Error ? e.message : e,
-    );
+    all.push(...chunk.success);
+
+    // If an older chunk returned nothing, stop going further back
+    if (chunk.success.length === 0 && i > 0) break;
   }
   return all;
-}
-
-async function fetchAllProjects(
-  api: TodoistApi,
-): Promise<(PersonalProject | WorkspaceProject)[]> {
-  const all: (PersonalProject | WorkspaceProject)[] = [];
-  let cursor: string | null | undefined = undefined;
-  do {
-    const res = await api.getProjects({ cursor, limit: 200 });
-    all.push(...res.results);
-    cursor = res.nextCursor;
-  } while (cursor);
-  return all;
-}
-
-async function fetchAllSections(api: TodoistApi): Promise<TodoistSection[]> {
-  const all: TodoistSection[] = [];
-  let cursor: string | null | undefined = undefined;
-  do {
-    const res = await api.getSections({ cursor, limit: 200 });
-    all.push(...res.results);
-    cursor = res.nextCursor;
-  } while (cursor);
-  return all;
-}
+});
 
 // ---------------------------------------------------------------------------
 // Recurrence conversion
@@ -388,17 +387,19 @@ export function buildBackup(
   };
 }
 
-export async function importFromTodoist(apiToken: string): Promise<Backup> {
-  const api = new TodoistApi(apiToken);
-
-  // Fetch everything in parallel
+export const importFromTodoist = Effect.fn("importFromTodoist")(function* (
+  api: TodoistClient,
+) {
   const [todoistProjects, todoistSections, activeTasks, completedTasks] =
-    await Promise.all([
-      fetchAllProjects(api),
-      fetchAllSections(api),
-      fetchAllTasks(api),
-      fetchAllCompletedTasks(api),
-    ]);
+    yield* Effect.all(
+      [
+        fetchAll((cursor) => api.getProjects({ cursor, limit: 200 })),
+        fetchAll((cursor) => api.getSections({ cursor, limit: 200 })),
+        fetchAll((cursor) => api.getTasks({ cursor, limit: 200 })),
+        fetchAllCompletedTasks(api),
+      ],
+      { concurrency: "unbounded" },
+    );
 
   const seenIds = new Set(activeTasks.map((t) => t.id));
   const completedUniq = completedTasks.filter((t) => {
@@ -411,4 +412,4 @@ export async function importFromTodoist(apiToken: string): Promise<Backup> {
     ...activeTasks,
     ...completedUniq,
   ]);
-}
+});

@@ -26,6 +26,8 @@ import {
   register,
   revokeToken,
 } from "../slices/authSlice";
+import { Effect } from "effect";
+import { GoogleIdentityError } from "./provider";
 import { authenticateBearerToken } from "../services/authentication";
 import { action } from "../builders";
 import { accountEmailTables, emailChallengesTable } from "../email/tables";
@@ -39,6 +41,7 @@ import {
   resolveGoogleAppUrl,
   type GoogleConfig,
 } from "./config";
+import { testDatabases, testServices } from "../services/testing";
 
 const cleanup: (() => void | Promise<void>)[] = [];
 afterEach(async () => {
@@ -131,15 +134,15 @@ async function fixture(
     provider: {
       authorizationUrl: (flow: { id: string }) =>
         `https://accounts.google.test/authorize?state=${flow.id}`,
-      async verify(code: string) {
-        if (code !== "valid") throw new Error("Invalid token");
-        return profile;
-      },
+      verify: (code: string) =>
+        code === "valid"
+          ? Effect.succeed(profile)
+          : Effect.fail(new GoogleIdentityError({ message: "Invalid token" })),
     },
   };
   const google = createGoogleService(db, googleConfig, options);
   const router = createAppRouter({
-    mainDB: db,
+    ...testServices(db),
     captchaConfig: null,
     google,
     accountEmail: createAccountEmailService(db, emailConfig),
@@ -209,7 +212,9 @@ describe("Google accounts", () => {
     expect(user.emailVerifiedAt).toBeString();
     expect(user.email).toBe("person@gmail.com");
     expect(
-      await authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      ),
     ).toMatchObject({ id: user.id });
     await rejects(f.google.completeSignIn(flow));
     await rejects(
@@ -343,7 +348,9 @@ describe("Google accounts", () => {
     await asyncDispatch(f.db, setChallenge({}));
     await f.publicCaller.resetPassword({ token, password });
     expect(
-      await authenticateBearerToken(`Bearer ${account.token}`, f.db),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${account.token}`, f.db),
+      ),
     ).toBeNull();
     const login = await f.publicCaller.login({
       email: "external@example.com",
@@ -414,7 +421,7 @@ describe("Google accounts", () => {
     const session = { userId: account.userId, tokenId: account.token };
     await f.google.completeLink(await f.ready(session), session, password);
     const caller = createAppRouter({
-      mainDB: f.db,
+      ...testServices(f.db),
       captchaConfig: null,
     }).createCaller({
       user: { id: account.userId, email: "app@example.com" },
@@ -572,7 +579,7 @@ describe("Google accounts", () => {
     const session = { userId: account.userId, tokenId: account.token };
     const server = createServer({
       appRouter: f.router,
-      mainDB: f.db,
+      databases: testDatabases({ main: f.db }),
       google: f.google,
       serveFrontend: false,
       logger: false,
@@ -625,7 +632,7 @@ describe("Google accounts", () => {
     const f = await fixture();
     const server = createServer({
       appRouter: f.router,
-      mainDB: f.db,
+      databases: testDatabases({ main: f.db }),
       google: f.google,
       serveFrontend: false,
       logger: false,
@@ -687,7 +694,9 @@ describe("Google accounts", () => {
     });
     const result = await client.google.completeSignIn.mutate(flow);
     expect(
-      await authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      await Effect.runPromise(
+        authenticateBearerToken(`Bearer ${result.token}`, f.db),
+      ),
     ).toMatchObject({ id: result.userId });
   });
 
@@ -705,7 +714,7 @@ describe("Google accounts", () => {
           );
           const server = createServer({
             appRouter: f.router,
-            mainDB: f.db,
+            databases: testDatabases({ main: f.db }),
             google: f.google,
             serveFrontend: false,
             logger: false,
@@ -854,7 +863,7 @@ describe("Google accounts", () => {
           const account = link ? await f.passwordAccount() : null;
           const server = createServer({
             appRouter: f.router,
-            mainDB: f.db,
+            databases: testDatabases({ main: f.db }),
             google: f.google,
             serveFrontend: false,
             logger: false,
@@ -924,7 +933,9 @@ describe("Google accounts", () => {
           } else {
             const result = await f.google.completeSignIn(proof);
             expect(
-              await authenticateBearerToken(`Bearer ${result.token}`, f.db),
+              await Effect.runPromise(
+                authenticateBearerToken(`Bearer ${result.token}`, f.db),
+              ),
             ).toMatchObject({ id: result.userId });
           }
         });
@@ -939,7 +950,7 @@ describe("Google accounts", () => {
     });
     const server = createServer({
       appRouter: f.router,
-      mainDB: f.db,
+      databases: testDatabases({ main: f.db }),
       google: f.google,
       serveFrontend: false,
       logger: false,

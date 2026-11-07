@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { setTimeout as delay } from "node:timers/promises";
 import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
+import { Clock, Effect, Result, Schedule, Schema } from "effect";
 import { Resend } from "resend";
+import { dispatch } from "../services/hyperdb";
 import { getUserById, normalizeEmail } from "../slices/authSlice";
 import {
   claimEmailJob,
@@ -20,18 +21,32 @@ import type { EmailConfig, EmailTemplateConfig } from "./config";
 import type { EmailPayload } from "./templates";
 
 export interface EmailSender {
-  send(payload: EmailPayload, idempotencyKey: string): Promise<string>;
+  send(
+    payload: EmailPayload,
+    idempotencyKey: string,
+  ): Effect.Effect<string, EmailDeliveryError>;
 }
 
-export class EmailDeliveryError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly retryable: boolean,
-    public readonly retryAfterMs?: number,
-  ) {
-    super(code);
-  }
-}
+export class EmailDeliveryError extends Schema.TaggedError<EmailDeliveryError>()(
+  "EmailDeliveryError",
+  {
+    code: Schema.String,
+    retryable: Schema.Boolean,
+    retryAfterMs: Schema.optional(Schema.Number),
+  },
+) {}
+
+const SEND_TIMEOUT = "10 seconds";
+
+const timedOut = () =>
+  Effect.fail(new EmailDeliveryError({ code: "timeout", retryable: true }));
+
+const retryAfterMs = (retryAfter: string, now: number) => {
+  const ms = /^\d+(\.\d+)?$/.test(retryAfter)
+    ? Number(retryAfter) * 1000
+    : Math.max(0, Date.parse(retryAfter) - now);
+  return Number.isFinite(ms) ? ms : undefined;
+};
 
 export function createResendSender(
   apiKey: string,
@@ -39,34 +54,41 @@ export function createResendSender(
 ): EmailSender {
   const resend = new Resend(apiKey, options);
   return {
-    async send(payload, idempotencyKey) {
-      const result = await resend.emails.send(payload, {
-        idempotencyKey,
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (result.error) {
-        const status = result.error.statusCode;
-        const retryAfter = result.headers?.["retry-after"];
-        const retryAfterMs = retryAfter
-          ? /^\d+(\.\d+)?$/.test(retryAfter)
-            ? Number(retryAfter) * 1000
-            : Math.max(0, Date.parse(retryAfter) - Date.now())
-          : undefined;
-        throw new EmailDeliveryError(
-          result.error.name,
-          status === 429 ||
-            (status != null && status >= 500) ||
-            result.error.name === "concurrent_idempotent_requests" ||
-            result.error.name === "rate_limit_exceeded" ||
-            result.error.name === "internal_server_error" ||
-            (status == null && result.error.name === "application_error"),
-          Number.isFinite(retryAfterMs) ? retryAfterMs : undefined,
-        );
-      }
-      if (!result.data?.id)
-        throw new EmailDeliveryError("missing_provider_id", true);
-      return result.data.id;
-    },
+    send: Effect.fn("Resend.send")(
+      function* (payload: EmailPayload, idempotencyKey: string) {
+        const result = yield* Effect.tryPromise({
+          try: (signal) =>
+            resend.emails.send(payload, { idempotencyKey, signal }),
+          catch: () =>
+            new EmailDeliveryError({ code: "network_error", retryable: true }),
+        });
+        if (result.error) {
+          const status = result.error.statusCode;
+          const retryAfter = result.headers?.["retry-after"];
+          return yield* new EmailDeliveryError({
+            code: result.error.name,
+            retryable:
+              status === 429 ||
+              (status != null && status >= 500) ||
+              result.error.name === "concurrent_idempotent_requests" ||
+              result.error.name === "rate_limit_exceeded" ||
+              result.error.name === "internal_server_error" ||
+              (status == null && result.error.name === "application_error"),
+            retryAfterMs: retryAfter
+              ? retryAfterMs(retryAfter, yield* Clock.currentTimeMillis)
+              : undefined,
+          });
+        }
+        if (!result.data?.id) {
+          return yield* new EmailDeliveryError({
+            code: "missing_provider_id",
+            retryable: true,
+          });
+        }
+        return result.data.id;
+      },
+      Effect.timeoutOrElse({ duration: SEND_TIMEOUT, orElse: timedOut }),
+    ),
   };
 }
 
@@ -199,127 +221,116 @@ export function requireAccountEmail(
   return service;
 }
 
-interface WorkerOptions {
-  now?: () => number;
-  paceMs?: number;
-  log?: (event: {
-    jobId?: string;
-    kind?: string;
-    status: string;
-    code?: string;
-  }) => void;
-}
+export type EmailWorkerLog = (event: {
+  jobId?: string;
+  kind?: string;
+  status: string;
+  code?: string;
+}) => void;
 
-export function createEmailWorker(
+const logToConsole: EmailWorkerLog = (event) =>
+  console.log("[Account email]", event);
+
+// Each job runs to completion: interrupting the worker stops it between jobs,
+// so a sent email is always recorded.
+const deliverEmailJob = Effect.fn("deliverEmailJob")(function* (
+  db: DB,
+  sender: EmailSender,
+  log: EmailWorkerLog,
+) {
+  const leaseId = randomUUID();
+  const job = yield* dispatch(
+    db,
+    claimEmailJob({ now: yield* Clock.currentTimeMillis, leaseId }),
+  );
+  if (!job) return false;
+  if (job.status !== "pending") {
+    log({
+      jobId: job.id,
+      kind: job.kind,
+      status: job.status,
+      ...(job.failureCode ? { code: job.failureCode } : {}),
+    });
+    return true;
+  }
+  const result = yield* Effect.try(
+    () => JSON.parse(job.payload!) as EmailPayload,
+  ).pipe(
+    Effect.flatMap((payload) =>
+      sender
+        .send(payload, `account-email/${job.id}`)
+        .pipe(
+          Effect.interruptible,
+          Effect.timeoutOrElse({ duration: SEND_TIMEOUT, orElse: timedOut }),
+        ),
+    ),
+    Effect.result,
+  );
+  const now = yield* Clock.currentTimeMillis;
+  let providerId: string | undefined;
+  let failureCode: string | undefined;
+  let retryAt: number | undefined;
+  if (Result.isSuccess(result)) providerId = result.success;
+  else {
+    // Provider errors can contain credentials and bodies; log only safe codes.
+    const error = result.failure;
+    const known = error instanceof EmailDeliveryError;
+    failureCode = known ? error.code : "network_error";
+    if (!known || error.retryable) {
+      const backoff =
+        [30_000, 120_000, 600_000, 1_800_000][job.attempts - 1] ?? 3_600_000;
+      retryAt = now + Math.max(backoff, known ? (error.retryAfterMs ?? 0) : 0);
+    }
+  }
+  yield* dispatch(
+    db,
+    finishEmailJob({
+      id: job.id,
+      leaseId,
+      now: yield* Clock.currentTimeMillis,
+      providerId,
+      failureCode,
+      retryAt,
+    }),
+  );
+  log({
+    jobId: job.id,
+    kind: job.kind,
+    status: providerId
+      ? "sent"
+      : retryAt !== undefined && retryAt < job.deadline
+        ? "retry"
+        : "failed",
+    ...(failureCode ? { code: failureCode } : {}),
+  });
+  return true;
+}, Effect.uninterruptible);
+
+export const drainEmailJobs = Effect.fn("drainEmailJobs")(function* (
   db: DB,
   sender: EmailSender,
   {
-    now = Date.now,
     paceMs = 500,
-    log = (event) => console.log("[Account email]", event),
-  }: WorkerOptions = {},
+    log = logToConsole,
+  }: { paceMs?: number; log?: EmailWorkerLog } = {},
 ) {
-  let timer: ReturnType<typeof setInterval> | undefined;
-  let running: Promise<void> | undefined;
-  let stopped = false;
-
-  async function drain() {
-    await asyncDispatch(db, cleanEmailJobs({ now: now() }));
-    for (let count = 0; count < 20 && !stopped; count++) {
-      const leaseId = randomUUID();
-      const job = await asyncDispatch(
-        db,
-        claimEmailJob({ now: now(), leaseId }),
-      );
-      if (!job) break;
-      if (job.status !== "pending") {
-        log({
-          jobId: job.id,
-          kind: job.kind,
-          status: job.status,
-          ...(job.failureCode ? { code: job.failureCode } : {}),
-        });
-        continue;
-      }
-      let providerId: string | undefined;
-      let failureCode: string | undefined;
-      let retryAt: number | undefined;
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      try {
-        const payload = JSON.parse(job.payload!) as EmailPayload;
-        providerId = await Promise.race([
-          sender.send(payload, `account-email/${job.id}`),
-          new Promise<never>((_resolve, reject) => {
-            timeout = setTimeout(
-              () => reject(new EmailDeliveryError("timeout", true)),
-              10_000,
-            );
-          }),
-        ]);
-      } catch (error) {
-        // Provider errors can contain credentials and bodies; log only safe codes.
-        const known = error instanceof EmailDeliveryError;
-        failureCode = known ? error.code : "network_error";
-        if (!known || error.retryable) {
-          const backoff =
-            [30_000, 120_000, 600_000, 1_800_000][job.attempts - 1] ??
-            3_600_000;
-          retryAt =
-            now() + Math.max(backoff, known ? (error.retryAfterMs ?? 0) : 0);
-        }
-      } finally {
-        clearTimeout(timeout);
-      }
-      await asyncDispatch(
-        db,
-        finishEmailJob({
-          id: job.id,
-          leaseId,
-          now: now(),
-          providerId,
-          failureCode,
-          retryAt,
-        }),
-      );
-      log({
-        jobId: job.id,
-        kind: job.kind,
-        status: providerId
-          ? "sent"
-          : retryAt !== undefined && retryAt < job.deadline
-            ? "retry"
-            : "failed",
-        ...(failureCode ? { code: failureCode } : {}),
-      });
-      if (!stopped && paceMs > 0) await delay(paceMs);
-    }
+  yield* dispatch(db, cleanEmailJobs({ now: yield* Clock.currentTimeMillis }));
+  for (let count = 0; count < 20; count++) {
+    if (!(yield* deliverEmailJob(db, sender, log))) break;
+    if (paceMs > 0) yield* Effect.sleep(paceMs);
   }
+});
 
-  function runOnce(): Promise<void> {
-    if (running) return running;
-    running = drain().finally(() => {
-      running = undefined;
-    });
-    return running;
-  }
-
-  return {
-    runOnce,
-    start() {
-      stopped = false;
-      const tick = () => {
-        void runOnce().catch(() =>
-          log({ status: "worker_error", code: "database_error" }),
-        );
-      };
-      timer = setInterval(tick, 5_000);
-      timer.unref();
-      tick();
-    },
-    async stop() {
-      stopped = true;
-      clearInterval(timer);
-      await running?.catch(() => {});
-    },
-  };
-}
+export const runEmailWorker = (
+  db: DB,
+  sender: EmailSender,
+  log: EmailWorkerLog = logToConsole,
+) =>
+  drainEmailJobs(db, sender, { log }).pipe(
+    Effect.catchCause(() =>
+      Effect.sync(() =>
+        log({ status: "worker_error", code: "database_error" }),
+      ),
+    ),
+    Effect.repeat(Schedule.spaced("5 seconds")),
+  );

@@ -14,6 +14,7 @@ import {
 } from "./rateLimit";
 import { createServer } from "./server";
 import { register, tokensTable, usersTable } from "./slices/authSlice";
+import { testDatabases, testServices } from "./services/testing";
 
 async function createLoginServer(
   rateLimit: RateLimitConfig = {
@@ -35,7 +36,11 @@ async function createLoginServer(
   );
 
   return createServer({
-    appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+    appRouter: createAppRouter({
+      ...testServices(mainDB),
+      captchaConfig: null,
+    }),
+    databases: testDatabases({ main: mainDB }),
     logger: false,
     serveFrontend: false,
     rateLimit,
@@ -94,7 +99,11 @@ describe("tRPC rate limiting", () => {
     const mainDB = new DB(new BptreeInmemDriver());
     expect(() =>
       createServer({
-        appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+        appRouter: createAppRouter({
+          ...testServices(mainDB),
+          captchaConfig: null,
+        }),
+        databases: testDatabases({ main: mainDB }),
         logger: false,
         serveFrontend: false,
         rateLimit: { backend: "redis" },
@@ -180,7 +189,11 @@ describe("tRPC rate limiting", () => {
   test("applies a broad per-IP limit to every Fastify route", async () => {
     const mainDB = new DB(new BptreeInmemDriver());
     const server = createServer({
-      appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+      appRouter: createAppRouter({
+        ...testServices(mainDB),
+        captchaConfig: null,
+      }),
+      databases: testDatabases({ main: mainDB }),
       logger: false,
       serveFrontend: false,
       rateLimit: {

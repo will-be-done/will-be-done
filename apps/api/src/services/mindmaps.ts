@@ -1,4 +1,5 @@
-import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
+import type { HyperDB } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import {
   createMindmap as createMindmapAction,
   createMindmapNode as createMindmapNodeAction,
@@ -21,20 +22,17 @@ import {
   type MindmapTreeNode,
   moveMindmapNode as moveMindmapNodeAction,
   noteById,
-  type Task,
   taskById,
+  type Task,
   updateMindmap as updateMindmapAction,
   updateMindmapNode as updateMindmapNodeAction,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
-import {
-  ConflictError,
-  InvalidPlacementError,
-  ResourceNotFoundError,
-} from "./errors";
+import { ConflictError, ResourceNotFoundError } from "./errors";
+import { dispatch, select } from "./hyperdb";
+import { requireNote } from "./notes";
 import { type Placement } from "./placement";
-
-type SpaceDatabase = Awaited<ReturnType<typeof getSpaceDatabase>>;
+import { requireTask } from "./tasks";
 
 export interface PublicMindmap {
   type: "mindmap";
@@ -98,46 +96,55 @@ const toPublicNode = (
   };
 };
 
-async function publicNode(
-  db: SpaceDatabase,
+const publicNode = Effect.fnUntraced(function* (
+  db: HyperDB,
   node: MindmapNode,
-): Promise<PublicMindmapNode> {
-  const [task, note] = await Promise.all([
-    node.taskId
-      ? selectAsync(db, { selector: taskById, args: { id: node.taskId } })
-      : undefined,
-    node.noteId
-      ? selectAsync(db, { selector: noteById, args: { id: node.noteId } })
-      : undefined,
-  ]);
+) {
+  const [task, note] = yield* Effect.all(
+    [
+      node.taskId
+        ? select(db, { selector: taskById, args: { id: node.taskId } })
+        : Effect.undefined,
+      node.noteId
+        ? select(db, { selector: noteById, args: { id: node.noteId } })
+        : Effect.undefined,
+    ],
+    { concurrency: "unbounded" },
+  );
   return toPublicNode({ node, task, note }, node.parentId);
-}
+});
 
-async function requireMindmap(db: SpaceDatabase, mindmapId: string) {
-  const mindmap = await selectAsync(db, {
+const requireMindmap = Effect.fnUntraced(function* (
+  db: HyperDB,
+  mindmapId: string,
+) {
+  const mindmap = yield* select(db, {
     selector: mindmapById,
     args: { id: mindmapId },
   });
-  if (!mindmap) throw new ResourceNotFoundError("Mindmap");
+  if (!mindmap)
+    return yield* new ResourceNotFoundError({ resource: "Mindmap" });
   return mindmap;
-}
+});
 
-async function requireNode(db: SpaceDatabase, nodeId: string) {
-  const node = await selectAsync(db, {
+const requireNode = Effect.fnUntraced(function* (db: HyperDB, nodeId: string) {
+  const node = yield* select(db, {
     selector: mindmapNodeById,
     args: { id: nodeId },
   });
   if (node) return node;
   // A center topic whose row has not synced yet.
-  const mindmap = await selectAsync(db, {
+  const mindmap = yield* select(db, {
     selector: mindmapById,
     args: { id: nodeId },
   });
-  if (!mindmap) throw new ResourceNotFoundError("Mindmap node");
+  if (!mindmap) {
+    return yield* new ResourceNotFoundError({ resource: "Mindmap node" });
+  }
   return mindmapRootNode(mindmap);
-}
+});
 
-async function resolvePlacement({
+const resolvePlacement = Effect.fnUntraced(function* ({
   db,
   mindmapId,
   parentId,
@@ -145,62 +152,60 @@ async function resolvePlacement({
   side,
   movingId,
 }: {
-  db: SpaceDatabase;
+  db: HyperDB;
   mindmapId: string;
   parentId: string;
   placement: Placement;
   side?: MindmapNodeSide;
   movingId?: string;
-}): Promise<MindmapPlacement> {
+}): Effect.fn.Return<MindmapPlacement, ResourceNotFoundError | ConflictError> {
   if (parentId !== mindmapId) {
-    const parent = await selectAsync(db, {
+    const parent = yield* select(db, {
       selector: mindmapNodeById,
       args: { id: parentId },
     });
     if (!parent || parent.mindmapId !== mindmapId) {
-      throw new ResourceNotFoundError("Parent node");
+      return yield* new ResourceNotFoundError({ resource: "Parent node" });
     }
   }
-  const parent = parentId;
   if (placement.kind === "first" || placement.kind === "last") {
     return {
-      parentId: parent,
+      parentId,
       position: placement.kind,
       ...(side === undefined ? {} : { side }),
     };
   }
 
-  const anchor = await selectAsync(db, {
+  const anchor = yield* select(db, {
     selector: mindmapNodeById,
     args: { id: placement.anchorId },
   });
   if (
     !anchor ||
     anchor.mindmapId !== mindmapId ||
-    anchor.parentId !== parent ||
+    anchor.parentId !== parentId ||
     anchor.id === movingId
   ) {
-    throw new InvalidPlacementError(
-      "Placement anchor must be a node under the destination parent",
-    );
+    return yield* new ConflictError({
+      message: "Placement anchor must be a node under the destination parent",
+    });
   }
   return { siblingId: anchor.id, edge: placement.kind };
-}
+});
 
-export async function listMindmaps({
+export const listMindmaps = Effect.fn("listMindmaps")(function* ({
   spaceId,
   userId,
 }: {
   spaceId: string;
   userId: string;
-}): Promise<PublicMindmap[]> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  return (await selectAsync(db, { selector: mindmapsOrdered, args: {} })).map(
-    toPublicMindmap,
-  );
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const mindmaps = yield* select(db, { selector: mindmapsOrdered, args: {} });
+  return mindmaps.map(toPublicMindmap);
+});
 
-export async function getMindmap({
+export const getMindmap = Effect.fn("getMindmap")(function* ({
   spaceId,
   userId,
   mindmapId,
@@ -208,13 +213,13 @@ export async function getMindmap({
   spaceId: string;
   userId: string;
   mindmapId: string;
-}): Promise<{ mindmap: PublicMindmap; nodes: PublicMindmapNode[] }> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const tree = await selectAsync(db, {
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const tree = yield* select(db, {
     selector: mindmapTree,
     args: { mindmapId },
   });
-  if (!tree) throw new ResourceNotFoundError("Mindmap");
+  if (!tree) return yield* new ResourceNotFoundError({ resource: "Mindmap" });
 
   // Depth-first from the center topic, so every parent precedes its children
   // and siblings keep their order. Nodes reflect the same conflict repair the
@@ -233,9 +238,9 @@ export async function getMindmap({
   }
 
   return { mindmap: toPublicMindmap(tree.mindmap), nodes };
-}
+});
 
-export async function createMindmap({
+export const createMindmap = Effect.fn("createMindmap")(function* ({
   spaceId,
   userId,
   title,
@@ -243,14 +248,12 @@ export async function createMindmap({
   spaceId: string;
   userId: string;
   title: string;
-}): Promise<PublicMindmap> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  return toPublicMindmap(
-    await asyncDispatch(db, createMindmapAction({ title })),
-  );
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  return toPublicMindmap(yield* dispatch(db, createMindmapAction({ title })));
+});
 
-export async function updateMindmap({
+export const updateMindmap = Effect.fn("updateMindmap")(function* ({
   spaceId,
   userId,
   mindmapId,
@@ -260,18 +263,18 @@ export async function updateMindmap({
   userId: string;
   mindmapId: string;
   title: string;
-}): Promise<PublicMindmap> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  await requireMindmap(db, mindmapId);
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireMindmap(db, mindmapId);
   return toPublicMindmap(
-    await asyncDispatch(
+    yield* dispatch(
       db,
       updateMindmapAction({ id: mindmapId, mindmap: { title } }),
     ),
   );
-}
+});
 
-export async function deleteMindmap({
+export const deleteMindmap = Effect.fn("deleteMindmap")(function* ({
   spaceId,
   userId,
   mindmapId,
@@ -279,13 +282,13 @@ export async function deleteMindmap({
   spaceId: string;
   userId: string;
   mindmapId: string;
-}): Promise<void> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  await requireMindmap(db, mindmapId);
-  await asyncDispatch(db, deleteMindmapAction({ id: mindmapId }));
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireMindmap(db, mindmapId);
+  yield* dispatch(db, deleteMindmapAction({ id: mindmapId }));
+});
 
-export async function createMindmapNode({
+export const createMindmapNode = Effect.fn("createMindmapNode")(function* ({
   spaceId,
   userId,
   mindmapId,
@@ -307,31 +310,19 @@ export async function createMindmapNode({
   title?: string;
   taskId?: string;
   noteId?: string;
-}): Promise<PublicMindmapNode> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  await requireMindmap(db, mindmapId);
-  if (taskId !== undefined) {
-    const task = await selectAsync(db, {
-      selector: taskById,
-      args: { id: taskId },
-    });
-    if (!task) throw new ResourceNotFoundError("Task");
-  }
-  if (noteId !== undefined) {
-    const note = await selectAsync(db, {
-      selector: noteById,
-      args: { id: noteId },
-    });
-    if (!note) throw new ResourceNotFoundError("Note");
-  }
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireMindmap(db, mindmapId);
+  if (taskId !== undefined) yield* requireTask(db, taskId);
+  if (noteId !== undefined) yield* requireNote(db, noteId);
 
-  const node = await asyncDispatch(
+  const node = yield* dispatch(
     db,
     createMindmapNodeAction({
       mindmapId,
       placement:
         position ??
-        (await resolvePlacement({
+        (yield* resolvePlacement({
           db,
           mindmapId,
           parentId,
@@ -345,10 +336,10 @@ export async function createMindmapNode({
           : { title: title ?? "" }),
     }),
   );
-  return publicNode(db, node);
-}
+  return yield* publicNode(db, node);
+});
 
-export async function updateMindmapNode({
+export const updateMindmapNode = Effect.fn("updateMindmapNode")(function* ({
   spaceId,
   userId,
   nodeId,
@@ -362,16 +353,17 @@ export async function updateMindmapNode({
   title?: string;
   collapsed?: boolean;
   side?: MindmapNodeSide;
-}): Promise<PublicMindmapNode> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const node = await requireNode(db, nodeId);
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const node = yield* requireNode(db, nodeId);
   if (title !== undefined && (node.taskId || node.noteId)) {
-    throw new ConflictError(
-      "A task or note node shows its item's title; update the item instead",
-    );
+    return yield* new ConflictError({
+      message:
+        "A task or note node shows its item's title; update the item instead",
+    });
   }
 
-  const updated = await asyncDispatch(
+  const updated = yield* dispatch(
     db,
     updateMindmapNodeAction({
       id: nodeId,
@@ -382,10 +374,10 @@ export async function updateMindmapNode({
       },
     }),
   );
-  return publicNode(db, updated);
-}
+  return yield* publicNode(db, updated);
+});
 
-export async function moveMindmapNode({
+export const moveMindmapNode = Effect.fn("moveMindmapNode")(function* ({
   spaceId,
   userId,
   nodeId,
@@ -401,13 +393,15 @@ export async function moveMindmapNode({
   placement?: Placement;
   position?: Point;
   side?: MindmapNodeSide;
-}): Promise<PublicMindmapNode> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const node = await requireNode(db, nodeId);
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const node = yield* requireNode(db, nodeId);
   if (isMindmapRoot(node)) {
-    throw new ConflictError("The central topic cannot move");
+    return yield* new ConflictError({
+      message: "The central topic cannot move",
+    });
   }
-  const nodes = await selectAsync(db, {
+  const nodes = yield* select(db, {
     selector: mindmapNodes,
     args: { mindmapId: node.mindmapId },
   });
@@ -419,19 +413,21 @@ export async function moveMindmapNode({
       parentId,
     )
   ) {
-    throw new ConflictError("A node cannot move into its own subtree");
+    return yield* new ConflictError({
+      message: "A node cannot move into its own subtree",
+    });
   }
   if (position && (node.taskId || node.noteId)) {
-    throw new ConflictError("Only topics float");
+    return yield* new ConflictError({ message: "Only topics float" });
   }
 
-  const moved = await asyncDispatch(
+  const moved = yield* dispatch(
     db,
     moveMindmapNodeAction({
       id: nodeId,
       placement:
         position ??
-        (await resolvePlacement({
+        (yield* resolvePlacement({
           db,
           mindmapId: node.mindmapId,
           parentId: parentId ?? node.mindmapId,
@@ -441,10 +437,10 @@ export async function moveMindmapNode({
         })),
     }),
   );
-  return publicNode(db, moved);
-}
+  return yield* publicNode(db, moved);
+});
 
-export async function deleteMindmapNode({
+export const deleteMindmapNode = Effect.fn("deleteMindmapNode")(function* ({
   spaceId,
   userId,
   nodeId,
@@ -452,13 +448,14 @@ export async function deleteMindmapNode({
   spaceId: string;
   userId: string;
   nodeId: string;
-}): Promise<void> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const node = await requireNode(db, nodeId);
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const node = yield* requireNode(db, nodeId);
   if (isMindmapRoot(node)) {
-    throw new ConflictError(
-      "The central topic goes with its mindmap; delete the mindmap instead",
-    );
+    return yield* new ConflictError({
+      message:
+        "The central topic goes with its mindmap; delete the mindmap instead",
+    });
   }
-  await asyncDispatch(db, deleteMindmapNodes({ ids: [nodeId] }));
-}
+  yield* dispatch(db, deleteMindmapNodes({ ids: [nodeId] }));
+});

@@ -1,16 +1,17 @@
 import type { DB } from "@will-be-done/hyperdb";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Schedule } from "effect";
+import type { FastifyBaseLogger } from "fastify";
 import { createBackendAnalytics, type BackendAnalytics } from "./analytics";
 import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
-import { closeDatabases, getMainHyperDB } from "./db/db";
 import { parseEmailConfig } from "./email/config";
 import {
   createAccountEmailService,
-  createEmailWorker,
   createResendSender,
+  runEmailWorker,
+  type EmailSender,
 } from "./email/service";
 import { AppEnv } from "./env";
 import { parseGoogleConfig } from "./google/config";
@@ -18,7 +19,9 @@ import { createGoogleService } from "./google/service";
 import { captureException } from "./instrument";
 import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
-import { subscriptionManager } from "./subscriptionManager";
+import { Databases } from "./services/databases";
+import { runSyncMaintenance } from "./sync/maintenance";
+import { SyncNotifications } from "./services/syncNotifications";
 
 const BACKUP_WORKER_SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -38,15 +41,12 @@ const BackupEngineCheck = Layer.effectDiscard(
   }),
 );
 
-const SyncNotificationsLive = Layer.effectDiscard(
+const RuntimeLog = Layer.effectDiscard(
   Effect.gen(function* () {
     const env = yield* AppEnv;
-    yield* Effect.acquireRelease(
-      Effect.promise(() => subscriptionManager.initialize()),
-      () => Effect.promise(() => subscriptionManager.close()),
-    );
+    const notifications = yield* SyncNotifications;
     console.log(
-      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
+      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${notifications.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
     );
   }),
 );
@@ -54,12 +54,9 @@ const SyncNotificationsLive = Layer.effectDiscard(
 export class MainDatabase extends Context.Service<MainDatabase, DB>()(
   "@will-be-done/api/MainDatabase",
 ) {
-  // Closing also closes every user and space database opened since.
   static readonly layer = Layer.effect(
     MainDatabase,
-    Effect.acquireRelease(Effect.promise(getMainHyperDB), () =>
-      Effect.promise(closeDatabases),
-    ),
+    Databases.use((databases) => databases.main),
   );
 }
 
@@ -79,7 +76,7 @@ export class AccountEmail extends Context.Service<
   AccountEmail,
   | {
       readonly service: ReturnType<typeof createAccountEmailService>;
-      readonly worker: ReturnType<typeof createEmailWorker>;
+      readonly sender: EmailSender;
     }
   | undefined
 >()("@will-be-done/api/AccountEmail") {
@@ -91,7 +88,7 @@ export class AccountEmail extends Context.Service<
       const mainDB = yield* MainDatabase;
       return {
         service: createAccountEmailService(mainDB, config),
-        worker: createEmailWorker(mainDB, createResendSender(config.apiKey)),
+        sender: createResendSender(config.apiKey),
       };
     }),
   );
@@ -117,16 +114,18 @@ export class Google extends Context.Service<
 
 export class ApiServer extends Context.Service<
   ApiServer,
-  { readonly url: string }
+  { readonly url: string; readonly logger: FastifyBaseLogger }
 >()("@will-be-done/api/ApiServer") {
   static readonly layer = Layer.effect(
     ApiServer,
     Effect.gen(function* () {
       const env = yield* AppEnv;
       const mainDB = yield* MainDatabase;
+      const databases = yield* Databases;
       const analytics = yield* Analytics;
       const accountEmail = yield* AccountEmail;
       const google = yield* Google;
+      const notifications = yield* SyncNotifications;
       const server = yield* Effect.acquireRelease(
         Effect.sync(() =>
           createServer({
@@ -134,11 +133,13 @@ export class ApiServer extends Context.Service<
             appRouter: createAppRouter({
               google,
               mainDB,
+              databases,
+              notifications,
               captchaConfig: getCaptchaConfig(),
               accountEmail: accountEmail?.service,
               analytics,
             }),
-            mainDB,
+            databases,
             rateLimit: {
               enabled: env.WBD_RATE_LIMIT_ENABLED,
               backend: env.WBD_RATE_LIMIT_BACKEND,
@@ -156,10 +157,20 @@ export class ApiServer extends Context.Service<
         server.listen({ port: env.PORT, host: "0.0.0.0" }),
       );
       console.log("Server started");
-      return { url };
+      return { url, logger: server.log };
     }),
   );
 }
+
+const SyncMaintenanceLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const { logger } = yield* ApiServer;
+    yield* runSyncMaintenance(logger).pipe(
+      Effect.repeat(Schedule.spaced("15 minutes")),
+      Effect.forkScoped,
+    );
+  }),
+);
 
 // Sends queued account emails only while the server accepts requests.
 const EmailWorkerLive = Layer.effectDiscard(
@@ -167,9 +178,8 @@ const EmailWorkerLive = Layer.effectDiscard(
     yield* ApiServer;
     const accountEmail = yield* AccountEmail;
     if (!accountEmail) return;
-    yield* Effect.acquireRelease(
-      Effect.sync(() => accountEmail.worker.start()),
-      () => Effect.promise(() => accountEmail.worker.stop()),
+    yield* runEmailWorker(yield* MainDatabase, accountEmail.sender).pipe(
+      Effect.forkScoped,
     );
   }),
 );
@@ -256,12 +266,18 @@ const BackupWorkerLive = Layer.effectDiscard(
   }),
 );
 
-export const AppLive = Layer.mergeAll(EmailWorkerLive, BackupWorkerLive).pipe(
+export const AppLive = Layer.mergeAll(
+  EmailWorkerLive,
+  BackupWorkerLive,
+  SyncMaintenanceLive,
+).pipe(
   Layer.provideMerge(ApiServer.layer),
   Layer.provideMerge(Layer.mergeAll(AccountEmail.layer, Google.layer)),
   Layer.provideMerge(Analytics.layer),
   Layer.provideMerge(MainDatabase.layer),
-  Layer.provideMerge(SyncNotificationsLive),
+  Layer.provideMerge(Databases.layer),
+  Layer.provideMerge(RuntimeLog),
+  Layer.provideMerge(SyncNotifications.layer),
   Layer.provideMerge(BackupEngineCheck),
   Layer.provideMerge(AppEnv.layer),
 );

@@ -3,15 +3,14 @@ import { DB } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { createAppRouter } from "./appRouter";
 import { createServer } from "./server";
+import { testServices } from "./services/testing";
 
 describe("API documentation", () => {
   test("serves the OpenAPI document through Scalar", async () => {
-    const appRouter = createAppRouter({
-      mainDB: new DB(new BptreeInmemDriver()),
-      captchaConfig: null,
-    });
+    const services = testServices(new DB(new BptreeInmemDriver()));
     const server = createServer({
-      appRouter,
+      appRouter: createAppRouter({ ...services, captchaConfig: null }),
+      databases: services.databases,
       logger: false,
       serveFrontend: false,
     });
@@ -159,11 +158,10 @@ describe("API documentation", () => {
 });
 
 test("the public frontend route opts out of the API limit", async () => {
+  const services = testServices(new DB(new BptreeInmemDriver()));
   const server = createServer({
-    appRouter: createAppRouter({
-      mainDB: new DB(new BptreeInmemDriver()),
-      captchaConfig: null,
-    }),
+    appRouter: createAppRouter({ ...services, captchaConfig: null }),
+    databases: services.databases,
     logger: false,
     rateLimit: {
       backend: "memory",
