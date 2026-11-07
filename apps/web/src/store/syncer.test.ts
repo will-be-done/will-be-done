@@ -46,6 +46,7 @@ import type { SyncStatus } from "./syncStatus";
 import { makeCrossTabChanges } from "./crossTabChanges";
 import { makeLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
+import { waitForPromise } from "./hyperdbTesting";
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -750,7 +751,7 @@ describe("sync v4 request recovery", () => {
       )[0];
       if (state?.lastServerAppliedRevision === 7) {
         blocked.resolve();
-        yield { type: "unwrap", data: durable.promise };
+        yield* waitForPromise(durable.promise);
       }
     });
     const ack = vi.fn();

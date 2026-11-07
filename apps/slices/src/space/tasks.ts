@@ -6,6 +6,7 @@ import {
   selectFrom,
   upsert,
   v,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { changeId, changesTable } from "../common";
@@ -203,7 +204,7 @@ export const projectSectionTasksByState = selector({
 export const deleteTasks = action({
   name: "deleteTasks",
   args: { ids: v.array(v.string()) },
-  handler: function* deleteTasks({ ids }): Generator<unknown, void, unknown> {
+  handler: function* deleteTasks({ ids }): ActionGenerator<void> {
     yield* deleteForParents({
       parentIds: ids,
       parentType: taskType,
@@ -218,7 +219,7 @@ export const deleteTasks = action({
 export const trashTasks = action({
   name: "trashTasks",
   args: { ids: v.array(v.string()) },
-  handler: function* trashTasks({ ids }): Generator<unknown, void, unknown> {
+  handler: function* trashTasks({ ids }): ActionGenerator<void> {
     const tasks = yield* tasksByIds({ ids });
     if (tasks.length === 0) return;
 
@@ -340,7 +341,7 @@ export const taskHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     if (
       !(yield* taskCanDrop({
         taskId,
@@ -442,7 +443,7 @@ export const moveTaskToProject = action({
   handler: function* moveTaskToProject({
     taskId,
     projectId,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 

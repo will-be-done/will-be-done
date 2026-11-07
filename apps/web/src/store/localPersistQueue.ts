@@ -21,7 +21,7 @@ type RowType = PrimitiveRow;
 
 const opRowKey = (tableName: string, rowId: string) => `${tableName}:${rowId}`;
 
-const getChangedRows = (ops: Op[]) => {
+const getChangedRows = (ops: readonly Op[]) => {
   const rows = new Map<string, RowType>();
 
   for (const op of ops) {
@@ -47,7 +47,7 @@ const getChangeFromOp = (op: Op): Change | undefined => {
   return op.newValue as Change;
 };
 
-const createChangesetFromOps = (ops: Op[]): ChangesetArrayType => {
+const createChangesetFromOps = (ops: readonly Op[]): ChangesetArrayType => {
   const changedRows = getChangedRows(ops);
   const changesByTable = new Map<
     string,

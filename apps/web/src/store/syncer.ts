@@ -1,3 +1,4 @@
+import type { ActionGenerator } from "@will-be-done/hyperdb";
 import {
   Cause,
   Clock,
@@ -342,7 +343,7 @@ export class Syncer {
   // A started local transaction runs to completion even if the loop stops.
   // Durable before it returns; a started write is never cut short.
   private dispatch<T>(
-    action: Generator<unknown, T, unknown>,
+    action: ActionGenerator<T>,
     options?: { readonly skipSync?: boolean },
   ) {
     return Effect.gen(function* () {
@@ -356,7 +357,7 @@ export class Syncer {
     );
   }
 
-  private dispatchSkipSync<T>(action: Generator<unknown, T, unknown>) {
+  private dispatchSkipSync<T>(action: ActionGenerator<T>) {
     return this.dispatch(action, { skipSync: true });
   }
 

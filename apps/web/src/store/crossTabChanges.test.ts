@@ -30,6 +30,7 @@ import { Database } from "./database";
 import { makeLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 import type { SyncConfig } from "./syncTypes";
+import { waitForPromise } from "./hyperdbTesting";
 
 const scopes: Scope.Closeable[] = [];
 const inScope = <A>(
@@ -105,7 +106,7 @@ describe("cross-tab changes", () => {
       const tx = yield* begin();
       const commit = tx.commit.bind(tx);
       tx.commit = function* () {
-        yield { type: "unwrap", data: gate };
+        yield* waitForPromise(gate);
         yield* commit();
       };
       return tx;
@@ -209,7 +210,7 @@ describe("cross-tab changes", () => {
         tableNameMap: { [crossTabItemsTable.tableName]: crossTabItemsTable },
         afterInit: Effect.void,
       } satisfies SyncConfig;
-      const publications: Op[][] = [];
+      const publications: (readonly Op[])[] = [];
       const onApplied = vi.fn(() => {
         expect(publications).not.toHaveLength(0);
       });

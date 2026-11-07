@@ -5,6 +5,8 @@ import {
   upsert,
   v,
   type Infer,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import {
   generateJitteredKeyBetween,
@@ -276,7 +278,7 @@ export const mindmapsOrdered = selector({
 
 function* withDisplayTitles(
   mindmaps: Mindmap[],
-): Generator<unknown, MindmapListItem[], unknown> {
+): SelectorGenerator<MindmapListItem[]> {
   if (mindmaps.length === 0) return [];
   const roots = (yield* selectFrom(mindmapNodesTable, "byId").where((q) =>
     mindmaps.map((mindmap) => q.eq("id", mindmap.id)),
@@ -373,7 +375,7 @@ export const mindmapTree = selector({
   args: { mindmapId: v.string() },
   handler: function* mindmapTree({
     mindmapId,
-  }): Generator<unknown, MindmapTree | undefined, unknown> {
+  }): SelectorGenerator<MindmapTree | undefined> {
     const mindmap = yield* mindmapById({ id: mindmapId });
     if (!mindmap) return undefined;
 
@@ -445,17 +447,13 @@ function* resolvePlacement(
   placement: MindmapPlacement,
   movingIds: ReadonlySet<string> = new Set(),
   count = 1,
-): Generator<
-  unknown,
-  {
-    parentId: string | null;
-    orderTokens: string[];
-    side: MindmapNodeSide;
-    // Centers for floating roots, one per key.
-    points?: { x: number; y: number }[];
-  },
-  unknown
-> {
+): SelectorGenerator<{
+  parentId: string | null;
+  orderTokens: string[];
+  side: MindmapNodeSide;
+  // Centers for floating roots, one per key.
+  points?: { x: number; y: number }[];
+}> {
   const keysBetween = (lower?: MindmapNode, upper?: MindmapNode) =>
     generateNJitteredKeysBetween(
       lower?.orderToken ?? null,
@@ -616,7 +614,7 @@ export const moveMindmapNode = action({
   handler: function* moveMindmapNode({
     id,
     placement,
-  }): Generator<unknown, MindmapNode, unknown> {
+  }): ActionGenerator<MindmapNode> {
     const [moved] = yield* moveMindmapNodes({ ids: [id], placement });
     if (!moved) throw new Error("Mindmap node not found");
     return moved;
@@ -633,7 +631,7 @@ export const moveMindmapNodes = action({
   handler: function* moveMindmapNodes({
     ids,
     placement,
-  }): Generator<unknown, MindmapNode[], unknown> {
+  }): ActionGenerator<MindmapNode[]> {
     const first =
       ids[0] === undefined ? undefined : yield* mindmapNodeById({ id: ids[0] });
     if (!first) return [];
@@ -717,7 +715,7 @@ export const createMindmapNode = action({
     taskId,
     noteId,
     title,
-  }): Generator<unknown, MindmapNode, unknown> {
+  }): ActionGenerator<MindmapNode> {
     if (!(yield* mindmapById({ id: mindmapId }))) {
       throw new Error("Mindmap not found");
     }
@@ -825,7 +823,7 @@ export const placeMindmapItems = action({
     mindmapId,
     items,
     placement,
-  }): Generator<unknown, MindmapNode[], unknown> {
+  }): ActionGenerator<MindmapNode[]> {
     const placed: MindmapNode[] = [];
     let next = placement;
     for (const item of items) {
@@ -861,7 +859,7 @@ export const pasteMindmapNodes = action({
     ids,
     placement,
     mode,
-  }): Generator<unknown, MindmapNode[], unknown> {
+  }): ActionGenerator<MindmapNode[]> {
     if (!(yield* mindmapById({ id: mindmapId }))) {
       throw new Error("Mindmap not found");
     }
@@ -1073,7 +1071,7 @@ export const pasteMindmapOutline = action({
     mindmapId,
     lines,
     placement,
-  }): Generator<unknown, MindmapNode[], unknown> {
+  }): ActionGenerator<MindmapNode[]> {
     if (!(yield* mindmapById({ id: mindmapId }))) {
       throw new Error("Mindmap not found");
     }
@@ -1127,7 +1125,7 @@ export const pasteMindmapOutline = action({
 // whose original section can be deleted.
 function* sectionForNewItem(
   projectId: string | undefined,
-): Generator<unknown, string, unknown> {
+): SelectorGenerator<string> {
   const inboxId = yield* inboxProjectId({});
   const section =
     (yield* firstProjectSectionChild({ projectId: projectId ?? inboxId })) ??
@@ -1175,7 +1173,7 @@ export const createMindmapTask = action({
     placement,
     title,
     projectId,
-  }): Generator<unknown, MindmapNode, unknown> {
+  }): ActionGenerator<MindmapNode> {
     const task = yield* createTaskInSection({
       projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",
@@ -1220,7 +1218,7 @@ export const createMindmapNote = action({
     placement,
     title,
     projectId,
-  }): Generator<unknown, MindmapNode, unknown> {
+  }): ActionGenerator<MindmapNode> {
     const note = yield* createNoteInSection({
       projectSectionId: yield* sectionForNewItem(projectId),
       position: "prepend",

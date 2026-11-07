@@ -46,5 +46,3 @@ export const isObjectType =
   (p: unknown): p is T => {
     return typeof p == "object" && p !== null && "type" in p && p.type === type;
   };
-
-export type GenReturn<T> = Generator<unknown, T, unknown>;

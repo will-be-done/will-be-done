@@ -8,6 +8,7 @@ import {
   type SelectorReturn,
   type SelectorRunInput,
   type SubscribableDB,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { withoutUndo } from "@will-be-done/hyperdb/undo";
 import { Context, Data, Effect, Layer } from "effect";
@@ -16,7 +17,7 @@ export class DatabaseError extends Data.TaggedError("DatabaseError")<{
   readonly cause: unknown;
 }> {}
 
-type Action<A> = Generator<unknown, A, unknown>;
+type Action<A> = ActionGenerator<A>;
 
 type PreloadInput = Parameters<SubscribableDB["preloadTables"]>[0];
 

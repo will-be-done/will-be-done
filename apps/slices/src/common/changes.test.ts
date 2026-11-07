@@ -14,6 +14,8 @@ import {
   Row,
   SubscribableDB,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
@@ -43,7 +45,7 @@ const selector = createSelector();
 
 function runSelector<T>(
   db: DB | SubscribableDB,
-  handler: () => Generator<unknown, T, unknown>,
+  handler: () => SelectorGenerator<T>,
   _deps: unknown[],
 ): T {
   const testSelector = selector({
@@ -413,10 +415,8 @@ describe("restoring deleted entities", () => {
       orderToken: "a",
       createdAt: 100,
     };
-    const record = (
-      handler: () => Generator<unknown, unknown, unknown>,
-      name: string,
-    ) => syncDispatch(db, action({ name, args: {}, handler })({}));
+    const record = (handler: () => ActionGenerator<unknown>, name: string) =>
+      syncDispatch(db, action({ name, args: {}, handler })({}));
 
     record(function* () {
       yield* insertChangeFromInsert({

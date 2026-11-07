@@ -76,8 +76,8 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       '@will-be-done/hyperdb':
-        specifier: ^0.9.0
-        version: 0.9.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.10.0
+        version: 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -280,8 +280,8 @@ importers:
   apps/slices:
     dependencies:
       '@will-be-done/hyperdb':
-        specifier: ^0.9.0
-        version: 0.9.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.10.0
+        version: 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       date-fns:
         specifier: ^4.1.0
         version: 4.4.0
@@ -470,11 +470,11 @@ importers:
         specifier: workspace:*
         version: link:../api
       '@will-be-done/hyperdb':
-        specifier: ^0.9.0
-        version: 0.9.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^0.10.0
+        version: 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/hyperdb-devtool':
-        specifier: 0.4.10
-        version: 0.4.10(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: 0.4.12
+        version: 0.4.12(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
@@ -4632,14 +4632,14 @@ packages:
   '@vitest/utils@4.1.9':
     resolution: {integrity: sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA==}
 
-  '@will-be-done/hyperdb-devtool@0.4.10':
-    resolution: {integrity: sha512-hT4w9XYtH1nqyfG4j6k+9sjKCoHFmDKZ/8d3dyMhcsB+10Wyk+q2qmWAXP/KmEtaOp6Vs9W37mFaqhWTTh12cw==}
+  '@will-be-done/hyperdb-devtool@0.4.12':
+    resolution: {integrity: sha512-vX522WPdlv5xVF6hi15Q97VGOVqxO+jGJOM6xgaccMuCIO7GJ4GQB3X35hK7nOAn25RKf0fDxxKs1MKEb4FHYg==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
 
-  '@will-be-done/hyperdb@0.9.0':
-    resolution: {integrity: sha512-gfu5Kokv24OBFDKInBQ4naujnXqDMXFqT7KP11aHrI/4qKeFgpSw02HbJls2UjIfjcmW68whvq1JycWDvJiKUQ==}
+  '@will-be-done/hyperdb@0.10.0':
+    resolution: {integrity: sha512-SW1Epfg7ByJPCshr//+7yQDGAfE0Hj9vbkqvmJPLWSHYaHmcCrLv3oDin8NRN8vvO1tWGzMu7RIfKROv1Zu94w==}
     peerDependencies:
       react: 19.2.7
       react-dom: 19.2.7
@@ -7060,6 +7060,10 @@ packages:
   neotraverse@0.6.18:
     resolution: {integrity: sha512-Z4SmBUweYa09+o6pG+eASabEpP6QkQ70yHj351pQoEXIs8uHbaU2DWVmzBANKgflPa47A50PtB2+NgRpQvr7vA==}
     engines: {node: '>= 10'}
+
+  neverthrow@8.2.0:
+    resolution: {integrity: sha512-kOCT/1MCPAxY5iUV3wytNFUMUolzuwd/VF/1KCx7kf6CutrOsTie+84zTGTpgQycjvfLdBBdvBvFLqFD2c0wkQ==}
+    engines: {node: '>=18'}
 
   nlcst-to-string@4.0.0:
     resolution: {integrity: sha512-YKLBCcUYKAg0FNlOBT6aI91qFmSiFKiluk655WzPF+DDMA02qIyy8uiRqI8QXtcFpEvll12LpL5MXqEmAZ+dcA==}
@@ -13543,17 +13547,18 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  '@will-be-done/hyperdb-devtool@0.4.10(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@will-be-done/hyperdb-devtool@0.4.12(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
-      '@will-be-done/hyperdb': 0.9.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@will-be-done/hyperdb': 0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       goober: 2.1.19(csstype@3.2.3)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
     transitivePeerDependencies:
       - csstype
 
-  '@will-be-done/hyperdb@0.9.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@will-be-done/hyperdb@0.10.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
+      neverthrow: 8.2.0
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
@@ -16761,6 +16766,10 @@ snapshots:
   natural-compare@1.4.0: {}
 
   neotraverse@0.6.18: {}
+
+  neverthrow@8.2.0:
+    optionalDependencies:
+      '@rollup/rollup-linux-x64-gnu': 4.62.2
 
   nlcst-to-string@4.0.0:
     dependencies:

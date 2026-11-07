@@ -5,6 +5,7 @@ import {
   selectFrom,
   upsert,
   v,
+  type SelectorGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -110,10 +111,8 @@ export const checklistItemSiblings = selector({
   args: { itemId: v.string() },
   handler: function* checklistItemSiblings({
     itemId,
-  }): Generator<
-    unknown,
-    [ChecklistItem | undefined, ChecklistItem | undefined],
-    unknown
+  }): SelectorGenerator<
+    [ChecklistItem | undefined, ChecklistItem | undefined]
   > {
     const item = yield* checklistItemById({ id: itemId });
     if (!item) return [undefined, undefined];
