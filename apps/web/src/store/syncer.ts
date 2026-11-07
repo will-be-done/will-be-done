@@ -293,6 +293,8 @@ export class Syncer {
         const userSyncVersion = completedUserSyncs.get();
         let spaceMissingOnServer = false;
 
+        // This session covers every wake-up that arrived before it starts.
+        yield* Queue.clear(this.wakes);
         yield* Effect.logDebug("running sync v4 session");
         this.setStatus({ phase: "connecting", progress: null, error: null });
         const session = yield* Effect.exit(this.syncV4());
@@ -376,7 +378,8 @@ export class Syncer {
       if (response.status < 200 || response.status >= 300) {
         return yield* new SyncHttpError({
           status: response.status,
-          body: yield* response.text,
+          // The status alone decides recovery; a lost body must not hide it.
+          body: yield* response.text.pipe(Effect.orElseSucceed(() => "")),
         });
       }
       return (yield* response.json) as T;
