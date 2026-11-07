@@ -1,6 +1,14 @@
 import { CURRENT_SYNC_VERSION } from "@will-be-done/slices/common";
 import { BroadcastChannel, createLeaderElection } from "broadcast-channel";
-import { Cause, Effect, Layer, Logger, Queue, References, Stream } from "effect";
+import {
+  Cause,
+  Effect,
+  Layer,
+  Logger,
+  Queue,
+  References,
+  Stream,
+} from "effect";
 import { Digest } from "effect/crypto";
 import { FetchHttpClient } from "effect/http";
 import { authUtils } from "@/lib/auth";

@@ -1,9 +1,15 @@
+import { DB, execSync, SubscribableDB } from "@will-be-done/hyperdb";
+import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { createInboxIfNotExists } from "@will-be-done/slices/space";
+import { dbIdTrait } from "@will-be-done/slices/traits";
 import { Effect, Exit, Layer, Scope } from "effect";
 import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BackupDatabase } from "@/services/browser";
 import { makeTestLogger, makeTestPage } from "@/services/testing";
-import { backUpToday, makeAutoBackup } from "./autoBackup";
+import { backUpToday, makeAutoBackup, readSpaceBackup } from "./autoBackup";
+import { spaceDBConfig } from "./configs";
+import { Database } from "./database";
 
 const backupDBName = "auto-backups-space-1";
 const now = new Date(2026, 10, 7, 12);
@@ -168,5 +174,25 @@ describe("auto-backup", () => {
 
     await Effect.runPromise(Scope.close(scope, Exit.void));
     expect(page.listeners()).toBe(0);
+  });
+
+  it("reads the space afresh for every backup", async () => {
+    const db = new SubscribableDB(
+      new DB(new BptreeInmemDriver(), {
+        traits: [dbIdTrait("space", "a0000000-0000-4000-8000-000000000001")],
+      }),
+    );
+    execSync(db.loadTables(spaceDBConfig("space-1").persistDBTables));
+    const database = Database.make(db);
+    await Effect.runPromise(database.dispatch(createInboxIfNotExists({})));
+    const read = readSpaceBackup.pipe(
+      Effect.provideService(Database, database),
+    );
+
+    const first = await Effect.runPromise(read);
+    const second = await Effect.runPromise(read);
+
+    expect(first.projects).toHaveLength(1);
+    expect(second).toEqual(first);
   });
 });
