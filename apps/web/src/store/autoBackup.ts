@@ -1,6 +1,5 @@
-import { asyncDispatch, SubscribableDB } from "@will-be-done/hyperdb";
-import { getSpaceBackup } from "@will-be-done/slices/space";
-import { Cause, Data, Effect } from "effect";
+import { Data, Effect, Queue, type Scope } from "effect";
+import { BackupDatabase, PageEvents } from "@/services/browser";
 
 const RETENTION_DAYS = 7;
 
@@ -8,7 +7,7 @@ class BackupStoreError extends Data.TaggedError("BackupStoreError")<{
   readonly cause: unknown;
 }> {}
 
-const openBackupDB = (dbName: string) =>
+const openBackupDB = (indexedDB: IDBFactory, dbName: string) =>
   Effect.acquireRelease(
     Effect.callback<IDBDatabase, BackupStoreError>((resume) => {
       const request = indexedDB.open(`auto-backups-${dbName}`, 1);
@@ -50,18 +49,19 @@ function todayKeyFrom(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export const backUpToday = (dbName: string, syncSubDb: SubscribableDB) =>
+export const backUpToday = (
+  dbName: string,
+  readBackup: Effect.Effect<unknown>,
+) =>
   Effect.gen(function* () {
-    const db = yield* openBackupDB(dbName);
+    const db = yield* openBackupDB(yield* BackupDatabase, dbName);
     const keys = (yield* requestResult(
       db.transaction("backups", "readonly").objectStore("backups").getAllKeys(),
     )) as string[];
     const today = todayKey();
     if (keys.includes(today)) return;
 
-    const backup = yield* Effect.promise(() =>
-      asyncDispatch(syncSubDb, getSpaceBackup({})),
-    );
+    const backup = yield* readBackup;
     const saveTx = db.transaction("backups", "readwrite");
     saveTx
       .objectStore("backups")
@@ -79,19 +79,13 @@ export const backUpToday = (dbName: string, syncSubDb: SubscribableDB) =>
       yield* transactionComplete(cleanupTx);
     }
 
-    console.log("Auto-backup saved for", today);
+    yield* Effect.logInfo("Auto-backup saved for", today);
   }).pipe(
     Effect.scoped,
-    Effect.catchCause((cause) =>
-      Effect.sync(() =>
-        console.error("Auto-backup failed:", Cause.squash(cause)),
-      ),
-    ),
+    Effect.catchCause((cause) => Effect.logError("Auto-backup failed", cause)),
   );
 
-// --- AutoBackuper ---
-
-const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+const IDLE_TIMEOUT = 5 * 60 * 1000;
 const USER_EVENTS = [
   "mousemove",
   "keydown",
@@ -100,42 +94,34 @@ const USER_EVENTS = [
   "pointerdown",
 ] as const;
 
-export class AutoBackuper {
-  private idleTimer: ReturnType<typeof setTimeout> | null = null;
-  private boundResetIdle: () => void;
-
-  constructor(
-    private dbName: string,
-    private syncSubDb: SubscribableDB,
-  ) {
-    this.boundResetIdle = this.resetIdle.bind(this);
-  }
-
-  start(): void {
+// Backs up once the user has been idle for IDLE_TIMEOUT, then waits for the
+// next activity before arming again. Closing the scope stops watching.
+export const makeAutoBackup = (
+  dbName: string,
+  readBackup: Effect.Effect<unknown>,
+): Effect.Effect<void, never, PageEvents | BackupDatabase | Scope.Scope> =>
+  Effect.gen(function* () {
+    const page = yield* PageEvents;
+    const activity = yield* Queue.sliding<void>(1);
     for (const event of USER_EVENTS) {
-      document.addEventListener(event, this.boundResetIdle, { passive: true });
+      yield* page.listen(
+        "document",
+        event,
+        () => Queue.offerUnsafe(activity, undefined),
+        {
+          passive: true,
+        },
+      );
     }
-    this.resetIdle();
-  }
-
-  stop(): void {
-    for (const event of USER_EVENTS) {
-      document.removeEventListener(event, this.boundResetIdle);
-    }
-    if (this.idleTimer !== null) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
-    }
-  }
-
-  private resetIdle(): void {
-    if (this.idleTimer !== null) {
-      clearTimeout(this.idleTimer);
-    }
-    this.idleTimer = setTimeout(() => this.onIdle(), IDLE_TIMEOUT);
-  }
-
-  private onIdle(): void {
-    void Effect.runPromise(backUpToday(this.dbName, this.syncSubDb));
-  }
-}
+    yield* Effect.gen(function* () {
+      while (true) {
+        const idle = yield* Effect.raceFirst(
+          Effect.as(Effect.sleep(IDLE_TIMEOUT), true),
+          Effect.as(Queue.take(activity), false),
+        );
+        if (!idle) continue;
+        yield* backUpToday(dbName, readBackup);
+        yield* Queue.take(activity);
+      }
+    }).pipe(Effect.forkScoped({ startImmediately: true }));
+  });

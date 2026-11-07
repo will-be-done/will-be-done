@@ -1,9 +1,6 @@
 import { nanoid } from "nanoid";
 import { asyncDispatch, type HyperDB } from "@will-be-done/hyperdb";
-import {
-  getPersistentDriverKind,
-  type PersistentDriverKind,
-} from "./persistentDriver";
+import type { PersistentDriverKind } from "./persistentDriver";
 import type { SyncConfig } from "./syncTypes";
 import {
   createHlcClock,
@@ -30,7 +27,7 @@ export const observePersistedClock = async (db: HyperDB, clock: HlcClock) => {
 
 export const getClientId = (
   dbName: string,
-  driverKind: PersistentDriverKind = getPersistentDriverKind(dbName),
+  driverKind: PersistentDriverKind,
 ) => {
   const key =
     driverKind === "wa-sqlite"

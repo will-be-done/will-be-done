@@ -1,4 +1,5 @@
-import { Data, Effect, Match } from 'effect'
+import { Data, Effect, Layer, Match } from 'effect'
+import { FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/http'
 import type { ServerCheckResult } from '@will-be-done/slices/desktop'
 
 const SERVER_CHECK_TIMEOUT_MS = 5000
@@ -59,25 +60,31 @@ function getServerCheckUrl(serverUrl: string): string {
 
 const fetchCheckFile = (
   serverUrl: string
-): Effect.Effect<void, ServerUnreachable | ServerCheckStatus | InvalidCheckFile> =>
+): Effect.Effect<
+  void,
+  ServerUnreachable | ServerCheckStatus | InvalidCheckFile,
+  HttpClient.HttpClient
+> =>
   Effect.gen(function* () {
-    const response = yield* Effect.tryPromise({
-      try: (signal) => fetch(getServerCheckUrl(serverUrl), { cache: 'no-store', signal }),
-      catch: () => new ServerUnreachable({ serverUrl })
-    })
-    if (!response.ok) {
+    const client = yield* HttpClient.HttpClient
+    const response = yield* client
+      .execute(HttpClientRequest.get(getServerCheckUrl(serverUrl)))
+      .pipe(Effect.mapError(() => new ServerUnreachable({ serverUrl })))
+    if (response.status < 200 || response.status >= 300) {
       return yield* new ServerCheckStatus({ serverUrl, status: response.status })
     }
-    const payload = yield* Effect.tryPromise({
-      try: () => response.json() as Promise<{ nonce?: unknown } | null>,
-      catch: () => new InvalidCheckFile({ serverUrl, problem: 'json' })
-    })
-    if (payload?.nonce !== SERVER_CHECK_NONCE) {
+    const payload = yield* response.json.pipe(
+      Effect.mapError(() => new InvalidCheckFile({ serverUrl, problem: 'json' }))
+    )
+    if ((payload as { nonce?: unknown } | null)?.nonce !== SERVER_CHECK_NONCE) {
       return yield* new InvalidCheckFile({ serverUrl, problem: 'nonce' })
     }
   })
 
-const verifyServer = (input: string, timeoutMs: number): Effect.Effect<string, ServerCheckError> =>
+const verifyServer = (
+  input: string,
+  timeoutMs: number
+): Effect.Effect<string, ServerCheckError, HttpClient.HttpClient> =>
   Effect.gen(function* () {
     const serverUrl = yield* Effect.try({
       try: () => normalizeServerUrl(input),
@@ -135,6 +142,11 @@ const failedCheck = Match.type<ServerCheckError>().pipe(
   })
 )
 
+const CheckClientLive = Layer.mergeAll(
+  FetchHttpClient.layer,
+  Layer.succeed(FetchHttpClient.RequestInit, { cache: 'no-store' })
+)
+
 export function checkServerUrl(
   serverUrl: string,
   { timeoutMs = SERVER_CHECK_TIMEOUT_MS } = {}
@@ -143,7 +155,8 @@ export function checkServerUrl(
   return Effect.runPromise(
     verifyServer(input, timeoutMs).pipe(
       Effect.map((url): ServerCheckResult => ({ ok: true, serverUrl: url })),
-      Effect.catch((error) => Effect.succeed(failedCheck(error)))
+      Effect.catch((error) => Effect.succeed(failedCheck(error))),
+      Effect.provide(CheckClientLive)
     )
   )
 }

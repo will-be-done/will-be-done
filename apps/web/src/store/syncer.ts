@@ -1,5 +1,15 @@
 import { asyncDispatch, execAsync, type HyperDB } from "@will-be-done/hyperdb";
-import { Cause, Effect, Exit, Fiber } from "effect";
+import {
+  Cause,
+  type Context,
+  Effect,
+  Exit,
+  Fiber,
+  Match,
+  type Scope,
+  Stream,
+} from "effect";
+import { HttpClient, HttpClientRequest } from "effect/http";
 import {
   CURRENT_SYNC_VERSION,
   observedChangeClocks,
@@ -9,13 +19,14 @@ import {
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
 import {
-  BroadcastChannel,
-  createLeaderElection,
-  type LeaderElector,
-} from "broadcast-channel";
-import { getDevtoolsEnabled } from "@/lib/devtools";
-import { trpcClient } from "@/lib/trpc.ts";
-import { authUtils } from "@/lib/auth";
+  AuthSession,
+  PageEvents,
+  ServerChanges,
+  TabChannels,
+  type ServerChangeEvent,
+  type TabChannel,
+  type TabLeadership,
+} from "@/services/browser";
 import { State } from "@/utils/State.ts";
 import {
   beginSyncV4Download,
@@ -42,11 +53,7 @@ import {
 } from "./syncErrors";
 import type { SyncConfig } from "./syncTypes";
 import { initialSyncStatus, type SyncStatus } from "./syncStatus";
-import {
-  isUnsupportedSyncVersionError,
-  markSyncUpdateRequired,
-  syncChannelName,
-} from "./syncCompatibility";
+import { markSyncUpdateRequired, syncChannelName } from "./syncCompatibility";
 
 const SYNC_POLL_INTERVAL_MS = 60000;
 const SYNC_START_DELAY_MS = 2000;
@@ -62,14 +69,12 @@ type SyncStatusMessage =
   | { type: "request-sync" }
   | { type: "status"; status: SyncStatus };
 
-const syncerLogsEnabled = () =>
-  getDevtoolsEnabled() || process.env.NODE_ENV === "development";
-
-const syncerLog = (...args: Parameters<typeof console.log>) => {
-  if (syncerLogsEnabled()) {
-    console.log(...args);
-  }
-};
+export type SyncerServices =
+  | HttpClient.HttpClient
+  | AuthSession
+  | ServerChanges
+  | TabChannels
+  | PageEvents;
 
 const waitForVersionAfter = (state: State<number>, version: number) =>
   Effect.callback<void>((resume) => {
@@ -96,66 +101,72 @@ const sha256 = (value: string) =>
 
 export class Syncer {
   readonly status = new State<SyncStatus>({ ...initialSyncStatus });
-  private electionChannel: BroadcastChannel;
-  private statusChannel: BroadcastChannel<SyncStatusMessage>;
-  private elector: LeaderElector;
   private loop: Fiber.Fiber<unknown, unknown> | undefined;
   private terminal = false;
-  private clientId: string;
-  private syncConfig: SyncConfig;
   private applySyncV4Download: ReturnType<typeof createApplySyncV4Download>;
 
   private wsNotification = new State<number>(0);
   private forceSyncNotification = new State<number>(0);
-  private wakeSyncLoop = () => {
-    this.forceSync();
-  };
-  private wakeWhenVisible = () => {
-    if (document.visibilityState === "visible") {
-      this.wakeSyncLoop();
-    }
-  };
 
-  constructor(
+  private constructor(
     private syncDB: HyperDB,
+    private clientId: string,
+    private syncConfig: SyncConfig,
+    private nextClock: HlcClock,
+    private services: Context.Context<SyncerServices>,
+    private leadership: TabLeadership,
+    private statusChannel: TabChannel<SyncStatusMessage>,
+  ) {
+    this.applySyncV4Download = createApplySyncV4Download(nextClock);
+  }
+
+  // Closing the scope stops the loop and releases the tab channels and page
+  // listeners.
+  static make(
+    syncDB: HyperDB,
     clientId: string,
     syncConfig: SyncConfig,
-    private nextClock: HlcClock,
-  ) {
-    this.clientId = clientId;
-    this.syncConfig = syncConfig;
-    this.electionChannel = new BroadcastChannel(
-      syncChannelName("election", clientId),
-    );
-    this.elector = createLeaderElection(this.electionChannel);
-    this.statusChannel = new BroadcastChannel(
-      syncChannelName("status", clientId),
-    );
-    this.statusChannel.onmessage = (message) => {
-      if (message.type === "status") {
-        if (!this.elector.isLeader && !this.terminal) {
-          this.status.set(message.status);
-        }
-      } else if (this.elector.isLeader) {
-        if (message.type === "request-sync") this.forceSync();
-        this.broadcastStatus();
-      }
-    };
-    void this.statusChannel.postMessage({ type: "request-status" });
-    this.applySyncV4Download = createApplySyncV4Download(nextClock);
+    nextClock: HlcClock,
+  ): Effect.Effect<Syncer, never, SyncerServices | Scope.Scope> {
+    return Effect.gen(function* () {
+      const services = yield* Effect.context<SyncerServices>();
+      const tabs = yield* TabChannels;
+      const page = yield* PageEvents;
+      const leadership = yield* tabs.leadership(
+        syncChannelName("election", clientId),
+      );
+      const statusChannel = yield* tabs.channel<SyncStatusMessage>(
+        syncChannelName("status", clientId),
+      );
+      const syncer = new Syncer(
+        syncDB,
+        clientId,
+        syncConfig,
+        nextClock,
+        services,
+        leadership,
+        statusChannel,
+      );
 
-    document.addEventListener("visibilitychange", this.wakeWhenVisible);
-    window.addEventListener("online", this.wakeSyncLoop);
-    window.addEventListener("focus", this.wakeSyncLoop);
+      yield* statusChannel.listen((message) => syncer.receiveStatus(message));
+      statusChannel.post({ type: "request-status" });
+      yield* leadership.onDuplicate(() => syncer.restartAsDuplicate());
+      yield* page.listen("document", "visibilitychange", () => {
+        if (page.visibility() === "visible") syncer.forceSync();
+      });
+      yield* page.listen("window", "online", () => syncer.forceSync());
+      yield* page.listen("window", "focus", () => syncer.forceSync());
+      yield* Effect.addFinalizer(() =>
+        Effect.suspend(() => {
+          syncer.terminal = true;
+          return syncer.loop ? Fiber.interrupt(syncer.loop) : Effect.void;
+        }),
+      );
+      return syncer;
+    });
   }
 
   startLoop() {
-    this.elector.onduplicate = () => {
-      if (this.terminal) return;
-      syncerLog("onduplicate");
-      void this.run();
-    };
-
     void this.run();
   }
 
@@ -171,14 +182,15 @@ export class Syncer {
           ? Effect.uninterruptible(Fiber.interrupt(previous))
           : Effect.void,
         this.syncLoop(),
+      ).pipe(
+        Effect.tapCause((cause) =>
+          Cause.hasInterruptsOnly(cause) ? Effect.void : Effect.logError(cause),
+        ),
+        Effect.provide(this.services),
       ),
     );
     this.loop = loop;
-    return Effect.runPromise(Fiber.await(loop)).then((exit) => {
-      if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
-        console.error(Cause.squash(exit.cause));
-      }
-    });
+    return Effect.runPromise(Fiber.await(loop)).then(() => undefined);
   }
 
   // Aborts in-flight requests; a local transaction already started finishes
@@ -189,41 +201,46 @@ export class Syncer {
       : Promise.resolve();
   }
 
-  async close() {
-    this.terminal = true;
-    await this.stop();
-    document.removeEventListener("visibilitychange", this.wakeWhenVisible);
-    window.removeEventListener("online", this.wakeSyncLoop);
-    window.removeEventListener("focus", this.wakeSyncLoop);
-    await this.elector.die();
-    await Promise.all([
-      this.statusChannel.close(),
-      this.electionChannel.close(),
-    ]);
-  }
-
   forceSync() {
     if (this.terminal) return;
     if (this.status.get().phase === "synced") {
       this.setStatus({ phase: "waiting", progress: null });
     }
     this.forceSyncNotification.modify((version) => version + 1);
-    if (!this.elector.isLeader) {
-      void this.statusChannel.postMessage({ type: "request-sync" });
+    if (!this.leadership.isLeader()) {
+      this.statusChannel.post({ type: "request-sync" });
     }
   }
 
+  private receiveStatus(message: SyncStatusMessage) {
+    if (message.type === "status") {
+      if (!this.leadership.isLeader() && !this.terminal) {
+        this.status.set(message.status);
+      }
+    } else if (this.leadership.isLeader()) {
+      if (message.type === "request-sync") this.forceSync();
+      this.broadcastStatus();
+    }
+  }
+
+  private restartAsDuplicate() {
+    if (this.terminal || !this.loop) return;
+    Effect.runSync(
+      Effect.logDebug("another tab also leads; restarting the sync loop").pipe(
+        Effect.provide(this.services),
+      ),
+    );
+    void this.run();
+  }
+
   private broadcastStatus() {
-    void this.statusChannel.postMessage({
-      type: "status",
-      status: this.status.get(),
-    });
+    this.statusChannel.post({ type: "status", status: this.status.get() });
   }
 
   private setStatus(update: Partial<SyncStatus>) {
     if (this.terminal && update.phase !== "update-required") return;
     this.status.modify((status) => ({ ...status, ...update }));
-    if (this.elector.isLeader) this.broadcastStatus();
+    if (this.leadership.isLeader()) this.broadcastStatus();
   }
 
   private stopForRequiredUpdate() {
@@ -234,42 +251,38 @@ export class Syncer {
     markSyncUpdateRequired();
   }
 
-  private serverChangeSubscription() {
-    return Effect.acquireRelease(
-      Effect.sync(() =>
-        trpcClient.onChangesAvailable.subscribe(
-          {
-            dbId: this.syncConfig.dbId,
-            dbType: this.syncConfig.dbType,
-            syncVersion: CURRENT_SYNC_VERSION,
-          },
-          {
-            onData: () => {
-              syncerLog("WebSocket notification received");
+  private onServerChange = Match.type<ServerChangeEvent>().pipe(
+    Match.tagsExhaustive({
+      ChangesAvailable: () =>
+        Effect.logDebug("server reported new changes").pipe(
+          Effect.tap(
+            Effect.sync(() => {
               if (this.status.get().phase === "synced") {
                 this.setStatus({ phase: "waiting", progress: null });
               }
               this.wsNotification.modify((version) => version + 1);
-            },
-            onError: (err) => {
-              if (isUnsupportedSyncVersionError(err)) {
-                this.stopForRequiredUpdate();
-                return;
-              }
-              console.error("WebSocket subscription error:", err);
-              this.wsNotification.modify((version) => version + 1);
-            },
-          },
+            }),
+          ),
         ),
-      ),
-      (subscription) => Effect.sync(() => subscription.unsubscribe()),
-    );
-  }
+      UpdateRequired: () => Effect.sync(() => this.stopForRequiredUpdate()),
+      Failed: ({ cause }) =>
+        Effect.logError("Server change subscription failed", cause).pipe(
+          Effect.tap(
+            Effect.sync(() =>
+              this.wsNotification.modify((version) => version + 1),
+            ),
+          ),
+        ),
+    }),
+  );
 
   private syncLoop() {
     return Effect.gen({ self: this }, function* () {
-      yield* Effect.promise(() => this.elector.awaitLeadership());
-      yield* this.serverChangeSubscription();
+      yield* this.leadership.awaitLeadership;
+      const serverChanges = yield* ServerChanges;
+      yield* serverChanges
+        .watch({ dbId: this.syncConfig.dbId, dbType: this.syncConfig.dbType })
+        .pipe(Stream.runForEach(this.onServerChange), Effect.forkScoped);
 
       // let's delay so faster startup
       yield* Effect.sleep(SYNC_START_DELAY_MS);
@@ -282,7 +295,7 @@ export class Syncer {
         const userSyncVersion = completedUserSyncs.get();
         let spaceMissingOnServer = false;
 
-        syncerLog("running sync v4 session");
+        yield* Effect.logDebug("running sync v4 session");
         this.setStatus({ phase: "connecting", progress: null, error: null });
         const session = yield* Effect.exit(this.syncV4());
         if (Exit.isSuccess(session)) {
@@ -304,7 +317,7 @@ export class Syncer {
             progress: null,
             error: syncFailureMessage(session.cause),
           });
-          console.error(Cause.squash(session.cause));
+          yield* Effect.logError(session.cause);
           const error = Cause.findErrorOption(session.cause);
           spaceMissingOnServer =
             this.syncConfig.dbType === "space" &&
@@ -335,49 +348,36 @@ export class Syncer {
     }).pipe(Effect.uninterruptible);
   }
 
-  private syncFetch<T>(
-    request: string,
-    path: string,
-    init: RequestInit,
+  private syncRequest<T>(
+    name: string,
+    request: HttpClientRequest.HttpClientRequest,
     timeoutMs = SYNC_REQUEST_TIMEOUT_MS,
   ) {
     return Effect.gen(function* () {
-      const token = authUtils.getToken();
-      // One signal covers the body read too, so interrupting stops the download.
-      const response = yield* Effect.tryPromise({
-        try: async (signal) => {
-          const response = await fetch(path, {
-            ...init,
-            signal,
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              ...init.headers,
-            },
-          });
-          return {
-            ok: response.ok,
-            status: response.status,
-            body: await response.text(),
-          };
-        },
-        catch: (cause) => new SyncNetworkError({ cause }),
-      });
-      if (!response.ok) {
+      const client = yield* HttpClient.HttpClient;
+      const token = yield* (yield* AuthSession).token;
+      const response = yield* client.execute(
+        token ? HttpClientRequest.bearerToken(request, token) : request,
+      );
+      if (response.status < 200 || response.status >= 300) {
         return yield* new SyncHttpError({
           status: response.status,
-          body: response.body,
+          body: yield* response.text,
         });
       }
-      return yield* Effect.try({
-        try: () => JSON.parse(response.body) as T,
-        catch: () =>
-          new SyncProtocolError({ reason: `${request} returned invalid JSON` }),
-      });
+      return (yield* response.json) as T;
     }).pipe(
+      Effect.catchTag("HttpClientError", (error) =>
+        Effect.fail(
+          error.reason._tag === "TransportError"
+            ? new SyncNetworkError({ cause: error })
+            : new SyncProtocolError({ reason: `${name}: ${error.message}` }),
+        ),
+      ),
       Effect.timeoutOrElse({
         duration: timeoutMs,
-        orElse: () => Effect.fail(new SyncTimeoutError({ request, timeoutMs })),
+        orElse: () =>
+          Effect.fail(new SyncTimeoutError({ request: name, timeoutMs })),
       }),
     );
   }
@@ -424,12 +424,11 @@ export class Syncer {
           this.syncDB.withTraits({ type: "skip-sync" }),
           getSyncV4HandshakeState({}),
         );
-        const session = yield* this.syncFetch<SyncSessionResponse>(
+        const session = yield* this.syncRequest<SyncSessionResponse>(
           "sync-v4-session",
-          `${baseUrl}/sessions`,
-          {
-            method: "POST",
-            body: JSON.stringify({
+          HttpClientRequest.bodyJsonUnsafe(
+            HttpClientRequest.post(`${baseUrl}/sessions`),
+            {
               syncVersion: CURRENT_SYNC_VERSION,
               dbId: this.syncConfig.dbId,
               dbType: this.syncConfig.dbType,
@@ -439,8 +438,8 @@ export class Syncer {
               expectedAcknowledgedServerRevision:
                 state.expectedAcknowledgedServerRevision,
               appliedServerRevision: state.appliedServerRevision,
-            }),
-          },
+            },
+          ),
         );
         this.nextClock.calibrate(session.serverTimeMs);
         uploadId = session.uploadId;
@@ -464,8 +463,8 @@ export class Syncer {
       }
       // Yields undefined after discarding an upload the server can no longer
       // accept; a fresh session then freezes the current local changes.
-      const restartIfFrozenUploadIsStale = <A>(
-        request: Effect.Effect<A, SyncError>,
+      const restartIfFrozenUploadIsStale = <A, R>(
+        request: Effect.Effect<A, SyncError, R>,
       ) =>
         request.pipe(
           Effect.catchIf(
@@ -499,13 +498,14 @@ export class Syncer {
         const checksum = yield* sha256(localChunk.payload);
         chunkChecksums.push(checksum);
         const uploaded = yield* restartIfFrozenUploadIsStale(
-          this.syncFetch(
+          this.syncRequest(
             "sync-v4-upload-chunk",
-            `${baseUrl}/sessions/${encodeURIComponent(uploadId)}/chunks/${sequence}`,
-            {
-              method: "PUT",
-              body: JSON.stringify({ checksum, payload: localChunk.payload }),
-            },
+            HttpClientRequest.bodyJsonUnsafe(
+              HttpClientRequest.put(
+                `${baseUrl}/sessions/${encodeURIComponent(uploadId)}/chunks/${sequence}`,
+              ),
+              { checksum, payload: localChunk.payload },
+            ),
             SYNC_UPLOAD_TIMEOUT_MS,
           ).pipe(Effect.as(true)),
         );
@@ -517,18 +517,19 @@ export class Syncer {
       this.setStatus({ phase: "committing", progress: null });
       const manifestChecksum = yield* sha256(chunkChecksums.join("\n"));
       const commit = yield* restartIfFrozenUploadIsStale(
-        this.syncFetch<SyncCommitResponse>(
+        this.syncRequest<SyncCommitResponse>(
           "sync-v4-commit",
-          `${baseUrl}/sessions/${encodeURIComponent(uploadId)}/commit`,
-          {
-            method: "POST",
-            body: JSON.stringify({
+          HttpClientRequest.bodyJsonUnsafe(
+            HttpClientRequest.post(
+              `${baseUrl}/sessions/${encodeURIComponent(uploadId)}/commit`,
+            ),
+            {
               chunkCount: snapshot.chunkCount,
               changeCount: snapshot.changeCount,
               throughCursor: snapshot.throughCursor,
               checksum: manifestChecksum,
-            }),
-          },
+            },
+          ),
           SYNC_UPLOAD_TIMEOUT_MS,
         ),
       );
@@ -578,13 +579,14 @@ export class Syncer {
           sequence < stagedDownload.chunkCount;
           sequence += 1
         ) {
-          const chunk = yield* this.syncFetch<{
+          const chunk = yield* this.syncRequest<{
             checksum: string;
             changesets: ChangesetArrayType;
           }>(
             "sync-v4-download-chunk",
-            `${baseUrl}/downloads/${encodeURIComponent(stagedDownload.downloadId)}/chunks/${sequence}`,
-            { method: "GET" },
+            HttpClientRequest.get(
+              `${baseUrl}/downloads/${encodeURIComponent(stagedDownload.downloadId)}/chunks/${sequence}`,
+            ),
           );
           const payload = JSON.stringify(chunk.changesets);
           if ((yield* sha256(payload)) !== chunk.checksum) {
@@ -647,10 +649,14 @@ export class Syncer {
       }
       if (commit.download.type === "staged") {
         const downloadId = commit.download.downloadId;
-        yield* this.syncFetch(
+        yield* this.syncRequest(
           "sync-v4-download-ack",
-          `${baseUrl}/downloads/${encodeURIComponent(downloadId)}/ack`,
-          { method: "POST", body: "{}" },
+          HttpClientRequest.bodyJsonUnsafe(
+            HttpClientRequest.post(
+              `${baseUrl}/downloads/${encodeURIComponent(downloadId)}/ack`,
+            ),
+            {},
+          ),
         );
       }
       return true;

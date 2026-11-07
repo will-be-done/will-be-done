@@ -12,7 +12,16 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
-import { Effect } from "effect";
+import { Effect, Exit, Layer, Scope } from "effect";
+import {
+  makeTestLogger,
+  makeTestPage,
+  makeTestServerChanges,
+  makeTestTabs,
+  requestText,
+  testAuthSession,
+  testHttpClient,
+} from "@/services/testing";
 import {
   changesTable,
   createHlcClock,
@@ -22,7 +31,7 @@ import {
   type ClientCursor,
   type SyncSessionResponse,
 } from "@will-be-done/slices/common";
-import { Syncer } from "./syncer";
+import { Syncer, type SyncerServices } from "./syncer";
 import { freezeSyncV4Upload, getPendingSyncV4Upload } from "./syncActions";
 import {
   shouldRestartFrozenUpload,
@@ -32,80 +41,60 @@ import {
 import type { SyncConfig } from "./syncTypes";
 import { clientSyncV4Tables } from "./syncV4Tables";
 import type { SyncStatus } from "./syncStatus";
-import { createCrossTabChanges } from "./crossTabChanges";
-import { createLocalPersistQueue } from "./localPersistQueue";
+import { makeCrossTabChanges } from "./crossTabChanges";
+import { makeLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 
-const subscription = vi.hoisted(() => ({
-  handlers: undefined as
-    | { onData: () => void; onError: (error: unknown) => void }
-    | undefined,
-}));
+type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
-const statusBus = vi.hoisted(() => ({
-  nextIsLeader: true,
-  delayChanges: false,
-  delayedChanges: [] as (() => void)[],
-  channels: [] as {
-    name: string;
-    onmessage?: (message: unknown) => void;
-  }[],
-}));
+const unexpectedRequest: Fetch = async (input) => {
+  throw new Error(`Unexpected sync request: ${input}`);
+};
 
-vi.mock("@/lib/trpc.ts", () => ({
-  trpcClient: {
-    onChangesAvailable: {
-      subscribe: vi.fn(
-        (
-          _input: unknown,
-          handlers: { onData: () => void; onError: (error: unknown) => void },
-        ) => {
-          subscription.handlers = handlers;
-          return { unsubscribe: vi.fn() };
-        },
-      ),
-    },
-  },
-}));
+const makeEnv = () => ({
+  tabs: makeTestTabs(),
+  page: makeTestPage(),
+  serverChanges: makeTestServerChanges(),
+  logger: makeTestLogger(),
+  fetch: unexpectedRequest,
+});
+let env = makeEnv();
+const scopes: Scope.Closeable[] = [];
 
-vi.mock("@/lib/auth", () => ({
-  authUtils: { getToken: () => null },
-}));
+const stubFetch = (fetch: Fetch) => {
+  env.fetch = fetch;
+};
 
-vi.mock("@/lib/devtools", () => ({
-  getDevtoolsEnabled: () => false,
-}));
+const testServices = () =>
+  Layer.mergeAll(
+    env.tabs.layer,
+    env.page.layer,
+    env.serverChanges.layer,
+    env.logger.layer,
+    testAuthSession(),
+    testHttpClient(() => env.fetch),
+  );
 
-vi.mock("broadcast-channel", () => ({
-  BroadcastChannel: class {
-    onmessage?: (message: unknown) => void;
-    constructor(readonly name: string) {
-      statusBus.channels.push(this);
-    }
-    postMessage(message: unknown) {
-      for (const channel of statusBus.channels) {
-        if (channel !== this && channel.name === this.name) {
-          const deliver = () => channel.onmessage?.(message);
-          if (statusBus.delayChanges && this.name.startsWith("changes-")) {
-            statusBus.delayedChanges.push(deliver);
-          } else {
-            deliver();
-          }
-        }
-      }
-      return Promise.resolve();
-    }
-    close() {}
-  },
-  createLeaderElection: () => ({
-    isLeader: statusBus.nextIsLeader,
-    awaitLeadership: async () => {},
-    onduplicate: undefined,
-  }),
-}));
+// Builds a component with the test services, kept alive until the test ends.
+const inScope = <A>(
+  effect: Effect.Effect<A, never, SyncerServices | Scope.Scope>,
+) => {
+  const scope = Scope.makeUnsafe();
+  scopes.push(scope);
+  return Effect.runSync(
+    effect.pipe(Scope.provide(scope), Effect.provide(testServices())),
+  );
+};
+
+const runSyncV4 = (syncer: Syncer) =>
+  Effect.runPromise(
+    (syncer as unknown as SyncerTestAccess)
+      .syncV4()
+      .pipe(Effect.provide(testServices())),
+  );
 
 type SyncerTestAccess = {
-  syncV4: () => Effect.Effect<boolean, unknown>;
+  syncV4: () => Effect.Effect<boolean, unknown, SyncerServices>;
 };
 
 const config: SyncConfig = {
@@ -130,7 +119,7 @@ const createSyncer = (syncConfig = config) => {
   const nextClock = createHlcClock("client-1");
   return {
     db,
-    syncer: new Syncer(db, "client-1", syncConfig, nextClock),
+    syncer: inScope(Syncer.make(db, "client-1", syncConfig, nextClock)),
   };
 };
 
@@ -180,20 +169,7 @@ const aborted = (signal: AbortSignal) =>
   });
 
 beforeEach(() => {
-  subscription.handlers = undefined;
-  statusBus.channels = [];
-  statusBus.nextIsLeader = true;
-  statusBus.delayChanges = false;
-  statusBus.delayedChanges = [];
-  vi.stubGlobal("document", {
-    visibilityState: "visible",
-    addEventListener: vi.fn(),
-  });
-  vi.stubGlobal("window", {
-    addEventListener: vi.fn(),
-    setTimeout: globalThis.setTimeout,
-    clearTimeout: globalThis.clearTimeout,
-  });
+  env = makeEnv();
 });
 
 describe("sync status", () => {
@@ -205,8 +181,7 @@ describe("sync status", () => {
   const stubSuccessfulSync = (
     beforeCommit?: (init?: RequestInit) => Promise<void>,
   ) => {
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         if (String(input).endsWith("/sessions")) {
           return jsonResponse(sessionResponse("upload-1"));
@@ -253,7 +228,6 @@ describe("sync status", () => {
 
   it("keeps the last successful time through a connection failure and recovers", async () => {
     vi.useFakeTimers();
-    vi.spyOn(console, "error").mockImplementation(() => {});
     const { syncer } = createSyncer();
     stubSuccessfulSync();
     const run = syncer.run();
@@ -261,10 +235,7 @@ describe("sync status", () => {
     await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
     const lastSyncedAt = syncer.status.get().lastSyncedAt;
 
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
-    );
+    stubFetch(vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     syncer.forceSync();
     await vi.waitFor(() => expect(syncer.status.get().phase).toBe("error"));
     expect(syncer.status.get()).toMatchObject({
@@ -281,10 +252,8 @@ describe("sync status", () => {
 
   it("retries a space the server did not know yet once the user database syncs", async () => {
     vi.useFakeTimers();
-    vi.spyOn(console, "error").mockImplementation(() => {});
     let spaceOnServer = false;
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         if (url.includes("/space/") && !spaceOnServer) {
@@ -340,8 +309,7 @@ describe("sync status", () => {
     };
     const checksum = await sha256("[]");
     const manifest = await sha256(`${checksum}\n${checksum}`);
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         if (url.endsWith("/sessions"))
@@ -397,9 +365,7 @@ describe("sync status", () => {
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
     const commitSignal = await commitStarted.promise;
-    subscription.handlers?.onError({
-      data: { syncVersion: { code: "SYNC_VERSION_UNSUPPORTED" } },
-    });
+    env.serverChanges.emit({ _tag: "UpdateRequired" });
     expect(syncer.status.get().phase).toBe("update-required");
     await aborted(commitSignal);
     commit.resolve();
@@ -415,8 +381,7 @@ describe("sync status", () => {
     const { syncer } = createSyncer();
     const events: string[] = [];
     const firstCommit = deferred();
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request, init: RequestInit) => {
         if (String(input).endsWith("/sessions")) {
           events.push("session");
@@ -523,11 +488,9 @@ describe("sync status", () => {
     "times out and aborts a request that stalls %s, then reports a retryable error",
     async (_stage, respond) => {
       vi.useFakeTimers();
-      vi.spyOn(console, "error").mockImplementation(() => {});
       const { syncer } = createSyncer();
       let signal: AbortSignal | null | undefined;
-      vi.stubGlobal(
-        "fetch",
+      stubFetch(
         vi.fn((_input: string | URL | Request, init: RequestInit) => {
           signal = init.signal;
           return respond();
@@ -569,7 +532,7 @@ describe("sync status", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     await vi.waitFor(() => expect(leader.status.get().phase).toBe("synced"));
 
-    statusBus.nextIsLeader = false;
+    env.tabs.nextIsLeader = false;
     const { syncer: follower } = createSyncer();
     expect(follower.status.get()).toEqual(leader.status.get());
     const commit = deferred();
@@ -606,28 +569,31 @@ describe("sync status", () => {
       tableNameMap: { [items.tableName]: items },
     };
     const leaderClock = createHlcClock("client-1/leader");
-    const leader = new Syncer(leaderDB, "client-1", syncConfig, leaderClock);
+    const leader = inScope(
+      Syncer.make(leaderDB, "client-1", syncConfig, leaderClock),
+    );
     registerSyncChangeHooks({
       syncSubDb: leaderDB,
       syncableDBTables: [items],
       clientId: "client-1",
       nextClock: leaderClock,
     });
-    createCrossTabChanges({
-      clientId: "client-1",
-      syncSubDb: leaderDB,
-      syncConfig,
-      nextClock: leaderClock,
-      onApplied: () => leader.forceSync(),
-    });
+    inScope(
+      makeCrossTabChanges({
+        clientId: "client-1",
+        syncSubDb: leaderDB,
+        syncConfig,
+        nextClock: leaderClock,
+        onApplied: () => leader.forceSync(),
+      }),
+    );
 
     let sessions = 0;
     let acceptedCursor: ClientCursor | null = null;
     const uploaded: ChangesetArrayType = [];
     const committed: ChangesetArrayType = [];
     const commitGate = deferred();
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request, init: RequestInit) => {
         const url = String(input);
         if (url.endsWith("/sessions")) {
@@ -638,12 +604,14 @@ describe("sync status", () => {
           });
         }
         if (url.includes("/chunks/")) {
-          const { payload } = JSON.parse(String(init.body));
+          const { payload } = JSON.parse(await requestText(init));
           uploaded.push(...(JSON.parse(payload) as ChangesetArrayType));
           return jsonResponse({});
         }
         if (url.endsWith("/commit")) {
-          const { changeCount, throughCursor } = JSON.parse(String(init.body));
+          const { changeCount, throughCursor } = JSON.parse(
+            await requestText(init),
+          );
           if (changeCount > 0) {
             await commitGate.promise;
             committed.push(...uploaded);
@@ -663,13 +631,10 @@ describe("sync status", () => {
     try {
       await vi.advanceTimersByTimeAsync(2_000);
       await vi.waitFor(() => expect(leader.status.get().phase).toBe("synced"));
-      statusBus.nextIsLeader = false;
+      env.tabs.nextIsLeader = false;
       const followerClock = createHlcClock("client-1/follower");
-      const follower = new Syncer(
-        followerDB,
-        "client-1",
-        syncConfig,
-        followerClock,
+      const follower = inScope(
+        Syncer.make(followerDB, "client-1", syncConfig, followerClock),
       );
       registerSyncChangeHooks({
         syncSubDb: followerDB,
@@ -677,20 +642,24 @@ describe("sync status", () => {
         clientId: "client-1",
         nextClock: followerClock,
       });
-      const followerChanges = createCrossTabChanges({
-        clientId: "client-1",
-        syncSubDb: followerDB,
-        syncConfig,
-        nextClock: followerClock,
-        onApplied: () => follower.forceSync(),
-      });
-      createLocalPersistQueue({
-        syncSubDb: followerDB,
-        postChanges: followerChanges.postChanges,
-        onPersisted: () => follower.forceSync(),
-      }).start();
+      const followerChanges = inScope(
+        makeCrossTabChanges({
+          clientId: "client-1",
+          syncSubDb: followerDB,
+          syncConfig,
+          nextClock: followerClock,
+          onApplied: () => follower.forceSync(),
+        }),
+      );
+      inScope(
+        makeLocalPersistQueue({
+          syncSubDb: followerDB,
+          postChanges: followerChanges.postChanges,
+          onPersisted: () => follower.forceSync(),
+        }),
+      );
 
-      statusBus.delayChanges = true;
+      env.tabs.holdChanges = true;
       const row = { id: "follower-write", title: "Must reach the server" };
       await asyncDispatch(
         followerDB,
@@ -706,12 +675,12 @@ describe("sync status", () => {
       await vi.waitFor(() => expect(leader.status.get().phase).toBe("synced"));
       expect(follower.status.get().phase).toBe("synced");
       expect(uploaded).toEqual([]);
-      expect(statusBus.delayedChanges).toHaveLength(1);
+      expect(env.tabs.held).toHaveLength(1);
 
       // The status-channel wake-up has already finished an empty session.
       // Only delivery and completion of the changes-channel merge can wake it now.
-      statusBus.delayChanges = false;
-      statusBus.delayedChanges.splice(0).forEach((deliver) => deliver());
+      env.tabs.holdChanges = false;
+      env.tabs.releaseChanges();
       await vi.waitFor(() => expect(uploaded).toHaveLength(1));
       expect(uploaded[0].data).toEqual([expect.objectContaining({ row })]);
       expect(committed).toEqual([]);
@@ -730,10 +699,12 @@ describe("sync status", () => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  for (const scope of scopes.splice(0)) {
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+  }
   vi.useRealTimers();
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
 });
 
 describe("sync v4 request recovery", () => {
@@ -754,8 +725,7 @@ describe("sync v4 request recovery", () => {
       }
     });
     const ack = vi.fn();
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         if (url.endsWith("/sessions"))
@@ -780,9 +750,7 @@ describe("sync v4 request recovery", () => {
         throw new Error(`Unexpected sync request: ${url}`);
       }),
     );
-    const running = Effect.runPromise(
-      (syncer as unknown as SyncerTestAccess).syncV4(),
-    );
+    const running = runSyncV4(syncer);
     try {
       expect(
         await Promise.race([
@@ -810,7 +778,6 @@ describe("sync v4 request recovery", () => {
       tableNameMap: { [items.tableName]: items },
     };
     const { db, syncer } = createSyncer(syncConfig);
-    const access = syncer as unknown as SyncerTestAccess;
     registerSyncChangeHooks({
       syncSubDb: db,
       syncableDBTables: [items],
@@ -840,8 +807,7 @@ describe("sync v4 request recovery", () => {
 
     const uploaded: ChangesetArrayType = [];
     const requests: string[] = [];
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request, init: RequestInit) => {
         const url = String(input);
         requests.push(url);
@@ -849,12 +815,12 @@ describe("sync v4 request recovery", () => {
           return jsonResponse(sessionResponse("fresh-upload"));
         }
         if (url.includes("/chunks/")) {
-          const { payload } = JSON.parse(String(init.body));
+          const { payload } = JSON.parse(await requestText(init));
           uploaded.push(...(JSON.parse(payload) as ChangesetArrayType));
           return jsonResponse({});
         }
         if (url.endsWith("/commit")) {
-          const { throughCursor } = JSON.parse(String(init.body));
+          const { throughCursor } = JSON.parse(await requestText(init));
           return jsonResponse({
             acceptedClientCursor: throughCursor,
             serverRevision: 0,
@@ -866,11 +832,11 @@ describe("sync v4 request recovery", () => {
     );
     const wake = vi.spyOn(syncer, "forceSync");
 
-    expect(await Effect.runPromise(access.syncV4())).toBe(false);
+    expect(await runSyncV4(syncer)).toBe(false);
     expect(wake).toHaveBeenCalledOnce();
     expect(await asyncDispatch(db, getPendingSyncV4Upload({}))).toBeUndefined();
 
-    expect(await Effect.runPromise(access.syncV4())).toBe(true);
+    expect(await runSyncV4(syncer)).toBe(true);
     expect(requests.filter((url) => url.endsWith("/sessions"))).toHaveLength(1);
     expect(uploaded).toEqual([
       { tableName: items.tableName, data: [expect.objectContaining({ row })] },
@@ -938,8 +904,7 @@ describe("sync v4 request recovery", () => {
     const { db, syncer } = createSyncer();
     const requests: string[] = [];
     let handshakes = 0;
-    vi.stubGlobal(
-      "fetch",
+    stubFetch(
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
         requests.push(url);
@@ -1018,7 +983,7 @@ describe("syncer notification baseline", () => {
 
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
     await verifyPendingNotificationStartsNextSession(() => {
-      subscription.handlers?.onData();
+      env.serverChanges.emit({ _tag: "ChangesAvailable" });
     });
   });
 

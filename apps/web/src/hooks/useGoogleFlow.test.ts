@@ -1,31 +1,65 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Cause, Effect, Exit } from "effect";
-import { cancelActiveFlow, runGoogleFlow } from "./useGoogleFlow";
+import { Cause, Effect, Exit, Layer, PubSub, Stream } from "effect";
+import {
+  cancelActiveFlow,
+  GoogleAuthApi,
+  GoogleFlowError,
+  runGoogleFlow,
+  type ActiveGoogleFlow,
+} from "@/lib/googleFlow";
+import { makeTestPage, testAuthSession } from "@/services/testing";
 
-const google = vi.hoisted(() => ({
-  beginSignIn: { mutate: vi.fn() },
-  beginLink: { mutate: vi.fn() },
-  poll: { mutate: vi.fn() },
-  completeSignIn: { mutate: vi.fn() },
-  cancel: { mutate: vi.fn() },
-}));
+// Promise doubles for the server procedures; the service maps rejections the
+// way the live tRPC layer does.
+const google = {
+  begin: vi.fn(),
+  poll: vi.fn(),
+  completeSignIn: vi.fn(),
+  cancel: vi.fn(),
+};
+const call =
+  <Args extends unknown[]>(procedure: (...args: Args) => Promise<unknown>) =>
+  (...args: Args) =>
+    Effect.tryPromise({
+      try: () => procedure(...args),
+      catch: (cause) =>
+        new GoogleFlowError({
+          reason: "request_failed",
+          message: cause instanceof Error ? cause.message : String(cause),
+        }),
+    });
 
-vi.mock("@/lib/trpc", () => ({
-  trpcClient: { google },
-  resetWsClient: vi.fn(),
-}));
-vi.mock("@/lib/auth", () => ({
-  authUtils: { getUserId: () => null, getToken: () => null },
-}));
-vi.mock("@/lib/analytics", () => ({
-  captureWebAnalytics: vi.fn(),
-  identifyWebAnalyticsUser: vi.fn(),
-}));
-vi.mock("@/lib/query", () => ({ queryClient: { clear: vi.fn() } }));
+let page = makeTestPage();
+let popupCompletions = Effect.runSync(PubSub.unbounded<void>());
+const layer = () =>
+  Layer.mergeAll(
+    Layer.succeed(GoogleAuthApi, {
+      begin: (intent, desktop) =>
+        call(google.begin)(intent, desktop) as ReturnType<
+          GoogleAuthApi["Service"]["begin"]
+        >,
+      poll: (proof) =>
+        call(google.poll)(proof) as ReturnType<
+          GoogleAuthApi["Service"]["poll"]
+        >,
+      completeSignIn: (proof) =>
+        call(google.completeSignIn)(proof) as ReturnType<
+          GoogleAuthApi["Service"]["completeSignIn"]
+        >,
+      completeLink: () => Effect.void,
+      cancel: (flow) => Effect.promise(async () => void google.cancel(flow)),
+      completions: () => Stream.fromPubSub(popupCompletions),
+    }),
+    testAuthSession(signedOut),
+    page.layer,
+  );
+const run = <A, E>(effect: Effect.Effect<A, E, GoogleServices>) =>
+  Effect.runPromise(effect.pipe(Effect.provide(layer())));
+const runExit = <A, E>(effect: Effect.Effect<A, E, GoogleServices>) =>
+  Effect.runPromiseExit(effect.pipe(Effect.provide(layer())));
+type GoogleServices = Layer.Success<ReturnType<typeof layer>>;
 
-type ActiveFlow = Parameters<typeof runGoogleFlow>[2];
-
-// Matches the signed-out session the auth mock reports.
+// Matches the signed-out session the auth layer reports.
 const signedOut = ":";
 const launchUrl = "https://accounts.example/launch";
 const pending = { status: "pending", email: null, error: null };
@@ -55,38 +89,32 @@ const deferred = <T>() => {
   return { promise, resolve };
 };
 
-const opened: ActiveFlow[] = [];
-const start = (current: ActiveFlow) => {
-  opened.push(current);
-  return current;
-};
+const start = (current: ActiveGoogleFlow) => current;
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-  vi.stubGlobal("window", { focus: vi.fn() });
-  for (const procedure of Object.values(google)) procedure.mutate.mockReset();
-  google.beginSignIn.mutate.mockImplementation(async () => flow());
-  google.beginLink.mutate.mockImplementation(async () => flow());
-  google.cancel.mutate.mockResolvedValue(undefined);
+  page = makeTestPage();
+  popupCompletions = Effect.runSync(PubSub.unbounded<void>());
+  for (const procedure of Object.values(google)) procedure.mockReset();
+  google.begin.mockImplementation(async () => flow());
+  google.cancel.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
-  for (const current of opened.splice(0)) current.channel?.close();
   vi.useRealTimers();
-  vi.unstubAllGlobals();
 });
 
 describe("Google sign-in flow", () => {
   it("polls again as soon as the popup reports completion", async () => {
     const firstPoll = deferred<void>();
-    google.poll.mutate
+    google.poll
       .mockImplementationOnce(async () => {
         firstPoll.resolve();
         return pending;
       })
       .mockResolvedValueOnce(ready);
     const { popup, window: popupWindow } = fakePopup();
-    const result = Effect.runPromise(
+    const result = run(
       runGoogleFlow(
         "link",
         undefined,
@@ -96,34 +124,33 @@ describe("Google sign-in flow", () => {
 
     await firstPoll.promise;
     expect(popup.location.href).toBe(launchUrl);
-    const callbackPage = new BroadcastChannel("wbd-google-flow-1");
-    callbackPage.postMessage("complete");
-    callbackPage.close();
+    PubSub.publishUnsafe(popupCompletions, undefined);
 
     // No timer is advanced, so only the completion message can start this poll.
     expect(await result).toEqual({
       type: "link-ready",
       email: "user@gmail.com",
     });
-    expect(google.poll.mutate).toHaveBeenCalledTimes(2);
+    expect(google.poll).toHaveBeenCalledTimes(2);
     expect(popup.close).toHaveBeenCalled();
+    expect(page.focused).toBe(1);
   });
 
   it("tolerates two consecutive poll failures and resets after a success", async () => {
     const offline = new Error("offline");
-    google.poll.mutate
+    google.poll
       .mockRejectedValueOnce(offline)
       .mockRejectedValueOnce(offline)
       .mockResolvedValueOnce(pending)
       .mockRejectedValueOnce(offline)
       .mockRejectedValueOnce(offline)
       .mockResolvedValueOnce(ready);
-    google.completeSignIn.mutate.mockResolvedValue({
+    google.completeSignIn.mockResolvedValue({
       token: "token-1",
       userId: "user-1",
     });
 
-    const result = Effect.runPromise(
+    const result = run(
       runGoogleFlow("signin", desktop(), start({ session: signedOut })),
     );
     await vi.advanceTimersByTimeAsync(5 * 2_000);
@@ -133,8 +160,8 @@ describe("Google sign-in flow", () => {
       token: "token-1",
       userId: "user-1",
     });
-    expect(google.poll.mutate).toHaveBeenCalledTimes(6);
-    expect(google.completeSignIn.mutate).toHaveBeenCalledWith({
+    expect(google.poll).toHaveBeenCalledTimes(6);
+    expect(google.completeSignIn).toHaveBeenCalledWith({
       id: "flow-1",
       secret: "secret",
       completion: "code",
@@ -142,8 +169,8 @@ describe("Google sign-in flow", () => {
   });
 
   it("ends the flow after three consecutive poll failures", async () => {
-    google.poll.mutate.mockRejectedValue(new Error("Network down"));
-    const failure = Effect.runPromise(
+    google.poll.mockRejectedValue(new Error("Network down"));
+    const failure = run(
       Effect.flip(
         runGoogleFlow("signin", desktop(), start({ session: signedOut })),
       ),
@@ -154,13 +181,13 @@ describe("Google sign-in flow", () => {
       reason: "request_failed",
       message: "Network down",
     });
-    expect(google.poll.mutate).toHaveBeenCalledTimes(3);
+    expect(google.poll).toHaveBeenCalledTimes(3);
   });
 
   it("reports an expired flow once polling outlives it", async () => {
-    google.beginSignIn.mutate.mockResolvedValue(flow(5_000));
-    google.poll.mutate.mockResolvedValue(pending);
-    const failure = Effect.runPromise(
+    google.begin.mockResolvedValue(flow(5_000));
+    google.poll.mockResolvedValue(pending);
+    const failure = run(
       Effect.flip(
         runGoogleFlow("signin", desktop(), start({ session: signedOut })),
       ),
@@ -171,16 +198,16 @@ describe("Google sign-in flow", () => {
       reason: "expired",
       message: "Google sign-in expired. Please try again.",
     });
-    expect(google.poll.mutate).toHaveBeenCalledTimes(3);
+    expect(google.poll).toHaveBeenCalledTimes(3);
   });
 
   it("reports the server's error when the desktop browser returns no code", async () => {
-    google.poll.mutate.mockResolvedValue({
+    google.poll.mockResolvedValue({
       status: "error",
       email: null,
       error: "Google sign-in was cancelled.",
     });
-    const failure = Effect.runPromise(
+    const failure = run(
       Effect.flip(
         runGoogleFlow("signin", desktop(null), start({ session: signedOut })),
       ),
@@ -190,7 +217,7 @@ describe("Google sign-in flow", () => {
       reason: "google_error",
       message: "Google sign-in was cancelled.",
     });
-    expect(google.poll.mutate).toHaveBeenCalledWith({
+    expect(google.poll).toHaveBeenCalledWith({
       id: "flow-1",
       secret: "secret",
     });
@@ -198,33 +225,35 @@ describe("Google sign-in flow", () => {
 
   it("cancels a flow on the server once a cancelled begin request returns it", async () => {
     const begin = deferred<ReturnType<typeof flow>>();
-    google.beginSignIn.mutate.mockReturnValue(begin.promise);
+    google.begin.mockReturnValue(begin.promise);
     const { popup, window: popupWindow } = fakePopup();
     const current = start({ popup: popupWindow, session: signedOut });
-    current.fiber = Effect.runFork(runGoogleFlow("signin", undefined, current));
-    expect(google.beginSignIn.mutate).toHaveBeenCalledOnce();
+    current.fiber = Effect.runFork(
+      runGoogleFlow("signin", undefined, current).pipe(Effect.provide(layer())),
+    );
+    expect(google.begin).toHaveBeenCalledOnce();
 
-    const cancelled = cancelActiveFlow(current);
+    const cancelled = run(cancelActiveFlow(current));
     expect(popup.close).toHaveBeenCalled();
     begin.resolve(flow());
     await cancelled;
 
-    expect(google.cancel.mutate).toHaveBeenCalledExactlyOnceWith(
+    expect(google.cancel).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ id: "flow-1", secret: "secret" }),
     );
     expect(popup.location.href).toBe("about:blank");
-    expect(google.poll.mutate).not.toHaveBeenCalled();
+    expect(google.poll).not.toHaveBeenCalled();
   });
 
   it("does not complete sign-in after the session changed in another tab", async () => {
-    google.poll.mutate.mockResolvedValue(ready);
-    const exit = await Effect.runPromiseExit(
+    google.poll.mockResolvedValue(ready);
+    const exit = await runExit(
       runGoogleFlow("signin", desktop(), start({ session: "user-2:token-2" })),
     );
 
     expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(
       true,
     );
-    expect(google.completeSignIn.mutate).not.toHaveBeenCalled();
+    expect(google.completeSignIn).not.toHaveBeenCalled();
   });
 });
