@@ -96,4 +96,24 @@ describe("store startup", () => {
     expect(await initDbStore(config)).toBe(db);
     expect(started.syncers).toHaveLength(2);
   });
+
+  it("starts one store for concurrent calls with the same config", async () => {
+    const config: SyncConfig = {
+      dbId: "user-2",
+      dbType: "user",
+      persistDBTables: [],
+      syncableDBTables: [],
+      tableNameMap: {},
+      afterInit: async () => {},
+    };
+    const before = started.syncers.length;
+
+    const [first, second] = await Promise.all([
+      initDbStore(config),
+      initDbStore(config),
+    ]);
+
+    expect(second).toBe(first);
+    expect(started.syncers).toHaveLength(before + 1);
+  });
 });

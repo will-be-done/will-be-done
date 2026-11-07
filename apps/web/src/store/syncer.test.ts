@@ -456,42 +456,58 @@ describe("sync status", () => {
     await stop(syncer, second);
   });
 
-  it("waits for a local transaction to finish when handoffs arrive back to back", async () => {
-    vi.useFakeTimers();
-    const { syncer } = createSyncer();
-    const access = syncer as unknown as SyncerTestAccess;
-    const transaction = deferred();
-    const nextSession = deferred();
-    let sessions = 0;
-    vi.spyOn(access, "syncV4").mockImplementation(() => {
-      sessions += 1;
-      if (sessions === 1) {
-        return Effect.promise(() => transaction.promise).pipe(
-          Effect.as(true),
-          Effect.uninterruptible,
-        );
-      }
-      nextSession.resolve();
-      return Effect.never;
-    });
+  it.each([
+    [
+      "two handoffs arrive back to back",
+      (syncer: Syncer) => {
+        void syncer.run();
+        return syncer.run();
+      },
+    ],
+    [
+      "a loop starts while stop() is still waiting",
+      (syncer: Syncer) => {
+        void syncer.stop();
+        return syncer.run();
+      },
+    ],
+  ])(
+    "waits for a local transaction to finish when %s",
+    async (_case, restart) => {
+      vi.useFakeTimers();
+      const { syncer } = createSyncer();
+      const access = syncer as unknown as SyncerTestAccess;
+      const transaction = deferred();
+      const nextSession = deferred();
+      let sessions = 0;
+      vi.spyOn(access, "syncV4").mockImplementation(() => {
+        sessions += 1;
+        if (sessions === 1) {
+          return Effect.promise(() => transaction.promise).pipe(
+            Effect.as(true),
+            Effect.uninterruptible,
+          );
+        }
+        nextSession.resolve();
+        return Effect.never;
+      });
 
-    const first = syncer.run();
-    await vi.advanceTimersByTimeAsync(2_000);
-    expect(sessions).toBe(1);
-    void syncer.run();
-    const last = syncer.run();
-    await vi.advanceTimersByTimeAsync(2_000);
-    // The middle loop's wait must not be cut short while the first one is
-    // still committing its transaction.
-    expect(sessions).toBe(1);
+      const first = syncer.run();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(sessions).toBe(1);
+      const last = restart(syncer);
+      await vi.advanceTimersByTimeAsync(2_000);
+      // The new loop must not start while the first one is still committing.
+      expect(sessions).toBe(1);
 
-    transaction.resolve();
-    await first;
-    await vi.advanceTimersByTimeAsync(2_000);
-    await nextSession.promise;
-    expect(sessions).toBe(2);
-    await stop(syncer, last);
-  });
+      transaction.resolve();
+      await first;
+      await vi.advanceTimersByTimeAsync(2_000);
+      await nextSession.promise;
+      expect(sessions).toBe(2);
+      await stop(syncer, last);
+    },
+  );
 
   it.each([
     [
