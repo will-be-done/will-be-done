@@ -166,7 +166,10 @@ export class Syncer {
     const previous = this.loop;
     const loop = Effect.runFork(
       Effect.andThen(
-        previous ? Fiber.interrupt(previous) : Effect.void,
+        // Uninterruptible, so a later handoff cannot skip waiting for it.
+        previous
+          ? Effect.uninterruptible(Fiber.interrupt(previous))
+          : Effect.void,
         this.syncLoop(),
       ),
     );
@@ -339,9 +342,10 @@ export class Syncer {
   ) {
     return Effect.gen(function* () {
       const token = authUtils.getToken();
+      // One signal covers the body read too, so interrupting stops the download.
       const response = yield* Effect.tryPromise({
-        try: (signal) =>
-          fetch(path, {
+        try: async (signal) => {
+          const response = await fetch(path, {
             ...init,
             signal,
             headers: {
@@ -349,18 +353,23 @@ export class Syncer {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
               ...init.headers,
             },
-          }),
+          });
+          return {
+            ok: response.ok,
+            status: response.status,
+            body: await response.text(),
+          };
+        },
         catch: (cause) => new SyncNetworkError({ cause }),
       });
       if (!response.ok) {
-        const body = yield* Effect.tryPromise({
-          try: () => response.text(),
-          catch: (cause) => new SyncNetworkError({ cause }),
+        return yield* new SyncHttpError({
+          status: response.status,
+          body: response.body,
         });
-        return yield* new SyncHttpError({ status: response.status, body });
       }
-      return yield* Effect.tryPromise({
-        try: () => response.json() as Promise<T>,
+      return yield* Effect.try({
+        try: () => JSON.parse(response.body) as T,
         catch: () =>
           new SyncProtocolError({ reason: `${request} returned invalid JSON` }),
       });

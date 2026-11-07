@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Cause, Effect, Exit, Fiber } from "effect";
-import { runGoogleFlow } from "./useGoogleFlow";
+import { Cause, Effect, Exit } from "effect";
+import { cancelActiveFlow, runGoogleFlow } from "./useGoogleFlow";
 
 const google = vi.hoisted(() => ({
   beginSignIn: { mutate: vi.fn() },
   beginLink: { mutate: vi.fn() },
   poll: { mutate: vi.fn() },
   completeSignIn: { mutate: vi.fn() },
+  cancel: { mutate: vi.fn() },
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -66,6 +67,7 @@ beforeEach(() => {
   for (const procedure of Object.values(google)) procedure.mutate.mockReset();
   google.beginSignIn.mutate.mockImplementation(async () => flow());
   google.beginLink.mutate.mockImplementation(async () => flow());
+  google.cancel.mutate.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -194,19 +196,22 @@ describe("Google sign-in flow", () => {
     });
   });
 
-  it("records the flow when cancelled mid-begin, then stops before opening Google", async () => {
+  it("cancels a flow on the server once a cancelled begin request returns it", async () => {
     const begin = deferred<ReturnType<typeof flow>>();
     google.beginSignIn.mutate.mockReturnValue(begin.promise);
     const { popup, window: popupWindow } = fakePopup();
     const current = start({ popup: popupWindow, session: signedOut });
-    const fiber = Effect.runFork(runGoogleFlow("signin", undefined, current));
+    current.fiber = Effect.runFork(runGoogleFlow("signin", undefined, current));
+    expect(google.beginSignIn.mutate).toHaveBeenCalledOnce();
 
-    const interrupted = Effect.runPromise(Fiber.interrupt(fiber));
+    const cancelled = cancelActiveFlow(current);
+    expect(popup.close).toHaveBeenCalled();
     begin.resolve(flow());
-    await interrupted;
+    await cancelled;
 
-    // cancel() closes this flow on the server once the interrupt returns.
-    expect(current.flow).toMatchObject({ id: "flow-1", secret: "secret" });
+    expect(google.cancel.mutate).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "flow-1", secret: "secret" }),
+    );
     expect(popup.location.href).toBe("about:blank");
     expect(google.poll.mutate).not.toHaveBeenCalled();
   });
