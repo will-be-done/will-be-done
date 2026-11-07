@@ -1,16 +1,20 @@
-import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import {
   dailyListByDate,
   dailyEntryByTaskId,
   dailyEntrySiblings,
   removeFromDailyList,
   scheduleTask as scheduleTaskAction,
-  taskById,
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
-import { ResourceNotFoundError } from "./errors";
+import { dispatch, select } from "./hyperdb";
 import { resolveCreatePosition, type Placement } from "./placement";
-import { getTaskSchedule, toPublicTask, type PublicTask } from "./tasks";
+import {
+  getTaskSchedule,
+  requireTask,
+  toPublicTask,
+  type PublicTask,
+} from "./tasks";
 
 export interface ScheduledTaskResponse {
   task: PublicTask;
@@ -18,7 +22,7 @@ export interface ScheduledTaskResponse {
   previousDate: string | null;
 }
 
-export async function scheduleTask({
+export const scheduleTask = Effect.fn("scheduleTask")(function* ({
   spaceId,
   taskId,
   userId,
@@ -32,42 +36,37 @@ export async function scheduleTask({
   date: string;
   time?: string | null;
   placement?: Placement;
-}): Promise<ScheduledTaskResponse> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const task = await selectAsync(db, {
-    selector: taskById,
-    args: { id: taskId },
-  });
-  if (!task) throw new ResourceNotFoundError("Task");
-  const previousDate = (await getTaskSchedule(db, taskId))?.date ?? null;
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const task = yield* requireTask(db, taskId);
+  const previousDate = (yield* getTaskSchedule(db, taskId))?.date ?? null;
 
-  const dailyList = await selectAsync(db, {
+  const dailyList = yield* select(db, {
     selector: dailyListByDate,
     args: { date },
   });
-  let position: ReturnType<typeof resolveCreatePosition>;
-  if (placement.kind === "before" || placement.kind === "after") {
-    const anchor = await selectAsync(db, {
-      selector: dailyEntryByTaskId,
-      args: { taskId: placement.anchorId },
+  const anchor =
+    placement.kind === "before" || placement.kind === "after"
+      ? yield* select(db, {
+          selector: dailyEntryByTaskId,
+          args: { taskId: placement.anchorId },
+        })
+      : undefined;
+  let position: Parameters<typeof scheduleTaskAction>[0]["position"];
+  if (anchor && dailyList && anchor.dailyListId === dailyList.id) {
+    const [before, after] = yield* select(db, {
+      selector: dailyEntrySiblings,
+      args: { taskId: anchor.taskId },
     });
-    if (!dailyList || !anchor || anchor.dailyListId !== dailyList.id) {
-      position = resolveCreatePosition({ entities: [], placement });
-    } else {
-      const [before, after] = await selectAsync(db, {
-        selector: dailyEntrySiblings,
-        args: { taskId: anchor.taskId },
-      });
-      position =
-        placement.kind === "before"
-          ? [before ?? null, anchor]
-          : [anchor, after ?? null];
-    }
+    position =
+      placement.kind === "before"
+        ? [before ?? null, anchor]
+        : [anchor, after ?? null];
   } else {
-    position = resolveCreatePosition({ entities: [], placement });
+    position = yield* resolveCreatePosition({ entities: [], placement });
   }
 
-  const entry = await asyncDispatch(
+  const entry = yield* dispatch(
     db,
     scheduleTaskAction({
       taskId,
@@ -77,14 +76,15 @@ export async function scheduleTask({
     }),
   );
 
-  return {
+  const response: ScheduledTaskResponse = {
     task: toPublicTask(task, { date, time: entry?.time ?? null }),
     date,
     previousDate,
   };
-}
+  return response;
+});
 
-export async function clearTaskSchedule({
+export const clearTaskSchedule = Effect.fn("clearTaskSchedule")(function* ({
   spaceId,
   taskId,
   userId,
@@ -92,15 +92,11 @@ export async function clearTaskSchedule({
   spaceId: string;
   taskId: string;
   userId: string;
-}): Promise<string | null> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const task = await selectAsync(db, {
-    selector: taskById,
-    args: { id: taskId },
-  });
-  if (!task) throw new ResourceNotFoundError("Task");
-  const previousDate = (await getTaskSchedule(db, taskId))?.date ?? null;
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireTask(db, taskId);
+  const previousDate = (yield* getTaskSchedule(db, taskId))?.date ?? null;
 
-  await asyncDispatch(db, removeFromDailyList({ taskId }));
+  yield* dispatch(db, removeFromDailyList({ taskId }));
   return previousDate;
-}
+});

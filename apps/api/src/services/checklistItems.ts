@@ -1,4 +1,5 @@
-import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
+import type { HyperDB } from "@will-be-done/hyperdb";
+import { Clock, Effect } from "effect";
 import {
   checklistItemById,
   checklistItemChildren,
@@ -13,6 +14,7 @@ import {
 } from "@will-be-done/slices/space";
 import { getSpaceDatabase } from "./databaseAccess";
 import { ResourceNotFoundError } from "./errors";
+import { dispatch, select } from "./hyperdb";
 import { resolveOrderToken, type Placement } from "./placement";
 
 export interface PublicChecklistItem {
@@ -39,40 +41,53 @@ function toPublicChecklistItem(item: ChecklistItem): PublicChecklistItem {
   };
 }
 
-async function requireParent(
-  db: Awaited<ReturnType<typeof getSpaceDatabase>>,
+const requireParent = Effect.fnUntraced(function* (
+  db: HyperDB,
   parentType: ChecklistParentType,
   parentId: string,
 ) {
   const parent =
     parentType === "task"
-      ? await selectAsync(db, { selector: taskById, args: { id: parentId } })
-      : await selectAsync(db, {
+      ? yield* select(db, { selector: taskById, args: { id: parentId } })
+      : yield* select(db, {
           selector: taskTemplateById,
           args: { id: parentId },
         });
   if (!parent) {
-    throw new ResourceNotFoundError(
-      parentType === "task" ? "Task" : "Task template",
-    );
+    return yield* new ResourceNotFoundError({
+      resource: parentType === "task" ? "Task" : "Task template",
+    });
   }
-}
+});
 
-async function parentItems(
-  db: Awaited<ReturnType<typeof getSpaceDatabase>>,
+const requireChecklistItem = Effect.fnUntraced(function* (
+  db: HyperDB,
+  checklistItemId: string,
+) {
+  const item = yield* select(db, {
+    selector: checklistItemById,
+    args: { id: checklistItemId },
+  });
+  if (!item) {
+    return yield* new ResourceNotFoundError({ resource: "Checklist item" });
+  }
+  return item;
+});
+
+const parentItems = (
+  db: HyperDB,
   parentType: ChecklistParentType,
   parentId: string,
   excludedId?: string,
-) {
-  return (
-    await selectAsync(db, {
-      selector: checklistItemChildren,
-      args: { parentType, parentId },
-    })
-  ).filter((item) => item.id !== excludedId);
-}
+) =>
+  select(db, {
+    selector: checklistItemChildren,
+    args: { parentType, parentId },
+  }).pipe(
+    Effect.map((items) => items.filter((item) => item.id !== excludedId)),
+  );
 
-export async function listChecklistItems({
+export const listChecklistItems = Effect.fn("listChecklistItems")(function* ({
   spaceId,
   userId,
   parentType,
@@ -82,15 +97,14 @@ export async function listChecklistItems({
   userId: string;
   parentType: ChecklistParentType;
   parentId: string;
-}): Promise<PublicChecklistItem[]> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  await requireParent(db, parentType, parentId);
-  return (await parentItems(db, parentType, parentId)).map(
-    toPublicChecklistItem,
-  );
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireParent(db, parentType, parentId);
+  const items = yield* parentItems(db, parentType, parentId);
+  return items.map(toPublicChecklistItem);
+});
 
-export async function getChecklistItem({
+export const getChecklistItem = Effect.fn("getChecklistItem")(function* ({
   spaceId,
   userId,
   checklistItemId,
@@ -98,17 +112,14 @@ export async function getChecklistItem({
   spaceId: string;
   userId: string;
   checklistItemId: string;
-}): Promise<PublicChecklistItem> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const item = await selectAsync(db, {
-    selector: checklistItemById,
-    args: { id: checklistItemId },
-  });
-  if (!item) throw new ResourceNotFoundError("Checklist item");
-  return toPublicChecklistItem(item);
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  return toPublicChecklistItem(
+    yield* requireChecklistItem(db, checklistItemId),
+  );
+});
 
-export async function createChecklistItem({
+export const createChecklistItem = Effect.fn("createChecklistItem")(function* ({
   spaceId,
   userId,
   parentType,
@@ -124,11 +135,11 @@ export async function createChecklistItem({
   content: string;
   state?: "todo" | "done";
   placement?: Placement;
-}): Promise<PublicChecklistItem> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  await requireParent(db, parentType, parentId);
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireParent(db, parentType, parentId);
 
-  const item = await asyncDispatch(
+  const item = yield* dispatch(
     db,
     createItem({
       item: {
@@ -136,18 +147,18 @@ export async function createChecklistItem({
         parentId,
         content,
         state,
-        checkedAt: state === "done" ? Date.now() : null,
-        orderToken: resolveOrderToken({
-          entities: await parentItems(db, parentType, parentId),
+        checkedAt: state === "done" ? yield* Clock.currentTimeMillis : null,
+        orderToken: yield* resolveOrderToken({
+          entities: yield* parentItems(db, parentType, parentId),
           placement,
         }),
       },
     }),
   );
   return toPublicChecklistItem(item);
-}
+});
 
-export async function updateChecklistItem({
+export const updateChecklistItem = Effect.fn("updateChecklistItem")(function* ({
   spaceId,
   userId,
   checklistItemId,
@@ -157,16 +168,12 @@ export async function updateChecklistItem({
   userId: string;
   checklistItemId: string;
   updates: { content?: string; state?: "todo" | "done" };
-}): Promise<PublicChecklistItem> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: checklistItemById,
-    args: { id: checklistItemId },
-  });
-  if (!current) throw new ResourceNotFoundError("Checklist item");
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  const current = yield* requireChecklistItem(db, checklistItemId);
 
   if (updates.content !== undefined) {
-    await asyncDispatch(
+    yield* dispatch(
       db,
       updateItem({
         id: checklistItemId,
@@ -175,7 +182,7 @@ export async function updateChecklistItem({
     );
   }
   if (updates.state !== undefined && updates.state !== current.state) {
-    await asyncDispatch(
+    yield* dispatch(
       db,
       setChecklistItemState({
         id: checklistItemId,
@@ -184,10 +191,12 @@ export async function updateChecklistItem({
     );
   }
 
-  return getChecklistItem({ spaceId, userId, checklistItemId });
-}
+  return toPublicChecklistItem(
+    yield* requireChecklistItem(db, checklistItemId),
+  );
+});
 
-export async function moveChecklistItem({
+export const moveChecklistItem = Effect.fn("moveChecklistItem")(function* ({
   spaceId,
   userId,
   checklistItemId,
@@ -201,24 +210,20 @@ export async function moveChecklistItem({
   parentType: ChecklistParentType;
   parentId: string;
   placement: Placement;
-}): Promise<PublicChecklistItem> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const current = await selectAsync(db, {
-    selector: checklistItemById,
-    args: { id: checklistItemId },
-  });
-  if (!current) throw new ResourceNotFoundError("Checklist item");
-  await requireParent(db, parentType, parentId);
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireChecklistItem(db, checklistItemId);
+  yield* requireParent(db, parentType, parentId);
 
-  await asyncDispatch(
+  yield* dispatch(
     db,
     updateItem({
       id: checklistItemId,
       item: {
         parentType,
         parentId,
-        orderToken: resolveOrderToken({
-          entities: await parentItems(
+        orderToken: yield* resolveOrderToken({
+          entities: yield* parentItems(
             db,
             parentType,
             parentId,
@@ -229,10 +234,12 @@ export async function moveChecklistItem({
       },
     }),
   );
-  return getChecklistItem({ spaceId, userId, checklistItemId });
-}
+  return toPublicChecklistItem(
+    yield* requireChecklistItem(db, checklistItemId),
+  );
+});
 
-export async function deleteChecklistItem({
+export const deleteChecklistItem = Effect.fn("deleteChecklistItem")(function* ({
   spaceId,
   userId,
   checklistItemId,
@@ -240,12 +247,8 @@ export async function deleteChecklistItem({
   spaceId: string;
   userId: string;
   checklistItemId: string;
-}): Promise<void> {
-  const db = await getSpaceDatabase(spaceId, userId);
-  const item = await selectAsync(db, {
-    selector: checklistItemById,
-    args: { id: checklistItemId },
-  });
-  if (!item) throw new ResourceNotFoundError("Checklist item");
-  await asyncDispatch(db, deleteItems({ ids: [checklistItemId] }));
-}
+}) {
+  const db = yield* getSpaceDatabase(spaceId, userId);
+  yield* requireChecklistItem(db, checklistItemId);
+  yield* dispatch(db, deleteItems({ ids: [checklistItemId] }));
+});

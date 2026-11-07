@@ -1,8 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { expect } from "bun:test";
 import { asyncDispatch } from "@will-be-done/hyperdb";
+import { Context, Effect, Exit, Layer, Scope } from "effect";
 import { createAppRouter } from "../appRouter";
-import { closeDatabases, getMainHyperDB } from "../db/db";
+import type { DBConfig } from "../db/db";
+import { AppEnv } from "../env";
+import { Databases } from "../services/databases";
+import { SyncNotifications } from "../services/syncNotifications";
 import {
   createProject,
   createProjectSection,
@@ -16,7 +20,18 @@ import { register } from "../slices/authSlice";
 
 type ApiResponse = { status: number; data: unknown };
 
-let activeTestServer: FastifyInstance | undefined;
+const ServicesLive = Databases.layer.pipe(
+  Layer.provideMerge(SyncNotifications.layer),
+  Layer.provide(AppEnv.layer),
+);
+
+let active:
+  | {
+      server: FastifyInstance;
+      databases: Databases["Service"];
+      scope: Scope.Closeable;
+    }
+  | undefined;
 
 export function expectResponseStatus<
   TResponse extends ApiResponse,
@@ -35,26 +50,53 @@ export function expectResponseStatus<
 }
 
 export async function startTestServer(): Promise<FastifyInstance> {
-  if (activeTestServer) return activeTestServer;
+  if (active) return active.server;
 
-  const mainDB = await getMainHyperDB();
-  const server = createServer({
-    appRouter: createAppRouter({ mainDB, captchaConfig: null }),
-    logger: false,
-    serveFrontend: false,
-  });
-  process.env.WBD_API_BASE_URL = await server.listen({
-    host: "127.0.0.1",
-    port: 0,
-  });
-  activeTestServer = server;
-  return server;
+  const scope = await Effect.runPromise(Scope.make());
+  let server: FastifyInstance | undefined;
+  try {
+    const services = await Effect.runPromise(
+      Layer.buildWithScope(ServicesLive, scope),
+    );
+    const databases = Context.get(services, Databases);
+    server = createServer({
+      appRouter: createAppRouter({
+        mainDB: await Effect.runPromise(databases.main),
+        databases,
+        notifications: Context.get(services, SyncNotifications),
+        captchaConfig: null,
+      }),
+      databases,
+      logger: false,
+      serveFrontend: false,
+    });
+    process.env.WBD_API_BASE_URL = await server.listen({
+      host: "127.0.0.1",
+      port: 0,
+    });
+    active = { server, databases, scope };
+    return server;
+  } catch (error) {
+    await server?.close().catch((closeError: unknown) => {
+      console.error(
+        "Failed to close test server after startup failure",
+        closeError,
+      );
+    });
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+    throw error;
+  }
 }
 
 export async function stopTestServer() {
-  await activeTestServer?.close();
-  activeTestServer = undefined;
-  await closeDatabases();
+  if (!active) return;
+  const { server, scope } = active;
+  active = undefined;
+  try {
+    await server.close();
+  } finally {
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+  }
 }
 
 export async function restartTestServer(): Promise<FastifyInstance> {
@@ -62,9 +104,19 @@ export async function restartTestServer(): Promise<FastifyInstance> {
   return startTestServer();
 }
 
+const activeDatabases = () => {
+  if (!active) throw new Error("The API E2E server is not running");
+  return active.databases;
+};
+
+export const mainDatabase = () => Effect.runPromise(activeDatabases().main);
+
+export const openDatabase = (config: DBConfig) =>
+  Effect.runPromise(activeDatabases().open(config));
+
 export async function createAuthorization(): Promise<string> {
   const auth = await asyncDispatch(
-    await getMainHyperDB(),
+    await mainDatabase(),
     register({
       email: `api-client-e2e-${crypto.randomUUID()}@example.com`,
       hashedPassword: "unused-by-api-e2e",

@@ -468,7 +468,3 @@ export function createSyncNotificationBus(
 
   return new InMemorySyncNotificationBus();
 }
-
-export const subscriptionManager = new SubscriptionManager(
-  createSyncNotificationBus(getEnvConfig()),
-);

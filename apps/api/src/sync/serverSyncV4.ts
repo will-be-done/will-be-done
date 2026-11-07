@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
-import { asyncDispatch, type SubscribableDB } from "@will-be-done/hyperdb";
+import type { HyperDB } from "@will-be-done/hyperdb";
+import { Clock, Effect } from "effect";
+import type { z } from "zod";
 import {
   ChangesetArray,
   SyncCommitRequestSchema,
@@ -23,10 +25,12 @@ import {
   stageUploadChunk,
   startSyncUpload,
 } from "./actions";
+import { dispatch } from "../services/hyperdb";
 import {
-  assertSyncClockWithinFutureSkew,
+  isSyncError,
   SyncInvalidRequestError,
   SyncSessionNotFoundError,
+  syncClockSkew,
 } from "./errors";
 
 const sha256 = (value: string) =>
@@ -37,13 +41,30 @@ export const SYNC_V4_SMALL_BODY_LIMIT = 64 * 1024;
 // because quotes and backslashes are escaped a second time.
 export const SYNC_V4_CHUNK_BODY_LIMIT = SYNC_V4_MAX_CHUNK_BYTES * 4;
 
+// Sync actions throw their errors to roll back the transaction.
+const syncDispatch = <A>(db: HyperDB, action: Generator<unknown, A, unknown>) =>
+  dispatch(db, action).pipe(
+    Effect.catchDefect((defect) =>
+      isSyncError(defect) ? Effect.fail(defect) : Effect.die(defect),
+    ),
+  );
+
+const parse = <T>(schema: z.ZodType<T>, value: unknown, message: string) => {
+  const result = schema.safeParse(value);
+  return result.success
+    ? Effect.succeed(result.data)
+    : Effect.fail(new SyncInvalidRequestError({ message }));
+};
+
+const invalid = (message: string) =>
+  Effect.fail(new SyncInvalidRequestError({ message }));
+
 export type ServerSyncV4Dependencies = {
-  db: SubscribableDB;
+  db: HyperDB;
   dbConfig: DBConfig;
   nextClock: HlcClock;
   serverClientId: string;
   userId: string;
-  now?: () => number;
 };
 
 export const createServerSyncV4 = ({
@@ -52,15 +73,18 @@ export const createServerSyncV4 = ({
   nextClock,
   serverClientId,
   userId,
-  now = Date.now,
 }: ServerSyncV4Dependencies) => ({
-  async createSession(body: unknown): Promise<SyncSessionResponse> {
-    const request = SyncSessionRequestSchema.parse(body);
+  createSession: Effect.fn("sync.createSession")(function* (body: unknown) {
+    const request = yield* parse(
+      SyncSessionRequestSchema,
+      body,
+      "Invalid sync request",
+    );
     if (request.dbId !== dbConfig.dbId || request.dbType !== dbConfig.dbType) {
-      throw new SyncInvalidRequestError("Database path and body differ");
+      return yield* invalid("Database path and body differ");
     }
-    const startedAt = now();
-    const result = await asyncDispatch(
+    const startedAt = yield* Clock.currentTimeMillis;
+    const result = yield* syncDispatch(
       db.withTraits({ type: "skip-sync" }),
       startSyncUpload({
         userId,
@@ -69,58 +93,66 @@ export const createServerSyncV4 = ({
         expiresAt: startedAt + SYNC_V4_SESSION_TTL_MS,
       }),
     );
-    return {
+    const response: SyncSessionResponse = {
       ...result,
-      serverTimeMs: now(),
+      serverTimeMs: yield* Clock.currentTimeMillis,
       limits: {
         maxChunkChanges: SYNC_V4_MAX_CHUNK_CHANGES,
         maxChunkBytes: SYNC_V4_MAX_CHUNK_BYTES,
         maxFutureSkewMs: SYNC_V4_MAX_FUTURE_SKEW_MS,
       },
     };
-  },
+    return response;
+  }),
 
-  async putChunk(uploadId: string, sequenceValue: unknown, body: unknown) {
+  putChunk: Effect.fn("sync.putChunk")(function* (
+    uploadId: string,
+    sequenceValue: unknown,
+    body: unknown,
+  ) {
     const sequence = Number(sequenceValue);
     if (
       !Number.isSafeInteger(sequence) ||
       sequence < 0 ||
       sequence >= SYNC_V4_MAX_SESSION_CHUNKS
     ) {
-      throw new SyncInvalidRequestError("Invalid chunk sequence");
+      return yield* invalid("Invalid chunk sequence");
     }
-    const chunk = SyncUploadChunkSchema.parse(body);
+    const chunk = yield* parse(
+      SyncUploadChunkSchema,
+      body,
+      "Invalid sync request",
+    );
     const byteCount = Buffer.byteLength(chunk.payload);
     if (
       byteCount > SYNC_V4_MAX_CHUNK_BYTES ||
       sha256(chunk.payload) !== chunk.checksum
     ) {
-      throw new SyncInvalidRequestError("Invalid sync chunk");
+      return yield* invalid("Invalid sync chunk");
     }
-    let changesets;
-    try {
-      changesets = ChangesetArray.parse(JSON.parse(chunk.payload));
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw new SyncInvalidRequestError("Invalid sync chunk");
-      }
-      throw error;
-    }
+    const payload = yield* Effect.try({
+      try: (): unknown => JSON.parse(chunk.payload),
+      catch: () =>
+        new SyncInvalidRequestError({ message: "Invalid sync chunk" }),
+    });
+    const changesets = yield* parse(
+      ChangesetArray,
+      payload,
+      "Invalid sync request",
+    );
     const changeCount = changesets.reduce(
       (sum, changeset) => sum + changeset.data.length,
       0,
     );
     if (changeCount === 0 || changeCount > SYNC_V4_MAX_CHUNK_CHANGES) {
-      throw new SyncInvalidRequestError("Invalid sync chunk");
+      return yield* invalid("Invalid sync chunk");
     }
     for (const changeset of changesets) {
       if (!dbConfig.tableNameMap[changeset.tableName]) {
-        throw new SyncInvalidRequestError(
-          `Unknown sync table: ${changeset.tableName}`,
-        );
+        return yield* invalid(`Unknown sync table: ${changeset.tableName}`);
       }
     }
-    return await asyncDispatch(
+    return yield* syncDispatch(
       db.withTraits({ type: "skip-sync" }),
       stageUploadChunk({
         uploadId,
@@ -129,24 +161,31 @@ export const createServerSyncV4 = ({
         byteCount,
         chunk: { checksum: chunk.checksum, changesets },
         tableNameMap: dbConfig.tableNameMap,
-        now: now(),
+        now: yield* Clock.currentTimeMillis,
       }),
     );
-  },
+  }),
 
-  async commit(uploadId: string, body: unknown): Promise<SyncCommitResponse> {
-    const request = SyncCommitRequestSchema.parse(body);
+  commit: Effect.fn("sync.commit")(function* (uploadId: string, body: unknown) {
+    const request = yield* parse(
+      SyncCommitRequestSchema,
+      body,
+      "Invalid sync request",
+    );
     if (request.chunkCount > SYNC_V4_MAX_SESSION_CHUNKS) {
-      throw new SyncInvalidRequestError("Too many sync chunks");
+      return yield* invalid("Too many sync chunks");
     }
-    const session = await asyncDispatch(db, getUploadSession({ uploadId }));
+    const session = yield* syncDispatch(db, getUploadSession({ uploadId }));
     if (!session || session.userId !== userId) {
-      throw new SyncSessionNotFoundError("Upload session not found");
+      return yield* new SyncSessionNotFoundError({
+        message: "Upload session not found",
+      });
     }
-    const committedAt = now();
-    assertSyncClockWithinFutureSkew(session.maxObservedClock, committedAt);
+    const committedAt = yield* Clock.currentTimeMillis;
+    const clockSkew = syncClockSkew(session.maxObservedClock, committedAt);
+    if (clockSkew) return yield* clockSkew;
     nextClock.observe([session.maxObservedClock]);
-    return await asyncDispatch(
+    const response: SyncCommitResponse = yield* syncDispatch(
       db.withTraits({ type: "skip-sync" }),
       commitSyncUpload({
         uploadId,
@@ -161,33 +200,48 @@ export const createServerSyncV4 = ({
         expiresAt: committedAt + SYNC_V4_SESSION_TTL_MS,
       }),
     );
-  },
+    return response;
+  }),
 
-  async readDownloadChunk(downloadId: string, sequenceValue: unknown) {
+  readDownloadChunk: Effect.fn("sync.readDownloadChunk")(function* (
+    downloadId: string,
+    sequenceValue: unknown,
+  ) {
     const sequence = Number(sequenceValue);
     if (!Number.isSafeInteger(sequence) || sequence < 0) {
-      throw new SyncInvalidRequestError("Invalid chunk sequence");
+      return yield* invalid("Invalid chunk sequence");
     }
-    const chunk = await asyncDispatch(
+    const chunk = yield* syncDispatch(
       db,
-      getDownloadChunk({ downloadId, sequence, userId, now: now() }),
+      getDownloadChunk({
+        downloadId,
+        sequence,
+        userId,
+        now: yield* Clock.currentTimeMillis,
+      }),
     );
-    if (!chunk) throw new SyncSessionNotFoundError("Chunk not found");
+    if (!chunk) {
+      return yield* new SyncSessionNotFoundError({
+        message: "Chunk not found",
+      });
+    }
     return {
       sequence: chunk.sequence,
       checksum: chunk.checksum,
-      changesets: JSON.parse(chunk.payload),
+      changesets: JSON.parse(chunk.payload) as unknown,
     };
-  },
+  }),
 
-  async acknowledgeDownload(downloadId: string) {
+  acknowledgeDownload: Effect.fn("sync.acknowledgeDownload")(function* (
+    downloadId: string,
+  ) {
     return {
-      acknowledged: await asyncDispatch(
+      acknowledged: yield* syncDispatch(
         db.withTraits({ type: "skip-sync" }),
         acknowledgeDownload({ downloadId, userId }),
       ),
     };
-  },
+  }),
 });
 
 export type ServerSyncV4 = ReturnType<typeof createServerSyncV4>;

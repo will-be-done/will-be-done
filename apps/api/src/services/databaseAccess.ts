@@ -1,75 +1,65 @@
-import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
-import { spaceDBConfig } from "../db/configs";
-import { getHyperDB, getMainHyperDB } from "../db/db";
-import { getDbById, getDbByIdOrCreate } from "../slices/dbSlice";
+import { Effect } from "effect";
 import { getSpaceById } from "@will-be-done/slices/user";
-import { userDBConfig } from "../db/configs";
-import { ResourceNotFoundError } from "./errors";
+import { getDbById, getDbByIdOrCreate } from "../slices/dbSlice";
+import { Databases, spaceDatabase, userDatabase } from "./databases";
+import { DatabaseAccessDeniedError, ResourceNotFoundError } from "./errors";
+import { dispatch, select } from "./hyperdb";
 
 export type DatabaseType = "user" | "space";
 
-export class DatabaseAccessDeniedError extends Error {
-  constructor(databaseType: DatabaseType) {
-    super(`Access denied to ${databaseType}`);
-    this.name = "DatabaseAccessDeniedError";
-  }
-}
-
-export async function ensureDatabaseAccessOrCreate(
-  {
-    dbId,
-    dbType,
-    userId,
-  }: {
-    dbId: string;
-    dbType: DatabaseType;
-    userId: string;
-  },
-  mainDB?: DB,
-): Promise<void> {
+export const ensureDatabaseAccessOrCreate = Effect.fn(
+  "ensureDatabaseAccessOrCreate",
+)(function* ({
+  dbId,
+  dbType,
+  userId,
+}: {
+  dbId: string;
+  dbType: DatabaseType;
+  userId: string;
+}) {
   if (dbType === "user") {
     if (userId !== dbId) {
-      throw new DatabaseAccessDeniedError(dbType);
+      return yield* new DatabaseAccessDeniedError({ databaseType: dbType });
     }
     return;
   }
 
-  const resolvedMainDB = mainDB ?? (await getMainHyperDB());
-  const userDb = (await getHyperDB(userDBConfig(userId))).db;
-  const space = await selectAsync(userDb, {
+  const space = yield* select(yield* userDatabase(userId), {
     selector: getSpaceById,
     args: { id: dbId },
   });
   if (!space) {
-    throw new ResourceNotFoundError("Space");
+    return yield* new ResourceNotFoundError({ resource: "Space" });
   }
 
-  const existing = await selectAsync(resolvedMainDB, {
+  const mainDB = yield* (yield* Databases).main;
+  const existing = yield* select(mainDB, {
     selector: getDbById,
     args: { id: dbId, type: dbType },
   });
 
   if (existing) {
     if (existing.userId !== userId) {
-      throw new DatabaseAccessDeniedError(dbType);
+      return yield* new DatabaseAccessDeniedError({ databaseType: dbType });
     }
     return;
   }
 
-  await asyncDispatch(
-    resolvedMainDB,
+  yield* dispatch(
+    mainDB,
     getDbByIdOrCreate({ id: dbId, type: dbType, userId }),
   );
-}
+});
 
-export async function getSpaceDatabase(
+export const getSpaceDatabase = Effect.fn("getSpaceDatabase")(function* (
   spaceId: string,
   userId: string,
-  mainDB?: DB,
 ) {
-  await ensureDatabaseAccessOrCreate(
-    { dbId: spaceId, dbType: "space", userId },
-    mainDB,
-  );
-  return (await getHyperDB(spaceDBConfig(spaceId))).db;
-}
+  yield* ensureDatabaseAccessOrCreate({
+    dbId: spaceId,
+    dbType: "space",
+    userId,
+  });
+  return yield* spaceDatabase(spaceId);
+});

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "bun:test";
-import { todoistRecurrenceToRRule, buildBackup } from "./importTodoist";
+import { Effect } from "effect";
+import {
+  todoistRecurrenceToRRule,
+  buildBackup,
+  importFromTodoist,
+  type TodoistClient,
+} from "./importTodoist";
 import type {
   Task as TodoistTask,
   PersonalProject,
@@ -223,5 +229,40 @@ describe("buildBackup", () => {
         expect(listIds.has(entry.listId)).toBe(true);
       }
     });
+  });
+});
+
+describe("importFromTodoist", () => {
+  const pages =
+    <T>(...results: T[][]) =>
+    async ({ cursor }: { cursor?: string | null }) => {
+      const index = Number(cursor ?? 0);
+      return {
+        results: results[index],
+        nextCursor: index + 1 < results.length ? String(index + 1) : null,
+      };
+    };
+
+  it("reads every page and imports active tasks when completed tasks are unavailable", async () => {
+    const activeTasks = activeTasksFixture as unknown as TodoistTask[];
+    const middle = Math.ceil(activeTasks.length / 2);
+    const client: TodoistClient = {
+      getProjects: pages(projects.slice(0, 1), projects.slice(1)),
+      getSections: pages(sections),
+      getTasks: pages(activeTasks.slice(0, middle), activeTasks.slice(middle)),
+      getCompletedTasksByCompletionDate: () =>
+        Promise.reject(new Error("Premium required")),
+    };
+
+    const backup = await Effect.runPromise(importFromTodoist(client));
+
+    const expected = buildBackup(projects, sections, activeTasks);
+    const titles = (rows: { title: string }[]) =>
+      rows.map((row) => row.title).sort();
+    expect(titles(backup.projects)).toEqual(titles(expected.projects));
+    expect(titles(backup.tasks)).toEqual(titles(expected.tasks));
+    expect(titles(backup.taskTemplates!)).toEqual(
+      titles(expected.taskTemplates!),
+    );
   });
 });

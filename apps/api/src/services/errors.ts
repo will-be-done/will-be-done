@@ -1,27 +1,45 @@
-export class ResourceNotFoundError extends Error {
-  constructor(resource: string) {
-    super(`${resource} not found`);
-    this.name = "ResourceNotFoundError";
+import { Schema } from "effect";
+
+export class ResourceNotFoundError extends Schema.TaggedError<ResourceNotFoundError>()(
+  "ResourceNotFoundError",
+  { resource: Schema.String },
+) {
+  override get message() {
+    return `${this.resource} not found`;
   }
 }
 
-export class BadRequestError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BadRequestError";
+export class BadRequestError extends Schema.TaggedError<BadRequestError>()(
+  "BadRequestError",
+  { message: Schema.String },
+) {}
+
+export class ConflictError extends Schema.TaggedError<ConflictError>()(
+  "ConflictError",
+  { message: Schema.String },
+) {}
+
+export class DatabaseAccessDeniedError extends Schema.TaggedError<DatabaseAccessDeniedError>()(
+  "DatabaseAccessDeniedError",
+  { databaseType: Schema.Literals(["user", "space"]) },
+) {
+  override get message() {
+    return `Access denied to ${this.databaseType}`;
   }
 }
 
-export class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConflictError";
+export class UnauthorizedError extends Schema.TaggedError<UnauthorizedError>()(
+  "UnauthorizedError",
+  {},
+) {
+  override get message() {
+    return "A valid bearer token is required";
   }
 }
 
-export class InvalidPlacementError extends ConflictError {
-  constructor(message: string) {
-    super(message);
-    this.name = "InvalidPlacementError";
-  }
-}
+export type ServiceError =
+  | UnauthorizedError
+  | ResourceNotFoundError
+  | BadRequestError
+  | ConflictError
+  | DatabaseAccessDeniedError;

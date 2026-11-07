@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
+import { Effect } from "effect";
 import { z } from "zod";
-import { authenticateRequest } from "../../services/authentication";
+import { requireUser } from "../../services/authentication";
 import {
   createChecklistItem,
   deleteChecklistItem,
@@ -9,7 +10,7 @@ import {
   moveChecklistItem,
   updateChecklistItem,
 } from "../../services/checklistItems";
-import { sendError as handleError, unauthorized } from "../errors";
+import { runRoute } from "../errors";
 import {
   ChecklistItemParamsSchema,
   ChecklistItemResponseSchema,
@@ -50,24 +51,21 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        const checklistItems = await listChecklistItems({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          parentType: "task",
-          parentId: request.params.taskId,
-        });
-        return reply.code(200).send({ checklistItems });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to list checklist items",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list checklist items",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const checklistItems = yield* listChecklistItems({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            parentType: "task",
+            parentId: request.params.taskId,
+          });
+          return reply.code(200).send({ checklistItems });
+        }),
+      );
     },
   );
 
@@ -93,25 +91,22 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        const checklistItem = await createChecklistItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          parentType: "task",
-          parentId: request.params.taskId,
-          ...request.body,
-        });
-        return reply.code(201).send({ checklistItem });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to create checklist item",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create checklist item",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const checklistItem = yield* createChecklistItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            parentType: "task",
+            parentId: request.params.taskId,
+            ...request.body,
+          });
+          return reply.code(201).send({ checklistItem });
+        }),
+      );
     },
   );
 
@@ -135,24 +130,21 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        const checklistItems = await listChecklistItems({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          parentType: "template",
-          parentId: request.params.templateId,
-        });
-        return reply.code(200).send({ checklistItems });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to list checklist items",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to list checklist items",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const checklistItems = yield* listChecklistItems({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            parentType: "template",
+            parentId: request.params.templateId,
+          });
+          return reply.code(200).send({ checklistItems });
+        }),
+      );
     },
   );
 
@@ -178,25 +170,22 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        const checklistItem = await createChecklistItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          parentType: "template",
-          parentId: request.params.templateId,
-          ...request.body,
-        });
-        return reply.code(201).send({ checklistItem });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to create checklist item",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to create checklist item",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const checklistItem = yield* createChecklistItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            parentType: "template",
+            parentId: request.params.templateId,
+            ...request.body,
+          });
+          return reply.code(201).send({ checklistItem });
+        }),
+      );
     },
   );
 
@@ -220,23 +209,20 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        const checklistItem = await getChecklistItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          checklistItemId: request.params.checklistItemId,
-        });
-        return reply.code(200).send({ checklistItem });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to get checklist item",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to get checklist item",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const checklistItem = yield* getChecklistItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            checklistItemId: request.params.checklistItemId,
+          });
+          return reply.code(200).send({ checklistItem });
+        }),
+      );
     },
   );
 
@@ -261,39 +247,36 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        const previous = await getChecklistItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          checklistItemId: request.params.checklistItemId,
-        });
-        const checklistItem = await updateChecklistItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          checklistItemId: request.params.checklistItemId,
-          updates: request.body,
-        });
-        if (previous.state === "todo" && checklistItem.state === "done") {
-          analytics.capture({
-            name: "checklist_item_completed",
-            distinctId: user.id,
-            properties: {
-              completion_method: "api",
-              parent_type: checklistItem.parentType,
-            },
+      return runRoute(
+        request,
+        reply,
+        "Failed to update checklist item",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const previous = yield* getChecklistItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            checklistItemId: request.params.checklistItemId,
           });
-        }
-        return reply.code(200).send({ checklistItem });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to update checklist item",
-        );
-      }
+          const checklistItem = yield* updateChecklistItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            checklistItemId: request.params.checklistItemId,
+            updates: request.body,
+          });
+          if (previous.state === "todo" && checklistItem.state === "done") {
+            analytics.capture({
+              name: "checklist_item_completed",
+              distinctId: user.id,
+              properties: {
+                completion_method: "api",
+                parent_type: checklistItem.parentType,
+              },
+            });
+          }
+          return reply.code(200).send({ checklistItem });
+        }),
+      );
     },
   );
 
@@ -317,23 +300,20 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        await deleteChecklistItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          checklistItemId: request.params.checklistItemId,
-        });
-        return reply.code(204).send(null);
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to delete checklist item",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to delete checklist item",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          yield* deleteChecklistItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            checklistItemId: request.params.checklistItemId,
+          });
+          return reply.code(204).send(null);
+        }),
+      );
     },
   );
 
@@ -359,24 +339,21 @@ export const checklistItemRoutes: FastifyPluginAsyncZod<
       },
     },
     async (request, reply) => {
-      const user = await authenticateRequest(request);
-      if (!user) return unauthorized(reply);
-      try {
-        const checklistItem = await moveChecklistItem({
-          spaceId: request.params.spaceId,
-          userId: user.id,
-          checklistItemId: request.params.checklistItemId,
-          ...request.body,
-        });
-        return reply.code(200).send({ checklistItem });
-      } catch (error) {
-        return handleError(
-          request,
-          reply,
-          error,
-          "Failed to move checklist item",
-        );
-      }
+      return runRoute(
+        request,
+        reply,
+        "Failed to move checklist item",
+        Effect.gen(function* () {
+          const user = yield* requireUser(request);
+          const checklistItem = yield* moveChecklistItem({
+            spaceId: request.params.spaceId,
+            userId: user.id,
+            checklistItemId: request.params.checklistItemId,
+            ...request.body,
+          });
+          return reply.code(200).send({ checklistItem });
+        }),
+      );
     },
   );
 };

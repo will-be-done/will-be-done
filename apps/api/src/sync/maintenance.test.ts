@@ -16,6 +16,10 @@ import {
   trashedTaskType,
 } from "@will-be-done/slices/space";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { Effect } from "effect";
+import type { LoadedDatabase } from "../db/db";
+import { Databases } from "../services/databases";
+import { testDatabases } from "../services/testing";
 import { runSyncMaintenance } from "./maintenance";
 import { serverSyncTables, syncUploadSessionsTable } from "./tables";
 
@@ -65,15 +69,23 @@ const createLogger = () => ({
   info: mock((..._args: unknown[]) => {}),
 });
 
+const maintain = (
+  logger: ReturnType<typeof createLogger>,
+  loaded: LoadedDatabase[],
+) =>
+  Effect.runPromise(
+    runSyncMaintenance(logger).pipe(
+      Effect.provideService(Databases, testDatabases({ loaded })),
+    ),
+  );
+
 describe("sync v4 maintenance", () => {
   test("drains multiple expired sessions in one maintenance call", async () => {
     const db = createSyncDb();
     syncDispatch(db, seedExpiredUploads({}));
     const logger = createLogger();
 
-    await runSyncMaintenance(logger as never, [
-      { database: "good", dbType: "user", db },
-    ]);
+    await maintain(logger, [{ database: "good", dbType: "user", db }]);
 
     expect(logger.error).not.toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledTimes(1);
@@ -96,7 +108,7 @@ describe("sync v4 maintenance", () => {
     syncDispatch(good, seedExpiredUploads({}));
     const logger = createLogger();
 
-    await runSyncMaintenance(logger as never, [
+    await maintain(logger, [
       { database: "broken", dbType: "user", db: broken },
       { database: "good-after-broken", dbType: "user", db: good },
     ]);
@@ -133,7 +145,7 @@ describe("sync v4 maintenance", () => {
       })({}),
     );
 
-    await runSyncMaintenance(createLogger() as never, [
+    await maintain(createLogger(), [
       { database: "space", dbType: "space", db },
     ]);
 

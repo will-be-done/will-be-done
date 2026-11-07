@@ -218,9 +218,9 @@ export const startSyncUpload = action({
       )
       .limit(SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS);
     if (activeUploads.length >= SYNC_V4_MAX_ACTIVE_UPLOAD_SESSIONS) {
-      throw new SyncConflictError(
-        "Too many active sync upload sessions for this client",
-      );
+      throw new SyncConflictError({
+        message: "Too many active sync upload sessions for this client",
+      });
     }
 
     let uploadFromCursor = storedCursor;
@@ -324,7 +324,9 @@ export const stageUploadChunk = action({
       .where((q) => q.eq("id", uploadId))
       .first()) as SyncUploadSession | undefined;
     if (!session || session.userId !== userId || session.expiresAt <= now) {
-      throw new SyncSessionNotFoundError("Sync upload session is not active");
+      throw new SyncSessionNotFoundError({
+        message: "Sync upload session is not active",
+      });
     }
 
     const chunkId = `${uploadId}:${sequence}`;
@@ -333,19 +335,21 @@ export const stageUploadChunk = action({
       .first();
     if (existing) {
       if (existing.checksum !== chunk.checksum) {
-        throw new SyncConflictError(
-          "Sync upload chunk checksum conflicts with retry",
-        );
+        throw new SyncConflictError({
+          message: "Sync upload chunk checksum conflicts with retry",
+        });
       }
       return { changeCount: existing.changeCount, replay: true };
     }
     if (session.status !== "uploading") {
-      throw new SyncConflictError(
-        "Sync upload session is not accepting new chunks",
-      );
+      throw new SyncConflictError({
+        message: "Sync upload session is not accepting new chunks",
+      });
     }
     if (session.uploadedByteCount + byteCount > SYNC_V4_MAX_SESSION_BYTES) {
-      throw new SyncConflictError("Sync upload session exceeds its byte limit");
+      throw new SyncConflictError({
+        message: "Sync upload session exceeds its byte limit",
+      });
     }
 
     const items = [];
@@ -489,23 +493,31 @@ export const commitSyncUpload = action({
       .where((q) => q.eq("id", uploadId))
       .first()) as SyncUploadSession | undefined;
     if (!session || session.userId !== userId || session.expiresAt <= now) {
-      throw new SyncSessionNotFoundError("Sync upload session is not active");
+      throw new SyncSessionNotFoundError({
+        message: "Sync upload session is not active",
+      });
     }
     if (session.status === "committed" && session.resultJson) {
       return JSON.parse(session.resultJson) as SyncCommitResponse;
     }
     if (session.status !== "uploading") {
-      throw new SyncConflictError("Sync upload session cannot be committed");
+      throw new SyncConflictError({
+        message: "Sync upload session cannot be committed",
+      });
     }
     if (request.chunkCount > SYNC_V4_MAX_SESSION_CHUNKS) {
-      throw new SyncConflictError("Sync upload has too many chunks");
+      throw new SyncConflictError({
+        message: "Sync upload has too many chunks",
+      });
     }
     const chunks = yield* selectFrom(syncUploadChunksTable, "byUploadSequence")
       .where((q) => q.eq("uploadId", uploadId))
       .order("asc")
       .limit(SYNC_V4_MAX_SESSION_CHUNKS + 1);
     if (chunks.length > SYNC_V4_MAX_SESSION_CHUNKS) {
-      throw new SyncConflictError("Sync upload has too many chunks");
+      throw new SyncConflictError({
+        message: "Sync upload has too many chunks",
+      });
     }
     const validManifest =
       chunks.length === request.chunkCount &&
@@ -515,7 +527,7 @@ export const commitSyncUpload = action({
       sha256(chunks.map((chunk) => chunk.checksum).join("\n")) ===
         request.checksum;
     if (!validManifest) {
-      throw new SyncConflictError("Incomplete sync upload");
+      throw new SyncConflictError({ message: "Incomplete sync upload" });
     }
     const expectedThroughCursor =
       session.maxClientClock && session.maxClientChangeId
@@ -528,9 +540,9 @@ export const commitSyncUpload = action({
       request.changeCount !== session.uploadedChangeCount ||
       compareClientCursor(request.throughCursor, expectedThroughCursor) !== 0
     ) {
-      throw new SyncConflictError(
-        "Sync upload manifest does not match staged changes",
-      );
+      throw new SyncConflictError({
+        message: "Sync upload manifest does not match staged changes",
+      });
     }
 
     const currentClient = (yield* selectFrom(serverClientSyncStateTable, "byId")
@@ -547,9 +559,9 @@ export const commitSyncUpload = action({
       compareClientCursor(cursorFromServerState(currentClient), baseCursor) !==
       0
     ) {
-      throw new SyncClientCursorAdvancedError(
-        "Client cursor advanced in another sync session",
-      );
+      throw new SyncClientCursorAdvancedError({
+        message: "Client cursor advanced in another sync session",
+      });
     }
 
     const merge = dbType === "space" ? mergeSpaceChanges : mergeChanges;
@@ -866,7 +878,9 @@ export const getDownloadChunk = action({
       session.status === "acknowledged" ||
       session.expiresAt <= now
     ) {
-      throw new SyncSessionNotFoundError("Sync download session is not active");
+      throw new SyncSessionNotFoundError({
+        message: "Sync download session is not active",
+      });
     }
     return yield* selectFrom(syncDownloadChunksTable, "byId")
       .where((q) => q.eq("id", `${downloadId}:${sequence}`))

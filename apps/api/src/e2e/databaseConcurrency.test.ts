@@ -1,7 +1,6 @@
 import { asyncDispatch, selectAsync } from "@will-be-done/hyperdb";
 import { updateSpace as updateSpaceAction } from "@will-be-done/slices/user";
 import { updateTask as updateTaskAction } from "@will-be-done/slices/space";
-import { getHyperDB, getMainHyperDB } from "../db/db";
 import { spaceDBConfig, userDBConfig } from "../db/configs";
 import { getTokenById } from "../slices/authSlice";
 import { expect, test } from "bun:test";
@@ -16,6 +15,8 @@ import {
   createSectionFixture,
   expectResponseStatus,
   requestOptions,
+  mainDatabase,
+  openDatabase,
 } from "./harness";
 
 test("queues concurrent writes to the same user database", async () => {
@@ -29,11 +30,11 @@ test("queues concurrent writes to the same user database", async () => {
     (response) => expectResponseStatus(response, 201).data.space,
   );
   expect(new Set(spaces.map((space) => space.id)).size).toBe(2);
-  const token = await selectAsync(await getMainHyperDB(), {
+  const token = await selectAsync(await mainDatabase(), {
     selector: getTokenById,
     args: { id: authorization.slice("Bearer ".length) },
   });
-  const { db } = await getHyperDB(userDBConfig(token!.userId));
+  const { db } = await openDatabase(userDBConfig(token!.userId));
   // Start both dispatches in one turn so the transactions actually overlap.
   await Promise.all(
     spaces.map((space, i) =>
@@ -64,7 +65,7 @@ test("queues concurrent writes to the same space database", async () => {
     (response) => expectResponseStatus(response, 201).data.task,
   );
   expect(new Set(tasks.map((task) => task.id)).size).toBe(2);
-  const { db } = await getHyperDB(spaceDBConfig(space.id));
+  const { db } = await openDatabase(spaceDBConfig(space.id));
   await Promise.all(
     tasks.map((task, i) =>
       asyncDispatch(

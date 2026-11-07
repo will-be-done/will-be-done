@@ -9,10 +9,11 @@ import { noteRoutes } from "./v1/notes";
 import { checklistItemRoutes } from "./v1/checklistItems";
 import { stashRoutes } from "./v1/stash";
 import { mindmapRoutes } from "./v1/mindmaps";
-import { authenticateBearerToken } from "../services/authentication";
 import { getSpaceDatabase } from "../services/databaseAccess";
-import { sendError } from "./errors";
-import { asyncDispatch } from "@will-be-done/hyperdb";
+import { Databases } from "../services/databases";
+import { dispatch } from "../services/hyperdb";
+import { runRoute } from "./errors";
+import { Cause, Clock, Effect } from "effect";
 import { generateSpaceTasksIfDue } from "@will-be-done/slices/space";
 import { getEnvConfig } from "../env";
 import {
@@ -20,7 +21,10 @@ import {
   noopBackendAnalytics,
   type BackendAnalytics,
 } from "../analytics";
-import { getAuthenticatedRequestUser } from "../services/authentication";
+import {
+  authenticateBearerToken,
+  getAuthenticatedRequestUser,
+} from "../services/authentication";
 
 interface V1RoutesOptions {
   analytics?: BackendAnalytics;
@@ -56,9 +60,6 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
     const spaceId = (request.params as { spaceId?: unknown }).spaceId;
     if (typeof spaceId !== "string") return;
 
-    const user = await authenticateBearerToken(request.headers.authorization);
-    if (!user) return;
-
     if (
       request.method === "PATCH" &&
       request.routeOptions.url?.endsWith(
@@ -68,25 +69,36 @@ export const v1Routes: FastifyPluginAsyncZod<V1RoutesOptions> = async (
       return;
     }
 
-    let db;
-    try {
-      db = await getSpaceDatabase(spaceId, user.id);
-    } catch (error) {
-      return sendError(request, reply, error, "Failed to prepare space data");
-    }
-
-    try {
-      await asyncDispatch(
-        db,
-        generateSpaceTasksIfDue({
-          toDate: Date.now(),
-          intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
-          force: false,
-        }),
-      );
-    } catch (error) {
-      request.log.error(error, "Failed to generate recurring tasks");
-    }
+    return runRoute(
+      request,
+      reply,
+      "Failed to prepare space data",
+      Effect.gen(function* () {
+        const user = yield* authenticateBearerToken(
+          request.headers.authorization,
+          yield* (yield* Databases).main,
+        );
+        if (!user) return;
+        const db = yield* getSpaceDatabase(spaceId, user.id);
+        yield* dispatch(
+          db,
+          generateSpaceTasksIfDue({
+            toDate: yield* Clock.currentTimeMillis,
+            intervalMs: getEnvConfig().WBD_TASK_GENERATION_INTERVAL_MS,
+            force: false,
+          }),
+        ).pipe(
+          Effect.catchCause((cause) =>
+            Effect.sync(() =>
+              request.log.error(
+                Cause.squash(cause),
+                "Failed to generate recurring tasks",
+              ),
+            ),
+          ),
+        );
+      }),
+    );
   });
 
   server.addHook("onResponse", async (request, reply) => {

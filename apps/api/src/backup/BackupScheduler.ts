@@ -1,105 +1,56 @@
-import { DB } from "@will-be-done/hyperdb";
-import { selectSync } from "@will-be-done/hyperdb";
+import { selectSync, type DB } from "@will-be-done/hyperdb";
+import { Cause, Clock, Effect, Schedule } from "effect";
 import type { BackupManager } from "./BackupManager";
-import type { BackupTier, BackupConfig } from "./types";
+import type { BackupConfig, BackupTier } from "./types";
 import { ScheduledTimeCalculator } from "./ScheduledTimeCalculator";
 import { getTierState } from "../slices/backupSlice";
-import { State } from "../utils/State";
 
-export class BackupScheduler {
-  private intervalId: Timer | null = null;
-  private readonly activeCheck = new State<Promise<void> | null>(null);
-  private scheduledTimeCalculator: ScheduledTimeCalculator;
+type BackupRunner = Pick<BackupManager, "performBackup">;
 
-  constructor(
-    private mainDB: DB,
-    private backupManager: BackupManager,
-    private config: BackupConfig,
-  ) {
-    this.scheduledTimeCalculator = new ScheduledTimeCalculator(config);
-  }
+const allTiers: BackupTier[] = ["hourly", "daily", "weekly", "monthly"];
 
-  start(): void {
-    if (this.intervalId) return;
-    console.log("[BackupScheduler] Starting backup scheduler");
-
-    // Run initial check on startup (to catch any missed backups)
-    void this.runCheck();
-
-    // Check every 15 minutes
-    this.intervalId = setInterval(
-      () => {
-        void this.runCheck();
-      },
-      15 * 60 * 1000,
+export const checkAndRunBackups = Effect.fn("checkAndRunBackups")(
+  function* (mainDB: DB, backupManager: BackupRunner, config: BackupConfig) {
+    const now = new Date(yield* Clock.currentTimeMillis);
+    const tierStates = new Map(
+      allTiers.map((tier) => [
+        tier,
+        selectSync(mainDB, { selector: getTierState, args: { tier } }),
+      ]),
     );
+    const dueTiers = new ScheduledTimeCalculator(config).getDueTiers(
+      tierStates,
+      now,
+    );
+
+    if (dueTiers.length === 0) {
+      console.log("[BackupScheduler] No backups due");
+      return;
+    }
 
     console.log(
-      "[BackupScheduler] Backup scheduler started (checking every 15 minutes)",
+      `[BackupScheduler] Tiers due for backup: ${dueTiers.join(", ")}`,
     );
-  }
+    yield* Effect.promise(() => backupManager.performBackup(dueTiers));
+  },
+  Effect.catchCause((cause) =>
+    Effect.sync(() =>
+      console.error(
+        "[BackupScheduler] Backup check failed:",
+        Cause.squash(cause),
+      ),
+    ),
+  ),
+);
 
-  private runCheck(): Promise<void> {
-    const activeCheck = this.activeCheck.get();
-    if (activeCheck) return activeCheck;
-
-    const check = this.checkAndRunBackups();
-    this.activeCheck.set(check);
-    const clearActiveCheck = () => {
-      if (this.activeCheck.get() === check) this.activeCheck.set(null);
-    };
-    void check.then(clearActiveCheck, clearActiveCheck);
-    return check;
-  }
-
-  private async checkAndRunBackups(): Promise<void> {
-    try {
-      const now = new Date();
-
-      // Load all tier states
-      const allTiers: BackupTier[] = ["hourly", "daily", "weekly", "monthly"];
-      const tierStates = new Map();
-
-      for (const tier of allTiers) {
-        const state = selectSync(this.mainDB, {
-          selector: getTierState,
-          args: { tier },
-        });
-        tierStates.set(tier, state);
-      }
-
-      // Determine which tiers are due
-      const dueTiers = this.scheduledTimeCalculator.getDueTiers(
-        tierStates,
-        now,
-      );
-
-      if (dueTiers.length === 0) {
-        console.log("[BackupScheduler] No backups due");
-        return;
-      }
-
-      console.log(
-        `[BackupScheduler] Tiers due for backup: ${dueTiers.join(", ")}`,
-      );
-
-      // Run backups for all due tiers
-      await this.backupManager.performBackup(dueTiers);
-    } catch (error) {
-      console.error("[BackupScheduler] Backup check failed:", error);
-    }
-  }
-
-  async stop(): Promise<void> {
-    console.log("[BackupScheduler] Stopping backup scheduler");
-
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-
-    await this.activeCheck.get();
-
-    console.log("[BackupScheduler] Backup scheduler stopped");
-  }
-}
+// A started backup cannot be cancelled, so interrupting the scheduler waits
+// for the active check to finish.
+export const runBackupScheduler = (
+  mainDB: DB,
+  backupManager: BackupRunner,
+  config: BackupConfig,
+) =>
+  checkAndRunBackups(mainDB, backupManager, config).pipe(
+    Effect.uninterruptible,
+    Effect.repeat(Schedule.spaced("15 minutes")),
+  );

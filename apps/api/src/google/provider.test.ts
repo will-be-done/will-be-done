@@ -5,7 +5,12 @@ import {
   CertificateFormat,
   type GetTokenResponse,
 } from "google-auth-library/build/src/auth/oauth2client";
-import { createGoogleProvider } from "./provider";
+import { Effect } from "effect";
+import {
+  createGoogleProvider,
+  GoogleIdentityError,
+  type GoogleProvider,
+} from "./provider";
 import type { GoogleFlow } from "./tables";
 
 const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -78,15 +83,13 @@ function providerToken(token: string, providerConfig = config) {
   return createGoogleProvider(providerConfig);
 }
 
-async function rejects(promise: Promise<unknown>) {
-  let error: unknown;
-  try {
-    await promise;
-  } catch (cause) {
-    error = cause;
-  }
-  expect(error).toBeInstanceOf(Error);
+async function rejects(verification: Effect.Effect<unknown, unknown>) {
+  expect(await Effect.runPromise(Effect.flip(verification))).toBeInstanceOf(
+    GoogleIdentityError,
+  );
 }
+const verify = (provider: GoogleProvider, code: string, current = flow) =>
+  Effect.runPromise(provider.verify(code, current));
 
 test("provider requests minimal scopes, PKCE, nonce, and the configured callback", () => {
   const url = new URL(createGoogleProvider(config).authorizationUrl(flow));
@@ -102,7 +105,7 @@ test("provider requests minimal scopes, PKCE, nonce, and the configured callback
 });
 
 test("valid signed Google claims produce a stable identity", async () => {
-  expect(await providerToken(signedToken()).verify("code", flow)).toEqual({
+  expect(await verify(providerToken(signedToken()), "code")).toEqual({
     subject: "subject",
     email: "person@gmail.com",
     emailAuthoritative: true,
@@ -123,8 +126,8 @@ test("authorization and concurrent token exchanges keep each flow's registered o
     ).toBe(`${current.appUrl}/api/auth/google/callback`);
   }
   await Promise.all([
-    provider.verify("first-code", first),
-    provider.verify("second-code", second),
+    verify(provider, "first-code", first),
+    verify(provider, "second-code", second),
   ]);
   expect(OAuth2Client.prototype.getToken).toHaveBeenNthCalledWith(1, {
     code: "first-code",
@@ -160,9 +163,9 @@ test("rejects a malformed JWT", async () => {
 test("third-party email requires app verification", async () => {
   expect(
     (
-      await providerToken(signedToken({ email: "person@example.com" })).verify(
+      await verify(
+        providerToken(signedToken({ email: "person@example.com" })),
         "code",
-        flow,
       )
     ).emailAuthoritative,
   ).toBe(false);
@@ -170,9 +173,12 @@ test("third-party email requires app verification", async () => {
 test("verified Workspace email is authoritative", async () => {
   expect(
     (
-      await providerToken(
-        signedToken({ email: "person@example.com", hd: "example.com" }),
-      ).verify("code", flow)
+      await verify(
+        providerToken(
+          signedToken({ email: "person@example.com", hd: "example.com" }),
+        ),
+        "code",
+      )
     ).emailAuthoritative,
   ).toBe(true);
 });

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
+import { Effect } from "effect";
 import type { GoogleConfig } from "./config";
 import { resolveGoogleAppUrl } from "./config";
 import type { GoogleFlow } from "./tables";
@@ -164,7 +165,7 @@ export function createGoogleService(
       );
       try {
         if (denied || !code) throw new Error("Denied");
-        const profile = await provider.verify(code, flow);
+        const profile = await Effect.runPromise(provider.verify(code, flow));
         const completion =
           flow.loopbackPort === undefined ? undefined : randomSecret();
         await asyncDispatch(

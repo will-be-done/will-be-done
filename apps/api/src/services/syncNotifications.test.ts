@@ -9,38 +9,45 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { createSpace, spacesTable } from "@will-be-done/slices/user";
 import { createAppRouter } from "../appRouter";
 import { installSyncNotificationHook } from "../db/db";
-import { subscriptionManager } from "../subscriptionManager";
+import { SyncNotifications } from "./syncNotifications";
+import { testServices } from "./testing";
 
 describe("database sync notifications", () => {
   test("coalesces committed syncable changes into one notification", async () => {
+    const notifications = SyncNotifications.inMemory();
     const db = new SubscribableDB(new DB(new BptreeInmemDriver()));
     execSync(db.loadTables([spacesTable]));
-    installSyncNotificationHook(db, {
-      dbId: "user-1",
-      dbType: "user",
-      tableNameMap: { [spacesTable.tableName]: spacesTable },
-    });
+    installSyncNotificationHook(
+      db,
+      {
+        dbId: "user-1",
+        dbType: "user",
+        tableNameMap: { [spacesTable.tableName]: spacesTable },
+      },
+      (dbId, dbType) => notifications.notifyChangesAvailable(dbId, dbType),
+    );
 
-    let notifications = 0;
-    const unsubscribe = await subscriptionManager.subscribe(
+    let received = 0;
+    const unsubscribe = await notifications.subscribe(
       "user-1",
       "user",
-      () => notifications++,
+      () => received++,
     );
     try {
       syncDispatch(db, createSpace({ name: "One" }));
       syncDispatch(db, createSpace({ name: "Two" }));
-      expect(notifications).toBe(0);
+      expect(received).toBe(0);
       await Promise.resolve();
-      expect(notifications).toBe(1);
+      expect(received).toBe(1);
     } finally {
       await unsubscribe();
     }
   });
 
   test("delivers a notification received while the previous one is yielded", async () => {
+    const services = testServices(new DB(new BptreeInmemDriver()));
     const caller = createAppRouter({
-      mainDB: new DB(new BptreeInmemDriver()),
+      ...services,
       captchaConfig: null,
     }).createCaller({
       user: { id: "user-1", email: "user@example.com" },
@@ -55,13 +62,13 @@ describe("database sync notifications", () => {
     try {
       const firstResult = iterator.next();
       await new Promise((resolve) => setTimeout(resolve, 0));
-      await subscriptionManager.notifyChangesAvailable("user-1", "user");
+      await services.notifications.notifyChangesAvailable("user-1", "user");
       expect(await firstResult).toMatchObject({
         done: false,
         value: { dbId: "user-1", dbType: "user" },
       });
 
-      await subscriptionManager.notifyChangesAvailable("user-1", "user");
+      await services.notifications.notifyChangesAvailable("user-1", "user");
       expect(await iterator.next()).toMatchObject({
         done: false,
         value: { dbId: "user-1", dbType: "user" },
@@ -74,7 +81,7 @@ describe("database sync notifications", () => {
   test("stops waiting when the subscription is cancelled", async () => {
     const controller = new AbortController();
     const caller = createAppRouter({
-      mainDB: new DB(new BptreeInmemDriver()),
+      ...testServices(new DB(new BptreeInmemDriver())),
       captchaConfig: null,
     }).createCaller(
       { user: { id: "user-1", email: "user@example.com" } },

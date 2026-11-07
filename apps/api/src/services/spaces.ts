@@ -1,4 +1,4 @@
-import { asyncDispatch, selectAsync, type DB } from "@will-be-done/hyperdb";
+import { Effect } from "effect";
 import {
   createSpace,
   deleteSpace,
@@ -6,20 +6,16 @@ import {
   listSpaces,
   updateSpace,
 } from "@will-be-done/slices/user";
-import { userDBConfig } from "../db/configs";
-import { getHyperDB, getMainHyperDB } from "../db/db";
 import { deleteDb } from "../slices/dbSlice";
 import { getSpaceDatabase } from "./databaseAccess";
+import { Databases, userDatabase } from "./databases";
+import { dispatch, select } from "./hyperdb";
 
 export interface PublicSpace {
   id: string;
   name: string;
   createdAt: string;
   updatedAt: string;
-}
-
-async function getUserDatabase(userId: string) {
-  return (await getHyperDB(userDBConfig(userId))).db;
 }
 
 function toPublicSpace({
@@ -31,93 +27,94 @@ function toPublicSpace({
   return { id, name, createdAt, updatedAt };
 }
 
-export async function listUserSpaces({
+export const listUserSpaces = Effect.fn("listUserSpaces")(function* ({
   userId,
 }: {
   userId: string;
-}): Promise<PublicSpace[]> {
-  const spaces = await selectAsync(await getUserDatabase(userId), {
+}) {
+  const spaces = yield* select(yield* userDatabase(userId), {
     selector: listSpaces,
     args: {},
   });
-
   return spaces.map(toPublicSpace);
-}
+});
 
-export async function getUserSpace({
+export const getUserSpace = Effect.fn("getUserSpace")(function* ({
   userId,
   spaceId,
 }: {
   userId: string;
   spaceId: string;
-}): Promise<PublicSpace | null> {
-  const space = await selectAsync(await getUserDatabase(userId), {
+}) {
+  const space = yield* select(yield* userDatabase(userId), {
     selector: getSpaceById,
     args: { id: spaceId },
   });
   return space ? toPublicSpace(space) : null;
-}
+});
 
-export async function createUserSpace({
+export const createUserSpace = Effect.fn("createUserSpace")(function* ({
   userId,
   name,
-  mainDB,
 }: {
   userId: string;
   name: string;
-  mainDB?: DB;
-}): Promise<PublicSpace> {
-  const resolvedMainDB = mainDB ?? (await getMainHyperDB());
-  const userDB = await getUserDatabase(userId);
-  const space = await asyncDispatch(userDB, createSpace({ name }));
+}) {
+  const databases = yield* Databases;
+  const userDB = yield* userDatabase(userId);
+  const space = yield* dispatch(userDB, createSpace({ name }));
 
-  try {
-    await getSpaceDatabase(space.id, userId, resolvedMainDB);
-  } catch (error) {
-    try {
-      await asyncDispatch(userDB, deleteSpace({ id: space.id }));
-    } catch (rollbackError) {
-      console.error("Failed to roll back user space creation", rollbackError);
-    }
-    try {
-      await asyncDispatch(
-        resolvedMainDB,
-        deleteDb({ id: space.id, type: "space" }),
-      );
-    } catch (rollbackError) {
-      console.error(
-        "Failed to roll back space database registration",
-        rollbackError,
-      );
-    }
-    throw error;
-  }
+  const rollback = Effect.all(
+    [
+      dispatch(userDB, deleteSpace({ id: space.id })).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logError("Failed to roll back user space creation", cause),
+        ),
+      ),
+      databases.main.pipe(
+        Effect.flatMap((mainDB) =>
+          dispatch(mainDB, deleteDb({ id: space.id, type: "space" })),
+        ),
+        Effect.catchCause((cause) =>
+          Effect.logError(
+            "Failed to roll back space database registration",
+            cause,
+          ),
+        ),
+      ),
+    ],
+    { discard: true },
+  );
+  yield* getSpaceDatabase(space.id, userId).pipe(
+    Effect.onError(() => rollback),
+  );
 
   return toPublicSpace(space);
-}
+});
 
-export async function deleteUserSpace({
+export const deleteUserSpace = Effect.fn("deleteUserSpace")(function* ({
   userId,
   spaceId,
-  mainDB,
 }: {
   userId: string;
   spaceId: string;
-  mainDB?: DB;
-}): Promise<boolean> {
-  const resolvedMainDB = mainDB ?? (await getMainHyperDB());
-  const userDB = await getUserDatabase(userId);
-  const space = await selectAsync(userDB, {
+}) {
+  const databases = yield* Databases;
+  const userDB = yield* userDatabase(userId);
+  const space = yield* select(userDB, {
     selector: getSpaceById,
     args: { id: spaceId },
   });
   if (!space) return false;
 
-  await asyncDispatch(resolvedMainDB, deleteDb({ id: spaceId, type: "space" }));
-  return asyncDispatch(userDB, deleteSpace({ id: spaceId }));
-}
+  yield* dispatch(
+    yield* databases.main,
+    deleteDb({ id: spaceId, type: "space" }),
+  );
+  return yield* dispatch(userDB, deleteSpace({ id: spaceId }));
+});
 
-export async function updateUserSpace({
+export const updateUserSpace = Effect.fn("updateUserSpace")(function* ({
   userId,
   spaceId,
   name,
@@ -125,10 +122,10 @@ export async function updateUserSpace({
   userId: string;
   spaceId: string;
   name: string;
-}): Promise<PublicSpace | null> {
-  const space = await asyncDispatch(
-    await getUserDatabase(userId),
+}) {
+  const space = yield* dispatch(
+    yield* userDatabase(userId),
     updateSpace({ id: spaceId, name }),
   );
   return space ? toPublicSpace(space) : null;
-}
+});
