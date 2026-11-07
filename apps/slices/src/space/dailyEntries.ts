@@ -5,6 +5,8 @@ import {
   selectFrom,
   upsert as upsertRows,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
@@ -157,7 +159,7 @@ export const datedEntriesByDates = selector({
   args: { dates: v.array(v.string()) },
   handler: function* datedEntriesByDates({
     dates,
-  }): Generator<unknown, DatedEntry[], unknown> {
+  }): SelectorGenerator<DatedEntry[]> {
     if (dates.length === 0) return [];
     const dailyLists = (yield* selectFrom(dailyListsTable, "byDate").where(
       (q) => dates.map((date) => q.eq("date", date)),
@@ -216,7 +218,7 @@ export const dailyEntryChildrenIds = selector({
   args: { dailyListId: v.string() },
   handler: function* dailyEntryChildrenIds({
     dailyListId,
-  }): Generator<unknown, string[], unknown> {
+  }): SelectorGenerator<string[]> {
     const entries = yield* dailyEntriesByDailyListId({ dailyListId });
 
     const result: string[] = [];
@@ -236,7 +238,7 @@ export const dailyEntryChildrenForDisplay = selector({
   args: { dailyListId: v.string() },
   handler: function* dailyEntryChildrenForDisplay({
     dailyListId,
-  }): Generator<unknown, ItemForDisplay[], unknown> {
+  }): SelectorGenerator<ItemForDisplay[]> {
     const entries = yield* dailyEntriesByDailyListId({ dailyListId });
     const taskIds = entries.map((entry) => entry.taskId);
     const tasks = taskIds.length
@@ -265,7 +267,7 @@ export const dailyEntryDateOfTask = selector({
   args: { taskId: v.string() },
   handler: function* dailyEntryDateOfTask({
     taskId,
-  }): Generator<unknown, Date | undefined, unknown> {
+  }): SelectorGenerator<Date | undefined> {
     const entry = yield* dailyEntryByTaskId({ taskId });
     if (!entry) return undefined as Date | undefined;
 
@@ -281,7 +283,7 @@ export const doneDailyEntryChildrenIds = selector({
   args: { dailyListId: v.string() },
   handler: function* doneDailyEntryChildrenIds({
     dailyListId,
-  }): Generator<unknown, string[], unknown> {
+  }): SelectorGenerator<string[]> {
     const entries = yield* dailyEntriesByDailyListId({ dailyListId });
 
     const doneTasks: { id: string; lastToggledAt: number }[] = [];
@@ -303,7 +305,7 @@ export const doneDailyEntryChildrenForDisplay = selector({
   args: { dailyListId: v.string() },
   handler: function* doneDailyEntryChildrenForDisplay({
     dailyListId,
-  }): Generator<unknown, ItemForDisplay[], unknown> {
+  }): SelectorGenerator<ItemForDisplay[]> {
     const entries = yield* dailyEntriesByDailyListId({ dailyListId });
     const taskIds = entries.map((entry) => entry.taskId);
     const tasks = taskIds.length
@@ -337,7 +339,7 @@ export const firstDailyEntryChild = selector({
   args: { dailyListId: v.string() },
   handler: function* firstDailyEntryChild({
     dailyListId,
-  }): Generator<unknown, Task | undefined, unknown> {
+  }): SelectorGenerator<Task | undefined> {
     const ids = yield* dailyEntryChildrenIds({ dailyListId });
     const firstChildId = ids[0];
     return firstChildId
@@ -351,7 +353,7 @@ export const lastDailyEntryChild = selector({
   args: { dailyListId: v.string() },
   handler: function* lastDailyEntryChild({
     dailyListId,
-  }): Generator<unknown, Task | undefined, unknown> {
+  }): SelectorGenerator<Task | undefined> {
     const ids = yield* dailyEntryChildrenIds({ dailyListId });
     const lastChildId = ids[ids.length - 1];
     return lastChildId
@@ -402,7 +404,7 @@ export const dailyEntryCanDrop = selector({
     entryId,
     dropId,
     dropModelType,
-  }): Generator<unknown, boolean, unknown> {
+  }): SelectorGenerator<boolean> {
     return yield* appCanDrop({
       id: entryId,
       modelType: dailyEntryType,
@@ -425,7 +427,7 @@ export const dailyEntryHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const canDropResult = yield* dailyEntryCanDrop({
       entryId,
       dropId,
@@ -674,7 +676,7 @@ export const addToDailyList = action({
     taskId,
     dailyListId,
     position,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     const task = yield* taskById({ id: taskId });
     if (!task) throw new Error("Task not found");
 

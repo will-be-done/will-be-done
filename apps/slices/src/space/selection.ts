@@ -1,4 +1,11 @@
-import { insert, selectFrom, upsert, v } from "@will-be-done/hyperdb";
+import {
+  insert,
+  selectFrom,
+  upsert,
+  v,
+  type SelectorGenerator,
+  type ActionGenerator,
+} from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
 import { action, selector } from "../builders";
@@ -225,7 +232,7 @@ export const moveListItemsToProject = action({
 // Unsaved copies of the items, each ordered right after its original.
 function* copiesOf(
   items: Item[],
-): Generator<unknown, { original: Item; copy: Item }[], unknown> {
+): SelectorGenerator<{ original: Item; copy: Item }[]> {
   const nextTokens = new Map<string, string>();
   for (const projectSectionId of new Set(
     items.map((item) => item.projectSectionId),
@@ -275,7 +282,7 @@ export function* insertItemCopies(
   // Copies differ from originals (a done task's copy is todo), so callers
   // filter on the copy.
   keep: (copy: Item) => boolean = () => true,
-): Generator<unknown, Map<string, Item>, unknown> {
+): ActionGenerator<Map<string, Item>> {
   const placed = (yield* copiesOf(items)).filter(({ copy }) => keep(copy));
   const copies = placed.map(({ copy }) => copy);
   if (copies.length === 0) return new Map();

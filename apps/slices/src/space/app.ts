@@ -1,4 +1,4 @@
-import { deleteRows, v } from "@will-be-done/hyperdb";
+import { deleteRows, v, type ActionGenerator } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import { defaultTask, taskById } from "./tasks";
 import { dailyEntryByTaskId } from "./dailyEntries";
@@ -105,7 +105,7 @@ export const appHandleDrop = action({
     dropId,
     dropModelType,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     // Validate current rows before moving anything or removing a stash entry.
     if (!(yield* appCanDrop({ id, modelType, dropId, dropModelType }))) return;
 
@@ -166,10 +166,7 @@ export const appDeleteModel = action({
     id: v.string(),
     modelType: possibleModelType,
   },
-  handler: function* appDeleteModel({
-    id,
-    modelType,
-  }): Generator<unknown, void, unknown> {
+  handler: function* appDeleteModel({ id, modelType }): ActionGenerator<void> {
     const model = yield* appById({
       id,
       modelType,
@@ -204,7 +201,7 @@ export const appHandleDropMany = action({
     modelType,
     drops,
     edge,
-  }): Generator<unknown, void, unknown> {
+  }): ActionGenerator<void> {
     // Item targets insert next to themselves; containers prepend or append.
     // Pick the iteration order that keeps the drops in their given order.
     const isContainer = containerModelTypes.has(modelType);

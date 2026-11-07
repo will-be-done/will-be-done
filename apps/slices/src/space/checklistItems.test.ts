@@ -5,6 +5,7 @@ import {
   execSync,
   selectSync,
   syncDispatch,
+  type SelectorGenerator,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { dbIdTrait } from "../traits";
@@ -19,7 +20,7 @@ const selector = createSelector();
 
 function runSelector<T>(
   db: DB,
-  handler: () => Generator<unknown, T, unknown>,
+  handler: () => SelectorGenerator<T>,
   _deps: unknown[],
 ): T {
   const testSelector = selector({

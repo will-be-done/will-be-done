@@ -4,6 +4,8 @@ import {
   type SubscribableDB,
   upsert,
   v,
+  type SelectorGenerator,
+  type ActionGenerator,
 } from "@will-be-done/hyperdb";
 import { action, selector } from "../builders";
 import {
@@ -67,7 +69,7 @@ function getScheduledAt(dailyList: DailyList): number {
 
 function* refreshScheduledTodoTasks(
   taskIds: Iterable<string>,
-): Generator<unknown, void, unknown> {
+): ActionGenerator<void> {
   const uniqueTaskIds = [...new Set(taskIds)];
   if (uniqueTaskIds.length === 0) return;
 
@@ -124,7 +126,7 @@ function* refreshScheduledTodoTasks(
 
 function* refreshScheduledTodoTasksForDailyLists(
   dailyListIds: Iterable<string>,
-): Generator<unknown, void, unknown> {
+): ActionGenerator<void> {
   const uniqueDailyListIds = [...new Set(dailyListIds)];
   if (uniqueDailyListIds.length === 0) return;
 
@@ -143,11 +145,7 @@ function* refreshScheduledTodoTasksForDailyLists(
 export const rebuildProjectSectionTaskStats = action({
   name: "rebuildProjectSectionTaskStats",
   args: {},
-  handler: function* rebuildProjectSectionTaskStats(): Generator<
-    unknown,
-    void,
-    unknown
-  > {
+  handler: function* rebuildProjectSectionTaskStats(): ActionGenerator<void> {
     const existingStats = yield* selectFrom(
       projectSectionTaskStatsTable,
       "byIds",
@@ -188,11 +186,7 @@ export const rebuildProjectSectionTaskStats = action({
 export const migrateProjectSectionTaskStats = action({
   name: "migrateProjectSectionTaskStats",
   args: {},
-  handler: function* migrateProjectSectionTaskStats(): Generator<
-    unknown,
-    void,
-    unknown
-  > {
+  handler: function* migrateProjectSectionTaskStats(): ActionGenerator<void> {
     const existingMigration = yield* selectFrom(spaceMigrationsTable, "byId")
       .where((q) => q.eq("id", projectSectionTaskStatsMigrationId))
       .firstOr(null);
@@ -211,11 +205,7 @@ export const migrateProjectSectionTaskStats = action({
 export const rebuildScheduledTodoTasks = action({
   name: "rebuildScheduledTodoTasks",
   args: {},
-  handler: function* rebuildScheduledTodoTasks(): Generator<
-    unknown,
-    void,
-    unknown
-  > {
+  handler: function* rebuildScheduledTodoTasks(): ActionGenerator<void> {
     const existingRows = yield* selectFrom(scheduledTodoTasksTable, "byIds");
     if (existingRows.length > 0) {
       yield* deleteRows(
@@ -234,11 +224,7 @@ export const rebuildScheduledTodoTasks = action({
 export const migrateScheduledTodoTasks = action({
   name: "migrateScheduledTodoTasks",
   args: {},
-  handler: function* migrateScheduledTodoTasks(): Generator<
-    unknown,
-    void,
-    unknown
-  > {
+  handler: function* migrateScheduledTodoTasks(): ActionGenerator<void> {
     const existingMigration = yield* selectFrom(spaceMigrationsTable, "byId")
       .where((q) => q.eq("id", scheduledTodoTasksMigrationId))
       .firstOr(null);
@@ -306,7 +292,7 @@ export const listScheduledTasks = selector({
     cursorScheduledAt,
     cursorId,
     limit,
-  }): Generator<unknown, ScheduledTodoTaskPage, unknown> {
+  }): SelectorGenerator<ScheduledTodoTaskPage> {
     if (
       cursorScheduledAt !== null &&
       (cursorScheduledAt < fromInclusive || cursorScheduledAt >= toExclusive)
@@ -384,7 +370,7 @@ export const projectsWithTaskStats = selector({
   args: { currentDate: v.number() },
   handler: function* ({
     currentDate,
-  }): Generator<unknown, ProjectWithTaskStats[], unknown> {
+  }): SelectorGenerator<ProjectWithTaskStats[]> {
     const projects = yield* selectFrom(projectsTable, "byOrderToken");
     if (projects.length === 0) return [];
 

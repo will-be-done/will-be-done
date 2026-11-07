@@ -1,30 +1,31 @@
+import type { ActionGenerator, SelectorGenerator } from "@will-be-done/hyperdb";
 import { AnyModel, AnyModelType, AnyTable } from "./tables";
 
 type ModelSlice<T> = {
-  byId: (id: string) => Generator<unknown, T | undefined, unknown>;
-  delete: (ids: string[]) => Generator<unknown, void, unknown>;
+  byId: (id: string) => SelectorGenerator<T | undefined>;
+  delete: (ids: string[]) => ActionGenerator<void>;
   canDrop: (
     id: string,
     dropId: string,
     dropModelType: AnyModelType,
-  ) => Generator<unknown, boolean, unknown>;
+  ) => SelectorGenerator<boolean>;
   handleDrop: (
     id: string,
     dropId: string,
     dropModelType: AnyModelType,
     edge: "top" | "bottom",
-  ) => Generator<unknown, void, unknown>;
+  ) => ActionGenerator<void>;
 };
 
 type RegisteredModelSlice = {
-  byId: (...args: never[]) => Generator<unknown, AnyModel | undefined, unknown>;
-  delete: (...args: never[]) => Generator<unknown, void, unknown>;
-  canDrop: (...args: never[]) => Generator<unknown, boolean, unknown>;
-  handleDrop: (...args: never[]) => Generator<unknown, void, unknown>;
+  byId: (...args: never[]) => SelectorGenerator<AnyModel | undefined>;
+  delete: (...args: never[]) => ActionGenerator<void>;
+  canDrop: (...args: never[]) => SelectorGenerator<boolean>;
+  handleDrop: (...args: never[]) => ActionGenerator<void>;
 };
 
 type ObjectCommand = {
-  (args: Record<string, unknown>): Generator<unknown, unknown, unknown>;
+  (args: Record<string, unknown>): ActionGenerator<unknown>;
   args?: Record<string, unknown>;
 };
 
@@ -39,15 +40,10 @@ const positionalObjectArgs = (
   return Object.fromEntries(keys.map((key, index) => [key, values[index]]));
 };
 
-const callRegistered = <TReturn>(
+const callRegistered = <TGenerator extends ActionGenerator<unknown>>(
   command: ObjectCommand,
   values: unknown[],
-): Generator<unknown, TReturn, unknown> =>
-  command(positionalObjectArgs(command, values)) as Generator<
-    unknown,
-    TReturn,
-    unknown
-  >;
+): TGenerator => command(positionalObjectArgs(command, values)) as TGenerator;
 
 export const registerModelSlice = (
   slice: RegisteredModelSlice,

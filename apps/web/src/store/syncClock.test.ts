@@ -36,6 +36,7 @@ import {
 } from "@will-be-done/slices/space";
 import { observePersistedClock } from "./syncClock";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
+import { waitForPromise } from "./hyperdbTesting";
 
 const itemsTable = defineTable("persisted_clock_test_items", {
   id: v.string(),
@@ -140,7 +141,7 @@ describe("persisted startup clock", () => {
     const reads = vi
       .spyOn(runtime.primary, "beginTx")
       .mockImplementation(function* (mode) {
-        yield { type: "unwrap", data: Promise.resolve() };
+        yield* waitForPromise(Promise.resolve());
         return yield* begin(mode);
       });
     const operations: string[][] = [];

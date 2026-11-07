@@ -1,13 +1,11 @@
 import { format, parse } from "date-fns";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
-import { v } from "@will-be-done/hyperdb";
+import { v, type SelectorGenerator } from "@will-be-done/hyperdb";
 
 // Utility types
 export type OrderableItem = {
   orderToken: string;
 };
-
-export type GenReturn<T> = Generator<unknown, T, unknown>;
 
 // Utility functions
 export function timeCompare(
@@ -20,8 +18,8 @@ export function timeCompare(
 export function* generateOrderTokenPositioned(
   parentId: string,
   current: {
-    lastChild(parentId: string): GenReturn<OrderableItem | undefined>;
-    firstChild(parentId: string): GenReturn<OrderableItem | undefined>;
+    lastChild(parentId: string): SelectorGenerator<OrderableItem | undefined>;
+    firstChild(parentId: string): SelectorGenerator<OrderableItem | undefined>;
   },
   position:
     | [OrderableItem | undefined, OrderableItem | undefined]
