@@ -868,8 +868,15 @@ describe("durable delivery", () => {
       stopped = true;
     });
     try {
-      await Promise.resolve();
-      expect(stopped).toBe(false);
+      const [job] = await readJobs(db);
+      expect(job.status).toBe("pending");
+      expect(job.leaseId).toBeDefined();
+      expect(
+        await Promise.race([
+          stopping.then(() => "stopped"),
+          Promise.resolve("pending"),
+        ]),
+      ).toBe("pending");
     } finally {
       releaseSend("provider-id");
       await stopping;

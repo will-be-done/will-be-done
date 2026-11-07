@@ -354,11 +354,35 @@ export const createDatabaseRegistry = (notify: NotifyChanges) => {
     if (closed) throw new Error("Databases are closed");
   };
 
+  const closeAll = async (pending: Closers) => {
+    const results = await Promise.allSettled(
+      [...pending].map(async (close) => close()),
+    );
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.error("Failed to close database", result.reason);
+      }
+    }
+  };
+
+  const openTracked = async <T>(open: (local: Closers) => Promise<T>) => {
+    const local: Closers = new Set();
+    try {
+      const result = await open(local);
+      assertOpen();
+      for (const close of local) closers.add(close);
+      return result;
+    } catch (error) {
+      await closeAll(local);
+      throw error;
+    }
+  };
+
   // Failed opens are forgotten so the next request retries them.
   return {
     main: async () => {
       assertOpen();
-      main ??= openMainDB(closers).catch((error: unknown) => {
+      main ??= openTracked(openMainDB).catch((error: unknown) => {
         main = undefined;
         throw error;
       });
@@ -369,10 +393,13 @@ export const createDatabaseRegistry = (notify: NotifyChanges) => {
       const dbName = dbConfig.dbType + "-" + dbConfig.dbId;
       const existing = opened.get(dbName) ?? opening.get(dbName);
       if (existing) return existing;
-      const promise = openSyncedDB(dbConfig, closers, notify);
+      const promise = openTracked((local) =>
+        openSyncedDB(dbConfig, local, notify),
+      );
       opening.set(dbName, promise);
       try {
         const database = await promise;
+        assertOpen();
         opened.set(dbName, database);
         return database;
       } finally {
@@ -387,12 +414,14 @@ export const createDatabaseRegistry = (notify: NotifyChanges) => {
       })),
     close: async () => {
       closed = true;
+      const inFlight = [...opening.values(), ...(main ? [main] : [])];
       main = undefined;
       opening.clear();
       opened.clear();
-      const pending = [...closers];
+      await Promise.allSettled(inFlight);
+      const pending = new Set(closers);
       closers.clear();
-      await Promise.allSettled(pending.map(async (close) => close()));
+      await closeAll(pending);
     },
   };
 };

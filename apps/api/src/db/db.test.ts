@@ -1,4 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
+import { Database } from "bun:sqlite";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import * as env from "../env";
 import {
   createAction,
   createSelector,
@@ -22,12 +27,128 @@ import {
   serverSyncStateTable,
   serverSyncTables,
 } from "../sync/tables";
-import { installServerChangeFeedHook } from "./db";
+import { createDatabaseRegistry, installServerChangeFeedHook } from "./db";
 import { spaceDBConfig, userDBConfig } from "./configs";
 
 const action = createAction();
 const selector = createSelector();
 const legacyClock = "1700000000000-2-client";
+
+const registryFixture = () => {
+  const directory = mkdtempSync(join(tmpdir(), "wbd-registry-"));
+  const config = spyOn(env, "getEnvConfig").mockReturnValue({
+    ...env.getEnvConfig(),
+    WBD_DB_ENGINE: "sqlite",
+    WBD_DB_PATH: directory,
+  });
+  const registry = createDatabaseRegistry(async () => {});
+  return {
+    registry,
+    async cleanup() {
+      await registry.close();
+      config.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    },
+  };
+};
+
+describe("database registry lifecycle", () => {
+  test.each(["main", "user"] as const)(
+    "closes a failed %s open before retrying",
+    async (kind) => {
+      const { registry, cleanup } = registryFixture();
+      const close = spyOn(Database.prototype, "close");
+      const failure = new Error("table loading failed");
+      const load = spyOn(DB.prototype, "loadTables").mockImplementation(() => {
+        throw failure;
+      });
+      const open = () =>
+        kind === "main"
+          ? registry.main()
+          : registry.open(userDBConfig("user-id"));
+      try {
+        expect(open()).rejects.toBe(failure);
+        expect(close).toHaveBeenCalledTimes(1);
+        load.mockRestore();
+        await open();
+        await registry.close();
+        expect(close).toHaveBeenCalledTimes(2);
+      } finally {
+        load.mockRestore();
+        await cleanup();
+        close.mockRestore();
+      }
+    },
+  );
+
+  test.each(["main", "user"] as const)(
+    "closes an in-flight %s open without repopulating a closed registry",
+    async (kind) => {
+      const { registry, cleanup } = registryFixture();
+      const close = spyOn(Database.prototype, "close");
+      const started = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const loadTables = DB.prototype.loadTables;
+      const load = spyOn(DB.prototype, "loadTables").mockImplementation(
+        function* (this: DB, tables) {
+          started.resolve();
+          yield { type: "unwrap", data: release.promise };
+          yield* loadTables.call(this, tables);
+        },
+      );
+      const opening =
+        kind === "main"
+          ? registry.main()
+          : registry.open(userDBConfig("user-id"));
+      const result = opening.then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      await started.promise;
+      const stopping = registry.close();
+      try {
+        release.resolve();
+        expect(await result).toMatchObject({ message: "Databases are closed" });
+        await stopping;
+        expect(close).toHaveBeenCalledTimes(1);
+        expect(registry.loaded()).toEqual([]);
+        expect(registry.main()).rejects.toThrow("Databases are closed");
+        expect(registry.open(userDBConfig("other"))).rejects.toThrow(
+          "Databases are closed",
+        );
+      } finally {
+        release.resolve();
+        await Promise.allSettled([opening, stopping]);
+        load.mockRestore();
+        await cleanup();
+        close.mockRestore();
+      }
+    },
+  );
+
+  test("logs close failures and still closes the remaining connections", async () => {
+    const { registry, cleanup } = registryFixture();
+    const failure = new Error("close failed");
+    const closeDatabase = Database.prototype.close;
+    const close = spyOn(Database.prototype, "close");
+    const log = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await registry.main();
+      await registry.open(userDBConfig("user-id"));
+      close.mockImplementationOnce(function (this: Database) {
+        closeDatabase.call(this);
+        throw failure;
+      });
+      await registry.close();
+      expect(close).toHaveBeenCalledTimes(2);
+      expect(log).toHaveBeenCalledWith("Failed to close database", failure);
+    } finally {
+      await cleanup();
+      close.mockRestore();
+      log.mockRestore();
+    }
+  });
+});
 
 const seedLegacyChange = action({
   name: "seedLegacyServerStartupChange",

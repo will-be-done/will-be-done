@@ -53,35 +53,50 @@ export async function startTestServer(): Promise<FastifyInstance> {
   if (active) return active.server;
 
   const scope = await Effect.runPromise(Scope.make());
-  const services = await Effect.runPromise(
-    Layer.buildWithScope(ServicesLive, scope),
-  );
-  const databases = Context.get(services, Databases);
-  const server = createServer({
-    appRouter: createAppRouter({
-      mainDB: await Effect.runPromise(databases.main),
+  let server: FastifyInstance | undefined;
+  try {
+    const services = await Effect.runPromise(
+      Layer.buildWithScope(ServicesLive, scope),
+    );
+    const databases = Context.get(services, Databases);
+    server = createServer({
+      appRouter: createAppRouter({
+        mainDB: await Effect.runPromise(databases.main),
+        databases,
+        notifications: Context.get(services, SyncNotifications),
+        captchaConfig: null,
+      }),
       databases,
-      notifications: Context.get(services, SyncNotifications),
-      captchaConfig: null,
-    }),
-    databases,
-    logger: false,
-    serveFrontend: false,
-  });
-  process.env.WBD_API_BASE_URL = await server.listen({
-    host: "127.0.0.1",
-    port: 0,
-  });
-  active = { server, databases, scope };
-  return server;
+      logger: false,
+      serveFrontend: false,
+    });
+    process.env.WBD_API_BASE_URL = await server.listen({
+      host: "127.0.0.1",
+      port: 0,
+    });
+    active = { server, databases, scope };
+    return server;
+  } catch (error) {
+    await server?.close().catch((closeError: unknown) => {
+      console.error(
+        "Failed to close test server after startup failure",
+        closeError,
+      );
+    });
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+    throw error;
+  }
 }
 
 export async function stopTestServer() {
   if (!active) return;
   const { server, scope } = active;
   active = undefined;
-  await server.close();
-  await Effect.runPromise(Scope.close(scope, Exit.void));
+  try {
+    await server.close();
+  } finally {
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+  }
 }
 
 export async function restartTestServer(): Promise<FastifyInstance> {
