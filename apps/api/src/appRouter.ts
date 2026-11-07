@@ -1,4 +1,5 @@
 import { Context, Effect } from "effect";
+import { FetchHttpClient } from "effect/http";
 import { z } from "zod";
 import type { DB } from "@will-be-done/hyperdb";
 import { TRPCError } from "@trpc/server";
@@ -24,7 +25,7 @@ import {
 } from "./subscriptionManager";
 import { State } from "./utils/State";
 import type { CaptchaConfig } from "./captcha/types";
-import { verifyCaptchaTokenWithTimeout } from "./captcha/verifyCaptchaToken";
+import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
 import { importFromTodoist } from "./todoist/importTodoist";
 import { ensureDatabaseAccessOrCreate } from "./services/databaseAccess";
 import { Databases } from "./services/databases";
@@ -43,7 +44,7 @@ import {
 import { googleRouter } from "./google/router";
 import type { GoogleService } from "./google/service";
 
-const CAPTCHA_VERIFICATION_TIMEOUT_MS = 10_000;
+const CAPTCHA_VERIFICATION_TIMEOUT = "10 seconds";
 
 export interface AppRouterDependencies {
   mainDB: DB;
@@ -322,10 +323,12 @@ export function createAppRouter({
           }
 
           const isValid = await runStage("captcha verification", () =>
-            verifyCaptchaTokenWithTimeout(
-              captchaToken,
-              captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
-              CAPTCHA_VERIFICATION_TIMEOUT_MS,
+            Effect.runPromise(
+              verifyCaptchaToken(
+                captchaToken,
+                captchaConfig.WBD_CF_CAPTCHA_SECRET_KEY!,
+                CAPTCHA_VERIFICATION_TIMEOUT,
+              ).pipe(Effect.provide(FetchHttpClient.layer)),
             ),
           );
 
