@@ -61,6 +61,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "effect": "^4.1.2",
     "es-toolkit": "^1.42.0",
     "fast-equals": "^5.3.3",
     "fractional-indexing-jittered": "^1.0.0",

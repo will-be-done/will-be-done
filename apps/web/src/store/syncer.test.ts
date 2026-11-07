@@ -12,6 +12,7 @@ import {
   v,
 } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
+import { Effect } from "effect";
 import {
   changesTable,
   createHlcClock,
@@ -24,10 +25,10 @@ import {
 import { Syncer } from "./syncer";
 import { freezeSyncV4Upload, getPendingSyncV4Upload } from "./syncActions";
 import {
-  shouldRestartExpiredUpload,
   shouldRestartFrozenUpload,
-  SyncRequestError,
-} from "./syncRequestError";
+  SyncHttpError,
+  SyncNetworkError,
+} from "./syncErrors";
 import type { SyncConfig } from "./syncTypes";
 import { clientSyncV4Tables } from "./syncV4Tables";
 import type { SyncStatus } from "./syncStatus";
@@ -104,8 +105,7 @@ vi.mock("broadcast-channel", () => ({
 }));
 
 type SyncerTestAccess = {
-  runId: number;
-  syncV4: () => Promise<boolean>;
+  syncV4: () => Effect.Effect<boolean, unknown>;
 };
 
 const config: SyncConfig = {
@@ -183,19 +183,20 @@ beforeEach(() => {
 
 describe("sync status", () => {
   const stop = async (syncer: Syncer, run: Promise<void>) => {
-    (syncer as unknown as SyncerTestAccess).runId += 1;
-    syncer.forceSync();
+    await syncer.stop();
     await run;
   };
 
-  const stubSuccessfulSync = (beforeCommit?: () => Promise<void>) => {
+  const stubSuccessfulSync = (
+    beforeCommit?: (init?: RequestInit) => Promise<void>,
+  ) => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: string | URL | Request) => {
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         if (String(input).endsWith("/sessions")) {
           return jsonResponse(sessionResponse("upload-1"));
         }
-        await beforeCommit?.();
+        await beforeCommit?.(init);
         return jsonResponse({
           acceptedClientCursor: null,
           serverRevision: 0,
@@ -369,17 +370,23 @@ describe("sync status", () => {
     await stop(syncer, run);
   });
 
-  it("keeps update-required status when an in-flight session finishes", async () => {
+  it("aborts the in-flight session and keeps update-required status", async () => {
     vi.useFakeTimers();
     const { syncer } = createSyncer();
     const commit = deferred();
-    stubSuccessfulSync(() => commit.promise);
+    let commitSignal: AbortSignal | null | undefined;
+    stubSuccessfulSync((init) => {
+      commitSignal = init?.signal;
+      return commit.promise;
+    });
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(commitSignal).toBeDefined());
     subscription.handlers?.onError({
       data: { syncVersion: { code: "SYNC_VERSION_UNSUPPORTED" } },
     });
     expect(syncer.status.get().phase).toBe("update-required");
+    await vi.waitFor(() => expect(commitSignal?.aborted).toBe(true));
     commit.resolve();
     await run;
     expect(syncer.status.get()).toMatchObject({
@@ -388,13 +395,79 @@ describe("sync status", () => {
     });
   });
 
+  it("stops the previous loop before a leader handoff starts the next one", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    const events: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init: RequestInit) => {
+        if (String(input).endsWith("/sessions")) {
+          events.push("session");
+          return jsonResponse(sessionResponse("upload-1"));
+        }
+        events.push("commit");
+        if (events.length === 2) {
+          init.signal?.addEventListener("abort", () =>
+            events.push("first commit aborted"),
+          );
+          return new Promise<Response>(() => {});
+        }
+        return jsonResponse({
+          acceptedClientCursor: null,
+          serverRevision: 0,
+          download: { type: "inline", changesets: [] },
+        });
+      }),
+    );
+
+    const first = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(events).toEqual(["session", "commit"]));
+    const second = syncer.run();
+    await first;
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
+    // The frozen upload is resumed rather than started again.
+    expect(events).toEqual([
+      "session",
+      "commit",
+      "first commit aborted",
+      "commit",
+    ]);
+    await stop(syncer, second);
+  });
+
+  it("times out and aborts a hung request, then reports a retryable error", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { syncer } = createSyncer();
+    let signal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_input: string | URL | Request, init: RequestInit) => {
+        signal = init.signal;
+        return new Promise<Response>(() => {});
+      }),
+    );
+    const run = syncer.run();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(syncer.status.get().phase).toBe("connecting");
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("error"));
+    expect(syncer.status.get().error).toBe(
+      "Sync could not finish. It will retry automatically.",
+    );
+    expect(signal?.aborted).toBe(true);
+    await stop(syncer, run);
+  });
+
   it("does not report a deferred or discarded transfer as a successful sync", async () => {
     vi.useFakeTimers();
     const { syncer } = createSyncer();
-    vi.spyOn(
-      syncer as unknown as { syncV4: () => Promise<boolean> },
-      "syncV4",
-    ).mockResolvedValue(false);
+    vi.spyOn(syncer as unknown as SyncerTestAccess, "syncV4").mockReturnValue(
+      Effect.succeed(false),
+    );
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
     expect(syncer.status.get()).toMatchObject({
@@ -623,7 +696,9 @@ describe("sync v4 request recovery", () => {
         throw new Error(`Unexpected sync request: ${url}`);
       }),
     );
-    const running = (syncer as unknown as SyncerTestAccess).syncV4();
+    const running = Effect.runPromise(
+      (syncer as unknown as SyncerTestAccess).syncV4(),
+    );
     try {
       expect(
         await Promise.race([
@@ -707,11 +782,11 @@ describe("sync v4 request recovery", () => {
     );
     const wake = vi.spyOn(syncer, "forceSync");
 
-    expect(await access.syncV4()).toBe(false);
+    expect(await Effect.runPromise(access.syncV4())).toBe(false);
     expect(wake).toHaveBeenCalledOnce();
     expect(await asyncDispatch(db, getPendingSyncV4Upload({}))).toBeUndefined();
 
-    expect(await access.syncV4()).toBe(true);
+    expect(await Effect.runPromise(access.syncV4())).toBe(true);
     expect(requests.filter((url) => url.endsWith("/sessions"))).toHaveLength(1);
     expect(uploaded).toEqual([
       { tableName: items.tableName, data: [expect.objectContaining({ row })] },
@@ -720,27 +795,29 @@ describe("sync v4 request recovery", () => {
 
   it("restarts only a resumed upload that received an actual 404", () => {
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         true,
-        new SyncRequestError(404, '{"error":"expired"}'),
+        new SyncHttpError({ status: 404, body: '{"error":"expired"}' }),
       ),
     ).toBe(true);
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         true,
-        new Error("upstream text happened to contain (404)"),
+        new SyncNetworkError({
+          cause: new Error("upstream text happened to contain (404)"),
+        }),
       ),
     ).toBe(false);
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         true,
-        new SyncRequestError(409, '{"error":"conflict"}'),
+        new SyncHttpError({ status: 409, body: '{"error":"conflict"}' }),
       ),
     ).toBe(false);
     expect(
-      shouldRestartExpiredUpload(
+      shouldRestartFrozenUpload(
         false,
-        new SyncRequestError(404, '{"error":"expired"}'),
+        new SyncHttpError({ status: 404, body: '{"error":"expired"}' }),
       ),
     ).toBe(false);
   });
@@ -749,27 +826,32 @@ describe("sync v4 request recovery", () => {
     expect(
       shouldRestartFrozenUpload(
         false,
-        new SyncRequestError(
-          409,
-          '{"error":"advanced","code":"SYNC_CLIENT_CURSOR_ADVANCED"}',
-        ),
+        new SyncHttpError({
+          status: 409,
+          body: '{"error":"advanced","code":"SYNC_CLIENT_CURSOR_ADVANCED"}',
+        }),
       ),
     ).toBe(true);
     expect(
       shouldRestartFrozenUpload(
         true,
-        new SyncRequestError(409, '{"error":"checksum conflict"}'),
+        new SyncHttpError({
+          status: 409,
+          body: '{"error":"checksum conflict"}',
+        }),
       ),
     ).toBe(false);
     expect(
-      shouldRestartFrozenUpload(true, new SyncRequestError(409, "not json")),
+      shouldRestartFrozenUpload(
+        true,
+        new SyncHttpError({ status: 409, body: "not json" }),
+      ),
     ).toBe(false);
   });
 
   it("discards a cursor-advanced upload and succeeds after a fresh handshake", async () => {
     vi.useFakeTimers();
     const { db, syncer } = createSyncer();
-    const access = syncer as unknown as SyncerTestAccess;
     const requests: string[] = [];
     let handshakes = 0;
     vi.stubGlobal(
@@ -791,8 +873,6 @@ describe("sync v4 request recovery", () => {
           );
         }
         if (url.endsWith("/upload-2/commit")) {
-          syncer.forceSync();
-          access.runId += 1;
           return jsonResponse({
             acceptedClientCursor: null,
             serverRevision: 0,
@@ -805,6 +885,8 @@ describe("sync v4 request recovery", () => {
 
     const run = syncer.run();
     await vi.advanceTimersByTimeAsync(2_000);
+    await vi.waitFor(() => expect(syncer.status.get().phase).toBe("synced"));
+    await syncer.stop();
     await run;
 
     expect(handshakes).toBe(2);
@@ -825,15 +907,13 @@ describe("syncer notification baseline", () => {
     const phases: string[] = [];
     syncer.status.subscribe((status) => phases.push(status.phase));
     let sessions = 0;
-    vi.spyOn(access, "syncV4").mockImplementation(async () => {
+    vi.spyOn(access, "syncV4").mockImplementation(() => {
       sessions += 1;
       if (sessions === 1) {
-        await firstSession.promise;
-        return true;
+        return Effect.promise(() => firstSession.promise).pipe(Effect.as(true));
       }
-      syncer.forceSync();
-      access.runId += 1;
-      return true;
+      void syncer.stop();
+      return Effect.never;
     });
 
     const run = syncer.run();
