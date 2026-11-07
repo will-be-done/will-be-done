@@ -3,7 +3,6 @@ import {
   getLatestPersistedClock,
   migrateSyncV4Clocks,
 } from "@will-be-done/slices/common";
-import { getSpaceBackup } from "@will-be-done/slices/space";
 import {
   Context,
   Effect,
@@ -14,7 +13,7 @@ import {
   Semaphore,
 } from "effect";
 import type { BackupDatabase } from "@/services/browser";
-import { makeAutoBackup } from "./autoBackup";
+import { makeAutoBackup, readSpaceBackup } from "./autoBackup";
 import { makeCrossTabChanges } from "./crossTabChanges";
 import { Database, type DatabaseError } from "./database";
 import { makeLocalPersistQueue } from "./localPersistQueue";
@@ -92,10 +91,7 @@ const startStore = (
       if (!syncConfig.disableSync) {
         syncStatusByDB.set(syncSubDb, syncer.status);
         syncer.startLoop();
-        yield* makeAutoBackup(
-          dbName,
-          database.dispatch(getSpaceBackup({})).pipe(Effect.orDie),
-        );
+        yield* makeAutoBackup(dbName, readSpaceBackup);
       }
 
       yield* syncConfig.afterInit;

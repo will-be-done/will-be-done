@@ -1,5 +1,7 @@
+import { getSpaceBackup } from "@will-be-done/slices/space";
 import { Data, Effect, Queue, type Scope } from "effect";
 import { BackupDatabase, PageEvents } from "@/services/browser";
+import { Database } from "./database";
 
 const RETENTION_DAYS = 7;
 
@@ -49,9 +51,15 @@ function todayKeyFrom(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export const backUpToday = (
+// Built in Effect.gen so every run dispatches a new selector generator; a
+// generator dispatched once returns nothing when dispatched again.
+export const readSpaceBackup = Effect.gen(function* () {
+  return yield* (yield* Database).dispatch(getSpaceBackup({}));
+}).pipe(Effect.orDie);
+
+export const backUpToday = <R>(
   dbName: string,
-  readBackup: Effect.Effect<unknown>,
+  readBackup: Effect.Effect<unknown, never, R>,
 ) =>
   Effect.gen(function* () {
     const db = yield* openBackupDB(yield* BackupDatabase, dbName);
@@ -96,10 +104,10 @@ const USER_EVENTS = [
 
 // Backs up once the user has been idle for IDLE_TIMEOUT, then waits for the
 // next activity before arming again. Closing the scope stops watching.
-export const makeAutoBackup = (
+export const makeAutoBackup = <R>(
   dbName: string,
-  readBackup: Effect.Effect<unknown>,
-): Effect.Effect<void, never, PageEvents | BackupDatabase | Scope.Scope> =>
+  readBackup: Effect.Effect<unknown, never, R>,
+): Effect.Effect<void, never, R | PageEvents | BackupDatabase | Scope.Scope> =>
   Effect.gen(function* () {
     const page = yield* PageEvents;
     const activity = yield* Queue.sliding<void>(1);
