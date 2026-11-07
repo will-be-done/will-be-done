@@ -179,12 +179,12 @@ beforeEach(() => {
   env = makeEnv();
 });
 
-describe("sync status", () => {
-  const stop = async (syncer: Syncer, run: Promise<void>) => {
-    await syncer.stop();
-    await run;
-  };
+const stop = async (syncer: Syncer, run: Promise<void>) => {
+  await syncer.stop();
+  await run;
+};
 
+describe("sync status", () => {
   const stubSuccessfulSync = (
     beforeCommit?: (init?: RequestInit) => Promise<void>,
   ) => {
@@ -717,6 +717,26 @@ afterEach(async () => {
 });
 
 describe("sync v4 request recovery", () => {
+  it("keeps the HTTP status when the error body cannot be read", async () => {
+    const { syncer } = createSyncer();
+    stubFetch(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start: (controller) =>
+              controller.error(new Error("connection reset")),
+          }),
+          { status: 401 },
+        ),
+    );
+
+    await expect(runSyncV4(syncer)).rejects.toMatchObject({
+      _tag: "SyncHttpError",
+      status: 401,
+      body: "",
+    });
+  });
+
   it("waits for durable download apply before acknowledging the server", async () => {
     const { db, syncer } = createSyncer();
     const blocked = deferred();
@@ -989,6 +1009,27 @@ describe("syncer notification baseline", () => {
     expect(vi.getTimerCount()).toBe(0);
     await run;
   };
+
+  it("does not rerun for a notification the session already covered", async () => {
+    vi.useFakeTimers();
+    const { syncer } = createSyncer();
+    let sessions = 0;
+    vi.spyOn(
+      syncer as unknown as SyncerTestAccess,
+      "syncV4",
+    ).mockImplementation(() => {
+      sessions += 1;
+      return Effect.succeed(true);
+    });
+
+    const run = syncer.run();
+    syncer.forceSync();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(sessions).toBe(1);
+    expect(syncer.status.get().phase).toBe("synced");
+    await stop(syncer, run);
+  });
 
   it("preserves a WebSocket notification emitted while sync is pending", async () => {
     await verifyPendingNotificationStartsNextSession(() => {

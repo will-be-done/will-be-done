@@ -150,12 +150,12 @@ export const runGoogleFlow = (
       }
       if (result.status === "ready") {
         current.popup?.close();
-        if (intent === "link") {
-          return { type: "link-ready", email: result.email } as const;
-        }
         // Another tab may have signed in or out while the user was at Google.
         if ((yield* session.id) !== current.session) {
           return yield* Effect.interrupt;
+        }
+        if (intent === "link") {
+          return { type: "link-ready", email: result.email } as const;
         }
         const credentials = yield* api.completeSignIn({
           id: flow.id,

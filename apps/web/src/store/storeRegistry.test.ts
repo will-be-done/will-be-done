@@ -14,6 +14,7 @@ import {
   testAuthSession,
   testHttpClient,
 } from "@/services/testing";
+import { DatabaseError } from "./database";
 import { makeStoreRegistry, StoreStorage } from "./storeRegistry";
 import { clientSyncV4Tables } from "./syncV4Tables";
 import type { SyncConfig } from "./syncTypes";
@@ -85,6 +86,17 @@ describe("store registry", () => {
     expect(channels).toBeGreaterThan(0);
     expect(await registry.init(config)).toBe(db);
     expect(tabs.openChannels()).toBe(channels);
+  });
+
+  it("rejects with the local database's own error", async () => {
+    const { registry } = setup();
+    const quota = new Error("quota exceeded");
+
+    await expect(
+      registry.init(
+        userConfig("user-3", Effect.fail(new DatabaseError({ cause: quota }))),
+      ),
+    ).rejects.toBe(quota);
   });
 
   it("starts one store for concurrent calls with the same config", async () => {

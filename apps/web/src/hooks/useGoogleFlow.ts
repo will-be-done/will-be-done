@@ -28,9 +28,6 @@ import {
 import { queryClient } from "@/lib/query";
 import { AuthSessionLive, PageEventsLive } from "@/services/browserLive";
 
-const session = () =>
-  `${authUtils.getUserId() ?? ""}:${authUtils.getToken() ?? ""}`;
-
 const call = <A>(run: () => Promise<A>) =>
   Effect.tryPromise({
     try: run,
@@ -106,9 +103,9 @@ export function useGoogleFlow(
   }, []);
 
   useEffect(() => {
-    let previous = session();
+    let previous = authUtils.sessionId();
     const sessionChanged = () => {
-      const next = session();
+      const next = authUtils.sessionId();
       if (previous !== next) cancel();
       previous = next;
     };
@@ -141,7 +138,7 @@ export function useGoogleFlow(
       return;
     }
     if (popup) popup.opener = null;
-    const current: ActiveGoogleFlow = { popup, session: session() };
+    const current: ActiveGoogleFlow = { popup, session: authUtils.sessionId() };
     const fiber = googleRuntime.runFork(
       runGoogleFlow(intent, desktop, current),
     );
@@ -157,7 +154,7 @@ export function useGoogleFlow(
         setReadyEmail(outcome.email);
         return;
       }
-      if (session() !== current.session) {
+      if (authUtils.sessionId() !== current.session) {
         cancel();
         return;
       }
