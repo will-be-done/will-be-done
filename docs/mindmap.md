@@ -150,7 +150,8 @@ all of an item's nodes, and `mindmapsOfItem` lists each map once.
 
 Removing a node, a subtree, or a whole map (`deleteMindmapNodes`,
 `deleteMindmap`) deletes only `mindmap_nodes` rows. Tasks and Notes stay in
-their projects. There is no confirmation dialog for removing nodes.
+their projects. Neither asks for confirmation; the client offers Undo in a
+toast instead.
 
 Items created from a map go to the **first** section of the project shown in
 the page's bottom panel (the `projectId` argument), or of the inbox when none

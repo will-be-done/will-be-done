@@ -39,6 +39,7 @@ import {
   getDOMSiblings,
   sortDOMSelectableKeys,
 } from "@/components/Focus/domNavigation.ts";
+import { useUndoToast } from "@/store/undo";
 import type { ItemClipboard } from "./clipboard";
 
 type ListItemRef = { id: string; modelType: ListItemType };
@@ -92,6 +93,7 @@ const focusPastSelection = (keys: FocusKey[]) => {
 export const useSelectionActions = () => {
   const dispatch = useAsyncDispatch();
   const select = useSelectAsync();
+  const deleteWithUndo = useUndoToast();
 
   return useMemo(() => {
     // The key each item has in a list of the given kind, aligned with items.
@@ -240,13 +242,17 @@ export const useSelectionActions = () => {
       delete: () => {
         const keys = selectedKeysInOrder();
         focusPastSelection(keys);
-        return dispatch(deleteListItems({ listItems: keys.map(toRef) }));
+        return deleteWithUndo(() =>
+          dispatch(deleteListItems({ listItems: keys.map(toRef) })),
+        );
       },
 
       trash: () => {
         const keys = selectedKeysInOrder();
         focusPastSelection(keys);
-        return dispatch(trashListItemTasks({ listItems: keys.map(toRef) }));
+        return deleteWithUndo(() =>
+          dispatch(trashListItemTasks({ listItems: keys.map(toRef) })),
+        );
       },
 
       stash: () => {
@@ -341,7 +347,7 @@ export const useSelectionActions = () => {
         refocus();
       },
     };
-  }, [dispatch, select]);
+  }, [dispatch, select, deleteWithUndo]);
 };
 
 // Drag data of an item dragged as part of a multi-selection.

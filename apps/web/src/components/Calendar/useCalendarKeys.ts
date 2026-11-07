@@ -39,6 +39,7 @@ import {
   timeToMinutes,
 } from "./calendarModel";
 import type { DayActions } from "./DayCells";
+import { useUndoToast } from "@/store/undo";
 
 const directionKeys: Record<string, CalendarDirection | undefined> = {
   ArrowLeft: "left",
@@ -90,6 +91,7 @@ export function useCalendarKeys({
   onCreate: DayActions["onCreate"];
 }) {
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
 
   // On the window, so the keys still work after a dialog drops DOM focus.
   // Capturing runs before the list navigation in GlobalListener.
@@ -168,7 +170,9 @@ export function useCalendarKeys({
         if (e.code === "Backspace" && !e.shiftKey && !event.isProjected) {
           return run(() => {
             focusPast();
-            void dispatch(trashListItemTasks({ listItems }));
+            void deleteWithUndo(() =>
+              dispatch(trashListItemTasks({ listItems })),
+            );
           });
         }
         if (!direction || !e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -240,7 +244,7 @@ export function useCalendarKeys({
       if (removeKeys.has(e.code)) {
         return run(() => {
           focusPast();
-          void dispatch(deleteListItems({ listItems }));
+          void deleteWithUndo(() => dispatch(deleteListItems({ listItems })));
         });
       }
       if (e.code === "KeyT") {
@@ -261,5 +265,5 @@ export function useCalendarKeys({
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [view, days, eventsByDate, onCreate, dispatch]);
+  }, [view, days, eventsByDate, onCreate, dispatch, deleteWithUndo]);
 }

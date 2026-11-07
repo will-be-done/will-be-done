@@ -87,6 +87,7 @@ import {
 } from "@will-be-done/slices/space";
 import { useNoteConversion } from "./useNoteConversion";
 import { useAsyncDispatch } from "@will-be-done/hyperdb/react";
+import { useUndoToast } from "@/store/undo";
 import { useAsyncSelector, useSelectAsync } from "@will-be-done/hyperdb/react";
 import {
   buildFocusKey,
@@ -205,6 +206,7 @@ export const PreloadedTaskComp = ({
   isOnTimeline?: boolean;
 }) => {
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
 
   const taskId = item.id;
   const date = useCurrentDate();
@@ -389,8 +391,8 @@ export const PreloadedTaskComp = ({
 
     flushEditedTitle();
     void (async () => {
-      await dispatch(
-        appDeleteModel({ id: listItem.id, modelType: listItem.type }),
+      await deleteWithUndo(() =>
+        dispatch(appDeleteModel({ id: listItem.id, modelType: listItem.type })),
       );
       if (isTask(item) && listItem.type === taskType) {
         captureTaskDeleted(item);
@@ -423,6 +425,7 @@ export const PreloadedTaskComp = ({
     listItem.id,
     listItem.type,
     dispatch,
+    deleteWithUndo,
     flushEditedTitle,
     focusableItemKey,
     item,
@@ -1052,7 +1055,7 @@ export const PreloadedTaskComp = ({
           const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
           void (async () => {
-            await dispatch(trashTasks({ ids: [taskId] }));
+            await deleteWithUndo(() => dispatch(trashTasks({ ids: [taskId] })));
             if (isTask(item)) captureTaskDeleted(item);
           })();
 
@@ -1143,6 +1146,7 @@ export const PreloadedTaskComp = ({
       listItem.type,
       date,
       dispatch,
+      deleteWithUndo,
       focusableItemKey,
       selection,
       handleOpenSelectionDatePicker,

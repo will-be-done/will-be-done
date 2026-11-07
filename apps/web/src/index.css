@@ -119,6 +119,13 @@
   --color-update-toast-action-glow: rgba(59, 130, 246, 0.35);
   --shadow-update-toast:
     0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 40px rgba(0, 0, 0, 0.45);
+
+  --animate-toast-countdown: toast-countdown linear forwards;
+  @keyframes toast-countdown {
+    to {
+      transform: scaleX(0);
+    }
+  }
 }
 /* @custom-variant dark (&:is(.dark *)); */
 /**/

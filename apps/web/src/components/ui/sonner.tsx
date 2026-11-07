@@ -46,4 +46,18 @@ function Toaster({ ...props }: ToasterProps) {
   );
 }
 
-export { Toaster };
+/**
+ * A line along the toast's top edge that runs out with its duration. Sonner
+ * pauses the timer while the toasts are hovered, so the line pauses too.
+ */
+function ToastCountdown({ duration }: { duration: number }) {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-x-[10px] top-0 h-0.5 origin-left animate-toast-countdown rounded-full bg-update-toast-action/70 group-data-[expanded=true]:[animation-play-state:paused]"
+      style={{ animationDuration: `${duration}ms` }}
+    />
+  );
+}
+
+export { Toaster, ToastCountdown };

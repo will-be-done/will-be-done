@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { promptDialog } from "@/components/ui/prompt-dialog-service";
 import { captureWebAnalytics } from "@/lib/analytics";
+import { useUndoToast } from "@/store/undo";
 
 const ProjectSectionMenu = ({
   section,
@@ -52,6 +53,7 @@ const ProjectSectionMenu = ({
   isLast: boolean;
 }) => {
   const dispatch = useAsyncDispatch();
+  const deleteWithUndo = useUndoToast();
 
   const handleRename = async () => {
     const newTitle = await promptDialog("Enter new title", section.title);
@@ -83,16 +85,16 @@ const ProjectSectionMenu = ({
   };
 
   const handleDelete = () => {
-    if (!confirm(`Delete column "${section.title}"?`)) return;
-
-    void dispatch(deleteProjectSections({ ids: [section.id] }));
+    void deleteWithUndo(() =>
+      dispatch(deleteProjectSections({ ids: [section.id] })),
+    );
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="hidden group-hover:block pointer-coarse:block data-[state=open]:block cursor-pointer text-white mb-2"
+          className="invisible group-hover:visible pointer-coarse:visible data-[state=open]:visible cursor-pointer text-white mb-2"
           type="button"
           aria-label="Column actions"
         >
