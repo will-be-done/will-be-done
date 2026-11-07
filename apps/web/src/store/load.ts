@@ -1,6 +1,7 @@
 import { Effect, Layer } from "effect";
 import { BrowserLive } from "@/services/browserLive";
 import { spaceDbType } from "./configs.ts";
+import { DatabaseError } from "./database";
 import {
   getPersistentDriverKind,
   resolvePersistentDriverKind,
@@ -16,11 +17,14 @@ const StoreStorageLive = Layer.succeed(StoreStorage, {
     Effect.promise(() => resolvePersistentDriverKind(dbName)),
   clientId: getClientId,
   open: (dbName, syncConfig, prepare) =>
-    Effect.promise(() =>
-      createStoreDbs(dbName, syncConfig, (persistentDB) =>
-        Effect.runPromise(prepare(persistentDB)),
-      ),
-    ).pipe(Effect.map(({ syncSubDb }) => syncSubDb)),
+    Effect.tryPromise({
+      try: () =>
+        createStoreDbs(dbName, syncConfig, (persistentDB) =>
+          Effect.runPromise(prepare(persistentDB)),
+        ),
+      catch: (cause) =>
+        cause instanceof DatabaseError ? cause : new DatabaseError({ cause }),
+    }).pipe(Effect.map(({ syncSubDb }) => syncSubDb)),
 });
 
 const stores = makeStoreRegistry(Layer.mergeAll(BrowserLive, StoreStorageLive));
