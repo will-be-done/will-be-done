@@ -1608,7 +1608,6 @@ const everythingElse = [
 
   // Screenshot carousel
   (() => {
-    const SLIDE_COUNT = 6;
     const AUTO_INTERVAL = 9000;
     let current = 0;
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -1623,6 +1622,7 @@ const everythingElse = [
     const captions = document.querySelectorAll<HTMLElement>('.carousel-caption');
     const dots = document.querySelectorAll<HTMLElement>('.carousel-dot');
     const dotFills = document.querySelectorAll<HTMLElement>('.carousel-dot-fill');
+    const SLIDE_COUNT = slides.length;
 
     function startFillAnimation() {
       const gen = ++fillGeneration;
