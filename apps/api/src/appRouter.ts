@@ -26,6 +26,7 @@ import {
 import { State } from "./utils/State";
 import type { CaptchaConfig } from "./captcha/types";
 import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
+import { TodoistApi } from "@doist/todoist-api-typescript";
 import { importFromTodoist } from "./todoist/importTodoist";
 import { ensureDatabaseAccessOrCreate } from "./services/databaseAccess";
 import { Databases } from "./services/databases";
@@ -365,7 +366,11 @@ export function createAppRouter({
     importTodoist: protectedProcedure
       .input(z.object({ apiToken: z.string().min(1) }))
       .use(enforceRateLimit("todoistImport"))
-      .mutation(async (opts) => importFromTodoist(opts.input.apiToken)),
+      .mutation(({ input }) =>
+        Effect.runPromise(
+          importFromTodoist(new TodoistApi(input.apiToken)).pipe(Effect.orDie),
+        ),
+      ),
 
     login: publicProcedure
       .input(
