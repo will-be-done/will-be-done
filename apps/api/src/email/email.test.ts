@@ -15,7 +15,6 @@ import {
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { AsyncSqlDriver } from "@will-be-done/hyperdb/drivers/sqlite";
 import { createAppRouter, type AppRouter } from "../appRouter";
-import { subscriptionManager } from "../subscriptionManager";
 import { createServer } from "../server";
 import { action } from "../builders";
 import { generateToken, getUserById } from "../slices/authSlice";
@@ -49,6 +48,7 @@ import {
   type EmailSender,
 } from "./service";
 import { renderAccountEmail, type EmailPayload } from "./templates";
+import { testDatabases, testServices } from "../services/testing";
 
 const config: EmailConfig = {
   apiKey: "test-only",
@@ -628,9 +628,9 @@ for (const engine of ["memory", "sqlite"])
         ),
       );
       const server = createServer({
-        mainDB: db,
+        databases: testDatabases({ main: db }),
         appRouter: createAppRouter({
-          mainDB: db,
+          ...testServices(db),
           captchaConfig: null,
           accountEmail: service,
         }),
@@ -1010,7 +1010,7 @@ describe("real Fastify account endpoints", () => {
     const account = await service.register("old@example.com", "unused-hash");
     const changeEmail = spyOn(service, "changeEmail");
     const caller = createAppRouter({
-      mainDB: db,
+      ...testServices(db),
       captchaConfig: null,
       accountEmail: service,
     }).createCaller({
@@ -1030,9 +1030,9 @@ describe("real Fastify account endpoints", () => {
       await Bun.password.hash("password-123"),
     );
     const server = createServer({
-      mainDB: db,
+      databases: testDatabases({ main: db }),
       appRouter: createAppRouter({
-        mainDB: db,
+        ...testServices(db),
         captchaConfig: null,
         accountEmail: service,
       }),
@@ -1084,9 +1084,9 @@ describe("real Fastify account endpoints", () => {
   test("default limits allow shared-IP recovery flows and separate sending from consumption", async () => {
     const { db, service } = await fixture("sqlite");
     const server = createServer({
-      mainDB: db,
+      databases: testDatabases({ main: db }),
       appRouter: createAppRouter({
-        mainDB: db,
+        ...testServices(db),
         captchaConfig: null,
         accountEmail: service,
       }),
@@ -1190,9 +1190,9 @@ describe("real Fastify account endpoints", () => {
   test("signup, verification, reset and login work against a real database and HTTP server", async () => {
     const { db, service, drain, messages } = await fixture("sqlite");
     const server = createServer({
-      mainDB: db,
+      databases: testDatabases({ main: db }),
       appRouter: createAppRouter({
-        mainDB: db,
+        ...testServices(db),
         captchaConfig: null,
         accountEmail: service,
       }),
@@ -1281,9 +1281,9 @@ describe("real Fastify account endpoints", () => {
     const { db, service } = await fixture("sqlite");
     const account = await service.register("socket@example.com", "hash");
     const server = createServer({
-      mainDB: db,
+      databases: testDatabases({ main: db }),
       appRouter: createAppRouter({
-        mainDB: db,
+        ...testServices(db),
         captchaConfig: null,
         accountEmail: service,
       }),
@@ -1317,7 +1317,7 @@ describe("real Fastify account endpoints", () => {
   test("email-disabled installs retain signup and login; sending is rate limited", async () => {
     const { db, service } = await fixture("sqlite");
     const disabled = createAppRouter({
-      mainDB: db,
+      ...testServices(db),
       captchaConfig: null,
     }).createCaller({ user: null });
     expect(await disabled.getAuthConfig()).toEqual({
@@ -1340,9 +1340,9 @@ describe("real Fastify account endpoints", () => {
     ).toHaveProperty("token");
     expect(await readJobs(db)).toHaveLength(0);
     const server = createServer({
-      mainDB: db,
+      databases: testDatabases({ main: db }),
       appRouter: createAppRouter({
-        mainDB: db,
+        ...testServices(db),
         captchaConfig: null,
         accountEmail: service,
       }),
@@ -1444,8 +1444,9 @@ describe("Resend SDK integration", () => {
 test("revoked sessions cannot receive further subscription notifications", async () => {
   const { db, service } = await fixture("sqlite");
   const user = await service.register("notify@example.com", "hash");
+  const services = testServices(db);
   const caller = createAppRouter({
-    mainDB: db,
+    ...services,
     captchaConfig: null,
     accountEmail: service,
   }).createCaller({
@@ -1462,7 +1463,7 @@ test("revoked sessions cannot receive further subscription notifications", async
   try {
     const first = iterator.next();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    await subscriptionManager.notifyChangesAvailable(user.userId, "user");
+    await services.notifications.notifyChangesAvailable(user.userId, "user");
     expect((await first).done).toBe(false);
     await service.requestReset("notify@example.com");
     const token = linkToken(
@@ -1474,7 +1475,7 @@ test("revoked sessions cannot receive further subscription notifications", async
     await service.reset(token, "replacement-password");
     const next = iterator.next();
     const rejected = expectRejection(next, "UNAUTHORIZED");
-    await subscriptionManager.notifyChangesAvailable(user.userId, "user");
+    await services.notifications.notifyChangesAvailable(user.userId, "user");
     await rejected;
   } finally {
     await iterator.return?.();
@@ -1485,7 +1486,7 @@ test("token creation authenticated before a reset cannot issue a new token after
   const { db, service } = await fixture("sqlite");
   const account = await service.register("race@example.com", "hash");
   const caller = createAppRouter({
-    mainDB: db,
+    ...testServices(db),
     captchaConfig: null,
     accountEmail: service,
   }).createCaller({

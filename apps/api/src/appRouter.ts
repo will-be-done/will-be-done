@@ -19,10 +19,7 @@ import {
   register,
   revokeToken,
 } from "./slices/authSlice";
-import {
-  subscriptionManager,
-  type NotificationData,
-} from "./subscriptionManager";
+import type { NotificationData } from "./subscriptionManager";
 import { State } from "./utils/State";
 import type { CaptchaConfig } from "./captcha/types";
 import { verifyCaptchaToken } from "./captcha/verifyCaptchaToken";
@@ -30,6 +27,7 @@ import { TodoistApi } from "@doist/todoist-api-typescript";
 import { importFromTodoist } from "./todoist/importTodoist";
 import { ensureDatabaseAccessOrCreate } from "./services/databaseAccess";
 import { Databases } from "./services/databases";
+import type { SyncNotifications } from "./services/syncNotifications";
 import { ResourceNotFoundError, UnauthorizedError } from "./services/errors";
 import type { ServiceError } from "./services/errors";
 import { dispatch } from "./services/hyperdb";
@@ -49,6 +47,8 @@ const CAPTCHA_VERIFICATION_TIMEOUT = "10 seconds";
 
 export interface AppRouterDependencies {
   mainDB: DB;
+  databases: Databases["Service"];
+  notifications: SyncNotifications["Service"];
   captchaConfig: CaptchaConfig | null;
   analytics?: BackendAnalytics;
   accountEmail?: AccountEmailService;
@@ -57,12 +57,14 @@ export interface AppRouterDependencies {
 
 export function createAppRouter({
   mainDB,
+  databases,
+  notifications,
   captchaConfig,
   analytics = noopBackendAnalytics,
   accountEmail,
   google,
 }: AppRouterDependencies) {
-  const services = Context.make(Databases, Databases.make(mainDB));
+  const services = Context.make(Databases, databases);
   const run = <A, E extends ServiceError>(
     effect: Effect.Effect<A, E, Databases>,
   ) => Effect.runPromiseWith(services)(toTRPCError(effect));
@@ -163,7 +165,7 @@ export function createAppRouter({
         );
 
         const state = new State<NotificationData[]>([]);
-        const unsubscribe = await subscriptionManager.subscribe(
+        const unsubscribe = await notifications.subscribe(
           opts.input.dbId,
           opts.input.dbType,
           (data) => {

@@ -17,7 +17,7 @@ import {
 } from "@will-be-done/slices/common";
 import { createAppRouter } from "../appRouter";
 import { userDBConfig } from "../db/configs";
-import { testDatabases } from "../services/testing";
+import { testDatabases, testServices } from "../services/testing";
 import { Effect } from "effect";
 import { createServer } from "../server";
 import { register, tokensTable, usersTable } from "../slices/authSlice";
@@ -58,7 +58,10 @@ describe("sync v4 routes", () => {
     execSync(userDB.loadTables(config.persistDBTables));
 
     const server = createServer({
-      appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+      appRouter: createAppRouter({
+        ...testServices(mainDB),
+        captchaConfig: null,
+      }),
       logger: false,
       serveFrontend: false,
       databases: testDatabases({

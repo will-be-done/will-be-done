@@ -6,7 +6,6 @@ import { createAppRouter } from "./appRouter";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
-import { closeDatabases, getMainHyperDB } from "./db/db";
 import { parseEmailConfig } from "./email/config";
 import {
   createAccountEmailService,
@@ -22,7 +21,7 @@ import { createServer } from "./server";
 import { getServerInstanceId } from "./serverInstance";
 import { Databases } from "./services/databases";
 import { runSyncMaintenance } from "./sync/maintenance";
-import { subscriptionManager } from "./subscriptionManager";
+import { SyncNotifications } from "./services/syncNotifications";
 
 const BACKUP_WORKER_SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -42,15 +41,12 @@ const BackupEngineCheck = Layer.effectDiscard(
   }),
 );
 
-const SyncNotificationsLive = Layer.effectDiscard(
+const RuntimeLog = Layer.effectDiscard(
   Effect.gen(function* () {
     const env = yield* AppEnv;
-    yield* Effect.acquireRelease(
-      Effect.promise(() => subscriptionManager.initialize()),
-      () => Effect.promise(() => subscriptionManager.close()),
-    );
+    const notifications = yield* SyncNotifications;
     console.log(
-      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${subscriptionManager.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
+      `[Runtime] Instance ${getServerInstanceId()}; sync notifications=${notifications.backendName}; rate limiting=${env.WBD_RATE_LIMIT_ENABLED ? env.WBD_RATE_LIMIT_BACKEND : "disabled"}`,
     );
   }),
 );
@@ -58,19 +54,11 @@ const SyncNotificationsLive = Layer.effectDiscard(
 export class MainDatabase extends Context.Service<MainDatabase, DB>()(
   "@will-be-done/api/MainDatabase",
 ) {
-  // Closing also closes every user and space database opened since.
   static readonly layer = Layer.effect(
     MainDatabase,
-    Effect.acquireRelease(Effect.promise(getMainHyperDB), () =>
-      Effect.promise(closeDatabases),
-    ),
+    Databases.use((databases) => databases.main),
   );
 }
-
-const DatabasesLive = Layer.effect(
-  Databases,
-  MainDatabase.use((mainDB) => Effect.succeed(Databases.make(mainDB))),
-);
 
 export class Analytics extends Context.Service<Analytics, BackendAnalytics>()(
   "@will-be-done/api/Analytics",
@@ -137,6 +125,7 @@ export class ApiServer extends Context.Service<
       const analytics = yield* Analytics;
       const accountEmail = yield* AccountEmail;
       const google = yield* Google;
+      const notifications = yield* SyncNotifications;
       const server = yield* Effect.acquireRelease(
         Effect.sync(() =>
           createServer({
@@ -144,6 +133,8 @@ export class ApiServer extends Context.Service<
             appRouter: createAppRouter({
               google,
               mainDB,
+              databases,
+              notifications,
               captchaConfig: getCaptchaConfig(),
               accountEmail: accountEmail?.service,
               analytics,
@@ -283,9 +274,10 @@ export const AppLive = Layer.mergeAll(
   Layer.provideMerge(ApiServer.layer),
   Layer.provideMerge(Layer.mergeAll(AccountEmail.layer, Google.layer)),
   Layer.provideMerge(Analytics.layer),
-  Layer.provideMerge(DatabasesLive),
   Layer.provideMerge(MainDatabase.layer),
-  Layer.provideMerge(SyncNotificationsLive),
+  Layer.provideMerge(Databases.layer),
+  Layer.provideMerge(RuntimeLog),
+  Layer.provideMerge(SyncNotifications.layer),
   Layer.provideMerge(BackupEngineCheck),
   Layer.provideMerge(AppEnv.layer),
 );

@@ -1,31 +1,42 @@
-import type { HyperDB } from "@will-be-done/hyperdb";
-import { Context, Effect } from "effect";
+import type { DB, HyperDB } from "@will-be-done/hyperdb";
+import { Context, Effect, Layer } from "effect";
 import { spaceDBConfig, userDBConfig } from "../db/configs";
 import {
-  getHyperDB,
-  getLoadedHyperDBs,
-  getMainHyperDB,
+  createDatabaseRegistry,
   type DBConfig,
   type LoadedDatabase,
   type OpenedDatabase,
 } from "../db/db";
+import { SyncNotifications } from "./syncNotifications";
 
 export class Databases extends Context.Service<
   Databases,
   {
-    readonly main: Effect.Effect<HyperDB>;
+    readonly main: Effect.Effect<DB>;
     readonly open: (config: DBConfig) => Effect.Effect<OpenedDatabase>;
     readonly loaded: Effect.Effect<readonly LoadedDatabase[]>;
   }
 >()("@will-be-done/api/Databases") {
-  // The databases stay open for the process; MainDatabase closes them.
-  static readonly make = (mainDB?: HyperDB): Databases["Service"] => ({
-    main: mainDB
-      ? Effect.succeed(mainDB)
-      : Effect.promise(() => getMainHyperDB()),
-    open: (config) => Effect.promise(() => getHyperDB(config)),
-    loaded: Effect.sync(getLoadedHyperDBs),
-  });
+  // Closing the layer closes every database it opened.
+  static readonly layer = Layer.effect(
+    Databases,
+    Effect.gen(function* () {
+      const notifications = yield* SyncNotifications;
+      const registry = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          createDatabaseRegistry((dbId, dbType) =>
+            notifications.notifyChangesAvailable(dbId, dbType),
+          ),
+        ),
+        (registry) => Effect.promise(registry.close),
+      );
+      return {
+        main: Effect.promise(registry.main),
+        open: (config) => Effect.promise(() => registry.open(config)),
+        loaded: Effect.sync(registry.loaded),
+      };
+    }),
+  );
 }
 
 export const userDatabase = (userId: string) =>

@@ -67,7 +67,7 @@ const seedSpaceMembership = action({
   },
 });
 
-function runner(mainDB: HyperDB, userDB: HyperDB, spaceDB: HyperDB) {
+function runner(mainDB: DB, userDB: HyperDB, spaceDB: HyperDB) {
   const layer = Layer.succeed(
     Databases,
     testDatabases({

@@ -24,7 +24,6 @@ import type { AppRouter } from "./appRouter";
 import { createContext } from "./trpc";
 import { v1Routes } from "./http/v1";
 import { syncV4Routes } from "./sync/routes";
-import type { DB } from "@will-be-done/hyperdb";
 import { Context } from "effect";
 import { Databases } from "./services/databases";
 import "./runtime";
@@ -36,8 +35,7 @@ export interface CreateServerOptions {
   logger?: boolean;
   serveFrontend?: boolean;
   rateLimit?: RateLimitConfig;
-  mainDB?: DB;
-  databases?: Databases["Service"];
+  databases: Databases["Service"];
   analytics?: BackendAnalytics;
   google?: GoogleService;
 }
@@ -47,8 +45,7 @@ export function createServer({
   logger = true,
   serveFrontend = true,
   rateLimit = { backend: "memory" },
-  mainDB,
-  databases = Databases.make(mainDB),
+  databases,
   analytics = noopBackendAnalytics,
   google,
 }: CreateServerOptions) {

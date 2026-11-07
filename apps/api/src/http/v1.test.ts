@@ -20,7 +20,7 @@ import {
 import { dbIdTrait } from "@will-be-done/slices/traits";
 import { spacesTable, spacesTableType } from "@will-be-done/slices/user";
 import { createAppRouter } from "../appRouter";
-import { testDatabases } from "../services/testing";
+import { testDatabases, testServices } from "../services/testing";
 import { Effect } from "effect";
 import { createServer } from "../server";
 import { register, tokensTable, usersTable } from "../slices/authSlice";
@@ -107,7 +107,7 @@ describe("v1 recurring-task preparation", () => {
 
     const server = createServer({
       appRouter: createAppRouter({
-        mainDB,
+        ...testServices(mainDB),
         captchaConfig: null,
         analytics,
       }),

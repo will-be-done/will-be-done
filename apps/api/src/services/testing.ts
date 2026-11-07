@@ -1,8 +1,9 @@
-import type { HyperDB } from "@will-be-done/hyperdb";
+import type { DB, HyperDB } from "@will-be-done/hyperdb";
 import { createHlcClock } from "@will-be-done/slices/common";
 import { Effect } from "effect";
 import type { DBConfig, LoadedDatabase } from "../db/db";
 import type { Databases } from "./databases";
+import { SyncNotifications } from "./syncNotifications";
 
 type OpenDatabase = (dbId: string) => Effect.Effect<HyperDB>;
 
@@ -15,7 +16,7 @@ export const testDatabases = ({
   space = unexpectedDatabase,
   loaded = [],
 }: {
-  main?: HyperDB;
+  main?: DB;
   user?: OpenDatabase;
   space?: OpenDatabase;
   loaded?: readonly LoadedDatabase[];
@@ -33,4 +34,10 @@ export const testDatabases = ({
       })),
     ),
   loaded: Effect.succeed(loaded),
+});
+
+export const testServices = (main: DB) => ({
+  mainDB: main,
+  databases: testDatabases({ main }),
+  notifications: SyncNotifications.inMemory(),
 });

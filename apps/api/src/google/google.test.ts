@@ -41,6 +41,7 @@ import {
   resolveGoogleAppUrl,
   type GoogleConfig,
 } from "./config";
+import { testDatabases, testServices } from "../services/testing";
 
 const cleanup: (() => void | Promise<void>)[] = [];
 afterEach(async () => {
@@ -141,7 +142,7 @@ async function fixture(
   };
   const google = createGoogleService(db, googleConfig, options);
   const router = createAppRouter({
-    mainDB: db,
+    ...testServices(db),
     captchaConfig: null,
     google,
     accountEmail: createAccountEmailService(db, emailConfig),
@@ -420,7 +421,7 @@ describe("Google accounts", () => {
     const session = { userId: account.userId, tokenId: account.token };
     await f.google.completeLink(await f.ready(session), session, password);
     const caller = createAppRouter({
-      mainDB: f.db,
+      ...testServices(f.db),
       captchaConfig: null,
     }).createCaller({
       user: { id: account.userId, email: "app@example.com" },
@@ -578,7 +579,7 @@ describe("Google accounts", () => {
     const session = { userId: account.userId, tokenId: account.token };
     const server = createServer({
       appRouter: f.router,
-      mainDB: f.db,
+      databases: testDatabases({ main: f.db }),
       google: f.google,
       serveFrontend: false,
       logger: false,
@@ -631,7 +632,7 @@ describe("Google accounts", () => {
     const f = await fixture();
     const server = createServer({
       appRouter: f.router,
-      mainDB: f.db,
+      databases: testDatabases({ main: f.db }),
       google: f.google,
       serveFrontend: false,
       logger: false,
@@ -713,7 +714,7 @@ describe("Google accounts", () => {
           );
           const server = createServer({
             appRouter: f.router,
-            mainDB: f.db,
+            databases: testDatabases({ main: f.db }),
             google: f.google,
             serveFrontend: false,
             logger: false,
@@ -862,7 +863,7 @@ describe("Google accounts", () => {
           const account = link ? await f.passwordAccount() : null;
           const server = createServer({
             appRouter: f.router,
-            mainDB: f.db,
+            databases: testDatabases({ main: f.db }),
             google: f.google,
             serveFrontend: false,
             logger: false,
@@ -949,7 +950,7 @@ describe("Google accounts", () => {
     });
     const server = createServer({
       appRouter: f.router,
-      mainDB: f.db,
+      databases: testDatabases({ main: f.db }),
       google: f.google,
       serveFrontend: false,
       logger: false,

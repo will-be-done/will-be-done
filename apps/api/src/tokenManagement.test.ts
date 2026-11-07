@@ -3,7 +3,7 @@ import { DB, execSync, syncDispatch } from "@will-be-done/hyperdb";
 import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import { TRPCError } from "@trpc/server";
 import { createAppRouter } from "./appRouter";
-import { testDatabases } from "./services/testing";
+import { testDatabases, testServices } from "./services/testing";
 import { createServer } from "./server";
 import { Effect } from "effect";
 import { authenticateBearerToken } from "./services/authentication";
@@ -26,7 +26,10 @@ function setUp() {
     mainDB,
     register({ email: "second@example.com", hashedPassword: "hashed" }),
   );
-  const appRouter = createAppRouter({ mainDB, captchaConfig: null });
+  const appRouter = createAppRouter({
+    ...testServices(mainDB),
+    captchaConfig: null,
+  });
 
   return {
     first,
@@ -106,7 +109,7 @@ describe("token management", () => {
     });
 
     const caller = createAppRouter({
-      mainDB,
+      ...testServices(mainDB),
       captchaConfig: null,
     }).createCaller({
       user: { id: registered.userId, email: "usage@example.com" },
@@ -129,7 +132,10 @@ describe("token management", () => {
       register({ email: "proxy@example.com", hashedPassword: "hashed" }),
     );
     const server = createServer({
-      appRouter: createAppRouter({ mainDB, captchaConfig: null }),
+      appRouter: createAppRouter({
+        ...testServices(mainDB),
+        captchaConfig: null,
+      }),
       logger: false,
       serveFrontend: false,
       databases: testDatabases({ main: mainDB }),
