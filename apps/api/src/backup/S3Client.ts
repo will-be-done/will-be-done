@@ -7,7 +7,10 @@ import {
   HeadBucketCommand,
 } from "@aws-sdk/client-s3";
 import { readFile, stat } from "fs/promises";
+import { Effect } from "effect";
 import type { BackupConfig } from "./types";
+
+const UPLOAD_TIMEOUT = "5 minutes";
 
 export class S3Client {
   private client: AWSS3Client;
@@ -55,30 +58,33 @@ export class S3Client {
     try {
       const fileBuffer = await readFile(localPath);
 
-      // Create upload promise with timeout (5 minutes)
-      const uploadPromise = this.client.send(
-        new PutObjectCommand({
-          Bucket: this.bucketName,
-          Key: s3Key,
-          Body: fileBuffer,
-          ContentLength: fileStats.size,
-          Metadata: {
-            originalPath: localPath,
-            uploadedAt: new Date().toISOString(),
-          },
-        }),
+      await Effect.runPromise(
+        Effect.tryPromise({
+          try: (abortSignal) =>
+            this.client.send(
+              new PutObjectCommand({
+                Bucket: this.bucketName,
+                Key: s3Key,
+                Body: fileBuffer,
+                ContentLength: fileStats.size,
+                Metadata: {
+                  originalPath: localPath,
+                  uploadedAt: new Date().toISOString(),
+                },
+              }),
+              { abortSignal },
+            ),
+          catch: (error) => error,
+        }).pipe(
+          Effect.timeoutOrElse({
+            duration: UPLOAD_TIMEOUT,
+            orElse: () =>
+              Effect.fail(
+                new Error(`Upload timeout after 5 minutes for ${s3Key}`),
+              ),
+          }),
+        ),
       );
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(
-          () => {
-            reject(new Error(`Upload timeout after 5 minutes for ${s3Key}`));
-          },
-          5 * 60 * 1000,
-        );
-      });
-
-      await Promise.race([uploadPromise, timeoutPromise]);
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(
