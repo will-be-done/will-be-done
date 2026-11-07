@@ -245,15 +245,18 @@ describe("Google sign-in flow", () => {
     expect(google.poll).not.toHaveBeenCalled();
   });
 
-  it("does not complete sign-in after the session changed in another tab", async () => {
-    google.poll.mockResolvedValue(ready);
-    const exit = await runExit(
-      runGoogleFlow("signin", desktop(), start({ session: "user-2:token-2" })),
-    );
+  it.each(["signin", "link"] as const)(
+    "stops a %s flow after the session changed in another tab",
+    async (intent) => {
+      google.poll.mockResolvedValue(ready);
+      const exit = await runExit(
+        runGoogleFlow(intent, desktop(), start({ session: "user-2:token-2" })),
+      );
 
-    expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(
-      true,
-    );
-    expect(google.completeSignIn).not.toHaveBeenCalled();
-  });
+      expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(
+        true,
+      );
+      expect(google.completeSignIn).not.toHaveBeenCalled();
+    },
+  );
 });

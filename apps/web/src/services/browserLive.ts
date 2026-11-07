@@ -26,9 +26,7 @@ import {
 
 export const AuthSessionLive = Layer.succeed(AuthSession, {
   token: Effect.sync(() => authUtils.getToken()),
-  id: Effect.sync(
-    () => `${authUtils.getUserId() ?? ""}:${authUtils.getToken() ?? ""}`,
-  ),
+  id: Effect.sync(() => authUtils.sessionId()),
 });
 
 export const ServerChangesLive = Layer.succeed(ServerChanges, {
