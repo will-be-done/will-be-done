@@ -1,6 +1,7 @@
-import { createServer, type Server } from 'node:http'
-import type { AddressInfo } from 'node:net'
-import { Effect, Exit, Fiber } from 'effect'
+import { NodeHttpServer } from '@effect/platform-node'
+import { createServer } from 'node:http'
+import { Cause, Deferred, Effect, Exit, Fiber, Scope } from 'effect'
+import { type HttpServerError, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 // Only the selected server may open its fixed Google launch endpoint.
 export function validateGoogleAuthLaunch(
@@ -43,30 +44,46 @@ export function stopGoogleAuth(flowId: string): void {
   if (active?.flowId === flowId) active.stop()
 }
 
-const awaitReturn = (
-  server: Server,
+const returnPage = HttpServerResponse.text(RETURN_PAGE, {
+  contentType: 'text/html; charset=utf-8',
+  headers: {
+    'cache-control': 'no-store',
+    'referrer-policy': 'no-referrer',
+    connection: 'close'
+  }
+})
+
+// Serves the flow's return route until the scope closes; closing waits for
+// in-flight responses before stopping the server.
+const serveReturnRoute = (
   flowId: string,
   onReturn: () => void
-): Effect.Effect<string | null> =>
-  Effect.callback<string | null>((resume) => {
-    server.on('request', (request, response) => {
-      const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-      if (url.pathname !== '/google-auth' || url.searchParams.get('state') !== flowId) {
-        response.writeHead(404).end()
-        return
-      }
-      response
-        .writeHead(200, {
-          'content-type': 'text/html; charset=utf-8',
-          'cache-control': 'no-store',
-          'referrer-policy': 'no-referrer',
-          connection: 'close'
-        })
-        .end(RETURN_PAGE)
-      const code = url.searchParams.get('code')
-      resume(Effect.succeed(code && /^[\w-]{43}$/.test(code) ? code : null))
-      onReturn()
+): Effect.Effect<
+  { readonly port: number; readonly returned: Deferred.Deferred<string | null> },
+  HttpServerError.ServeError,
+  Scope.Scope
+> =>
+  Effect.gen(function* () {
+    const returned = yield* Deferred.make<string | null>()
+    const server = yield* NodeHttpServer.make(() => createServer(), {
+      port: 0,
+      host: '127.0.0.1'
     })
+    yield* server.serve(
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest
+        const url = new URL(request.url, 'http://127.0.0.1')
+        if (url.pathname !== '/google-auth' || url.searchParams.get('state') !== flowId) {
+          return HttpServerResponse.empty({ status: 404 })
+        }
+        const code = url.searchParams.get('code')
+        yield* Deferred.succeed(returned, code && /^[\w-]{43}$/.test(code) ? code : null)
+        yield* Effect.sync(onReturn)
+        return returnPage
+      })
+    )
+    const port = server.address._tag === 'UnixPathAddress' ? 0 : server.address.port
+    return { port, returned }
   })
 
 // Google returns to this loopback listener (RFC 8252), so only the machine
@@ -77,19 +94,20 @@ export async function listenForGoogleAuth(
   onReturn: () => void
 ): Promise<{ port: number; completion: Promise<string | null>; stop: () => void }> {
   active?.stop()
-  const server = createServer()
-  await new Promise<void>((ready, fail) => {
-    server.once('error', fail)
-    server.listen(0, '127.0.0.1', ready)
-  }).catch((error) => {
-    server.close()
-    throw error
-  })
+  const scope = Scope.makeUnsafe()
+  const started = await Effect.runPromiseExit(
+    serveReturnRoute(flowId, onReturn).pipe(Scope.provide(scope))
+  )
+  if (Exit.isFailure(started)) {
+    await Effect.runPromise(Scope.close(scope, started))
+    throw Cause.squash(started.cause)
+  }
+  const { port, returned } = started.value
 
   const listening = Effect.runFork(
-    awaitReturn(server, flowId, onReturn).pipe(
+    Deferred.await(returned).pipe(
       Effect.timeoutOrElse({ duration: RETURN_TIMEOUT_MS, orElse: () => Effect.succeed(null) }),
-      Effect.ensuring(Effect.sync(() => server.close()))
+      Effect.ensuring(Scope.close(scope, Exit.void))
     )
   )
   const stop = (): void => {
@@ -102,5 +120,5 @@ export async function listenForGoogleAuth(
   const completion = Effect.runPromise(Fiber.await(listening)).then((exit) =>
     Exit.isSuccess(exit) ? exit.value : null
   )
-  return { port: (server.address() as AddressInfo).port, completion, stop }
+  return { port, completion, stop }
 }
