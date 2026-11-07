@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { State } from "./State";
 
 describe("State.waitFor", () => {
@@ -33,15 +33,13 @@ describe("State.waitFor", () => {
 
   it("stops listening when interrupted", async () => {
     const state = new State(0);
-    let woke = false;
-    const fiber = Effect.runFork(
-      state
-        .waitFor((value) => value === 1)
-        .pipe(Effect.tap(() => Effect.sync(() => (woke = true)))),
-    );
+    const predicate = vi.fn((value: number) => value === 1);
+    const fiber = Effect.runFork(state.waitFor(predicate));
     await Effect.runPromise(Fiber.interrupt(fiber));
+    const callsBeforeSet = predicate.mock.calls.length;
+
     state.set(1);
-    await Promise.resolve();
-    expect(woke).toBe(false);
+
+    expect(predicate).toHaveBeenCalledTimes(callsBeforeSet);
   });
 });
