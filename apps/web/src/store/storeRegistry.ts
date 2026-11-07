@@ -129,7 +129,10 @@ export const makeStoreRegistry = (layer: Layer.Layer<StoreServices>) => {
           stores.set(cacheKey, db);
           return db;
         }).pipe(startupLock.withPermits(1));
-      }),
+      }).pipe(
+        // Route error boundaries show what the local database threw.
+        Effect.mapError((error) => error.cause),
+      ),
     );
 
   return { init, get: (cacheKey: string) => stores.get(cacheKey) };
