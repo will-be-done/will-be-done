@@ -181,11 +181,12 @@ export class Syncer {
     });
   }
 
-  // Aborts in-flight requests; a local transaction already started finishes first.
+  // Aborts in-flight requests; a local transaction already started finishes
+  // first. The loop stays tracked so a later run() waits for it too.
   stop(): Promise<void> {
-    const loop = this.loop;
-    this.loop = undefined;
-    return loop ? Effect.runPromise(Fiber.interrupt(loop)) : Promise.resolve();
+    return this.loop
+      ? Effect.runPromise(Fiber.interrupt(this.loop))
+      : Promise.resolve();
   }
 
   async close() {
