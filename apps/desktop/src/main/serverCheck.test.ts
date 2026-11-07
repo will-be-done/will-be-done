@@ -112,8 +112,9 @@ test('rejects addresses that are not plain http or https URLs', async () => {
     serverUrl: 'https://user:secret@example.com',
     error: 'Server URL must not include a username or password'
   })
-  const unparsable = await checkServerUrl('not a url')
-  assert.equal(unparsable.ok, false)
-  assert.equal(unparsable.serverUrl, 'not a url')
-  assert.ok(!('offline' in unparsable))
+  assert.deepEqual(await checkServerUrl('not a url'), {
+    ok: false,
+    serverUrl: 'not a url',
+    error: 'Server URL is not a valid URL'
+  })
 })
