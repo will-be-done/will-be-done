@@ -32,6 +32,8 @@ import {
   stashEntriesTable,
   mindmapNodesTable,
   notesTable,
+  attachmentsTable,
+  itemAttachmentsTable,
 } from "./tables";
 
 const action = createAction();
@@ -69,6 +71,8 @@ function createDB(timezoneOffsetMinutes: number) {
       notesTable,
       stashEntriesTable,
       mindmapNodesTable,
+      attachmentsTable,
+      itemAttachmentsTable,
     ]),
   );
   return db;

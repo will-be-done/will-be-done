@@ -308,6 +308,51 @@ export type MindmapNode = ExtractSchema<typeof mindmapNodesTable>;
 export type MindmapNodeSide = MindmapNode["side"];
 export const isMindmapNode = isObjectType<MindmapNode>(mindmapNodeType);
 
+export const attachmentType = "attachment";
+// A file in the space's library. Its bytes live outside the database: in each
+// browser's blob store and in the server's attachment storage, keyed by ID.
+export const attachmentsTable = defineTable("attachments", {
+  type: v.literal(attachmentType),
+  id: v.string(),
+  name: v.string(),
+  mimeType: v.string(),
+  size: v.number(),
+  // Hex SHA-256 of the bytes; uploads must match it.
+  sha256: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byCreatedAtId", ["createdAt", "id"]);
+registerSpaceSyncableTable(attachmentsTable, attachmentType);
+
+export type Attachment = ExtractSchema<typeof attachmentsTable>;
+export const isAttachment = isObjectType<Attachment>(attachmentType);
+
+export const itemAttachmentType = "itemAttachment";
+export const attachmentParentType = v.union(
+  v.literal(taskType),
+  v.literal(taskTemplateType),
+  v.literal(noteType),
+);
+// Lists an Attachment under an Item. One file can be linked from several
+// items, such as a template and the tasks generated from it.
+export const itemAttachmentsTable = defineTable("item_attachments", {
+  type: v.literal(itemAttachmentType),
+  id: v.string(),
+  attachmentId: v.string(),
+  parentId: v.string(),
+  parentType: attachmentParentType,
+  orderToken: v.string(),
+  createdAt: v.number(),
+})
+  .index("byIds", ["id"])
+  .index("byParentOrder", ["parentType", "parentId", "orderToken"])
+  .index("byAttachmentId", ["attachmentId"]);
+registerSpaceSyncableTable(itemAttachmentsTable, itemAttachmentType);
+
+export type ItemAttachment = ExtractSchema<typeof itemAttachmentsTable>;
+export type AttachmentParentType = Infer<typeof attachmentParentType>;
+
 export const trashedTaskType = "trashedTask";
 // A deleted Task's or Note's snapshot, keyed by its ID. Restoring re-inserts
 // the snapshot rows, which revives their tombstoned IDs.
@@ -330,11 +375,14 @@ export const taskTrashSnapshot = v.object({
   stashEntry: v.union(stashEntriesTable.v(), v.null()),
   // Absent in snapshots taken before mindmaps existed.
   mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
+  // Absent in snapshots taken before attachments existed.
+  itemAttachments: v.optional(v.array(itemAttachmentsTable.v())),
 });
 export type TaskTrashSnapshot = Infer<typeof taskTrashSnapshot>;
 export const noteTrashSnapshot = v.object({
   note: notesTable.v(),
   mindmapNodes: v.optional(v.array(mindmapNodesTable.v())),
+  itemAttachments: v.optional(v.array(itemAttachmentsTable.v())),
 });
 export type NoteTrashSnapshot = Infer<typeof noteTrashSnapshot>;
 export const trashSnapshot = v.union(taskTrashSnapshot, noteTrashSnapshot);
@@ -408,7 +456,9 @@ export type AnyTable =
   | typeof checklistItemsTable
   | typeof trashedTasksTable
   | typeof mindmapsTable
-  | typeof mindmapNodesTable;
+  | typeof mindmapNodesTable
+  | typeof attachmentsTable
+  | typeof itemAttachmentsTable;
 
 export const possibleModelType = v.union(
   v.literal(taskType),

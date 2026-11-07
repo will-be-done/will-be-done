@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { registerPendingDraftFlush } from "@/store/pendingDraftFlushes";
 import { useUnmount } from "@/utils";
 import { richTextExtensions } from "./extensions";
+import type { AttachFiles } from "./attachmentNode";
 import { RichTextToolbar } from "./RichTextToolbar";
 
 const SAVE_DELAY_MS = 200;
@@ -65,6 +66,7 @@ export function RichTextEditor({
   placeholder = "",
   ariaLabel,
   className,
+  attachFiles,
 }: {
   ref?: Ref<RichTextEditorHandle>;
   kind: RichTextKind;
@@ -85,6 +87,7 @@ export function RichTextEditor({
   placeholder?: string;
   ariaLabel: string;
   className?: string;
+  attachFiles?: AttachFiles;
 }) {
   const [initialDoc] = useState(() => doc ?? seedRichTextDoc(text, kind));
   const [ydoc] = useState(() => loadRichTextDoc(initialDoc));
@@ -97,6 +100,9 @@ export function RichTextEditor({
   const onExitRef = useRef(onExit);
   const onBlurRef = useRef(onBlur);
   const onEmptyBackspaceRef = useRef(onEmptyBackspace);
+  // The editor's extensions are fixed at mount; descriptions are keyed by
+  // item, so the item it attaches to never changes under it.
+  const [mountedAttachFiles] = useState(() => attachFiles);
   useEffect(() => {
     onSaveRef.current = onSave;
     onExitRef.current = onExit;
@@ -150,7 +156,12 @@ export function RichTextEditor({
 
   const editor = useEditor(
     {
-      extensions: richTextExtensions({ kind, doc: ydoc, placeholder }),
+      extensions: richTextExtensions({
+        kind,
+        doc: ydoc,
+        placeholder,
+        ...(mountedAttachFiles ? { attachFiles: mountedAttachFiles } : {}),
+      }),
       shouldRerenderOnTransaction: false,
       editorProps: {
         attributes: {

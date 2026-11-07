@@ -1,3 +1,4 @@
+import { copyAttachmentsToItemCopies } from "./attachments";
 import { insert, selectFrom, upsert, v } from "@will-be-done/hyperdb";
 import { generateJitteredKeyBetween } from "fractional-indexing-jittered";
 import { uuidv7 } from "uuidv7";
@@ -321,6 +322,13 @@ export function* insertItemCopies(
       yield* insert(checklistItemsTable, checklistCopies);
     }
   }
+  yield* copyAttachmentsToItemCopies(
+    placed.map(({ original, copy }) => ({
+      parentType: original.type,
+      originalId: original.id,
+      copyId: copy.id,
+    })),
+  );
   return new Map(placed.map(({ original, copy }) => [original.id, copy]));
 }
 

@@ -4,6 +4,10 @@ import { inboxProjectSectionId, projectSectionById } from "./projectSections";
 import { taskTemplateById } from "./taskTemplates";
 import { mindmapById } from "./mindmaps";
 import {
+  deleteAttachmentsOfPurgedSnapshots,
+  restoreItemAttachmentLinks,
+} from "./attachments";
+import {
   checklistItemsTable,
   dailyEntriesTable,
   type MindmapNode,
@@ -67,6 +71,7 @@ export const restoreTrashedTasks = action({
           },
         ]);
         yield* restoreMindmapNodes(row.mindmapNodes ?? []);
+        yield* restoreItemAttachmentLinks(row.itemAttachments ?? []);
         continue;
       }
 
@@ -76,6 +81,7 @@ export const restoreTrashedTasks = action({
         dailyEntry,
         stashEntry,
         mindmapNodes = [],
+        itemAttachments = [],
       } = row;
       const section = yield* projectSectionById({ id: task.projectSectionId });
       const template = task.templateId
@@ -96,6 +102,7 @@ export const restoreTrashedTasks = action({
       if (dailyEntry) yield* insert(dailyEntriesTable, [dailyEntry]);
       if (stashEntry) yield* insert(stashEntriesTable, [stashEntry]);
       yield* restoreMindmapNodes(mindmapNodes);
+      yield* restoreItemAttachmentLinks(itemAttachments);
     }
 
     yield* deleteRows(
@@ -105,11 +112,24 @@ export const restoreTrashedTasks = action({
   },
 });
 
+function* purgeTrashRows(rows: TrashedTaskRow[]) {
+  if (rows.length === 0) return;
+  yield* deleteRows(
+    trashedTasksTable,
+    rows.map((row) => row.id),
+  );
+  yield* deleteAttachmentsOfPurgedSnapshots(rows.map((row) => row.snapshot));
+}
+
 export const deleteTrashedTasks = action({
   name: "deleteTrashedTasks",
   args: { ids: v.array(v.string()) },
   handler: function* deleteTrashedTasks({ ids }) {
-    yield* deleteRows(trashedTasksTable, ids);
+    if (ids.length === 0) return;
+    const rows = yield* selectFrom(trashedTasksTable, "byId").where((q) =>
+      ids.map((id) => q.eq("id", id)),
+    );
+    yield* purgeTrashRows(rows);
   },
 });
 
@@ -117,10 +137,8 @@ export const emptyTrash = action({
   name: "emptyTrash",
   args: {},
   handler: function* emptyTrash() {
-    const rows = yield* selectFrom(trashedTasksTable, "byTrashedAtId");
-    yield* deleteRows(
-      trashedTasksTable,
-      rows.map((row) => row.id),
+    yield* purgeTrashRows(
+      yield* selectFrom(trashedTasksTable, "byTrashedAtId"),
     );
   },
 });
@@ -132,10 +150,6 @@ export const purgeExpiredTrash = action({
     const expired = yield* selectFrom(trashedTasksTable, "byTrashedAtId").where(
       (q) => q.lt("trashedAt", now - TRASH_RETENTION_MS),
     );
-    if (expired.length === 0) return;
-    yield* deleteRows(
-      trashedTasksTable,
-      expired.map((row) => row.id),
-    );
+    yield* purgeTrashRows(expired);
   },
 });

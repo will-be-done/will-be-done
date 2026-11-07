@@ -4,6 +4,8 @@ import {
   createResendSender,
 } from "./email/service";
 import { createAppRouter } from "./appRouter";
+import { startAttachmentCleanup } from "./attachments/cleanup";
+import { getAttachmentStorage } from "./attachments/storage";
 import { getBackupConfig } from "./backup/types";
 import type { WorkerMessage, WorkerResponse } from "./backup/backupWorker";
 import { getCaptchaConfig } from "./captcha/types";
@@ -40,6 +42,8 @@ const start = async () => {
       );
     }
 
+    // Fails fast on incomplete attachment storage configuration.
+    const attachmentStorage = getAttachmentStorage();
     const mainDB = await getMainHyperDB();
     analytics = createBackendAnalytics(env);
     const accountEmail = emailConfig
@@ -87,6 +91,7 @@ const start = async () => {
     const port = parseInt(process.env.PORT || "3000", 10);
     await server.listen({ port, host: "0.0.0.0" });
     console.log("Server started");
+    const stopAttachmentCleanup = startAttachmentCleanup(attachmentStorage);
 
     let backupWorker: Worker | null = null;
     if (backupConfig?.WBD_BACKUP_S3_ENABLED) {
@@ -147,6 +152,7 @@ const start = async () => {
           );
 
           try {
+            stopAttachmentCleanup();
             if (backupWorker) {
               const shutdownPromise = new Promise<void>((resolve, reject) => {
                 const timeout = setTimeout(() => {

@@ -1,30 +1,45 @@
 import { useState, useRef } from "react";
-import { useAsyncDispatch, useDB } from "@will-be-done/hyperdb/react";
-import { getSpaceBackup, loadSpaceBackup } from "@will-be-done/slices/space";
+import { useDB } from "@will-be-done/hyperdb/react";
+import { toast } from "sonner";
 import { Download, Upload, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
-import { restoreSpaceBackup } from "@/store/undo";
+import {
+  createBackupArchive,
+  restoreBackupFile,
+} from "@/store/attachments/backupArchive";
 
 export function BackupSection() {
   const db = useDB();
-  const dispatch = useAsyncDispatch();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
 
+  const [exporting, setExporting] = useState(false);
+
   const handleExport = () => {
     void (async () => {
-      const backup = await dispatch(getSpaceBackup({}));
-      const json = JSON.stringify(backup, null, 2);
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const dateStr = format(new Date(), "yyyy-MM-dd");
-      a.href = url;
-      a.download = `backup-${dateStr}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      setExporting(true);
+      try {
+        const { archive, missing } = await createBackupArchive(db);
+        const url = URL.createObjectURL(archive);
+        const a = document.createElement("a");
+        const dateStr = format(new Date(), "yyyy-MM-dd");
+        a.href = url;
+        a.download = `backup-${dateStr}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        if (missing.length > 0) {
+          toast(
+            `${missing.length} ${missing.length === 1 ? "file was" : "files were"} not available and are missing from the backup`,
+          );
+        }
+      } catch (error) {
+        console.error("Backup export failed", error);
+        toast("Couldn't create the backup");
+      } finally {
+        setExporting(false);
+      }
     })();
   };
 
@@ -46,15 +61,11 @@ export function BackupSection() {
       setImportSuccess(false);
 
       try {
-        const text = await file.text();
-        const parsed = JSON.parse(text) as Parameters<
-          typeof loadSpaceBackup
-        >[0]["backup"];
-        await restoreSpaceBackup(db, parsed);
+        await restoreBackupFile(db, file);
         setImportSuccess(true);
       } catch {
         setImportError(
-          "Failed to parse backup file. Make sure it's a valid JSON backup.",
+          "Failed to read the backup. Make sure it's a .zip or .json backup.",
         );
       } finally {
         setImporting(false);
@@ -70,16 +81,18 @@ export function BackupSection() {
         <div>
           <button
             onClick={handleExport}
-            className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 transition-all hover:bg-white/10 hover:ring-white/20 whitespace-nowrap"
+            disabled={exporting}
+            className="float-right ml-3 mb-1 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/[0.07] px-3 py-2 text-[12px] font-medium text-content ring-1 ring-white/12 transition-all hover:bg-white/10 hover:ring-white/20 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             <Download className="h-3.5 w-3.5 flex-shrink-0" />
-            Download
+            {exporting ? "Preparing…" : "Download"}
           </button>
           <h3 className="text-[13px] font-semibold text-content">
             Export Backup
           </h3>
           <p className="text-[12px] text-content-tinted leading-relaxed mt-1">
-            Download all your tasks, projects, and templates as a JSON file.
+            Download all your tasks, projects, templates, and files as a ZIP
+            archive.
           </p>
         </div>
       </div>
@@ -99,7 +112,7 @@ export function BackupSection() {
             Restore Backup
           </h3>
           <p className="text-[12px] text-content-tinted leading-relaxed mt-1">
-            Restore from a previously exported JSON backup file.
+            Restore from a previously exported ZIP or JSON backup.
           </p>
           <div className="flex items-center gap-1.5 mt-2.5 text-[11px] text-amber-400/80">
             <AlertTriangle className="h-3 w-3 flex-shrink-0" />
@@ -119,7 +132,7 @@ export function BackupSection() {
           ref={fileInputRef}
           type="file"
           data-testid="backup-restore-input"
-          accept=".json"
+          accept=".zip,.json"
           className="hidden"
           onChange={handleImport}
         />

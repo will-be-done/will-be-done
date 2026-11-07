@@ -51,6 +51,8 @@ export const spaceDBConfig = (dbId: string) => {
       "tasks",
       "task_templates",
       "notes",
+      "attachments",
+      "item_attachments",
       "checklist_items",
       "daily_entries",
       "stash_entries",

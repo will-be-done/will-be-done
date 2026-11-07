@@ -20,6 +20,12 @@ import {
   deleteBackupWithFiles,
 } from "../slices/backupSlice";
 import type { BackupConfig, BackupTier } from "./types";
+import {
+  attachmentStoragePath,
+  LocalAttachmentStorage,
+} from "../attachments/storage";
+
+const ATTACHMENT_BACKUP_PREFIX = "attachments/";
 
 export class BackupManager {
   private s3Client: S3Client;
@@ -202,6 +208,8 @@ export class BackupManager {
         }
       }
 
+      await this.mirrorLocalAttachments();
+
       const totalDurationMs = Date.now() - startTime;
 
       // Mark all backups as completed
@@ -338,6 +346,30 @@ export class BackupManager {
     } catch (error) {
       console.error(`[Backup] Cleanup failed for ${tier}:`, error);
     }
+  }
+
+  // Attachment bytes never change, so new files are copied once and every
+  // database backup can find the files it references. The mirror is
+  // append-only: a file deleted later stays for older database backups.
+  private async mirrorLocalAttachments(): Promise<void> {
+    if ((process.env.WBD_ATTACHMENTS_STORAGE ?? "local") !== "local") return;
+    const storage = new LocalAttachmentStorage(attachmentStoragePath());
+    const mirrored = new Set(
+      await this.s3Client.listFiles(ATTACHMENT_BACKUP_PREFIX),
+    );
+    let copied = 0;
+    for (const spaceId of await storage.listSpaces()) {
+      for (const file of await storage.list(spaceId)) {
+        const key = `${ATTACHMENT_BACKUP_PREFIX}${spaceId}/${file.id}`;
+        if (mirrored.has(key)) continue;
+        await this.s3Client.uploadFile(
+          path.join(storage.root, spaceId, file.id),
+          key,
+        );
+        copied++;
+      }
+    }
+    console.log(`[Backup] Copied ${copied} new attachment files`);
   }
 
   private getAllDatabaseFiles(): string[] {

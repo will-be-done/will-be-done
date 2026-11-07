@@ -43,6 +43,33 @@ export type RichTextNode = {
 
 export const RICH_TEXT_FRAGMENT = "default";
 
+// Titles and descriptions reference files as `![name](wbd-attachment:<id>)`,
+// which reads back as an inline `image` node; other image URLs stay links.
+export const ATTACHMENT_URL_PREFIX = "wbd-attachment:";
+export const ATTACHMENT_NODE = "image";
+export const attachmentUrl = (id: string) => `${ATTACHMENT_URL_PREFIX}${id}`;
+export const attachmentIdFromUrl = (url: unknown): string | undefined =>
+  typeof url === "string" && url.startsWith(ATTACHMENT_URL_PREFIX)
+    ? url.slice(ATTACHMENT_URL_PREFIX.length) || undefined
+    : undefined;
+
+const ATTACHMENT_REFERENCE = /wbd-attachment:([A-Za-z0-9_-]+)/g;
+
+// A resized image keeps its display width, in CSS pixels, in the image title:
+// `![name](wbd-attachment:<id> "width=320")`.
+const attachmentWidthFromTitle = (title: string | null | undefined) => {
+  const match = /^width=(\d{1,5})$/.exec(title ?? "");
+  const width = match ? Number(match[1]) : 0;
+  return width > 0 ? width : undefined;
+};
+
+/** IDs of attachments the markdown references, in order, without repeats. */
+export const attachmentIdsInMarkdown = (markdown: string): string[] => [
+  ...new Set(
+    Array.from(markdown.matchAll(ATTACHMENT_REFERENCE), (match) => match[1]!),
+  ),
+];
+
 const MARK_ORDER: RichTextMarkType[] = ["link", "strike", "bold", "italic"];
 const EMPHASIS_MARKS = new Set<RichTextMarkType>(["strike", "bold", "italic"]);
 const LINK_ATTRS = {
@@ -170,6 +197,20 @@ const phrasingToNodes = (
         );
       }
       case "image": {
+        if (attachmentIdFromUrl(node.url)) {
+          const width = attachmentWidthFromTitle(node.title);
+          return [
+            {
+              type: ATTACHMENT_NODE,
+              // Same attribute order as the editor writes them.
+              attrs: {
+                src: node.url,
+                ...(node.alt ? { alt: node.alt } : {}),
+                ...(width ? { width } : {}),
+              },
+            },
+          ];
+        }
         const text = node.alt || node.url;
         return text
           ? [
@@ -322,6 +363,20 @@ const splitEdgeWhitespace = (nodes: RichTextNode[]): RichTextNode[] =>
 
 const leafToPhrasing = (node: RichTextNode): PhrasingContent[] => {
   if (node.type === "hardBreak") return [{ type: "break" }];
+  if (node.type === ATTACHMENT_NODE) {
+    const url = node.attrs?.src;
+    if (!attachmentIdFromUrl(url)) return [];
+    const alt = node.attrs?.alt;
+    const width = Number(node.attrs?.width);
+    return [
+      {
+        type: "image",
+        url: String(url),
+        alt: alt ? String(alt) : null,
+        title: width > 0 ? `width=${Math.round(width)}` : null,
+      },
+    ];
+  }
   if (node.type !== "text" || !node.text) return [];
   if (markOf(node, "code")) return [{ type: "inlineCode", value: node.text }];
   return [{ type: "text", value: node.text }];
@@ -539,10 +594,15 @@ export const richTextMarkdownToPlainText = (
   const parts: string[] = [];
   const visit = (nodes: RichTextNode[], separator: string) => {
     nodes.forEach((node, index) => {
-      if (index > 0 && node.type !== "text" && node.type !== "hardBreak") {
-        parts.push(separator);
-      }
+      const inline =
+        node.type === "text" ||
+        node.type === "hardBreak" ||
+        node.type === ATTACHMENT_NODE;
+      if (index > 0 && !inline) parts.push(separator);
       if (node.type === "hardBreak") parts.push(separator);
+      if (node.type === ATTACHMENT_NODE && node.attrs?.alt) {
+        parts.push(String(node.attrs.alt));
+      }
       if (node.text) parts.push(node.text);
       if (node.content) visit(node.content, separator);
     });
@@ -854,6 +914,45 @@ export const replaceRichTextDocMarkdown = (
       prefix,
       toYNodes(nextNodes.slice(prefix, next.length - suffix)),
     );
+  });
+  const result = encodeRichTextDoc(doc);
+  doc.destroy();
+  return result;
+};
+
+// Deletes inline references to the attachments in place, so concurrent edits
+// elsewhere in the doc survive.
+export const removeRichTextDocAttachments = (
+  encoded: string,
+  ids: readonly string[],
+): string => {
+  const doc = loadRichTextDoc(encoded);
+  doc.clientID = fnv1a32(`remove-attachments:${ids.join(",")}:${encoded}`);
+  const urls = new Set(ids.map(attachmentUrl));
+  const found: Y.XmlElement[] = [];
+  const visit = (parent: Y.XmlFragment | Y.XmlElement) => {
+    for (const child of parent.toArray()) {
+      if (!(child instanceof Y.XmlElement)) continue;
+      const src: unknown = child.getAttribute("src");
+      if (child.nodeName === ATTACHMENT_NODE && urls.has(String(src))) {
+        found.push(child);
+      } else {
+        visit(child);
+      }
+    }
+  };
+  visit(doc.getXmlFragment(RICH_TEXT_FRAGMENT));
+  if (found.length === 0) {
+    doc.destroy();
+    return encoded;
+  }
+  doc.transact(() => {
+    for (const element of found) {
+      const parent = element.parent;
+      if (!(parent instanceof Y.XmlElement || parent instanceof Y.XmlFragment))
+        continue;
+      parent.delete(parent.toArray().indexOf(element), 1);
+    }
   });
   const result = encodeRichTextDoc(doc);
   doc.destroy();

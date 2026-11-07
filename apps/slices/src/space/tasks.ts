@@ -35,6 +35,12 @@ import { registerModelSlice } from "./maps";
 import { assertValidTaskDuration } from "./utils";
 import { syncItemRichText } from "./richTextItems";
 import {
+  deleteItemAttachmentLinks,
+  ensureInlineAttachmentLinks,
+  itemAttachmentLinksOfParents,
+  moveItemAttachments,
+} from "./attachments";
+import {
   taskType,
   checklistItemsTable,
   dailyEntriesTable,
@@ -209,6 +215,7 @@ export const deleteTasks = action({
       parentType: taskType,
     });
     yield* deleteRows(tasksTable, ids);
+    yield* deleteItemAttachmentLinks(taskType, ids);
     yield* deleteDailyEntriesByTaskIds({ taskIds: ids });
     yield* deleteStashEntriesByTaskIds({ taskIds: ids });
     yield* detachMindmapNodesOfItems({ ids });
@@ -236,6 +243,10 @@ export const trashTasks = action({
       (yield* stashEntriesByTaskIds({ taskIds })).map((e) => [e.taskId, e]),
     );
     const mindmapNodes = yield* mindmapNodesByTaskIds({ taskIds });
+    const attachmentLinks = yield* itemAttachmentLinksOfParents(
+      taskType,
+      taskIds,
+    );
     const trashedAt = Date.now();
 
     const trashed = tasks.map(
@@ -251,6 +262,9 @@ export const trashTasks = action({
           dailyEntry: dailyEntries.get(task.id) ?? null,
           stashEntry: stashEntries.get(task.id) ?? null,
           mindmapNodes: mindmapNodes.filter((node) => node.taskId === task.id),
+          itemAttachments: attachmentLinks.filter(
+            (link) => link.parentId === task.id,
+          ),
         } satisfies TrashSnapshot),
       }),
     );
@@ -271,9 +285,9 @@ export const updateTask = action({
     if (!taskInState) throw new Error("Task not found");
     assertValidTaskDuration(task.durationMinutes);
 
-    yield* upsert(tasksTable, [
-      syncItemRichText(taskInState, { ...taskInState, ...task }),
-    ]);
+    const next = syncItemRichText(taskInState, { ...taskInState, ...task });
+    yield* upsert(tasksTable, [next]);
+    yield* ensureInlineAttachmentLinks(taskType, id, next, taskInState);
   },
 });
 
@@ -302,6 +316,7 @@ export const createTask = action({
     };
 
     yield* insert(tasksTable, [newTask]);
+    yield* ensureInlineAttachmentLinks(taskType, id, newTask);
 
     return newTask;
   },
@@ -486,6 +501,10 @@ export const createTaskFromTemplate = action({
       toParentId: newId,
       toParentType: taskType,
     });
+    yield* moveItemAttachments(
+      { parentType: "template", parentId: taskTemplate.id },
+      { parentType: taskType, parentId: newId },
+    );
     yield* appDeleteModel({
       id: taskTemplate.id,
       modelType: taskTemplate.type,

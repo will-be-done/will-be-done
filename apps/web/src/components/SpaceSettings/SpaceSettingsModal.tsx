@@ -10,14 +10,16 @@ import {
   ArrowDownToLine,
   SlidersHorizontal,
   KeyRound,
+  Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AttachmentsSection } from "./AttachmentsSection";
 import { BackupSection } from "./BackupSection";
 import { GeneralSection } from "./GeneralSection";
 import { ImportSection } from "./ImportSection";
 import { TokenSection } from "./TokenSection";
 
-type Section = "account" | "general" | "tokens" | "data" | "import";
+type Section = "account" | "general" | "tokens" | "files" | "data" | "import";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
   { id: "account", label: "Account", icon: <KeyRound className="h-5 w-5" /> },
@@ -30,6 +32,11 @@ const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
     id: "tokens",
     label: "Tokens",
     icon: <KeyRound className="h-5 w-5" />,
+  },
+  {
+    id: "files",
+    label: "Files",
+    icon: <Paperclip className="h-5 w-5" />,
   },
   {
     id: "data",
@@ -126,6 +133,9 @@ export function SpaceSettingsModal({ open, onClose, spaceName }: Props) {
             )}
             {visibleSection === "general" && <GeneralSection />}
             {visibleSection === "tokens" && <TokenSection />}
+            {visibleSection === "files" && (
+              <AttachmentsSection onClose={onClose} />
+            )}
             {visibleSection === "data" && <BackupSection />}
             {visibleSection === "import" && <ImportSection />}
           </div>

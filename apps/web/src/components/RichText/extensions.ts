@@ -19,6 +19,11 @@ import type * as Y from "yjs";
 import { LinkClick } from "./links";
 import { MarkdownMarkers } from "./markdownMarkers";
 import { MarkdownPaste } from "./markdownPaste";
+import {
+  AttachmentNode,
+  AttachmentPaste,
+  type AttachFiles,
+} from "./attachmentNode";
 
 // Markdown is stored with `*` emphasis only; `_` rules would italicize names
 // like snake_case while typing.
@@ -47,11 +52,21 @@ export function richTextExtensions({
   kind,
   doc,
   placeholder,
+  attachFiles,
 }: {
   kind: RichTextKind;
   doc: Y.Doc;
   placeholder: string;
+  // Fields of an item take pasted and dropped files when given.
+  attachFiles?: AttachFiles;
 }): Extensions {
+  const attachments = [
+    AttachmentNode.configure({
+      compact: kind === "title",
+      parseHTML: kind === "content" || !!attachFiles,
+    }),
+    AttachmentPaste.configure({ attachFiles }),
+  ];
   const shared = [
     StarBold,
     StarItalic,
@@ -84,6 +99,7 @@ export function richTextExtensions({
         link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
       }),
       TitleDocument,
+      ...attachments,
       ...shared,
     ];
   }
@@ -96,6 +112,7 @@ export function richTextExtensions({
       undoRedo: false,
       link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
     }),
+    ...attachments,
     ...shared,
   ];
 }

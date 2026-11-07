@@ -24,6 +24,12 @@ import {
   relinkMindmapNodes,
 } from "./mindmaps";
 import { syncItemRichText } from "./richTextItems";
+import {
+  deleteItemAttachmentLinks,
+  ensureInlineAttachmentLinks,
+  itemAttachmentLinksOfParents,
+  moveItemAttachments,
+} from "./attachments";
 import { generateKeyPositionedBetween } from "./utils";
 import {
   checklistItemsTable,
@@ -124,6 +130,7 @@ export const updateNote = action({
       ...note,
     });
     yield* upsert(notesTable, [updatedNote]);
+    yield* ensureInlineAttachmentLinks(noteType, id, updatedNote, noteInState);
     return updatedNote;
   },
 });
@@ -133,6 +140,7 @@ export const deleteNotes = action({
   args: { ids: v.array(v.string()) },
   handler: function* deleteNotes({ ids }) {
     yield* deleteRows(notesTable, ids);
+    yield* deleteItemAttachmentLinks(noteType, ids);
     yield* detachMindmapNodesOfItems({ ids });
   },
 });
@@ -149,6 +157,10 @@ export const trashNotes = action({
 
     const noteIds = notes.map((note) => note.id);
     const mindmapNodes = yield* mindmapNodesByNoteIds({ noteIds });
+    const attachmentLinks = yield* itemAttachmentLinksOfParents(
+      noteType,
+      noteIds,
+    );
     const trashedAt = Date.now();
     const trashed = notes.map(
       (note): TrashedTaskRow => ({
@@ -158,6 +170,9 @@ export const trashNotes = action({
         snapshot: JSON.stringify({
           note,
           mindmapNodes: mindmapNodes.filter((node) => node.noteId === note.id),
+          itemAttachments: attachmentLinks.filter(
+            (link) => link.parentId === note.id,
+          ),
         } satisfies TrashSnapshot),
       }),
     );
@@ -222,6 +237,10 @@ export const convertTaskToNote = action({
       from: task.id,
       to: { type: "note", id },
     });
+    yield* moveItemAttachments(
+      { parentType: taskType, parentId: task.id },
+      { parentType: noteType, parentId: id },
+    );
     yield* deleteTasks({ ids: [task.id] });
 
     const note: Note = {
@@ -249,6 +268,10 @@ export const convertNoteToTask = action({
       from: note.id,
       to: { type: "task", id },
     });
+    yield* moveItemAttachments(
+      { parentType: noteType, parentId: note.id },
+      { parentType: taskType, parentId: id },
+    );
     yield* deleteNotes({ ids: [note.id] });
 
     const task: Task = {

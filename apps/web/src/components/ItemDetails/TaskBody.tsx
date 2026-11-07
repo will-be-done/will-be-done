@@ -42,6 +42,7 @@ import {
   DurationDetailRow,
 } from "./shared.tsx";
 import { useOpenProject } from "@/hooks/useOpenProject.ts";
+import { ItemAttachments } from "@/components/Attachments/ItemAttachments.tsx";
 import { ItemMindmapsRow } from "@/components/Mindmap/ItemMindmapsRow.tsx";
 import { captureWebAnalytics } from "@/lib/analytics";
 import { useNoteConversion } from "@/components/Task/useNoteConversion.ts";
@@ -202,6 +203,7 @@ export function TaskBody({
         }
         onSave={saveTitleDoc}
         setIsEditingTitle={setIsEditingTitle}
+        attachmentParent={{ parentType: "task", parentId: taskId }}
       />
 
       <div className="space-y-2 text-xs">
@@ -320,8 +322,11 @@ export function TaskBody({
             contentDoc={task.contentDoc}
             onSave={saveContentDoc}
             setIsEditingDescription={setIsEditingDescription}
+            attachmentParent={{ parentType: "task", parentId: taskId }}
           />
         </div>
+
+        <ItemAttachments parentType="task" parentId={taskId} />
       </div>
 
       {!taskTemplateId && (

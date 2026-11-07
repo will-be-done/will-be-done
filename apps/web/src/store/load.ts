@@ -13,6 +13,10 @@ import { registerSyncChangeHooks } from "./syncChangeHooks";
 import { Syncer } from "./syncer";
 import { syncStatusByDB } from "./syncStatus";
 import {
+  AttachmentTransfers,
+  attachmentTransfersByDB,
+} from "./attachments/transfers";
+import {
   getPersistentDriverKind,
   resolvePersistentDriverKind,
 } from "./persistentDriver";
@@ -94,6 +98,17 @@ export const initDbStore = async (
       onPersisted: () => syncer.forceSync(),
     });
     localPersistQueue.start();
+
+    if (syncConfig.dbType === spaceDbType) {
+      const transfers = new AttachmentTransfers(
+        syncSubDb,
+        dbName,
+        syncConfig.dbId,
+        !syncConfig.disableSync,
+      );
+      attachmentTransfersByDB.set(syncSubDb, transfers);
+      transfers.start(syncer.status);
+    }
 
     if (!syncConfig.disableSync) {
       syncStatusByDB.set(syncSubDb, syncer.status);

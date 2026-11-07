@@ -11,7 +11,9 @@ import { BptreeInmemDriver } from "@will-be-done/hyperdb/drivers/inmemory";
 import {
   appHandleDropMany,
   checklistItemChildren,
+  attachmentsTable,
   checklistItemsTable,
+  itemAttachmentsTable,
   dailyEntriesByDailyListId,
   dailyEntriesTable,
   dailyEntryByTaskId,
@@ -53,6 +55,8 @@ function createDB() {
       projectsTable,
       projectSectionsTable,
       checklistItemsTable,
+      attachmentsTable,
+      itemAttachmentsTable,
     ]),
   );
   const seed = createAction()({

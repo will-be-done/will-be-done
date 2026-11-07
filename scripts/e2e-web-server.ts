@@ -118,6 +118,7 @@ async function main() {
         PORT: apiPort,
         WBD_DB_ENGINE: "sqlite",
         WBD_DB_PATH: e2eDbPath,
+        WBD_ATTACHMENTS_PATH: path.join(e2eDbPath, "attachments"),
         WBD_CF_CAPTCHA_ENABLED: "false",
         WBD_BACKUP_S3_ENABLED: "false",
         WBD_RATE_LIMIT_ENABLED: "false",

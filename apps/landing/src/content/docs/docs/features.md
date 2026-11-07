@@ -152,6 +152,28 @@ of the parent task.
 Completing a task changes its state wherever it appears. Completing a checklist
 item changes that checklist row.
 
+## Attachments
+
+Paste or drop a file into a task, template, or note title or description to
+place it inline. In a description, images show in the text; in a title, a file
+shows as a small chip with its name, size, and a thumbnail for images. Select an image to view it full screen and download
+it. Drag an image's corner handle to resize it, or double-click the handle to
+return it to its original size. **Attach file** in the details panel adds a
+file to the item's list without placing it in the text. Inline files appear in
+that list too, and you can drag a file from the list into the title or
+description to place it inline. Files can be up to 50 MB.
+
+Files you add work offline and upload in the background. On each device, the
+app downloads every file in the space so it can open offline. The sync
+indicator shows upload and download progress.
+
+Removing a file from an item's list also removes it from that item's title
+and description. A file no other item uses is then deleted. Tasks generated from a
+template share its files.
+
+**Space Settings → Files** lists every file in the space with the items that
+use it. Select an item to open it, or delete a file to remove it everywhere.
+
 ## Recurring tasks
 
 A recurring template is a blueprint that generates tasks on matching dates.
@@ -205,7 +227,8 @@ Deleting a project deletes its tasks and notes without moving them to Trash.
 token. Both imports replace the selected space's existing data. Import into an
 empty space, or export a backup before importing.
 
-**Space Settings → Backup** exports the selected space as JSON. Restoring that
-file replaces the space's existing data. A space export contains its tasks,
-projects, notes, templates, checklists, schedules, and Stash entries. It does not back
-up your server's accounts or API tokens.
+**Space Settings → Backup** exports the selected space as a ZIP archive.
+Restoring that archive, or a JSON backup from an older version, replaces the
+space's existing data. A space export contains its tasks, projects, notes,
+templates, checklists, schedules, Stash entries, and attached files. It does not
+back up your server's accounts or API tokens.

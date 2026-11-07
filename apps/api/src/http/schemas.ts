@@ -1,3 +1,4 @@
+import type { Readable } from "node:stream";
 import { z } from "zod";
 import {
   isValidTaskTemplateRule,
@@ -770,3 +771,125 @@ export const MoveMindmapNodeBodySchema = z
       (body.position === undefined || body.placement === undefined),
     { message: "Provide a parentId (and placement) or a position" },
   );
+
+const AttachmentParentTypeSchema = z
+  .enum(["task", "template", "note"])
+  .describe("Kind of item that lists the attachment");
+
+export const AttachmentSchema = z.object({
+  id: z.string().describe("Attachment identifier"),
+  name: z.string().describe("File name"),
+  mimeType: z.string(),
+  size: z.number().int().nonnegative().describe("Size in bytes"),
+  sha256: z.string().describe("Hex SHA-256 of the file content"),
+  createdAt: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe("Creation time as Unix milliseconds"),
+});
+
+export const AttachmentUsageSchema = z.object({
+  parentType: AttachmentParentTypeSchema,
+  parentId: z.string(),
+  title: z.string().describe("Item title; empty for items in the trash"),
+  trashed: z.boolean().describe("Whether the item is in the trash"),
+});
+
+export const AttachmentWithUsagesSchema = AttachmentSchema.extend({
+  usages: z.array(AttachmentUsageSchema),
+});
+
+export const AttachmentParamsSchema = z.object({
+  spaceId: z.string().min(1).describe("Space identifier"),
+  attachmentId: z.string().min(1).describe("Attachment identifier"),
+});
+
+export const ListAttachmentsQuerySchema = z
+  .object({
+    cursor: z.string().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+  })
+  .strict();
+
+export const PaginatedAttachmentsResponseSchema = z
+  .object({
+    attachments: z.array(AttachmentWithUsagesSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .describe("Page of attachments, newest first");
+
+export const AttachmentResponseSchema = z
+  .object({ attachment: AttachmentWithUsagesSchema })
+  .describe("Attachment details and the items that list it");
+
+export const CreatedAttachmentResponseSchema = z
+  .object({ attachment: AttachmentSchema })
+  .describe("Created attachment");
+
+export const CreateAttachmentQuerySchema = z
+  .object({
+    name: z.string().trim().min(1).max(255).describe("File name"),
+    mimeType: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe("Content type; defaults to application/octet-stream"),
+    parentType: AttachmentParentTypeSchema.optional(),
+    parentId: z.string().min(1).optional(),
+  })
+  .strict()
+  .refine(
+    (query) =>
+      (query.parentType === undefined) === (query.parentId === undefined),
+    { message: "parentType and parentId must be provided together" },
+  );
+
+// Fastify hands raw bodies over as Buffers; OpenAPI describes them as binary.
+export const BinaryBodySchema = z
+  .custom<Buffer>((value) => Buffer.isBuffer(value), "Expected a binary body")
+  .meta({ type: "string", format: "binary" });
+
+// Streams bypass response serialization, so this only documents the payload.
+export const BinaryResponseSchema = z
+  .custom<Buffer | Readable>(() => true)
+  .meta({ type: "string", format: "binary" });
+
+export const ItemAttachmentSchema = z.object({
+  id: z.string().describe("Item attachment identifier"),
+  attachmentId: z.string(),
+  parentType: AttachmentParentTypeSchema,
+  parentId: z.string(),
+  orderToken: z.string(),
+  createdAt: z.number().int().nonnegative(),
+  attachment: AttachmentSchema,
+});
+
+export const ListItemAttachmentsQuerySchema = z
+  .object({
+    parentType: AttachmentParentTypeSchema,
+    parentId: z.string().min(1),
+  })
+  .strict();
+
+export const ItemAttachmentsResponseSchema = z
+  .object({ itemAttachments: z.array(ItemAttachmentSchema) })
+  .describe("An item's attachments in display order");
+
+export const CreateItemAttachmentBodySchema = z
+  .object({
+    attachmentId: z.string().min(1),
+    parentType: AttachmentParentTypeSchema,
+    parentId: z.string().min(1),
+  })
+  .strict();
+
+export const ItemAttachmentResponseSchema = z
+  .object({ itemAttachment: ItemAttachmentSchema })
+  .describe("Item attachment");
+
+export const ItemAttachmentParamsSchema = z.object({
+  spaceId: z.string().min(1).describe("Space identifier"),
+  itemAttachmentId: z.string().min(1).describe("Item attachment identifier"),
+});

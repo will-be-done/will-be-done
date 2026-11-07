@@ -1,15 +1,30 @@
 import { Fragment, useMemo, type ReactNode } from "react";
 import {
+  ATTACHMENT_NODE,
   markdownToRichTextNodes,
   type RichTextNode,
 } from "@will-be-done/slices/common";
 import { cn } from "@/lib/utils";
+import { InlineAttachment } from "./attachmentNode";
 import { linkHref } from "./links";
 
 const stopPropagation = (event: React.SyntheticEvent) =>
   event.stopPropagation();
 
-function renderText(node: RichTextNode, key: number): ReactNode {
+function renderNode(node: RichTextNode, key: number): ReactNode {
+  if (node.type === ATTACHMENT_NODE) {
+    // Opening a file must not also select, open, or edit the item.
+    return (
+      <span key={key} onClick={stopPropagation} onDoubleClick={stopPropagation}>
+        <InlineAttachment
+          src={node.attrs?.src}
+          alt={node.attrs?.alt}
+          width={node.attrs?.width}
+          compact
+        />
+      </span>
+    );
+  }
   let content: ReactNode = node.text;
   for (const mark of node.marks ?? []) {
     if (mark.type === "code") content = <code>{content}</code>;
@@ -53,7 +68,7 @@ export function RichTextView({
   );
   return (
     <span data-rich-text-view className={cn("rich-text", className)}>
-      {nodes.map(renderText)}
+      {nodes.map(renderNode)}
     </span>
   );
 }

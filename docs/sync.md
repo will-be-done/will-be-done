@@ -5,10 +5,13 @@ change to sync behavior, storage, merge rules, clocks, transport, backup, or
 database hooks must preserve the invariants below. If an invariant must change,
 update this document and the recovery/consistency tests in the same change.
 
-The current sync version is 5, carried over the v4 transport routes. Version 5
-added restore clocks; a v4 client would treat a restored entity as still deleted,
-so the server rejects it and the client must update. v3 upload and download
-procedures must not be reintroduced as an alternate path.
+The current sync version is 6, carried over the v4 transport routes. Version 5
+added restore clocks; a v4 client would treat a restored entity as still deleted.
+Version 6 added inline attachment nodes in descriptions; a v5 client derives
+Markdown without them and would sync that text. The server rejects older
+versions and the client must update. v3 upload and download procedures must not
+be reintroduced as an alternate path. Attachment bytes never travel over sync;
+see [attachments.md](attachments.md).
 
 ## Required Server-Backup Recovery Guarantee
 

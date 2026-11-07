@@ -20,6 +20,14 @@ import { appTypeTablesMap } from "./maps";
 import { registeredSpaceSyncableTables } from "./syncMap";
 import {
   AnyModel,
+  type Attachment,
+  attachmentParentType,
+  type AttachmentParentType,
+  attachmentsTable,
+  attachmentType,
+  type ItemAttachment,
+  itemAttachmentsTable,
+  itemAttachmentType,
   ChecklistItem,
   checklistItemType,
   ChecklistParentType,
@@ -158,6 +166,24 @@ interface MindmapNodeBackup {
   createdAt: number;
 }
 
+interface AttachmentBackup {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  createdAt: number;
+}
+
+interface ItemAttachmentBackup {
+  id: string;
+  attachmentId: string;
+  parentId: string;
+  parentType: AttachmentParentType;
+  orderToken: string;
+  createdAt: number;
+}
+
 interface TrashedTaskBackup {
   id: string;
   trashedAt: number;
@@ -176,6 +202,9 @@ export interface Backup {
   mindmaps?: MindmapBackup[];
   mindmapNodes?: MindmapNodeBackup[];
   notes?: NoteBackup[];
+  // File bytes travel next to the backup, in the export archive.
+  attachments?: AttachmentBackup[];
+  itemAttachments?: ItemAttachmentBackup[];
 }
 
 interface LegacyEntryBackupFields {
@@ -351,6 +380,30 @@ const backupSchema = v.object({
       }),
     ),
   ),
+  attachments: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        mimeType: v.string(),
+        size: v.number(),
+        sha256: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
+  ),
+  itemAttachments: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        attachmentId: v.string(),
+        parentId: v.string(),
+        parentType: attachmentParentType,
+        orderToken: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
+  ),
 });
 
 const legacyBackupSchema = v.object({
@@ -506,21 +559,33 @@ function parseTrashSnapshot({ id, snapshot }: TrashedTaskBackup) {
   const result = trashSnapshot.normalize(parsed);
   if (result.ok && !result.omitted) {
     if ("note" in result.value) {
-      const { note, mindmapNodes } = result.value;
+      const { note, mindmapNodes, itemAttachments } = result.value;
       if (
         note.id === id &&
-        (mindmapNodes ?? []).every((node) => node.noteId === id)
+        (mindmapNodes ?? []).every((node) => node.noteId === id) &&
+        (itemAttachments ?? []).every(
+          (link) => link.parentType === noteType && link.parentId === id,
+        )
       ) {
         return result.value;
       }
       console.warn(`Invalid trash snapshot omitted for note ${id}`);
       return undefined;
     }
-    const { task, checklistItems, dailyEntry, stashEntry, mindmapNodes } =
-      result.value;
+    const {
+      task,
+      checklistItems,
+      dailyEntry,
+      stashEntry,
+      mindmapNodes,
+      itemAttachments,
+    } = result.value;
     const belongsToTask =
       task.id === id &&
       (mindmapNodes ?? []).every((node) => node.taskId === id) &&
+      (itemAttachments ?? []).every(
+        (link) => link.parentType === taskType && link.parentId === id,
+      ) &&
       checklistItems.every(
         (item) => item.parentType === taskType && item.parentId === id,
       ) &&
@@ -855,7 +920,40 @@ const getNewModels = action({
       mindmapNodes.push({ type: mindmapNodeType, ...node });
     }
 
-    return { models, trashedTasks, mindmaps, mindmapNodes };
+    const attachments: Attachment[] = (backup.attachments || []).map(
+      (attachment) => ({ type: attachmentType, ...attachment }),
+    );
+    const attachmentIds = new Set(attachments.map(({ id }) => id));
+    const parentIds = new Set(
+      models
+        .filter(
+          (model) =>
+            model.type === taskType ||
+            model.type === noteType ||
+            model.type === taskTemplateType,
+        )
+        .map(({ type, id }) => `${type}:${id}`),
+    );
+    const itemAttachments: ItemAttachment[] = [];
+    for (const link of backup.itemAttachments || []) {
+      if (
+        !attachmentIds.has(link.attachmentId) ||
+        !parentIds.has(`${link.parentType}:${link.parentId}`)
+      ) {
+        console.warn(`Attachment link ${link.id} omitted: target not found`);
+        continue;
+      }
+      itemAttachments.push({ type: itemAttachmentType, ...link });
+    }
+
+    return {
+      models,
+      trashedTasks,
+      mindmaps,
+      mindmapNodes,
+      attachments,
+      itemAttachments,
+    };
   },
 });
 
@@ -872,10 +970,16 @@ export const loadSpaceBackup = selector({
       yield* deleteRows(table, allIds);
     }
 
-    const { models, trashedTasks, mindmaps, mindmapNodes } =
-      yield* getNewModels({
-        backup: normalizeSpaceBackup(backup),
-      });
+    const {
+      models,
+      trashedTasks,
+      mindmaps,
+      mindmapNodes,
+      attachments,
+      itemAttachments,
+    } = yield* getNewModels({
+      backup: normalizeSpaceBackup(backup),
+    });
     const modelsByTable = new Map<
       (typeof registeredSpaceSyncableTables)[number],
       AnyModel[]
@@ -900,6 +1004,10 @@ export const loadSpaceBackup = selector({
     if (mindmapNodes.length > 0) {
       yield* insert(mindmapNodesTable, mindmapNodes);
     }
+    if (attachments.length > 0) yield* insert(attachmentsTable, attachments);
+    if (itemAttachments.length > 0) {
+      yield* insert(itemAttachmentsTable, itemAttachments);
+    }
   },
 });
 
@@ -915,6 +1023,8 @@ export const getSpaceBackup = selector({
     const trashedTasks = yield* selectFrom(trashedTasksTable, "byIds");
     const mindmaps = yield* selectFrom(mindmapsTable, "byIds");
     const mindmapNodes = yield* selectFrom(mindmapNodesTable, "byIds");
+    const attachments = yield* selectFrom(attachmentsTable, "byIds");
+    const itemAttachments = yield* selectFrom(itemAttachmentsTable, "byIds");
     const dailyLists: DailyList[] = [];
 
     // Get all daily lists
@@ -1027,6 +1137,12 @@ export const getSpaceBackup = selector({
         orderToken: note.orderToken,
         createdAt: note.createdAt,
         projectSectionId: note.projectSectionId,
+      })),
+      attachments: attachments.map(({ type: _type, ...attachment }) => ({
+        ...attachment,
+      })),
+      itemAttachments: itemAttachments.map(({ type: _type, ...link }) => ({
+        ...link,
       })),
     } satisfies Backup;
   },
