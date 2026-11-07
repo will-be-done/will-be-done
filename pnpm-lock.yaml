@@ -36,6 +36,9 @@ importers:
       '@doist/todoist-api-typescript':
         specifier: ^6.10.0
         version: 6.10.0(type-fest@5.7.0)
+      '@effect/platform-bun':
+        specifier: ^4.1.2
+        version: 4.1.2(effect@4.1.2)
       '@fastify/cors':
         specifier: ^11.1.0
         version: 11.2.0
@@ -87,6 +90,9 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.4.2
+      effect:
+        specifier: ^4.1.2
+        version: 4.1.2
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
@@ -1446,6 +1452,11 @@ packages:
     deprecated: Package renamed to @doist/todoist-sdk. Please update your dependency.
     peerDependencies:
       type-fest: ^4.12.0
+
+  '@effect/platform-bun@4.1.2':
+    resolution: {integrity: sha512-waEAa84CITqjctgw9VdhlL9PyXRHICG3KAWTFRDPUE2XL/pfMPhO7V9oFdfx22dbAhhUzV+MHs0d9hnmy/DQ7w==}
+    peerDependencies:
+      effect: ^4.1.2
 
   '@effect/platform-node-shared@4.1.2':
     resolution: {integrity: sha512-wSwl9A/G1hcVvF8nLI+YfB3EyOIDvWS6+lsTZBkmgDnPBL7m8YWZF+1HD+mdEsb52SUGfukip46Q3gRwSdk3QA==}
@@ -10332,6 +10343,14 @@ snapshots:
       undici: 7.28.0
       uuid: 11.1.0
       zod: 4.3.6
+
+  '@effect/platform-bun@4.1.2(effect@4.1.2)':
+    dependencies:
+      '@effect/platform-node-shared': 4.1.2(effect@4.1.2)
+      effect: 4.1.2
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@effect/platform-node-shared@4.1.2(effect@4.1.2)':
     dependencies:
