@@ -10,8 +10,9 @@ import { closeDatabases, getMainHyperDB } from "./db/db";
 import { parseEmailConfig } from "./email/config";
 import {
   createAccountEmailService,
-  createEmailWorker,
   createResendSender,
+  runEmailWorker,
+  type EmailSender,
 } from "./email/service";
 import { AppEnv } from "./env";
 import { parseGoogleConfig } from "./google/config";
@@ -87,7 +88,7 @@ export class AccountEmail extends Context.Service<
   AccountEmail,
   | {
       readonly service: ReturnType<typeof createAccountEmailService>;
-      readonly worker: ReturnType<typeof createEmailWorker>;
+      readonly sender: EmailSender;
     }
   | undefined
 >()("@will-be-done/api/AccountEmail") {
@@ -99,7 +100,7 @@ export class AccountEmail extends Context.Service<
       const mainDB = yield* MainDatabase;
       return {
         service: createAccountEmailService(mainDB, config),
-        worker: createEmailWorker(mainDB, createResendSender(config.apiKey)),
+        sender: createResendSender(config.apiKey),
       };
     }),
   );
@@ -186,9 +187,8 @@ const EmailWorkerLive = Layer.effectDiscard(
     yield* ApiServer;
     const accountEmail = yield* AccountEmail;
     if (!accountEmail) return;
-    yield* Effect.acquireRelease(
-      Effect.sync(() => accountEmail.worker.start()),
-      () => Effect.promise(() => accountEmail.worker.stop()),
+    yield* runEmailWorker(yield* MainDatabase, accountEmail.sender).pipe(
+      Effect.forkScoped,
     );
   }),
 );

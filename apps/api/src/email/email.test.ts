@@ -20,7 +20,8 @@ import { createServer } from "../server";
 import { action } from "../builders";
 import { generateToken, getUserById } from "../slices/authSlice";
 import { tokensTable, usersTable } from "../slices/tables";
-import { Effect } from "effect";
+import { Effect, Fiber, Result } from "effect";
+import { TestClock } from "effect/testing";
 import { authenticateBearerToken } from "../services/authentication";
 import {
   claimEmailJob,
@@ -42,8 +43,8 @@ import {
 import {
   createAccountEmailService,
   changeAccountEmail,
-  createEmailWorker,
   createResendSender,
+  drainEmailJobs,
   EmailDeliveryError,
   type EmailSender,
 } from "./service";
@@ -96,15 +97,26 @@ async function fixture(engine = "memory") {
   const service = createAccountEmailService(db, config);
   const messages: EmailPayload[] = [];
   const sender: EmailSender = {
-    async send(payload) {
-      messages.push(payload);
-      return `sent-${messages.length}`;
-    },
+    send: (payload) =>
+      Effect.sync(() => {
+        messages.push(payload);
+        return `sent-${messages.length}`;
+      }),
   };
-  const worker = createEmailWorker(db, sender, { paceMs: 0, log: () => {} });
-  cleanups.push(() => worker.stop());
-  return { db, service, messages, worker };
+  return { db, service, messages, drain: () => drainWith(db, sender) };
 }
+
+const drainWith = (db: DB, sender: EmailSender, now?: number) => {
+  const run = drainEmailJobs(db, sender, { paceMs: 0, log: () => {} });
+  return Effect.runPromise(
+    now === undefined
+      ? run
+      : TestClock.setTime(now).pipe(
+          Effect.andThen(run),
+          Effect.provide(TestClock.layer()),
+        ),
+  );
+};
 
 const readJobsAction = action({
   name: "readEmailJobsForTest",
@@ -143,9 +155,9 @@ const linkToken = (payload: EmailPayload) => {
 for (const engine of ["memory", "sqlite"])
   describe(`account email (${engine})`, () => {
     test("email change links expire, are replaced on resend, and are cancelled by password recovery", async () => {
-      const { db, service, worker, messages } = await fixture(engine);
+      const { db, service, drain, messages } = await fixture(engine);
       const account = await service.register("user@example.com", "unused-hash");
-      await worker.runOnce();
+      await drain();
       await service.verify(linkToken(messages[0]));
       const now = Date.now();
       const args = {
@@ -209,14 +221,14 @@ for (const engine of ["memory", "sqlite"])
     });
 
     test("unconfirmed email changes require the password and invalidate old mailbox links", async () => {
-      const { db, service, worker, messages } = await fixture(engine);
+      const { db, service, drain, messages } = await fixture(engine);
       const account = await service.register(
         "old@example.com",
         await Bun.password.hash("password-123"),
       );
       const actor = { userId: account.userId, tokenId: account.token };
       await service.requestReset("old@example.com");
-      await worker.runOnce();
+      await drain();
       const oldLinks = messages.map(linkToken);
       await expectRejection(
         service.changeEmail(actor, "new@example.com"),
@@ -244,7 +256,7 @@ for (const engine of ["memory", "sqlite"])
         service.reset(oldLinks[1], "replacement-password"),
         "already used",
       );
-      await worker.runOnce();
+      await drain();
       const verification = messages.find(
         (message) => message.to === "new@example.com",
       )!;
@@ -262,12 +274,12 @@ for (const engine of ["memory", "sqlite"])
     });
 
     test("confirmed changes require a single-use approval from the current mailbox, then verify the new one", async () => {
-      const { db, service, worker, messages } = await fixture(engine);
+      const { db, service, drain, messages } = await fixture(engine);
       const account = await service.register(
         "confirmed@example.com",
         "unused-hash",
       );
-      await worker.runOnce();
+      await drain();
       await service.verify(linkToken(messages[0]));
       const actor = { userId: account.userId, tokenId: account.token };
       expect(
@@ -279,7 +291,7 @@ for (const engine of ["memory", "sqlite"])
       expect(
         (await asyncDispatch(db, getUserById({ id: account.userId })))!.email,
       ).toBe("confirmed@example.com");
-      await worker.runOnce();
+      await drain();
       const approval = messages.find(
         (message) => message.subject === "Confirm your email change",
       )!;
@@ -307,7 +319,7 @@ for (const engine of ["memory", "sqlite"])
       ))!;
       expect(user.email).toBe("replacement@example.com");
       expect(user.emailVerifiedAt).toBeUndefined();
-      await worker.runOnce();
+      await drain();
       const verification = messages.find(
         (message) => message.to === "replacement@example.com",
       )!;
@@ -319,7 +331,7 @@ for (const engine of ["memory", "sqlite"])
     });
 
     test("email changes reject occupied addresses and recheck availability on confirmation", async () => {
-      const { db, service, worker, messages } = await fixture(engine);
+      const { db, service, drain, messages } = await fixture(engine);
       const account = await service.register(
         "first@example.com",
         await Bun.password.hash("password-123"),
@@ -334,14 +346,14 @@ for (const engine of ["memory", "sqlite"])
         service.changeEmail(actor, "FIRST@example.com", "password-123"),
         "different email",
       );
-      await worker.runOnce();
+      await drain();
       await service.verify(
         linkToken(
           messages.find((message) => message.to === "first@example.com")!,
         ),
       );
       await service.changeEmail(actor, "available@example.com");
-      await worker.runOnce();
+      await drain();
       const token = linkToken(
         messages.find(
           (message) => message.subject === "Confirm your email change",
@@ -421,7 +433,7 @@ for (const engine of ["memory", "sqlite"])
     });
 
     test("signup grants access, verification is single-use, and welcome is sent once", async () => {
-      const { db, service, worker, messages } = await fixture(engine);
+      const { db, service, drain, messages } = await fixture(engine);
       const account = await service.register("new@example.com", "old-hash");
       expect(
         await Effect.runPromise(
@@ -432,7 +444,7 @@ for (const engine of ["memory", "sqlite"])
         (await asyncDispatch(db, getUserById({ id: account.userId })))
           ?.emailVerifiedAt,
       ).toBeUndefined();
-      await worker.runOnce();
+      await drain();
       expect(messages.map((m) => m.subject)).toEqual(["Confirm your email"]);
       const token = linkToken(messages[0]);
       const challenge = await asyncDispatch(
@@ -449,7 +461,7 @@ for (const engine of ["memory", "sqlite"])
         (await asyncDispatch(db, getUserById({ id: account.userId })))
           ?.emailVerifiedAt,
       ).toBeString();
-      await worker.runOnce();
+      await drain();
       expect(messages.map((m) => m.subject)).toEqual([
         "Confirm your email",
         "Welcome to Will Be Done",
@@ -466,7 +478,7 @@ for (const engine of ["memory", "sqlite"])
     });
 
     test("resends invalidate old links and pending payloads; cooldown and hourly limits persist", async () => {
-      const { db, service, worker, messages } = await fixture(engine);
+      const { db, service, messages } = await fixture(engine);
       const account = await service.register("resend@example.com", "hash");
       const firstJob = (await readJobs(db))[0];
       const firstToken = linkToken(JSON.parse(firstJob.payload!));
@@ -517,20 +529,19 @@ for (const engine of ["memory", "sqlite"])
         ),
       ).toMatchObject({ queued: false, retryAfterSeconds: 3420 });
       // The last job is scheduled in the future relative to the real clock.
-      const futureWorker = createEmailWorker(
+      await drainWith(
         db,
         {
-          async send(p) {
-            messages.push(p);
-            return "latest";
-          },
+          send: (p) =>
+            Effect.sync(() => {
+              messages.push(p);
+              return "latest";
+            }),
         },
-        { now: () => now + 180_000, paceMs: 0, log: () => {} },
+        now + 180_000,
       );
-      await futureWorker.runOnce();
       expect(messages).toHaveLength(1);
       await service.verify(linkToken(messages[0]));
-      await worker.stop();
     });
 
     test("reset verifies ownership, revokes tokens, cancels links and enqueues both notifications", async () => {
@@ -821,7 +832,7 @@ describe("durable delivery", () => {
     expect((await readJobs(opened.db, "sent"))[0].payload).toBeUndefined();
   });
 
-  test("stop waits for the active drain and resolves even if it fails", async () => {
+  test("interrupting the worker waits for the active job and resolves even if it fails", async () => {
     const { db, service } = await fixture();
     await service.register("shutdown@example.com", "hash");
     const failure = new Error("drain logging failed");
@@ -833,26 +844,27 @@ describe("durable delivery", () => {
     const delivery = new Promise<string>((resolve) => {
       releaseSend = resolve;
     });
-    const worker = createEmailWorker(
-      db,
-      {
-        send() {
-          markStarted();
-          return delivery;
+    const worker = Effect.runFork(
+      drainEmailJobs(
+        db,
+        {
+          send: () =>
+            Effect.promise(() => {
+              markStarted();
+              return delivery;
+            }),
         },
-      },
-      {
-        paceMs: 0,
-        log() {
-          throw failure;
+        {
+          paceMs: 0,
+          log() {
+            throw failure;
+          },
         },
-      },
+      ),
     );
-    cleanups.push(() => worker.stop());
-    const drainResult = worker.runOnce().catch((error: unknown) => error);
     await started;
     let stopped = false;
-    const stopping = worker.stop().then(() => {
+    const stopping = Effect.runPromise(Fiber.interrupt(worker)).then(() => {
       stopped = true;
     });
     try {
@@ -862,8 +874,10 @@ describe("durable delivery", () => {
       releaseSend("provider-id");
       await stopping;
     }
-    expect(await drainResult).toBe(failure);
     expect(stopped).toBe(true);
+    expect((await readJobs(db, "sent"))[0]).toMatchObject({
+      providerId: "provider-id",
+    });
   });
 
   test("retry keeps identical payload and idempotency key when the provider accepted before disconnect", async () => {
@@ -872,25 +886,27 @@ describe("durable delivery", () => {
     let now = Date.now();
     const calls: { payload: EmailPayload; key: string }[] = [];
     const sender: EmailSender = {
-      async send(payload, key) {
-        calls.push({ payload, key });
-        if (calls.length === 1)
-          throw new EmailDeliveryError("timeout", true, 120_000);
-        return "provider-original-id";
-      },
+      send: (payload, key) =>
+        Effect.suspend(() => {
+          calls.push({ payload, key });
+          return calls.length === 1
+            ? Effect.fail(
+                new EmailDeliveryError({
+                  code: "timeout",
+                  retryable: true,
+                  retryAfterMs: 120_000,
+                }),
+              )
+            : Effect.succeed("provider-original-id");
+        }),
     };
-    const worker = createEmailWorker(db, sender, {
-      now: () => now,
-      paceMs: 0,
-      log: () => {},
-    });
-    await worker.runOnce();
+    await drainWith(db, sender, now);
     expect((await readJobs(db))[0].nextAttemptAt).toBe(now + 120_000);
     now += 119_000;
-    await worker.runOnce();
+    await drainWith(db, sender, now);
     expect(calls).toHaveLength(1);
     now += 1000;
-    await worker.runOnce();
+    await drainWith(db, sender, now);
     expect(calls[1]).toEqual(calls[0]);
     expect((await readJobs(db, "sent"))[0].providerId).toBe(
       "provider-original-id",
@@ -900,16 +916,13 @@ describe("durable delivery", () => {
   test("permanent failures, expiry, cleanup, and superseded claims remove payloads", async () => {
     const { db, service } = await fixture();
     await service.register("failure@example.com", "hash");
-    const worker = createEmailWorker(
-      db,
-      {
-        async send() {
-          throw new EmailDeliveryError("invalid_api_key", false);
-        },
-      },
-      { paceMs: 0, log: () => {} },
-    );
-    await worker.runOnce();
+    const failing: EmailSender = {
+      send: () =>
+        Effect.fail(
+          new EmailDeliveryError({ code: "invalid_api_key", retryable: false }),
+        ),
+    };
+    await drainWith(db, failing);
     expect((await readJobs(db, "failed"))[0]).toMatchObject({
       failureCode: "invalid_api_key",
     });
@@ -1175,7 +1188,7 @@ describe("real Fastify account endpoints", () => {
   });
 
   test("signup, verification, reset and login work against a real database and HTTP server", async () => {
-    const { db, service, worker, messages } = await fixture("sqlite");
+    const { db, service, drain, messages } = await fixture("sqlite");
     const server = createServer({
       mainDB: db,
       appRouter: createAppRouter({
@@ -1213,7 +1226,7 @@ describe("real Fastify account endpoints", () => {
         authenticateBearerToken(`Bearer ${session.token}`, db),
       ),
     ).not.toBeNull();
-    await worker.runOnce();
+    await drain();
     const verification = linkToken(messages[0]);
     expect((await call("verifyEmail", { token: verification })).status).toBe(
       200,
@@ -1227,7 +1240,7 @@ describe("real Fastify account endpoints", () => {
       (await call("requestPasswordReset", { email: "missing@example.com" }))
         .body,
     );
-    await worker.runOnce();
+    await drain();
     const reset = linkToken(
       messages.find((m) => m.subject === "Reset your password")!,
     );
@@ -1255,7 +1268,7 @@ describe("real Fastify account endpoints", () => {
         })
       ).status,
     ).toBe(200);
-    await worker.runOnce();
+    await drain();
     expect(
       messages.filter((m) => m.subject === "Welcome to Will Be Done"),
     ).toHaveLength(1);
@@ -1401,19 +1414,30 @@ describe("Resend SDK integration", () => {
       "verification",
       "test-token",
     );
-    expect(await sender.send(payload, "job-1")).toBe("provider-id");
+    const send = (key: string) =>
+      Effect.runPromise(sender.send(payload, key).pipe(Effect.result));
+    expect(await send("job-1")).toEqual(Result.succeed("provider-id"));
     expect(calls[0]).toEqual({ body: payload, key: "job-1" });
     status = 429;
-    const limited = await sender.send(payload, "job-2").catch((error) => error);
-    expect(limited).toMatchObject({
-      retryable: true,
-      retryAfterMs: 120_000,
-      code: "rate_limit_exceeded",
-    });
+    expect(await send("job-2")).toEqual(
+      Result.fail(
+        new EmailDeliveryError({
+          code: "rate_limit_exceeded",
+          retryable: true,
+          retryAfterMs: 120_000,
+        }),
+      ),
+    );
     status = 401;
-    expect(
-      await sender.send(payload, "job-3").catch((error) => error),
-    ).toMatchObject({ retryable: false, code: "invalid_api_key" });
+    expect(await send("job-3")).toEqual(
+      Result.fail(
+        new EmailDeliveryError({
+          code: "invalid_api_key",
+          retryable: false,
+          retryAfterMs: 120_000,
+        }),
+      ),
+    );
   });
 });
 
@@ -1498,23 +1522,20 @@ describe("email workers on separate database connections", () => {
     const { first, second } = await sharedDatabase();
     const calls: string[] = [];
     const sender: EmailSender = {
-      async send(_payload, key) {
-        calls.push(key);
-        return "shared-provider-id";
-      },
+      send: (_payload, key) =>
+        Effect.sync(() => {
+          calls.push(key);
+          return "shared-provider-id";
+        }),
     };
-    const options = { paceMs: 0, log: () => {} };
-    const workerA = createEmailWorker(first, sender, options);
-    const workerB = createEmailWorker(second, sender, options);
-    cleanups.push(
-      () => workerA.stop(),
-      () => workerB.stop(),
-    );
     // A deferred SQLite transaction may lose its write upgrade to the other
     // connection. The worker's next poll retries after the winner commits.
-    await Promise.allSettled([workerA.runOnce(), workerB.runOnce()]);
-    await workerA.runOnce();
-    await workerB.runOnce();
+    await Promise.allSettled([
+      drainWith(first, sender),
+      drainWith(second, sender),
+    ]);
+    await drainWith(first, sender);
+    await drainWith(second, sender);
     expect(calls).toHaveLength(1);
     expect(await readJobs(first)).toHaveLength(0);
     expect((await readJobs(second, "sent"))[0]).toMatchObject({
@@ -1538,39 +1559,32 @@ describe("email workers on separate database connections", () => {
     const started = new Promise<void>((resolve) => {
       markStarted = resolve;
     });
-    const workerA = createEmailWorker(
+    const pending = drainWith(
       first,
       {
-        async send(payload, key) {
-          const id = accept(payload, key);
-          markStarted();
-          await new Promise<string>((resolve) => {
-            releaseFirst = resolve;
-          });
-          return id;
-        },
+        send: (payload, key) =>
+          Effect.promise(async () => {
+            const id = accept(payload, key);
+            markStarted();
+            await new Promise<string>((resolve) => {
+              releaseFirst = resolve;
+            });
+            return id;
+          }),
       },
-      { now: () => now, paceMs: 0, log: () => {} },
+      now,
     );
-    const workerB = createEmailWorker(
-      second,
-      {
-        async send(payload, key) {
-          return accept(payload, key);
-        },
-      },
-      { now: () => now, paceMs: 0, log: () => {} },
-    );
-    const pending = workerA.runOnce();
     await started;
     now += 61_000;
     try {
-      await workerB.runOnce();
+      await drainWith(
+        second,
+        { send: (payload, key) => Effect.sync(() => accept(payload, key)) },
+        now,
+      );
     } finally {
       releaseFirst("provider-1");
       await pending;
-      await workerA.stop();
-      await workerB.stop();
     }
     expect(calls).toHaveLength(2);
     expect(calls[0]).toEqual(calls[1]);
