@@ -10,7 +10,8 @@
     "./space": "./src/space/index.ts",
     "./user": "./src/user/index.ts",
     "./common": "./src/common/index.ts",
-    "./traits": "./src/traits/index.ts"
+    "./traits": "./src/traits/index.ts",
+    "./desktop": "./src/desktop.ts"
   },
   "scripts": {
     "ts": "tsgo -b",

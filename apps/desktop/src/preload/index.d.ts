@@ -1,24 +1,4 @@
-export {}
-
-interface ServerCheckResult {
-  ok: boolean
-  serverUrl: string
-  error?: string
-  offline?: boolean
-  status?: number
-}
-
-interface DesktopAPI {
-  runGoogleAuth(url: string): Promise<string | null>
-  cancelGoogleAuth(flowId: string): Promise<void>
-  getServerUrl(): Promise<string>
-  checkServerUrl(url?: string): Promise<ServerCheckResult>
-  setServerUrl(url: string): Promise<void>
-  resetServerUrl(): Promise<void>
-  closePopup(): void
-  onPopupShow(callback: () => void): () => void
-  onEditHistory(handler: (command: 'undo' | 'redo') => boolean): () => void
-}
+import type { DesktopAPI } from '@will-be-done/slices/desktop'
 
 declare global {
   interface Window {

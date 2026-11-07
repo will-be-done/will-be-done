@@ -21,21 +21,41 @@ import {
   type Change,
   type ChangesetArrayType,
 } from "@will-be-done/slices/common";
+import { Effect, Exit, Layer, Scope } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createCrossTabChanges } from "./crossTabChanges";
-import { createLocalPersistQueue } from "./localPersistQueue";
+import type { PageEvents, TabChannels } from "@/services/browser";
+import { makeTestLogger, makeTestPage, makeTestTabs } from "@/services/testing";
+import { makeCrossTabChanges } from "./crossTabChanges";
+import { Database } from "./database";
+import { makeLocalPersistQueue } from "./localPersistQueue";
 import { registerSyncChangeHooks } from "./syncChangeHooks";
 import type { SyncConfig } from "./syncTypes";
 
-vi.mock("broadcast-channel", () => ({
-  BroadcastChannel: class {
-    onmessage: ((data: unknown) => void) | null = null;
-
-    postMessage() {
-      return Promise.resolve();
-    }
-  },
-}));
+const scopes: Scope.Closeable[] = [];
+const inScope = <A>(
+  db: SubscribableDB,
+  effect: Effect.Effect<
+    A,
+    never,
+    TabChannels | PageEvents | Database | Scope.Scope
+  >,
+) => {
+  const scope = Scope.makeUnsafe();
+  scopes.push(scope);
+  return Effect.runSync(
+    effect.pipe(
+      Scope.provide(scope),
+      Effect.provide(
+        Layer.mergeAll(
+          makeTestTabs().layer,
+          makeTestPage().layer,
+          makeTestLogger().layer,
+          Database.layer(db),
+        ),
+      ),
+    ),
+  );
+};
 
 const crossTabItemsTable = defineTable("cross_tab_test_items", {
   id: v.string(),
@@ -55,17 +75,14 @@ const crossTabState = selector({
   },
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
+afterEach(async () => {
+  for (const scope of scopes.splice(0)) {
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+  }
 });
 
 describe("cross-tab changes", () => {
   it("broadcasts and wakes sync only after local changes are durable", async () => {
-    vi.stubGlobal("window", { addEventListener: vi.fn() });
-    vi.stubGlobal("document", {
-      addEventListener: vi.fn(),
-      visibilityState: "visible",
-    });
     const primaryDriver = new BptreeInmemDriver();
     const runtime = new HybridDB(
       new DB(primaryDriver),
@@ -95,12 +112,10 @@ describe("cross-tab changes", () => {
     });
     const postChanges = vi.fn();
     const onPersisted = vi.fn();
-    const queue = createLocalPersistQueue({
-      syncSubDb: db,
-      postChanges,
-      onPersisted,
-    });
-    queue.start();
+    const queue = inScope(
+      db,
+      makeLocalPersistQueue({ postChanges, onPersisted }),
+    );
     const clock = createHlcClock("sender")();
     const row = { id: "local", title: "Visible before persistence" };
     const change: Change = {
@@ -139,7 +154,7 @@ describe("cross-tab changes", () => {
       release();
       await execAsync(runtime.waitForPersistence());
     }
-    await queue.drain();
+    await Effect.runPromise(queue.drain);
     expect(postChanges).toHaveBeenCalledExactlyOnceWith({
       changeset: [
         { tableName: crossTabItemsTable.tableName, data: [{ row, change }] },
@@ -152,12 +167,6 @@ describe("cross-tab changes", () => {
   it.each([{ itemsResidency: "preloaded" }, { itemsResidency: "on demand" }])(
     "publishes an externally persisted $itemsResidency row without creating a local echo",
     async ({ itemsResidency }) => {
-      vi.stubGlobal("window", { addEventListener: vi.fn() });
-      vi.stubGlobal("document", {
-        addEventListener: vi.fn(),
-        visibilityState: "visible",
-      });
-
       const driver = new BptreeInmemDriver();
       const senderDB = new DB(driver);
       const receiverPersistentDB = new DB(driver);
@@ -198,25 +207,29 @@ describe("cross-tab changes", () => {
         persistDBTables: [crossTabItemsTable, changesTable],
         syncableDBTables: [crossTabItemsTable],
         tableNameMap: { [crossTabItemsTable.tableName]: crossTabItemsTable },
-        afterInit: () => {},
+        afterInit: Effect.void,
       } satisfies SyncConfig;
       const publications: Op[][] = [];
       const onApplied = vi.fn(() => {
         expect(publications).not.toHaveLength(0);
       });
-      const crossTabChanges = createCrossTabChanges({
-        clientId: "receiver",
-        syncSubDb: receiverDB,
-        syncConfig,
-        nextClock,
-        onApplied,
-      });
+      const crossTabChanges = inScope(
+        receiverDB,
+        makeCrossTabChanges({
+          clientId: "receiver",
+          syncConfig,
+          nextClock,
+          onApplied,
+        }),
+      );
       const postChanges = vi.spyOn(crossTabChanges, "postChanges");
-      createLocalPersistQueue({
-        syncSubDb: receiverDB,
-        postChanges: crossTabChanges.postChanges,
-        onPersisted: vi.fn(),
-      }).start();
+      inScope(
+        receiverDB,
+        makeLocalPersistQueue({
+          postChanges: crossTabChanges.postChanges,
+          onPersisted: vi.fn(),
+        }),
+      );
 
       receiverDB.subscribe((ops) => publications.push(ops));
 
@@ -255,7 +268,7 @@ describe("cross-tab changes", () => {
         })({}),
       );
 
-      await crossTabChanges.applyChanges({ changeset });
+      await Effect.runPromise(crossTabChanges.applyChanges({ changeset }));
 
       const state = await selectAsync(receiverDB, {
         selector: crossTabState,

@@ -1,8 +1,10 @@
+import { Effect, Layer } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cacheAllEmoji } from "./emojiCache";
+import { BrowserCaches } from "@/services/browser";
+import { testHttpClient } from "@/services/testing";
+import { cacheMissingEmoji } from "./emojiCache";
 
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
@@ -15,15 +17,22 @@ function setup(names = ["one", "two", "three", "four", "five", "six"]) {
       stored.set(url, response);
     },
   };
-  vi.stubGlobal("location", { href: "https://example.com/" });
-  vi.stubGlobal("caches", { open: async () => cache });
-  const fetch = vi.fn(async (url: URL | string) =>
+  const fetch = vi.fn(async (url: string, _init?: RequestInit) =>
     String(url).endsWith("index.json")
       ? Response.json(names)
       : new Response("emoji"),
   );
-  vi.stubGlobal("fetch", fetch);
-  return { base, stored, fetch };
+  const layer = Layer.mergeAll(
+    testHttpClient(() => fetch),
+    Layer.succeed(BrowserCaches, {
+      open: async () => cache,
+    } as unknown as CacheStorage),
+  );
+  const cacheAllEmoji = () =>
+    Effect.runPromise(
+      cacheMissingEmoji(new URL(base)).pipe(Effect.provide(layer)),
+    );
+  return { base, stored, fetch, cacheAllEmoji };
 }
 
 describe("offline emoji cache", () => {
@@ -31,7 +40,7 @@ describe("offline emoji cache", () => {
     "pauses all workers for Retry-After %s, then resumes missing images",
     async (retryAfter) => {
       vi.useFakeTimers({ now: new Date("2026-10-31T00:00:00Z") });
-      const { base, stored, fetch } = setup();
+      const { base, stored, fetch, cacheAllEmoji } = setup();
       stored.set(`${base}one.webp`, new Response("cached"));
       const limited = new Set<string>();
       fetch.mockImplementation(async (url) => {
@@ -67,7 +76,7 @@ describe("offline emoji cache", () => {
 
   it("backs off when the manifest is rate limited too", async () => {
     vi.useFakeTimers();
-    const { stored, fetch } = setup(["one"]);
+    const { stored, fetch, cacheAllEmoji } = setup(["one"]);
     fetch.mockResolvedValueOnce(
       new Response(null, { status: 429, headers: { "Retry-After": "2" } }),
     );
@@ -80,7 +89,7 @@ describe("offline emoji cache", () => {
   });
 
   it("keeps completed images and resumes after a failed download on the next run", async () => {
-    const { base, stored, fetch } = setup(["one"]);
+    const { base, stored, fetch, cacheAllEmoji } = setup(["one"]);
     stored.set(`${base}previous.webp`, new Response("cached"));
     fetch.mockImplementationOnce(async () =>
       Response.json(["previous", "one"]),
@@ -93,11 +102,53 @@ describe("offline emoji cache", () => {
     expect(stored.size).toBe(2);
   });
 
+  it("closes the body of a failed response it does not retry", async () => {
+    const { fetch, cacheAllEmoji } = setup(["one"]);
+    let cancelled = 0;
+    fetch.mockImplementation(async (url) =>
+      String(url).endsWith("index.json")
+        ? Response.json(["one"])
+        : new Response(
+            new ReadableStream({
+              pull: () => new Promise(() => {}),
+              cancel: () => void cancelled++,
+            }),
+            { status: 500 },
+          ),
+    );
+    await expect(cacheAllEmoji()).rejects.toThrow(": 500");
+    expect(cancelled).toBe(1);
+  });
+
+  it("lets downloads in flight finish when another one fails", async () => {
+    const { base, stored, fetch, cacheAllEmoji } = setup(["one", "two"]);
+    let releaseOne!: () => void;
+    const oneReleased = new Promise<void>((resolve) => (releaseOne = resolve));
+    let markTwoFailed!: () => void;
+    const twoFailed = new Promise<void>((resolve) => (markTwoFailed = resolve));
+    fetch.mockImplementation(async (url) => {
+      const href = String(url);
+      if (href.endsWith("index.json")) return Response.json(["one", "two"]);
+      if (href.endsWith("one.webp")) {
+        await oneReleased;
+        return new Response("emoji");
+      }
+      markTwoFailed();
+      throw new TypeError("Offline");
+    });
+
+    const result = cacheAllEmoji();
+    await twoFailed;
+    releaseOne();
+    await expect(result).rejects.toThrow("Offline");
+    expect([...stored.keys()]).toEqual([`${base}one.webp`]);
+  });
+
   it.each([null, "invalid"])(
     "uses a fallback delay for Retry-After %s and stops after repeated rate limits",
     async (retryAfter) => {
       vi.useFakeTimers();
-      const { stored, fetch } = setup();
+      const { stored, fetch, cacheAllEmoji } = setup();
       fetch.mockImplementation(
         async () =>
           new Response(null, {

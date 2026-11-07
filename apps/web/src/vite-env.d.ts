@@ -1,28 +1,7 @@
 /// <reference types="vite/client" />
 /// <reference types="vite-plugin-pwa/react" />
 
-export {};
-
-interface ServerCheckResult {
-  ok: boolean;
-  serverUrl: string;
-  error?: string;
-  offline?: boolean;
-  status?: number;
-}
-
-interface DesktopAPI {
-  runGoogleAuth?(url: string): Promise<string | null>;
-  cancelGoogleAuth?(flowId: string): Promise<void>;
-  getServerUrl(): Promise<string>;
-  checkServerUrl(url?: string): Promise<ServerCheckResult>;
-  setServerUrl(url: string): Promise<void>;
-  resetServerUrl(): Promise<void>;
-  closePopup(): void;
-  onPopupShow(callback: () => void): () => void;
-  // Absent in desktop builds that predate app undo.
-  onEditHistory?(handler: (command: "undo" | "redo") => boolean): () => void;
-}
+import type { InstalledDesktopAPI } from "@will-be-done/slices/desktop";
 
 declare global {
   interface ImportMetaEnv {
@@ -39,7 +18,7 @@ declare global {
   }
 
   interface Window {
-    api?: DesktopAPI;
-    desktopApi?: DesktopAPI;
+    api?: InstalledDesktopAPI;
+    desktopApi?: InstalledDesktopAPI;
   }
 }

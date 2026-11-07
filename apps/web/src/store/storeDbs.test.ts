@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import {
   asyncDispatch,
   createAction,
@@ -80,7 +81,7 @@ describe("store database startup", () => {
       persistDBTables: [startupItemsTable],
       syncableDBTables: [startupItemsTable],
       tableNameMap: { [startupItemsTable.tableName]: startupItemsTable },
-      afterInit: () => {},
+      afterInit: Effect.void,
     } satisfies SyncConfig;
 
     const { persistentDB, syncSubDb } = await createStoreDbs(

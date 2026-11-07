@@ -1,9 +1,4 @@
-import {
-  execAsync,
-  execMaybeAsync,
-  type Op,
-  type SubscribableDB,
-} from "@will-be-done/hyperdb";
+import type { Op } from "@will-be-done/hyperdb";
 import {
   changesTable,
   type Change,
@@ -11,11 +6,13 @@ import {
   isDeletedChange,
   type PrimitiveRow,
 } from "@will-be-done/slices/common";
+import { Effect, Fiber, type Scope } from "effect";
+import { PageEvents } from "@/services/browser";
+import { Database, type DatabaseError } from "./database";
 import { flushPendingDrafts } from "./pendingDraftFlushes.ts";
 import type { ChangePersistedEvent } from "./syncTypes";
 
 type CreateLocalPersistQueueArgs = {
-  syncSubDb: SubscribableDB;
   postChanges: (event: ChangePersistedEvent) => void;
   onPersisted: () => void;
 };
@@ -83,71 +80,83 @@ const createChangesetFromOps = (ops: Op[]): ChangesetArrayType => {
   return changeset;
 };
 
-export const createLocalPersistQueue = ({
-  syncSubDb,
+// Closing the scope stops publishing local writes and flushing on page hide.
+export const makeLocalPersistQueue = ({
   postChanges,
   onPersisted,
-}: CreateLocalPersistQueueArgs) => {
-  const publications = new Set<Promise<void>>();
-  const flushDraftsAndPersist = async () => {
-    flushPendingDrafts();
-    await execAsync(syncSubDb.waitForPersistence());
-    await Promise.all([...publications]);
-  };
+}: CreateLocalPersistQueueArgs): Effect.Effect<
+  { readonly drain: Effect.Effect<void, DatabaseError> },
+  never,
+  PageEvents | Database | Scope.Scope
+> =>
+  Effect.gen(function* () {
+    const page = yield* PageEvents;
+    const database = yield* Database;
+    const runFork = Effect.runForkWith(yield* Effect.context<never>());
+    const publications = new Set<Fiber.Fiber<void>>();
 
-  const flushDraftsAndPersistBestEffort = () => {
-    void flushDraftsAndPersist();
-  };
-
-  const flushDraftsAndPersistWhenHidden = () => {
-    if (document.visibilityState === "hidden") {
-      flushDraftsAndPersistBestEffort();
-    }
-  };
-
-  return {
-    start: () => {
-      window.addEventListener("beforeunload", flushDraftsAndPersistBestEffort, {
-        capture: true,
-      });
-      window.addEventListener("pagehide", flushDraftsAndPersistBestEffort, {
-        capture: true,
-      });
-      document.addEventListener(
-        "visibilitychange",
-        flushDraftsAndPersistWhenHidden,
-        { capture: true },
+    const drain = Effect.gen(function* () {
+      flushPendingDrafts();
+      yield* database.waitForPersistence;
+      yield* Fiber.awaitAll(publications);
+    });
+    const drainBestEffort = () => {
+      runFork(
+        drain.pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError("Flushing local changes failed", cause),
+          ),
+        ),
       );
+    };
 
-      syncSubDb.subscribe((ops, traits) => {
-        if (traits.some((t) => t.type === "skip-sync")) {
-          return;
-        }
+    yield* page.listen("window", "beforeunload", drainBestEffort, {
+      capture: true,
+    });
+    yield* page.listen("window", "pagehide", drainBestEffort, {
+      capture: true,
+    });
+    yield* page.listen(
+      "document",
+      "visibilitychange",
+      () => {
+        if (page.visibility() === "hidden") drainBestEffort();
+      },
+      { capture: true },
+    );
 
-        const changeset = createChangesetFromOps(ops);
-        if (changeset.length === 0) return;
+    yield* Effect.acquireRelease(
+      Effect.sync(() =>
+        database.hyperDB.subscribe((ops, traits) => {
+          if (traits.some((t) => t.type === "skip-sync")) {
+            return;
+          }
 
-        const publish = () => {
-          postChanges({ changeset });
-          onPersisted();
-        };
-        const persisted = execMaybeAsync(syncSubDb.waitForPersistence());
-        if (!(persisted instanceof Promise)) {
-          publish();
-          return;
-        }
-        const publication = persisted.then(publish);
-        publications.add(publication);
-        void publication.then(
-          () => publications.delete(publication),
-          (error: unknown) => {
-            publications.delete(publication);
-            console.error(error);
-          },
-        );
-      });
-    },
-    drain: flushDraftsAndPersist,
-    flushDraftsAndPersist,
-  };
-};
+          const changeset = createChangesetFromOps(ops);
+          if (changeset.length === 0) return;
+
+          const publish = () => {
+            postChanges({ changeset });
+            onPersisted();
+          };
+          // Other tabs and the syncer must only see changes that are durable.
+          // When nothing is waiting to be written this publishes synchronously.
+          const publication = runFork(
+            database.waitForPersistence.pipe(
+              Effect.andThen(Effect.sync(publish)),
+              Effect.catchCause((cause) =>
+                Effect.logError("Publishing local changes failed", cause),
+              ),
+            ),
+          );
+          if (publication.pollUnsafe() === undefined) {
+            publications.add(publication);
+            publication.addObserver(() => publications.delete(publication));
+          }
+        }),
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    );
+
+    return { drain };
+  });
