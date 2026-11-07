@@ -9,8 +9,8 @@ import {
   type HlcClock,
 } from "@will-be-done/slices/common";
 import { mergeSpaceChanges } from "@will-be-done/slices/space";
-import { BroadcastChannel } from "broadcast-channel";
-import { Cause, Data, Effect } from "effect";
+import { Data, Effect, type Scope } from "effect";
+import { TabChannels } from "@/services/browser";
 import type { ChangePersistedEvent, SyncConfig } from "./syncTypes";
 import { syncChannelName } from "./syncCompatibility";
 
@@ -26,65 +26,72 @@ type CreateCrossTabChangesArgs = {
   onApplied: () => void;
 };
 
-export const createCrossTabChanges = ({
+export type CrossTabChanges = {
+  readonly applyChanges: (data: ChangePersistedEvent) => Promise<void>;
+  readonly postChanges: (data: ChangePersistedEvent) => void;
+};
+
+// Closing the scope stops listening for other tabs' changes.
+export const makeCrossTabChanges = ({
   clientId,
   syncSubDb,
   syncConfig,
   nextClock,
   onApplied,
-}: CreateCrossTabChangesArgs) => {
-  const bc = new BroadcastChannel(syncChannelName("changes", clientId));
-
-  const mergeIncoming = (data: ChangePersistedEvent) =>
-    Effect.gen(function* () {
-      nextClock.observe(
-        data.changeset.flatMap((changeset) =>
-          changeset.data.flatMap(({ change }) => observedChangeClocks(change)),
-        ),
-      );
-      const mergeArgs = {
-        input: data.changeset,
-        nextClock: nextClock(),
-        clientId,
-        registeredSyncableTableNameMap: syncConfig.tableNameMap,
-      };
-      const merge =
-        syncConfig.dbType === "space" ? mergeSpaceChanges : mergeChanges;
-      yield* Effect.tryPromise({
-        try: async () => {
-          await asyncDispatch<unknown>(
-            syncSubDb.withTraits({ type: "skip-sync" }),
-            merge(mergeArgs),
-          );
-          await execAsync(syncSubDb.waitForPersistence());
-        },
-        catch: (cause) => new CrossTabMergeError({ cause }),
+}: CreateCrossTabChangesArgs): Effect.Effect<
+  CrossTabChanges,
+  never,
+  TabChannels | Scope.Scope
+> =>
+  Effect.gen(function* () {
+    const channel = yield* (yield* TabChannels).channel<ChangePersistedEvent>(
+      syncChannelName("changes", clientId),
+    );
+    const mergeIncoming = (data: ChangePersistedEvent) =>
+      Effect.gen(function* () {
+        nextClock.observe(
+          data.changeset.flatMap((changeset) =>
+            changeset.data.flatMap(({ change }) =>
+              observedChangeClocks(change),
+            ),
+          ),
+        );
+        const mergeArgs = {
+          input: data.changeset,
+          nextClock: nextClock(),
+          clientId,
+          registeredSyncableTableNameMap: syncConfig.tableNameMap,
+        };
+        const merge =
+          syncConfig.dbType === "space" ? mergeSpaceChanges : mergeChanges;
+        yield* Effect.tryPromise({
+          try: async () => {
+            await asyncDispatch<unknown>(
+              syncSubDb.withTraits({ type: "skip-sync" }),
+              merge(mergeArgs),
+            );
+            await execAsync(syncSubDb.waitForPersistence());
+          },
+          catch: (cause) => new CrossTabMergeError({ cause }),
+        });
+        // A status-channel wake-up can finish before this asynchronous merge.
+        // Wake again only once the incoming changes are visible to sync reads.
+        onApplied();
       });
-      // A status-channel wake-up can finish before this asynchronous merge.
-      // Wake again only once the incoming changes are visible to sync reads.
-      onApplied();
-    });
 
-  bc.onmessage = (data) => {
-    Effect.runFork(
-      mergeIncoming(data as ChangePersistedEvent).pipe(
-        Effect.catchCause((cause) =>
-          Effect.sync(() =>
-            console.error("Cross-tab merge failed:", Cause.squash(cause)),
+    const runFork = Effect.runForkWith(yield* Effect.context<never>());
+    yield* channel.listen((data) => {
+      runFork(
+        mergeIncoming(data).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logError("Cross-tab merge failed", cause),
           ),
         ),
-      ),
-    );
-  };
+      );
+    });
 
-  return {
-    applyChanges: (data: ChangePersistedEvent) =>
-      Effect.runPromise(mergeIncoming(data)),
-    postChanges: (data: ChangePersistedEvent) => {
-      void bc.postMessage(data);
-    },
-    close: () => {
-      void bc.close();
-    },
-  };
-};
+    return {
+      applyChanges: (data) => Effect.runPromise(mergeIncoming(data)),
+      postChanges: (data) => channel.post(data),
+    };
+  });

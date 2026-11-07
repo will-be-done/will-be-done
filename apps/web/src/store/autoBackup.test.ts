@@ -1,22 +1,23 @@
-import { Effect } from "effect";
+import { Effect, Exit, Layer, Scope } from "effect";
 import { IDBFactory } from "fake-indexeddb";
-import type { SubscribableDB } from "@will-be-done/hyperdb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backUpToday } from "./autoBackup";
-
-const space = vi.hoisted(() => ({ dispatch: vi.fn() }));
-
-vi.mock("@will-be-done/hyperdb", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@will-be-done/hyperdb")>()),
-  asyncDispatch: space.dispatch,
-}));
-vi.mock("@will-be-done/slices/space", () => ({
-  getSpaceBackup: () => "getSpaceBackup",
-}));
+import { BackupDatabase } from "@/services/browser";
+import { makeTestLogger, makeTestPage } from "@/services/testing";
+import { backUpToday, makeAutoBackup } from "./autoBackup";
 
 const backupDBName = "auto-backups-space-1";
 const now = new Date(2026, 10, 7, 12);
-const spaceDB = {} as SubscribableDB;
+
+let indexedDB = new IDBFactory();
+let logger = makeTestLogger();
+const readSpace = vi.fn<() => Promise<unknown>>();
+const readBackup = Effect.promise(() => readSpace());
+const layer = () =>
+  Layer.mergeAll(Layer.succeed(BackupDatabase, indexedDB), logger.layer);
+const backUp = () =>
+  Effect.runPromise(
+    backUpToday("space-1", readBackup).pipe(Effect.provide(layer())),
+  );
 
 const requestResult = <T>(request: IDBRequest<T>) =>
   new Promise<T>((resolve, reject) => {
@@ -65,29 +66,28 @@ const expectConnectionClosed = () =>
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], now });
-  vi.stubGlobal("indexedDB", new IDBFactory());
-  space.dispatch.mockReset();
+  indexedDB = new IDBFactory();
+  logger = makeTestLogger();
+  readSpace.mockReset();
 });
 
 afterEach(() => {
   vi.useRealTimers();
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe("auto-backup", () => {
   it("saves today's backup and prunes backups past the retention window", async () => {
-    space.dispatch.mockResolvedValue({ tasks: [{ id: "task-1" }] });
+    readSpace.mockResolvedValue({ tasks: [{ id: "task-1" }] });
     await seed({
       "2026-10-30": { backedAt: 1, data: "expired" },
       "2026-10-31": { backedAt: 2, data: "oldest kept" },
       "2026-11-06": { backedAt: 3, data: "yesterday" },
     });
-    vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await Effect.runPromise(backUpToday("space-1", spaceDB));
+    await backUp();
 
-    expect(space.dispatch).toHaveBeenCalledWith(spaceDB, "getSpaceBackup");
+    expect(readSpace).toHaveBeenCalledOnce();
     expect(await readBackups()).toEqual({
       "2026-10-31": { backedAt: 2, data: "oldest kept" },
       "2026-11-06": { backedAt: 3, data: "yesterday" },
@@ -102,9 +102,9 @@ describe("auto-backup", () => {
   it("does not read the space again once today's backup exists", async () => {
     await seed({ "2026-11-07": { backedAt: 1, data: "morning" } });
 
-    await Effect.runPromise(backUpToday("space-1", spaceDB));
+    await backUp();
 
-    expect(space.dispatch).not.toHaveBeenCalled();
+    expect(readSpace).not.toHaveBeenCalled();
     expect(await readBackups()).toEqual({
       "2026-11-07": { backedAt: 1, data: "morning" },
     });
@@ -119,19 +119,54 @@ describe("auto-backup", () => {
     {
       failure: "reading the space fails",
       prepare: async () => {
-        space.dispatch.mockRejectedValue(new Error("space unavailable"));
+        readSpace.mockRejectedValue(new Error("space unavailable"));
       },
     },
   ])("logs and closes the connection when $failure", async ({ prepare }) => {
     await prepare();
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await Effect.runPromise(backUpToday("space-1", spaceDB));
+    await backUp();
 
-    expect(logged).toHaveBeenCalledWith(
-      "Auto-backup failed:",
-      expect.any(Error),
-    );
+    expect(logger.errors()).toEqual([
+      {
+        level: "Error",
+        message: ["Auto-backup failed"],
+        failure: expect.any(Error),
+      },
+    ]);
     await expectConnectionClosed();
+  });
+
+  it("backs up after five idle minutes, then waits for activity to arm again", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], now });
+    const page = makeTestPage();
+    let backups = 0;
+    let markBackedUp = () => {};
+    readSpace.mockImplementation(async () => {
+      backups += 1;
+      markBackedUp();
+      return { tasks: [] };
+    });
+    const scope = Scope.makeUnsafe();
+    Effect.runSync(
+      makeAutoBackup("space-1", readBackup).pipe(
+        Scope.provide(scope),
+        Effect.provide(Layer.mergeAll(layer(), page.layer)),
+      ),
+    );
+
+    await vi.advanceTimersByTimeAsync(4 * 60_000);
+    page.dispatch("document", "keydown");
+    await vi.advanceTimersByTimeAsync(4 * 60_000);
+    expect(backups).toBe(0);
+
+    const backedUp = new Promise<void>((resolve) => (markBackedUp = resolve));
+    await vi.advanceTimersByTimeAsync(60_000);
+    await backedUp;
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(backups).toBe(1);
+
+    await Effect.runPromise(Scope.close(scope, Exit.void));
+    expect(page.listeners()).toBe(0);
   });
 });
