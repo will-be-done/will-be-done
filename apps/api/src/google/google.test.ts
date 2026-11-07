@@ -27,6 +27,7 @@ import {
   revokeToken,
 } from "../slices/authSlice";
 import { Effect } from "effect";
+import { GoogleIdentityError } from "./provider";
 import { authenticateBearerToken } from "../services/authentication";
 import { action } from "../builders";
 import { accountEmailTables, emailChallengesTable } from "../email/tables";
@@ -132,10 +133,10 @@ async function fixture(
     provider: {
       authorizationUrl: (flow: { id: string }) =>
         `https://accounts.google.test/authorize?state=${flow.id}`,
-      async verify(code: string) {
-        if (code !== "valid") throw new Error("Invalid token");
-        return profile;
-      },
+      verify: (code: string) =>
+        code === "valid"
+          ? Effect.succeed(profile)
+          : Effect.fail(new GoogleIdentityError({ message: "Invalid token" })),
     },
   };
   const google = createGoogleService(db, googleConfig, options);

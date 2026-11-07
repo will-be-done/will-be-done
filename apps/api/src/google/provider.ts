@@ -1,14 +1,26 @@
 import { createHash } from "node:crypto";
+import { Effect, Schema } from "effect";
 import { OAuth2Client, CodeChallengeMethod } from "google-auth-library";
 import { z } from "zod";
 import type { GoogleConfig } from "./config";
 import { resolveGoogleAppUrl } from "./config";
 import type { GoogleFlow, GoogleProfile } from "./tables";
 
+export class GoogleIdentityError extends Schema.TaggedError<GoogleIdentityError>()(
+  "GoogleIdentityError",
+  { message: Schema.String, cause: Schema.optional(Schema.Defect()) },
+) {}
+
 export interface GoogleProvider {
   authorizationUrl(flow: GoogleFlow): string;
-  verify(code: string, flow: GoogleFlow): Promise<GoogleProfile>;
+  verify(
+    code: string,
+    flow: GoogleFlow,
+  ): Effect.Effect<GoogleProfile, GoogleIdentityError>;
 }
+
+const identityError = (message: string) => (cause: unknown) =>
+  new GoogleIdentityError({ message, cause });
 
 export function createGoogleProvider(config: GoogleConfig): GoogleProvider {
   const client = new OAuth2Client({
@@ -33,16 +45,28 @@ export function createGoogleProvider(config: GoogleConfig): GoogleProvider {
         prompt: "select_account",
       });
     },
-    async verify(code, flow) {
-      const { tokens } = await client.getToken({
-        code,
-        redirect_uri: redirectUri(flow),
-        codeVerifier: flow.pkceVerifier,
+    verify: Effect.fn("GoogleProvider.verify")(function* (
+      code: string,
+      flow: GoogleFlow,
+    ) {
+      const { tokens } = yield* Effect.tryPromise({
+        try: () =>
+          client.getToken({
+            code,
+            redirect_uri: redirectUri(flow),
+            codeVerifier: flow.pkceVerifier,
+          }),
+        catch: identityError("Google token exchange failed"),
       });
-      if (!tokens.id_token) throw new Error("Missing Google ID token");
-      const ticket = await client.verifyIdToken({
-        idToken: tokens.id_token,
-        audience: config.clientId,
+      const idToken = tokens.id_token;
+      if (!idToken) {
+        return yield* new GoogleIdentityError({
+          message: "Missing Google ID token",
+        });
+      }
+      const ticket = yield* Effect.tryPromise({
+        try: () => client.verifyIdToken({ idToken, audience: config.clientId }),
+        catch: identityError("Invalid Google ID token"),
       });
       const payload = ticket.getPayload();
       if (
@@ -53,7 +77,9 @@ export function createGoogleProvider(config: GoogleConfig): GoogleProvider {
         payload.email_verified !== true ||
         !z.email().safeParse(payload.email).success
       ) {
-        throw new Error("Invalid Google identity");
+        return yield* new GoogleIdentityError({
+          message: "Invalid Google identity",
+        });
       }
       return {
         subject: payload.sub,
@@ -62,6 +88,6 @@ export function createGoogleProvider(config: GoogleConfig): GoogleProvider {
           payload.email!.toLowerCase().endsWith("@gmail.com") ||
           Boolean(payload.hd),
       };
-    },
+    }),
   };
 }
