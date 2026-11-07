@@ -1055,7 +1055,7 @@ export const PreloadedTaskComp = ({
           const [upKey, downKey] = getDOMSiblings(focusableItemKey);
 
           void (async () => {
-            await dispatch(trashTasks({ ids: [taskId] }));
+            await deleteWithUndo(() => dispatch(trashTasks({ ids: [taskId] })));
             if (isTask(item)) captureTaskDeleted(item);
           })();
 
@@ -1146,6 +1146,7 @@ export const PreloadedTaskComp = ({
       listItem.type,
       date,
       dispatch,
+      deleteWithUndo,
       focusableItemKey,
       selection,
       handleOpenSelectionDatePicker,

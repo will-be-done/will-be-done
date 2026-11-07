@@ -222,6 +222,7 @@ const undoMessage = (changes: readonly UndoRowChange[]) => {
 export const withUndoToast = async <T,>(
   db: SubscribableDB,
   run: () => Promise<T>,
+  onUndo?: () => void,
 ) => {
   const manager = histories.get(db)?.manager;
   const revision = manager?.getRevision();
@@ -242,7 +243,7 @@ export const withUndoToast = async <T,>(
       duration,
       action: {
         label: "Undo",
-        onClick: () => void replayAndFocus(db, "undo"),
+        onClick: () => void replayAndFocus(db, "undo").then(() => onUndo?.()),
       },
       onDismiss: () => unsubscribe(),
       onAutoClose: () => unsubscribe(),
@@ -258,7 +259,8 @@ export const withUndoToast = async <T,>(
 export const useUndoToast = () => {
   const db = useDB();
   return useCallback(
-    <T,>(run: () => Promise<T>) => withUndoToast(db, run),
+    <T,>(run: () => Promise<T>, onUndo?: () => void) =>
+      withUndoToast(db, run, onUndo),
     [db],
   );
 };

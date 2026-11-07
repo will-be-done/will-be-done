@@ -13,8 +13,9 @@ export function useNoteConversion(onItemIdChange?: (itemId: string) => void) {
 
   const toNote = useCallback(
     async (taskId: string) => {
-      const note = await withUndo(() =>
-        dispatch(convertTaskToNote({ taskId })),
+      const note = await withUndo(
+        () => dispatch(convertTaskToNote({ taskId })),
+        () => onItemIdChange?.(taskId),
       );
       useFocusStore.getState().focusByKey(buildFocusKey(note.id, note.type));
       onItemIdChange?.(note.id);
@@ -24,8 +25,9 @@ export function useNoteConversion(onItemIdChange?: (itemId: string) => void) {
 
   const toTask = useCallback(
     async (noteId: string) => {
-      const task = await withUndo(() =>
-        dispatch(convertNoteToTask({ noteId })),
+      const task = await withUndo(
+        () => dispatch(convertNoteToTask({ noteId })),
+        () => onItemIdChange?.(noteId),
       );
       useFocusStore.getState().focusByKey(buildFocusKey(task.id, task.type));
       onItemIdChange?.(task.id);
