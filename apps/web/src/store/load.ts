@@ -1,5 +1,5 @@
 import { asyncDispatch, type SubscribableDB } from "@will-be-done/hyperdb";
-import AwaitLock from "await-lock";
+import { Effect, Exit, Scope, Semaphore } from "effect";
 import { AutoBackuper } from "./autoBackup.ts";
 import { createCrossTabChanges } from "./crossTabChanges";
 import { createLocalPersistQueue } from "./localPersistQueue";
@@ -15,6 +15,7 @@ import { syncStatusByDB } from "./syncStatus";
 import {
   getPersistentDriverKind,
   resolvePersistentDriverKind,
+  type PersistentDriverKind,
 } from "./persistentDriver";
 import { resetEmptyPersistedSyncCursor } from "./syncActions";
 import { createStoreDbs } from "./storeDbs";
@@ -24,7 +25,7 @@ import { migrateSyncV4Clocks } from "@will-be-done/slices/common";
 
 export type { SyncConfig } from "./syncTypes";
 
-const lock = new AwaitLock();
+const startupLock = Semaphore.makeUnsafe(1);
 const initedDbs: Record<string, SubscribableDB> = {};
 
 export const getDBBySpaceId = (spaceId: string) => {
@@ -42,32 +43,23 @@ export const getDBBySpaceId = (spaceId: string) => {
   return db;
 };
 
-export const initDbStore = async (
+const startStore = (
   syncConfig: SyncConfig,
-): Promise<SubscribableDB> => {
-  const dbName = getDbName(syncConfig);
-  const persistentDriverKind = await resolvePersistentDriverKind(dbName);
-  const cacheKey = `${dbName}:${persistentDriverKind}`;
-
-  await lock.acquireAsync();
-  try {
-    if (initedDbs[cacheKey]) {
-      return initedDbs[cacheKey];
-    }
-
+  dbName: string,
+  persistentDriverKind: PersistentDriverKind,
+) =>
+  Effect.gen(function* () {
     const clientId = getClientId(dbName, persistentDriverKind);
     const nextClock = initClock(clientId);
-    const { syncSubDb } = await createStoreDbs(
-      dbName,
-      syncConfig,
-      async (persistentDB) => {
+    const { syncSubDb } = yield* Effect.promise(() =>
+      createStoreDbs(dbName, syncConfig, async (persistentDB) => {
         await asyncDispatch(
           persistentDB.withTraits({ type: "skip-sync" }),
           migrateSyncV4Clocks({}),
         );
         await observePersistedClock(persistentDB, nextClock);
         await asyncDispatch(persistentDB, resetEmptyPersistedSyncCursor({}));
-      },
+      }),
     );
 
     registerSyncChangeHooks({
@@ -76,39 +68,85 @@ export const initDbStore = async (
       clientId,
       nextClock,
     });
-    await syncConfig.beforeInit?.(syncSubDb);
+    yield* Effect.promise(async () => syncConfig.beforeInit?.(syncSubDb));
 
-    const syncer = new Syncer(syncSubDb, clientId, syncConfig, nextClock);
+    const syncer = yield* Effect.acquireRelease(
+      Effect.sync(() => new Syncer(syncSubDb, clientId, syncConfig, nextClock)),
+      (syncer) => Effect.promise(() => syncer.close()),
+    );
 
-    const crossTabChanges = createCrossTabChanges({
-      clientId,
-      syncSubDb,
-      syncConfig,
-      nextClock,
-      onApplied: () => syncer.forceSync(),
-    });
+    const crossTabChanges = yield* Effect.acquireRelease(
+      Effect.sync(() =>
+        createCrossTabChanges({
+          clientId,
+          syncSubDb,
+          syncConfig,
+          nextClock,
+          onApplied: () => syncer.forceSync(),
+        }),
+      ),
+      (crossTabChanges) => Effect.sync(crossTabChanges.close),
+    );
 
-    const localPersistQueue = createLocalPersistQueue({
-      syncSubDb,
-      postChanges: crossTabChanges.postChanges,
-      onPersisted: () => syncer.forceSync(),
-    });
-    localPersistQueue.start();
+    yield* Effect.acquireRelease(
+      Effect.sync(() => {
+        const localPersistQueue = createLocalPersistQueue({
+          syncSubDb,
+          postChanges: crossTabChanges.postChanges,
+          onPersisted: () => syncer.forceSync(),
+        });
+        localPersistQueue.start();
+        return localPersistQueue;
+      }),
+      (localPersistQueue) => Effect.sync(localPersistQueue.stop),
+    );
 
     if (!syncConfig.disableSync) {
       syncStatusByDB.set(syncSubDb, syncer.status);
       syncer.startLoop();
 
-      const autoBackuper = new AutoBackuper(dbName, syncSubDb);
-      autoBackuper.start();
+      yield* Effect.acquireRelease(
+        Effect.sync(() => {
+          const autoBackuper = new AutoBackuper(dbName, syncSubDb);
+          autoBackuper.start();
+          return autoBackuper;
+        }),
+        (autoBackuper) => Effect.sync(() => autoBackuper.stop()),
+      );
     }
 
-    await syncConfig.afterInit(syncSubDb);
-
-    initedDbs[cacheKey] = syncSubDb;
+    yield* Effect.promise(async () => syncConfig.afterInit(syncSubDb));
 
     return syncSubDb;
-  } finally {
-    lock.release();
-  }
+  });
+
+export const initDbStore = async (
+  syncConfig: SyncConfig,
+): Promise<SubscribableDB> => {
+  const dbName = getDbName(syncConfig);
+  const persistentDriverKind = await resolvePersistentDriverKind(dbName);
+  const cacheKey = `${dbName}:${persistentDriverKind}`;
+
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const existing = initedDbs[cacheKey];
+      if (existing) return existing;
+
+      // A store lives for the app's lifetime, so its scope only closes when
+      // startup fails: a retry must not run beside a half-started sync loop.
+      const scope = yield* Scope.make();
+      const db = yield* startStore(
+        syncConfig,
+        dbName,
+        persistentDriverKind,
+      ).pipe(
+        Scope.provide(scope),
+        Effect.onExit((exit) =>
+          Exit.isFailure(exit) ? Scope.close(scope, exit) : Effect.void,
+        ),
+      );
+      initedDbs[cacheKey] = db;
+      return db;
+    }).pipe(startupLock.withPermits(1)),
+  );
 };

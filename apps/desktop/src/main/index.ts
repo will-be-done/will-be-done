@@ -7,9 +7,12 @@ import {
   globalShortcut,
   screen,
   nativeImage,
-  Tray
+  Tray,
+  type IpcMainInvokeEvent
 } from 'electron'
+import { Data, Effect, Fiber, Schema } from 'effect'
 import { listenForGoogleAuth, stopGoogleAuth, validateGoogleAuthLaunch } from './googleAuth'
+import { checkServerUrl, isHttpUrl } from './serverCheck'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
@@ -104,9 +107,6 @@ const Store =
 const store = new Store<{ serverUrl?: string }>()
 
 const DEFAULT_SERVER = is.dev ? 'http://localhost:5173' : 'https://app.will-be-done.app'
-const SERVER_CHECK_TIMEOUT_MS = 5000
-const SERVER_CHECK_FILE = '631521eb-a436-4740-9db3-e6f1d72392fe.json'
-const SERVER_CHECK_NONCE = '4f2c9a71-f7bb-4a57-b9b9-6d433c9f5b2e'
 
 let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
@@ -114,7 +114,7 @@ let tray: Tray | null = null
 let loadingLocalMainWindow = false
 let isQuitting = false
 let appControlBus: AppControlBus | null = null
-let popupFocusRequestId = 0
+let popupFocus: Fiber.Fiber<void> | null = null
 
 function registerQuickAddBus(): void {
   if (process.env.FLATPAK_ID !== FLATPAK_APP_ID) return
@@ -163,102 +163,28 @@ function registerQuickAddBus(): void {
   }
 }
 
+// The main window runs code served by the configured server, so its IPC input
+// is untrusted: only its main frame may call these, with arguments decoded.
+function handleFromMainWindow<Args extends ReadonlyArray<unknown>>(
+  channel: string,
+  args: Schema.Decoder<Args>,
+  handler: (event: IpcMainInvokeEvent, args: NoInfer<Args>) => unknown
+): void {
+  const decodeArgs = Schema.decodeUnknownSync(args)
+  ipcMain.handle(channel, (event, ...input: unknown[]) => {
+    if (
+      !mainWindow ||
+      event.sender !== mainWindow.webContents ||
+      event.senderFrame !== mainWindow.webContents.mainFrame
+    ) {
+      throw new Error(`${channel} must be called from the main app window`)
+    }
+    return handler(event, decodeArgs(input))
+  })
+}
+
 function getServerUrl(): string {
   return (store.get(serverUrlKey) as string | undefined) || DEFAULT_SERVER
-}
-
-function isHttpUrl(url: string): boolean {
-  return url.startsWith('http://') || url.startsWith('https://')
-}
-
-function normalizeServerUrl(url: string): string {
-  const normalized = new URL(url.trim())
-  if (!isHttpUrl(normalized.toString())) {
-    throw new Error('Server URL must use http:// or https://')
-  }
-
-  normalized.hash = ''
-  return normalized.toString().replace(/\/$/, '')
-}
-
-function getServerCheckUrl(serverUrl: string): string {
-  return new URL(`/${SERVER_CHECK_FILE}`, `${serverUrl}/`).toString()
-}
-
-async function checkServerUrl(
-  serverUrl: string
-): Promise<
-  | { ok: true; serverUrl: string }
-  | { ok: false; serverUrl: string; error: string; offline?: boolean; status?: number }
-> {
-  let normalizedUrl = serverUrl.trim()
-
-  try {
-    normalizedUrl = normalizeServerUrl(serverUrl)
-    const checkUrl = getServerCheckUrl(normalizedUrl)
-    const response = await fetch(checkUrl, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(SERVER_CHECK_TIMEOUT_MS)
-    })
-
-    if (!response.ok) {
-      const error =
-        response.status === 404
-          ? `Could not verify ${normalizedUrl}. The server did not respond with the expected Will Be Done check file.`
-          : `Failed to load ${checkUrl}. Server responded with status ${response.status}.`
-
-      return {
-        ok: false,
-        serverUrl: normalizedUrl,
-        status: response.status,
-        error
-      }
-    }
-
-    let checkPayload: { nonce?: unknown }
-    try {
-      checkPayload = (await response.json()) as { nonce?: unknown }
-    } catch {
-      return {
-        ok: false,
-        serverUrl: normalizedUrl,
-        error: `Could not verify ${normalizedUrl}. The server check file did not return valid JSON.`
-      }
-    }
-
-    if (checkPayload.nonce !== SERVER_CHECK_NONCE) {
-      return {
-        ok: false,
-        serverUrl: normalizedUrl,
-        error: `Could not verify ${normalizedUrl}. The server check file did not contain the expected nonce.`
-      }
-    }
-
-    return { ok: true, serverUrl: normalizedUrl }
-  } catch (error) {
-    const checkUrl = isHttpUrl(normalizedUrl) ? getServerCheckUrl(normalizedUrl) : normalizedUrl
-    let message = error instanceof Error ? error.message : 'Failed to verify the configured server.'
-    const offline =
-      error instanceof Error &&
-      (error.name === 'TimeoutError' ||
-        error.message.includes('fetch failed') ||
-        error.message.includes('network') ||
-        error.message.includes('ENOTFOUND') ||
-        error.message.includes('ECONNREFUSED'))
-
-    if (error instanceof Error && error.name === 'TimeoutError') {
-      message = `Timed out while loading ${checkUrl}.`
-    } else if (offline) {
-      message = `Could not reach ${checkUrl}. Check the server address and your connection.`
-    }
-
-    return {
-      ok: false,
-      serverUrl: normalizedUrl,
-      error: message,
-      offline
-    }
-  }
 }
 
 function loadLocalMainWindow(mode: 'setup' | 'recovery', failedUrl?: string): void {
@@ -495,7 +421,7 @@ function positionAndShowPopup(): void {
   popupWindow.focus()
   popupWindow.webContents.focus()
   popupWindow.webContents.send('popup-show')
-  retryPopupInputFocus(popupWindow, ++popupFocusRequestId)
+  focusPopupInput(popupWindow)
 
   logPopup('popup shown', {
     position: popupWindow.getPosition(),
@@ -504,37 +430,48 @@ function positionAndShowPopup(): void {
   })
 }
 
-function retryPopupInputFocus(window: BrowserWindow, requestId: number, attemptsLeft = 20): void {
-  setTimeout(() => {
-    if (
-      requestId !== popupFocusRequestId ||
-      attemptsLeft === 0 ||
-      window.isDestroyed() ||
-      !window.isVisible()
-    ) {
-      return
-    }
+class InputNotFocused extends Data.TaggedError('InputNotFocused') {}
 
-    void window.webContents
-      .executeJavaScript(
-        "(() => { const input = document.querySelector('input'); input?.focus(); return document.activeElement === input })()"
-      )
-      .then((focused) => {
-        if (focused) {
-          logPopup('input focused by retry', { attempts: 21 - attemptsLeft })
-          return
-        }
+class FocusScriptFailed extends Data.TaggedError('FocusScriptFailed')<{
+  readonly cause: unknown
+}> {}
 
-        retryPopupInputFocus(window, requestId, attemptsLeft - 1)
+const FOCUS_POPUP_INPUT =
+  "(() => { const input = document.querySelector('input'); input?.focus(); return document.activeElement === input })()"
+
+function stopPopupFocus(): void {
+  if (popupFocus) Effect.runFork(Fiber.interrupt(popupFocus))
+  popupFocus = null
+}
+
+function focusPopupInput(window: BrowserWindow): void {
+  stopPopupFocus()
+  let attempts = 0
+  const attempt = Effect.gen(function* () {
+    yield* Effect.sleep(50)
+    if (window.isDestroyed() || !window.isVisible()) return
+    attempts += 1
+    const focused = yield* Effect.tryPromise({
+      try: () => window.webContents.executeJavaScript(FOCUS_POPUP_INPUT) as Promise<boolean>,
+      catch: (cause) => new FocusScriptFailed({ cause })
+    })
+    if (!focused) return yield* new InputNotFocused()
+    logPopup('input focused by retry', { attempts })
+  })
+  popupFocus = Effect.runFork(
+    attempt.pipe(
+      Effect.retry({ times: 19, while: (error) => error._tag === 'InputNotFocused' }),
+      Effect.catchTags({
+        InputNotFocused: () => Effect.void,
+        FocusScriptFailed: ({ cause }) =>
+          Effect.sync(() => console.error(POPUP_LOG_PREFIX, 'input focus retry failed', cause))
       })
-      .catch((error: unknown) => {
-        console.error(POPUP_LOG_PREFIX, 'input focus retry failed', error)
-      })
-  }, 50)
+    )
+  )
 }
 
 function hidePopup(): void {
-  popupFocusRequestId += 1
+  stopPopupFocus()
   if (popupWindow && !popupWindow.isDestroyed() && popupWindow.isVisible()) {
     popupWindow.hide()
   }
@@ -687,17 +624,9 @@ if (gotTheLock) {
       }
     }
 
-    ipcMain.handle('run-google-auth', async (event, url: string) => {
-      if (
-        !mainWindow ||
-        event.sender !== mainWindow.webContents ||
-        event.senderFrame !== mainWindow.webContents.mainFrame ||
-        typeof url !== 'string'
-      ) {
-        throw new Error('Google authentication must start from the main app window')
-      }
+    handleFromMainWindow('run-google-auth', Schema.Tuple([Schema.String]), async (event, [url]) => {
       const launchUrl = new URL(
-        validateGoogleAuthLaunch(getServerUrl(), event.senderFrame.url, url)
+        validateGoogleAuthLaunch(getServerUrl(), event.senderFrame!.url, url)
       )
       const { port, completion, stop } = await listenForGoogleAuth(
         launchUrl.searchParams.get('id')!,
@@ -713,21 +642,20 @@ if (gotTheLock) {
       return completion
     })
 
-    ipcMain.handle('cancel-google-auth', (event, flowId: string) => {
-      if (event.sender === mainWindow?.webContents && typeof flowId === 'string')
-        stopGoogleAuth(flowId)
-    })
+    handleFromMainWindow('cancel-google-auth', Schema.Tuple([Schema.String]), (_event, [flowId]) =>
+      stopGoogleAuth(flowId)
+    )
 
     // IPC: get/set server URL, reload window to new server
-    ipcMain.handle('get-server-url', () => {
-      return getServerUrl()
-    })
+    handleFromMainWindow('get-server-url', Schema.Tuple([]), () => getServerUrl())
 
-    ipcMain.handle('check-server-url', async (_event, url?: string) => {
-      return checkServerUrl(url || getServerUrl())
-    })
+    handleFromMainWindow(
+      'check-server-url',
+      Schema.Tuple([Schema.UndefinedOr(Schema.String)]),
+      (_event, [url]) => checkServerUrl(url || getServerUrl())
+    )
 
-    ipcMain.handle('set-server-url', async (_event, url: string) => {
+    handleFromMainWindow('set-server-url', Schema.Tuple([Schema.String]), async (_event, [url]) => {
       const checkResult = await checkServerUrl(url)
       if (!checkResult.ok) {
         throw new Error(checkResult.error)
@@ -745,7 +673,7 @@ if (gotTheLock) {
       createWindow()
     })
 
-    ipcMain.handle('reset-server-url', async () => {
+    handleFromMainWindow('reset-server-url', Schema.Tuple([]), () => {
       store.set(serverUrlKey, DEFAULT_SERVER)
 
       reloadPopupWindow()
@@ -771,7 +699,9 @@ if (gotTheLock) {
 
     // Check for updates (downloads and notifies user when ready)
     if (!is.dev && app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify()
+      autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
+        console.error('Update check failed:', error)
+      })
     }
 
     app.on('activate', function () {

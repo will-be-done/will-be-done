@@ -11,6 +11,7 @@ import {
   isDeletedChange,
   type PrimitiveRow,
 } from "@will-be-done/slices/common";
+import { Cause, Effect, Fiber } from "effect";
 import { flushPendingDrafts } from "./pendingDraftFlushes.ts";
 import type { ChangePersistedEvent } from "./syncTypes";
 
@@ -88,38 +89,36 @@ export const createLocalPersistQueue = ({
   postChanges,
   onPersisted,
 }: CreateLocalPersistQueueArgs) => {
-  const publications = new Set<Promise<void>>();
-  const flushDraftsAndPersist = async () => {
+  const publications = new Set<Fiber.Fiber<void>>();
+  let unsubscribe: (() => void) | undefined;
+
+  const drain = async () => {
     flushPendingDrafts();
     await execAsync(syncSubDb.waitForPersistence());
-    await Promise.all([...publications]);
+    await Effect.runPromise(Fiber.awaitAll(publications));
   };
 
-  const flushDraftsAndPersistBestEffort = () => {
-    void flushDraftsAndPersist();
+  const drainBestEffort = () => {
+    void drain();
   };
 
-  const flushDraftsAndPersistWhenHidden = () => {
+  const drainWhenHidden = () => {
     if (document.visibilityState === "hidden") {
-      flushDraftsAndPersistBestEffort();
+      drainBestEffort();
     }
   };
 
   return {
     start: () => {
-      window.addEventListener("beforeunload", flushDraftsAndPersistBestEffort, {
+      window.addEventListener("beforeunload", drainBestEffort, {
         capture: true,
       });
-      window.addEventListener("pagehide", flushDraftsAndPersistBestEffort, {
+      window.addEventListener("pagehide", drainBestEffort, { capture: true });
+      document.addEventListener("visibilitychange", drainWhenHidden, {
         capture: true,
       });
-      document.addEventListener(
-        "visibilitychange",
-        flushDraftsAndPersistWhenHidden,
-        { capture: true },
-      );
 
-      syncSubDb.subscribe((ops, traits) => {
+      unsubscribe = syncSubDb.subscribe((ops, traits) => {
         if (traits.some((t) => t.type === "skip-sync")) {
           return;
         }
@@ -136,18 +135,32 @@ export const createLocalPersistQueue = ({
           publish();
           return;
         }
-        const publication = persisted.then(publish);
-        publications.add(publication);
-        void publication.then(
-          () => publications.delete(publication),
-          (error: unknown) => {
-            publications.delete(publication);
-            console.error(error);
-          },
+        // Other tabs and the syncer must only see changes that are durable.
+        const publication = Effect.runFork(
+          Effect.promise(() => persisted).pipe(
+            Effect.andThen(Effect.sync(publish)),
+            Effect.catchCause((cause) =>
+              Effect.sync(() => console.error(Cause.squash(cause))),
+            ),
+          ),
         );
+        publications.add(publication);
+        publication.addObserver(() => publications.delete(publication));
       });
     },
-    drain: flushDraftsAndPersist,
-    flushDraftsAndPersist,
+    stop: () => {
+      window.removeEventListener("beforeunload", drainBestEffort, {
+        capture: true,
+      });
+      window.removeEventListener("pagehide", drainBestEffort, {
+        capture: true,
+      });
+      document.removeEventListener("visibilitychange", drainWhenHidden, {
+        capture: true,
+      });
+      unsubscribe?.();
+      unsubscribe = undefined;
+    },
+    drain,
   };
 };

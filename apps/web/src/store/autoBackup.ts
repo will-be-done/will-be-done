@@ -1,92 +1,43 @@
 import { asyncDispatch, SubscribableDB } from "@will-be-done/hyperdb";
 import { getSpaceBackup } from "@will-be-done/slices/space";
+import { Cause, Data, Effect } from "effect";
 
-// --- IndexedDB helpers ---
+const RETENTION_DAYS = 7;
 
-function openBackupDB(dbName: string): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(`auto-backups-${dbName}`, 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains("backups")) {
-        db.createObjectStore("backups");
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+class BackupStoreError extends Data.TaggedError("BackupStoreError")<{
+  readonly cause: unknown;
+}> {}
+
+const openBackupDB = (dbName: string) =>
+  Effect.acquireRelease(
+    Effect.callback<IDBDatabase, BackupStoreError>((resume) => {
+      const request = indexedDB.open(`auto-backups-${dbName}`, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("backups")) {
+          db.createObjectStore("backups");
+        }
+      };
+      request.onsuccess = () => resume(Effect.succeed(request.result));
+      request.onerror = () =>
+        resume(Effect.fail(new BackupStoreError({ cause: request.error })));
+    }),
+    (db) => Effect.sync(() => db.close()),
+  );
+
+const requestResult = <T>(request: IDBRequest<T>) =>
+  Effect.callback<T, BackupStoreError>((resume) => {
+    request.onsuccess = () => resume(Effect.succeed(request.result));
+    request.onerror = () =>
+      resume(Effect.fail(new BackupStoreError({ cause: request.error })));
   });
-}
 
-function saveBackup(dbName: string, backup: unknown): Promise<void> {
-  return new Promise((resolve, reject) => {
-    openBackupDB(dbName).then((db) => {
-      const key = todayKey();
-      const tx = db.transaction("backups", "readwrite");
-      const store = tx.objectStore("backups");
-      store.put({ backedAt: Date.now(), data: JSON.stringify(backup) }, key);
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error);
-      };
-    }, reject);
+const transactionComplete = (tx: IDBTransaction) =>
+  Effect.callback<void, BackupStoreError>((resume) => {
+    tx.oncomplete = () => resume(Effect.void);
+    tx.onerror = tx.onabort = () =>
+      resume(Effect.fail(new BackupStoreError({ cause: tx.error })));
   });
-}
-
-function getAllBackupKeys(dbName: string): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    openBackupDB(dbName).then((db) => {
-      const tx = db.transaction("backups", "readonly");
-      const store = tx.objectStore("backups");
-      const request = store.getAllKeys();
-      request.onsuccess = () => {
-        db.close();
-        resolve(request.result as string[]);
-      };
-      request.onerror = () => {
-        db.close();
-        reject(request.error);
-      };
-    }, reject);
-  });
-}
-
-function deleteBackup(dbName: string, dateKey: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    openBackupDB(dbName).then((db) => {
-      const tx = db.transaction("backups", "readwrite");
-      const store = tx.objectStore("backups");
-      store.delete(dateKey);
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error);
-      };
-    }, reject);
-  });
-}
-
-async function cleanOldBackups(
-  dbName: string,
-  retentionDays: number,
-): Promise<void> {
-  const keys = await getAllBackupKeys(dbName);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - retentionDays);
-  const cutoffKey = todayKeyFrom(cutoff);
-
-  for (const key of keys) {
-    if (key < cutoffKey) {
-      await deleteBackup(dbName, key);
-    }
-  }
-}
 
 function todayKey(): string {
   return todayKeyFrom(new Date());
@@ -99,10 +50,44 @@ function todayKeyFrom(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-async function hasBackupForToday(dbName: string): Promise<boolean> {
-  const keys = await getAllBackupKeys(dbName);
-  return keys.includes(todayKey());
-}
+export const backUpToday = (dbName: string, syncSubDb: SubscribableDB) =>
+  Effect.gen(function* () {
+    const db = yield* openBackupDB(dbName);
+    const keys = (yield* requestResult(
+      db.transaction("backups", "readonly").objectStore("backups").getAllKeys(),
+    )) as string[];
+    const today = todayKey();
+    if (keys.includes(today)) return;
+
+    const backup = yield* Effect.promise(() =>
+      asyncDispatch(syncSubDb, getSpaceBackup({})),
+    );
+    const saveTx = db.transaction("backups", "readwrite");
+    saveTx
+      .objectStore("backups")
+      .put({ backedAt: Date.now(), data: JSON.stringify(backup) }, today);
+    yield* transactionComplete(saveTx);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - RETENTION_DAYS);
+    const cutoffKey = todayKeyFrom(cutoff);
+    const expired = keys.filter((key) => key < cutoffKey);
+    if (expired.length > 0) {
+      const cleanupTx = db.transaction("backups", "readwrite");
+      const store = cleanupTx.objectStore("backups");
+      for (const key of expired) store.delete(key);
+      yield* transactionComplete(cleanupTx);
+    }
+
+    console.log("Auto-backup saved for", today);
+  }).pipe(
+    Effect.scoped,
+    Effect.catchCause((cause) =>
+      Effect.sync(() =>
+        console.error("Auto-backup failed:", Cause.squash(cause)),
+      ),
+    ),
+  );
 
 // --- AutoBackuper ---
 
@@ -147,22 +132,10 @@ export class AutoBackuper {
     if (this.idleTimer !== null) {
       clearTimeout(this.idleTimer);
     }
-    this.idleTimer = setTimeout(() => void this.onIdle(), IDLE_TIMEOUT);
+    this.idleTimer = setTimeout(() => this.onIdle(), IDLE_TIMEOUT);
   }
 
-  private async onIdle(): Promise<void> {
-    try {
-      if (await hasBackupForToday(this.dbName)) {
-        return;
-      }
-
-      const backup = await asyncDispatch(this.syncSubDb, getSpaceBackup({}));
-      await saveBackup(this.dbName, backup);
-      await cleanOldBackups(this.dbName, 7);
-
-      console.log("Auto-backup saved for", todayKey());
-    } catch (e) {
-      console.error("Auto-backup failed:", e);
-    }
+  private onIdle(): void {
+    void Effect.runPromise(backUpToday(this.dbName, this.syncSubDb));
   }
 }

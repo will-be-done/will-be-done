@@ -110,6 +110,11 @@ export class Syncer {
   private wakeSyncLoop = () => {
     this.forceSync();
   };
+  private wakeWhenVisible = () => {
+    if (document.visibilityState === "visible") {
+      this.wakeSyncLoop();
+    }
+  };
 
   constructor(
     private syncDB: HyperDB,
@@ -139,11 +144,7 @@ export class Syncer {
     void this.statusChannel.postMessage({ type: "request-status" });
     this.applySyncV4Download = createApplySyncV4Download(nextClock);
 
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        this.wakeSyncLoop();
-      }
-    });
+    document.addEventListener("visibilitychange", this.wakeWhenVisible);
     window.addEventListener("online", this.wakeSyncLoop);
     window.addEventListener("focus", this.wakeSyncLoop);
   }
@@ -182,6 +183,19 @@ export class Syncer {
     const loop = this.loop;
     this.loop = undefined;
     return loop ? Effect.runPromise(Fiber.interrupt(loop)) : Promise.resolve();
+  }
+
+  async close() {
+    this.terminal = true;
+    await this.stop();
+    document.removeEventListener("visibilitychange", this.wakeWhenVisible);
+    window.removeEventListener("online", this.wakeSyncLoop);
+    window.removeEventListener("focus", this.wakeSyncLoop);
+    await this.elector.die();
+    await Promise.all([
+      this.statusChannel.close(),
+      this.electionChannel.close(),
+    ]);
   }
 
   forceSync() {

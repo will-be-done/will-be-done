@@ -191,6 +191,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.1.1
         version: 5.2.0(vite@7.3.6(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@will-be-done/slices':
+        specifier: workspace:*
+        version: link:../slices
+      effect:
+        specifier: ^4.1.2
+        version: 4.1.2
       electron:
         specifier: 39.8.3
         version: 39.8.3
@@ -463,9 +469,6 @@ importers:
       '@will-be-done/slices':
         specifier: workspace:*
         version: link:../slices
-      await-lock:
-        specifier: ^3.0.0
-        version: 3.0.0
       broadcast-channel:
         specifier: ^7.2.0
         version: 7.3.0
@@ -626,6 +629,9 @@ importers:
       eslint-plugin-unused-imports:
         specifier: ^4.3.0
         version: 4.4.1(@typescript-eslint/eslint-plugin@8.62.0(@typescript-eslint/parser@8.62.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))
+      fake-indexeddb:
+        specifier: ^6.2.7
+        version: 6.2.7
       globals:
         specifier: ^16.5.0
         version: 16.5.0
@@ -5650,6 +5656,10 @@ packages:
     resolution: {integrity: sha512-GDhU9ntwuKyGXdZBUgTIe+vXnWj0fppUEtMDL0+idd5Sta8TGpHssn/eusA9mrPr9qNDym6SxAYZjNvCn/9RBg==}
     engines: {node: '>= 10.17.0'}
     hasBin: true
+
+  fake-indexeddb@6.2.7:
+    resolution: {integrity: sha512-g0ghQ+BmU3CSZaHup5FigEAAtCmtNyxkrmID7OAeK2qONHghw1aQ2l2T1RxmfhP1H1tEXVRWArUTGVCk5832ww==}
+    engines: {node: '>=18'}
 
   fast-decode-uri-component@1.0.1:
     resolution: {integrity: sha512-WKgKWg5eUxvRZGwW8FvfbaH7AXSh2cL+3j5fMGzUMCxWBJ3dV3a7Wz8y2f/uQ0e3B6WmodD3oS54jTQ9HVTIIg==}
@@ -14888,6 +14898,8 @@ snapshots:
       '@types/yauzl': 2.10.3
     transitivePeerDependencies:
       - supports-color
+
+  fake-indexeddb@6.2.7: {}
 
   fast-decode-uri-component@1.0.1: {}
 
