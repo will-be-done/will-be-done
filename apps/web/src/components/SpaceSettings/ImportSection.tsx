@@ -167,32 +167,31 @@ export function ImportSection() {
             </a>
             .
             <ReplaceWarning />
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="password"
+                value={todoistToken}
+                onChange={(e) => setTodoistToken(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleTodoistImport()}
+                placeholder="Paste your API token…"
+                className="min-w-0 flex-1 rounded-lg bg-white/[0.05] px-3 py-2 text-[13px] text-content outline-none ring-1 ring-white/10 transition-all placeholder:text-content-tinted/40 focus:ring-white/20"
+              />
+              <button
+                onClick={handleTodoistImport}
+                disabled={todoistImporting || !todoistToken.trim()}
+                className={settingsButtonClass}
+              >
+                <Download className="h-3.5 w-3.5 flex-shrink-0" />
+                {todoistImporting ? "Importing…" : "Import"}
+              </button>
+            </div>
             {todoistError && (
               <p className="mt-2 text-[12px] text-red-400">{todoistError}</p>
             )}
             {todoistSuccess && <SuccessNote>Imported successfully</SuccessNote>}
           </>
         }
-      >
-        <div className="flex items-center gap-2 sm:w-80">
-          <input
-            type="password"
-            value={todoistToken}
-            onChange={(e) => setTodoistToken(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleTodoistImport()}
-            placeholder="Paste your API token…"
-            className="min-w-0 flex-1 rounded-lg bg-white/[0.05] px-3 py-2 text-[13px] text-content outline-none ring-1 ring-white/10 transition-all placeholder:text-content-tinted/40 focus:ring-white/20"
-          />
-          <button
-            onClick={handleTodoistImport}
-            disabled={todoistImporting || !todoistToken.trim()}
-            className={settingsButtonClass}
-          >
-            <Download className="h-3.5 w-3.5 flex-shrink-0" />
-            {todoistImporting ? "Importing…" : "Import"}
-          </button>
-        </div>
-      </SettingsRow>
+      />
     </SettingsGroup>
   );
 }

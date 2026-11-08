@@ -33,7 +33,7 @@ export function SettingsRow({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+    <div className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between md:gap-8">
       <div className="min-w-0">
         <h3 className="text-[14px] font-medium text-content">{title}</h3>
         {description && (

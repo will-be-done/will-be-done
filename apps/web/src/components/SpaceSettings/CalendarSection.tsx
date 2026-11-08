@@ -146,7 +146,11 @@ export function CalendarSection() {
             </div>
           ) : (
             <div className="mt-4 flex flex-col gap-2">
-              <div className="flex self-start rounded-lg p-0.5 ring-1 ring-white/10">
+              <div
+                role="tablist"
+                aria-label="Calendar type"
+                className="flex self-start rounded-lg p-0.5 ring-1 ring-white/10"
+              >
                 {(
                   [
                     ["caldav", "CalDAV account"],
@@ -156,6 +160,10 @@ export function CalendarSection() {
                   <button
                     key={value}
                     type="button"
+                    role="tab"
+                    id={`calendar-kind-${value}`}
+                    aria-selected={kind === value}
+                    aria-controls="calendar-kind-panel"
                     onClick={() => setKind(value)}
                     className={cn(
                       "cursor-pointer rounded-md px-3 py-1 text-[13px] transition-colors",
@@ -170,6 +178,9 @@ export function CalendarSection() {
               </div>
 
               <form
+                id="calendar-kind-panel"
+                role="tabpanel"
+                aria-labelledby={`calendar-kind-${kind}`}
                 className="flex flex-col gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
