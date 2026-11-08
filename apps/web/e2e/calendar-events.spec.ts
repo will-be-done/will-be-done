@@ -10,6 +10,7 @@ import {
   createSpace,
   openSpace,
   openSpaceSettings,
+  closeSpaceSettings,
   signupUser,
   uniqueE2EName,
   waitForSpaceOnServer,
@@ -83,14 +84,13 @@ function radicaleCalendar(request: APIRequestContext) {
 // Settings live in the projects sidebar; the calendar page has none.
 async function refreshCalendars(page: Page) {
   await page.getByRole("link", { name: "projects", exact: true }).click();
-  const settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Calendars" }).click();
+  const settings = await openSpaceSettings(page, "Calendars");
   const refreshed = page.waitForResponse(
     (response) => response.url().includes("calendars.refresh") && response.ok(),
   );
   await settings.getByRole("button", { name: "Refresh calendar" }).click();
   await refreshed;
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  await closeSpaceSettings(page);
   await page.getByRole("link", { name: "calendar", exact: true }).click();
 }
 
@@ -131,14 +131,13 @@ test("shows CalDAV events and follows their changes on the server", async ({
   await openSpace(page, spaceName);
   await waitForSpaceOnServer(page);
 
-  const settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Calendars" }).click();
+  const settings = await openSpaceSettings(page, "Calendars");
   await settings.getByPlaceholder(/^Server address/).fill(caldavUrl);
   await settings.getByPlaceholder("Username or email").fill(radicale.user);
   await settings.getByPlaceholder("App password").fill("secret");
   await settings.getByRole("button", { name: "Connect" }).click();
   await expect(settings.getByLabel("Work")).toBeChecked();
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  await closeSpaceSettings(page);
 
   const todayEvent = (text: string) =>
     page.locator("[data-external-event]", { hasText: text });

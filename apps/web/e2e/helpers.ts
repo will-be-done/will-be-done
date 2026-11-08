@@ -186,13 +186,32 @@ export async function openTaskDetails(page: Page, title: string) {
   return { item, description };
 }
 
-export async function openSpaceSettings(page: Page) {
-  await page.getByRole("button", { name: "Space settings" }).click();
+export async function openSpaceSettings(
+  page: Page,
+  section:
+    | "General"
+    | "Account"
+    | "Calendars"
+    | "API tokens"
+    | "Backup"
+    | "Import" = "General",
+) {
+  await page.getByRole("link", { name: "Space settings" }).click();
+  await page
+    .getByRole("navigation", { name: "Settings" })
+    .getByRole("link", { name: section, exact: true })
+    .click();
 
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading", { name: "Settings" })).toBeVisible();
+  const settings = page.getByRole("main");
+  await expect(
+    settings.getByRole("heading", { level: 1, name: section }),
+  ).toBeVisible();
 
-  return dialog;
+  return settings;
+}
+
+export async function closeSpaceSettings(page: Page) {
+  await page.getByRole("link", { name: "Back", exact: true }).click();
 }
 
 // A new space reaches the server with its first sync; server-side calls fail

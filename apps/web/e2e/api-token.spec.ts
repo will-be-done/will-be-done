@@ -6,6 +6,7 @@ import {
   createSpace,
   createTodayTask,
   openSpace,
+  closeSpaceSettings,
   openSpaceSettings,
   signupUser,
   taskItem,
@@ -61,8 +62,7 @@ test("syncs API token writes and rejects the token after revocation", async ({
 
   const { spaceId } = await waitForSpaceOnServer(page);
 
-  const settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Tokens" }).click();
+  const settings = await openSpaceSettings(page, "API tokens");
   await settings.getByRole("button", { name: "Create token" }).click();
 
   const revealedToken = settings.locator("code[title]");
@@ -92,7 +92,7 @@ test("syncs API token writes and rejects the token after revocation", async ({
   };
   expect(sections).toHaveLength(1);
 
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  await closeSpaceSettings(page);
   await page.getByRole("link", { name: /^Inbox(?:\s+\d+)?$/ }).click();
   await expect(page).toHaveURL(/\/spaces\/[^/]+\/projects\/[^/]+$/);
 
@@ -110,8 +110,7 @@ test("syncs API token writes and rejects the token after revocation", async ({
 
   await expect(taskItem(page, taskTitle)).toBeVisible();
 
-  const reopenedSettings = await openSpaceSettings(page);
-  await reopenedSettings.getByRole("button", { name: "Tokens" }).click();
+  const reopenedSettings = await openSpaceSettings(page, "API tokens");
   const tokenCode = reopenedSettings
     .locator("code")
     .filter({ hasText: token!.slice(-8) });
@@ -373,12 +372,11 @@ test("does not show the prior user's cached tokens after account switching", asy
     localStorage.getItem("auth_token"),
   );
   expect(firstToken).toBeTruthy();
-  let settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Tokens" }).click();
+  let settings = await openSpaceSettings(page, "API tokens");
   await expect(
     settings.locator("code").filter({ hasText: firstToken!.slice(-8) }),
   ).toBeVisible();
-  await settings.getByRole("button", { name: "Close settings" }).click();
+  await closeSpaceSettings(page);
 
   await page.goto("/spaces");
   await signOutUser(page);
@@ -391,8 +389,7 @@ test("does not show the prior user's cached tokens after account switching", asy
   );
   expect(secondToken).toBeTruthy();
 
-  settings = await openSpaceSettings(page);
-  await settings.getByRole("button", { name: "Tokens" }).click();
+  settings = await openSpaceSettings(page, "API tokens");
   await expect(
     settings.locator("code").filter({ hasText: secondToken!.slice(-8) }),
   ).toBeVisible();
